@@ -41,37 +41,61 @@ Every team shipping AI agents in production hits the same wall:
 
 ## Quick Start
 
-```python
-pip install runledger-sdk
+> **Phase 1 is live.** The ingestion API, multi-tenancy, and API-key auth are fully operational. SDK instrumentation (OpenAI + LangChain/LangGraph) ships in Phase 2/3.
+
+**Run locally:**
+```bash
+git clone https://github.com/yourorg/runledger
+cd runledger
+make install        # uv sync --all-packages + npm install
+make dev-infra      # start Postgres + Redis via Docker Compose
+make migrate        # apply initial schema (9 tables, 6 enum types)
+make seed           # create default tenant + workspace + API key
+make dev-api        # FastAPI with hot-reload at http://localhost:8000
 ```
 
+**Ingest your first event:**
+```bash
+# Use the API key printed by `make seed`
+curl -X POST http://localhost:8000/ingest/v1/events \
+  -H "Authorization: Bearer rl_test_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "run_start",
+    "run_id": "550e8400-e29b-41d4-a716-446655440000",
+    "started_at": "2026-02-26T10:00:00Z",
+    "feature_tag": "support-chat"
+  }'
+# → {"accepted": 1}
+```
+
+**Batch ingest (typical SDK flow):**
+```bash
+curl -X POST http://localhost:8000/ingest/v1/batch \
+  -H "Authorization: Bearer rl_test_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "events": [
+      {"event_type": "run_start", "run_id": "...", "started_at": "..."},
+      {"event_type": "provider_call", "run_id": "...", "provider": "openai",
+       "model": "gpt-4o", "input_tokens": 512, "output_tokens": 128,
+       "cost_usd": "0.00384", "status": "success"},
+      {"event_type": "run_end", "run_id": "...", "status": "succeeded",
+       "ended_at": "...", "total_cost_usd": "0.00384"}
+    ]
+  }'
+# → {"accepted": 3}
+```
+
+**SDK (coming in Phase 2/3):**
 ```python
 from runledger_sdk import RunLedger
 
-# One line to instrument your entire app
 rl = RunLedger(api_key="rl_live_...")
 rl.instrument()  # patches OpenAI + LangChain/LangGraph automatically
 
-# Optionally attach user context
 with rl.context(end_user_id="user_123", feature_tag="support-chat"):
     response = openai_client.chat.completions.create(...)
-```
-
-That's it. Your runs, steps, tokens, latency, and cost are now flowing into RunLedger.
-
-**LangChain / LangGraph:**
-```python
-from runledger_sdk.langchain import RunLedgerCallbackHandler
-
-handler = RunLedgerCallbackHandler(api_key="rl_live_...")
-
-# Attach to any chain or graph
-chain.invoke(input, config={"callbacks": [handler]})
-```
-
-**Validate your instrumentation:**
-```bash
-runledger validate --api-key rl_live_...
 ```
 
 ---
@@ -126,6 +150,38 @@ runledger validate --api-key rl_live_...
 
 ---
 
+## API Reference (Phase 1)
+
+All ingest endpoints require `Authorization: Bearer <api_key>`.
+Admin endpoints require `X-Admin-Secret: <secret_key>`.
+
+### Ingest
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/ingest/v1/events` | Ingest a single event (202, async) |
+| `POST` | `/ingest/v1/batch` | Ingest a batch of events (202, async) |
+| `GET`  | `/ingest/v1/runs` | List agent runs for the workspace |
+
+**Event types:** `run_start` · `run_end` · `span_start` · `span_end` · `provider_call` · `tool_call` · `outcome`
+
+### Admin
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/admin/tenants` | Create tenant |
+| `GET`  | `/admin/tenants` | List tenants |
+| `POST` | `/admin/workspaces` | Create workspace |
+| `GET`  | `/admin/tenants/{id}/workspaces` | List workspaces for tenant |
+| `POST` | `/admin/applications` | Create application |
+| `POST` | `/admin/workspaces/{id}/api-keys` | Create API key (returns raw key once) |
+| `GET`  | `/admin/workspaces/{id}/api-keys` | List active API keys |
+| `DELETE` | `/admin/api-keys/{id}` | Revoke API key |
+
+Interactive docs: `http://localhost:8000/docs`
+
+---
+
 ## OSS vs Paid
 
 **Open source (free forever):**
@@ -152,8 +208,8 @@ See [`IMPLEMENTATION.md`](./IMPLEMENTATION.md) for the full 6-month technical im
 
 | Phase | What ships | Status |
 |-------|------------|--------|
-| 0 | Monorepo + infrastructure foundation | Planned |
-| 1 | Ingestion API + multi-tenancy + auth | Planned |
+| 0 | Monorepo + infrastructure foundation | ✅ Done |
+| 1 | Ingestion API + multi-tenancy + auth | ✅ Done |
 | 2 | SDK — OpenAI wrapper + context propagation | Planned |
 | 3 | SDK — LangChain + LangGraph + CLI | Planned |
 | 4 | Billing-grade metering core + pricing engine | Planned |
@@ -173,13 +229,17 @@ See [`IMPLEMENTATION.md`](./IMPLEMENTATION.md) for the full 6-month technical im
 ```bash
 git clone https://github.com/yourorg/runledger
 cd runledger
-docker compose up
+make install && make dev-infra && make migrate && make seed
+make dev-api    # API at http://localhost:8000
+make dev-web    # UI  at http://localhost:3000  (Phase 5)
 ```
 
-Open `http://localhost:3000`.
+**Full stack via Docker Compose:**
+```bash
+make dev        # starts Postgres + Redis + API + Worker + Web
+```
 
-**Cloud (Railway / Render / Fly.io):**
-See the [deployment guide](./docs/deployment.md).
+**Cloud (Railway / Render / Fly.io):** deployment guide coming in Phase 4.
 
 ---
 
