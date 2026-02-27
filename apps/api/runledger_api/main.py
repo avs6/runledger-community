@@ -8,7 +8,7 @@ from runledger_api.core.config import settings
 from runledger_api.core.db import engine
 from runledger_api.core.logging import configure_logging
 from runledger_api.core.redis import redis_client
-from runledger_api.routers import analytics, auth, health, ingest
+from runledger_api.routers import analytics, auth, health, ingest, login, runs
 
 configure_logging()
 log = structlog.get_logger()
@@ -34,3 +34,5 @@ app.include_router(health.router)
 app.include_router(ingest.router)
 app.include_router(auth.router)
 app.include_router(analytics.router)
+app.include_router(runs.router)
+app.include_router(login.router)

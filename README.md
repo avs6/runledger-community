@@ -39,8 +39,6 @@ Every team shipping AI agents in production hits the same wall:
 
 ## Current Status
 
-Phases 0–4 are complete and production-ready. The SDK ships with OpenAI, LangChain, and LangGraph support, and the metering engine automatically prices every call within 60 seconds.
-
 | Phase | What ships | Status |
 |-------|------------|--------|
 | 0 | Monorepo · infrastructure · health API · CI | ✅ Complete |
@@ -48,7 +46,7 @@ Phases 0–4 are complete and production-ready. The SDK ships with OpenAI, LangC
 | 2 | SDK — OpenAI wrapper · context propagation · local mode | ✅ Complete |
 | 3 | SDK — LangChain · LangGraph · CLI · example agents | ✅ Complete |
 | 4 | Billing-grade metering · pricing engine · analytics API | ✅ Complete |
-| 5 | Run Explorer + DAG viewer UI (Next.js) | Planned |
+| 5 | Run Explorer + DAG viewer UI (Next.js dashboard) | ✅ Complete |
 | 6 | Metering dashboard (spend by model/user/feature) | Planned |
 | 7 | Budgets + spend guardrails with automatic actions | Planned |
 | 8 | Chargeback engine + reconciliation + dispute trail | Planned |
@@ -56,43 +54,182 @@ Phases 0–4 are complete and production-ready. The SDK ships with OpenAI, LangC
 | 10 | End-user analytics + replay harness | Planned |
 | 11 | Tamper-evident ledger + production polish + OSS release | Planned |
 
-**103 tests** across all completed phases (ruff + mypy clean).
+---
+
+## Setup from Scratch
+
+### Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Docker + Docker Compose | Latest | Required for the full stack |
+| Git | Any | |
+| Node.js | 18+ | Only if running the web app outside Docker |
+| Python | 3.13+ | Only if running the API outside Docker |
+| uv | Latest | Only if running the API outside Docker |
 
 ---
 
-## Quick Start
+### Option A — Docker Compose (recommended)
 
-See **[QUICKSTART.md](./QUICKSTART.md)** for the full 5-minute guide including LangChain, LangGraph, async, and FastAPI patterns.
+This is the fastest path. Docker runs Postgres, Redis, the API, the Celery worker, and the dashboard in one command.
 
-### 1. Install
+**1. Clone the repo**
+
+```bash
+git clone https://github.com/yourorg/runledger
+cd runledger
+```
+
+**2. Start all services**
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+```
+
+This starts:
+- `postgres` — PostgreSQL 16 on port 5432
+- `redis` — Redis 7 on port 6379
+- `api` — FastAPI + Celery worker on port 8000
+- `web` — Next.js dashboard on port 3000
+
+**3. Run database migrations**
+
+```bash
+docker compose -f infra/docker-compose.yml exec api uv run alembic upgrade head
+```
+
+**4. Seed the database**
+
+```bash
+docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+```
+
+The seed script creates a default workspace, an API key, pricing data for all supported models, and a dashboard login. Output looks like:
+
+```
+Tenant:    default  (a1b2c3d4-...)
+Workspace: default  (e5f6g7h8-...)
+API Key:   rl_dev_xxxxxxxxxxxxxxxxxxxx
+
+Save the API key — it won't be shown again.
+
+Dashboard login:
+  Email:    admin@runledger.local
+  Password: runledger
+  URL:      http://localhost:3000
+```
+
+Save the API key — it is shown once and stored hashed.
+
+**5. Verify**
+
+| URL | What it is |
+|-----|------------|
+| `http://localhost:3000` | Dashboard — Run Explorer + DAG viewer |
+| `http://localhost:8000/docs` | Interactive API docs (Swagger UI) |
+| `http://localhost:8000/health` | Health check — shows DB + Redis status |
+
+Sign in at `http://localhost:3000` with `admin@runledger.local` / `runledger`.
+
+---
+
+### Option B — Local dev (no Docker)
+
+Run each service directly on your machine. Requires Postgres 16, Redis 7, Python 3.13, uv, and Node.js 18+.
+
+**1. Clone and install**
+
+```bash
+git clone https://github.com/yourorg/runledger
+cd runledger
+uv sync --all-packages
+```
+
+**2. Set environment variables**
+
+Create `apps/api/.env` (or export in your shell):
+
+```bash
+DATABASE_URL=postgresql+asyncpg://runledger:runledger@localhost:5432/runledger
+REDIS_URL=redis://localhost:6379/0
+SECRET_KEY=dev-secret-key-change-in-production
+ENVIRONMENT=development
+```
+
+Create `apps/web/.env.local`:
+
+```bash
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=dev-secret-change-in-production-32chars!!
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+An example file is at `apps/web/.env.local.example`.
+
+**3. Run migrations and seed**
+
+```bash
+cd apps/api
+uv run alembic upgrade head
+uv run python scripts/seed.py
+```
+
+**4. Start the API**
+
+```bash
+cd apps/api
+uv run fastapi dev runledger_api/main.py
+```
+
+**5. Start the Celery worker** (separate terminal)
+
+```bash
+cd apps/api
+uv run celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
+uv run celery -A runledger_api.core.celery_app beat --loglevel=info
+```
+
+**6. Start the dashboard** (separate terminal)
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Dashboard runs at `http://localhost:3000`.
+
+---
+
+## Install the SDK
 
 ```bash
 # OpenAI only
 pip install "runledger-sdk[openai]"
 
-# LangChain + LangGraph + CLI
+# With LangChain
+pip install "runledger-sdk[langchain]"
+
+# With LangGraph
+pip install "runledger-sdk[langgraph]"
+
+# Everything + CLI
 pip install "runledger-sdk[all]"
 ```
 
-### 2. Run the local stack
+---
 
-```bash
-git clone https://github.com/yourorg/runledger
-cd runledger
-docker compose up -d                            # Postgres + Redis + API + Worker
-docker compose exec api uv run alembic upgrade head
-docker compose exec api uv run python scripts/seed.py
-# → prints: API Key: rl_test_xxxxxxxxxxxxxxxxxxxx
-```
+## Instrument Your Code
 
-### 3. Instrument your agent (2 lines)
+### OpenAI (2 lines)
 
 ```python
 from runledger_sdk import RunLedger
 import openai
 
-rl = RunLedger(api_key="rl_test_...")   # or set RUNLEDGER_API_KEY
-rl.instrument()                          # wraps openai.OpenAI + AsyncOpenAI
+rl = RunLedger(api_key="rl_dev_...")   # or set RUNLEDGER_API_KEY env var
+rl.instrument()                         # wraps openai.OpenAI + AsyncOpenAI
 
 client = openai.OpenAI()
 
@@ -101,48 +238,11 @@ with rl.context(end_user_id="u_123", feature_tag="support-chat") as run_id:
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": "Hello!"}],
     )
-    print(resp.choices[0].message.content)
 
 rl.shutdown()  # flush before process exits
 ```
 
-Every call inside the `with` block is automatically tracked: model, tokens, latency, and cost in USD.
-
-### 4. Try local mode (zero setup)
-
-No API key, no server — events are logged as structured JSON to stdout:
-
-```python
-rl = RunLedger(local=True)
-rl.instrument()
-
-with rl.context(end_user_id="u_test", feature_tag="dev") as run_id:
-    # ... your OpenAI / LangChain / LangGraph code
-```
-
----
-
-## SDK Integration
-
-### OpenAI
-
-```python
-from runledger_sdk import RunLedger
-import openai
-
-rl = RunLedger(api_key="rl_test_...")
-rl.instrument()
-
-client = openai.OpenAI()
-
-with rl.context(end_user_id="u_123", session_id="sess_abc", feature_tag="chat") as run_id:
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": "Explain transformers in one sentence."}],
-    )
-
-rl.shutdown()
-```
+Every call inside the `with` block is tracked: model, tokens, latency, and cost in USD.
 
 ### LangChain
 
@@ -152,11 +252,13 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-rl = RunLedger(api_key="rl_test_...")
+rl = RunLedger(api_key="rl_dev_...")
 
-chain = ChatPromptTemplate.from_template("Explain {topic} in one sentence.") \
-      | ChatOpenAI(model="gpt-4o-mini") \
-      | StrOutputParser()
+chain = (
+    ChatPromptTemplate.from_template("Explain {topic} in one sentence.")
+    | ChatOpenAI(model="gpt-4o-mini")
+    | StrOutputParser()
+)
 
 handler = rl.callback_handler()
 
@@ -166,18 +268,20 @@ with rl.context(end_user_id="u_456", feature_tag="explainer") as run_id:
 rl.shutdown()
 ```
 
+> If you also call `rl.instrument()`, avoid double-counting:
+> ```python
+> handler = rl.callback_handler(track_llm_cost=False)
+> ```
+
 ### LangGraph
 
 ```python
 from runledger_sdk import RunLedger
 from runledger_sdk.langgraph import instrument_graph
 
-rl = RunLedger(api_key="rl_test_...")
+rl = RunLedger(api_key="rl_dev_...")
 
-# Build and compile your graph normally
 graph = builder.compile()
-
-# Instrument once — returns a new configured view, original graph unchanged
 instrumented = instrument_graph(graph, rl._get_sync_transport())
 
 with rl.context(end_user_id="u_789", feature_tag="qa-agent") as run_id:
@@ -186,30 +290,108 @@ with rl.context(end_user_id="u_789", feature_tag="qa-agent") as run_id:
 rl.shutdown()
 ```
 
-### Context manager
+### Local mode (zero setup)
 
-`rl.context()` is a context manager (sync and async). Contexts nest and inherit:
+Skip the API entirely during early development. Events are printed to stdout as structured JSON:
 
 ```python
-with rl.context(end_user_id="u_123"):
-    # tagged to u_123
+rl = RunLedger(local=True)  # no API key, no server needed
+```
 
-    with rl.context(feature_tag="checkout"):
-        # tagged to u_123 + checkout
+### Async
 
-    with rl.context(feature_tag="search"):
-        # tagged to u_123 + search
+```python
+import asyncio
+import openai
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_dev_...")
+rl.instrument()
+client = openai.AsyncOpenAI()
+
+async def main():
+    async with rl.context(end_user_id="u_async") as run_id:
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Hello!"}],
+        )
+    await rl.aflush()
+
+asyncio.run(main())
+```
+
+---
+
+## Context Manager
+
+`rl.context()` attaches metadata to every event fired inside the block. Contexts nest — inner blocks inherit outer values and can override:
+
+```python
+with rl.context(
+    end_user_id="u_123",        # who triggered this run
+    session_id="sess_abc",      # groups multiple runs into a session
+    feature_tag="support-bot",  # which feature/product area
+    deployment_version="v2.1",  # your app deployment version
+) as run_id:
+    # run_id is a UUID you can log, return to the client, etc.
+    ...
+```
+
+---
+
+## Cross-service Propagation
+
+Preserve run context when calling downstream services:
+
+**Service A (caller)**
+```python
+with rl.context(end_user_id="u_123", feature_tag="pipeline"):
+    headers = rl.propagation_headers()
+    # {'X-RunLedger-Run-Id': '...', 'X-RunLedger-End-User-Id': 'u_123', ...}
+    response = httpx.post("http://service-b/process", headers=headers)
+```
+
+**Service B (receiver)**
+```python
+@app.post("/process")
+async def process(request: Request):
+    ctx = RunLedger.from_headers(dict(request.headers))
+    async with ctx as run_id:
+        # run_id, end_user_id, feature_tag are all restored
+        ...
+```
+
+All spans from both services share the same `run_id` and appear together in the Run Explorer.
+
+---
+
+## Dashboard
+
+The Run Explorer at `http://localhost:3000` shows:
+
+- **Runs list** — searchable, filterable by status/feature/user, time-window presets (1h / 6h / 24h / 7d)
+- **Run detail** — cost + tokens + duration summary, full execution DAG
+- **DAG viewer** — interactive graph of every span (LLM, tool, chain, agent, retrieval) with cost per node; click any node to see full span metadata in a slide-in panel
+
+---
+
+## CLI
+
+```bash
+export RUNLEDGER_API_KEY=rl_dev_...
+
+runledger validate        # sends a test event to verify connectivity
+runledger status          # checks API + DB + Redis health
+runledger runs --limit 5  # lists your 5 most recent agent runs
 ```
 
 ---
 
 ## Analytics API
 
-Once events are flowing, query spend data with your API key:
-
 ```bash
 BASE=http://localhost:8000
-KEY=rl_test_...
+KEY=rl_dev_...
 
 # Total cost + tokens for the last 7 days
 curl "$BASE/analytics/summary" -H "Authorization: Bearer $KEY"
@@ -227,12 +409,26 @@ curl "$BASE/analytics/spend-by-user?limit=10" -H "Authorization: Bearer $KEY"
 curl "$BASE/analytics/spend-by-feature" -H "Authorization: Bearer $KEY"
 ```
 
-All endpoints accept `from` and `to` query params (ISO-8601):
+All endpoints accept `from` and `to` query params (ISO-8601).
 
-```bash
-curl "$BASE/analytics/summary?from=2026-01-01T00:00:00Z&to=2026-01-31T23:59:59Z" \
-     -H "Authorization: Bearer $KEY"
-```
+---
+
+## What Gets Captured Automatically
+
+| Field | How |
+|-------|-----|
+| `model` | From the API response |
+| `input_tokens` / `output_tokens` | From the API response |
+| `cached_input_tokens` | From OpenAI Prompt Caching header |
+| `latency_ms` | Measured wall-clock around the API call |
+| `cost_usd` | Computed server-side from the pricing engine |
+| `end_user_id` | Set by you in `rl.context()` |
+| `session_id` | Set by you in `rl.context()` |
+| `feature_tag` | Set by you in `rl.context()` |
+| `run_id` | Auto-generated UUID (or set by you) |
+| Span DAG | Full parent-child tree via LangChain/LangGraph callbacks |
+
+No prompts or completions are sent unless you opt in to `PrivacyMode.FULL`.
 
 ---
 
@@ -245,25 +441,6 @@ curl "$BASE/analytics/summary?from=2026-01-01T00:00:00Z&to=2026-01-31T23:59:59Z"
 | Google | gemini-1.5-pro · gemini-1.5-flash |
 
 Add a new model by inserting a row into `provider_pricing` — no code change required.
-
----
-
-## What Gets Captured
-
-| Field | Source |
-|-------|--------|
-| `model` | API response |
-| `input_tokens` / `output_tokens` | API response |
-| `cached_input_tokens` | OpenAI Prompt Caching header |
-| `latency_ms` | Measured wall-clock around the call |
-| `cost_usd` | Computed server-side from the pricing engine |
-| `end_user_id` | Set by you in `rl.context()` |
-| `session_id` | Set by you in `rl.context()` |
-| `feature_tag` | Set by you in `rl.context()` |
-| `run_id` | Auto-generated UUID (or set by you) |
-| Span DAG | Full parent-child tree via LangChain/LangGraph callbacks |
-
-No prompts or completions are sent unless you opt in to `PrivacyMode.FULL`.
 
 ---
 
@@ -306,12 +483,11 @@ No prompts or completions are sent unless you opt in to `PrivacyMode.FULL`.
 └───────────────────────────────────────────────────────────┬─┘
                                                             │
                             ┌───────────────────────────────▼──┐
-                            │        RunLedger UI               │
-                            │        (Next.js 14 — Phase 5+)    │
+                            │        RunLedger Dashboard        │
+                            │        (Next.js 14)               │
                             │                                   │
                             │  Run Explorer · DAG Viewer        │
                             │  Metering · Budgets · Chargeback  │
-                            │  Unit Economics · Analytics       │
                             └───────────────────────────────────┘
 ```
 
@@ -319,15 +495,12 @@ No prompts or completions are sent unless you opt in to `PrivacyMode.FULL`.
 
 ## Metering Engine
 
-The pricing engine (Phase 4) runs as a Celery worker and enriches every provider call within 60 seconds:
+The pricing engine runs as a Celery worker and enriches every provider call within 60 seconds:
 
-- **Effective-dated pricing** — prices are versioned by date, so retroactive corrections work correctly
+- **Effective-dated pricing** — prices are versioned by date, so retroactive corrections apply correctly
 - **Workspace overrides** — per-workspace pricing rows take priority over global defaults
-- **Cached input discount** — applies OpenAI Prompt Caching rates (50% off input by default, or a custom rate)
-- **Idempotent rollups** — `usage_hourly` and `usage_daily` tables are fully recomputed per window; replaying produces identical results
-- **Replay backfill** — re-run cost enrichment + rollups for any historical time range after a pricing correction
-
-Beat schedule:
+- **Cached input discount** — applies OpenAI Prompt Caching rates (50% off input by default)
+- **Idempotent rollups** — `usage_hourly` and `usage_daily` are fully recomputed per window; replaying produces identical results
 
 | Task | Interval |
 |------|----------|
@@ -340,7 +513,15 @@ Beat schedule:
 
 ## API Reference
 
-All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped to the key used.
+All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped.
+
+### Runs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/runs` | List runs (cursor pagination + filters) |
+| `GET` | `/runs/{id}` | Run detail — spans + provider calls + tool calls |
+| `GET` | `/runs/{id}/graph` | DAG nodes + edges for the dashboard viewer |
 
 ### Ingestion
 
@@ -349,15 +530,14 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `POST` | `/ingest/v1/events` | Ingest a single event |
 | `POST` | `/ingest/v1/batch` | Ingest up to 100 events |
 
-**Event types:** `run_start` · `run_end` · `span_start` · `span_end` · `provider_call` · `tool_call` · `outcome`
-
 ### Auth
 
 | Method | Path | Description |
 |--------|------|-------------|
+| `POST` | `/auth/login` | Dashboard login (returns session API key) |
 | `POST` | `/auth/workspaces` | Create a workspace |
 | `POST` | `/auth/api-keys` | Generate an API key |
-| `GET`  | `/auth/api-keys` | List active keys (prefix + last_used only) |
+| `GET`  | `/auth/api-keys` | List active keys |
 | `DELETE` | `/auth/api-keys/{id}` | Revoke a key |
 
 ### Analytics
@@ -370,33 +550,22 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `GET` | `/analytics/spend-by-user` | Top spenders (`limit=N`) |
 | `GET` | `/analytics/spend-by-feature` | Cost breakdown by feature tag |
 
-All analytics endpoints accept `from` and `to` (ISO-8601) query params.
-
 Interactive docs: `http://localhost:8000/docs`
 
 ---
 
 ## Example Agents
 
-Runnable examples in `examples/`:
-
 ```bash
 export OPENAI_API_KEY=sk-...
-export RUNLEDGER_API_KEY=rl_test_...   # optional — examples use local=True by default
+export RUNLEDGER_API_KEY=rl_dev_...   # optional — examples use local=True by default
 
-# Basic OpenAI call
 python examples/01_openai_basic.py
-
-# Multi-turn conversation with session tracking
 python examples/02_openai_multi_turn.py
-
-# LangChain chain
 python examples/03_langchain_chain.py
-
-# LangGraph ReAct agent with search + calculator tools
 python examples/04_langgraph_agent.py
 
-# FastAPI service (per-request context + propagation headers)
+# FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload
 curl -X POST http://localhost:8000/chat \
      -H "Content-Type: application/json" \
@@ -406,63 +575,106 @@ curl -X POST http://localhost:8000/chat \
 
 ---
 
-## CLI
+## Troubleshooting
+
+**Events not appearing in the API**
+
+1. Check connectivity: `runledger validate`
+2. Check service health: `runledger status`
+3. Confirm `rl.shutdown()` (sync) or `await rl.aflush()` (async) is called before process exit.
+
+**Dashboard login fails**
+
+Make sure migrations have been run and the seed script was executed. The seed creates the `admin@runledger.local` user. If you need to re-run it, it is safe to run multiple times (idempotent).
+
+**`cost_usd` is NULL**
+
+Cost enrichment runs every 60 seconds via Celery. Make sure both the worker and beat scheduler are running:
 
 ```bash
-export RUNLEDGER_API_KEY=rl_test_...
-
-runledger validate        # send a synthetic test event, confirm receipt
-runledger status          # check API + DB + Redis health
-runledger runs --limit 5  # list your most recent agent runs
+celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
+celery -A runledger_api.core.celery_app beat --loglevel=info
 ```
 
----
+**"No pricing row" in logs**
 
-## Cross-service Propagation
+Run the seed script — it inserts pricing rows for all supported models:
 
-Preserve run context across service boundaries:
+```bash
+docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+```
 
-**Service A (caller)**
+**Duplicate `provider_call` events**
+
+If you use both `rl.instrument()` and `rl.callback_handler()`, pass `track_llm_cost=False` to the handler:
+
 ```python
-with rl.context(end_user_id="u_123", feature_tag="pipeline"):
-    headers = rl.propagation_headers()
-    # {'X-RunLedger-Run-Id': '...', 'X-RunLedger-End-User-Id': 'u_123', ...}
-    response = httpx.post("http://service-b/process", headers=headers)
+handler = rl.callback_handler(track_llm_cost=False)
 ```
-
-**Service B (receiver)**
-```python
-@app.post("/process")
-async def process(request: Request):
-    ctx = RunLedger.from_headers(dict(request.headers))
-    async with ctx as run_id:
-        # run_id, end_user_id, feature_tag are all restored
-        ...
-```
-
-All spans from both services share the same `run_id` and appear together in the run explorer.
 
 ---
 
 ## Development
 
 ```bash
-# Install dependencies
+# Install all workspace dependencies
 uv sync --all-packages
 
-# Run API with hot reload
-cd apps/api && uv run uvicorn runledger_api.main:app --reload
+# Start full local stack
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml exec api uv run alembic upgrade head
+docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
 
-# Run Celery worker
+# API with hot reload
+cd apps/api && uv run fastapi dev runledger_api/main.py
+
+# Celery worker + beat
 cd apps/api && uv run celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
+cd apps/api && uv run celery -A runledger_api.core.celery_app beat --loglevel=info
 
-# Run all tests
+# Dashboard
+cd apps/web && npm run dev
+
+# Tests
 cd apps/api && uv run pytest
 cd packages/sdk && uv run pytest
 
 # Lint + type check
 uv run ruff check .
-uv run mypy .
+uv run mypy apps/api
+```
+
+---
+
+## Deployment
+
+**Self-hosted (Docker Compose):**
+
+```bash
+git clone https://github.com/yourorg/runledger
+cd runledger
+docker compose -f infra/docker-compose.yml up -d
+docker compose -f infra/docker-compose.yml exec api uv run alembic upgrade head
+docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+```
+
+**Cloud (Railway, Render, Fly.io):**
+
+Set these on your services:
+
+```
+DATABASE_URL  = postgresql+asyncpg://...
+REDIS_URL     = redis://...
+SECRET_KEY    = <random 32 bytes hex>
+ENVIRONMENT   = production
+```
+
+For the dashboard, also set:
+
+```
+NEXTAUTH_URL    = https://your-dashboard-domain.com
+NEXTAUTH_SECRET = <random 32 bytes hex>
+NEXT_PUBLIC_API_URL = https://your-api-domain.com
 ```
 
 ---
@@ -473,7 +685,7 @@ uv run mypy .
 - SDK — OpenAI, LangChain, LangGraph
 - Collector + event pipeline
 - Metering + pricing engine + analytics API
-- Run Explorer + DAG viewer (Phase 5)
+- Run Explorer + DAG viewer
 - Spend dashboard (Phase 6)
 - Local replay harness (Phase 10)
 
@@ -487,18 +699,8 @@ uv run mypy .
 
 ---
 
-## Documentation
-
-| Doc | Description |
-|-----|-------------|
-| [QUICKSTART.md](./QUICKSTART.md) | 5-minute getting-started guide |
-| [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Full 6-month technical implementation plan |
-| [roadmap.md](./roadmap.md) | Product roadmap with feature areas and status |
-
----
-
 ## License
 
 Apache 2.0 — see [LICENSE](./LICENSE).
 
-The core SDK and collector are open source. The paid tier (multi-tenancy, enforcement, ledger, enterprise integrations) is offered as a hosted service and under a commercial license.
+The core SDK and collector are open source. The paid tier (enforcement, ledger, chargeback, enterprise integrations) is offered as a hosted service and under a commercial license.

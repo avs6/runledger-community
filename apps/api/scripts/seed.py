@@ -14,6 +14,7 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from passlib.context import CryptContext
 from runledger_api.core.db import AsyncSessionLocal
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import (
@@ -22,10 +23,14 @@ from runledger_api.models.tenant import (
     EnvironmentEnum,
     PlanEnum,
     Tenant,
+    User,
     Workspace,
+    WorkspaceUser,
 )
 from runledger_api.services.auth import generate_api_key
 from sqlalchemy import select
+
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Effective from 2025-01-01 UTC — update as providers change pricing
 _PRICING_EFFECTIVE_FROM = datetime(2025, 1, 1, tzinfo=UTC)
@@ -51,18 +56,20 @@ _PRICING_DATA: list[tuple[str, str, str, str, str | None]] = [
 
 async def seed() -> None:
     async with AsyncSessionLocal() as session:
-        await _seed_tenant(session)
+        workspace = await _seed_tenant(session)
         await _seed_pricing(session)
+        if workspace:
+            await _seed_user(session, workspace)
 
 
-async def _seed_tenant(session: object) -> None:
+async def _seed_tenant(session: object) -> Workspace | None:
     from sqlalchemy.ext.asyncio import AsyncSession
     assert isinstance(session, AsyncSession)
 
     existing = await session.execute(select(Tenant).where(Tenant.slug == "default"))
     if existing.scalar_one_or_none() is not None:
         print("Tenant seed data already exists — skipping.")
-        return
+        return None
 
     tenant = Tenant(slug="default", name="Default Org", plan=PlanEnum.free)
     session.add(tenant)
@@ -95,6 +102,40 @@ async def _seed_tenant(session: object) -> None:
     print(f"Workspace: {workspace.name}  ({workspace.id})")
     print(f"API Key:   {raw_key}")
     print("\nSave the API key — it won't be shown again.")
+    return workspace
+
+
+async def _seed_user(session: object, workspace: Workspace) -> None:
+    from sqlalchemy.ext.asyncio import AsyncSession
+    assert isinstance(session, AsyncSession)
+
+    _DEFAULT_EMAIL = "admin@runledger.local"
+    _DEFAULT_PASSWORD = "runledger"
+
+    existing = await session.execute(select(User).where(User.email == _DEFAULT_EMAIL))
+    if existing.scalar_one_or_none() is not None:
+        print("Default user already exists — skipping.")
+        return
+
+    user = User(
+        email=_DEFAULT_EMAIL,
+        password_hash=_pwd_context.hash(_DEFAULT_PASSWORD),
+    )
+    session.add(user)
+    await session.flush()
+
+    workspace_user = WorkspaceUser(
+        workspace_id=workspace.id,
+        user_id=user.id,
+        role="admin",
+    )
+    session.add(workspace_user)
+    await session.commit()
+
+    print("\nDashboard login:")
+    print(f"  Email:    {_DEFAULT_EMAIL}")
+    print(f"  Password: {_DEFAULT_PASSWORD}")
+    print("  URL:      http://localhost:3000")
 
 
 async def _seed_pricing(session: object) -> None:

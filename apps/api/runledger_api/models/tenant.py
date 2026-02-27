@@ -105,3 +105,43 @@ class ApiKey(Base):
     )
 
     workspace: Mapped["Workspace"] = relationship(back_populates="api_keys")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
+    )
+
+    workspace_users: Mapped[list["WorkspaceUser"]] = relationship(back_populates="user")
+
+
+class WorkspaceUser(Base):
+    __tablename__ = "workspace_users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    role: Mapped[str] = mapped_column(sa.String(32), server_default="admin")
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
+    )
+
+    user: Mapped["User"] = relationship(back_populates="workspace_users")
+    workspace: Mapped["Workspace"] = relationship()

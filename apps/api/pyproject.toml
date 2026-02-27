@@ -12,6 +12,7 @@ dependencies = [
     "celery[redis]>=5.4.0",
     "structlog>=24.4.0",
     "pydantic-settings>=2.7.0",
+    "passlib[bcrypt]>=1.7.4",
 ]
 
 [build-system]
