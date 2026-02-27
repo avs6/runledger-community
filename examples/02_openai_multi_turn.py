@@ -8,11 +8,26 @@ What this demonstrates
 - Accessing run_id mid-flight for your own logging
 - Proper shutdown after a chat loop
 
+Install the SDK (not on PyPI yet — install from source)
+────────────────────────────────────────────────────────
+Option A — local path (recommended if you have the repo):
+    pip install -e "/path/to/runledger/packages/sdk[openai]"
+
+Option B — directly from GitHub (no clone needed):
+    pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+
+Also install:
+    pip install openai
+
 Run it
 ──────
-    export RUNLEDGER_API_KEY=rl_live_...
     export OPENAI_API_KEY=sk-...
-    uv run python examples/02_openai_multi_turn.py
+
+    # Against a local RunLedger stack (docker compose up)
+    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
+    python examples/02_openai_multi_turn.py
+
+    # Or set local=True in the script below to print events to stdout
 """
 
 from __future__ import annotations

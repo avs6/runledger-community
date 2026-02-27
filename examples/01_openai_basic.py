@@ -8,11 +8,27 @@ What this demonstrates
 - Automatic capture of: model, input_tokens, output_tokens, latency_ms, cost_usd
 - run_id is auto-generated and returned by the context manager
 
+Install the SDK (not on PyPI yet — install from source)
+────────────────────────────────────────────────────────
+Option A — local path (recommended if you have the repo):
+    pip install -e "/path/to/runledger/packages/sdk[openai]"
+
+Option B — directly from GitHub (no clone needed):
+    pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+
+Also install:
+    pip install openai
+
 Run it
 ──────
-    export RUNLEDGER_API_KEY=rl_live_...
     export OPENAI_API_KEY=sk-...
-    uv run python examples/01_openai_basic.py
+
+    # Against a local RunLedger stack (docker compose up)
+    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
+    python examples/01_openai_basic.py
+
+    # Or just print events to stdout (no RunLedger stack needed)
+    # Set local=True in the script below
 """
 
 from __future__ import annotations

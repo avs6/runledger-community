@@ -9,12 +9,24 @@ What this demonstrates
 - from_headers() for restoring context in a receiving service
 - async context (async with rl.context(...))
 
+Install the SDK (not on PyPI yet — install from source)
+────────────────────────────────────────────────────────
+Option A — local path (recommended if you have the repo):
+    pip install -e "/path/to/runledger/packages/sdk[openai]"
+
+Option B — directly from GitHub (no clone needed):
+    pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+
+Also install:
+    pip install openai fastapi uvicorn
+
 Run it
 ──────
-    pip install fastapi uvicorn
-    export RUNLEDGER_API_KEY=rl_live_...
     export OPENAI_API_KEY=sk-...
-    uv run uvicorn examples.05_fastapi_service:app --reload
+
+    # Against a local RunLedger stack (docker compose up)
+    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
+    uvicorn examples.05_fastapi_service:app --reload
 
     curl -X POST http://localhost:8000/chat \\
          -H "Content-Type: application/json" \\

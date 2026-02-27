@@ -8,15 +8,26 @@ What this demonstrates
 - Works with prompt | llm | parser chains
 - run_start / run_end events fire automatically at chain boundaries
 
-Dependencies
-────────────
-    pip install runledger-sdk[langchain] langchain-openai
+Install the SDK (not on PyPI yet — install from source)
+────────────────────────────────────────────────────────
+Option A — local path (recommended if you have the repo):
+    pip install -e "/path/to/runledger/packages/sdk[langchain]"
+
+Option B — directly from GitHub (no clone needed):
+    pip install "runledger-sdk[langchain] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+
+Also install:
+    pip install langchain-openai
 
 Run it
 ──────
-    export RUNLEDGER_API_KEY=rl_live_...
     export OPENAI_API_KEY=sk-...
-    uv run python examples/03_langchain_chain.py
+
+    # Against a local RunLedger stack (docker compose up)
+    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
+    python examples/03_langchain_chain.py
+
+    # Or set local=True in the script below to print events to stdout
 """
 
 from __future__ import annotations

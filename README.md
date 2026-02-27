@@ -198,19 +198,35 @@ Dashboard runs at `http://localhost:3000`.
 
 ## Install the SDK
 
+The SDK is not yet published to PyPI. Install directly from the repo.
+
+**Option A — local path** (if you have the repo cloned):
+
 ```bash
-# OpenAI only
-pip install "runledger-sdk[openai]"
-
-# With LangChain
-pip install "runledger-sdk[langchain]"
-
-# With LangGraph
-pip install "runledger-sdk[langgraph]"
-
-# Everything + CLI
-pip install "runledger-sdk[all]"
+# Pick the extras you need
+pip install -e "/path/to/runledger/packages/sdk[openai]"
+pip install -e "/path/to/runledger/packages/sdk[langchain]"
+pip install -e "/path/to/runledger/packages/sdk[langgraph]"
+pip install -e "/path/to/runledger/packages/sdk[all]"
 ```
+
+**Option B — directly from GitHub** (no clone needed):
+
+```bash
+pip install "runledger-sdk[openai]    @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+pip install "runledger-sdk[langchain] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+pip install "runledger-sdk[langgraph] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+pip install "runledger-sdk[all]       @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+```
+
+Each extra pulls in the right peer dependencies:
+
+| Extra | What it adds |
+|-------|-------------|
+| `openai` | `openai>=1.0.0` |
+| `langchain` | `langchain-core>=0.3.0` |
+| `langgraph` | `langchain-core>=0.3.0` + `langgraph>=0.2.0` |
+| `all` | everything above + CLI |
 
 ---
 
