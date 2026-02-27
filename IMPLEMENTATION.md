@@ -1,0 +1,679 @@
+# RunLedger — Implementation Roadmap
+
+6-month plan for a solo founder building a production-grade Agent FinOps Control Plane.
+
+---
+
+## Recommended Tech Stack
+
+| Layer | Choice | Rationale |
+|-------|--------|-----------|
+| Language | Python 3.13 | Already chosen; async-native; LangChain/LangGraph ecosystem |
+| API framework | FastAPI | Async, OpenAPI auto-docs, fastest iteration velocity |
+| Primary database | PostgreSQL 16 | Transactional + analytics via partitioned tables + materialized views |
+| Queue / cache | Redis 7 (Streams) | Budget enforcement hot path, event buffering, idempotency keys |
+| Async workers | Celery + Redis broker | Event pipeline, aggregation rollups, reconciliation jobs |
+| SDK | Python 3.13 (PyPI: `runledger-sdk`) | LangChain callbacks + LangGraph hooks + OpenAI wrapper |
+| Frontend | Next.js 14 (App Router, TypeScript) | shadcn/ui components, Recharts for dashboards |
+| UI auth | NextAuth.js (credentials + API key) | Session auth for dashboard, JWT for API |
+| DB migrations | Alembic | Standard for FastAPI/SQLAlchemy projects |
+| Package manager | uv (workspaces) | Already chosen; fastest Python tooling |
+| Deploy (prod) | Railway (Postgres + Redis + containers) | Managed ops, solo-friendly |
+| Deploy (local) | Docker Compose | Single `docker compose up` for full stack |
+
+**Why PostgreSQL only (no ClickHouse, no TimescaleDB extension):**
+Partitioned tables + materialized views handle V1 metering scale with zero extra ops. TimescaleDB requires an extension not available on Railway's managed Postgres. ClickHouse adds a second database to operate. Migrate to ClickHouse if you outgrow Postgres — the data model is designed for it.
+
+---
+
+## Monorepo Structure
+
+```
+runledger/
+├── apps/
+│   ├── api/                    # FastAPI backend (collector + business API)
+│   │   ├── runledger_api/
+│   │   │   ├── core/           # Config, DB session, Redis client, Celery app
+│   │   │   ├── models/         # SQLAlchemy ORM models
+│   │   │   ├── schemas/        # Pydantic request/response schemas
+│   │   │   ├── routers/        # FastAPI routers (ingest, runs, analytics, budgets, billing)
+│   │   │   ├── services/       # Business logic (metering, pricing, chargeback, guardrails)
+│   │   │   ├── workers/        # Celery tasks (pipeline, rollups, reconciliation)
+│   │   │   └── main.py         # FastAPI app entrypoint
+│   │   ├── pyproject.toml
+│   │   └── Dockerfile
+│   └── web/                    # Next.js frontend
+│       ├── app/                # App Router pages
+│       ├── components/         # Shared UI components
+│       ├── lib/                # API client, auth config, utils
+│       └── package.json
+├── packages/
+│   └── sdk/                    # runledger-sdk (published to PyPI)
+│       ├── runledger_sdk/
+│       │   ├── client.py       # RunLedger client + instrument()
+│       │   ├── context.py      # contextvars-based context propagation
+│       │   ├── openai.py       # OpenAI wrapper
+│       │   ├── langchain.py    # LangChain CallbackHandler
+│       │   ├── langgraph.py    # LangGraph node hooks
+│       │   ├── transport.py    # Async HTTP client (batching + retry)
+│       │   └── privacy.py      # Privacy mode enum + redaction
+│       ├── pyproject.toml
+│       └── README.md
+├── db/
+│   └── migrations/             # Alembic migration files
+├── infra/
+│   ├── docker-compose.yml      # Full local stack
+│   └── docker-compose.dev.yml  # Dev overrides (hot reload)
+├── docs/
+│   ├── quickstart.md
+│   ├── sdk-reference.md
+│   └── deployment.md
+├── pyproject.toml              # uv workspace root
+├── CLAUDE.md
+├── IMPLEMENTATION.md           # This file
+└── README.md
+```
+
+---
+
+## Database Schema
+
+### Tenant & Auth
+
+```sql
+tenants          (id, slug, name, plan ENUM, created_at)
+workspaces       (id, tenant_id, name, created_at)
+applications     (id, workspace_id, name, environment ENUM[dev|staging|prod])
+api_keys         (id, workspace_id, key_hash, key_prefix, scopes[], last_used_at, expires_at)
+workspace_users  (id, workspace_id, user_id, role ENUM[admin|billing_admin|viewer])
+users            (id, email_hash, created_at)
+```
+
+### Instrumentation Events
+
+```sql
+agent_runs       (id UUID, workspace_id, application_id, end_user_id, session_id,
+                  feature_tag, status ENUM, started_at, ended_at,
+                  total_cost_usd NUMERIC, total_input_tokens BIGINT,
+                  total_output_tokens BIGINT, deployment_version, metadata JSONB)
+
+spans            (id UUID, run_id, parent_span_id, span_type ENUM[chain|llm|tool|agent|retrieval],
+                  name, started_at, ended_at, status ENUM, cost_usd NUMERIC, metadata JSONB)
+
+provider_calls   (id UUID, span_id, run_id, workspace_id, end_user_id,
+                  provider, model, input_tokens INT, output_tokens INT,
+                  cached_input_tokens INT, latency_ms INT, cost_usd NUMERIC,
+                  status ENUM, error_type, created_at)
+                  -- PARTITIONED BY RANGE (created_at) — monthly partitions
+
+tool_calls       (id UUID, span_id, run_id, workspace_id,
+                  tool_name, tool_type ENUM[read|write|privileged],
+                  risk_score SMALLINT, duration_ms INT, status ENUM, created_at)
+
+outcome_events   (id UUID, run_id, event_type, success BOOL,
+                  labels JSONB, created_at)
+```
+
+### Metering
+
+```sql
+provider_pricing (id, provider, model, input_cost_per_1m NUMERIC,
+                  output_cost_per_1m NUMERIC, cached_input_cost_per_1m NUMERIC,
+                  effective_from TIMESTAMPTZ, effective_to TIMESTAMPTZ)
+
+-- Materialized rollup tables (Celery jobs maintain these)
+usage_hourly     (workspace_id, application_id, end_user_id, model, feature_tag,
+                  hour TIMESTAMPTZ, input_tokens BIGINT, output_tokens BIGINT,
+                  cost_usd NUMERIC, run_count INT, call_count INT)
+                  -- INDEX on (workspace_id, hour) and (end_user_id, hour)
+
+usage_daily      (same columns, day DATE)
+```
+
+### Budgets & Guardrails
+
+```sql
+budgets          (id, workspace_id, scope_type ENUM[workspace|app|end_user|feature_tag],
+                  scope_id TEXT, period_type ENUM[daily|monthly|total],
+                  limit_usd NUMERIC, action ENUM[notify|throttle|block|downgrade],
+                  downgrade_to_model TEXT, created_at)
+
+budget_breaches  (id, budget_id, occurred_at, spend_at_breach_usd,
+                  action_taken ENUM, notified_at)
+
+budget_notifications (id, workspace_id, channel ENUM[webhook|slack],
+                      destination_url, events[])
+```
+
+### Billing & Chargeback
+
+```sql
+billing_periods  (id, workspace_id, period_start DATE, period_end DATE,
+                  status ENUM[open|closing|closed], total_cost_usd NUMERIC,
+                  snapshot_hash TEXT, closed_at)
+
+chargeback_rules (id, workspace_id, allocation_type ENUM[cost_center|team|env],
+                  dimension TEXT, weight NUMERIC)
+
+usage_snapshots  (id, billing_period_id, snapshot_data JSONB,
+                  signature TEXT, signing_key_id, created_at)
+```
+
+### Ledger & Privacy
+
+```sql
+ledger_keys      (id, workspace_id, key_hash, active BOOL,
+                  created_at, rotated_at)
+
+capture_policies (id, workspace_id, scope JSONB, mode ENUM[metadata|errors|sampled|full],
+                  sample_rate NUMERIC, redaction_rules JSONB)
+
+payload_access_log (id, workspace_id, accessor_user_id, run_id, span_id,
+                    accessed_at, reason)
+```
+
+---
+
+## 6-Month Implementation Plan
+
+### Phase 0 — Weeks 1–2: Monorepo + Infrastructure Foundation
+
+**Goal:** `docker compose up` runs Postgres + Redis + a health-check API. The skeleton is in place for every subsequent phase to build on.
+
+**Backend:**
+- Initialize uv workspace with `apps/api` and `packages/sdk` members
+- FastAPI app with: health check endpoint, structured logging (structlog), pydantic-settings config (reads from `.env`)
+- SQLAlchemy async setup (asyncpg driver), Alembic init with first empty migration
+- Redis client (`redis-py` async), Celery app wired to Redis broker
+- Core config: `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `ENVIRONMENT`, `LOG_LEVEL`
+
+**Frontend:**
+- `apps/web` — Next.js 14, TypeScript, Tailwind CSS, shadcn/ui init
+- Placeholder home page that pings the API health endpoint
+
+**Infrastructure:**
+- `docker-compose.yml`: `postgres:16-alpine`, `redis:7-alpine`, `api` service, `web` service, `worker` service (Celery)
+- Dev compose override: hot reload for api (`watchfiles`) and web (`next dev`)
+- Makefile targets: `make dev`, `make migrate`, `make test`, `make lint`
+
+**CI (GitHub Actions):**
+- On push: `ruff check`, `mypy`, `pytest` (unit tests), `next build` typecheck
+- Fail fast on type errors — enforce this from day one
+
+**Definition of done:** `docker compose up` starts all services; `GET /health` returns `{"status": "ok", "db": "ok", "redis": "ok"}`
+
+---
+
+### Phase 1 — Weeks 3–4: Ingestion API + Multi-tenancy + Auth
+
+**Goal:** A real event can be sent via HTTP with an API key, stored in Postgres, and queried back.
+
+**Database:**
+- Migration: all tables in the Tenant & Auth section + Instrumentation Events section above
+- `provider_calls` table with monthly range partitions (create 12 months ahead)
+- Seed: one default tenant + workspace for local dev
+
+**Ingestion API:**
+- `POST /ingest/v1/events` — single event (any event type via discriminated union schema)
+- `POST /ingest/v1/batch` — up to 100 events per request
+- API key authentication middleware: extract `Authorization: Bearer rl_...`, hash it, look up in `api_keys`, scope check
+- Idempotency: `Idempotency-Key` header → Redis SETNX with 24h TTL → skip duplicate writes
+- Events go into Redis Stream `runledger:events:{workspace_id}` (not written to Postgres directly)
+- Stream consumer group: `pipeline-workers` → Celery task `process_event_batch`
+
+**Event Pipeline (Celery):**
+- `process_event_batch` task: drain stream → validate → upsert `agent_runs` + `spans` + `provider_calls` + `tool_calls` → ack stream
+- Idempotent upserts (ON CONFLICT DO NOTHING on event `id`)
+
+**Auth API:**
+- `POST /auth/workspaces` → create workspace (admin only for now, seeded locally)
+- `POST /auth/api-keys` → generate API key (prefix `rl_live_` or `rl_test_`)
+- `GET /auth/api-keys` → list keys (shows prefix + last_used, never full key)
+- `DELETE /auth/api-keys/{id}` → revoke key
+
+**Definition of done:** Send 1000 events via batch endpoint, confirm they're all queryable with correct workspace scoping. No events cross tenant boundaries.
+
+---
+
+### Phase 2 — Weeks 5–6: SDK — OpenAI Wrapper + Context Propagation
+
+**Goal:** `rl.instrument()` wraps the OpenAI client. One line of code captures model, tokens, latency, and cost for every call.
+
+**`runledger_sdk` package:**
+- `RunLedger(api_key, base_url, mode, privacy_mode)` client class
+- `instrument()` — monkey-patches `openai.OpenAI` and `openai.AsyncOpenAI`:
+  - Wraps `chat.completions.create` and `async` variant
+  - Captures before call: `run_id`, `model`, `started_at`, SDK context vars
+  - Captures after call: `input_tokens`, `output_tokens`, `cached_input_tokens`, `latency_ms`, `status`
+  - Captures on error: `error_type`, `error_message` (no payload)
+  - Fires event to transport layer (non-blocking)
+- `context(end_user_id, session_id, feature_tag, run_id)` — context manager using `contextvars.ContextVar`
+  - Thread-safe and async-safe
+  - Nested contexts inherit parent values
+- `run_id` generation: UUID v7 (time-ordered, sortable) or `uuid.uuid4()` as fallback
+
+**Transport layer (`transport.py`):**
+- Async HTTP client (httpx)
+- In-memory buffer (queue, max 500 events)
+- Flush every 2 seconds or when buffer hits 100 events (whichever comes first)
+- Retry with exponential backoff (3 attempts, then drop + log warning)
+- Background thread for sync SDK usage (wraps async flush in a thread)
+
+**Privacy modes:**
+```python
+class PrivacyMode(Enum):
+    METADATA_ONLY = "metadata_only"   # default: tokens, model, latency only
+    ERRORS_ONLY   = "errors_only"     # metadata + payload on errors
+    SAMPLED       = "sampled"         # metadata + payload on N% of calls
+    FULL          = "full"            # capture everything (explicit opt-in)
+```
+
+**Local dev mode:** If `api_key` is not set or `mode="local"`, log events to console as structured JSON instead of sending to API.
+
+**Definition of done:** A bare `openai` script with two lines of RunLedger setup shows up in the ingestion pipeline with correct token counts.
+
+---
+
+### Phase 3 — Weeks 7–8: SDK — LangChain + LangGraph + CLI
+
+**Goal:** Any LangChain chain or LangGraph graph is fully instrumented with one callback. The CLI validates instrumentation.
+
+**LangChain (`langchain.py`):**
+- `RunLedgerCallbackHandler(BaseCallbackHandler)`:
+  - `on_chain_start` → open Span(type=CHAIN, parent from context)
+  - `on_chain_end / on_chain_error` → close span, set status
+  - `on_llm_start` → open Span(type=LLM)
+  - `on_llm_end` → extract `LLMResult` usage metadata → ProviderCall event (tokens, model, latency)
+  - `on_tool_start` → open Span(type=TOOL), capture tool_name
+  - `on_tool_end / on_tool_error` → close span
+  - `on_agent_action` → Span(type=AGENT), capture action input summary (no payload by default)
+  - `on_agent_finish` → close span, outcome event
+- Span parent-child linking: maintain a stack per `run_id` in contextvars, set `parent_span_id` on each open
+
+**LangGraph (`langgraph.py`):**
+- `RunLedgerNodeWrapper(node_fn, node_name)` — wraps a graph node function:
+  - Opens a Span(type=CHAIN, name=node_name) on entry
+  - Closes with status on exit / exception
+  - Captures edge context (previous node name from graph state metadata)
+- `instrument_graph(graph)` — walks a compiled LangGraph and wraps all node functions automatically
+- Graph structure capture: send edge events (source_node → target_node) as span metadata
+
+**Context propagation across services:**
+- `RunLedger.propagation_headers()` → dict of headers (`X-RunLedger-Run-Id`, `X-RunLedger-Tenant-Id`, etc.)
+- `RunLedger.from_headers(headers)` → restores context from inbound request headers
+- Enables span correlation across microservices
+
+**CLI (`runledger` command via `typer`):**
+- `runledger validate --api-key rl_...` — sends a synthetic test event, waits for confirmation, reports success/fail
+- `runledger runs --api-key rl_... [--limit 10]` — lists recent runs as a table (run_id, model, cost, status, age)
+- `runledger status --api-key rl_...` — checks API connectivity + Redis + DB health
+
+**Definition of done:** A LangGraph agent with `instrument_graph()` shows the full DAG structure (nodes as spans with parent-child links) in the API after a run.
+
+---
+
+### Phase 4 — Weeks 9–10: Billing-grade Metering Core
+
+**Goal:** Every provider call has a cost in USD attached within 30 seconds. Aggregations by tenant/user/model/feature are queryable and stay correct after replay.
+
+**Pricing engine (`services/pricing.py`):**
+- `provider_pricing` table seeded with current pricing for:
+  - OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1, o3-mini (effective-dated)
+  - Anthropic: claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5
+  - Google: gemini-1.5-pro, gemini-1.5-flash
+- `calculate_cost(provider, model, input_tokens, output_tokens, cached_tokens, at_time) -> Decimal`
+  - Looks up effective price for `at_time` (handles retroactive price changes)
+  - Handles cached_input discount (OpenAI Prompt Caching: 50% off input)
+- Customer pricing overrides: `workspace_id`-specific overrides in `provider_pricing` with matching tenant scope
+- Currency: all stored as USD cents (integer) internally, formatted at display time
+
+**Celery workers:**
+- `cost_enrichment_worker` (triggered by event pipeline): calculate cost for each `provider_call`, update `cost_usd`, update parent `span.cost_usd` + `agent_run.total_cost_usd`
+- `rollup_hourly_worker` (schedule: every 30 min): INSERT INTO `usage_hourly` ... ON CONFLICT DO UPDATE — aggregate `provider_calls` from last 2 hours
+- `rollup_daily_worker` (schedule: daily at 00:05 UTC): aggregate `usage_hourly` into `usage_daily` for previous day
+- `data_quality_worker` (schedule: every hour): flag `provider_calls` where `input_tokens IS NULL` or `cost_usd IS NULL`, write to `data_quality_issues` table
+
+**Aggregation correctness:**
+- All rollup jobs are idempotent (full recompute for the time window, not incremental add)
+- `replay_backfill` Celery task: re-run cost enrichment + rollups for a given time range (used after pricing corrections)
+
+**Query API:**
+- `GET /analytics/summary?workspace_id=...&from=...&to=...` → total cost, total tokens, run count
+- `GET /analytics/spend-over-time?granularity=hourly|daily` → time series array
+- `GET /analytics/spend-by-model` → breakdown by model
+- `GET /analytics/spend-by-user?limit=50` → top spenders
+- `GET /analytics/spend-by-feature` → breakdown by feature_tag
+
+**Definition of done:** Replaying the same set of events twice produces identical cost totals. Cost for `gpt-4o` at a date before and after OpenAI's pricing change returns different values.
+
+---
+
+### Phase 5 — Weeks 11–12: Run Explorer + DAG Viewer UI
+
+**Goal:** Log into the dashboard, search for a run, click into it, see the full DAG with cost per node.
+
+**Next.js app foundation:**
+- NextAuth.js: credentials provider (email + password, stored in `users` table with bcrypt), session stored in JWT
+- API client (`lib/api.ts`): typed fetch wrapper that reads `NEXT_PUBLIC_API_URL`, attaches session token
+- Layout: sidebar nav, workspace switcher, top bar with workspace name
+
+**Pages:**
+- `/runs` — Run Explorer
+  - `RunsTable` component: columns — run_id (truncated), end_user_id, model (primary), total cost, status badge, duration, started_at
+  - Filters: status, model, end_user_id, feature_tag, time window (last 1h / 6h / 24h / 7d / custom)
+  - Search: run_id prefix, end_user_id exact
+  - Pagination (cursor-based, not page numbers)
+
+- `/runs/[run_id]` — Run Detail
+  - `RunGraph` (react-flow): nodes for each span (CHAIN, LLM, TOOL, AGENT), edges for parent-child links
+    - Node color: LLM=blue, TOOL=orange, CHAIN=gray, error=red
+    - Node badge: cost in USD + token count for LLM nodes
+    - Click node → `SpanDetailPanel` slides in from right
+  - `SpanDetailPanel`: span type, duration, model, tokens, cost, error details, metadata JSONB viewer
+  - `RunSummaryBar`: total cost, total tokens, duration, status, end_user_id, feature_tag
+  - Error diagnostics: error_type, error_message, timestamp (no payload unless FULL mode)
+  - Payload status badge: "No payload captured" / "Payload available (request access)"
+
+**FastAPI routes added:**
+- `GET /runs?workspace_id=...&cursor=...&limit=50&filters=...` (cursor pagination)
+- `GET /runs/{run_id}` (run + all spans + all provider_calls + tool_calls)
+- `GET /runs/{run_id}/graph` (DAG structure: nodes + edges for react-flow)
+
+**Definition of done:** Can find a run, see every LLM call and tool call in the DAG, click a node and see token counts and cost. DAG renders correctly for graphs with 50+ nodes.
+
+---
+
+### Phase 6 — Weeks 13–14: Metering Dashboard
+
+**Goal:** A finance person or engineering lead opens the dashboard and immediately understands spend, who's driving it, and where it's going.
+
+**Pages:**
+- `/analytics` — Main metering dashboard
+  - `SummaryCards`: total spend (period), run count, avg cost per run, total input tokens, total output tokens, cost trend vs prior period (+/-%)
+  - `SpendOverTime`: line chart (time granularity selector: hourly/daily/weekly), shows current period vs prior period overlay
+  - `SpendByModel`: horizontal bar chart — top models by cost, shows input vs output split
+  - `SpendByFeature`: donut chart — cost breakdown by feature_tag
+  - `TokenEfficiency`: output tokens / total cost ratio trend
+  - Global filter bar: time window, application, environment, model, feature_tag (sticky, persisted in URL params)
+
+- `/analytics/users` — End-user spend breakdown
+  - `TopSpendersTable`: end_user_id, total cost (period), run count, avg cost/run, last active, trend arrow
+  - Clicking a user → `/analytics/users/[end_user_id]` (user profile: spend over time, models used, features used)
+
+**FastAPI routes added:**
+- `GET /analytics/summary` (KPIs with period-over-period deltas)
+- `GET /analytics/spend-over-time?granularity=hourly|daily&from=&to=`
+- `GET /analytics/spend-by-model`
+- `GET /analytics/spend-by-feature`
+- `GET /analytics/users?limit=50&sort=cost_desc`
+- `GET /analytics/users/{end_user_id}`
+
+**Definition of done:** Dashboard loads in under 2 seconds with 30 days of data for a workspace with 100k provider calls.
+
+---
+
+### Phase 7 — Weeks 15–16: Budgets + Spend Guardrails
+
+**Goal:** Set a budget for an end-user. Run a chatbot that exceeds it. The next call is blocked — automatically, no code change.
+
+**Budget enforcement (hot path):**
+- Redis key per budget scope: `rl:budget:{budget_id}:spend:{period_key}` → INCRBYFLOAT by call cost after each provider call
+- SDK pre-call check: `GET /budgets/check?workspace_id=&end_user_id=&feature_tag=&model=`
+  - Reads Redis counters → compares against budget limits
+  - Returns: `{ "allowed": true }` or `{ "allowed": false, "action": "block", "budget_id": "..." }` or `{ "allowed": true, "action": "downgrade", "model": "gpt-4o-mini" }`
+  - Target: <5ms p99 (Redis reads only, no Postgres)
+  - SDK: if action=`downgrade`, silently substitutes model in the OpenAI call
+  - SDK: if action=`block`, raises `RunLedgerBudgetExceededError`
+
+**Runaway protection (Celery, every 5 min per active run):**
+- Retry storm: `provider_calls` count for a single `run_id` in last 2 min > threshold (default: 20)
+- Tool loop: same `tool_name` called > N times consecutively within a run
+- Token spike: single provider_call input_tokens > 100k (configurable)
+- On detection: fire breach event, execute configured action, send notification
+
+**Budget CRUD:**
+- `POST /budgets` — create budget (scope_type, scope_id, period_type, limit_usd, action, downgrade_to_model)
+- `GET /budgets` — list budgets with current spend (reads Redis counters)
+- `GET /budgets/{id}/breaches` — breach history with action_taken log
+- `DELETE /budgets/{id}` — deactivate budget
+
+**Notifications:**
+- Webhook: POST to `destination_url` with signed payload (HMAC)
+- Slack: POST to webhook URL with formatted message
+
+**UI — `/budgets`:**
+- Budget list: scope, limit, current spend (progress bar), period, action, status
+- Create budget modal: scope selector (workspace / specific user / feature tag), period, limit, action
+- `/budgets/[id]`: breach history table, spend timeline, notification config
+
+**Definition of done:** Create a daily $0.10 budget for a test user. Run 5 LLM calls that exceed it. The 6th call is blocked. A webhook fires with the breach payload. The breach shows up in the UI.
+
+---
+
+### Phase 8 — Weeks 17–18: Chargeback Engine + Reconciliation + Dispute Trail
+
+**Goal:** Close the month, generate a usage statement, and drill from any line item back to the exact run that caused it.
+
+**Period close workflow:**
+- `POST /billing/periods/{id}/close` → background job:
+  1. Freeze: snapshot `usage_daily` totals for the period into `usage_snapshots.snapshot_data`
+  2. Apply chargeback rules: distribute cost across allocation dimensions
+  3. Compute HMAC-SHA256 signature of snapshot JSON → store in `usage_snapshots.signature`
+  4. Set `billing_periods.status = 'closed'`, record `closed_at`
+  5. Generate `usage_statement` JSON artifact (downloadable)
+- Late events: events arriving after period close are flagged in `agent_runs.late_event = true` — reconciliation report flags them
+
+**Chargeback rules engine:**
+- Simple allocation: split workspace cost by dimension (env: prod gets 90% / dev 10%, or by explicit cost_center tags)
+- `chargeback_rules` support weight-based splits and explicit dimension assignments
+
+**Reconciliation:**
+- Internal consistency check (scheduled, runs nightly):
+  - Sum of `provider_calls.cost_usd` = sum via `usage_daily` for same period (within 0.01% tolerance)
+  - Flag any orphaned `provider_calls` (no parent `agent_run`)
+  - Flag duplicate `provider_calls` (same `run_id` + same `model` + same timestamp within 1s)
+- Report: `GET /billing/periods/{id}/reconciliation` → consistency status, flagged issues
+
+**Dispute trail:**
+- `GET /billing/periods/{id}/breakdown` → hierarchical JSON:
+  ```
+  period total
+  └─ by application
+     └─ by end_user_id
+        └─ by model
+           └─ agent_runs (sorted by cost desc)
+              └─ spans + provider_calls
+  ```
+- `GET /billing/periods/{id}/export?format=csv` → CSV with columns: date, end_user_id, model, input_tokens, output_tokens, cost_usd, run_id
+- `GET /billing/periods/{id}/export?format=signed_json` → JSON bundle + HMAC signature (verifiable offline)
+
+**UI — `/billing`:**
+- Billing periods list: period dates, total cost, status badge, actions (close, export)
+- `/billing/[period_id]`: summary cards, chargeback breakdown table, reconciliation status panel
+- Drill-down: click a row in breakdown → filters down to that dimension → click a run_id → navigates to `/runs/[run_id]`
+- Evidence export button: downloads CSV + signed JSON
+
+**Definition of done:** Close a billing period. Export the signed JSON. Verify the HMAC offline with the known signing key. Click a line item in the breakdown and arrive at the exact run in the run explorer.
+
+---
+
+### Phase 9 — Weeks 19–20: Unit Economics Graph + Change Impact
+
+**Goal:** Ship a new prompt version, tag it in the SDK, and see a side-by-side cost breakdown vs the previous version.
+
+**Cost attribution:**
+- `GET /analytics/economics/{run_id}` → cost profile:
+  - cost_by_span_type: `{llm: $0.032, tool: $0.001, retrieval: $0.005}`
+  - cost_by_model: `{gpt-4o: $0.030, gpt-4o-mini: $0.002}`
+  - retry_cost: cost of all re-runs within the run
+  - human_approval_cost: spans of type APPROVAL
+- Top N workflows: `GET /analytics/workflows/top?metric=cost&limit=10&from=&to=`
+  - Groups by `feature_tag` + `application_id`, returns avg cost, p95 cost, call volume
+
+**Deployment versioning:**
+- SDK context gains `deployment_version` field: `rl.context(deployment_version="v2.1.0")`
+- Stored in `agent_runs.deployment_version`
+
+**Change impact:**
+- `GET /analytics/compare?baseline_version=v2.0.0&comparison_version=v2.1.0&from=&to=`
+  - Returns: cost delta (%), token delta (%), latency delta (%), run count for each
+  - Breakdown by span type: which node type drove the change
+- `GET /analytics/regressions?from=&to=` → workflows where cost > 120% of same-period prior week average
+- `POST /analytics/annotations` → team can attach notes to a date/version ("rolled back gpt-4o, switched to gpt-4o-mini")
+
+**UI — `/analytics/economics`:**
+- `EconomicsBreakdown` component: stacked bar per run_id or feature_tag, split by LLM/tool/retrieval/retry
+- `ChangeImpactPanel`: version selector (baseline vs comparison), side-by-side delta cards
+- `RegressionTable`: workflows with cost regression flag, % increase, volume context
+- Annotations: inline markers on the spend timeline
+
+**Definition of done:** Tag 50 runs with `deployment_version=v1` and 50 with `v2`. The compare endpoint returns correct per-node-type cost deltas.
+
+---
+
+### Phase 10 — Weeks 21–22: End-user Analytics + Replay Harness
+
+**Goal:** Identify your top spenders and anomalous users. Run the same 20 agent tasks against two models and compare cost + outcome.
+
+**End-user analytics (deepening Phase 6):**
+- `GET /analytics/users/{id}` now includes:
+  - Cost trend (30d), models used, feature tags used, run count, avg cost/run
+  - Cohort: which spend tier (P0: <$1/mo, P1: $1-10, P2: $10-100, P3: $100+)
+- Cohort analysis: `GET /analytics/users/cohorts` → retention vs cost by first-seen week
+- Anomaly detection (Z-score, computed by nightly Celery job):
+  - For each active end_user, compute Z-score of today's spend vs their 30d mean
+  - Flag users with Z > 3 (configurable) in `user_anomalies` table
+  - `GET /analytics/users/anomalies` → flagged users with anomaly reason
+
+**UI — `/analytics/users`:**
+- Segmentation tabs: All / Heavy users (P3) / Anomalous / New this week
+- User rows include cohort badge and anomaly flag icon
+
+**Replay harness:**
+- `replay_datasets` table: `(id, workspace_id, name, source ENUM[live_runs|synthetic], run_ids[], created_at)`
+- `POST /replay/datasets` → save a set of run_ids as a dataset (captures input metadata, respects privacy mode)
+- `replay_experiments` table: `(id, dataset_id, name, configs JSONB[{model, prompt_version, routing_policy}], status, created_at)`
+- `POST /replay/experiments` → define experiment: dataset + list of configs to compare
+- Celery `run_experiment_worker`: for each config, re-run each dataset item via the SDK (fires real LLM calls — note this incurs cost)
+- `GET /replay/experiments/{id}/results` →
+  - Per config: avg cost, p50/p95 latency, outcome labels (success/fail from outcome_events)
+  - Delta table: config A vs config B — cost delta, latency delta, success rate delta
+- **Safety check**: experiment must be explicitly confirmed before firing (cost estimate shown first)
+
+**UI — `/replay`:**
+- Dataset list + create dataset modal (pick runs from Run Explorer)
+- Experiment list + create experiment wizard: pick dataset → pick configs (model A / model B)
+- `/replay/[experiment_id]`: side-by-side results table, cost delta chart, latency percentile comparison
+
+**Definition of done:** Create a dataset of 10 runs. Define an experiment comparing gpt-4o vs gpt-4o-mini. Run it. See the cost delta and latency comparison in the UI.
+
+---
+
+### Phase 11 — Weeks 23–24: Tamper-evident Ledger + Production Polish + OSS Launch
+
+**Goal:** Ship a production-grade release. Docker image on Docker Hub. SDK on PyPI. Comprehensive docs.
+
+**Tamper-evident ledger:**
+- Nightly Celery job (`ledger_snapshot_worker`): for each workspace, compute daily summary (total cost, run count, model breakdown), sign with HMAC-SHA256 using `ledger_keys.key_hash`, store in `ledger_snapshots`
+- Key rotation: new key created monthly, old keys retained for verification
+- `GET /ledger/snapshots?from=&to=` → list of daily signed snapshots
+- `GET /ledger/snapshots/{date}/verify` → re-compute hash and verify against stored signature
+- `GET /ledger/export/{billing_period_id}` → evidence pack: ZIP containing `totals.json` + `run_index.json` + `integrity.json` (all hashes + signing key fingerprint)
+
+**Security boundaries (basic):**
+- `tool_registry` table: `(tool_name, workspace_id, risk_level ENUM[read|write|privileged], risk_score 0-10)`
+- SDK: `rl.register_tool(name, risk_level)` — sends tool metadata on first call
+- `GET /tools` → list registered tools with risk levels
+- Policy: log + flag privileged tool calls in `tool_calls.flagged = true`
+- Suspicious sequence detection (Celery): same tool called >5 times in <60s → flag in `security_events`
+
+**Privacy governance:**
+- `capture_policies` table operationalized: Celery pipeline reads policy for workspace before capturing span metadata
+- `POST /privacy/policies` → create policy (scope: env/tool, mode, sample_rate, redaction_rules)
+- Payload access workflow: `POST /privacy/access-requests/{span_id}` → creates access request, logs to `payload_access_log` on approval
+
+**Production hardening:**
+- Prometheus metrics endpoint (`/metrics`): request latency, event queue depth, worker lag, active budget checks/sec
+- Sentry integration: `SENTRY_DSN` env var, captures unhandled exceptions in API + workers
+- Connection pooling: asyncpg pool (min 2, max 20), Redis connection pool
+- DB query timeouts: 5s default on all queries
+- Rate limiting: per API key (100 req/s default, configurable per workspace)
+- Health check deepened: `GET /health` checks Celery worker heartbeat + queue depth
+
+**OSS / paid feature gating:**
+- `FeatureGate` middleware: reads `workspace.plan`, gates paid features (multi-tenancy, enforcement, ledger, replay)
+- `RUNLEDGER_MODE=oss` env var: disables all paid gates for self-hosted OSS users
+
+**Docker release:**
+- Multi-stage `Dockerfile` for `apps/api`: builder stage (uv install) + runtime stage (slim Python)
+- Single-container mode: API + Celery worker in one container via `supervisord` (OSS tier default)
+- Split-container mode: separate `api` and `worker` services (paid/production)
+- `docker-compose.yml` for full stack (Postgres + Redis + api + worker + web)
+- Docker image published to Docker Hub: `runledger/runledger:0.1.0`
+
+**SDK PyPI release:**
+- `runledger-sdk` 0.1.0 on PyPI
+- CI job: publish on git tag push
+- SDK README with full quickstart, all integrations, privacy mode docs
+
+**Documentation (`docs/`):**
+- `quickstart.md`: from zero to first run in 5 minutes
+- `sdk-reference.md`: all SDK classes, methods, context vars
+- `deployment.md`: Docker Compose, Railway, Render, Fly.io guides
+- `data-model.md`: event schema reference
+- `privacy.md`: privacy modes + redaction guide
+
+**Definition of done:** A new user follows `quickstart.md` and has their first instrumented run visible in a self-hosted RunLedger instance in under 10 minutes. The signed daily ledger snapshot for the previous day is verifiable offline.
+
+---
+
+## Testing Strategy
+
+### Unit tests (pytest)
+- Pricing engine: cost calculation correctness, effective-date lookups, cached token discounts
+- Budget enforcement: Redis counter logic, action resolution
+- Chargeback allocation: weight-based splits, edge cases (zero cost, missing dimension)
+- HMAC signing: signature generation + verification, key rotation
+- SDK: OpenAI wrapper captures correct metadata; context vars propagate correctly
+
+### Integration tests (pytest + testcontainers)
+- Ingestion pipeline: event → Redis → Celery worker → Postgres (round-trip test)
+- Rollup jobs: idempotency (run twice → same result)
+- Budget check: hot path latency assertion (<10ms in test environment)
+- API auth: correct 401/403 for missing/wrong/expired API keys
+
+### E2E tests (Playwright)
+- Run Explorer: search for a run, click through to DAG, verify node count
+- Budget guardrail: create budget → exceed it via API calls → verify block response
+- Billing: close a period → verify snapshot is downloadable and signature verifies
+
+### Load test (Locust, run before each phase milestone)
+- Ingestion API: 1000 events/sec sustained for 60s — measure p99 latency
+- Budget check endpoint: 500 req/sec — measure p99 latency (target: <10ms)
+- Analytics queries: 50 concurrent dashboard users — measure p95 page load time
+
+---
+
+## Deployment Architecture (Railway)
+
+```
+Railway Project: runledger-prod
+├── Service: api          (Docker image, replicas: 1-3 auto-scale)
+├── Service: worker       (Docker image, Celery worker, replicas: 1-2)
+├── Service: web          (Docker image or Next.js static, replicas: 1)
+├── Plugin: PostgreSQL    (Railway managed Postgres 16)
+└── Plugin: Redis         (Railway managed Redis 7)
+```
+
+**Environment variables (Railway):**
+```
+DATABASE_URL         = postgresql+asyncpg://...
+REDIS_URL            = redis://...
+SECRET_KEY           = (random 32 bytes, hex)
+ENVIRONMENT          = production
+RUNLEDGER_MODE       = paid   # or "oss" for self-hosted
+SENTRY_DSN           = (optional)
+NEXT_PUBLIC_API_URL  = https://api.runledger.io
+```
+
+**Staging environment:** Identical Railway project with `ENVIRONMENT=staging`, separate Postgres + Redis plugins, seeded with synthetic data.

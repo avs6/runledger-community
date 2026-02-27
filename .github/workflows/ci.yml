@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  api:
+    name: API (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Lint
+        run: uv run ruff check apps/api packages/sdk
+
+      - name: Format check
+        run: uv run ruff format --check apps/api packages/sdk
+
+      - name: Type check
+        run: uv run mypy apps/api/runledger_api packages/sdk/runledger_sdk
+
+      - name: Test
+        run: uv run pytest apps/api/tests -v
+
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: cd apps/web && npm ci
+
+      - name: Type check
+        run: cd apps/web && npm run typecheck
+
+      - name: Build
+        run: cd apps/web && npm run build
+        env:
+          API_URL: http://localhost:8000

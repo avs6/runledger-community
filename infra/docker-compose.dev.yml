@@ -1,0 +1,29 @@
+# Development overrides — hot reload for API and worker
+# Usage: docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
+
+services:
+  api:
+    command: uvicorn runledger_api.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ../apps/api:/app/apps/api
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+
+  worker:
+    # --pool=solo avoids multiprocessing fork issues on some platforms
+    command: celery -A runledger_api.core.celery_app worker --loglevel=debug --pool=solo
+    volumes:
+      - ../apps/api:/app/apps/api
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: DEBUG
+
+  web:
+    command: npm run dev
+    volumes:
+      - ../apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      API_URL: http://api:8000

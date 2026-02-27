@@ -1,0 +1,15 @@
+[project]
+name = "runledger-sdk"
+version = "0.1.0"
+description = "RunLedger SDK — instrument LangChain, LangGraph, and OpenAI agents"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.0",
+    "pydantic>=2.10.0",
+    "structlog>=24.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

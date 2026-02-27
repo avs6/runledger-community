@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+import uuid
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+from runledger_api.core.db import get_db
+from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.redis import get_redis
+from runledger_api.main import app
+
+
+@pytest.fixture
+def mock_db_session() -> AsyncMock:
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=None)
+    # session.add() is synchronous in SQLAlchemy — avoid unawaited-coroutine warnings
+    session.add = MagicMock()
+    return session
+
+
+@pytest.fixture
+def mock_redis_client() -> AsyncMock:
+    redis = AsyncMock()
+    redis.ping = AsyncMock(return_value=True)
+    return redis
+
+
+@pytest.fixture
+def mock_workspace() -> SimpleNamespace:
+    """A minimal namespace object acting as a Workspace for dependency overrides."""
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        name="test-workspace",
+        created_at=datetime.now(UTC),
+    )
+
+
+@pytest.fixture
+async def client(
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+) -> AsyncGenerator[AsyncClient]:
+    """HTTP test client with DB and Redis dependencies mocked."""
+
+    async def override_get_db() -> AsyncGenerator[AsyncMock]:
+        yield mock_db_session
+
+    async def override_get_redis() -> AsyncMock:
+        return mock_redis_client
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_redis] = override_get_redis
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def authed_client(
+    mock_workspace: SimpleNamespace,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+) -> AsyncGenerator[AsyncClient]:
+    """HTTP test client with workspace auth bypassed."""
+
+    async def override_get_db() -> AsyncGenerator[AsyncMock]:
+        yield mock_db_session
+
+    async def override_get_redis() -> AsyncMock:
+        return mock_redis_client
+
+    async def override_get_workspace() -> SimpleNamespace:
+        return mock_workspace
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_redis] = override_get_redis
+    app.dependency_overrides[get_current_workspace] = override_get_workspace
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
