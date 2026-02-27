@@ -204,12 +204,14 @@ async def test_spend_by_user_returns_top_spenders(
             cost_usd=Decimal("1.50"),
             run_count=30,
             call_count=120,
+            last_active=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
         ),
         _make_row(
             end_user_id="user-beta",
             cost_usd=Decimal("0.75"),
             run_count=15,
             call_count=60,
+            last_active=None,
         ),
     ]
     mock_db_session.execute = AsyncMock(return_value=_list_result(rows))
@@ -220,6 +222,8 @@ async def test_spend_by_user_returns_top_spenders(
     data = response.json()
     assert data["items"][0]["end_user_id"] == "user-alpha"
     assert data["items"][0]["cost_usd"] == "1.50"
+    assert data["items"][0]["avg_cost_per_run"] == "0.05"
+    assert data["items"][1]["last_active"] is None
 
 
 @pytest.mark.asyncio
@@ -283,6 +287,124 @@ async def test_spend_by_feature_empty(
     response = await authed_client.get("/analytics/spend-by-feature")
     assert response.status_code == 200
     assert response.json()["items"] == []
+
+
+# ── /analytics/summary delta ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_summary_delta_computed(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """cost_delta_pct is computed from current vs prior period."""
+    current_row = _make_row(
+        total_cost=Decimal("0.10"),
+        total_input=5000,
+        total_output=1000,
+        run_count=10,
+        call_count=20,
+    )
+    prev_row = _make_row(
+        total_cost=Decimal("0.05"),
+        total_input=2500,
+        total_output=500,
+        run_count=5,
+        call_count=10,
+    )
+    current_result = MagicMock()
+    current_result.one = MagicMock(return_value=current_row)
+    prev_result = MagicMock()
+    prev_result.one = MagicMock(return_value=prev_row)
+
+    mock_db_session.execute = AsyncMock(side_effect=[current_result, prev_result])
+
+    response = await authed_client.get("/analytics/summary")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["prev_cost_usd"] == "0.05"
+    # delta = (0.10 - 0.05) / 0.05 * 100 = 100
+    assert float(data["cost_delta_pct"]) == pytest.approx(100.0)
+
+
+@pytest.mark.asyncio
+async def test_summary_delta_none_when_prev_zero(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """cost_delta_pct is None when prior period cost is zero."""
+    current_row = _make_row(
+        total_cost=Decimal("0.10"),
+        total_input=5000,
+        total_output=1000,
+        run_count=10,
+        call_count=20,
+    )
+    prev_row = _make_row(
+        total_cost=Decimal("0"),
+        total_input=0,
+        total_output=0,
+        run_count=0,
+        call_count=0,
+    )
+    current_result = MagicMock()
+    current_result.one = MagicMock(return_value=current_row)
+    prev_result = MagicMock()
+    prev_result.one = MagicMock(return_value=prev_row)
+
+    mock_db_session.execute = AsyncMock(side_effect=[current_result, prev_result])
+
+    response = await authed_client.get("/analytics/summary")
+
+    assert response.status_code == 200
+    assert response.json()["cost_delta_pct"] is None
+
+
+# ── /analytics/users/{end_user_id} ────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_user_spend_detail(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    summary_row = _make_row(
+        cost_usd=Decimal("1.50"),
+        run_count=10,
+        call_count=40,
+        last_active=datetime(2026, 1, 20, 9, 0, tzinfo=UTC),
+    )
+    summary_result = MagicMock()
+    summary_result.one = MagicMock(return_value=summary_row)
+
+    time_result = _list_result([])
+    model_result = _list_result([
+        _make_row(
+            provider="openai",
+            model="gpt-4o",
+            cost_usd=Decimal("1.50"),
+            input_tokens=5000,
+            output_tokens=1000,
+            call_count=40,
+        )
+    ])
+    feature_result = _list_result([])
+
+    mock_db_session.execute = AsyncMock(
+        side_effect=[summary_result, time_result, model_result, feature_result]
+    )
+
+    response = await authed_client.get("/analytics/users/user-alpha")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["end_user_id"] == "user-alpha"
+    assert data["cost_usd"] == "1.50"
+    assert data["avg_cost_per_run"] == "0.15"
+    assert data["models_used"][0]["model"] == "gpt-4o"
+    assert data["spend_over_time"] == []
+    assert data["features_used"] == []
 
 
 # ── Auth enforcement ───────────────────────────────────────────────────────────

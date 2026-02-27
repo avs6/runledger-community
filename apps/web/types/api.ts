@@ -112,3 +112,77 @@ export interface RunGraphResponse {
   nodes: GraphNode[]
   edges: GraphEdge[]
 }
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export interface AnalyticsSummary {
+  total_cost_usd: string
+  total_input_tokens: number
+  total_output_tokens: number
+  run_count: number
+  call_count: number
+  prev_cost_usd: string
+  cost_delta_pct: string | null
+}
+
+export interface SpendPoint {
+  period: string
+  cost_usd: string
+  input_tokens: number
+  output_tokens: number
+  call_count: number
+}
+
+export interface SpendOverTime {
+  granularity: string
+  points: SpendPoint[]
+}
+
+export interface ModelSpend {
+  provider: string
+  model: string
+  cost_usd: string
+  input_tokens: number
+  output_tokens: number
+  call_count: number
+}
+
+export interface SpendByModel {
+  items: ModelSpend[]
+}
+
+export interface UserSpend {
+  end_user_id: string
+  cost_usd: string
+  run_count: number
+  call_count: number
+  avg_cost_per_run: string
+  last_active: string | null
+}
+
+export interface SpendByUser {
+  items: UserSpend[]
+}
+
+export interface FeatureSpend {
+  feature_tag: string | null
+  cost_usd: string
+  run_count: number
+  call_count: number
+}
+
+export interface SpendByFeature {
+  items: FeatureSpend[]
+}
+
+export interface UserSpendDetail {
+  end_user_id: string
+  cost_usd: string
+  run_count: number
+  call_count: number
+  avg_cost_per_run: string
+  last_active: string | null
+  spend_over_time: SpendPoint[]
+  models_used: ModelSpend[]
+  features_used: FeatureSpend[]
+}

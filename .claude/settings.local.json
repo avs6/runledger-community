@@ -16,7 +16,9 @@
       "Bash(docker compose:*)",
       "Bash(docker ps:*)",
       "Bash(docker exec:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git push:*)",
+      "Bash(grep:*)"
     ]
   }
 }

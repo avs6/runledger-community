@@ -1,10 +1,9 @@
 import Link from 'next/link'
 import { LayoutList, BarChart2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 
 const nav = [
   { href: '/runs', label: 'Runs', icon: LayoutList },
-  { href: '/analytics', label: 'Analytics', icon: BarChart2, soon: true },
+  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
 ]
 
 export default function Sidebar() {
@@ -14,7 +13,7 @@ export default function Sidebar() {
         <span className="text-lg font-semibold tracking-tight">RunLedger</span>
       </div>
       <nav className="flex flex-col gap-1">
-        {nav.map(({ href, label, icon: Icon, soon }) => (
+        {nav.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -22,11 +21,6 @@ export default function Sidebar() {
           >
             <Icon className="h-4 w-4 text-gray-500" />
             {label}
-            {soon && (
-              <Badge variant="secondary" className="ml-auto text-[10px]">
-                Soon
-              </Badge>
-            )}
           </Link>
         ))}
       </nav>

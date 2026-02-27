@@ -15,6 +15,8 @@ class AnalyticsSummary(BaseModel):
     total_output_tokens: int
     run_count: int
     call_count: int
+    prev_cost_usd: Decimal
+    cost_delta_pct: Decimal | None  # None when prev_cost is zero
 
 
 class SpendPoint(BaseModel):
@@ -48,6 +50,8 @@ class UserSpend(BaseModel):
     cost_usd: Decimal
     run_count: int
     call_count: int
+    avg_cost_per_run: Decimal
+    last_active: str | None
 
 
 class SpendByUser(BaseModel):
@@ -63,3 +67,15 @@ class FeatureSpend(BaseModel):
 
 class SpendByFeature(BaseModel):
     items: list[FeatureSpend]
+
+
+class UserSpendDetail(BaseModel):
+    end_user_id: str
+    cost_usd: Decimal
+    run_count: int
+    call_count: int
+    avg_cost_per_run: Decimal
+    last_active: str | None
+    spend_over_time: list[SpendPoint]
+    models_used: list[ModelSpend]
+    features_used: list[FeatureSpend]

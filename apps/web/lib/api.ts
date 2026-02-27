@@ -1,4 +1,14 @@
-import type { RunDetailResponse, RunGraphResponse, RunListResponse } from '@/types/api'
+import type {
+  AnalyticsSummary,
+  RunDetailResponse,
+  RunGraphResponse,
+  RunListResponse,
+  SpendByFeature,
+  SpendByModel,
+  SpendByUser,
+  SpendOverTime,
+  UserSpendDetail,
+} from '@/types/api'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
@@ -54,4 +64,86 @@ export async function getRun(apiKey: string, runId: string): Promise<RunDetailRe
 
 export async function getRunGraph(apiKey: string, runId: string): Promise<RunGraphResponse> {
   return apiFetch<RunGraphResponse>(`/runs/${runId}/graph`, apiKey)
+}
+
+// ── Analytics helpers ─────────────────────────────────────────────────────────
+
+interface TimeWindow {
+  from?: string
+  to?: string
+}
+
+function _analyticsQs(params: TimeWindow & Record<string, string | undefined>): string {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined) qs.set(k, v)
+  })
+  const s = qs.toString()
+  return s ? `?${s}` : ''
+}
+
+export async function getAnalyticsSummary(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<AnalyticsSummary> {
+  return apiFetch<AnalyticsSummary>(
+    `/analytics/summary${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+export async function getSpendOverTime(
+  apiKey: string,
+  granularity: 'hourly' | 'daily' = 'daily',
+  window: TimeWindow = {}
+): Promise<SpendOverTime> {
+  return apiFetch<SpendOverTime>(
+    `/analytics/spend-over-time${_analyticsQs({ granularity, ...window })}`,
+    apiKey
+  )
+}
+
+export async function getSpendByModel(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<SpendByModel> {
+  return apiFetch<SpendByModel>(
+    `/analytics/spend-by-model${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+export async function getSpendByFeature(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<SpendByFeature> {
+  return apiFetch<SpendByFeature>(
+    `/analytics/spend-by-feature${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+export async function getSpendByUser(
+  apiKey: string,
+  limit?: number,
+  window: TimeWindow = {}
+): Promise<SpendByUser> {
+  return apiFetch<SpendByUser>(
+    `/analytics/spend-by-user${_analyticsQs({
+      ...(limit !== undefined ? { limit: String(limit) } : {}),
+      ...window,
+    })}`,
+    apiKey
+  )
+}
+
+export async function getUserSpend(
+  apiKey: string,
+  userId: string,
+  window: TimeWindow = {}
+): Promise<UserSpendDetail> {
+  return apiFetch<UserSpendDetail>(
+    `/analytics/users/${encodeURIComponent(userId)}${_analyticsQs(window)}`,
+    apiKey
+  )
 }
