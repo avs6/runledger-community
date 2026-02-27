@@ -7,8 +7,8 @@ RUN npm ci
 
 COPY . .
 
-ARG API_URL=http://api:8000
-ENV API_URL=${API_URL}
+ARG NEXT_PUBLIC_API_URL=http://api:8000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
 

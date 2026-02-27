@@ -161,7 +161,7 @@ NEXTAUTH_SECRET=dev-secret-change-in-production-32chars!!
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-An example file is at `apps/web/.env.local.example`.
+Example files are at `apps/api/.env.example` and `apps/web/.env.local.example`.
 
 **3. Run migrations and seed**
 
