@@ -1,29 +1,53 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
-echo "→ Running database migrations..."
-alembic upgrade head
+LOG=/app/logs/startup.log
+mkdir -p /app/logs
 
-echo "→ Seeding database (idempotent — safe to run on every start)..."
-python /app/scripts/seed.py
+# ── Migrations ────────────────────────────────────────────────────────────────
 
+echo "── RunLedger startup $(date -u '+%Y-%m-%d %H:%M:%S UTC') ──────────────────────" | tee "$LOG"
+echo "" | tee -a "$LOG"
+
+echo "→ Running database migrations..." | tee -a "$LOG"
+alembic upgrade head 2>&1 | tee -a "$LOG"
+echo "" | tee -a "$LOG"
+
+# ── Seed (capture output so we can extract the API key) ───────────────────────
+
+echo "→ Seeding database (idempotent — safe on every start)..." | tee -a "$LOG"
+SEED_OUTPUT=$(python /app/scripts/seed.py 2>&1)
+printf '%s\n' "$SEED_OUTPUT" | tee -a "$LOG"
+echo "" | tee -a "$LOG"
+
+# Extract the API key — only present on first run when the key is created
+API_KEY=$(printf '%s\n' "$SEED_OUTPUT" | grep "^API Key:" | awk '{print $NF}' || true)
+if [ -z "$API_KEY" ]; then
+  API_KEY="(already created — check logs/startup.log from first run)"
+fi
+
+# ── Ready banner ──────────────────────────────────────────────────────────────
+
+{
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  RunLedger is ready"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "┌─────────────────────────────────────────────────┐"
-echo "│              RunLedger is ready                  │"
-echo "├─────────────────────────────────────────────────┤"
-echo "│  Dashboard    http://localhost:3000              │"
-echo "│  API docs     http://localhost:8000/docs         │"
-echo "│  Health       http://localhost:8000/health       │"
-echo "├─────────────────────────────────────────────────┤"
-echo "│  Login        admin@runledger.local              │"
-echo "│  Password     runledger                          │"
-echo "├─────────────────────────────────────────────────┤"
-echo "│  API key printed above (shown once on first run) │"
-echo "├─────────────────────────────────────────────────┤"
-echo "│  Logs  docker compose -f infra/docker-compose   │"
-echo "│              .yml logs -f [api|web|worker]       │"
-echo "└─────────────────────────────────────────────────┘"
+echo "  Dashboard   →  http://localhost:3000"
+echo "  API docs    →  http://localhost:8000/docs"
+echo "  Health      →  http://localhost:8000/health"
 echo ""
+echo "  Login       →  admin@runledger.local  /  runledger"
+echo "  API Key     →  $API_KEY"
+echo ""
+echo "  Logs        →  docker compose -f infra/docker-compose.yml logs -f api"
+echo "  Log file    →  logs/startup.log  (at repo root)"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+} | tee -a "$LOG"
 
-echo "→ Starting API..."
+# ── Start API ─────────────────────────────────────────────────────────────────
+
+echo "→ Starting API..." | tee -a "$LOG"
 exec uvicorn runledger_api.main:app --host 0.0.0.0 --port 8000

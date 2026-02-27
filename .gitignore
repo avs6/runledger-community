@@ -39,6 +39,9 @@ Thumbs.db
 # Docker
 *.log
 
+# Runtime logs (written by the API container on startup)
+logs/
+
 # Test / coverage
 .pytest_cache/
 .coverage

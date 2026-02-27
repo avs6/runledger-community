@@ -41,6 +41,8 @@ services:
       SECRET_KEY: dev-secret-key-change-in-production
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+    volumes:
+      - ../logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
