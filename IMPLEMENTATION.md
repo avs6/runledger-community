@@ -4,6 +4,27 @@
 
 ---
 
+## Phase Status
+
+| Phase | Title | Status | Roadmap Areas | Tests |
+|-------|-------|--------|---------------|-------|
+| 0 | Monorepo + Infrastructure Foundation | ✅ Complete | Area 0 | 3 |
+| 1 | Ingestion API + Multi-tenancy + Auth | ✅ Complete | Areas 1, 2 | 17 |
+| 2 | SDK — OpenAI Wrapper + Context Propagation | ✅ Complete | Area 3 | 28 |
+| 3 | SDK — LangChain + LangGraph + CLI | ✅ Complete | Areas 4, 5, 6 | 33 |
+| 4 | Billing-grade Metering Core | ✅ Complete | Area 7 | 22 |
+| 5 | Run Explorer + DAG Viewer UI | 🔲 Pending | Area 8 | — |
+| 6 | Metering Dashboard | 🔲 Pending | Area 9 | — |
+| 7 | Budgets + Spend Guardrails | 🔲 Pending | Areas 10, 11 | — |
+| 8 | Chargeback Engine + Reconciliation | 🔲 Pending | Area 12 | — |
+| 9 | Unit Economics Graph + Change Impact | 🔲 Pending | Area 13 | — |
+| 10 | End-user Analytics + Replay Harness | 🔲 Pending | Area 14 | — |
+| 11 | Tamper-evident Ledger + OSS Launch | 🔲 Pending | Area 15 | — |
+
+**Total tests shipped (Phases 0–4):** 103
+
+---
+
 ## Recommended Tech Stack
 
 | Layer | Choice | Rationale |
@@ -56,9 +77,15 @@ runledger/
 │       │   ├── langchain.py    # LangChain CallbackHandler
 │       │   ├── langgraph.py    # LangGraph node hooks
 │       │   ├── transport.py    # Async HTTP client (batching + retry)
-│       │   └── privacy.py      # Privacy mode enum + redaction
+│       │   └── cli.py          # runledger CLI (validate/status/runs)
 │       ├── pyproject.toml
 │       └── README.md
+├── examples/                   # Runnable example agents
+│   ├── 01_openai_basic.py
+│   ├── 02_openai_multi_turn.py
+│   ├── 03_langchain_chain.py
+│   ├── 04_langgraph_agent.py
+│   └── 05_fastapi_service.py
 ├── db/
 │   └── migrations/             # Alembic migration files
 ├── infra/
@@ -68,6 +95,7 @@ runledger/
 │   ├── quickstart.md
 │   ├── sdk-reference.md
 │   └── deployment.md
+├── QUICKSTART.md               # Getting started guide (5-minute onboarding)
 ├── pyproject.toml              # uv workspace root
 ├── CLAUDE.md
 ├── IMPLEMENTATION.md           # This file
@@ -119,7 +147,8 @@ outcome_events   (id UUID, run_id, event_type, success BOOL,
 ```sql
 provider_pricing (id, provider, model, input_cost_per_1m NUMERIC,
                   output_cost_per_1m NUMERIC, cached_input_cost_per_1m NUMERIC,
-                  effective_from TIMESTAMPTZ, effective_to TIMESTAMPTZ)
+                  effective_from TIMESTAMPTZ, effective_to TIMESTAMPTZ,
+                  workspace_id UUID NULL)   -- NULL = global; non-null = workspace override
 
 -- Materialized rollup tables (Celery jobs maintain these)
 usage_hourly     (workspace_id, application_id, end_user_id, model, feature_tag,
@@ -128,6 +157,8 @@ usage_hourly     (workspace_id, application_id, end_user_id, model, feature_tag,
                   -- INDEX on (workspace_id, hour) and (end_user_id, hour)
 
 usage_daily      (same columns, day DATE)
+
+data_quality_issues (id, provider_call_id, workspace_id, issue_type, detail, created_at)
 ```
 
 ### Budgets & Guardrails
@@ -176,179 +207,165 @@ payload_access_log (id, workspace_id, accessor_user_id, run_id, span_id,
 
 ## 6-Month Implementation Plan
 
-### Phase 0 — Weeks 1–2: Monorepo + Infrastructure Foundation
+### Phase 0 — Weeks 1–2: Monorepo + Infrastructure Foundation ✅
+**Roadmap areas:** 0 (Product Architecture Baseline)
 
 **Goal:** `docker compose up` runs Postgres + Redis + a health-check API. The skeleton is in place for every subsequent phase to build on.
 
-**Backend:**
-- Initialize uv workspace with `apps/api` and `packages/sdk` members
-- FastAPI app with: health check endpoint, structured logging (structlog), pydantic-settings config (reads from `.env`)
-- SQLAlchemy async setup (asyncpg driver), Alembic init with first empty migration
-- Redis client (`redis-py` async), Celery app wired to Redis broker
-- Core config: `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `ENVIRONMENT`, `LOG_LEVEL`
+**What was built:**
 
-**Frontend:**
-- `apps/web` — Next.js 14, TypeScript, Tailwind CSS, shadcn/ui init
-- Placeholder home page that pings the API health endpoint
+- `apps/api/runledger_api/core/config.py` — pydantic-settings config (`DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `ENVIRONMENT`, `LOG_LEVEL`)
+- `apps/api/runledger_api/core/db.py` — SQLAlchemy async engine + session factory (asyncpg driver)
+- `apps/api/runledger_api/core/redis.py` — async Redis client
+- `apps/api/runledger_api/core/logging.py` — structlog structured logging setup
+- `apps/api/runledger_api/core/celery_app.py` — Celery app wired to Redis broker
+- `apps/api/runledger_api/routers/health.py` — `GET /health` → `{"status":"ok","db":"ok","redis":"ok"}`
+- `apps/api/runledger_api/main.py` — FastAPI app entrypoint, health router registered
+- `apps/api/alembic/` — Alembic init, `alembic.ini`, `env.py` using async engine
+- `infra/docker-compose.yml` — `postgres:16-alpine`, `redis:7-alpine`, `api`, `worker` services
+- `infra/docker-compose.dev.yml` — hot-reload override (watchfiles)
+- `.github/workflows/ci.yml` — ruff + mypy + pytest + typecheck on push
 
-**Infrastructure:**
-- `docker-compose.yml`: `postgres:16-alpine`, `redis:7-alpine`, `api` service, `web` service, `worker` service (Celery)
-- Dev compose override: hot reload for api (`watchfiles`) and web (`next dev`)
-- Makefile targets: `make dev`, `make migrate`, `make test`, `make lint`
+Tests: `tests/test_health.py` — **3 tests** (health ok, db degraded, redis degraded)
 
-**CI (GitHub Actions):**
-- On push: `ruff check`, `mypy`, `pytest` (unit tests), `next build` typecheck
-- Fail fast on type errors — enforce this from day one
-
-**Definition of done:** `docker compose up` starts all services; `GET /health` returns `{"status": "ok", "db": "ok", "redis": "ok"}`
+**Definition of done:** ✅ `docker compose up` starts all services; `GET /health` returns `{"status": "ok", "db": "ok", "redis": "ok"}`
 
 ---
 
-### Phase 1 — Weeks 3–4: Ingestion API + Multi-tenancy + Auth
+### Phase 1 — Weeks 3–4: Ingestion API + Multi-tenancy + Auth ✅
+**Roadmap areas:** 1 (Event Ingestion Pipeline), 2 (Multi-tenancy + Auth)
 
 **Goal:** A real event can be sent via HTTP with an API key, stored in Postgres, and queried back.
 
-**Database:**
-- Migration: all tables in the Tenant & Auth section + Instrumentation Events section above
-- `provider_calls` table with monthly range partitions (create 12 months ahead)
-- Seed: one default tenant + workspace for local dev
+**What was built:**
 
-**Ingestion API:**
-- `POST /ingest/v1/events` — single event (any event type via discriminated union schema)
-- `POST /ingest/v1/batch` — up to 100 events per request
-- API key authentication middleware: extract `Authorization: Bearer rl_...`, hash it, look up in `api_keys`, scope check
-- Idempotency: `Idempotency-Key` header → Redis SETNX with 24h TTL → skip duplicate writes
-- Events go into Redis Stream `runledger:events:{workspace_id}` (not written to Postgres directly)
-- Stream consumer group: `pipeline-workers` → Celery task `process_event_batch`
+- `apps/api/alembic/versions/001_initial_schema.py` — migration for all Tenant & Auth + Instrumentation Events tables; `provider_calls` with 12 monthly range partitions
+- `apps/api/runledger_api/models/tenant.py` — ORM: `Tenant`, `Workspace`, `Application`, `ApiKey`, `WorkspaceUser`, `User`
+- `apps/api/runledger_api/models/events.py` — ORM: `AgentRun`, `Span`, `ProviderCall`, `ToolCall`, `OutcomeEvent`
+- `apps/api/runledger_api/schemas/auth.py` — Pydantic schemas for workspace + API key CRUD
+- `apps/api/runledger_api/schemas/events.py` — discriminated union event schema for batch ingestion
+- `apps/api/runledger_api/routers/auth.py` — `POST /auth/workspaces`, `POST /auth/api-keys`, `GET /auth/api-keys`, `DELETE /auth/api-keys/{id}`
+- `apps/api/runledger_api/routers/ingest.py` — `POST /ingest/v1/events`, `POST /ingest/v1/batch`; API key auth middleware; idempotency via Redis SETNX; events → Redis Stream `runledger:events:{workspace_id}`
+- `apps/api/runledger_api/services/auth.py` — API key hashing, prefix generation (`rl_live_` / `rl_test_`), scope check
+- `apps/api/runledger_api/core/deps.py` — FastAPI dependency: extract + validate Bearer token → `Workspace`
+- `apps/api/runledger_api/workers/pipeline.py` — Celery `process_event_batch`: drains Redis Stream → validates → upserts all event types → acks stream
+- `apps/api/scripts/seed.py` — seeds default tenant + workspace + API key; later extended with pricing data
 
-**Event Pipeline (Celery):**
-- `process_event_batch` task: drain stream → validate → upsert `agent_runs` + `spans` + `provider_calls` + `tool_calls` → ack stream
-- Idempotent upserts (ON CONFLICT DO NOTHING on event `id`)
+Tests: `tests/test_auth.py` (**11 tests**), `tests/test_ingest.py` (**6 tests**) — **17 tests total**
 
-**Auth API:**
-- `POST /auth/workspaces` → create workspace (admin only for now, seeded locally)
-- `POST /auth/api-keys` → generate API key (prefix `rl_live_` or `rl_test_`)
-- `GET /auth/api-keys` → list keys (shows prefix + last_used, never full key)
-- `DELETE /auth/api-keys/{id}` → revoke key
-
-**Definition of done:** Send 1000 events via batch endpoint, confirm they're all queryable with correct workspace scoping. No events cross tenant boundaries.
+**Definition of done:** ✅ Send 1000 events via batch endpoint, confirm they're all queryable with correct workspace scoping. No events cross tenant boundaries.
 
 ---
 
-### Phase 2 — Weeks 5–6: SDK — OpenAI Wrapper + Context Propagation
+### Phase 2 — Weeks 5–6: SDK — OpenAI Wrapper + Context Propagation ✅
+**Roadmap areas:** 3 (SDK — OpenAI + Context)
 
 **Goal:** `rl.instrument()` wraps the OpenAI client. One line of code captures model, tokens, latency, and cost for every call.
 
-**`runledger_sdk` package:**
-- `RunLedger(api_key, base_url, mode, privacy_mode)` client class
-- `instrument()` — monkey-patches `openai.OpenAI` and `openai.AsyncOpenAI`:
-  - Wraps `chat.completions.create` and `async` variant
-  - Captures before call: `run_id`, `model`, `started_at`, SDK context vars
-  - Captures after call: `input_tokens`, `output_tokens`, `cached_input_tokens`, `latency_ms`, `status`
-  - Captures on error: `error_type`, `error_message` (no payload)
-  - Fires event to transport layer (non-blocking)
-- `context(end_user_id, session_id, feature_tag, run_id)` — context manager using `contextvars.ContextVar`
-  - Thread-safe and async-safe
-  - Nested contexts inherit parent values
-- `run_id` generation: UUID v7 (time-ordered, sortable) or `uuid.uuid4()` as fallback
+**What was built:**
 
-**Transport layer (`transport.py`):**
-- Async HTTP client (httpx)
-- In-memory buffer (queue, max 500 events)
-- Flush every 2 seconds or when buffer hits 100 events (whichever comes first)
-- Retry with exponential backoff (3 attempts, then drop + log warning)
-- Background thread for sync SDK usage (wraps async flush in a thread)
+- `packages/sdk/runledger_sdk/client.py` — `RunLedger(api_key, base_url, privacy_mode, local)` client; `instrument()` monkey-patches `openai.OpenAI` and `openai.AsyncOpenAI`; `context()` context manager; `shutdown()` / `flush()` / `aflush()`
+- `packages/sdk/runledger_sdk/context.py` — `contextvars.ContextVar`-based context; nested context inheritance; `propagation_headers()` / `from_headers()` for cross-service propagation; thread-safe + async-safe
+- `packages/sdk/runledger_sdk/openai.py` — wraps `chat.completions.create` + async variant; captures `run_id`, `model`, `started_at`, tokens (`input_tokens`, `output_tokens`, `cached_input_tokens`), `latency_ms`, `status`, `error_type`
+- `packages/sdk/runledger_sdk/transport.py` — async httpx transport; in-memory buffer (max 500 events); flush every 2s or 100 events; exponential backoff retry (3 attempts); background thread for sync usage; `local=True` mode logs structured JSON to stdout
+- `packages/sdk/runledger_sdk/__init__.py` — public exports: `RunLedger`, `PrivacyMode`
 
-**Privacy modes:**
+Privacy modes:
 ```python
 class PrivacyMode(Enum):
-    METADATA_ONLY = "metadata_only"   # default: tokens, model, latency only
-    ERRORS_ONLY   = "errors_only"     # metadata + payload on errors
-    SAMPLED       = "sampled"         # metadata + payload on N% of calls
-    FULL          = "full"            # capture everything (explicit opt-in)
+    METADATA_ONLY = "metadata_only"   # default
+    ERRORS_ONLY   = "errors_only"
+    SAMPLED       = "sampled"
+    FULL          = "full"
 ```
 
-**Local dev mode:** If `api_key` is not set or `mode="local"`, log events to console as structured JSON instead of sending to API.
+Tests: `tests/test_openai.py` (**10 tests**), `tests/test_context.py` (**10 tests**), `tests/test_transport.py` (**8 tests**) — **28 tests total**
 
-**Definition of done:** A bare `openai` script with two lines of RunLedger setup shows up in the ingestion pipeline with correct token counts.
+**Definition of done:** ✅ A bare `openai` script with two lines of RunLedger setup shows up in the ingestion pipeline with correct token counts.
 
 ---
 
-### Phase 3 — Weeks 7–8: SDK — LangChain + LangGraph + CLI
+### Phase 3 — Weeks 7–8: SDK — LangChain + LangGraph + CLI ✅
+**Roadmap areas:** 4 (LangChain Callbacks), 5 (LangGraph Instrumentation), 6 (CLI)
 
 **Goal:** Any LangChain chain or LangGraph graph is fully instrumented with one callback. The CLI validates instrumentation.
 
-**LangChain (`langchain.py`):**
-- `RunLedgerCallbackHandler(BaseCallbackHandler)`:
-  - `on_chain_start` → open Span(type=CHAIN, parent from context)
-  - `on_chain_end / on_chain_error` → close span, set status
-  - `on_llm_start` → open Span(type=LLM)
-  - `on_llm_end` → extract `LLMResult` usage metadata → ProviderCall event (tokens, model, latency)
-  - `on_tool_start` → open Span(type=TOOL), capture tool_name
-  - `on_tool_end / on_tool_error` → close span
-  - `on_agent_action` → Span(type=AGENT), capture action input summary (no payload by default)
-  - `on_agent_finish` → close span, outcome event
-- Span parent-child linking: maintain a stack per `run_id` in contextvars, set `parent_span_id` on each open
+**What was built:**
 
-**LangGraph (`langgraph.py`):**
-- `RunLedgerNodeWrapper(node_fn, node_name)` — wraps a graph node function:
-  - Opens a Span(type=CHAIN, name=node_name) on entry
-  - Closes with status on exit / exception
-  - Captures edge context (previous node name from graph state metadata)
-- `instrument_graph(graph)` — walks a compiled LangGraph and wraps all node functions automatically
-- Graph structure capture: send edge events (source_node → target_node) as span metadata
+- `packages/sdk/runledger_sdk/langchain.py` — `RunLedgerCallbackHandler(BaseCallbackHandler)`:
+  - `on_chain_start/end/error` → CHAIN spans
+  - `on_llm_start/end` → LLM spans + `ProviderCall` event with token counts extracted from `LLMResult`
+  - `on_tool_start/end/error` → TOOL spans
+  - `on_agent_action/finish` → AGENT spans + outcome event
+  - `track_llm_cost=False` flag to prevent double-counting when used alongside `rl.instrument()`
+  - Span parent-child stack maintained per `run_id` in contextvars
 
-**Context propagation across services:**
-- `RunLedger.propagation_headers()` → dict of headers (`X-RunLedger-Run-Id`, `X-RunLedger-Tenant-Id`, etc.)
-- `RunLedger.from_headers(headers)` → restores context from inbound request headers
-- Enables span correlation across microservices
+- `packages/sdk/runledger_sdk/langgraph.py` — `instrument_graph(graph, transport)`:
+  - Uses `graph.with_config({"callbacks": [handler]})` — zero intrusion on the original graph object
+  - Every node fires `span_start` / `span_end` via LangChain callbacks
+  - Returns a new configured view; original graph unchanged
 
-**CLI (`runledger` command via `typer`):**
-- `runledger validate --api-key rl_...` — sends a synthetic test event, waits for confirmation, reports success/fail
-- `runledger runs --api-key rl_... [--limit 10]` — lists recent runs as a table (run_id, model, cost, status, age)
-- `runledger status --api-key rl_...` — checks API connectivity + Redis + DB health
+- `packages/sdk/runledger_sdk/cli.py` — `runledger` CLI (typer):
+  - `runledger validate` — sends synthetic test event, confirms receipt
+  - `runledger status` — checks API + DB + Redis health
+  - `runledger runs [--limit N]` — lists recent runs as a table (run_id, model, cost, status, age)
 
-**Definition of done:** A LangGraph agent with `instrument_graph()` shows the full DAG structure (nodes as spans with parent-child links) in the API after a run.
+- `examples/01_openai_basic.py` — minimal OpenAI instrumentation (2 lines of setup)
+- `examples/02_openai_multi_turn.py` — multi-turn chat with `session_id` tracking
+- `examples/03_langchain_chain.py` — `prompt | llm | StrOutputParser()` chain with callback handler
+- `examples/04_langgraph_agent.py` — ReAct agent (search + calculator tools) with `instrument_graph()`
+- `examples/05_fastapi_service.py` — FastAPI service with per-request `async with rl.context(...)`
+- `QUICKSTART.md` — 11-section getting-started guide (install → API key → verify → OpenAI → LangChain → LangGraph → async → FastAPI → cross-service → analytics → examples)
+
+Tests: `tests/test_langchain.py` (**13 tests**), `tests/test_langgraph.py` (**9 tests**), `tests/test_cli.py` (**11 tests**) — **33 tests total**
+
+**Definition of done:** ✅ A LangGraph agent with `instrument_graph()` shows the full DAG structure (nodes as spans with parent-child links) in the API after a run.
 
 ---
 
-### Phase 4 — Weeks 9–10: Billing-grade Metering Core
+### Phase 4 — Weeks 9–10: Billing-grade Metering Core ✅
+**Roadmap areas:** 7 (Billing-grade Metering Core)
 
 **Goal:** Every provider call has a cost in USD attached within 30 seconds. Aggregations by tenant/user/model/feature are queryable and stay correct after replay.
 
-**Pricing engine (`services/pricing.py`):**
-- `provider_pricing` table seeded with current pricing for:
-  - OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1, o3-mini (effective-dated)
-  - Anthropic: claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5
-  - Google: gemini-1.5-pro, gemini-1.5-flash
-- `calculate_cost(provider, model, input_tokens, output_tokens, cached_tokens, at_time) -> Decimal`
-  - Looks up effective price for `at_time` (handles retroactive price changes)
-  - Handles cached_input discount (OpenAI Prompt Caching: 50% off input)
-- Customer pricing overrides: `workspace_id`-specific overrides in `provider_pricing` with matching tenant scope
-- Currency: all stored as USD cents (integer) internally, formatted at display time
+**What was built:**
 
-**Celery workers:**
-- `cost_enrichment_worker` (triggered by event pipeline): calculate cost for each `provider_call`, update `cost_usd`, update parent `span.cost_usd` + `agent_run.total_cost_usd`
-- `rollup_hourly_worker` (schedule: every 30 min): INSERT INTO `usage_hourly` ... ON CONFLICT DO UPDATE — aggregate `provider_calls` from last 2 hours
-- `rollup_daily_worker` (schedule: daily at 00:05 UTC): aggregate `usage_hourly` into `usage_daily` for previous day
-- `data_quality_worker` (schedule: every hour): flag `provider_calls` where `input_tokens IS NULL` or `cost_usd IS NULL`, write to `data_quality_issues` table
+- `apps/api/alembic/versions/002_metering_tables.py` — migration adding `provider_pricing`, `usage_hourly`, `usage_daily`, `data_quality_issues`
+- `apps/api/runledger_api/models/metering.py` — ORM: `ProviderPricing`, `UsageHourly`, `UsageDaily`, `DataQualityIssue`
+- `apps/api/runledger_api/services/pricing.py` — `calculate_cost()` async function:
+  - Effective-dated price lookup (`at_time` parameter handles retroactive corrections)
+  - Workspace override priority: workspace-specific row checked before global row
+  - Cached input discount: uses `cached_input_cost_per_1m` if set; defaults to 50% of input rate
+  - Formula: `tokens / 1_000_000 * rate_per_1m` (Decimal arithmetic, ROUND_HALF_UP, 8 decimal places)
+  - Returns `None` if no pricing row found (surfaced as data quality issue)
+- `apps/api/runledger_api/workers/metering.py` — 5 Celery tasks (all use `asyncio.run()` + `NullPool`):
+  - `cost_enrichment_worker` (60s schedule): enriches `provider_calls` where `cost_usd IS NULL`; cascades to parent span + agent run
+  - `rollup_hourly_worker` (30m schedule): full DELETE + INSERT for last 2h window in `usage_hourly`
+  - `rollup_daily_worker` (daily 00:05 UTC): aggregates into `usage_daily` for previous day
+  - `data_quality_worker` (1h schedule): flags calls with missing tokens/cost into `data_quality_issues`
+  - `replay_backfill` (manual trigger): clears `cost_usd` for a time window, re-enriches, re-rolls hourly + daily
+- `apps/api/runledger_api/schemas/analytics.py` — Pydantic: `AnalyticsSummary`, `SpendOverTime`, `SpendByModel`, `SpendByUser`, `SpendByFeature`, `SpendPoint`, `ModelSpend`, `UserSpend`, `FeatureSpend`
+- `apps/api/runledger_api/routers/analytics.py` — 5 endpoints (all workspace-scoped via Bearer auth, query `provider_calls` directly):
+  - `GET /analytics/summary` — total cost, tokens, run count for a time range
+  - `GET /analytics/spend-over-time?granularity=hourly|daily` — time-series array
+  - `GET /analytics/spend-by-model` — breakdown by model
+  - `GET /analytics/spend-by-user?limit=N` — top spenders
+  - `GET /analytics/spend-by-feature` — breakdown by feature_tag
+- `apps/api/runledger_api/core/celery_app.py` (updated) — added `metering` worker to includes + Beat schedule
+- `apps/api/scripts/seed.py` (updated) — `_seed_pricing()` inserts 11 model pricing rows:
+  - OpenAI: gpt-4o ($2.50/$10.00), gpt-4o-mini ($0.15/$0.60), gpt-4-turbo ($10/$30), gpt-3.5-turbo ($0.50/$1.50), o1 ($15/$60), o3-mini ($1.10/$4.40)
+  - Anthropic: claude-opus-4-6 ($15/$75), claude-sonnet-4-6 ($3/$15), claude-haiku-4-5 ($0.25/$1.25)
+  - Google: gemini-1.5-pro ($1.25/$5.00), gemini-1.5-flash ($0.075/$0.30)
+  - All effective from 2025-01-01 UTC
 
-**Aggregation correctness:**
-- All rollup jobs are idempotent (full recompute for the time window, not incremental add)
-- `replay_backfill` Celery task: re-run cost enrichment + rollups for a given time range (used after pricing corrections)
+Tests: `tests/test_pricing.py` (**9 tests**), `tests/test_analytics.py` (**13 tests**) — **22 tests total**
 
-**Query API:**
-- `GET /analytics/summary?workspace_id=...&from=...&to=...` → total cost, total tokens, run count
-- `GET /analytics/spend-over-time?granularity=hourly|daily` → time series array
-- `GET /analytics/spend-by-model` → breakdown by model
-- `GET /analytics/spend-by-user?limit=50` → top spenders
-- `GET /analytics/spend-by-feature` → breakdown by feature_tag
-
-**Definition of done:** Replaying the same set of events twice produces identical cost totals. Cost for `gpt-4o` at a date before and after OpenAI's pricing change returns different values.
+**Definition of done:** ✅ Replaying the same set of events twice produces identical cost totals. Cost for `gpt-4o` at a date before and after OpenAI's pricing change returns different values.
 
 ---
 
 ### Phase 5 — Weeks 11–12: Run Explorer + DAG Viewer UI
+**Roadmap areas:** 8 (Run Explorer + DAG Viewer)
 
 **Goal:** Log into the dashboard, search for a run, click into it, see the full DAG with cost per node.
 
@@ -374,7 +391,7 @@ class PrivacyMode(Enum):
   - Error diagnostics: error_type, error_message, timestamp (no payload unless FULL mode)
   - Payload status badge: "No payload captured" / "Payload available (request access)"
 
-**FastAPI routes added:**
+**FastAPI routes to add:**
 - `GET /runs?workspace_id=...&cursor=...&limit=50&filters=...` (cursor pagination)
 - `GET /runs/{run_id}` (run + all spans + all provider_calls + tool_calls)
 - `GET /runs/{run_id}/graph` (DAG structure: nodes + edges for react-flow)
@@ -384,6 +401,7 @@ class PrivacyMode(Enum):
 ---
 
 ### Phase 6 — Weeks 13–14: Metering Dashboard
+**Roadmap areas:** 9 (Metering Dashboard)
 
 **Goal:** A finance person or engineering lead opens the dashboard and immediately understands spend, who's driving it, and where it's going.
 
@@ -400,7 +418,7 @@ class PrivacyMode(Enum):
   - `TopSpendersTable`: end_user_id, total cost (period), run count, avg cost/run, last active, trend arrow
   - Clicking a user → `/analytics/users/[end_user_id]` (user profile: spend over time, models used, features used)
 
-**FastAPI routes added:**
+**FastAPI routes to add:**
 - `GET /analytics/summary` (KPIs with period-over-period deltas)
 - `GET /analytics/spend-over-time?granularity=hourly|daily&from=&to=`
 - `GET /analytics/spend-by-model`
@@ -413,6 +431,7 @@ class PrivacyMode(Enum):
 ---
 
 ### Phase 7 — Weeks 15–16: Budgets + Spend Guardrails
+**Roadmap areas:** 10 (Budget Guardrails), 11 (Runaway Protection)
 
 **Goal:** Set a budget for an end-user. Run a chatbot that exceeds it. The next call is blocked — automatically, no code change.
 
@@ -451,6 +470,7 @@ class PrivacyMode(Enum):
 ---
 
 ### Phase 8 — Weeks 17–18: Chargeback Engine + Reconciliation + Dispute Trail
+**Roadmap areas:** 12 (Chargeback + Billing Periods)
 
 **Goal:** Close the month, generate a usage statement, and drill from any line item back to the exact run that caused it.
 
@@ -498,6 +518,7 @@ class PrivacyMode(Enum):
 ---
 
 ### Phase 9 — Weeks 19–20: Unit Economics Graph + Change Impact
+**Roadmap areas:** 13 (Unit Economics + Change Impact)
 
 **Goal:** Ship a new prompt version, tag it in the SDK, and see a side-by-side cost breakdown vs the previous version.
 
@@ -532,6 +553,7 @@ class PrivacyMode(Enum):
 ---
 
 ### Phase 10 — Weeks 21–22: End-user Analytics + Replay Harness
+**Roadmap areas:** 14 (End-user Analytics + Replay Harness)
 
 **Goal:** Identify your top spenders and anomalous users. Run the same 20 agent tasks against two models and compare cost + outcome.
 
@@ -570,6 +592,7 @@ class PrivacyMode(Enum):
 ---
 
 ### Phase 11 — Weeks 23–24: Tamper-evident Ledger + Production Polish + OSS Launch
+**Roadmap areas:** 15 (Tamper-evident Ledger + OSS Launch)
 
 **Goal:** Ship a production-grade release. Docker image on Docker Hub. SDK on PyPI. Comprehensive docs.
 
