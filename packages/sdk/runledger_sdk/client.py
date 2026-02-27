@@ -1,14 +1,21 @@
 """
 RunLedger SDK client.
 
-OpenAI instrumentation is implemented in Phase 2.
-LangChain/LangGraph instrumentation is added in Phase 3.
+OpenAI instrumentation: Phase 2.
+LangChain/LangGraph instrumentation: Phase 3.
 """
 
 from __future__ import annotations
 
-from runledger_sdk.context import RunLedgerContext
+from runledger_sdk.context import RunLedgerContext, get_context_snapshot
 from runledger_sdk.transport import SyncTransport, Transport
+
+# Propagation header names
+_HEADER_RUN_ID = "X-RunLedger-Run-Id"
+_HEADER_END_USER_ID = "X-RunLedger-End-User-Id"
+_HEADER_SESSION_ID = "X-RunLedger-Session-Id"
+_HEADER_FEATURE_TAG = "X-RunLedger-Feature-Tag"
+_HEADER_DEPLOYMENT_VERSION = "X-RunLedger-Deployment-Version"
 
 
 class PrivacyMode:
@@ -24,7 +31,7 @@ class RunLedger:
     """
     Main RunLedger client.
 
-    Sync usage::
+    Sync usage (OpenAI patch)::
 
         from runledger_sdk import RunLedger
 
@@ -36,6 +43,16 @@ class RunLedger:
 
         with rl.context(end_user_id="u_123", feature_tag="support-chat"):
             resp = client.chat.completions.create(model="gpt-4o", messages=[...])
+
+    LangChain usage::
+
+        handler = rl.callback_handler()
+        chain.invoke({...}, config={"callbacks": [handler]})
+
+    LangGraph usage::
+
+        from runledger_sdk.langgraph import instrument_graph
+        graph = instrument_graph(graph, rl._get_sync_transport())
 
     Async usage::
 
@@ -102,6 +119,29 @@ class RunLedger:
         instrument_openai(self._get_sync_transport())
         self._instrumented = True
 
+    def callback_handler(self, *, track_llm_cost: bool = True) -> object:
+        """
+        Return a ``RunLedgerCallbackHandler`` for use with LangChain chains
+        and LangGraph graphs.
+
+        Parameters
+        ----------
+        track_llm_cost:
+            If False, skip ``provider_call`` events from ``on_llm_end``
+            (use when ``rl.instrument()`` is also active to avoid duplicates).
+
+        Example::
+
+            handler = rl.callback_handler()
+            chain.invoke({...}, config={"callbacks": [handler]})
+        """
+        from runledger_sdk.langchain import RunLedgerCallbackHandler  # noqa: PLC0415
+
+        return RunLedgerCallbackHandler(
+            self._get_sync_transport(),
+            track_llm_cost=track_llm_cost,
+        )
+
     def context(
         self,
         *,
@@ -129,6 +169,61 @@ class RunLedger:
             feature_tag=feature_tag,
             deployment_version=deployment_version,
         )
+
+    # ── Context propagation ───────────────────────────────────────────────────
+
+    def propagation_headers(self) -> dict[str, str]:
+        """
+        Return HTTP headers that carry the current RunLedger context.
+
+        Use this to propagate run context across service boundaries::
+
+            headers = rl.propagation_headers()
+            httpx.get("http://other-service/...", headers=headers)
+
+        On the receiving service, restore context with ``from_headers()``.
+        """
+        ctx = get_context_snapshot()
+        headers: dict[str, str] = {}
+
+        if ctx.get("run_id"):
+            headers[_HEADER_RUN_ID] = ctx["run_id"]  # type: ignore[assignment]
+        if ctx.get("end_user_id"):
+            headers[_HEADER_END_USER_ID] = ctx["end_user_id"]  # type: ignore[assignment]
+        if ctx.get("session_id"):
+            headers[_HEADER_SESSION_ID] = ctx["session_id"]  # type: ignore[assignment]
+        if ctx.get("feature_tag"):
+            headers[_HEADER_FEATURE_TAG] = ctx["feature_tag"]  # type: ignore[assignment]
+        if ctx.get("deployment_version"):
+            headers[_HEADER_DEPLOYMENT_VERSION] = ctx["deployment_version"]  # type: ignore[assignment]
+
+        return headers
+
+    @staticmethod
+    def from_headers(headers: dict[str, str]) -> RunLedgerContext:
+        """
+        Restore RunLedger context from incoming HTTP headers.
+
+        Use on the receiving end of a cross-service call::
+
+            ctx = RunLedger.from_headers(dict(request.headers))
+            with ctx:
+                # context is now set; all instrumentation will use the
+                # propagated run_id and metadata
+                ...
+        """
+        # httpx / starlette headers are case-insensitive; normalise to lower
+        lowered = {k.lower(): v for k, v in headers.items()}
+
+        return RunLedgerContext(
+            run_id=lowered.get(_HEADER_RUN_ID.lower()),
+            end_user_id=lowered.get(_HEADER_END_USER_ID.lower()),
+            session_id=lowered.get(_HEADER_SESSION_ID.lower()),
+            feature_tag=lowered.get(_HEADER_FEATURE_TAG.lower()),
+            deployment_version=lowered.get(_HEADER_DEPLOYMENT_VERSION.lower()),
+        )
+
+    # ── Flush / shutdown ──────────────────────────────────────────────────────
 
     def flush(self) -> None:
         """Block until all buffered events have been sent (sync)."""

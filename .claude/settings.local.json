@@ -4,7 +4,8 @@
       "Bash(uv sync:*)",
       "Bash(uv run:*)",
       "Bash(uv pip:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(uv add:*)"
     ]
   }
 }
