@@ -40,6 +40,13 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.metering import DataQualityIssue, UsageDaily, UsageHourly
+from runledger_api.services.budgets import (
+    _matching_budgets,
+    fire_breach,
+    get_budget_spend,
+    get_workspace_budgets_cached,
+    incr_budget_spend,
+)
 from runledger_api.services.pricing import calculate_cost
 
 log = structlog.get_logger()
@@ -66,45 +73,74 @@ def cost_enrichment_worker() -> dict[str, int]:
 
 
 async def _run_cost_enrichment() -> dict[str, int]:
+    from redis.asyncio import Redis  # noqa: PLC0415
+
     factory = _make_session_factory()
     enriched = 0
 
-    async with factory() as session:
-        # Fetch up to 500 provider_calls that have tokens but no cost
-        stmt = (
-            select(ProviderCall)
-            .where(
-                ProviderCall.cost_usd.is_(None),
-                ProviderCall.input_tokens.is_not(None),
+    redis = Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+    try:
+        async with factory() as session:
+            # Fetch up to 500 provider_calls that have tokens but no cost
+            stmt = (
+                select(ProviderCall)
+                .where(
+                    ProviderCall.cost_usd.is_(None),
+                    ProviderCall.input_tokens.is_not(None),
+                )
+                .order_by(ProviderCall.created_at)
+                .limit(500)
             )
-            .order_by(ProviderCall.created_at)
-            .limit(500)
-        )
-        result = await session.execute(stmt)
-        calls: list[ProviderCall] = list(result.scalars())
+            result = await session.execute(stmt)
+            calls: list[ProviderCall] = list(result.scalars())
 
-        for pc in calls:
-            cost = await calculate_cost(
-                session,
-                provider=pc.provider,
-                model=pc.model,
-                input_tokens=pc.input_tokens,
-                output_tokens=pc.output_tokens,
-                cached_input_tokens=pc.cached_input_tokens,
-                at_time=pc.created_at,
-                workspace_id=pc.workspace_id,
-            )
-            if cost is None:
-                continue
+            for pc in calls:
+                cost = await calculate_cost(
+                    session,
+                    provider=pc.provider,
+                    model=pc.model,
+                    input_tokens=pc.input_tokens,
+                    output_tokens=pc.output_tokens,
+                    cached_input_tokens=pc.cached_input_tokens,
+                    at_time=pc.created_at,
+                    workspace_id=pc.workspace_id,
+                )
+                if cost is None:
+                    continue
 
-            await session.execute(
-                update(ProviderCall)
-                .where(ProviderCall.id == pc.id)
-                .values(cost_usd=cost)
-            )
-            enriched += 1
+                await session.execute(
+                    update(ProviderCall)
+                    .where(ProviderCall.id == pc.id)
+                    .values(cost_usd=cost)
+                )
+                enriched += 1
 
-        await session.commit()
+                # Increment Redis budget spend counters for matching budgets
+                try:
+                    budgets = await get_workspace_budgets_cached(
+                        redis, session, pc.workspace_id
+                    )
+                    matched = _matching_budgets(
+                        budgets,
+                        end_user_id=pc.end_user_id,
+                        feature_tag=None,  # feature_tag is on agent_run, not pc
+                    )
+                    import uuid  # noqa: PLC0415
+
+                    for b in matched:
+                        budget_id = uuid.UUID(b["id"])
+                        await incr_budget_spend(redis, budget_id, b["period_type"], cost)
+                        spend = await get_budget_spend(redis, budget_id, b["period_type"])
+                        from decimal import Decimal  # noqa: PLC0415
+
+                        if spend >= Decimal(b["limit_usd"]) and b["action"] != "notify":
+                            await fire_breach(session, redis, b, spend, b["action"])
+                except Exception as exc:
+                    log.warning("budget_incr_failed", error=str(exc))
+
+            await session.commit()
+    finally:
+        await redis.aclose()
 
     if enriched:
         log.info("cost_enrichment_done", enriched=enriched)

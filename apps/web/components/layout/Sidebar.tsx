@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { LayoutList, BarChart2 } from 'lucide-react'
+import { LayoutList, BarChart2, ShieldAlert } from 'lucide-react'
 
 const nav = [
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/budgets', label: 'Budgets', icon: ShieldAlert },
 ]
 
 export default function Sidebar() {

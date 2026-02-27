@@ -1,5 +1,8 @@
 import type {
   AnalyticsSummary,
+  BreachList,
+  Budget,
+  BudgetList,
   RunDetailResponse,
   RunGraphResponse,
   RunListResponse,
@@ -146,4 +149,35 @@ export async function getUserSpend(
     `/analytics/users/${encodeURIComponent(userId)}${_analyticsQs(window)}`,
     apiKey
   )
+}
+
+// ── Budget helpers ─────────────────────────────────────────────────────────────
+
+export async function getBudgets(apiKey: string): Promise<BudgetList> {
+  return apiFetch<BudgetList>('/budgets', apiKey)
+}
+
+export async function createBudget(
+  apiKey: string,
+  body: {
+    scope_type: string
+    scope_id?: string | null
+    period_type: string
+    limit_usd: number
+    action: string
+    downgrade_to_model?: string | null
+  }
+): Promise<Budget> {
+  return apiFetch<Budget>('/budgets', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteBudget(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/budgets/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getBudgetBreaches(apiKey: string, id: string): Promise<BreachList> {
+  return apiFetch<BreachList>(`/budgets/${id}/breaches`, apiKey)
 }

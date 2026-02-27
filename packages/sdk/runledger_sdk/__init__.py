@@ -8,6 +8,7 @@ from runledger_sdk.context import (
     get_run_id,
     get_session_id,
 )
+from runledger_sdk.exceptions import RunLedgerBudgetExceededError
 from runledger_sdk.langchain import RunLedgerCallbackHandler
 from runledger_sdk.langgraph import RunLedgerNodeWrapper, instrument_graph
 
@@ -23,10 +24,12 @@ __all__ = [
     "get_feature_tag",
     "get_deployment_version",
     "get_context_snapshot",
+    # Exceptions
+    "RunLedgerBudgetExceededError",
     # LangChain
     "RunLedgerCallbackHandler",
     # LangGraph
     "RunLedgerNodeWrapper",
     "instrument_graph",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"

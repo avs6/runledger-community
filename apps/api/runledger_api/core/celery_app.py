@@ -9,6 +9,7 @@ celery_app = Celery(
     include=[
         "runledger_api.workers.pipeline",
         "runledger_api.workers.metering",
+        "runledger_api.workers.budgets",
     ],
 )
 
@@ -41,6 +42,16 @@ celery_app.conf.update(
         "data-quality-1h": {
             "task": "metering.data_quality",
             "schedule": 3600.0,
+        },
+        # Runaway protection: every 5 minutes
+        "runaway-protection-5m": {
+            "task": "budgets.runaway_protection",
+            "schedule": 300.0,
+        },
+        # Budget spend sync: daily (recovery from Redis eviction)
+        "budget-spend-sync-daily": {
+            "task": "budgets.budget_spend_sync",
+            "schedule": 86400.0,
         },
     },
 )

@@ -24,9 +24,11 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import structlog
 
 from runledger_sdk.context import get_context_snapshot, get_run_id
+from runledger_sdk.exceptions import RunLedgerBudgetExceededError
 
 if TYPE_CHECKING:
     from runledger_sdk.transport import SyncTransport
@@ -101,6 +103,10 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
 
+        # Pre-call budget check (optional, enabled by budget_check=True)
+        if transport.budget_check and not transport._local:
+            _sync_budget_check(transport, ctx, kwargs)
+
         transport.enqueue(_build_run_start(run_id, ctx, started_at))
 
         try:
@@ -134,6 +140,10 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
         model = kwargs.get("model", "unknown")
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
+
+        # Pre-call budget check (optional, enabled by budget_check=True)
+        if transport.budget_check and not transport._local:
+            _sync_budget_check(transport, ctx, kwargs)
 
         # SyncTransport.enqueue is non-blocking (schedules on background thread)
         transport.enqueue(_build_run_start(run_id, ctx, started_at))
@@ -247,3 +257,57 @@ def _build_provider_call_error(
         "status": "error",
         "error_type": type(exc).__name__,
     }
+
+
+# ── Budget pre-call check ──────────────────────────────────────────────────────
+
+
+def _sync_budget_check(
+    transport: "SyncTransport",
+    ctx: dict[str, str | None],
+    kwargs: dict[str, Any],
+) -> None:
+    """
+    Synchronous budget check against the RunLedger API.
+
+    Raises RunLedgerBudgetExceededError if action='block'.
+    Mutates kwargs['model'] in-place if action='downgrade'.
+    Silently passes on any network / timeout error (fail open).
+    """
+    try:
+        params: dict[str, str] = {}
+        if ctx.get("end_user_id"):
+            params["end_user_id"] = ctx["end_user_id"]  # type: ignore[assignment]
+        if ctx.get("feature_tag"):
+            params["feature_tag"] = ctx["feature_tag"]  # type: ignore[assignment]
+
+        response = httpx.get(
+            f"{transport._base_url}/budgets/check",
+            params=params,
+            headers={"Authorization": f"Bearer {transport._api_key}"},
+            timeout=5.0,
+        )
+        if response.status_code != 200:
+            log.warning("budget_check_non_200", status=response.status_code)
+            return
+
+        data = response.json()
+        if not data.get("allowed", True):
+            action = data.get("action")
+            budget_id = data.get("budget_id", "unknown")
+            if action == "block":
+                raise RunLedgerBudgetExceededError(budget_id)
+            if action == "downgrade":
+                downgrade_model = data.get("downgrade_model")
+                if downgrade_model:
+                    kwargs["model"] = downgrade_model
+                    log.info(
+                        "budget_downgrade_applied",
+                        budget_id=budget_id,
+                        model=downgrade_model,
+                    )
+    except RunLedgerBudgetExceededError:
+        raise
+    except Exception as exc:
+        # Fail open: never block the user's call due to budget check errors
+        log.warning("budget_check_error", error=str(exc))

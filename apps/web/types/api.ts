@@ -186,3 +186,43 @@ export interface UserSpendDetail {
   models_used: ModelSpend[]
   features_used: FeatureSpend[]
 }
+
+// ── Budgets ───────────────────────────────────────────────────────────────────
+
+export interface Budget {
+  id: string
+  scope_type: 'workspace' | 'end_user' | 'feature_tag' | 'app'
+  scope_id: string | null
+  period_type: 'daily' | 'monthly' | 'total'
+  limit_usd: string
+  action: 'notify' | 'block' | 'downgrade'
+  downgrade_to_model: string | null
+  is_active: boolean
+  created_at: string
+  current_spend_usd: string
+  pct_used: string
+}
+
+export interface BudgetList {
+  items: Budget[]
+}
+
+export interface BudgetCheckResponse {
+  allowed: boolean
+  action?: string
+  budget_id?: string
+  downgrade_model?: string
+}
+
+export interface Breach {
+  id: string
+  budget_id: string
+  occurred_at: string
+  spend_at_breach_usd: string | null
+  action_taken: string | null
+  notified_at: string | null
+}
+
+export interface BreachList {
+  items: Breach[]
+}

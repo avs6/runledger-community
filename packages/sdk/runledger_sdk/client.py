@@ -69,12 +69,15 @@ class RunLedger:
         base_url: str = "https://api.runledger.io",
         privacy_mode: str = PrivacyMode.METADATA_ONLY,
         local: bool = False,
+        budget_check: bool = False,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url
         self.privacy_mode = privacy_mode
         # local=True → log events to console instead of sending to API
         self.local = local or api_key is None
+        # budget_check=True → pre-call /budgets/check before each LLM call
+        self.budget_check = budget_check
 
         self._sync_transport: SyncTransport | None = None
         self._async_transport: Transport | None = None
@@ -88,6 +91,7 @@ class RunLedger:
                 api_key=self.api_key,
                 base_url=self.base_url,
                 local=self.local,
+                budget_check=self.budget_check,
             )
         return self._sync_transport
 
