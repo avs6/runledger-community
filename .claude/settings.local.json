@@ -5,7 +5,18 @@
       "Bash(uv run:*)",
       "Bash(uv pip:*)",
       "Bash(git add:*)",
-      "Bash(uv add:*)"
+      "Bash(uv add:*)",
+      "Bash(npm install:*)",
+      "Bash(python3:*)",
+      "Bash(npx shadcn@latest:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(git commit:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker exec:*)",
+      "Bash(curl:*)"
     ]
   }
 }

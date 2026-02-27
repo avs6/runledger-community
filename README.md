@@ -72,12 +72,12 @@ Every team shipping AI agents in production hits the same wall:
 
 ### Option A — Docker Compose (recommended)
 
-This is the fastest path. Docker runs Postgres, Redis, the API, the Celery worker, and the dashboard in one command.
+This is the fastest path. Docker runs Postgres, Redis, the API, the Celery worker, and the dashboard — and automatically runs migrations and seeds the database on first start.
 
 **1. Clone the repo**
 
 ```bash
-git clone https://github.com/yourorg/runledger
+git clone https://github.com/avs6/runledger
 cd runledger
 ```
 
@@ -90,24 +90,15 @@ docker compose -f infra/docker-compose.yml up -d
 This starts:
 - `postgres` — PostgreSQL 16 on port 5432
 - `redis` — Redis 7 on port 6379
-- `api` — FastAPI + Celery worker on port 8000
+- `api` — FastAPI on port 8000 (runs migrations + seed automatically on startup)
+- `worker` — Celery worker
 - `web` — Next.js dashboard on port 3000
 
-**3. Run database migrations**
-
-```bash
-docker compose -f infra/docker-compose.yml exec api alembic upgrade head
-```
-
-**4. Seed the database**
-
-```bash
-docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
-```
-
-The seed script creates a default workspace, an API key, pricing data for all supported models, and a dashboard login. Output looks like:
+On first start the API container prints:
 
 ```
+→ Running database migrations...
+→ Seeding database (idempotent — safe to run on every start)...
 Tenant:    default  (a1b2c3d4-...)
 Workspace: default  (e5f6g7h8-...)
 API Key:   rl_dev_xxxxxxxxxxxxxxxxxxxx
@@ -118,11 +109,16 @@ Dashboard login:
   Email:    admin@runledger.local
   Password: runledger
   URL:      http://localhost:3000
+→ Starting API...
 ```
 
-Save the API key — it is shown once and stored hashed.
+Save the API key — it is shown once and stored hashed. View the logs with:
 
-**5. Verify**
+```bash
+docker compose -f infra/docker-compose.yml logs api
+```
+
+**3. Verify**
 
 | URL | What it is |
 |-----|------------|
@@ -141,7 +137,7 @@ Run each service directly on your machine. Requires Postgres 16, Redis 7, Python
 **1. Clone and install**
 
 ```bash
-git clone https://github.com/yourorg/runledger
+git clone https://github.com/avs6/runledger
 cd runledger
 uv sync --all-packages
 ```
@@ -170,9 +166,7 @@ An example file is at `apps/web/.env.local.example`.
 **3. Run migrations and seed**
 
 ```bash
-cd apps/api
-uv run alembic upgrade head
-uv run python scripts/seed.py
+cd apps/api && uv run alembic upgrade head && uv run python scripts/seed.py
 ```
 
 **4. Start the API**
@@ -449,10 +443,10 @@ Add a new model by inserting a row into `provider_pricing` — no code change re
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Your Agent App                          │
-│  ┌──────────────┐  ┌────────────────┐  ┌────────────────┐  │
-│  │ OpenAI SDK   │  │ LangChain/Graph│  │  Custom Tools  │  │
-│  └──────┬───────┘  └───────┬────────┘  └───────┬────────┘  │
-│         └──────────────────┼───────────────────┘           │
+│  ┌──────────────┐  ┌────────────────┐  ┌────────────────┐   │
+│  │ OpenAI SDK   │  │ LangChain/Graph│  │  Custom Tools  │   │
+│  └──────┬───────┘  └───────┬────────┘  └───────┬────────┘   │
+│         └──────────────────┼───────────────────┘            │
 │                   runledger-sdk (async)                     │
 └───────────────────────────┬─────────────────────────────────┘
                             │ HTTP batch (non-blocking)
@@ -460,21 +454,21 @@ Add a new model by inserting a row into `provider_pricing` — no code change re
 ┌─────────────────────────────────────────────────────────────┐
 │                    RunLedger Platform                       │
 │                                                             │
-│  ┌────────────────┐   ┌──────────────────────────────────┐  │
-│  │  Collector API │──▶│  Redis Streams (event buffer)    │  │
-│  │  (FastAPI)     │   └──────────────┬───────────────────┘  │
+│  ┌────────────────┐    ┌──────────────────────────────────┐ │
+│  │  Collector API │──▶ │  Redis Streams (event buffer)     │ 
+│  │  (FastAPI)     │    └──────────────┬───────────────────┘ │
 │  └────────────────┘                  │                      │
 │                             ┌────────▼────────┐             │
-│  ┌────────────────┐         │  Celery Workers  │             │
-│  │  Business API  │         │  · cost enrich   │             │
-│  │  (FastAPI)     │◀────────│  · hourly rollup │             │
-│  └───────┬────────┘         │  · data quality  │             │
-│          │                  └────────┬──────────┘            │
+│  ┌────────────────┐         │  Celery Workers   │           │
+│  │  Business API  │         │  · cost enrich    │           │
+│  │  (FastAPI)     │◀───────│  · hourly rollup  │           │
+│  └───────┬────────┘         │  · data quality   │           │
+│          │                  └────────┬──────────┘           │
 │  ┌───────▼────────────────────────────────────┐             │
-│  │              PostgreSQL 16                  │             │
-│  │  events · spans · metering · pricing        │             │
-│  │  usage_hourly · usage_daily · budgets        │             │
-│  └─────────────────────────────────────────────┘            │
+│  │              PostgreSQL 16                 │             │
+│  │  events · spans · metering · pricing       │             │
+│  │  usage_hourly · usage_daily · budgets      │             │
+│  └────────────────────────────────────────────┘             │
 │                                                             │
 │  ┌────────────────┐   ┌──────────────────────────────────┐  │
 │  │  Redis (cache) │   │  Budget Enforcement (hot path)   │  │
@@ -585,7 +579,7 @@ curl -X POST http://localhost:8000/chat \
 
 **Dashboard login fails**
 
-Make sure migrations have been run and the seed script was executed. The seed creates the `admin@runledger.local` user. If you need to re-run it, it is safe to run multiple times (idempotent).
+Migrations and seed run automatically when the API container starts. Check that the container started cleanly: `docker compose -f infra/docker-compose.yml logs api`. The seed script is idempotent — safe to run again manually if needed.
 
 **`cost_usd` is NULL**
 
@@ -598,10 +592,10 @@ celery -A runledger_api.core.celery_app beat --loglevel=info
 
 **"No pricing row" in logs**
 
-Run the seed script — it inserts pricing rows for all supported models:
+The seed script runs automatically on startup, but if you need to force it:
 
 ```bash
-docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
+docker compose -f infra/docker-compose.yml exec api python /app/scripts/seed.py
 ```
 
 **Duplicate `provider_call` events**
@@ -620,10 +614,8 @@ handler = rl.callback_handler(track_llm_cost=False)
 # Install all workspace dependencies
 uv sync --all-packages
 
-# Start full local stack
+# Start full local stack (migrations + seed run automatically on first start)
 docker compose -f infra/docker-compose.yml up -d
-docker compose -f infra/docker-compose.yml exec api alembic upgrade head
-docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
 
 # API with hot reload
 cd apps/api && uv run fastapi dev runledger_api/main.py
@@ -648,15 +640,7 @@ uv run mypy apps/api
 
 ## Deployment
 
-**Self-hosted (Docker Compose):**
-
-```bash
-git clone https://github.com/yourorg/runledger
-cd runledger
-docker compose -f infra/docker-compose.yml up -d
-docker compose -f infra/docker-compose.yml exec api alembic upgrade head
-docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
-```
+**Self-hosted** — follow [Setup from Scratch → Option A](#option-a--docker-compose-recommended) above.
 
 **Cloud (Railway, Render, Fly.io):**
 

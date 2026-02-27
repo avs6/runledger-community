@@ -31,9 +31,11 @@ COPY --from=builder /app/apps/api/alembic /app/alembic
 COPY --from=builder /app/apps/api/alembic.ini /app/alembic.ini
 COPY --from=builder /app/apps/api/scripts /app/scripts
 
+RUN chmod +x /app/scripts/start.sh
+
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "runledger_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/scripts/start.sh"]
