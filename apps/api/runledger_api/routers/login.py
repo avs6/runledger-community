@@ -11,9 +11,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
+import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,8 +25,6 @@ from runledger_api.services.auth import generate_api_key
 log = structlog.get_logger()
 
 router = APIRouter(tags=["auth"])
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -46,7 +44,9 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
     user = result.scalar_one_or_none()
 
     # Constant-time failure (avoids timing attacks)
-    if user is None or not pwd_context.verify(body.password, user.password_hash):
+    if user is None or not bcrypt.checkpw(
+        body.password.encode(), user.password_hash.encode()
+    ):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Invalid email or password",

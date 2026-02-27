@@ -96,13 +96,13 @@ This starts:
 **3. Run database migrations**
 
 ```bash
-docker compose -f infra/docker-compose.yml exec api uv run alembic upgrade head
+docker compose -f infra/docker-compose.yml exec api alembic upgrade head
 ```
 
 **4. Seed the database**
 
 ```bash
-docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
 ```
 
 The seed script creates a default workspace, an API key, pricing data for all supported models, and a dashboard login. Output looks like:
@@ -601,7 +601,7 @@ celery -A runledger_api.core.celery_app beat --loglevel=info
 Run the seed script — it inserts pricing rows for all supported models:
 
 ```bash
-docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
 ```
 
 **Duplicate `provider_call` events**
@@ -622,8 +622,8 @@ uv sync --all-packages
 
 # Start full local stack
 docker compose -f infra/docker-compose.yml up -d
-docker compose -f infra/docker-compose.yml exec api uv run alembic upgrade head
-docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+docker compose -f infra/docker-compose.yml exec api alembic upgrade head
+docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
 
 # API with hot reload
 cd apps/api && uv run fastapi dev runledger_api/main.py
@@ -654,8 +654,8 @@ uv run mypy apps/api
 git clone https://github.com/yourorg/runledger
 cd runledger
 docker compose -f infra/docker-compose.yml up -d
-docker compose -f infra/docker-compose.yml exec api uv run alembic upgrade head
-docker compose -f infra/docker-compose.yml exec api uv run python scripts/seed.py
+docker compose -f infra/docker-compose.yml exec api alembic upgrade head
+docker compose -f infra/docker-compose.yml exec api python scripts/seed.py
 ```
 
 **Cloud (Railway, Render, Fly.io):**

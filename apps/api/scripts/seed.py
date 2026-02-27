@@ -14,7 +14,7 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from passlib.context import CryptContext
+import bcrypt
 from runledger_api.core.db import AsyncSessionLocal
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import (
@@ -29,8 +29,6 @@ from runledger_api.models.tenant import (
 )
 from runledger_api.services.auth import generate_api_key
 from sqlalchemy import select
-
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Effective from 2025-01-01 UTC — update as providers change pricing
 _PRICING_EFFECTIVE_FROM = datetime(2025, 1, 1, tzinfo=UTC)
@@ -56,8 +54,11 @@ _PRICING_DATA: list[tuple[str, str, str, str, str | None]] = [
 
 async def seed() -> None:
     async with AsyncSessionLocal() as session:
-        workspace = await _seed_tenant(session)
+        await _seed_tenant(session)
         await _seed_pricing(session)
+        # Always look up the workspace so _seed_user runs even on re-runs
+        result = await session.execute(select(Workspace).where(Workspace.name == "default"))
+        workspace = result.scalar_one_or_none()
         if workspace:
             await _seed_user(session, workspace)
 
@@ -119,7 +120,9 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
 
     user = User(
         email=_DEFAULT_EMAIL,
-        password_hash=_pwd_context.hash(_DEFAULT_PASSWORD),
+        password_hash=bcrypt.hashpw(
+            _DEFAULT_PASSWORD.encode(), bcrypt.gensalt()
+        ).decode(),
     )
     session.add(user)
     await session.flush()

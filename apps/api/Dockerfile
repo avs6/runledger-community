@@ -11,6 +11,9 @@ COPY packages/sdk/pyproject.toml packages/sdk/
 
 # Copy source
 COPY apps/api/runledger_api apps/api/runledger_api
+COPY apps/api/alembic apps/api/alembic
+COPY apps/api/alembic.ini apps/api/alembic.ini
+COPY apps/api/scripts apps/api/scripts
 COPY packages/sdk/runledger_sdk packages/sdk/runledger_sdk
 
 # Install dependencies for runledger-api
@@ -24,6 +27,9 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/apps/api/runledger_api /app/runledger_api
+COPY --from=builder /app/apps/api/alembic /app/alembic
+COPY --from=builder /app/apps/api/alembic.ini /app/alembic.ini
+COPY --from=builder /app/apps/api/scripts /app/scripts
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"

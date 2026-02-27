@@ -20,17 +20,9 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # ── Enum types ────────────────────────────────────────────────────────────
-    op.execute("CREATE TYPE plan_enum AS ENUM ('free', 'starter', 'growth', 'enterprise')")
-    op.execute("CREATE TYPE environment_enum AS ENUM ('dev', 'staging', 'prod')")
-    op.execute(
-        "CREATE TYPE run_status_enum AS ENUM ('running', 'succeeded', 'failed', 'cancelled')"
-    )
-    op.execute("CREATE TYPE span_type_enum AS ENUM ('chain', 'llm', 'tool', 'agent', 'retrieval')")
-    op.execute("CREATE TYPE span_status_enum AS ENUM ('running', 'succeeded', 'failed')")
-    op.execute("CREATE TYPE tool_type_enum AS ENUM ('read', 'write', 'privileged')")
-
     # ── tenants ───────────────────────────────────────────────────────────────
+    # Note: PostgreSQL enum types are created automatically by SQLAlchemy's DDL
+    # events when the first table using each type is created (op.create_table).
     op.create_table(
         "tenants",
         sa.Column("id", PGUUID(as_uuid=True), primary_key=True),
@@ -38,7 +30,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column(
             "plan",
-            sa.Enum("free", "starter", "growth", "enterprise", name="plan_enum", create_type=False),
+            sa.Enum("free", "starter", "growth", "enterprise", name="plan_enum"),
             nullable=False,
             server_default="free",
         ),
@@ -84,7 +76,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column(
             "environment",
-            sa.Enum("dev", "staging", "prod", name="environment_enum", create_type=False),
+            sa.Enum("dev", "staging", "prod", name="environment_enum"),
             nullable=False,
             server_default="dev",
         ),
@@ -155,7 +147,6 @@ def upgrade() -> None:
                 "failed",
                 "cancelled",
                 name="run_status_enum",
-                create_type=False,
             ),
             nullable=False,
             server_default="running",
@@ -191,7 +182,6 @@ def upgrade() -> None:
                 "agent",
                 "retrieval",
                 name="span_type_enum",
-                create_type=False,
             ),
             nullable=False,
         ),
@@ -205,7 +195,6 @@ def upgrade() -> None:
                 "succeeded",
                 "failed",
                 name="span_status_enum",
-                create_type=False,
             ),
             nullable=False,
             server_default="running",
@@ -266,7 +255,7 @@ def upgrade() -> None:
         sa.Column("tool_name", sa.String(255), nullable=False),
         sa.Column(
             "tool_type",
-            sa.Enum("read", "write", "privileged", name="tool_type_enum", create_type=False),
+            sa.Enum("read", "write", "privileged", name="tool_type_enum"),
             nullable=False,
             server_default="read",
         ),
