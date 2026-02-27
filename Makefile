@@ -1,4 +1,4 @@
-.PHONY: install dev dev-api dev-worker dev-web migrate migrate-new seed test lint typecheck
+.PHONY: install dev dev-api dev-worker dev-web migrate migrate-new seed test test-sdk lint typecheck
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,13 @@ seed:
 
 test:
 	cd apps/api && uv run pytest -v
+
+test-sdk:
+	cd packages/sdk && uv run pytest -v
+
+test-all:
+	cd apps/api && uv run pytest -v
+	cd packages/sdk && uv run pytest -v
 
 test-watch:
 	cd apps/api && uv run pytest -v --tb=short -x
