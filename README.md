@@ -47,7 +47,7 @@ Every team shipping AI agents in production hits the same wall:
 | 3 | SDK — LangChain · LangGraph · CLI · example agents | ✅ Complete |
 | 4 | Billing-grade metering · pricing engine · analytics API | ✅ Complete |
 | 5 | Run Explorer + DAG viewer UI (Next.js dashboard) | ✅ Complete |
-| 6 | Metering dashboard (spend by model/user/feature) | Planned |
+| 6 | Metering dashboard (spend by model/user/feature) | ✅ Complete |
 | 7 | Budgets + spend guardrails with automatic actions | Planned |
 | 8 | Chargeback engine + reconciliation + dispute trail | Planned |
 | 9 | Unit economics graph + change impact diffs | Planned |
@@ -377,11 +377,20 @@ All spans from both services share the same `run_id` and appear together in the 
 
 ## Dashboard
 
-The Run Explorer at `http://localhost:3000` shows:
+The dashboard at `http://localhost:3000` has two main areas:
 
+### Run Explorer (`/runs`)
 - **Runs list** — searchable, filterable by status/feature/user, time-window presets (1h / 6h / 24h / 7d)
 - **Run detail** — cost + tokens + duration summary, full execution DAG
 - **DAG viewer** — interactive graph of every span (LLM, tool, chain, agent, retrieval) with cost per node; click any node to see full span metadata in a slide-in panel
+
+### Analytics Dashboard (`/analytics`)
+- **Summary cards** — total spend, run count, avg cost/run, total tokens; each card shows period-over-period delta %
+- **Spend over time** — line chart with 24h / 7d / 30d preset buttons; URL-persisted time window
+- **Spend by model** — horizontal stacked bar chart (input vs output split, top 10 models)
+- **Spend by feature** — donut chart of cost by `feature_tag`
+- **Top spenders** (`/analytics/users`) — table of end-users sorted by spend with avg cost/run and last active date; rows link to individual user profiles
+- **User profile** (`/analytics/users/[id]`) — per-user spend trend, models used, and features used
 
 ---
 
@@ -554,11 +563,12 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/analytics/summary` | Total cost, tokens, run count |
+| `GET` | `/analytics/summary` | Total cost, tokens, run count + period-over-period delta |
 | `GET` | `/analytics/spend-over-time` | Time-series (`granularity=hourly\|daily`) |
 | `GET` | `/analytics/spend-by-model` | Cost breakdown by model |
-| `GET` | `/analytics/spend-by-user` | Top spenders (`limit=N`) |
+| `GET` | `/analytics/spend-by-user` | Top spenders with avg cost/run + last active (`limit=N`) |
 | `GET` | `/analytics/spend-by-feature` | Cost breakdown by feature tag |
+| `GET` | `/analytics/users/{end_user_id}` | User profile: spend trend + models + features used |
 
 Interactive docs: `http://localhost:8000/docs`
 
@@ -570,10 +580,12 @@ Interactive docs: `http://localhost:8000/docs`
 export OPENAI_API_KEY=sk-...
 export RUNLEDGER_API_KEY=rl_dev_...   # optional — examples use local=True by default
 
-python examples/01_openai_basic.py
-python examples/02_openai_multi_turn.py
-python examples/03_langchain_chain.py
-python examples/04_langgraph_agent.py
+python examples/01_openai_basic.py          # OpenAI instrumentation (2 lines)
+python examples/02_openai_multi_turn.py     # multi-turn chat with session tracking
+python examples/03_langchain_chain.py       # LangChain chain with callback handler
+python examples/04_langgraph_agent.py       # LangGraph ReAct agent with tools
+python examples/06_ollama_local.py          # local Ollama (OpenAI-compatible endpoint)
+python examples/07_analytics_query.py       # query the analytics API (summary + spend breakdown)
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload

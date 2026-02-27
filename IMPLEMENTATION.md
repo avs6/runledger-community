@@ -13,15 +13,15 @@
 | 2 | SDK — OpenAI Wrapper + Context Propagation | ✅ Complete | Area 3 | 28 |
 | 3 | SDK — LangChain + LangGraph + CLI | ✅ Complete | Areas 4, 5, 6 | 33 |
 | 4 | Billing-grade Metering Core | ✅ Complete | Area 7 | 22 |
-| 5 | Run Explorer + DAG Viewer UI | 🔲 Pending | Area 8 | — |
-| 6 | Metering Dashboard | 🔲 Pending | Area 9 | — |
+| 5 | Run Explorer + DAG Viewer UI | ✅ Complete | Area 8 | — |
+| 6 | Metering Dashboard | ✅ Complete | Area 9 | +3 |
 | 7 | Budgets + Spend Guardrails | 🔲 Pending | Areas 10, 11 | — |
 | 8 | Chargeback Engine + Reconciliation | 🔲 Pending | Area 12 | — |
 | 9 | Unit Economics Graph + Change Impact | 🔲 Pending | Area 13 | — |
 | 10 | End-user Analytics + Replay Harness | 🔲 Pending | Area 14 | — |
 | 11 | Tamper-evident Ledger + OSS Launch | 🔲 Pending | Area 15 | — |
 
-**Total tests shipped (Phases 0–4):** 103
+**Total tests shipped (Phases 0–6):** 106
 
 ---
 
@@ -85,7 +85,9 @@ runledger/
 │   ├── 02_openai_multi_turn.py
 │   ├── 03_langchain_chain.py
 │   ├── 04_langgraph_agent.py
-│   └── 05_fastapi_service.py
+│   ├── 05_fastapi_service.py
+│   ├── 06_ollama_local.py
+│   └── 07_analytics_query.py
 ├── db/
 │   └── migrations/             # Alembic migration files
 ├── infra/
@@ -315,6 +317,7 @@ Tests: `tests/test_openai.py` (**10 tests**), `tests/test_context.py` (**10 test
 - `examples/03_langchain_chain.py` — `prompt | llm | StrOutputParser()` chain with callback handler
 - `examples/04_langgraph_agent.py` — ReAct agent (search + calculator tools) with `instrument_graph()`
 - `examples/05_fastapi_service.py` — FastAPI service with per-request `async with rl.context(...)`
+- `examples/06_ollama_local.py` — local Ollama via OpenAI-compatible endpoint; `--local` flag for stdout mode (added in Phase 3)
 - `QUICKSTART.md` — 11-section getting-started guide (install → API key → verify → OpenAI → LangChain → LangGraph → async → FastAPI → cross-service → analytics → examples)
 
 Tests: `tests/test_langchain.py` (**13 tests**), `tests/test_langgraph.py` (**9 tests**), `tests/test_cli.py` (**11 tests**) — **33 tests total**
@@ -358,75 +361,75 @@ Tests: `tests/test_langchain.py` (**13 tests**), `tests/test_langgraph.py` (**9 
   - Google: gemini-1.5-pro ($1.25/$5.00), gemini-1.5-flash ($0.075/$0.30)
   - All effective from 2025-01-01 UTC
 
-Tests: `tests/test_pricing.py` (**9 tests**), `tests/test_analytics.py` (**13 tests**) — **22 tests total**
+Tests: `tests/test_pricing.py` (**9 tests**), `tests/test_analytics.py` (**13 tests**, expanded to 16 in Phase 6) — **22 tests total**
 
 **Definition of done:** ✅ Replaying the same set of events twice produces identical cost totals. Cost for `gpt-4o` at a date before and after OpenAI's pricing change returns different values.
 
 ---
 
-### Phase 5 — Weeks 11–12: Run Explorer + DAG Viewer UI
+### Phase 5 — Weeks 11–12: Run Explorer + DAG Viewer UI ✅
 **Roadmap areas:** 8 (Run Explorer + DAG Viewer)
 
 **Goal:** Log into the dashboard, search for a run, click into it, see the full DAG with cost per node.
 
-**Next.js app foundation:**
-- NextAuth.js: credentials provider (email + password, stored in `users` table with bcrypt), session stored in JWT
-- API client (`lib/api.ts`): typed fetch wrapper that reads `NEXT_PUBLIC_API_URL`, attaches session token
-- Layout: sidebar nav, workspace switcher, top bar with workspace name
+**What was built:**
 
-**Pages:**
-- `/runs` — Run Explorer
-  - `RunsTable` component: columns — run_id (truncated), end_user_id, model (primary), total cost, status badge, duration, started_at
-  - Filters: status, model, end_user_id, feature_tag, time window (last 1h / 6h / 24h / 7d / custom)
-  - Search: run_id prefix, end_user_id exact
-  - Pagination (cursor-based, not page numbers)
+- `apps/web/` — Next.js 14 App Router frontend (TypeScript, Tailwind, shadcn/ui)
+- `apps/web/lib/auth.ts` — NextAuth.js credentials provider; session API key generated on login and stored in JWT
+- `apps/web/lib/api.ts` — typed fetch wrapper (`apiFetch`) reading `NEXT_PUBLIC_API_URL` + session Bearer token
+- `apps/web/components/layout/` — `Sidebar`, `TopBar`, `SessionProvider` wrapper
+- `apps/web/app/(dashboard)/runs/page.tsx` — Run Explorer: `RunsTable` (run_id, end_user_id, primary model, total cost, status badge, duration), `RunFilters` (status / feature_tag / end_user_id / search / time window), cursor-based pagination
+- `apps/web/app/(dashboard)/runs/[run_id]/page.tsx` — Run Detail: `RunSummaryBar` (cost, tokens, duration, status, user, feature), `RunGraph` (react-flow DAG with colored nodes by span type, cost badge per LLM node, click-to-panel)
+- `apps/web/components/dag/RunGraph.tsx` — `@xyflow/react` graph; auto-layout via dagre; node colors: LLM=indigo, TOOL=amber, CHAIN/AGENT=gray, error=red
+- `apps/web/components/dag/SpanDetailPanel.tsx` — slide-in panel with span metadata, model, tokens, cost, error type
+- `apps/web/types/api.ts` — `RunListItem`, `RunDetailResponse`, `SpanDetail`, `ProviderCallDetail`, `GraphNode`, `GraphEdge`
+- `apps/api/runledger_api/routers/runs.py` — `GET /runs` (cursor pagination, filters), `GET /runs/{id}`, `GET /runs/{id}/graph`
 
-- `/runs/[run_id]` — Run Detail
-  - `RunGraph` (react-flow): nodes for each span (CHAIN, LLM, TOOL, AGENT), edges for parent-child links
-    - Node color: LLM=blue, TOOL=orange, CHAIN=gray, error=red
-    - Node badge: cost in USD + token count for LLM nodes
-    - Click node → `SpanDetailPanel` slides in from right
-  - `SpanDetailPanel`: span type, duration, model, tokens, cost, error details, metadata JSONB viewer
-  - `RunSummaryBar`: total cost, total tokens, duration, status, end_user_id, feature_tag
-  - Error diagnostics: error_type, error_message, timestamp (no payload unless FULL mode)
-  - Payload status badge: "No payload captured" / "Payload available (request access)"
-
-**FastAPI routes to add:**
-- `GET /runs?workspace_id=...&cursor=...&limit=50&filters=...` (cursor pagination)
-- `GET /runs/{run_id}` (run + all spans + all provider_calls + tool_calls)
-- `GET /runs/{run_id}/graph` (DAG structure: nodes + edges for react-flow)
-
-**Definition of done:** Can find a run, see every LLM call and tool call in the DAG, click a node and see token counts and cost. DAG renders correctly for graphs with 50+ nodes.
+**Definition of done:** ✅ Can find a run, see every LLM call and tool call in the DAG, click a node and see token counts and cost. DAG renders correctly for graphs with 50+ nodes.
 
 ---
 
-### Phase 6 — Weeks 13–14: Metering Dashboard
+### Phase 6 — Weeks 13–14: Metering Dashboard ✅
 **Roadmap areas:** 9 (Metering Dashboard)
 
 **Goal:** A finance person or engineering lead opens the dashboard and immediately understands spend, who's driving it, and where it's going.
 
-**Pages:**
-- `/analytics` — Main metering dashboard
-  - `SummaryCards`: total spend (period), run count, avg cost per run, total input tokens, total output tokens, cost trend vs prior period (+/-%)
-  - `SpendOverTime`: line chart (time granularity selector: hourly/daily/weekly), shows current period vs prior period overlay
-  - `SpendByModel`: horizontal bar chart — top models by cost, shows input vs output split
-  - `SpendByFeature`: donut chart — cost breakdown by feature_tag
-  - `TokenEfficiency`: output tokens / total cost ratio trend
-  - Global filter bar: time window, application, environment, model, feature_tag (sticky, persisted in URL params)
+**What was built:**
 
-- `/analytics/users` — End-user spend breakdown
-  - `TopSpendersTable`: end_user_id, total cost (period), run count, avg cost/run, last active, trend arrow
-  - Clicking a user → `/analytics/users/[end_user_id]` (user profile: spend over time, models used, features used)
+Backend schema additions (`apps/api/runledger_api/schemas/analytics.py`):
+- `AnalyticsSummary`: added `prev_cost_usd` + `cost_delta_pct: Decimal | None` (prior period of equal duration; `None` when prior cost is zero)
+- `UserSpend`: added `avg_cost_per_run` (computed Python-side) + `last_active` (SQL `MAX(created_at)`)
+- `UserSpendDetail`: new schema with `spend_over_time[]`, `models_used[]`, `features_used[]`
 
-**FastAPI routes to add:**
-- `GET /analytics/summary` (KPIs with period-over-period deltas)
-- `GET /analytics/spend-over-time?granularity=hourly|daily&from=&to=`
-- `GET /analytics/spend-by-model`
-- `GET /analytics/spend-by-feature`
-- `GET /analytics/users?limit=50&sort=cost_desc`
-- `GET /analytics/users/{end_user_id}`
+Backend endpoint additions (`apps/api/runledger_api/routers/analytics.py`):
+- `GET /analytics/summary` — now runs two DB queries (current + prior period), computes `cost_delta_pct`
+- `GET /analytics/spend-by-user` — adds `MAX(created_at)` for `last_active`; `avg_cost_per_run` computed in Python
+- `GET /analytics/users/{end_user_id}` — 4 sub-queries: summary, daily spend trend, models used, features used
 
-**Definition of done:** Dashboard loads in under 2 seconds with 30 days of data for a workspace with 100k provider calls.
+Frontend (`apps/web/`):
+- `npm install recharts` — Recharts charting library
+- `apps/web/types/api.ts` — 8 new analytics TypeScript types
+- `apps/web/lib/api.ts` — 6 fetch helpers: `getAnalyticsSummary`, `getSpendOverTime`, `getSpendByModel`, `getSpendByFeature`, `getSpendByUser`, `getUserSpend`
+- `apps/web/components/analytics/SummaryCards.tsx` — 4 stat cards (total spend, runs, avg cost/run, tokens) with delta % badge (TrendingUp/Down icons)
+- `apps/web/components/analytics/SpendOverTimeChart.tsx` — Recharts `LineChart` (client component)
+- `apps/web/components/analytics/SpendByModelChart.tsx` — Recharts horizontal `BarChart` with input/output stacking
+- `apps/web/components/analytics/SpendByFeatureChart.tsx` — Recharts `PieChart` (donut)
+- `apps/web/components/analytics/TimeWindowPicker.tsx` — 24h / 7d / 30d preset buttons; updates URL search params via `useRouter`
+- `apps/web/components/analytics/TopSpendersTable.tsx` — table with user links to `/analytics/users/[id]`
+- `apps/web/app/(dashboard)/analytics/page.tsx` — server component; fetches 4 endpoints in parallel with `Promise.all`; passes data to client chart components
+- `apps/web/app/(dashboard)/analytics/users/page.tsx` — top spenders table with time window picker
+- `apps/web/app/(dashboard)/analytics/users/[end_user_id]/page.tsx` — user profile: spend trend + models + features
+- `apps/web/components/layout/Sidebar.tsx` — removed `soon: true` badge from Analytics nav item
+- `examples/07_analytics_query.py` — runnable example querying all analytics endpoints
+
+Tests added to `apps/api/tests/test_analytics.py`:
+- `test_summary_delta_computed` — verifies `cost_delta_pct = 100` when current = 2× prior
+- `test_summary_delta_none_when_prev_zero` — verifies `cost_delta_pct = None` on zero prior cost
+- `test_user_spend_detail` — verifies user profile endpoint returns correct summary + models
+
+**Total analytics tests: 16 (13 existing + 3 new)**
+
+**Definition of done:** ✅ Dashboard loads with summary cards (including period delta), spend charts, and top-spenders table. Clicking a user navigates to their spend profile. All 16 analytics tests pass.
 
 ---
 

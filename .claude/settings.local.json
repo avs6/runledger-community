@@ -18,7 +18,9 @@
       "Bash(docker exec:*)",
       "Bash(curl:*)",
       "Bash(git push:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(git status:*)"
     ]
   }
 }

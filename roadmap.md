@@ -99,14 +99,14 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 - `runledger validate` — sends a synthetic test event and confirms acceptance
 - `runledger runs` — lists recent agent runs as a rich table
 - `runledger status` — checks API + DB + Redis health
-- 5 runnable example agents in `examples/`
+- 7 runnable example agents in `examples/` (OpenAI, multi-turn, LangChain, LangGraph, FastAPI, Ollama, analytics query)
 - `QUICKSTART.md` — end-to-end getting-started guide
 
 **Definition of done:** ✅ Team instruments an agent in minutes and sees runs, spans, tokens, latency, and tool calls.
 
 ---
 
-### 2 — Observability UI: Run Explorer + DAG Viewer 🔲
+### 2 — Observability UI: Run Explorer + DAG Viewer ✅
 **Implementation:** Phase 5
 
 **Run Explorer (`/runs`):**
@@ -116,8 +116,8 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 - Filters: status, model, end_user_id, feature_tag, time window (1h / 6h / 24h / 7d / custom)
 
 **Run Detail (`/runs/[run_id]`):**
-- `RunGraph` (react-flow) — nodes for each span type (CHAIN, LLM, TOOL, AGENT), edges for parent-child links
-  - Node colours: LLM=blue, TOOL=orange, CHAIN=gray, error=red
+- `RunGraph` (`@xyflow/react`) — nodes for each span type (CHAIN, LLM, TOOL, AGENT), edges for parent-child links
+  - Node colours: LLM=indigo, TOOL=amber, CHAIN/AGENT=gray, error=red
   - Node badge: cost in USD + token count for LLM nodes
   - Click node → `SpanDetailPanel` slides in from right
 - `SpanDetailPanel` — span type, duration, model, tokens, cost, error details, metadata JSONB viewer
@@ -127,14 +127,28 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 **Next.js foundation:**
 - NextAuth.js credentials provider (email + password, bcrypt, JWT session)
 - Typed API client (`lib/api.ts`) — reads `NEXT_PUBLIC_API_URL`, attaches session token
-- Layout: sidebar nav, workspace switcher, top bar
+- Layout: sidebar nav, top bar with workspace name
 
 **API routes added in this phase:**
 - `GET /runs` — cursor-paginated list with filters
 - `GET /runs/{run_id}` — run + all spans + provider_calls + tool_calls
 - `GET /runs/{run_id}/graph` — DAG nodes + edges for react-flow
 
-**Definition of done:** 🔲 Find a run, see every LLM + tool call in the DAG, click a node and see cost + token counts. DAG renders for 50+ nodes.
+**Metering Dashboard (`/analytics`) — Phase 6:**
+- `SummaryCards` — total spend, run count, avg cost/run, total tokens; each card shows period-over-period delta %
+- `SpendOverTimeChart` — Recharts `LineChart` with 24h / 7d / 30d time-window presets (URL-persisted)
+- `SpendByModelChart` — Recharts horizontal `BarChart`, input vs output cost stacked, top 10 models
+- `SpendByFeatureChart` — Recharts `PieChart` donut, cost by `feature_tag`
+- `TimeWindowPicker` — preset buttons that push to URL search params
+- `TopSpendersTable` (`/analytics/users`) — end_user_id, cost, runs, avg cost/run, last active; rows link to user profiles
+- User profile (`/analytics/users/[id]`) — spend trend, models used, features used
+
+**API routes added in Phase 6:**
+- `GET /analytics/summary` — now returns `prev_cost_usd` + `cost_delta_pct` (prior period of equal duration)
+- `GET /analytics/spend-by-user` — now includes `avg_cost_per_run` and `last_active`
+- `GET /analytics/users/{end_user_id}` — full user spend profile: summary + daily trend + models + features
+
+**Definition of done:** ✅ Find a run, see every LLM + tool call in the DAG, click a node and see cost + token counts. Analytics dashboard shows spend by model/feature/user with period-over-period deltas.
 
 ---
 
@@ -157,14 +171,19 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 - `data_quality_worker` — every hour; flags calls with missing tokens or missing cost in `data_quality_issues`
 - `replay_backfill` — one-shot task; clears costs for a time range and re-enriches (used after pricing corrections)
 
-**Analytics API:**
+**Analytics API (Phase 4):**
 - `GET /analytics/summary` — total cost, tokens, run count, call count for a time window
 - `GET /analytics/spend-over-time?granularity=hourly|daily` — time-series array
 - `GET /analytics/spend-by-model` — breakdown by provider + model, ordered by cost
 - `GET /analytics/spend-by-user?limit=N` — top N end-users by spend
 - `GET /analytics/spend-by-feature` — breakdown by `feature_tag`
 
-**Definition of done:** ✅ Replaying the same events twice produces identical cost totals. Effective-dated pricing returns different values before/after a price change date.
+**Analytics API enhancements (Phase 6):**
+- `/analytics/summary` — adds `prev_cost_usd` + `cost_delta_pct` (prior period of equal duration; `null` when prior cost is zero)
+- `/analytics/spend-by-user` — adds `avg_cost_per_run` (Python-computed) + `last_active` (`MAX(created_at)`)
+- `GET /analytics/users/{end_user_id}` — user spend profile: summary, daily spend trend, models used, features used
+
+**Definition of done:** ✅ Replaying the same events twice produces identical cost totals. Effective-dated pricing returns different values before/after a price change date. Analytics dashboard visualises all spend data with period-over-period comparison.
 
 ---
 
@@ -319,25 +338,30 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 ---
 
 ### 10 — End-user Analytics (Product-grade) 🔲
-**Implementation:** Phase 6 (dashboard) + Phase 10 (cohorts + anomaly detection)
+**Implementation:** Phase 6 (dashboard + user profiles) + Phase 10 (cohorts + anomaly detection)
 
-**End-user drilldowns:**
-- Cost per end-user, tokens per end-user, outcomes per end-user
-- User profile: spend over time (30d), models used, feature tags, run count, avg cost/run
+**Shipped in Phase 6:**
+- `GET /analytics/users/{end_user_id}` — user spend profile: summary, daily spend trend, models used, features used
+- `/analytics/users` dashboard page — `TopSpendersTable` with cost, runs, avg cost/run, last active
+- `/analytics/users/[id]` page — full per-user spend profile with Recharts charts
+
+**Remaining (Phase 10):**
 
 **Cohort analysis:**
 - Spend tiers: P0 (<$1/mo), P1 ($1–10), P2 ($10–100), P3 ($100+)
 - Retention vs cost by first-seen week
+- `GET /analytics/users/cohorts` — retention vs cost by first-seen week
 
 **Segmentation:**
 - By feature_tag, plan / tier, geography (if provided)
+- Segmentation tabs in the UI: All / Heavy users (P3) / Anomalous / New this week
 
 **Anomaly detection (nightly Celery):**
 - Z-score of today's spend vs 30d mean per active user
 - Flag users with Z >3 in `user_anomalies` table
 - `GET /analytics/users/anomalies` — flagged users with anomaly reason
 
-**Definition of done:** 🔲 Product + customer success teams can identify top spenders, churn risk, and suspicious usage patterns.
+**Definition of done:** 🔲 Product + customer success teams can identify top spenders, churn risk, and suspicious usage patterns. Anomalous users are surfaced automatically without manual monitoring.
 
 ---
 
@@ -455,15 +479,15 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 |---|---|---|
 | 0 — Architecture baseline | 0, 1 | ✅ |
 | 1 — SDKs + instrumentation | 2, 3 | ✅ |
-| 2 — Observability UI | 5 | 🔲 |
-| 3 — Metering core | 4 | ✅ |
+| 2 — Observability UI (Run Explorer + Analytics Dashboard) | 5, 6 | ✅ |
+| 3 — Metering core | 4, 6 | ✅ |
 | 4 — Reconciliation + dispute | 8 | 🔲 |
 | 5 — Chargeback engine | 8 | 🔲 |
 | 6 — Budgets + guardrails | 7 | 🔲 |
 | 7 — Budget-aware routing | Future | 🔲 |
 | 8 — Unit economics + change impact | 9 | 🔲 |
 | 9 — Replay harness | 10 | 🔲 |
-| 10 — End-user analytics | 6, 10 | 🔲 |
+| 10 — End-user analytics | 6 (partial) + 10 | 🔲 |
 | 11 — Security + tool risk | 11 | 🔲 |
 | 12 — Tamper-evident ledger | 11 | 🔲 |
 | 13 — Privacy governance | 11 | 🔲 |

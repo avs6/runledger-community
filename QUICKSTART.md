@@ -344,8 +344,9 @@ Once events are flowing, query your spend data:
 BASE=http://localhost:8000
 KEY=rl_test_...
 
-# Total cost + tokens for the last 7 days
+# Total cost + tokens for the last 7 days (includes period-over-period delta)
 curl "$BASE/analytics/summary" -H "Authorization: Bearer $KEY"
+# → { total_cost_usd, prev_cost_usd, cost_delta_pct, run_count, call_count, ... }
 
 # Daily spend time-series
 curl "$BASE/analytics/spend-over-time?granularity=daily" \
@@ -354,12 +355,17 @@ curl "$BASE/analytics/spend-over-time?granularity=daily" \
 # Cost breakdown by model
 curl "$BASE/analytics/spend-by-model" -H "Authorization: Bearer $KEY"
 
-# Top 10 spenders
+# Top 10 spenders (includes avg_cost_per_run and last_active)
 curl "$BASE/analytics/spend-by-user?limit=10" \
      -H "Authorization: Bearer $KEY"
 
 # Cost by feature tag
 curl "$BASE/analytics/spend-by-feature" -H "Authorization: Bearer $KEY"
+
+# Full spend profile for a single end-user
+curl "$BASE/analytics/users/user-alice" -H "Authorization: Bearer $KEY"
+# → { cost_usd, run_count, avg_cost_per_run, last_active,
+#     spend_over_time[], models_used[], features_used[] }
 ```
 
 All endpoints accept `from` and `to` query params (ISO-8601 datetimes):
@@ -368,6 +374,8 @@ All endpoints accept `from` and `to` query params (ISO-8601 datetimes):
 curl "$BASE/analytics/summary?from=2026-01-01T00:00:00Z&to=2026-01-31T23:59:59Z" \
      -H "Authorization: Bearer $KEY"
 ```
+
+The analytics dashboard at `http://localhost:3000/analytics` visualises all of the above with Recharts — summary cards, spend-over-time line chart, spend-by-model bar chart, spend-by-feature donut, and a top-spenders table with clickable user profiles. Use the 24h / 7d / 30d preset buttons to change the time window.
 
 ---
 
@@ -401,6 +409,15 @@ curl -X POST http://localhost:8000/chat \
      -H "Content-Type: application/json" \
      -H "X-User-Id: user-alice" \
      -d '{"message": "What is Python?"}'
+
+# Example 6: Local Ollama (OpenAI-compatible endpoint, no cloud needed)
+# Requires: ollama pull llama3.2 && ollama serve
+uv run python examples/06_ollama_local.py --local   # stdout only
+uv run python examples/06_ollama_local.py           # sends to RunLedger API
+
+# Example 7: Analytics API query (requires a running RunLedger stack with data)
+export RUNLEDGER_API_KEY=rl_test_...
+uv run python examples/07_analytics_query.py
 ```
 
 ---
@@ -487,7 +504,7 @@ required.
 
 ## What's next
 
-- **Phase 5** — Run Explorer + DAG viewer UI (Next.js dashboard)
-- **Phase 6** — Analytics dashboard with charts
 - **Phase 7** — Budget guardrails (`block` / `throttle` / `downgrade` actions)
 - **Phase 8** — Chargeback engine + signed billing statements
+- **Phase 9** — Unit economics graph + deployment version change-impact diffs
+- **Phase 10** — End-user cohort analytics + replay harness
