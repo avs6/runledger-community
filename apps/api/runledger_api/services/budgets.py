@@ -292,10 +292,32 @@ async def send_notification(
     payload: dict[str, Any],
 ) -> None:
     """
-    HTTP POST to webhook/Slack with HMAC-SHA256 signed payload.
+    Dispatch a notification via Slack Block Kit or HMAC-signed generic webhook.
 
-    Signature header: X-RunLedger-Signature: sha256=<hex>
+    For Slack channels: POST Block Kit JSON to the destination_url (no HMAC).
+    For all other channels: HMAC-SHA256 signed JSON POST.
     """
+    if notification.channel == "slack":
+        from runledger_api.services.notifications import (
+            build_budget_breach_blocks,
+            send_slack_message,
+        )
+
+        blocks = build_budget_breach_blocks(
+            budget_id=payload.get("budget_id", ""),
+            scope_type=payload.get("scope_type"),
+            scope_id=payload.get("scope_id"),
+            spend_usd=payload.get("spend_usd", "0"),
+            limit_usd=payload.get("limit_usd", "0"),
+            action=payload.get("action_taken"),
+        )
+        fallback = (
+            f"Budget breach: ${payload.get('spend_usd', '0')} "
+            f"/ ${payload.get('limit_usd', '0')} limit"
+        )
+        await send_slack_message(notification.destination_url, blocks, fallback)
+        return
+
     body = json.dumps(payload, sort_keys=True).encode()
     sig = hmac.new(
         settings.secret_key.encode(),

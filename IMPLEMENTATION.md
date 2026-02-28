@@ -4,24 +4,38 @@
 
 ---
 
+## Guiding Principles
+
+- **Async instrumentation first** — lowest friction. Optional inline gateway later.
+- **Billing-grade correctness over pretty dashboards** — accuracy is the product.
+- **Privacy-first by default** — payload logging is always opt-in, never default.
+- **End-user analytics is first-class** — not an afterthought on a per-tenant view.
+- **Auditability built into the architecture** — tamper-evidence, provenance, and policies from day one, even if compliance features ship later.
+
+---
+
 ## Phase Status
 
-| Phase | Title | Status | Roadmap Areas | Tests |
-|-------|-------|--------|---------------|-------|
-| 0 | Monorepo + Infrastructure Foundation | ✅ Complete | Area 0 | 3 |
-| 1 | Ingestion API + Multi-tenancy + Auth | ✅ Complete | Areas 1, 2 | 17 |
-| 2 | SDK — OpenAI Wrapper + Context Propagation | ✅ Complete | Area 3 | 28 |
-| 3 | SDK — LangChain + LangGraph + CLI | ✅ Complete | Areas 4, 5, 6 | 33 |
-| 4 | Billing-grade Metering Core | ✅ Complete | Area 7 | 22 |
-| 5 | Run Explorer + DAG Viewer UI | ✅ Complete | Area 8 | — |
-| 6 | Metering Dashboard | ✅ Complete | Area 9 | +3 |
-| 7 | Budgets + Spend Guardrails | ✅ Complete | Areas 10, 11 | 19 |
-| 8 | Chargeback Engine + Reconciliation | ✅ Complete | Area 12 | 15 |
-| 9 | Unit Economics Graph + Change Impact | ✅ Complete | Area 13 | 12 |
-| 10 | End-user Analytics + Replay Harness | ✅ Complete | Areas 9, 10 | 15 |
-| 11 | Tamper-evident Ledger + Security + Privacy | ✅ Complete | Areas 11, 12, 13, 15 | 15 |
+| Phase | Title | Status | Tests |
+|-------|-------|--------|-------|
+| 0 | Monorepo + Infrastructure Foundation | ✅ Complete | 3 |
+| 1 | Ingestion API + Multi-tenancy + Auth | ✅ Complete | 17 |
+| 2 | SDK — OpenAI Wrapper + Context Propagation | ✅ Complete | 28 |
+| 3 | SDK — LangChain + LangGraph + CLI | ✅ Complete | 33 |
+| 4 | Billing-grade Metering Core | ✅ Complete | 22 |
+| 5 | Run Explorer + DAG Viewer UI | ✅ Complete | — |
+| 6 | Metering Dashboard | ✅ Complete | +3 |
+| 7 | Budgets + Spend Guardrails | ✅ Complete | 19 |
+| 8 | Chargeback Engine + Reconciliation | ✅ Complete | 15 |
+| 9 | Unit Economics Graph + Change Impact | ✅ Complete | 12 |
+| 10 | End-user Analytics + Replay Harness | ✅ Complete | 15 |
+| 11 | Tamper-evident Ledger + Security + Privacy | ✅ Complete | 15 |
+| 12 | Settings Console + Dark Mode + Provider Profiles | ✅ Complete | 13 |
+| 14 | Integrations: Slack Alerts + GitHub CI Gate | ✅ Complete | 8 |
+| 15 | Anthropic SDK | 🔲 Planned | — |
+| 16 | Production Hardening | 🔲 Planned | — |
 
-**Total tests shipped (Phases 0–11):** 121 API tests (106 through Phase 10 + 15 Phase 11)
+**Total tests shipped (Phases 0–14):** 142 API tests
 
 ---
 
@@ -838,6 +852,175 @@ Tests:
 
 ---
 
+### Phase 12 — Weeks 25–26: Settings Console + Dark Mode + Provider Profiles ✅
+
+**Goal:** Workspace administrators can manage API keys, configure model pricing overrides, and switch between light/dark themes — all from a single Settings page.
+
+**What was built:**
+
+Settings router (`apps/api/runledger_api/routers/settings.py`, prefix `/settings`):
+- `GET /settings/api-keys` — list active (non-revoked) workspace API keys
+- `POST /settings/api-keys` → 201 — generate a new key (raw key returned once; stored as SHA-256 hash in DB)
+- `DELETE /settings/api-keys/{id}` → 204 — revoke a key (sets `revoked_at=now()`)
+
+Providers router (`apps/api/runledger_api/routers/providers.py`, prefix `/providers`):
+- `GET /providers/pricing` — list workspace pricing overrides + global rows
+- `POST /providers/pricing` → 201 — create workspace-scoped pricing override
+- `DELETE /providers/pricing/{id}` → 204 — delete workspace pricing override (global rows protected)
+
+Pydantic schemas (`apps/api/runledger_api/schemas/providers.py`):
+- `ProviderPricingCreate`, `ProviderPricingResponse`, `ProviderPricingList`
+
+Frontend (`apps/web/`):
+- `npm install next-themes` — dark mode support
+- `components/providers/ThemeProvider.tsx` — wraps `next-themes` ThemeProvider
+- Dashboard layout wraps children in `ThemeProvider`
+- `TopBar` — sun/moon icon toggle button calling `setTheme()`
+- `components/layout/Sidebar.tsx` — Settings nav item
+- `app/(dashboard)/settings/page.tsx` — `'use client'` page; 3 sections:
+  - **API Keys** — create form (name + env), one-time raw key banner (copy + dismiss), keys table with revoke button
+  - **Provider Profiles** — add pricing form (provider, model, input/output/cached costs), pricing table with delete for workspace-scoped rows
+  - **Appearance** — theme selector (Light / Dark / System) via `useTheme()`
+- `types/api.ts` — `ApiKeyResponse`, `ApiKeyCreateResponse`, `ProviderPricingResponse`, `ProviderPricingList`
+- `lib/api.ts` — `listApiKeys`, `createApiKey`, `revokeApiKey`, `listProviderPricing`, `createProviderPricing`, `deleteProviderPricing`
+
+Tests (`apps/api/tests/test_settings.py`) — **8 tests:**
+- `test_list_api_keys_empty`, `test_create_api_key`, `test_create_api_key_raw_key_not_stored`, `test_revoke_api_key`, `test_revoke_wrong_workspace`, `test_settings_requires_auth`, `test_list_pricing_includes_global`, `test_create_and_delete_pricing`
+
+Tests (`apps/api/tests/test_providers.py`) — **5 tests** (pricing CRUD).
+
+**Total new tests: 13 (134 cumulative)**
+
+**Definition of done:** ✅ Create an API key, copy the raw value (shown once), revoke it. Add a workspace pricing override for a model, verify it appears in the pricing list. Toggle dark mode — persists on reload. 134/134 tests pass.
+
+---
+
+### Phase 14 — Weeks 27–28: Integrations: Slack Alerts + GitHub CI Gate ✅
+
+**Goal:** Budget breach and anomaly alerts fire in Slack automatically. CI pipelines can gate on cost regressions.
+
+**Product areas covered:** Integrations ecosystem (Slack/Teams alerts, CI gate, bulk data export)
+
+**What was built:**
+
+No new DB migration needed — `BudgetNotification` (`channel`, `destination_url`, `events`) already stores Slack webhook URLs from Phase 7.
+
+Slack Block Kit notifications service (`apps/api/runledger_api/services/notifications.py`):
+- `build_budget_breach_blocks(budget_id, scope_type, scope_id, spend_usd, limit_usd, action)` → Block Kit list
+- `build_anomaly_blocks(user_id, daily_spend, mean_spend, zscore, reason)` → Block Kit list
+- `build_test_blocks()` → Block Kit connectivity test message
+- `send_slack_message(webhook_url, blocks, fallback_text)` → async httpx POST to Slack webhook
+
+Budget service update (`apps/api/runledger_api/services/budgets.py`):
+- `send_notification()` now branches on `channel == "slack"`: calls `send_slack_message()` with Block Kit; otherwise uses existing HMAC-signed generic webhook POST
+
+Analytics worker update (`apps/api/runledger_api/workers/analytics.py`):
+- After anomaly detection commit: queries `BudgetNotification` rows with `channel="slack"` and `"anomaly.detected" in events` per workspace; dispatches Slack message per anomaly per notification
+
+Integrations router (`apps/api/runledger_api/routers/integrations.py`, prefix `/integrations`):
+- `POST /integrations/slack/test` — send a test Block Kit message to a webhook URL; returns `{"ok": true}` or `{"ok": false, "error": "..."}`
+
+Analytics router update (`apps/api/runledger_api/routers/analytics.py`):
+- `GET /analytics/export?format=csv|json&from=...&to=...` — bulk export of `usage_daily` rows for the date range; CSV returns `StreamingResponse` with `text/csv`; JSON returns `{"items": [...]}`
+
+Main app update (`apps/api/runledger_api/main.py`):
+- `app.include_router(integrations_router.router)`
+
+SDK CLI update (`packages/sdk/runledger_sdk/cli.py`):
+- `runledger check-regression --threshold 20.0` — calls `GET /analytics/regressions`, prints a rich table of regressions exceeding the threshold, exits 1 if any found; designed as a GitHub Actions CI gate
+
+Frontend (`apps/web/`):
+- `types/api.ts` — `ExportRow`, `AnalyticsExport`, `SlackTestResponse`
+- `lib/api.ts` — `exportAnalytics(apiKey, format, from?, to?)`, `testSlackWebhook(apiKey, webhookUrl)`
+- `app/(dashboard)/settings/page.tsx` — added **Integrations** section below Appearance:
+  - Info banner linking to `POST /budgets/{id}/notifications` API
+  - Slack webhook URL input + "Test" button
+  - Inline success/error feedback after test send
+
+Example (`examples/13_integrations.py`):
+- Demonstrates: Slack test, analytics JSON export, analytics CSV export (saved to `export.csv`), regression list
+
+Tests (`apps/api/tests/test_integrations.py`) — **8 tests:**
+- `test_slack_test_ok`, `test_slack_test_error`, `test_integrations_requires_auth`
+- `test_analytics_export_json`, `test_analytics_export_csv`, `test_analytics_export_date_filter`, `test_analytics_export_requires_auth`
+- `test_slack_blocks_budget_breach` (unit test — Block Kit structure validation)
+
+**Total new tests: 8 (142 cumulative)**
+
+**Definition of done:** ✅ `POST /integrations/slack/test` with a real Slack webhook → message appears in Slack. `GET /analytics/export?format=csv` → valid CSV with date/provider/model/cost columns. `runledger check-regression --threshold 20` exits 0 (no regressions) or exits 1 with table (regressions found). Settings page Integrations section renders with test button.
+
+---
+
+### Phase 15 — Anthropic SDK 🔲
+
+**Goal:** Instrument Anthropic API calls (Claude) with the same zero-config pattern as the existing OpenAI wrapper.
+
+**What to build:**
+
+SDK — `packages/sdk/runledger_sdk/anthropic.py`:
+- `AnthropicCallbackHandler` or instrument function wrapping `anthropic.Anthropic` and `anthropic.AsyncAnthropic`
+- Mirror of `openai.py`: captures model, input/output tokens (from `usage.input_tokens` / `usage.output_tokens`), latency_ms, status, error_type
+- Handles streaming responses by accumulating token counts from stream events
+- Works with `rl.context(...)` — same context propagation
+
+SDK — `runledger_sdk/__init__.py`:
+- Export `AnthropicCallbackHandler`; bump version to v0.5.0
+
+Example (`examples/12_anthropic_basic.py`):
+- Minimal Anthropic instrumentation with `rl.instrument()` for Anthropic client
+
+Pricing seeds (`apps/api/scripts/seed.py`):
+- Add Claude 3.5 Sonnet, Claude 3 Haiku, Claude 3 Opus pricing rows (already partially seeded as `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`)
+
+Tests (`packages/sdk/tests/test_anthropic.py`) — ~8 tests:
+- `test_instrument_captures_tokens`, `test_instrument_captures_latency`
+- `test_async_instrument`, `test_streaming_token_count`
+- `test_error_captures_error_type`, `test_context_propagated`
+
+**Definition of done:** 🔲 Two-line instrumentation captures all Anthropic Claude calls with correct token and cost attribution.
+
+---
+
+### Phase 16 — Production Hardening 🔲
+
+**Goal:** The API is rate-limited, PII is scrubbed before storage, health checks are richer, and the deployment guide is complete.
+
+**What to build:**
+
+Rate limiting (`slowapi` or `fastapi-limiter`):
+- `100 req/min` on ingestion endpoints per API key
+- `60 req/min` on analytics endpoints per workspace
+- `429 Too Many Requests` with `Retry-After` header
+- Redis-backed counters (same Redis used for budgets)
+
+PII scrubbing pipeline:
+- `services/scrubbing.py` — configurable regex patterns for common PII (email, phone, SSN, credit card)
+- Runs in Celery pipeline worker after privacy mode check, before writing payloads to Postgres
+- Per-workspace scrubbing rules table or config (workspace-level override)
+- `SCRUB_PATTERNS` env var — JSON list of additional regex patterns
+
+Health check improvements:
+- `GET /health` — extend to include Celery worker status (check last heartbeat in Redis)
+- `GET /health/ready` — Kubernetes readiness probe (DB migrated, Redis connected)
+- `GET /health/live` — Kubernetes liveness probe (process alive)
+
+Railway deployment guide (`docs/deployment.md`):
+- Step-by-step Railway project setup
+- Environment variable reference table
+- Database migration on deploy (Dockerfile `CMD` with `alembic upgrade head && uvicorn ...`)
+- Celery worker deployment as separate Railway service
+- Custom domain setup + TLS
+- Monitoring: Railway metrics + Sentry DSN integration
+
+Tests — ~10 tests:
+- Rate limiting: 429 after limit exceeded, counter reset after window
+- Scrubbing: email/phone patterns correctly redacted, custom patterns work
+- Health endpoints: readiness fails when DB unreachable, liveness always returns 200
+
+**Definition of done:** 🔲 Ingestion endpoint returns 429 after rate limit exceeded. PII patterns in payload are scrubbed before storage. `/health/ready` fails cleanly when Postgres is down. Deployment guide enables a solo operator to ship to Railway in under 30 minutes.
+
+---
+
 ## Testing Strategy
 
 ### Unit tests (pytest)
@@ -888,3 +1071,24 @@ NEXT_PUBLIC_API_URL  = https://api.runledger.io
 ```
 
 **Staging environment:** Identical Railway project with `ENVIRONMENT=staging`, separate Postgres + Redis plugins, seeded with synthetic data.
+
+---
+
+## Feature-to-Phase Mapping
+
+| Feature Area | Phase(s) | Status |
+|---|---|---|
+| Architecture baseline (multi-tenant, ingestion, auth) | 0, 1 | ✅ |
+| SDKs: OpenAI wrapper, LangChain, LangGraph, CLI | 2, 3 | ✅ |
+| Billing-grade metering core | 4 | ✅ |
+| Run Explorer + DAG Viewer UI | 5 | ✅ |
+| Metering Dashboard (analytics pages + Recharts charts) | 6 | ✅ |
+| Budgets + spend guardrails (Redis hot path) | 7 | ✅ |
+| Chargeback engine + reconciliation + dispute trail | 8 | ✅ |
+| Unit economics graph + change impact + annotations | 9 | ✅ |
+| End-user analytics (cohorts, anomaly detection) + replay harness | 10 | ✅ |
+| Tamper-evident ledger + tool registry + privacy governance | 11 | ✅ |
+| Settings console: API keys, provider profiles, dark mode | 12 | ✅ |
+| Integrations: Slack Block Kit alerts + CI gate + analytics export | 14 | ✅ |
+| Anthropic SDK (Claude wrapper) | 15 | 🔲 |
+| Production hardening (rate limiting, PII scrubbing, deployment) | 16 | 🔲 |

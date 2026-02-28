@@ -1,4 +1,5 @@
 import type {
+  AnalyticsExport,
   AnalyticsSummary,
   Annotation,
   AnnotationList,
@@ -30,6 +31,7 @@ import type {
   RunGraphResponse,
   RunListResponse,
   SecurityEventList,
+  SlackTestResponse,
   SpendByFeature,
   SpendByModel,
   SpendByUser,
@@ -499,4 +501,43 @@ export async function createProviderPricing(
 
 export async function deleteProviderPricing(apiKey: string, pricingId: string): Promise<void> {
   await apiFetch<void>(`/providers/pricing/${pricingId}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Phase 14 — Integrations helpers ────────────────────────────────────────────
+
+export async function exportAnalytics(
+  apiKey: string,
+  format: 'csv' | 'json' = 'json',
+  from?: string,
+  to?: string
+): Promise<AnalyticsExport | string> {
+  const qs = new URLSearchParams({ format })
+  if (from) qs.set('from', from)
+  if (to) qs.set('to', to)
+
+  const res = await fetch(`${API_URL}/analytics/export?${qs.toString()}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+
+  if (format === 'csv') {
+    return res.text()
+  }
+
+  return res.json() as Promise<AnalyticsExport>
+}
+
+export async function testSlackWebhook(
+  apiKey: string,
+  webhookUrl: string
+): Promise<SlackTestResponse> {
+  return apiFetch<SlackTestResponse>('/integrations/slack/test', apiKey, {
+    method: 'POST',
+    body: JSON.stringify({ webhook_url: webhookUrl }),
+  })
 }

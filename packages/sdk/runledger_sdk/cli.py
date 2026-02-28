@@ -228,6 +228,65 @@ def status(
         raise typer.Exit(code=1)
 
 
+# ── check-regression ──────────────────────────────────────────────────────────
+
+
+@app.command(name="check-regression")
+def check_regression(
+    threshold: Annotated[
+        float,
+        typer.Option("--threshold", help="Fail if cost regression exceeds this % change"),
+    ] = 20.0,
+    api_key: ApiKeyOpt = None,
+    base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
+) -> None:
+    """Exit 1 if any workflow cost regression exceeds threshold. Use in GitHub Actions CI gate."""
+    key = _require_api_key(api_key)
+
+    try:
+        with _client(key, base_url) as client:
+            resp = client.get("/analytics/regressions")
+    except httpx.ConnectError:
+        err_console.print(f"✗ Could not connect to {base_url}")
+        raise typer.Exit(code=1) from None
+
+    if resp.status_code != 200:
+        err_console.print(f"✗ API error {resp.status_code}: {resp.text}")
+        raise typer.Exit(code=1)
+
+    data = resp.json()
+    regressions = data.get("items", [])
+    failed = [r for r in regressions if float(r.get("change_pct", 0)) > threshold]
+
+    if not failed:
+        console.print(f"[green]✓ No regressions detected[/green] (threshold: {threshold}%)")
+        return
+
+    table = Table(
+        title=f"Cost Regressions > {threshold}%",
+        show_lines=False,
+    )
+    table.add_column("Feature", style="cyan")
+    table.add_column("Current Avg", justify="right")
+    table.add_column("Prior Avg", justify="right")
+    table.add_column("Change %", justify="right", style="red")
+    table.add_column("Runs", justify="right", style="dim")
+
+    for r in failed:
+        change = float(r.get("change_pct", 0))
+        table.add_row(
+            r.get("feature_tag") or "—",
+            f"${float(r.get('current_avg_cost', 0)):.4f}",
+            f"${float(r.get('prior_avg_cost', 0)):.4f}",
+            f"+{change:.1f}%",
+            str(r.get("run_count", "—")),
+        )
+
+    console.print(table)
+    err_console.print(f"✗ {len(failed)} regression(s) exceed {threshold}% threshold — failing CI gate")
+    raise typer.Exit(code=1)
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

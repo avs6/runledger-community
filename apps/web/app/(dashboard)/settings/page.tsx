@@ -11,6 +11,7 @@ import {
   listProviderPricing,
   createProviderPricing,
   deleteProviderPricing,
+  testSlackWebhook,
 } from '@/lib/api'
 
 export default function SettingsPage() {
@@ -25,6 +26,11 @@ export default function SettingsPage() {
   const [creatingKey, setCreatingKey] = useState(false)
   const [newRawKey, setNewRawKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  // ── Integrations state ─────────────────────────────────────────────────────
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState('')
+  const [slackTestResult, setSlackTestResult] = useState<{ ok: boolean; error: string | null } | null>(null)
+  const [testingSlack, setTestingSlack] = useState(false)
 
   // ── Provider pricing state ─────────────────────────────────────────────────
   const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
@@ -118,6 +124,23 @@ export default function SettingsPage() {
     if (!apiKey) return
     await deleteProviderPricing(apiKey, pricingId)
     setPricing((prev) => prev.filter((p) => p.id !== pricingId))
+  }
+
+  // ── Integrations handlers ──────────────────────────────────────────────────
+
+  async function handleTestSlack(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !slackWebhookUrl.trim()) return
+    setTestingSlack(true)
+    setSlackTestResult(null)
+    try {
+      const result = await testSlackWebhook(apiKey, slackWebhookUrl.trim())
+      setSlackTestResult(result)
+    } catch (err) {
+      setSlackTestResult({ ok: false, error: String(err) })
+    } finally {
+      setTestingSlack(false)
+    }
   }
 
   return (
@@ -366,6 +389,58 @@ export default function SettingsPage() {
             <option value="system">System</option>
           </select>
         </div>
+      </section>
+
+      {/* ── Integrations ────────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="mb-4 text-lg font-medium">Integrations</h2>
+
+        <div className="mb-3 rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+          Configure budget notifications via{' '}
+          <code className="rounded bg-blue-100 px-1 font-mono text-xs">
+            POST /budgets/{'{id}'}/notifications
+          </code>{' '}
+          with <code className="rounded bg-blue-100 px-1 font-mono text-xs">channel: &quot;slack&quot;</code>.
+        </div>
+
+        <div className="mb-2 text-sm font-medium text-gray-700">Slack Webhook</div>
+        <p className="mb-3 text-xs text-gray-500">
+          Paste an incoming webhook URL to test connectivity before configuring budget notifications.
+        </p>
+
+        <form onSubmit={handleTestSlack} className="flex flex-wrap gap-2">
+          <input
+            type="url"
+            placeholder="https://hooks.slack.com/services/..."
+            value={slackWebhookUrl}
+            onChange={(e) => setSlackWebhookUrl(e.target.value)}
+            className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
+            required
+          />
+          <button
+            type="submit"
+            disabled={testingSlack || !slackWebhookUrl.trim()}
+            className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {testingSlack ? 'Sending…' : 'Test'}
+          </button>
+        </form>
+
+        {slackTestResult && (
+          <div
+            className={`mt-3 rounded border px-3 py-2 text-sm ${
+              slackTestResult.ok
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            {slackTestResult.ok ? (
+              '✓ Test message sent successfully.'
+            ) : (
+              <>✗ Failed: {slackTestResult.error}</>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

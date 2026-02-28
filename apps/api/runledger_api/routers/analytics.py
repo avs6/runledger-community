@@ -13,12 +13,15 @@ All amounts are in USD.
 
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +29,7 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.models.annotations import Annotation
 from runledger_api.models.events import AgentRun, ProviderCall, Span
+from runledger_api.models.metering import UsageDaily
 from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.analytics import (
@@ -1008,3 +1012,62 @@ async def list_annotations(
             for row in rows
         ]
     )
+
+
+# ── /analytics/export ─────────────────────────────────────────────────────────
+
+_EXPORT_COLUMNS = ["date", "provider", "model", "cost_usd", "input_tokens", "output_tokens", "call_count"]
+
+
+@router.get("/export", response_model=None)
+async def analytics_export(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    format: Annotated[str, Query(pattern="^(csv|json)$")] = "json",
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> StreamingResponse | dict:
+    """Bulk export of daily spend data from usage_daily, ordered by date desc."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+
+    stmt = (
+        select(UsageDaily)
+        .where(
+            UsageDaily.workspace_id == workspace.id,
+            UsageDaily.day >= t_from.date(),
+            UsageDaily.day <= t_to.date(),
+        )
+        .order_by(UsageDaily.day.desc())
+    )
+
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    items = [
+        {
+            "date": str(row.day),
+            "provider": row.provider,
+            "model": row.model,
+            "cost_usd": str(row.cost_usd),
+            "input_tokens": row.input_tokens,
+            "output_tokens": row.output_tokens,
+            "call_count": row.call_count,
+        }
+        for row in rows
+    ]
+
+    if format == "csv":
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=_EXPORT_COLUMNS)
+        writer.writeheader()
+        writer.writerows(items)
+        buf.seek(0)
+
+        return StreamingResponse(
+            iter([buf.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=analytics_export.csv"},
+        )
+
+    return {"items": items}

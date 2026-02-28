@@ -423,3 +423,9 @@ export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 
 export interface ProviderPricingResponse { id: string; provider: string; model: string; input_cost_per_1m: string; output_cost_per_1m: string; cached_input_cost_per_1m: string | null; effective_from: string; effective_to: string | null; workspace_id: string | null; created_at: string }
 export interface ProviderPricingList { items: ProviderPricingResponse[] }
+
+// ── Phase 14 — Integrations ────────────────────────────────────────────────────
+
+export interface ExportRow { date: string; provider: string; model: string; cost_usd: string; input_tokens: number; output_tokens: number; call_count: number }
+export interface AnalyticsExport { items: ExportRow[] }
+export interface SlackTestResponse { ok: boolean; error: string | null }

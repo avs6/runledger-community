@@ -22,8 +22,10 @@ from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
+from runledger_api.models.budgets import BudgetNotification
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.replay import UserAnomaly
+from runledger_api.services.notifications import build_anomaly_blocks, send_slack_message
 
 log = structlog.get_logger()
 
@@ -53,6 +55,8 @@ async def _run_anomaly_detection() -> dict[str, int]:
 
     workspaces_checked = 0
     anomalies_flagged = 0
+    # Track which workspaces had new anomalies and the associated anomaly details
+    workspace_anomalies: dict[Any, list[UserAnomaly]] = {}
 
     async with factory() as session:
         # 1. Get all workspace IDs active in the last 30d
@@ -155,6 +159,7 @@ async def _run_anomaly_detection() -> dict[str, int]:
                 )
                 session.add(anomaly)
                 anomalies_flagged += 1
+                workspace_anomalies.setdefault(workspace_id, []).append(anomaly)
                 log.info(
                     "analytics.anomaly.flagged",
                     workspace_id=str(workspace_id),
@@ -163,6 +168,41 @@ async def _run_anomaly_detection() -> dict[str, int]:
                 )
 
         await session.commit()
+
+        # Dispatch Slack alerts for each workspace with new anomalies
+        for workspace_id, anomalies in workspace_anomalies.items():
+            notif_stmt = select(BudgetNotification).where(
+                BudgetNotification.workspace_id == workspace_id,
+                BudgetNotification.is_active.is_(True),
+                BudgetNotification.channel == "slack",
+            )
+            notif_result = await session.execute(notif_stmt)
+            notifications = notif_result.scalars().all()
+
+            for notif in notifications:
+                # Check if this notification subscribes to anomaly.detected events
+                if not notif.events or "anomaly.detected" not in notif.events:
+                    continue
+                for anomaly in anomalies:
+                    blocks = build_anomaly_blocks(
+                        user_id=anomaly.end_user_id,
+                        daily_spend=anomaly.daily_spend,
+                        mean_spend=anomaly.mean_spend,
+                        zscore=anomaly.zscore,
+                        reason=anomaly.reason,
+                    )
+                    fallback = (
+                        f"Spend anomaly: user {anomaly.end_user_id} "
+                        f"daily ${anomaly.daily_spend} ({anomaly.zscore}σ)"
+                    )
+                    try:
+                        await send_slack_message(notif.destination_url, blocks, fallback)
+                    except Exception as exc:
+                        log.warning(
+                            "analytics.anomaly.slack_dispatch_failed",
+                            notification_id=str(notif.id),
+                            error=str(exc),
+                        )
 
     log.info(
         "analytics.anomaly_detection.done",

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-RunLedger is a **FinOps Control Plane for AI agents** — billing-grade usage accounting, budgets/chargeback, and economics-aware routing for LangGraph/LangChain + OpenAI. It is Docker-deployable and async-instrumentation-first. See `about.md` for the full product description and `roadmap.md` for the 15-phase build plan.
+RunLedger is a **FinOps Control Plane for AI agents** — billing-grade usage accounting, budgets/chargeback, and economics-aware routing for LangGraph/LangChain + OpenAI. It is Docker-deployable and async-instrumentation-first. See `about.md` for the full product description and `IMPLEMENTATION.md` for the complete build plan (phases, schema, API routes, and specs).
 
 This repo is the **OSS core** (`runledger`). Planned components: `runledger-sdk`, `runledger-collector`, `runledger-api`, `runledger-ui`, `runledger-gateway`, `runledger-replay`.
 
