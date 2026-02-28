@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.billing import (
@@ -51,7 +52,7 @@ from runledger_api.services.billing import (
     run_reconciliation,
 )
 
-router = APIRouter(prefix="/billing", tags=["billing"])
+router = APIRouter(prefix="/billing", tags=["billing"], dependencies=[Depends(management_rate_limit)])
 log = structlog.get_logger()
 
 

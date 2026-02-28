@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import type { BillingPeriod } from '@/types/api'
 import { getBillingPeriods } from '@/lib/api'
 import BillingPeriodTable from '@/components/billing/BillingPeriodTable'
@@ -22,6 +23,7 @@ export default function BillingPage() {
       setPeriods(data.items)
     } catch (err) {
       console.error(err)
+      toast.error('Failed to load billing periods')
     } finally {
       setLoading(false)
     }
@@ -33,12 +35,14 @@ export default function BillingPage() {
 
   function handleCreated(period: BillingPeriod) {
     setPeriods((prev) => [period, ...prev])
+    toast.success('Billing period created')
   }
 
   function handleClosed(id: string) {
     setPeriods((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status: 'closed' as const } : p))
     )
+    toast.success('Period closed and signed')
     // Reload to get updated total_cost_usd + snapshot_hash
     load()
   }

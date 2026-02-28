@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Budget } from '@/types/api'
 import { getBudgets } from '@/lib/api'
 import BudgetList from '@/components/budgets/BudgetList'
@@ -22,6 +23,7 @@ export default function BudgetsPage() {
       setBudgets(data.items)
     } catch (err) {
       console.error(err)
+      toast.error('Failed to load budgets')
     } finally {
       setLoading(false)
     }
@@ -33,10 +35,12 @@ export default function BudgetsPage() {
 
   function handleCreated(budget: Budget) {
     setBudgets((prev) => [budget, ...prev])
+    toast.success('Budget created')
   }
 
   function handleDeleted(id: string) {
     setBudgets((prev) => prev.filter((b) => b.id !== id))
+    toast.success('Budget deleted')
   }
 
   return (

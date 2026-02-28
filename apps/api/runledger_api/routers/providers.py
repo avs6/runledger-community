@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.providers import (
@@ -34,7 +35,7 @@ from runledger_api.schemas.providers import (
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/providers", tags=["providers"])
+router = APIRouter(prefix="/providers", tags=["providers"], dependencies=[Depends(management_rate_limit)])
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]

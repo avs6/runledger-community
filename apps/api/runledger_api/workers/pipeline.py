@@ -21,6 +21,7 @@ from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
+from runledger_api.services.scrubbing import scrub_dict
 from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
@@ -108,7 +109,7 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
             deployment_version=e.get("deployment_version"),
             status=RunStatusEnum.running,
             started_at=_dt(e["started_at"]),
-            run_metadata=e.get("metadata"),
+            run_metadata=scrub_dict(e.get("metadata")),
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )
@@ -154,7 +155,7 @@ async def _handle_span_end(session: AsyncSession, e: dict[str, Any]) -> None:
             status=SpanStatusEnum(e["status"]),
             ended_at=_dt(e["ended_at"]),
             cost_usd=_dec(e.get("cost_usd")),
-            span_metadata=e.get("metadata"),
+            span_metadata=scrub_dict(e.get("metadata")),
         )
     )
 

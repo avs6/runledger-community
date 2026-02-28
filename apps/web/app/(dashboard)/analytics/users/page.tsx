@@ -9,10 +9,10 @@ import type { UserSpend, CohortSummary, AnomalyItem } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const TIER_COLOURS: Record<string, string> = {
-  P0: 'bg-gray-100 text-gray-600',
-  P1: 'bg-blue-100 text-blue-700',
-  P2: 'bg-amber-100 text-amber-700',
-  P3: 'bg-red-100 text-red-700',
+  P0: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  P1: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  P2: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  P3: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
 }
 
 function cohortTierFromCost(cost: string): string {
@@ -90,7 +90,7 @@ export default function UsersPage() {
           {cohorts.map((c) => (
             <span
               key={c.cohort_tier}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${TIER_COLOURS[c.cohort_tier] ?? 'bg-gray-100 text-gray-600'}`}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${TIER_COLOURS[c.cohort_tier] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}
             >
               {c.cohort_tier}: {c.user_count} users
             </span>
@@ -122,11 +122,11 @@ export default function UsersPage() {
           {loading ? (
             <p className="text-sm text-gray-400">Loading…</p>
           ) : filteredUsers.length === 0 ? (
-            <p className="text-sm text-gray-400">No users match this filter.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500">No users match this filter.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs font-medium text-gray-500">
+                <tr className="border-b dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
                   <th className="pb-2 pr-4">User</th>
                   <th className="pb-2 pr-4">Tier</th>
                   <th className="pb-2 pr-4">Spend</th>
@@ -141,11 +141,11 @@ export default function UsersPage() {
                   const isAnomaly = anomalySet.has(u.end_user_id)
                   const anomaly = anomalyMap.get(u.end_user_id)
                   return (
-                    <tr key={u.end_user_id} className="border-b last:border-0">
+                    <tr key={u.end_user_id} className="border-b dark:border-gray-700 last:border-0">
                       <td className="py-2 pr-4">
                         <Link
                           href={`/analytics/users/${encodeURIComponent(u.end_user_id)}`}
-                          className="font-mono text-xs hover:underline"
+                          className="font-mono text-xs hover:underline dark:text-gray-300"
                         >
                           {u.end_user_id}
                         </Link>
@@ -165,10 +165,10 @@ export default function UsersPage() {
                           </span>
                         )}
                       </td>
-                      <td className="py-2 pr-4">${parseFloat(u.cost_usd).toFixed(4)}</td>
-                      <td className="py-2 pr-4">{u.run_count}</td>
-                      <td className="py-2 pr-4">{u.call_count}</td>
-                      <td className="py-2 text-gray-400">
+                      <td className="py-2 pr-4 dark:text-gray-200">${parseFloat(u.cost_usd).toFixed(4)}</td>
+                      <td className="py-2 pr-4 dark:text-gray-200">{u.run_count}</td>
+                      <td className="py-2 pr-4 dark:text-gray-200">{u.call_count}</td>
+                      <td className="py-2 text-gray-400 dark:text-gray-500">
                         {u.last_active
                           ? new Date(u.last_active).toLocaleDateString()
                           : '—'}

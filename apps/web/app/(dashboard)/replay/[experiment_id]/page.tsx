@@ -237,7 +237,7 @@ export default function ExperimentResultsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${v.toFixed(3)}`} />
-                <Tooltip formatter={(v: number) => [`$${v.toFixed(6)}`, 'Projected cost']} />
+                <Tooltip formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Projected cost']} />
                 <Bar dataKey="cost" fill="#2563eb" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

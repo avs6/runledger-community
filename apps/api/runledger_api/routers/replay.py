@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.replay import (
@@ -43,7 +44,7 @@ from runledger_api.schemas.replay import (
     ExperimentResults,
 )
 
-router = APIRouter(prefix="/replay", tags=["replay"])
+router = APIRouter(prefix="/replay", tags=["replay"], dependencies=[Depends(management_rate_limit)])
 log = structlog.get_logger()
 
 

@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import type { ApiKeyResponse, ProviderPricingResponse } from '@/types/api'
 import {
   listApiKeys,
@@ -50,8 +51,9 @@ export default function SettingsPage() {
       ])
       setApiKeys(keys)
       setPricing(pricingData.items)
-    } catch (_) {
-      // ignore
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load settings')
     }
   }, [apiKey])
 
@@ -76,6 +78,10 @@ export default function SettingsPage() {
       setApiKeys((prev) => [created, ...prev])
       setNewKeyName('')
       setNewKeyEnv('dev')
+      toast.success('API key created — save it now')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to create API key')
     } finally {
       setCreatingKey(false)
     }
@@ -83,9 +89,15 @@ export default function SettingsPage() {
 
   async function handleRevoke(keyId: string) {
     if (!apiKey) return
-    await revokeApiKey(apiKey, keyId)
-    setApiKeys((prev) => prev.filter((k) => k.id !== keyId))
-    if (newRawKey) setNewRawKey(null)
+    try {
+      await revokeApiKey(apiKey, keyId)
+      setApiKeys((prev) => prev.filter((k) => k.id !== keyId))
+      if (newRawKey) setNewRawKey(null)
+      toast.success('API key revoked')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to revoke API key')
+    }
   }
 
   async function handleCopy() {
@@ -115,6 +127,10 @@ export default function SettingsPage() {
       setNewInputCost('')
       setNewOutputCost('')
       setNewCachedCost('')
+      toast.success('Provider profile added')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to add provider profile')
     } finally {
       setAddingPricing(false)
     }
@@ -122,8 +138,14 @@ export default function SettingsPage() {
 
   async function handleDeletePricing(pricingId: string) {
     if (!apiKey) return
-    await deleteProviderPricing(apiKey, pricingId)
-    setPricing((prev) => prev.filter((p) => p.id !== pricingId))
+    try {
+      await deleteProviderPricing(apiKey, pricingId)
+      setPricing((prev) => prev.filter((p) => p.id !== pricingId))
+      toast.success('Provider profile deleted')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to delete provider profile')
+    }
   }
 
   // ── Integrations handlers ──────────────────────────────────────────────────
@@ -136,8 +158,15 @@ export default function SettingsPage() {
     try {
       const result = await testSlackWebhook(apiKey, slackWebhookUrl.trim())
       setSlackTestResult(result)
+      if (result.ok) {
+        toast.success('Test message sent to Slack')
+      } else {
+        toast.error(`Slack test failed: ${result.error}`)
+      }
     } catch (err) {
-      setSlackTestResult({ ok: false, error: String(err) })
+      const msg = String(err)
+      setSlackTestResult({ ok: false, error: msg })
+      toast.error(`Slack test failed: ${msg}`)
     } finally {
       setTestingSlack(false)
     }

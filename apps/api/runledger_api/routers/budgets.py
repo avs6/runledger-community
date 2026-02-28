@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
 from runledger_api.models.tenant import Workspace
@@ -48,7 +49,7 @@ from runledger_api.services.budgets import (
     invalidate_workspace_budgets_cache,
 )
 
-router = APIRouter(prefix="/budgets", tags=["budgets"])
+router = APIRouter(prefix="/budgets", tags=["budgets"], dependencies=[Depends(management_rate_limit)])
 log = structlog.get_logger()
 
 

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.events import AgentRun
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.events import AgentRunResponse, BatchIngestRequest, IngestEvent
@@ -16,7 +17,7 @@ from runledger_api.workers.pipeline import process_events_task
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/ingest/v1", tags=["ingest"])
+router = APIRouter(prefix="/ingest/v1", tags=["ingest"], dependencies=[Depends(ingest_rate_limit)])
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]

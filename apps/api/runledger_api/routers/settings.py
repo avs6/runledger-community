@@ -18,13 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
 from runledger_api.services.auth import generate_api_key
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/settings", tags=["settings"])
+router = APIRouter(prefix="/settings", tags=["settings"], dependencies=[Depends(management_rate_limit)])
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]

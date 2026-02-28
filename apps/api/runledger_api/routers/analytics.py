@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.annotations import Annotation
 from runledger_api.models.events import AgentRun, ProviderCall, Span
 from runledger_api.models.metering import UsageDaily
@@ -64,7 +65,7 @@ from runledger_api.schemas.economics import (
     WorkflowTopList,
 )
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(analytics_rate_limit)])
 log = structlog.get_logger()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

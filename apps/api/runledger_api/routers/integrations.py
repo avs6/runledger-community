@@ -14,10 +14,11 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.tenant import Workspace
 from runledger_api.services.notifications import build_test_blocks, send_slack_message
 
-router = APIRouter(prefix="/integrations", tags=["integrations"])
+router = APIRouter(prefix="/integrations", tags=["integrations"], dependencies=[Depends(management_rate_limit)])
 log = structlog.get_logger()
 
 
