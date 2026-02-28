@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp, FlaskConical, ShieldCheck } from 'lucide-react'
+import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp, FlaskConical, ShieldCheck, Settings } from 'lucide-react'
 
 const nav = [
   { href: '/runs', label: 'Runs', icon: LayoutList },
@@ -9,6 +9,7 @@ const nav = [
   { href: '/billing', label: 'Billing', icon: Receipt },
   { href: '/replay', label: 'Replay', icon: FlaskConical },
   { href: '/ledger', label: 'Ledger', icon: ShieldCheck },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Sidebar() {

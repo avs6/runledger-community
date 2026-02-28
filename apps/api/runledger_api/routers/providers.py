@@ -1,0 +1,122 @@
+"""
+Providers router — workspace-scoped provider pricing CRUD.
+
+Prefix: /providers
+Auth: Bearer API key via get_current_workspace
+
+Business rules:
+- GET: returns global rows (workspace_id IS NULL) + current workspace rows
+- POST: always creates workspace-scoped rows
+- PUT/DELETE: only allowed on workspace-owned rows (403 on global or foreign)
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+from typing import Annotated
+
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from runledger_api.core.db import get_db
+from runledger_api.core.deps import get_current_workspace
+from runledger_api.models.metering import ProviderPricing
+from runledger_api.models.tenant import Workspace
+from runledger_api.schemas.providers import (
+    ProviderPricingCreate,
+    ProviderPricingList,
+    ProviderPricingResponse,
+    ProviderPricingUpdate,
+)
+
+log = structlog.get_logger()
+
+router = APIRouter(prefix="/providers", tags=["providers"])
+
+WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
+DbDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+@router.get("/pricing", response_model=ProviderPricingList)
+async def list_pricing(workspace: WorkspaceDep, db: DbDep) -> ProviderPricingList:
+    result = await db.execute(
+        select(ProviderPricing)
+        .where(
+            or_(
+                ProviderPricing.workspace_id.is_(None),
+                ProviderPricing.workspace_id == workspace.id,
+            )
+        )
+        .order_by(
+            ProviderPricing.provider,
+            ProviderPricing.model,
+            ProviderPricing.effective_from.desc(),
+        )
+    )
+    rows = list(result.scalars().all())
+    return ProviderPricingList(items=[ProviderPricingResponse.model_validate(r) for r in rows])
+
+
+@router.post(
+    "/pricing",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ProviderPricingResponse,
+)
+async def create_pricing(
+    body: ProviderPricingCreate, workspace: WorkspaceDep, db: DbDep
+) -> ProviderPricingResponse:
+    pricing = ProviderPricing(
+        provider=body.provider,
+        model=body.model,
+        input_cost_per_1m=body.input_cost_per_1m,
+        output_cost_per_1m=body.output_cost_per_1m,
+        cached_input_cost_per_1m=body.cached_input_cost_per_1m,
+        effective_from=body.effective_from or datetime.now(UTC),
+        workspace_id=workspace.id,
+    )
+    db.add(pricing)
+    await db.flush()
+    await db.commit()
+    await db.refresh(pricing)
+    log.info("provider_pricing_created", pricing_id=str(pricing.id), workspace_id=str(workspace.id))
+    return ProviderPricingResponse.model_validate(pricing)
+
+
+@router.put("/pricing/{pricing_id}", response_model=ProviderPricingResponse)
+async def update_pricing(
+    pricing_id: uuid.UUID,
+    body: ProviderPricingUpdate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> ProviderPricingResponse:
+    pricing = await db.get(ProviderPricing, pricing_id)
+    if pricing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")
+    if pricing.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot modify global or foreign pricing")
+    if body.input_cost_per_1m is not None:
+        pricing.input_cost_per_1m = body.input_cost_per_1m
+    if body.output_cost_per_1m is not None:
+        pricing.output_cost_per_1m = body.output_cost_per_1m
+    if body.cached_input_cost_per_1m is not None:
+        pricing.cached_input_cost_per_1m = body.cached_input_cost_per_1m
+    await db.commit()
+    await db.refresh(pricing)
+    return ProviderPricingResponse.model_validate(pricing)
+
+
+@router.delete("/pricing/{pricing_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pricing(
+    pricing_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep
+) -> None:
+    pricing = await db.get(ProviderPricing, pricing_id)
+    if pricing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")
+    if pricing.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot delete global or foreign pricing")
+    await db.delete(pricing)
+    await db.commit()
+    log.info("provider_pricing_deleted", pricing_id=str(pricing_id))

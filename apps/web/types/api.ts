@@ -413,3 +413,13 @@ export interface SecurityEventList { items: SecurityEventResponse[] }
 // ── Phase 11 — Privacy ────────────────────────────────────────────────────────
 
 export interface CapturePolicyResponse { id: string; workspace_id: string; privacy_mode: string; sampled_rate: string | null; updated_at: string; created_at: string }
+
+// ── Phase 12 — Settings ────────────────────────────────────────────────────────
+
+export interface ApiKeyResponse { id: string; workspace_id: string; key_prefix: string; name: string | null; scopes: string[]; created_at: string }
+export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
+
+// ── Phase 12 — Providers ───────────────────────────────────────────────────────
+
+export interface ProviderPricingResponse { id: string; provider: string; model: string; input_cost_per_1m: string; output_cost_per_1m: string; cached_input_cost_per_1m: string | null; effective_from: string; effective_to: string | null; workspace_id: string | null; created_at: string }
+export interface ProviderPricingList { items: ProviderPricingResponse[] }

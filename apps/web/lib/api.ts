@@ -3,6 +3,8 @@ import type {
   Annotation,
   AnnotationList,
   AnomalyList,
+  ApiKeyCreateResponse,
+  ApiKeyResponse,
   BillingPeriod,
   BillingPeriodList,
   BreachList,
@@ -19,6 +21,8 @@ import type {
   LedgerSnapshotResponse,
   LedgerVerifyResult,
   PeriodBreakdown,
+  ProviderPricingList,
+  ProviderPricingResponse,
   ReconciliationResult,
   RegressionList,
   RunDetailResponse,
@@ -449,4 +453,50 @@ export async function upsertCapturePolicy(
     method: 'PUT',
     body: JSON.stringify(body),
   })
+}
+
+// ── Phase 12 — Settings API key helpers ────────────────────────────────────────
+
+export async function listApiKeys(apiKey: string): Promise<ApiKeyResponse[]> {
+  return apiFetch<ApiKeyResponse[]>('/settings/api-keys', apiKey)
+}
+
+export async function createApiKey(
+  apiKey: string,
+  body: { name?: string | null; environment?: string; scopes?: string[] }
+): Promise<ApiKeyCreateResponse> {
+  return apiFetch<ApiKeyCreateResponse>('/settings/api-keys', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function revokeApiKey(apiKey: string, keyId: string): Promise<void> {
+  await apiFetch<void>(`/settings/api-keys/${keyId}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Phase 12 — Provider pricing helpers ────────────────────────────────────────
+
+export async function listProviderPricing(apiKey: string): Promise<ProviderPricingList> {
+  return apiFetch<ProviderPricingList>('/providers/pricing', apiKey)
+}
+
+export async function createProviderPricing(
+  apiKey: string,
+  body: {
+    provider: string
+    model: string
+    input_cost_per_1m: string
+    output_cost_per_1m: string
+    cached_input_cost_per_1m?: string | null
+  }
+): Promise<ProviderPricingResponse> {
+  return apiFetch<ProviderPricingResponse>('/providers/pricing', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteProviderPricing(apiKey: string, pricingId: string): Promise<void> {
+  await apiFetch<void>(`/providers/pricing/${pricingId}`, apiKey, { method: 'DELETE' })
 }
