@@ -49,7 +49,7 @@ export default function SpendByFeatureChart({ items }: Props) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(v: number) => [`$${v.toFixed(6)}`, 'Cost']}
+          formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
           contentStyle={{ fontSize: 12 }}
         />
         <Legend wrapperStyle={{ fontSize: 11 }} />

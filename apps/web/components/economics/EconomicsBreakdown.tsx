@@ -67,7 +67,7 @@ export default function EconomicsBreakdown({ data }: Props) {
               tick={{ fontSize: 11 }}
               width={72}
             />
-            <Tooltip formatter={(v: number) => [`$${v.toFixed(6)}`, 'Cost']} />
+            <Tooltip formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']} />
             <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
               {chartData.map((entry) => (
                 <Cell key={entry.span_type} fill={spanColour(entry.span_type)} />

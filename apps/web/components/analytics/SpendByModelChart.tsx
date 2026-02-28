@@ -55,7 +55,7 @@ export default function SpendByModelChart({ items }: Props) {
           width={120}
         />
         <Tooltip
-          formatter={(v: number) => [`$${v.toFixed(6)}`, undefined]}
+          formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, undefined]}
           contentStyle={{ fontSize: 12 }}
         />
         <Legend wrapperStyle={{ fontSize: 11 }} />

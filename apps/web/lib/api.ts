@@ -105,6 +105,7 @@ export async function getRunGraph(apiKey: string, runId: string): Promise<RunGra
 interface TimeWindow {
   from?: string
   to?: string
+  [key: string]: string | undefined
 }
 
 function _analyticsQs(params: TimeWindow & Record<string, string | undefined>): string {

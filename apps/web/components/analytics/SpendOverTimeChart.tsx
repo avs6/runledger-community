@@ -55,7 +55,7 @@ export default function SpendOverTimeChart({ data }: Props) {
           width={60}
         />
         <Tooltip
-          formatter={(v: number) => [`$${v.toFixed(6)}`, 'Cost']}
+          formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
           labelStyle={{ fontSize: 12 }}
           contentStyle={{ fontSize: 12 }}
         />
