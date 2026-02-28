@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { LayoutList, BarChart2, ShieldAlert, Receipt } from 'lucide-react'
+import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp } from 'lucide-react'
 
 const nav = [
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/analytics/economics', label: 'Economics', icon: TrendingUp },
   { href: '/budgets', label: 'Budgets', icon: ShieldAlert },
   { href: '/billing', label: 'Billing', icon: Receipt },
 ]

@@ -1,5 +1,7 @@
 import type {
   AnalyticsSummary,
+  Annotation,
+  AnnotationList,
   BillingPeriod,
   BillingPeriodList,
   BreachList,
@@ -7,7 +9,9 @@ import type {
   BudgetList,
   PeriodBreakdown,
   ReconciliationResult,
+  RegressionList,
   RunDetailResponse,
+  RunEconomics,
   RunGraphResponse,
   RunListResponse,
   SpendByFeature,
@@ -16,6 +20,8 @@ import type {
   SpendOverTime,
   UserSpendDetail,
   UsageSnapshot,
+  VersionCompareResult,
+  WorkflowTopList,
 } from '@/types/api'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
@@ -235,4 +241,71 @@ export async function exportPeriodCsv(apiKey: string, id: string): Promise<strin
 
 export async function exportPeriodSignedJson(apiKey: string, id: string): Promise<object> {
   return apiFetch<object>(`/billing/periods/${id}/export?format=signed_json`, apiKey)
+}
+
+// ── Economics helpers (Phase 9) ────────────────────────────────────────────────
+
+export async function getRunEconomics(apiKey: string, runId: string): Promise<RunEconomics> {
+  return apiFetch<RunEconomics>(`/analytics/economics/${encodeURIComponent(runId)}`, apiKey)
+}
+
+export async function getTopWorkflows(
+  apiKey: string,
+  params: { metric?: string; limit?: number; from?: string; to?: string } = {}
+): Promise<WorkflowTopList> {
+  return apiFetch<WorkflowTopList>(
+    `/analytics/workflows/top${_analyticsQs({
+      ...(params.metric ? { metric: params.metric } : {}),
+      ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),
+      ...(params.from ? { from: params.from } : {}),
+      ...(params.to ? { to: params.to } : {}),
+    })}`,
+    apiKey
+  )
+}
+
+export async function getVersionCompare(
+  apiKey: string,
+  baseline: string,
+  comparison: string,
+  params: { from?: string; to?: string } = {}
+): Promise<VersionCompareResult> {
+  return apiFetch<VersionCompareResult>(
+    `/analytics/compare${_analyticsQs({
+      baseline_version: baseline,
+      comparison_version: comparison,
+      ...params,
+    })}`,
+    apiKey
+  )
+}
+
+export async function getRegressions(
+  apiKey: string,
+  params: { from?: string; to?: string } = {}
+): Promise<RegressionList> {
+  return apiFetch<RegressionList>(
+    `/analytics/regressions${_analyticsQs(params)}`,
+    apiKey
+  )
+}
+
+export async function createAnnotation(
+  apiKey: string,
+  body: { note: string; annotation_date: string; version?: string | null }
+): Promise<Annotation> {
+  return apiFetch<Annotation>('/analytics/annotations', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getAnnotations(
+  apiKey: string,
+  params: { from?: string; to?: string; version?: string } = {}
+): Promise<AnnotationList> {
+  return apiFetch<AnnotationList>(
+    `/analytics/annotations${_analyticsQs(params)}`,
+    apiKey
+  )
 }

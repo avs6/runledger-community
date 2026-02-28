@@ -288,3 +288,92 @@ export interface UsageSnapshot {
   signing_key_id: string
   created_at: string
 }
+
+// ── Economics (Phase 9) ────────────────────────────────────────────────────────
+
+export interface SpanTypeCost {
+  span_type: string
+  cost_usd: string
+}
+
+export interface ModelCost {
+  model: string
+  provider: string
+  cost_usd: string
+  call_count: number
+}
+
+export interface RunEconomics {
+  run_id: string
+  total_cost_usd: string
+  cost_by_span_type: SpanTypeCost[]
+  cost_by_model: ModelCost[]
+  retry_cost: string
+}
+
+export interface WorkflowSummary {
+  feature_tag: string | null
+  application_id: string | null
+  run_count: number
+  avg_cost_usd: string
+  p95_cost_usd: string
+  total_cost_usd: string
+  call_count: number
+}
+
+export interface WorkflowTopList {
+  metric: string
+  items: WorkflowSummary[]
+}
+
+export interface SpanTypeDelta {
+  span_type: string
+  baseline_cost: string
+  comparison_cost: string
+  delta_pct: string | null
+}
+
+export interface VersionSummary {
+  version: string
+  run_count: number
+  avg_cost_usd: string
+  avg_input_tokens: string
+  avg_output_tokens: string
+  avg_latency_ms: string | null
+}
+
+export interface VersionCompareResult {
+  baseline: VersionSummary
+  comparison: VersionSummary
+  cost_delta_pct: string | null
+  token_delta_pct: string | null
+  latency_delta_pct: string | null
+  by_span_type: SpanTypeDelta[]
+}
+
+export interface RegressionItem {
+  feature_tag: string | null
+  current_avg_cost: string
+  prior_avg_cost: string
+  change_pct: string
+  run_count: number
+  prior_run_count: number
+}
+
+export interface RegressionList {
+  items: RegressionItem[]
+  from_dt: string
+  to_dt: string
+}
+
+export interface Annotation {
+  id: string
+  note: string
+  annotation_date: string
+  version: string | null
+  created_at: string
+}
+
+export interface AnnotationList {
+  items: Annotation[]
+}

@@ -1,4 +1,5 @@
 # noqa: F401 — import all models so Alembic autogenerate sees them
+from runledger_api.models.annotations import Annotation
 from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
@@ -28,4 +29,5 @@ __all__ = [
     "UsageHourly",
     "UsageDaily",
     "DataQualityIssue",
+    "Annotation",
 ]
