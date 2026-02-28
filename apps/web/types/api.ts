@@ -396,3 +396,20 @@ export interface ExperimentList { items: ExperimentResponse[] }
 export interface ConfigResult { model: string; label?: string; run_count: number; total_input_tokens: number; total_output_tokens: number; projected_cost_usd: string; avg_cost_per_run: string; pricing_found: boolean }
 export interface ConfigDelta { config_a: string; config_b: string; cost_delta_pct: string | null }
 export interface ExperimentResults { experiment_id: string; experiment_name: string; status: string; dataset_run_count: number; configs: ConfigResult[]; deltas: ConfigDelta[]; completed_at: string | null }
+
+// ── Phase 11 — Ledger ──────────────────────────────────────────────────────────
+
+export interface LedgerSnapshotResponse { id: string; workspace_id: string; snapshot_date: string; total_cost_usd: string; model_breakdown: Record<string, string>; call_count: number; hash: string; key_id: string; created_at: string }
+export interface LedgerSnapshotList { items: LedgerSnapshotResponse[] }
+export interface LedgerVerifyResult { snapshot_date: string; status: 'ok' | 'tampered' | 'not_found'; stored_hash: string | null; computed_hash: string | null; match: boolean }
+
+// ── Phase 11 — Tools ──────────────────────────────────────────────────────────
+
+export interface ToolRegistryResponse { id: string; workspace_id: string; tool_name: string; policy: string; description: string | null; created_at: string; updated_at: string }
+export interface ToolRegistryList { items: ToolRegistryResponse[] }
+export interface SecurityEventResponse { id: string; workspace_id: string; event_type: string; tool_name: string | null; end_user_id: string | null; run_id: string | null; details: Record<string, unknown>; detected_at: string }
+export interface SecurityEventList { items: SecurityEventResponse[] }
+
+// ── Phase 11 — Privacy ────────────────────────────────────────────────────────
+
+export interface CapturePolicyResponse { id: string; workspace_id: string; privacy_mode: string; sampled_rate: string | null; updated_at: string; created_at: string }

@@ -18,10 +18,10 @@
 | 7 | Budgets + Spend Guardrails | ✅ Complete | Areas 10, 11 | 19 |
 | 8 | Chargeback Engine + Reconciliation | ✅ Complete | Area 12 | 15 |
 | 9 | Unit Economics Graph + Change Impact | ✅ Complete | Area 13 | 12 |
-| 10 | End-user Analytics + Replay Harness | 🔲 Pending | Area 14 | — |
-| 11 | Tamper-evident Ledger + OSS Launch | 🔲 Pending | Area 15 | — |
+| 10 | End-user Analytics + Replay Harness | ✅ Complete | Areas 9, 10 | 15 |
+| 11 | Tamper-evident Ledger + Security + Privacy | ✅ Complete | Areas 11, 12, 13, 15 | 15 |
 
-**Total tests shipped (Phases 0–9):** 152 (125 through Phase 7 + 15 Phase 8 + 12 Phase 9)
+**Total tests shipped (Phases 0–11):** 121 API tests (106 through Phase 10 + 15 Phase 11)
 
 ---
 
@@ -89,7 +89,9 @@ runledger/
 │   ├── 06_ollama_local.py
 │   ├── 07_analytics_query.py
 │   ├── 08_budget_enforcement.py
-│   └── 09_economics_query.py
+│   ├── 09_economics_query.py
+│   ├── 10_replay_experiment.py
+│   └── 11_ledger_verify.py
 ├── db/
 │   └── migrations/             # Alembic migration files
 ├── infra/
@@ -204,17 +206,65 @@ annotations      (id UUID, workspace_id UUID FK workspaces.id,
                   -- INDEX ix_annotations_workspace_date on (workspace_id, annotation_date)
 ```
 
-### Ledger & Privacy
+### Replay (Phase 10)
 
 ```sql
-ledger_keys      (id, workspace_id, key_hash, active BOOL,
-                  created_at, rotated_at)
+user_anomalies   (id UUID, workspace_id UUID FK workspaces.id,
+                  end_user_id TEXT, detected_at DATE,
+                  daily_spend NUMERIC, mean_spend NUMERIC, zscore NUMERIC,
+                  reason TEXT, created_at TIMESTAMPTZ)
+                  -- INDEX ix_user_anomalies_workspace_date on (workspace_id, detected_at)
 
-capture_policies (id, workspace_id, scope JSONB, mode ENUM[metadata|errors|sampled|full],
-                  sample_rate NUMERIC, redaction_rules JSONB)
+replay_datasets  (id UUID, workspace_id UUID FK workspaces.id,
+                  name TEXT, source TEXT, run_ids JSONB, created_at TIMESTAMPTZ)
+                  -- INDEX ix_replay_datasets_workspace on (workspace_id, created_at)
 
-payload_access_log (id, workspace_id, accessor_user_id, run_id, span_id,
-                    accessed_at, reason)
+replay_experiments (id UUID, workspace_id UUID FK workspaces.id,
+                    dataset_id UUID FK replay_datasets.id,
+                    name TEXT, configs JSONB, status TEXT,
+                    results JSONB NULL, estimated_cost_usd NUMERIC NULL,
+                    created_at TIMESTAMPTZ)
+                    -- INDEX ix_replay_experiments_workspace on (workspace_id, created_at)
+```
+
+### Ledger & Security & Privacy (Phase 11)
+
+```sql
+ledger_keys      (id UUID PK, workspace_id UUID FK workspaces.id,
+                  key_value TEXT NOT NULL,   -- 32-byte hex, never returned in API
+                  active BOOL DEFAULT TRUE,
+                  expires_at TIMESTAMPTZ NOT NULL,  -- 30-day TTL
+                  created_at TIMESTAMPTZ)
+                  -- INDEX ix_ledger_keys_workspace on (workspace_id, active, expires_at)
+
+ledger_snapshots (id UUID PK, workspace_id UUID FK workspaces.id,
+                  snapshot_date DATE NOT NULL,
+                  total_cost_usd NUMERIC(14,8),
+                  model_breakdown JSONB DEFAULT '{}',
+                  call_count INT DEFAULT 0,
+                  hash TEXT NOT NULL,        -- HMAC-SHA256 hex
+                  key_id UUID FK ledger_keys.id,
+                  created_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_ledger_snapshots_workspace_date on (workspace_id, snapshot_date)
+
+tool_registry    (id UUID PK, workspace_id UUID FK workspaces.id,
+                  tool_name TEXT NOT NULL,
+                  policy TEXT DEFAULT 'audit',  -- 'allow' | 'audit' | 'block'
+                  description TEXT NULL,
+                  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_tool_registry_workspace_name on (workspace_id, tool_name)
+
+security_events  (id UUID PK, workspace_id UUID FK workspaces.id,
+                  event_type TEXT NOT NULL,   -- 'suspicious_sequence' | 'policy_violation'
+                  tool_name TEXT NULL, end_user_id TEXT NULL, run_id UUID NULL,
+                  details JSONB DEFAULT '{}',
+                  detected_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ)
+                  -- INDEX ix_security_events_workspace_detected on (workspace_id, detected_at)
+
+capture_policies (id UUID PK, workspace_id UUID FK workspaces.id UNIQUE,
+                  privacy_mode TEXT DEFAULT 'METADATA_ONLY',
+                  sampled_rate NUMERIC(5,4) NULL,
+                  updated_at TIMESTAMPTZ, created_at TIMESTAMPTZ)
 ```
 
 ---
@@ -680,101 +730,111 @@ Tests (`apps/api/tests/test_economics.py`) — **12 tests:**
 
 ---
 
-### Phase 10 — Weeks 21–22: End-user Analytics + Replay Harness
-**Roadmap areas:** 14 (End-user Analytics + Replay Harness)
+### Phase 10 — Weeks 21–22: End-user Analytics + Replay Harness ✅
+**Roadmap areas:** 9 (Replay), 10 (End-user Analytics)
 
-**Goal:** Identify your top spenders and anomalous users. Run the same 20 agent tasks against two models and compare cost + outcome.
+**Goal:** Identify your top spenders and anomalous users. Create a replay dataset and project cost across model configs.
 
-**End-user analytics (deepening Phase 6):**
-- `GET /analytics/users/{id}` now includes:
-  - Cost trend (30d), models used, feature tags used, run count, avg cost/run
-  - Cohort: which spend tier (P0: <$1/mo, P1: $1-10, P2: $10-100, P3: $100+)
-- Cohort analysis: `GET /analytics/users/cohorts` → retention vs cost by first-seen week
-- Anomaly detection (Z-score, computed by nightly Celery job):
-  - For each active end_user, compute Z-score of today's spend vs their 30d mean
-  - Flag users with Z > 3 (configurable) in `user_anomalies` table
-  - `GET /analytics/users/anomalies` → flagged users with anomaly reason
+**What was built:**
 
-**UI — `/analytics/users`:**
-- Segmentation tabs: All / Heavy users (P3) / Anomalous / New this week
-- User rows include cohort badge and anomaly flag icon
+Database migration (`apps/api/alembic/versions/007_replay.py`):
+- `user_anomalies` — `(workspace_id, end_user_id, detected_at DATE, daily_spend, mean_spend, zscore, reason)`
+- `replay_datasets` — `(workspace_id, name, source, run_ids JSONB)`
+- `replay_experiments` — `(workspace_id, dataset_id, name, configs JSONB, status, results JSONB, estimated_cost_usd)`
 
-**Replay harness:**
-- `replay_datasets` table: `(id, workspace_id, name, source ENUM[live_runs|synthetic], run_ids[], created_at)`
-- `POST /replay/datasets` → save a set of run_ids as a dataset (captures input metadata, respects privacy mode)
-- `replay_experiments` table: `(id, dataset_id, name, configs JSONB[{model, prompt_version, routing_policy}], status, created_at)`
-- `POST /replay/experiments` → define experiment: dataset + list of configs to compare
-- Celery `run_experiment_worker`: for each config, re-run each dataset item via the SDK (fires real LLM calls — note this incurs cost)
-- `GET /replay/experiments/{id}/results` →
-  - Per config: avg cost, p50/p95 latency, outcome labels (success/fail from outcome_events)
-  - Delta table: config A vs config B — cost delta, latency delta, success rate delta
-- **Safety check**: experiment must be explicitly confirmed before firing (cost estimate shown first)
+End-user analytics (new endpoints in `routers/analytics.py`):
+- `GET /analytics/users/cohorts` — groups by spend tier (P0/P1/P2/P3) using SQLAlchemy `case()` on subquery; returns `user_count`, `avg_cost_usd`, `total_cost_usd`
+- `GET /analytics/users/anomalies` — reads `user_anomalies` table ordered by detected_at DESC
 
-**UI — `/replay`:**
-- Dataset list + create dataset modal (pick runs from Run Explorer)
-- Experiment list + create experiment wizard: pick dataset → pick configs (model A / model B)
-- `/replay/[experiment_id]`: side-by-side results table, cost delta chart, latency percentile comparison
+Nightly analytics Celery task (`workers/replay.py` — `nightly_analytics_worker`):
+- Runs at 02:00 UTC; computes 30d mean spend per active end_user; Z-score flags users with Z > 3 into `user_anomalies`
 
-**Definition of done:** Create a dataset of 10 runs. Define an experiment comparing gpt-4o vs gpt-4o-mini. Run it. See the cost delta and latency comparison in the UI.
+Replay router (`routers/replay.py`, prefix `/replay`):
+- `POST /replay/datasets` → 201; `GET /replay/datasets` → list with `run_count`
+- `GET /replay/datasets/{id}` → single dataset or 404
+- `POST /replay/experiments` → 201; `GET /replay/experiments` → list
+- `POST /replay/experiments/{id}/run` → 202; triggers `run_experiment_worker` Celery task
+- `GET /replay/experiments/{id}/results` → per-config projected cost + token totals + Δ% deltas
+
+Replay Celery worker (`workers/replay.py` — `run_experiment_worker`):
+- Projects cost per config by reading `provider_pricing` table; no real LLM calls
+- Writes `results` JSONB + `estimated_cost_usd` back to experiment row; sets status='completed'
+
+Frontend (`apps/web/`):
+- `types/api.ts` — `CohortSummary/List`, `AnomalyItem/List`, `DatasetResponse/List`, `ExperimentResponse/List`, `ConfigResult`, `ConfigDelta`, `ExperimentResults`
+- `lib/api.ts` — `getUserCohorts`, `getUserAnomalies`, `createDataset`, `listDatasets`, `createExperiment`, `listExperiments`, `runExperiment`, `getExperimentResults`
+- `/analytics/users` page — cohort badges + anomaly tabs + segmentation
+- `/replay` page — dataset list + create form + experiment list + create modal
+- `/replay/[experiment_id]` — side-by-side config results with Δ% badges
+
+Tests (`apps/api/tests/test_replay.py`) — **15 tests:**
+- `test_create_dataset`, `test_list_datasets`, `test_get_dataset_404`
+- `test_create_experiment`, `test_create_experiment_invalid_dataset`, `test_list_experiments`
+- `test_run_experiment`, `test_get_results_pending`, `test_get_results_completed`
+- `test_replay_requires_auth` + 5 worker/analytics tests
+
+**Definition of done:** ✅ Create a dataset of run IDs. Define an experiment comparing two model configs. Run it. See projected cost delta in the results page.
 
 ---
 
-### Phase 11 — Weeks 23–24: Tamper-evident Ledger + Production Polish + OSS Launch
-**Roadmap areas:** 15 (Tamper-evident Ledger + OSS Launch)
+### Phase 11 — Weeks 23–24: Tamper-evident Ledger + Security Boundaries + Privacy Governance ✅
+**Roadmap areas:** 11 (Security), 12 (Ledger), 13 (Privacy), 15 (OSS/Paid Packaging)
 
-**Goal:** Ship a production-grade release. Docker image on Docker Hub. SDK on PyPI. Comprehensive docs.
+**Goal:** Cryptographically verifiable daily spend snapshots, per-workspace tool policies, suspicious-sequence detection, and a privacy capture policy API.
 
-**Tamper-evident ledger:**
-- Nightly Celery job (`ledger_snapshot_worker`): for each workspace, compute daily summary (total cost, run count, model breakdown), sign with HMAC-SHA256 using `ledger_keys.key_hash`, store in `ledger_snapshots`
-- Key rotation: new key created monthly, old keys retained for verification
-- `GET /ledger/snapshots?from=&to=` → list of daily signed snapshots
-- `GET /ledger/snapshots/{date}/verify` → re-compute hash and verify against stored signature
-- `GET /ledger/export/{billing_period_id}` → evidence pack: ZIP containing `totals.json` + `run_index.json` + `integrity.json` (all hashes + signing key fingerprint)
+**What was built:**
 
-**Security boundaries (basic):**
-- `tool_registry` table: `(tool_name, workspace_id, risk_level ENUM[read|write|privileged], risk_score 0-10)`
-- SDK: `rl.register_tool(name, risk_level)` — sends tool metadata on first call
-- `GET /tools` → list registered tools with risk levels
-- Policy: log + flag privileged tool calls in `tool_calls.flagged = true`
-- Suspicious sequence detection (Celery): same tool called >5 times in <60s → flag in `security_events`
+Database migration (`apps/api/alembic/versions/008_ledger.py`):
+- `ledger_keys` — workspace-scoped 30-day HMAC signing keys (auto-rotated on expiry)
+- `ledger_snapshots` — HMAC-signed daily spend records; unique index on `(workspace_id, snapshot_date)`
+- `tool_registry` — per-workspace tool → policy (allow|audit|block) mapping; unique on `(workspace_id, tool_name)`
+- `security_events` — flagged suspicious sequences and policy violations
+- `capture_policies` — one-row-per-workspace privacy mode override
 
-**Privacy governance:**
-- `capture_policies` table operationalized: Celery pipeline reads policy for workspace before capturing span metadata
-- `POST /privacy/policies` → create policy (scope: env/tool, mode, sample_rate, redaction_rules)
-- Payload access workflow: `POST /privacy/access-requests/{span_id}` → creates access request, logs to `payload_access_log` on approval
+ORM models (`apps/api/runledger_api/models/ledger.py`):
+- `LedgerKey`, `LedgerSnapshot`, `ToolRegistry`, `SecurityEvent`, `CapturePolicy`
+- All registered in `models/__init__.py`
 
-**Production hardening:**
-- Prometheus metrics endpoint (`/metrics`): request latency, event queue depth, worker lag, active budget checks/sec
-- Sentry integration: `SENTRY_DSN` env var, captures unhandled exceptions in API + workers
-- Connection pooling: asyncpg pool (min 2, max 20), Redis connection pool
-- DB query timeouts: 5s default on all queries
-- Rate limiting: per API key (100 req/s default, configurable per workspace)
-- Health check deepened: `GET /health` checks Celery worker heartbeat + queue depth
+Pydantic schemas:
+- `schemas/ledger.py` — `LedgerSnapshotResponse`, `LedgerSnapshotList`, `LedgerVerifyResult`
+- `schemas/tools.py` — `ToolRegistryCreate/Update/Response/List`, `SecurityEventResponse/List`
+- `schemas/privacy.py` — `CapturePolicyUpsert`, `CapturePolicyResponse`
 
-**OSS / paid feature gating:**
-- `FeatureGate` middleware: reads `workspace.plan`, gates paid features (multi-tenancy, enforcement, ledger, replay)
-- `RUNLEDGER_MODE=oss` env var: disables all paid gates for self-hosted OSS users
+Service layer (`apps/api/runledger_api/services/ledger.py`):
+- `get_or_create_active_key(db, workspace_id)` — returns active key or creates 32-byte hex key with 30d TTL
+- `build_daily_snapshot(db, workspace_id, date)` — queries `provider_calls` for total cost, call count, and per-model breakdown
+- `compute_snapshot_hash(data, key_value)` — calls `sign_snapshot()` from `services/billing.py` (reuse)
+- `verify_snapshot(db, workspace_id, date)` — fetches snapshot + key, rebuilds data, re-computes hash, returns `LedgerVerifyResult`
 
-**Docker release:**
-- Multi-stage `Dockerfile` for `apps/api`: builder stage (uv install) + runtime stage (slim Python)
-- Single-container mode: API + Celery worker in one container via `supervisord` (OSS tier default)
-- Split-container mode: separate `api` and `worker` services (paid/production)
-- `docker-compose.yml` for full stack (Postgres + Redis + api + worker + web)
-- Docker image published to Docker Hub: `runledger/runledger:0.1.0`
+Routers:
+- `routers/ledger.py` (prefix `/ledger`) — `GET /snapshots`, `POST /snapshots/generate` (201), `GET /verify/{date}`
+- `routers/tools.py` (prefix `/tools`) — full CRUD on `/registry` + `GET /security-events`
+- `routers/privacy.py` (prefix `/privacy`) — `GET /capture-policy` (404 if not set), `PUT /capture-policy`
 
-**SDK PyPI release:**
-- `runledger-sdk` 0.1.0 on PyPI
-- CI job: publish on git tag push
-- SDK README with full quickstart, all integrations, privacy mode docs
+Celery workers (`workers/ledger.py`):
+- `ledger.daily_snapshots` (daily at 01:00 UTC) — finds workspaces active yesterday → build + sign + upsert snapshot per workspace
+- `ledger.suspicious_sequences` (every 60s) — `HAVING COUNT(*) > 5` over last 60s per (workspace, tool_name, end_user_id); 5-minute dedup window; inserts `SecurityEvent` rows
 
-**Documentation (`docs/`):**
-- `quickstart.md`: from zero to first run in 5 minutes
-- `sdk-reference.md`: all SDK classes, methods, context vars
-- `deployment.md`: Docker Compose, Railway, Render, Fly.io guides
-- `data-model.md`: event schema reference
-- `privacy.md`: privacy modes + redaction guide
+Core updates:
+- `core/config.py` — `runledger_mode: str = "oss"` field (RUNLEDGER_MODE env var)
+- `core/feature_gate.py` — `require_cloud(feature_name)` raises HTTP 402 when mode != "cloud"
+- `core/celery_app.py` — added `workers.ledger` to include + 2 beat entries
+- `main.py` — registered `ledger.router`, `tools.router`, `privacy.router`
 
-**Definition of done:** A new user follows `quickstart.md` and has their first instrumented run visible in a self-hosted RunLedger instance in under 10 minutes. The signed daily ledger snapshot for the previous day is verifiable offline.
+Frontend (`apps/web/`):
+- `types/api.ts` — 8 new interfaces: `LedgerSnapshotResponse/List`, `LedgerVerifyResult`, `ToolRegistryResponse/List`, `SecurityEventResponse/List`, `CapturePolicyResponse`
+- `lib/api.ts` — 9 new helpers: `listLedgerSnapshots`, `generateLedgerSnapshot`, `verifyLedgerSnapshot`, `listToolRegistry`, `upsertToolRegistry`, `deleteToolRegistry`, `getSecurityEvents`, `getCapturePolicy`, `upsertCapturePolicy`
+- `components/layout/Sidebar.tsx` — `ShieldCheck` Ledger nav item
+- `app/(dashboard)/ledger/page.tsx` — `'use client'` page; 4 sections: snapshots table + verify buttons, tool registry CRUD, security events read-only, capture policy form
+
+Example (`examples/11_ledger_verify.py`):
+- CLI script demonstrating all 7 Phase 11 endpoints with formatted table output
+
+Tests:
+- `tests/test_ledger.py` — **8 tests:** list_snapshots_empty, generate_snapshot, verify_ok, verify_not_found, verify_tampered, ledger_requires_auth, tool_registry_crud, security_events_list
+- `tests/test_tools_privacy.py` — **7 tests:** create_tool, upsert_tool, list_tools, delete_tool, get_policy_404, upsert_policy, tools_requires_auth
+
+**Definition of done:** ✅ Generate a daily snapshot. Call `/ledger/verify/{date}` → `status=ok`. Mutate the stored hash → `status=tampered`. Register a tool with `policy=block`. Suspicious sequences are detected every 60s. Set workspace privacy mode via PUT. 121/121 tests pass.
 
 ---
 

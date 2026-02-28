@@ -8,12 +8,16 @@ import type {
   BreachList,
   Budget,
   BudgetList,
+  CapturePolicyResponse,
   CohortList,
   DatasetList,
   DatasetResponse,
   ExperimentList,
   ExperimentResponse,
   ExperimentResults,
+  LedgerSnapshotList,
+  LedgerSnapshotResponse,
+  LedgerVerifyResult,
   PeriodBreakdown,
   ReconciliationResult,
   RegressionList,
@@ -21,10 +25,13 @@ import type {
   RunEconomics,
   RunGraphResponse,
   RunListResponse,
+  SecurityEventList,
   SpendByFeature,
   SpendByModel,
   SpendByUser,
   SpendOverTime,
+  ToolRegistryList,
+  ToolRegistryResponse,
   UserSpendDetail,
   UsageSnapshot,
   VersionCompareResult,
@@ -372,4 +379,74 @@ export async function getExperimentResults(
   id: string
 ): Promise<ExperimentResults> {
   return apiFetch<ExperimentResults>(`/replay/experiments/${id}/results`, apiKey)
+}
+
+// ── Phase 11 — Ledger helpers ──────────────────────────────────────────────────
+
+export async function listLedgerSnapshots(apiKey: string): Promise<LedgerSnapshotList> {
+  return apiFetch<LedgerSnapshotList>('/ledger/snapshots', apiKey)
+}
+
+export async function generateLedgerSnapshot(apiKey: string): Promise<LedgerSnapshotResponse> {
+  return apiFetch<LedgerSnapshotResponse>('/ledger/snapshots/generate', apiKey, { method: 'POST' })
+}
+
+export async function verifyLedgerSnapshot(
+  apiKey: string,
+  snapshotDate: string
+): Promise<LedgerVerifyResult> {
+  return apiFetch<LedgerVerifyResult>(`/ledger/verify/${snapshotDate}`, apiKey)
+}
+
+// ── Phase 11 — Tool registry helpers ──────────────────────────────────────────
+
+export async function listToolRegistry(apiKey: string): Promise<ToolRegistryList> {
+  return apiFetch<ToolRegistryList>('/tools/registry', apiKey)
+}
+
+export async function upsertToolRegistry(
+  apiKey: string,
+  body: { tool_name: string; policy?: string; description?: string | null }
+): Promise<ToolRegistryResponse> {
+  return apiFetch<ToolRegistryResponse>('/tools/registry', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteToolRegistry(apiKey: string, toolName: string): Promise<void> {
+  await apiFetch<void>(`/tools/registry/${encodeURIComponent(toolName)}`, apiKey, {
+    method: 'DELETE',
+  })
+}
+
+export async function getSecurityEvents(apiKey: string): Promise<SecurityEventList> {
+  return apiFetch<SecurityEventList>('/tools/security-events', apiKey)
+}
+
+// ── Phase 11 — Privacy helpers ─────────────────────────────────────────────────
+
+export async function getCapturePolicy(
+  apiKey: string
+): Promise<CapturePolicyResponse | null> {
+  const res = await fetch(`${API_URL}/privacy/capture-policy`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (res.status === 404) return null
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  return res.json() as Promise<CapturePolicyResponse>
+}
+
+export async function upsertCapturePolicy(
+  apiKey: string,
+  body: { privacy_mode: string; sampled_rate?: number | null }
+): Promise<CapturePolicyResponse> {
+  return apiFetch<CapturePolicyResponse>('/privacy/capture-policy', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
 }

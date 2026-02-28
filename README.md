@@ -51,8 +51,8 @@ Every team shipping AI agents in production hits the same wall:
 | 7 | Budgets + spend guardrails with automatic actions | ✅ Complete |
 | 8 | Chargeback engine + reconciliation + dispute trail | ✅ Complete |
 | 9 | Unit economics graph + change impact diffs | ✅ Complete |
-| 10 | End-user analytics + replay harness | Planned |
-| 11 | Tamper-evident ledger + production polish + OSS release | Planned |
+| 10 | End-user analytics + replay harness | ✅ Complete |
+| 11 | Tamper-evident ledger + security boundaries + privacy governance | ✅ Complete |
 
 ---
 
@@ -409,6 +409,23 @@ The dashboard at `http://localhost:3000` has two main areas:
 - **Cost Regressions** — workflows where average cost increased >20% vs prior 7 days; shows change %, current/prior averages, and run count
 - **Annotations** — inline form to attach team notes to a date and optional deployment version; runs list chronologically below
 
+### Users (`/analytics/users`)
+- **Spend tiers** — cohort badges: P0 (<$1/mo), P1 ($1–$10), P2 ($10–$100), P3 ($100+)
+- **Anomaly alerts** — users whose daily spend Z-score exceeds 3σ vs their 30-day mean are flagged automatically
+- **Segmentation tabs** — All / Heavy users / Anomalous / New this week
+
+### Replay (`/replay`)
+- **Datasets** — save a named set of run IDs for re-testing
+- **Experiments** — run the same dataset against multiple model configs; projected cost shown before confirming
+- **Results** (`/replay/[id]`) — side-by-side per-config cost, token, and call-count comparison with Δ% badges
+
+### Ledger (`/ledger`)
+- **Daily snapshots table** — date, total cost, call count, hash preview, per-row "Verify" button; "Generate snapshot" button triggers immediate signing for yesterday
+- **Integrity status** — inline ✓ ok / ⚠ tampered badge after verification; re-computed hash compared against stored HMAC-SHA256
+- **Tool Registry panel** — register tools with allow/audit/block policy; colour-coded policy badges; delete button per row
+- **Security Events panel** — read-only feed of suspicious sequences flagged by the Celery worker (>5 identical tool calls in 60s)
+- **Privacy / Capture Policy panel** — per-workspace privacy mode selector (METADATA\_ONLY / ERRORS\_ONLY / SAMPLED / FULL) + sampled rate input
+
 ---
 
 ## CLI
@@ -546,6 +563,11 @@ The pricing engine runs as a Celery worker and enriches every provider call with
 | `data_quality` | Every 1h |
 | `runaway_protection` | Every 5 min |
 | `budget_spend_sync` | Daily at 00:10 UTC |
+| `nightly_reconciliation` | Daily at 00:15 UTC |
+| `auto_create_billing_periods` | Daily at 00:01 UTC |
+| `nightly_analytics` | Daily at 02:00 UTC (anomaly detection) |
+| `ledger.daily_snapshots` | Daily at 01:00 UTC |
+| `ledger.suspicious_sequences` | Every 60s |
 
 ---
 
@@ -609,6 +631,31 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `POST` | `/billing/chargeback-rules` | Create a weight-based cost allocation rule |
 | `GET` | `/billing/chargeback-rules` | List chargeback rules |
 
+### Ledger
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/ledger/snapshots` | List HMAC-signed daily spend snapshots (limit 30) |
+| `POST` | `/ledger/snapshots/generate` | Trigger immediate snapshot for yesterday |
+| `GET` | `/ledger/verify/{date}` | Re-compute hash and verify integrity (`status: ok\|tampered\|not_found`) |
+
+### Tools
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/tools/registry` | List registered tools with policies |
+| `POST` | `/tools/registry` | Register or upsert a tool (policy: allow\|audit\|block) |
+| `PATCH` | `/tools/registry/{tool_name}` | Update policy or description |
+| `DELETE` | `/tools/registry/{tool_name}` | Remove a tool entry |
+| `GET` | `/tools/security-events` | List flagged suspicious sequences (limit 100) |
+
+### Privacy
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/privacy/capture-policy` | Current workspace capture policy (404 if not set) |
+| `PUT` | `/privacy/capture-policy` | Upsert capture policy (METADATA\_ONLY / ERRORS\_ONLY / SAMPLED / FULL) |
+
 ### Budgets
 
 | Method | Path | Description |
@@ -639,6 +686,8 @@ python examples/06_ollama_local.py          # local Ollama (OpenAI-compatible en
 python examples/07_analytics_query.py       # query the analytics API (summary + spend breakdown)
 python examples/08_budget_enforcement.py    # create a budget, exceed it, catch RunLedgerBudgetExceededError
 python examples/09_economics_query.py       # per-run economics, version compare, regressions, annotations
+python examples/10_replay_experiment.py     # create a dataset, run a replay experiment, compare models
+python examples/11_ledger_verify.py         # generate a snapshot, verify integrity, register tools, set privacy policy
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload

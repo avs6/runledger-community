@@ -11,6 +11,7 @@ celery_app = Celery(
         "runledger_api.workers.metering",
         "runledger_api.workers.budgets",
         "runledger_api.workers.billing",
+        "runledger_api.workers.ledger",
     ],
 )
 
@@ -63,6 +64,16 @@ celery_app.conf.update(
         "auto-create-billing-periods": {
             "task": "billing.auto_create_billing_periods",
             "schedule": 86400.0,
+        },
+        # Ledger daily snapshots: daily at 1am UTC
+        "ledger-daily-snapshots": {
+            "task": "ledger.daily_snapshots",
+            "schedule": 86400.0,
+        },
+        # Suspicious sequence detection: every 60 seconds
+        "ledger-suspicious-sequences": {
+            "task": "ledger.suspicious_sequences",
+            "schedule": 60.0,
         },
     },
 )

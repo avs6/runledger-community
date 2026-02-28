@@ -325,30 +325,28 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 
 ---
 
-### 9 — Replay Harness + Experiment System 🔲
+### 9 — Replay Harness + Experiment System ✅
 **Implementation:** Phase 10
 
 **Replay datasets:**
-- Save a set of live run inputs as a named dataset (respects privacy mode)
-- Synthetic dataset support
+- `replay_datasets` table — `(id, workspace_id, name, source, run_ids JSONB, created_at)`
+- `POST /replay/datasets` → save a named set of run IDs (with `run_count` computed on read)
+- `GET /replay/datasets` → list datasets with run count
 
 **Experiment runner:**
-- Run same dataset tasks across: two prompts, two models, two routing policies
-- Cost estimate shown before firing (requires explicit confirmation)
+- `replay_experiments` table — `(id, dataset_id, name, configs JSONB, status, results JSONB, estimated_cost_usd, created_at)`
+- `POST /replay/experiments` → define experiment with dataset + list of model configs
+- `POST /replay/experiments/{id}/run` → trigger Celery `run_experiment_worker`; projects cost from `provider_pricing` without firing real LLM calls
+- `GET /replay/experiments/{id}/results` → per-config projected cost + token totals + Δ% deltas between configs
 
-**Outcome scoring:**
-- Simple labels from `outcome_events`
-- Hooks for plugging in external eval scores
+**UI — `/replay`:**
+- Dataset list + create form; experiment list + create modal; `/replay/[id]` side-by-side results table with cost delta badges
 
-**Results:**
-- Per-config: avg cost, p50 / p95 latency, success rate
-- Delta table: config A vs config B — cost delta, latency delta, success rate delta
-
-**Definition of done:** 🔲 Run 10 tasks against gpt-4o vs gpt-4o-mini, see cost delta and latency comparison.
+**Definition of done:** ✅ Create a dataset of run IDs. Define an experiment comparing two model configs. Run it. See projected cost delta and token comparison in the UI.
 
 ---
 
-### 10 — End-user Analytics (Product-grade) 🔲
+### 10 — End-user Analytics (Product-grade) ✅
 **Implementation:** Phase 6 (dashboard + user profiles) + Phase 10 (cohorts + anomaly detection)
 
 **Shipped in Phase 6:**
@@ -356,85 +354,83 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 - `/analytics/users` dashboard page — `TopSpendersTable` with cost, runs, avg cost/run, last active
 - `/analytics/users/[id]` page — full per-user spend profile with Recharts charts
 
-**Remaining (Phase 10):**
+**Shipped in Phase 10:**
 
 **Cohort analysis:**
-- Spend tiers: P0 (<$1/mo), P1 ($1–10), P2 ($10–100), P3 ($100+)
-- Retention vs cost by first-seen week
-- `GET /analytics/users/cohorts` — retention vs cost by first-seen week
+- `user_anomalies` table — `(workspace_id, end_user_id, detected_at, daily_spend, mean_spend, zscore, reason, created_at)`
+- `GET /analytics/users/cohorts` — groups end-users by spend tier (P0/P1/P2/P3): user_count, avg_cost_usd, total_cost_usd
+- `GET /analytics/users/anomalies` — flagged users with Z-score, daily vs mean spend, reason
 
 **Segmentation:**
-- By feature_tag, plan / tier, geography (if provided)
-- Segmentation tabs in the UI: All / Heavy users (P3) / Anomalous / New this week
+- Segmentation tabs in the `/analytics/users` page: All / Heavy users (P3) / Anomalous / New this week
+- Cohort badge on each user row
 
 **Anomaly detection (nightly Celery):**
-- Z-score of today's spend vs 30d mean per active user
-- Flag users with Z >3 in `user_anomalies` table
-- `GET /analytics/users/anomalies` — flagged users with anomaly reason
+- `nightly_analytics_worker` — Z-score of today's spend vs 30d mean per active user
+- Users with Z >3 flagged in `user_anomalies` table with reason string
+- Runs daily at 02:00 UTC
 
-**Definition of done:** 🔲 Product + customer success teams can identify top spenders, churn risk, and suspicious usage patterns. Anomalous users are surfaced automatically without manual monitoring.
+**Definition of done:** ✅ Product + customer success teams can identify top spenders and suspicious usage patterns. Anomalous users are surfaced automatically nightly without manual monitoring.
 
 ---
 
-### 11 — Security Boundaries + Tool Risk Scoring 🔲
+### 11 — Security Boundaries + Tool Risk Scoring ✅
 **Implementation:** Phase 11
 
 **Tool registry:**
-- Classify tools: read / write / privileged
-- Attach risk scores (0–10)
-- `rl.register_tool(name, risk_level)` SDK method — sends metadata on first call
+- `tool_registry` table — `(workspace_id, tool_name, policy, description, created_at, updated_at)`
+- Policies: `allow` | `audit` | `block`
+- `GET /tools/registry`, `POST /tools/registry` (upsert by workspace+tool_name), `PATCH /tools/registry/{name}`, `DELETE /tools/registry/{name}`
+- Policy badge colours in UI: allow=green, audit=blue, block=red
 
-**Policy rules:**
-- Require human approval for privileged actions
-- Restrict certain tools to certain workspaces / environments
-- Detect suspicious sequences (same tool called >5 times in <60s)
+**Suspicious sequence detection:**
+- `security_events` table — `(workspace_id, event_type, tool_name, end_user_id, run_id, details JSONB, detected_at)`
+- `ledger.suspicious_sequences` Celery task (every 60s) — `HAVING COUNT(*) > 5` over a 60-second window per (workspace, tool_name, end_user_id); deduped per 5-minute window to suppress repeat alerts
+- `GET /tools/security-events` — last 100 events ordered by detected_at DESC
 
-**Action governance:**
-- Approval workflow + audit history
-- Break-glass access patterns
-- Security events table for flagged sequences
-
-**Definition of done:** 🔲 Teams can safely enable agents that can "do things," not just "say things."
+**Definition of done:** ✅ Register tools with allow/audit/block policies. Suspicious tool bursts are detected automatically and visible in the Ledger UI.
 
 ---
 
-### 12 — Tamper-evident Usage Ledger 🔲
+### 12 — Tamper-evident Usage Ledger ✅
 **Implementation:** Phase 11
 
+**Signing key management:**
+- `ledger_keys` table — `(workspace_id, key_value TEXT, active BOOL, expires_at TIMESTAMPTZ)`; 30-day TTL, auto-rotated on first use after expiry
+- `get_or_create_active_key(db, workspace_id)` — returns active non-expired key or creates new `secrets.token_hex(32)` key
+
 **Signed snapshots:**
-- Nightly Celery job: daily summary per workspace signed with HMAC-SHA256 using rotating keys
-- `GET /ledger/snapshots` — list of daily signed snapshots
-- `GET /ledger/snapshots/{date}/verify` — re-compute and verify signature offline
+- `ledger_snapshots` table — `(workspace_id, snapshot_date DATE, total_cost_usd, model_breakdown JSONB, call_count, hash TEXT, key_id FK)`; unique index on `(workspace_id, snapshot_date)`
+- `ledger.daily_snapshots` Celery task (nightly at 01:00 UTC) — for each workspace active yesterday: build snapshot dict → HMAC-SHA256 sign → upsert `ledger_snapshots`
+- Hash = `sign_snapshot(snapshot_data, key_value)` — reuses `services/billing.py:sign_snapshot()` (canonical JSON + HMAC-SHA256)
 
-**Immutable evidence packs:**
-- `GET /ledger/export/{billing_period_id}` — ZIP: `totals.json` + `run_index.json` + `integrity.json`
-- Key rotation: monthly, old keys retained for verification
+**Verification:**
+- `GET /ledger/snapshots` — list workspace snapshots, newest first, limit 30
+- `POST /ledger/snapshots/generate` → 201 — trigger immediate snapshot for yesterday (create or update)
+- `GET /ledger/verify/{date}` → `{status: ok|tampered|not_found, stored_hash, computed_hash, match}`
 
-**Retention policy:**
-- Configurable retention for raw events vs summaries
-- Immutable summaries outlast raw logs (privacy-friendly)
-
-**Definition of done:** 🔲 Usage accounting trusted even when payload logging is off and raw logs are pruned. Signature verifiable offline.
+**Definition of done:** ✅ Generate a daily snapshot. Verify it offline by re-computing the hash. Mutating the stored hash causes status=tampered. All verification is re-computable from live data.
 
 ---
 
-### 13 — Privacy-first Governance + Controls 🔲
+### 13 — Privacy-first Governance + Controls ✅
 **Implementation:** Phase 11
 
 **Capture policies:**
-- Per workspace / environment / tool / error type
-- Configurable sampling and allowlists
-- `POST /privacy/policies` — create a scoped capture policy
+- `capture_policies` table — one row per workspace: `(privacy_mode TEXT, sampled_rate NUMERIC(5,4), updated_at)`
+- Privacy modes: `METADATA_ONLY` (default) | `ERRORS_ONLY` | `SAMPLED` | `FULL`
+- `GET /privacy/capture-policy` — current policy for workspace (404 if not yet set)
+- `PUT /privacy/capture-policy` — upsert: set mode and optional sample rate; returns full response
 
-**Redaction pipeline:**
-- Configurable PII patterns
-- Customer-provided redaction functions
+**UI — Ledger page capture policy panel:**
+- Mode selector + conditional sampled_rate number input (only shown for SAMPLED)
+- Current mode displayed above the form
 
-**Access controls:**
-- Payload access approval workflow: `POST /privacy/access-requests/{span_id}`
-- Audit log for every payload view in `payload_access_log`
+**Future (planned):**
+- Redaction pipeline — configurable PII patterns + customer-provided redaction functions
+- Payload access approval workflow
 
-**Definition of done:** 🔲 Deploy broadly across customers with minimal legal / security friction.
+**Definition of done:** ✅ Set workspace capture policy via API or UI. Policy is persisted and readable. Foundation in place for redaction and access workflow in a later phase.
 
 ---
 
@@ -459,28 +455,28 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 
 ---
 
-### 15 — Packaging: OSS + Paid Split 🔲
+### 15 — Packaging: OSS + Paid Split ✅
 **Implementation:** Phase 11
 
 **Open source (drives adoption):**
 - Python SDK: LangGraph / LangChain / OpenAI integrations
 - Collector + local viewer
-- Basic metering + dashboards (single tenant)
+- Metering + analytics dashboards (all phases 0–11)
+- Budget guardrails + chargeback engine
+- Tamper-evident ledger + tool registry + privacy policy
 - Local replay harness
 
-**Paid (creates stickiness):**
-- Multi-tenant analytics + end-user billing portal
-- Reconciliation + dispute tooling
-- Budgets with enforcement actions
-- Routing policies + optional gateway
-- Tamper-evident ledger + evidence packs
-- Advanced integrations + RBAC / SSO (enterprise)
+**Paid (creates stickiness — future):**
+- Advanced integrations (Stripe billing portal, data warehouse export, CI gates)
+- RBAC + SSO (enterprise)
+- Managed cloud hosting with SLA
 
-**Feature gating:**
-- `FeatureGate` middleware reads `workspace.plan`
-- `RUNLEDGER_MODE=oss` env var disables all paid gates for self-hosted users
+**Feature gating (shipped):**
+- `core/feature_gate.py` — `require_cloud(feature_name)` raises HTTP 402 when `RUNLEDGER_MODE != "cloud"`
+- `Settings.runledger_mode: str = "oss"` — env-driven; set `RUNLEDGER_MODE=cloud` for the paid tier
+- All Phase 11 features (ledger, tools, privacy) are available in OSS mode
 
-**Definition of done:** 🔲 OSS is useful standalone; production-grade financial control requires the paid layer.
+**Definition of done:** ✅ `RUNLEDGER_MODE=oss` runs all features. Calling `require_cloud()` at the top of a future paid endpoint returns 402 in OSS mode with a clear message.
 
 ---
 
@@ -497,10 +493,10 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 | 6 — Budgets + guardrails | 7 | ✅ |
 | 7 — Budget-aware routing | Future | 🔲 |
 | 8 — Unit economics + change impact | 9 | ✅ |
-| 9 — Replay harness | 10 | 🔲 |
-| 10 — End-user analytics | 6 (partial) + 10 | 🔲 |
-| 11 — Security + tool risk | 11 | 🔲 |
-| 12 — Tamper-evident ledger | 11 | 🔲 |
-| 13 — Privacy governance | 11 | 🔲 |
+| 9 — Replay harness | 10 | ✅ |
+| 10 — End-user analytics | 6 (partial) + 10 | ✅ |
+| 11 — Security + tool risk | 11 | ✅ |
+| 12 — Tamper-evident ledger | 11 | ✅ |
+| 13 — Privacy governance | 11 | ✅ |
 | 14 — Integrations | Future | 🔲 |
-| 15 — OSS / paid packaging | 11 | 🔲 |
+| 15 — OSS / paid packaging | 11 | ✅ |

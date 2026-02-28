@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # App
     environment: str = "development"
     log_level: str = "INFO"
+    runledger_mode: str = "oss"  # "oss" | "cloud"
 
     @property
     def is_development(self) -> bool:
