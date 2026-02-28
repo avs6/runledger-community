@@ -48,7 +48,7 @@ Every team shipping AI agents in production hits the same wall:
 | 4 | Billing-grade metering · pricing engine · analytics API | ✅ Complete |
 | 5 | Run Explorer + DAG viewer UI (Next.js dashboard) | ✅ Complete |
 | 6 | Metering dashboard (spend by model/user/feature) | ✅ Complete |
-| 7 | Budgets + spend guardrails with automatic actions | Planned |
+| 7 | Budgets + spend guardrails with automatic actions | ✅ Complete |
 | 8 | Chargeback engine + reconciliation + dispute trail | Planned |
 | 9 | Unit economics graph + change impact diffs | Planned |
 | 10 | End-user analytics + replay harness | Planned |
@@ -392,6 +392,12 @@ The dashboard at `http://localhost:3000` has two main areas:
 - **Top spenders** (`/analytics/users`) — table of end-users sorted by spend with avg cost/run and last active date; rows link to individual user profiles
 - **User profile** (`/analytics/users/[id]`) — per-user spend trend, models used, and features used
 
+### Budgets (`/budgets`)
+- **Budget list** — each budget shows scope (workspace / end-user / feature tag), period, limit, live spend progress bar (green → yellow → red), action badge (block / notify / downgrade)
+- **New Budget modal** — create a budget: pick scope type and ID, period (daily / monthly / total), USD limit, enforcement action, and optional downgrade model
+- **Breach history** (`/budgets/[id]`) — table of every breach: occurred at, spend at breach, action taken, notified at
+- **Delete** — soft-deactivates the budget; Redis cache invalidated immediately
+
 ---
 
 ## CLI
@@ -527,6 +533,8 @@ The pricing engine runs as a Celery worker and enriches every provider call with
 | `rollup_hourly` | Every 30 min |
 | `rollup_daily` | Daily at 00:05 UTC |
 | `data_quality` | Every 1h |
+| `runaway_protection` | Every 5 min |
+| `budget_spend_sync` | Daily at 00:10 UTC |
 
 ---
 
@@ -570,6 +578,18 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `GET` | `/analytics/spend-by-feature` | Cost breakdown by feature tag |
 | `GET` | `/analytics/users/{end_user_id}` | User profile: spend trend + models + features used |
 
+### Budgets
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/budgets` | Create a budget |
+| `GET` | `/budgets` | List budgets with live Redis spend |
+| `GET` | `/budgets/check` | Hot-path enforcement check (Redis only, <5ms p99) |
+| `GET` | `/budgets/{id}/breaches` | Breach history |
+| `DELETE` | `/budgets/{id}` | Deactivate a budget |
+| `POST` | `/budgets/notifications` | Create a webhook or Slack notification channel |
+| `GET` | `/budgets/notifications` | List notification channels |
+
 Interactive docs: `http://localhost:8000/docs`
 
 ---
@@ -586,6 +606,7 @@ python examples/03_langchain_chain.py       # LangChain chain with callback hand
 python examples/04_langgraph_agent.py       # LangGraph ReAct agent with tools
 python examples/06_ollama_local.py          # local Ollama (OpenAI-compatible endpoint)
 python examples/07_analytics_query.py       # query the analytics API (summary + spend breakdown)
+python examples/08_budget_enforcement.py    # create a budget, exceed it, catch RunLedgerBudgetExceededError
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload

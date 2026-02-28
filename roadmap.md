@@ -231,7 +231,7 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 
 ---
 
-### 6 — Budgets + Spend Guardrails 🔲
+### 6 — Budgets + Spend Guardrails ✅
 **Implementation:** Phase 7
 
 **Budget objects:**
@@ -259,7 +259,7 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 - `GET /budgets/{id}/breaches` — breach history with action_taken log
 - `DELETE /budgets/{id}` — deactivate
 
-**Definition of done:** 🔲 Create a $0.10 daily budget, exceed it, 6th call is blocked, webhook fires, breach appears in UI.
+**Definition of done:** ✅ Create a $0.10 daily budget, exceed it, 6th call is blocked, webhook fires, breach appears in UI.
 
 ---
 
@@ -483,7 +483,7 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 | 3 — Metering core | 4, 6 | ✅ |
 | 4 — Reconciliation + dispute | 8 | 🔲 |
 | 5 — Chargeback engine | 8 | 🔲 |
-| 6 — Budgets + guardrails | 7 | 🔲 |
+| 6 — Budgets + guardrails | 7 | ✅ |
 | 7 — Budget-aware routing | Future | 🔲 |
 | 8 — Unit economics + change impact | 9 | 🔲 |
 | 9 — Replay harness | 10 | 🔲 |

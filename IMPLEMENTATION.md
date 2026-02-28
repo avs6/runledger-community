@@ -15,13 +15,13 @@
 | 4 | Billing-grade Metering Core | ✅ Complete | Area 7 | 22 |
 | 5 | Run Explorer + DAG Viewer UI | ✅ Complete | Area 8 | — |
 | 6 | Metering Dashboard | ✅ Complete | Area 9 | +3 |
-| 7 | Budgets + Spend Guardrails | 🔲 Pending | Areas 10, 11 | — |
+| 7 | Budgets + Spend Guardrails | ✅ Complete | Areas 10, 11 | 19 |
 | 8 | Chargeback Engine + Reconciliation | 🔲 Pending | Area 12 | — |
 | 9 | Unit Economics Graph + Change Impact | 🔲 Pending | Area 13 | — |
 | 10 | End-user Analytics + Replay Harness | 🔲 Pending | Area 14 | — |
 | 11 | Tamper-evident Ledger + OSS Launch | 🔲 Pending | Area 15 | — |
 
-**Total tests shipped (Phases 0–6):** 106
+**Total tests shipped (Phases 0–7):** 125
 
 ---
 
@@ -433,42 +433,98 @@ Tests added to `apps/api/tests/test_analytics.py`:
 
 ---
 
-### Phase 7 — Weeks 15–16: Budgets + Spend Guardrails
+### Phase 7 — Weeks 15–16: Budgets + Spend Guardrails ✅
 **Roadmap areas:** 10 (Budget Guardrails), 11 (Runaway Protection)
 
 **Goal:** Set a budget for an end-user. Run a chatbot that exceeds it. The next call is blocked — automatically, no code change.
 
-**Budget enforcement (hot path):**
-- Redis key per budget scope: `rl:budget:{budget_id}:spend:{period_key}` → INCRBYFLOAT by call cost after each provider call
-- SDK pre-call check: `GET /budgets/check?workspace_id=&end_user_id=&feature_tag=&model=`
-  - Reads Redis counters → compares against budget limits
-  - Returns: `{ "allowed": true }` or `{ "allowed": false, "action": "block", "budget_id": "..." }` or `{ "allowed": true, "action": "downgrade", "model": "gpt-4o-mini" }`
-  - Target: <5ms p99 (Redis reads only, no Postgres)
-  - SDK: if action=`downgrade`, silently substitutes model in the OpenAI call
-  - SDK: if action=`block`, raises `RunLedgerBudgetExceededError`
+**What was built:**
 
-**Runaway protection (Celery, every 5 min per active run):**
-- Retry storm: `provider_calls` count for a single `run_id` in last 2 min > threshold (default: 20)
-- Tool loop: same `tool_name` called > N times consecutively within a run
-- Token spike: single provider_call input_tokens > 100k (configurable)
-- On detection: fire breach event, execute configured action, send notification
+Database migration (`apps/api/alembic/versions/004_budgets.py`):
+- `budgets` — `(id, workspace_id, scope_type, scope_id, period_type, limit_usd, action, downgrade_to_model, is_active, created_at)` + `ix_budgets_workspace` on `(workspace_id, is_active)`
+- `budget_breaches` — `(id, budget_id, occurred_at, spend_at_breach_usd, action_taken, notified_at)` + `ix_budget_breaches_budget` on `(budget_id, occurred_at)`
+- `budget_notifications` — `(id, workspace_id, channel, destination_url, events TEXT[], is_active, created_at)` + `ix_budget_notifications_workspace`
 
-**Budget CRUD:**
-- `POST /budgets` — create budget (scope_type, scope_id, period_type, limit_usd, action, downgrade_to_model)
-- `GET /budgets` — list budgets with current spend (reads Redis counters)
-- `GET /budgets/{id}/breaches` — breach history with action_taken log
-- `DELETE /budgets/{id}` — deactivate budget
+ORM models (`apps/api/runledger_api/models/budgets.py`):
+- `Budget`, `BudgetBreach`, `BudgetNotification` with `ScopeTypeEnum`, `PeriodTypeEnum`, `ActionEnum`, `ChannelEnum`
 
-**Notifications:**
-- Webhook: POST to `destination_url` with signed payload (HMAC)
-- Slack: POST to webhook URL with formatted message
+Pydantic schemas (`apps/api/runledger_api/schemas/budgets.py`):
+- `BudgetCreate`, `BudgetResponse` (includes `current_spend_usd` + `pct_used` from Redis)
+- `BudgetCheckResponse` — `{allowed, action, budget_id, downgrade_model}`
+- `BreachResponse`, `NotificationCreate`, `NotificationResponse`
 
-**UI — `/budgets`:**
-- Budget list: scope, limit, current spend (progress bar), period, action, status
-- Create budget modal: scope selector (workspace / specific user / feature tag), period, limit, action
-- `/budgets/[id]`: breach history table, spend timeline, notification config
+Service layer (`apps/api/runledger_api/services/budgets.py`):
+- `_period_key(period_type, dt)` — formats `"2026-02-27"` / `"2026-02"` / `"total"`
+- `incr_budget_spend(redis, budget_id, period_type, cost_usd)` — `INCRBYFLOAT` + TTL
+- `get_budget_spend(redis, budget_id, period_type)` → `Decimal`
+- `get_workspace_budgets_cached(redis, db, workspace_id)` — Redis JSON cache (TTL 300s), Postgres fallback
+- `invalidate_workspace_budgets_cache(redis, workspace_id)` — called on create/delete
+- `_matching_budgets(budgets, end_user_id, feature_tag)` — scope matching (workspace always matches; end_user/feature_tag check scope_id)
+- `check_budgets(redis, db, workspace_id, end_user_id, feature_tag)` → `BudgetCheckResponse` — hot path, Redis only
+- `fire_breach(db, redis, budget_dict, spend, action_taken)` — writes `BudgetBreach`, fetches notifications, calls `send_notification()`
+- `send_notification(notification, payload)` — HTTP POST with `X-RunLedger-Signature: sha256=<hmac>` header
 
-**Definition of done:** Create a daily $0.10 budget for a test user. Run 5 LLM calls that exceed it. The 6th call is blocked. A webhook fires with the breach payload. The breach shows up in the UI.
+Router (`apps/api/runledger_api/routers/budgets.py`), prefix `/budgets`:
+- `POST /budgets` → 201 with `BudgetResponse`; invalidates workspace cache
+- `GET /budgets` — list with live Redis spend + `pct_used`
+- `GET /budgets/check` — hot-path, Redis only, target <5ms p99
+- `GET /budgets/{id}/breaches` — breach history (most recent first)
+- `DELETE /budgets/{id}` → 204, soft-deletes (is_active=False), invalidates cache
+- `POST /budgets/notifications` → 201; `GET /budgets/notifications`
+
+Celery workers (`apps/api/runledger_api/workers/budgets.py`):
+- `runaway_protection` (every 5 min): queries `agent_runs` with `status='running'` for ≥2 min; detects retry storm (>20 calls in last 2 min) or token spike (>100k input tokens); cancels run, fires `runaway.detected` notifications
+- `budget_spend_sync` (every 24h): re-computes spend from `provider_calls` and writes back to Redis — recovery from Redis eviction
+
+Metering worker update (`apps/api/runledger_api/workers/metering.py`):
+- After each `cost_usd` is computed, calls `incr_budget_spend` for every matching budget
+- If spend ≥ limit and action ≠ `notify`: calls `fire_breach()`
+
+Celery app update (`apps/api/runledger_api/core/celery_app.py`):
+- Added `"runledger_api.workers.budgets"` to `include`
+- Added `runaway-protection-5m` (300s) and `budget-spend-sync-daily` (86400s) to Beat schedule
+
+Main app update (`apps/api/runledger_api/main.py`):
+- `app.include_router(budgets.router)`
+
+SDK — exceptions (`packages/sdk/runledger_sdk/exceptions.py`):
+- `RunLedgerBudgetExceededError(budget_id, message)` — raised on `action=block`
+
+SDK — client (`packages/sdk/runledger_sdk/client.py`):
+- `budget_check: bool = False` parameter on `RunLedger.__init__`; stored and forwarded to `SyncTransport`
+
+SDK — transport (`packages/sdk/runledger_sdk/transport.py`):
+- `SyncTransport.budget_check` attribute passed through from client
+
+SDK — OpenAI wrapper (`packages/sdk/runledger_sdk/openai.py`):
+- `_sync_budget_check(transport, ctx, kwargs)` called before both sync and async OpenAI create; raises `RunLedgerBudgetExceededError` on block; mutates `kwargs['model']` on downgrade; fails open on any network/timeout error
+
+SDK — `__init__.py`:
+- Exports `RunLedgerBudgetExceededError`; bumped to v0.4.0
+
+Frontend (`apps/web/`):
+- `types/api.ts` — `Budget`, `BudgetList`, `BudgetCheckResponse`, `Breach`, `BreachList` interfaces
+- `lib/api.ts` — `getBudgets`, `createBudget`, `deleteBudget`, `getBudgetBreaches`
+- `components/layout/Sidebar.tsx` — `ShieldAlert` Budgets nav item
+- `components/budgets/BudgetList.tsx` — table with spend progress bar (green/yellow/red), action badge, delete button
+- `components/budgets/CreateBudgetModal.tsx` — modal: scope type/id, period, limit, action, downgrade model
+- `components/budgets/BreachHistoryTable.tsx` — occurred_at, spend, action taken, notified_at
+- `app/(dashboard)/budgets/page.tsx` — client page with live budget list + "New Budget" modal trigger
+- `app/(dashboard)/budgets/[id]/page.tsx` — server page with breach history
+
+Example (`examples/08_budget_enforcement.py`):
+- Creates a daily budget via API, runs LLM calls until blocked, catches `RunLedgerBudgetExceededError`
+
+Tests (`apps/api/tests/test_budgets.py`) — **19 tests:**
+- `test_period_key_daily`, `test_period_key_monthly`, `test_period_key_total`
+- `test_matching_budgets_workspace_scope`, `test_matching_budgets_end_user_scope`, `test_matching_budgets_feature_tag_scope`
+- `test_incr_budget_spend`, `test_get_budget_spend_returns_zero_when_missing`, `test_get_budget_spend_returns_value`
+- `test_create_budget`, `test_list_budgets_includes_spend`
+- `test_budget_check_allowed`, `test_budget_check_blocked`, `test_budget_check_downgrade`
+- `test_delete_budget_deactivates`, `test_breach_history_empty`
+- `test_runaway_protection_retry_storm`, `test_send_notification_webhook`, `test_budgets_requires_auth`
+
+**Definition of done:** ✅ Create a daily $0.10 budget for a test user. Run 5 LLM calls that exceed it. The 6th call is blocked. A webhook fires with the breach payload. The breach shows up in the UI.
 
 ---
 
