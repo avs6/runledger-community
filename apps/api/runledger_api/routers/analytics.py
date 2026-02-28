@@ -19,16 +19,21 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.models.annotations import Annotation
 from runledger_api.models.events import AgentRun, ProviderCall, Span
+from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
+    AnomalyItem,
+    AnomalyList,
+    CohortList,
+    CohortSummary,
     FeatureSpend,
     ModelSpend,
     SpendByFeature,
@@ -259,6 +264,7 @@ async def spend_by_user(
             func.count(ProviderCall.run_id.distinct()).label("run_count"),
             func.count(ProviderCall.id).label("call_count"),
             func.max(ProviderCall.created_at).label("last_active"),
+            func.min(ProviderCall.created_at).label("first_seen"),
         )
         .where(
             ProviderCall.workspace_id == workspace.id,
@@ -285,9 +291,8 @@ async def spend_by_user(
                 avg_cost_per_run=(
                     row.cost_usd / row.run_count if row.run_count > 0 else Decimal(0)
                 ),
-                last_active=(
-                    row.last_active.isoformat() if row.last_active else None
-                ),
+                last_active=(row.last_active.isoformat() if row.last_active else None),
+                first_seen=(row.first_seen.isoformat() if row.first_seen else None),
             )
             for row in rows
         ]
@@ -341,6 +346,100 @@ async def spend_by_feature(
             for row in rows
         ]
     )
+
+
+# ── /analytics/users/cohorts ─────────────────────────────────────────────────
+
+
+_DEFAULT_COHORT_DAYS = 30
+
+
+@router.get("/users/cohorts", response_model=CohortList)
+async def user_cohorts(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> CohortList:
+    """Classify end-users into P0–P3 spend tiers for the window (default 30d)."""
+    t_to = _parse_dt(to_dt, _default_to())
+    t_from = _parse_dt(
+        from_dt,
+        datetime.now(UTC) - timedelta(days=_DEFAULT_COHORT_DAYS),
+    )
+
+    # Inner subquery: per-user total spend
+    inner = (
+        select(
+            ProviderCall.end_user_id,
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= t_from,
+            ProviderCall.created_at < t_to,
+            ProviderCall.status == "success",
+            ProviderCall.end_user_id.is_not(None),
+        )
+        .group_by(ProviderCall.end_user_id)
+        .subquery()
+    )
+
+    tier_col = case(
+        (inner.c.cost < Decimal("1"), "P0"),
+        (inner.c.cost < Decimal("10"), "P1"),
+        (inner.c.cost < Decimal("100"), "P2"),
+        else_="P3",
+    ).label("tier")
+
+    stmt = (
+        select(
+            tier_col,
+            func.count().label("user_count"),
+            func.avg(inner.c.cost).label("avg_cost_usd"),
+            func.sum(inner.c.cost).label("total_cost_usd"),
+        )
+        .select_from(inner)
+        .group_by(tier_col)
+        .order_by(tier_col)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    window_days = int((t_to - t_from).total_seconds() / 86400)
+    return CohortList(
+        items=[
+            CohortSummary(
+                cohort_tier=row.tier,
+                user_count=row.user_count,
+                avg_cost_usd=Decimal(str(row.avg_cost_usd)),
+                total_cost_usd=Decimal(str(row.total_cost_usd)),
+            )
+            for row in rows
+        ],
+        window_days=window_days,
+    )
+
+
+# ── /analytics/users/anomalies ────────────────────────────────────────────────
+
+
+@router.get("/users/anomalies", response_model=AnomalyList)
+async def user_anomalies(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AnomalyList:
+    """Most-recent 100 anomaly flags for the workspace (populated by nightly worker)."""
+    stmt = (
+        select(UserAnomaly)
+        .where(UserAnomaly.workspace_id == workspace.id)
+        .order_by(UserAnomaly.detected_at.desc())
+        .limit(100)
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return AnomalyList(items=list(items))
 
 
 # ── /analytics/users/{end_user_id} ────────────────────────────────────────────

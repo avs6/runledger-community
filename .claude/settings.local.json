@@ -22,7 +22,8 @@
       "Bash(ls:*)",
       "Bash(git status:*)",
       "Bash(python:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(find:*)"
     ]
   }
 }

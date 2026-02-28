@@ -2,11 +2,18 @@ import type {
   AnalyticsSummary,
   Annotation,
   AnnotationList,
+  AnomalyList,
   BillingPeriod,
   BillingPeriodList,
   BreachList,
   Budget,
   BudgetList,
+  CohortList,
+  DatasetList,
+  DatasetResponse,
+  ExperimentList,
+  ExperimentResponse,
+  ExperimentResults,
   PeriodBreakdown,
   ReconciliationResult,
   RegressionList,
@@ -308,4 +315,61 @@ export async function getAnnotations(
     `/analytics/annotations${_analyticsQs(params)}`,
     apiKey
   )
+}
+
+// ── Phase 10 — Users analytics extensions ─────────────────────────────────────
+
+export async function getUserCohorts(
+  apiKey: string,
+  params: { from?: string; to?: string } = {}
+): Promise<CohortList> {
+  return apiFetch<CohortList>(
+    `/analytics/users/cohorts${_analyticsQs(params)}`,
+    apiKey
+  )
+}
+
+export async function getUserAnomalies(apiKey: string): Promise<AnomalyList> {
+  return apiFetch<AnomalyList>('/analytics/users/anomalies', apiKey)
+}
+
+// ── Phase 10 — Replay helpers ─────────────────────────────────────────────────
+
+export async function createDataset(
+  apiKey: string,
+  body: { name: string; run_ids: string[]; source?: string }
+): Promise<DatasetResponse> {
+  return apiFetch<DatasetResponse>('/replay/datasets', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listDatasets(apiKey: string): Promise<DatasetList> {
+  return apiFetch<DatasetList>('/replay/datasets', apiKey)
+}
+
+export async function createExperiment(
+  apiKey: string,
+  body: { dataset_id: string; name: string; configs: { model: string; label?: string }[] }
+): Promise<ExperimentResponse> {
+  return apiFetch<ExperimentResponse>('/replay/experiments', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listExperiments(apiKey: string): Promise<ExperimentList> {
+  return apiFetch<ExperimentList>('/replay/experiments', apiKey)
+}
+
+export async function runExperiment(apiKey: string, id: string): Promise<ExperimentResponse> {
+  return apiFetch<ExperimentResponse>(`/replay/experiments/${id}/run`, apiKey, { method: 'POST' })
+}
+
+export async function getExperimentResults(
+  apiKey: string,
+  id: string
+): Promise<ExperimentResults> {
+  return apiFetch<ExperimentResults>(`/replay/experiments/${id}/results`, apiKey)
 }

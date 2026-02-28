@@ -4,6 +4,7 @@ Pydantic response schemas for the analytics API.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel
@@ -52,6 +53,7 @@ class UserSpend(BaseModel):
     call_count: int
     avg_cost_per_run: Decimal
     last_active: str | None
+    first_seen: str | None = None
 
 
 class SpendByUser(BaseModel):
@@ -79,3 +81,30 @@ class UserSpendDetail(BaseModel):
     spend_over_time: list[SpendPoint]
     models_used: list[ModelSpend]
     features_used: list[FeatureSpend]
+
+
+class CohortSummary(BaseModel):
+    cohort_tier: str  # "P0" | "P1" | "P2" | "P3"
+    user_count: int
+    avg_cost_usd: Decimal
+    total_cost_usd: Decimal
+
+
+class CohortList(BaseModel):
+    items: list[CohortSummary]
+    window_days: int
+
+
+class AnomalyItem(BaseModel):
+    end_user_id: str
+    detected_at: date
+    daily_spend: Decimal
+    mean_spend: Decimal
+    zscore: Decimal
+    reason: str
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class AnomalyList(BaseModel):
+    items: list[AnomalyItem]

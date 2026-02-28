@@ -16,12 +16,12 @@
 | 5 | Run Explorer + DAG Viewer UI | ✅ Complete | Area 8 | — |
 | 6 | Metering Dashboard | ✅ Complete | Area 9 | +3 |
 | 7 | Budgets + Spend Guardrails | ✅ Complete | Areas 10, 11 | 19 |
-| 8 | Chargeback Engine + Reconciliation | 🔲 Pending | Area 12 | — |
-| 9 | Unit Economics Graph + Change Impact | 🔲 Pending | Area 13 | — |
+| 8 | Chargeback Engine + Reconciliation | ✅ Complete | Area 12 | 15 |
+| 9 | Unit Economics Graph + Change Impact | ✅ Complete | Area 13 | 12 |
 | 10 | End-user Analytics + Replay Harness | 🔲 Pending | Area 14 | — |
 | 11 | Tamper-evident Ledger + OSS Launch | 🔲 Pending | Area 15 | — |
 
-**Total tests shipped (Phases 0–7):** 125
+**Total tests shipped (Phases 0–9):** 152 (125 through Phase 7 + 15 Phase 8 + 12 Phase 9)
 
 ---
 
@@ -87,7 +87,9 @@ runledger/
 │   ├── 04_langgraph_agent.py
 │   ├── 05_fastapi_service.py
 │   ├── 06_ollama_local.py
-│   └── 07_analytics_query.py
+│   ├── 07_analytics_query.py
+│   ├── 08_budget_enforcement.py
+│   └── 09_economics_query.py
 ├── db/
 │   └── migrations/             # Alembic migration files
 ├── infra/
@@ -190,6 +192,16 @@ chargeback_rules (id, workspace_id, allocation_type ENUM[cost_center|team|env],
 
 usage_snapshots  (id, billing_period_id, snapshot_data JSONB,
                   signature TEXT, signing_key_id, created_at)
+```
+
+### Annotations (Phase 9)
+
+```sql
+annotations      (id UUID, workspace_id UUID FK workspaces.id,
+                  note TEXT NOT NULL, annotation_date DATE NOT NULL,
+                  version TEXT NULL,   -- deployment_version anchor (optional)
+                  created_at TIMESTAMPTZ)
+                  -- INDEX ix_annotations_workspace_date on (workspace_id, annotation_date)
 ```
 
 ### Ledger & Privacy
@@ -528,86 +540,143 @@ Tests (`apps/api/tests/test_budgets.py`) — **19 tests:**
 
 ---
 
-### Phase 8 — Weeks 17–18: Chargeback Engine + Reconciliation + Dispute Trail
+### Phase 8 — Weeks 17–18: Chargeback Engine + Reconciliation + Dispute Trail ✅
 **Roadmap areas:** 12 (Chargeback + Billing Periods)
 
 **Goal:** Close the month, generate a usage statement, and drill from any line item back to the exact run that caused it.
 
-**Period close workflow:**
-- `POST /billing/periods/{id}/close` → background job:
-  1. Freeze: snapshot `usage_daily` totals for the period into `usage_snapshots.snapshot_data`
-  2. Apply chargeback rules: distribute cost across allocation dimensions
-  3. Compute HMAC-SHA256 signature of snapshot JSON → store in `usage_snapshots.signature`
-  4. Set `billing_periods.status = 'closed'`, record `closed_at`
-  5. Generate `usage_statement` JSON artifact (downloadable)
-- Late events: events arriving after period close are flagged in `agent_runs.late_event = true` — reconciliation report flags them
+**What was built:**
 
-**Chargeback rules engine:**
-- Simple allocation: split workspace cost by dimension (env: prod gets 90% / dev 10%, or by explicit cost_center tags)
-- `chargeback_rules` support weight-based splits and explicit dimension assignments
+Database migration (`apps/api/alembic/versions/005_billing.py`):
+- `billing_periods` — `(id, workspace_id, period_start, period_end, status, total_cost_usd, snapshot_hash, closed_at)` + two indexes (status, dates)
+- `chargeback_rules` — `(id, workspace_id, allocation_type, dimension, weight NUMERIC(6,4))`
+- `usage_snapshots` — `(id, billing_period_id, snapshot_data JSONB, signature TEXT, signing_key_id, created_at)`
 
-**Reconciliation:**
-- Internal consistency check (scheduled, runs nightly):
-  - Sum of `provider_calls.cost_usd` = sum via `usage_daily` for same period (within 0.01% tolerance)
-  - Flag any orphaned `provider_calls` (no parent `agent_run`)
-  - Flag duplicate `provider_calls` (same `run_id` + same `model` + same timestamp within 1s)
-- Report: `GET /billing/periods/{id}/reconciliation` → consistency status, flagged issues
+ORM models (`apps/api/runledger_api/models/billing.py`):
+- `BillingPeriod`, `ChargebackRule`, `UsageSnapshot`
 
-**Dispute trail:**
-- `GET /billing/periods/{id}/breakdown` → hierarchical JSON:
-  ```
-  period total
-  └─ by application
-     └─ by end_user_id
-        └─ by model
-           └─ agent_runs (sorted by cost desc)
-              └─ spans + provider_calls
-  ```
-- `GET /billing/periods/{id}/export?format=csv` → CSV with columns: date, end_user_id, model, input_tokens, output_tokens, cost_usd, run_id
-- `GET /billing/periods/{id}/export?format=signed_json` → JSON bundle + HMAC signature (verifiable offline)
+Pydantic schemas (`apps/api/runledger_api/schemas/billing.py`):
+- `BillingPeriodCreate`, `BillingPeriodResponse`, `ChargebackRuleCreate`, `ChargebackRuleResponse`
+- `UsageSnapshotResponse`, `ReconciliationResult`, `PeriodBreakdown`, `BreakdownApp`, `BreakdownUser`
 
-**UI — `/billing`:**
-- Billing periods list: period dates, total cost, status badge, actions (close, export)
-- `/billing/[period_id]`: summary cards, chargeback breakdown table, reconciliation status panel
-- Drill-down: click a row in breakdown → filters down to that dimension → click a run_id → navigates to `/runs/[run_id]`
-- Evidence export button: downloads CSV + signed JSON
+Service layer (`apps/api/runledger_api/services/billing.py`):
+- `sign_snapshot(data, key)` — `json.dumps(sort_keys=True, default=str)` → `hmac.new(sha256).hexdigest()`
+- `close_billing_period(db, period_id)` — status='closing' → compute total from `SUM(provider_calls.cost_usd)` → build snapshot_data → sign → create UsageSnapshot → set status='closed' + `snapshot_hash=sig[:16]`
+- `run_reconciliation(db, period_id)` → `ReconciliationResult` — compares `SUM(provider_calls.cost_usd)` vs `SUM(usage_daily.cost_usd)` for date range; flags orphaned + duplicate calls
+- `apply_chargeback_rules(db, period_id)` → `dict[dimension, cost]` — weight-based allocation from `chargeback_rules` table
+- `export_csv(db, period_id)` → CSV string
+- `export_signed_json(db, period_id, signing_key)` → signed JSON dict
 
-**Definition of done:** Close a billing period. Export the signed JSON. Verify the HMAC offline with the known signing key. Click a line item in the breakdown and arrive at the exact run in the run explorer.
+Router (`apps/api/runledger_api/routers/billing.py`), prefix `/billing`:
+- `POST /billing/periods` → 201 with `BillingPeriodResponse`
+- `GET /billing/periods` — list workspace periods
+- `GET /billing/periods/{id}` — single period
+- `POST /billing/periods/{id}/close` → `UsageSnapshotResponse`; 409 if already closed
+- `GET /billing/periods/{id}/reconciliation` → `ReconciliationResult`
+- `GET /billing/periods/{id}/breakdown` → `PeriodBreakdown`
+- `GET /billing/periods/{id}/export?format=csv|signed_json` → CSV (`text/csv`) or JSON
+- `POST /billing/chargeback-rules` → 201; `GET /billing/chargeback-rules`
+
+Celery worker (`apps/api/runledger_api/workers/billing.py`):
+- `nightly_reconciliation` — processes all closed periods nightly, logs any reconciliation failures
+
+Main app (`apps/api/runledger_api/main.py`):
+- `app.include_router(billing.router)`
+
+Frontend (`apps/web/`):
+- `types/api.ts` — `BillingPeriod`, `BillingPeriodList`, `ChargebackRule`, `ReconciliationResult`, `PeriodBreakdown`, `UsageSnapshot`
+- `lib/api.ts` — `getBillingPeriods`, `createBillingPeriod`, `closeBillingPeriod`, `getReconciliation`, `getPeriodBreakdown`, `exportPeriodCsv`, `exportPeriodSignedJson`
+- `components/layout/Sidebar.tsx` — `Receipt` Billing nav item
+- `components/billing/` — `BillingPeriodList`, `ClosePeriodButton`, `ReconciliationPanel`, `BreakdownTable`, `ExportButton`
+- `app/(dashboard)/billing/page.tsx` — periods list with status badges, close/export controls
+- `app/(dashboard)/billing/[period_id]/page.tsx` — detail: summary cards, chargeback breakdown, reconciliation panel
+
+Example (`examples/08_budget_enforcement.py` was Phase 7; billing has no standalone example — use the dashboard or Swagger UI)
+
+Tests (`apps/api/tests/test_billing.py`) — **15 tests:**
+- `test_sign_snapshot`, `test_export_signed_json_verifiable`
+- `test_create_billing_period`, `test_list_billing_periods`, `test_get_billing_period`
+- `test_close_billing_period`, `test_close_already_closed_409`
+- `test_reconciliation_pass`, `test_reconciliation_fail_delta`, `test_reconciliation_orphaned`
+- `test_export_csv_columns`, `test_create_chargeback_rule`
+- `test_apply_chargeback_rules`, `test_nightly_reconciliation_worker`
+- `test_billing_requires_auth`
+
+**Definition of done:** ✅ Close a billing period. Export the signed JSON. Verify the HMAC offline with the known signing key. Click a line item in the breakdown and arrive at the exact run in the run explorer.
 
 ---
 
-### Phase 9 — Weeks 19–20: Unit Economics Graph + Change Impact
+### Phase 9 — Weeks 19–20: Unit Economics Graph + Change Impact ✅
 **Roadmap areas:** 13 (Unit Economics + Change Impact)
 
 **Goal:** Ship a new prompt version, tag it in the SDK, and see a side-by-side cost breakdown vs the previous version.
 
-**Cost attribution:**
-- `GET /analytics/economics/{run_id}` → cost profile:
-  - cost_by_span_type: `{llm: $0.032, tool: $0.001, retrieval: $0.005}`
-  - cost_by_model: `{gpt-4o: $0.030, gpt-4o-mini: $0.002}`
-  - retry_cost: cost of all re-runs within the run
-  - human_approval_cost: spans of type APPROVAL
-- Top N workflows: `GET /analytics/workflows/top?metric=cost&limit=10&from=&to=`
-  - Groups by `feature_tag` + `application_id`, returns avg cost, p95 cost, call volume
+**What was built:**
 
-**Deployment versioning:**
-- SDK context gains `deployment_version` field: `rl.context(deployment_version="v2.1.0")`
-- Stored in `agent_runs.deployment_version`
+Database migration (`apps/api/alembic/versions/006_annotations.py`):
+- `annotations` — `(id UUID, workspace_id UUID FK workspaces.id NOT NULL, note TEXT, annotation_date DATE, version TEXT NULL, created_at TIMESTAMPTZ)` + `ix_annotations_workspace_date`
 
-**Change impact:**
-- `GET /analytics/compare?baseline_version=v2.0.0&comparison_version=v2.1.0&from=&to=`
-  - Returns: cost delta (%), token delta (%), latency delta (%), run count for each
-  - Breakdown by span type: which node type drove the change
-- `GET /analytics/regressions?from=&to=` → workflows where cost > 120% of same-period prior week average
-- `POST /analytics/annotations` → team can attach notes to a date/version ("rolled back gpt-4o, switched to gpt-4o-mini")
+ORM model (`apps/api/runledger_api/models/annotations.py`):
+- `Annotation` — mapped columns matching migration; registered in `models/__init__.py`
 
-**UI — `/analytics/economics`:**
-- `EconomicsBreakdown` component: stacked bar per run_id or feature_tag, split by LLM/tool/retrieval/retry
-- `ChangeImpactPanel`: version selector (baseline vs comparison), side-by-side delta cards
-- `RegressionTable`: workflows with cost regression flag, % increase, volume context
-- Annotations: inline markers on the spend timeline
+Pydantic schemas (`apps/api/runledger_api/schemas/economics.py`):
+- `SpanTypeCost`, `ModelCost`, `RunEconomics`
+- `WorkflowSummary`, `WorkflowTopList`
+- `SpanTypeDelta`, `VersionSummary`, `VersionCompareResult`
+- `RegressionItem`, `RegressionList`
+- `AnnotationCreate`, `AnnotationResponse`, `AnnotationList`
 
-**Definition of done:** Tag 50 runs with `deployment_version=v1` and 50 with `v2`. The compare endpoint returns correct per-node-type cost deltas.
+New endpoints added to `apps/api/runledger_api/routers/analytics.py`:
+
+**`GET /analytics/economics/{run_id}`** — 4 execute calls:
+1. Run lookup (workspace scope check → 404 if not found)
+2. Span-type costs — `SELECT span_type, SUM(cost_usd) FROM spans WHERE run_id=? GROUP BY span_type`
+3. Model costs — `SELECT model, provider, SUM(cost_usd), COUNT(*) FROM provider_calls WHERE run_id=? GROUP BY model, provider`
+4. Retry cost — `SUM(spans.cost_usd) WHERE parent_span_id IS NOT NULL AND span_type='llm'`
+Total from Python sum of model cost rows (authoritative source = provider_calls).
+
+**`GET /analytics/workflows/top`** — 2 execute calls (avoids join fan-out on AVG/p95):
+1. From `agent_runs` only: `COUNT`, `AVG(total_cost_usd)`, `percentile_cont(0.95).within_group(total_cost_usd)`, `SUM`, ordered by avg cost or latency, `LIMIT N`
+2. From `provider_calls JOIN agent_runs`: `COUNT(provider_calls.id)` per (feature_tag, application_id) — merged in Python
+
+**`GET /analytics/compare`** — 4 execute calls:
+1. Baseline version `AgentRun` stats: `COUNT, AVG(cost), AVG(input_tokens), AVG(output_tokens), AVG(extract(epoch from ended_at-started_at)*1000)`
+2. Comparison version `AgentRun` stats (same shape)
+3. Baseline span costs by type: `Span JOIN AgentRun WHERE deployment_version=baseline GROUP BY span_type`
+4. Comparison span costs by type
+Delta pct: `(cmp - base) / base * 100`; None if baseline=0
+
+**`GET /analytics/regressions`** — 2 execute calls:
+1. Current window (default last 7d): `GROUP BY feature_tag` → `AVG(total_cost_usd)`, `COUNT(*)`
+2. Prior window (7d before that): same shape
+Python: for each feature_tag present in both windows, flag if `(current - prior) / prior > 0.20` AND `current_run_count >= 3`
+
+**`POST /analytics/annotations`** → 201 — create `Annotation` row, commit, refresh, return
+
+**`GET /analytics/annotations`** — optional `from`, `to`, `version` filters; `ORDER BY annotation_date DESC`
+
+Frontend (`apps/web/`):
+- `types/api.ts` — 10 new interfaces: `SpanTypeCost`, `ModelCost`, `RunEconomics`, `WorkflowSummary`, `WorkflowTopList`, `SpanTypeDelta`, `VersionSummary`, `VersionCompareResult`, `RegressionItem`, `RegressionList`, `Annotation`, `AnnotationList`
+- `lib/api.ts` — 6 fetch helpers: `getRunEconomics`, `getTopWorkflows`, `getVersionCompare`, `getRegressions`, `createAnnotation`, `getAnnotations`
+- `components/layout/Sidebar.tsx` — `TrendingUp` Economics nav item (after Analytics)
+- `components/economics/EconomicsBreakdown.tsx` — `'use client'`; Recharts `BarChart` with `Cell` per span type; model cost table below
+- `components/economics/ChangeImpactPanel.tsx` — `'use client'`; baseline + comparison text inputs + Compare button; 3 delta cards (red/green) + span-type breakdown table
+- `components/economics/RegressionTable.tsx` — server-renderable table; change % column bold red >20%, green otherwise; empty state text
+- `components/economics/AnnotationForm.tsx` — `'use client'`; date + version + textarea + submit; calls `createAnnotation`; `onCreated` callback
+- `app/(dashboard)/analytics/economics/page.tsx` — `'use client'`; `useSession` for API key; 4 independently-loading sections each with `animate-pulse` skeleton
+
+Example (`examples/09_economics_query.py`):
+- Queries all 6 new endpoints; prints per-run breakdown, workflow table, version compare table, regression list, annotations; handles empty-state gracefully
+
+Tests (`apps/api/tests/test_economics.py`) — **12 tests:**
+- `test_run_economics_by_span_type`, `test_run_economics_by_model`, `test_run_economics_404`
+- `test_top_workflows_returns_list`, `test_top_workflows_limit`
+- `test_version_compare_delta_pct`, `test_version_compare_missing_baseline`
+- `test_regressions_detected`, `test_regressions_below_threshold`
+- `test_create_annotation`, `test_list_annotations`
+- `test_economics_requires_auth`
+
+**Definition of done:** ✅ Tag runs with `deployment_version=v1` and `v2`. Compare endpoint returns correct per-span-type cost deltas. Regressions endpoint flags workflows with >20% cost increase. Annotations can be created and listed via API and UI.
 
 ---
 

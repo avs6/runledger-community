@@ -158,6 +158,7 @@ export interface UserSpend {
   call_count: number
   avg_cost_per_run: string
   last_active: string | null
+  first_seen?: string | null
 }
 
 export interface SpendByUser {
@@ -377,3 +378,21 @@ export interface Annotation {
 export interface AnnotationList {
   items: Annotation[]
 }
+
+// ── Phase 10 — Users analytics extensions ─────────────────────────────────────
+
+export interface CohortSummary { cohort_tier: string; user_count: number; avg_cost_usd: string; total_cost_usd: string }
+export interface CohortList { items: CohortSummary[]; window_days: number }
+export interface AnomalyItem { end_user_id: string; detected_at: string; daily_spend: string; mean_spend: string; zscore: string; reason: string; created_at: string }
+export interface AnomalyList { items: AnomalyItem[] }
+
+// ── Phase 10 — Replay ─────────────────────────────────────────────────────────
+
+export interface ExperimentConfig { model: string; label?: string }
+export interface DatasetResponse { id: string; name: string; source: string; run_ids: string[]; run_count: number; created_at: string }
+export interface DatasetList { items: DatasetResponse[] }
+export interface ExperimentResponse { id: string; dataset_id: string; name: string; configs: ExperimentConfig[]; status: string; estimated_cost_usd: string | null; created_at: string }
+export interface ExperimentList { items: ExperimentResponse[] }
+export interface ConfigResult { model: string; label?: string; run_count: number; total_input_tokens: number; total_output_tokens: number; projected_cost_usd: string; avg_cost_per_run: string; pricing_found: boolean }
+export interface ConfigDelta { config_a: string; config_b: string; cost_delta_pct: string | null }
+export interface ExperimentResults { experiment_id: string; experiment_name: string; status: string; dataset_run_count: number; configs: ConfigResult[]; deltas: ConfigDelta[]; completed_at: string | null }

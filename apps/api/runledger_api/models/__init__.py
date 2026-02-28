@@ -13,6 +13,7 @@ from runledger_api.models.metering import (
     UsageDaily,
     UsageHourly,
 )
+from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAnomaly
 from runledger_api.models.tenant import ApiKey, Application, Tenant, Workspace
 
 __all__ = [
@@ -30,4 +31,7 @@ __all__ = [
     "UsageDaily",
     "DataQualityIssue",
     "Annotation",
+    "UserAnomaly",
+    "ReplayDataset",
+    "ReplayExperiment",
 ]

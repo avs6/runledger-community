@@ -49,8 +49,8 @@ Every team shipping AI agents in production hits the same wall:
 | 5 | Run Explorer + DAG viewer UI (Next.js dashboard) | ✅ Complete |
 | 6 | Metering dashboard (spend by model/user/feature) | ✅ Complete |
 | 7 | Budgets + spend guardrails with automatic actions | ✅ Complete |
-| 8 | Chargeback engine + reconciliation + dispute trail | Planned |
-| 9 | Unit economics graph + change impact diffs | Planned |
+| 8 | Chargeback engine + reconciliation + dispute trail | ✅ Complete |
+| 9 | Unit economics graph + change impact diffs | ✅ Complete |
 | 10 | End-user analytics + replay harness | Planned |
 | 11 | Tamper-evident ledger + production polish + OSS release | Planned |
 
@@ -398,6 +398,17 @@ The dashboard at `http://localhost:3000` has two main areas:
 - **Breach history** (`/budgets/[id]`) — table of every breach: occurred at, spend at breach, action taken, notified at
 - **Delete** — soft-deactivates the budget; Redis cache invalidated immediately
 
+### Billing (`/billing`)
+- **Billing periods** — list of periods with status (open / closing / closed), total cost, and snapshot hash
+- **Period detail** — summary cards, chargeback breakdown by application and end-user, reconciliation status panel
+- **Evidence export** — download line-item CSV or HMAC-signed JSON verifiable offline
+
+### Economics (`/analytics/economics`)
+- **Top Workflows** — table of `feature_tag` groups ranked by average cost, p95 cost, total cost, and call count
+- **Version Compare** — enter baseline and comparison version strings; renders 3 delta cards (cost Δ%, input token Δ%, latency Δ%) and a per-span-type cost shift table
+- **Cost Regressions** — workflows where average cost increased >20% vs prior 7 days; shows change %, current/prior averages, and run count
+- **Annotations** — inline form to attach team notes to a date and optional deployment version; runs list chronologically below
+
 ---
 
 ## CLI
@@ -577,6 +588,26 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `GET` | `/analytics/spend-by-user` | Top spenders with avg cost/run + last active (`limit=N`) |
 | `GET` | `/analytics/spend-by-feature` | Cost breakdown by feature tag |
 | `GET` | `/analytics/users/{end_user_id}` | User profile: spend trend + models + features used |
+| `GET` | `/analytics/economics/{run_id}` | Per-run cost breakdown by span type and model + retry cost |
+| `GET` | `/analytics/workflows/top` | Top workflows by avg cost or latency (`metric=cost\|latency&limit=N`) |
+| `GET` | `/analytics/compare` | Version cost/token/latency delta (`baseline_version=&comparison_version=`) |
+| `GET` | `/analytics/regressions` | Workflows with >20% cost increase vs prior period |
+| `POST` | `/analytics/annotations` | Create a team note anchored to a date and optional version |
+| `GET` | `/analytics/annotations` | List annotations (`from=&to=&version=`) |
+
+### Billing
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/billing/periods` | Open a new billing period |
+| `GET` | `/billing/periods` | List billing periods |
+| `GET` | `/billing/periods/{id}` | Period detail |
+| `POST` | `/billing/periods/{id}/close` | Close period and generate signed usage snapshot |
+| `GET` | `/billing/periods/{id}/reconciliation` | Consistency check — provider_calls vs usage_daily sums |
+| `GET` | `/billing/periods/{id}/breakdown` | Hierarchical cost breakdown by app → user → model |
+| `GET` | `/billing/periods/{id}/export` | Download CSV or HMAC-signed JSON (`format=csv\|signed_json`) |
+| `POST` | `/billing/chargeback-rules` | Create a weight-based cost allocation rule |
+| `GET` | `/billing/chargeback-rules` | List chargeback rules |
 
 ### Budgets
 
@@ -607,6 +638,7 @@ python examples/04_langgraph_agent.py       # LangGraph ReAct agent with tools
 python examples/06_ollama_local.py          # local Ollama (OpenAI-compatible endpoint)
 python examples/07_analytics_query.py       # query the analytics API (summary + spend breakdown)
 python examples/08_budget_enforcement.py    # create a budget, exceed it, catch RunLedgerBudgetExceededError
+python examples/09_economics_query.py       # per-run economics, version compare, regressions, annotations
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload

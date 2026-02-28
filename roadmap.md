@@ -187,43 +187,50 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 
 ---
 
-### 4 — Reconciliation + Dispute Trail 🔲
+### 4 — Reconciliation + Dispute Trail ✅
 **Implementation:** Phase 8
 
 **Invoice period close:**
-- Freeze a `usage_daily` snapshot for the period
-- Generate signed `usage_statement` JSON artifact
-- Late events flagged in `agent_runs.late_event = true`
+- `billing_periods` table — open / closing / closed lifecycle
+- `POST /billing/periods/{id}/close` — computes total cost, builds snapshot_data, signs with HMAC-SHA256, creates `usage_snapshots` row, sets status=closed
+- `usage_snapshots` — stores snapshot JSONB + HMAC-SHA256 signature + signing_key_id
 
 **Reconciliation checks (nightly Celery):**
-- Sum of `provider_calls.cost_usd` = sum via `usage_daily` within 0.01% tolerance
-- Flag orphaned provider_calls (no parent agent_run)
-- Flag duplicate provider_calls (same run_id + model + timestamp within 1s)
-- Report: `GET /billing/periods/{id}/reconciliation`
+- `run_reconciliation()` — compares `SUM(provider_calls.cost_usd)` vs `SUM(usage_daily.cost_usd)` for the period date range; delta_pct threshold = 0.01%
+- Flags orphaned provider_calls (no parent agent_run)
+- Flags duplicate provider_calls (same run_id + model + timestamp within 1s)
+- `GET /billing/periods/{id}/reconciliation` → `{status, delta_pct, orphaned_calls, duplicate_calls, issues[]}`
+- Nightly Celery task — `_run_nightly_reconciliation()` processes all closed periods
 
 **Dispute trail:**
-- `GET /billing/periods/{id}/breakdown` — hierarchical: period → app → end_user → model → runs → spans + calls
+- `GET /billing/periods/{id}/breakdown` — hierarchical JSON: period → by_application → by end_user → cost + run_count
 - `GET /billing/periods/{id}/export?format=csv` — columns: date, end_user_id, model, input_tokens, output_tokens, cost_usd, run_id
-- `GET /billing/periods/{id}/export?format=signed_json` — JSON + HMAC signature (verifiable offline)
+- `GET /billing/periods/{id}/export?format=signed_json` — JSON bundle + HMAC-SHA256 signature (verifiable offline with `sign_snapshot()`)
 
-**Definition of done:** 🔲 Finance team asks "why is this bill high?" and can prove it with trace-linked evidence exportable as a signed artifact.
+**Frontend (`/billing`):**
+- Billing periods list — status badge, total cost, snapshot hash, close/export actions
+- Period detail — summary cards, chargeback breakdown table, reconciliation status panel
+- Evidence export — CSV download + signed JSON download with inline signature display
+
+**Definition of done:** ✅ Close a billing period. Export the signed JSON. Verify the HMAC offline with the known key. Click a line item in the breakdown and arrive at the exact run in the run explorer.
 
 ---
 
 ### 5 — Chargeback Engine + Billing Packaging 🔲
-**Implementation:** Phase 8 (chargeback rules) + later phases (packaging)
+**Implementation:** Phase 8 (chargeback rules ✅) + later phases (packaging 🔲)
 
-**Chargeback rules:**
-- Allocate spend by team / cost center, tenant / customer, end-user, environment (prod vs dev)
-- Weight-based splits and explicit dimension assignments via `chargeback_rules` table
+**Chargeback rules (shipped in Phase 8):**
+- `chargeback_rules` table — `(workspace_id, allocation_type, dimension, weight)`
+- `apply_chargeback_rules()` — weight-based cost splits across dimensions (engineering, product, etc.)
+- `POST /billing/chargeback-rules` and `GET /billing/chargeback-rules` endpoints
 
-**Billing packaging:**
+**Billing packaging (planned):**
 - Credits wallets and prepaid bundles
 - Overage policies
 - Per-seat + usage hybrids
 - Billing portal for end-customers: usage dashboard + invoice download
 
-**Revenue analytics:**
+**Revenue analytics (planned):**
 - Gross margin estimator (if reselling model usage)
 - Cost of goods per tenant / plan
 
@@ -288,29 +295,33 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 
 ---
 
-### 8 — Unit Economics Graph + Change Impact 🔲
+### 8 — Unit Economics Graph + Change Impact ✅
 **Implementation:** Phase 9
 
 **True cost attribution per run:**
-- Cost by span type: `{llm, tool, retrieval, retry, approval}`
-- Cost by model within a run
-- Retry cost separated from first-attempt cost
+- `GET /analytics/economics/{run_id}` — `cost_by_span_type[]`, `cost_by_model[]`, `retry_cost` (child LLM spans with parent_span_id)
+- Total from `SUM(provider_calls.cost_usd)` — authoritative source
+- Stacked bar chart (`EconomicsBreakdown`) with colour coding: llm=indigo, tool=amber, retrieval=teal, chain/agent=slate
 
 **Deployment versioning:**
-- SDK `rl.context(deployment_version="v2.1.0")` — stored in `agent_runs.deployment_version`
+- `rl.context(deployment_version="v2.1.0")` — stored in `agent_runs.deployment_version` (column already existed)
 
 **Change impact API:**
-- `GET /analytics/compare?baseline_version=&comparison_version=` — cost delta, token delta, latency delta per span type
-- `GET /analytics/regressions` — workflows where cost >120% of same-period prior week average
-- `POST /analytics/annotations` — team notes attached to a date or version
+- `GET /analytics/compare?baseline_version=v1&comparison_version=v2` — 4 DB queries: run stats × 2 + span costs × 2; returns cost Δ%, token Δ%, latency Δ%, `by_span_type[]` deltas
+- `GET /analytics/regressions` — compares last 7d vs prior 7d for each feature_tag; flags where change >20% with ≥3 current runs
+- `POST /analytics/annotations` + `GET /analytics/annotations` — team notes anchored to `annotation_date` (DATE) and optional `version`; stored in `annotations` table (migration 006)
+
+**Top workflow analysis:**
+- `GET /analytics/workflows/top?metric=cost|latency&limit=N` — groups agent_runs by (feature_tag, application_id); returns avg cost, p95 cost (`percentile_cont(0.95)`), total cost, call count (from a separate provider_calls query to avoid join fan-out)
 
 **UI — `/analytics/economics`:**
-- Stacked cost bar per run or feature_tag, split by LLM / tool / retrieval / retry
-- Version comparison: side-by-side delta cards
-- Regression table with % increase and volume context
-- Annotation markers on spend timeline
+- Four independently-loading sections (each with skeleton placeholder)
+- `EconomicsBreakdown` — Recharts stacked BarChart per span type
+- `ChangeImpactPanel` — version text inputs + Compare button → 3 delta cards + per-span-type shift table
+- `RegressionTable` — cost regression rows; change % column red/green based on threshold
+- Annotations — `AnnotationForm` + chronological list with date + version chip
 
-**Definition of done:** 🔲 Tag 50 runs with v1 and 50 with v2. Compare endpoint returns correct per-node-type cost deltas.
+**Definition of done:** ✅ Tag runs with deployment_version v1 and v2. Compare endpoint returns correct per-span-type cost deltas. Regressions endpoint flags workflows with >20% increase. Annotations can be created and listed via API and UI.
 
 ---
 
@@ -481,11 +492,11 @@ Agent FinOps Control Plane: billing-grade usage accounting, cost attribution, bu
 | 1 — SDKs + instrumentation | 2, 3 | ✅ |
 | 2 — Observability UI (Run Explorer + Analytics Dashboard) | 5, 6 | ✅ |
 | 3 — Metering core | 4, 6 | ✅ |
-| 4 — Reconciliation + dispute | 8 | 🔲 |
-| 5 — Chargeback engine | 8 | 🔲 |
+| 4 — Reconciliation + dispute | 8 | ✅ |
+| 5 — Chargeback engine | 8 (rules) + future (packaging) | 🔲 |
 | 6 — Budgets + guardrails | 7 | ✅ |
 | 7 — Budget-aware routing | Future | 🔲 |
-| 8 — Unit economics + change impact | 9 | 🔲 |
+| 8 — Unit economics + change impact | 9 | ✅ |
 | 9 — Replay harness | 10 | 🔲 |
 | 10 — End-user analytics | 6 (partial) + 10 | 🔲 |
 | 11 — Security + tool risk | 11 | 🔲 |

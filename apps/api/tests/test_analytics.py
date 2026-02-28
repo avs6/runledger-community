@@ -205,6 +205,7 @@ async def test_spend_by_user_returns_top_spenders(
             run_count=30,
             call_count=120,
             last_active=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
+            first_seen=datetime(2026, 1, 1, 0, 0, tzinfo=UTC),
         ),
         _make_row(
             end_user_id="user-beta",
@@ -212,6 +213,7 @@ async def test_spend_by_user_returns_top_spenders(
             run_count=15,
             call_count=60,
             last_active=None,
+            first_seen=None,
         ),
     ]
     mock_db_session.execute = AsyncMock(return_value=_list_result(rows))
