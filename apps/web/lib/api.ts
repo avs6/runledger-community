@@ -1,8 +1,12 @@
 import type {
   AnalyticsSummary,
+  BillingPeriod,
+  BillingPeriodList,
   BreachList,
   Budget,
   BudgetList,
+  PeriodBreakdown,
+  ReconciliationResult,
   RunDetailResponse,
   RunGraphResponse,
   RunListResponse,
@@ -11,6 +15,7 @@ import type {
   SpendByUser,
   SpendOverTime,
   UserSpendDetail,
+  UsageSnapshot,
 } from '@/types/api'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
@@ -180,4 +185,54 @@ export async function deleteBudget(apiKey: string, id: string): Promise<void> {
 
 export async function getBudgetBreaches(apiKey: string, id: string): Promise<BreachList> {
   return apiFetch<BreachList>(`/budgets/${id}/breaches`, apiKey)
+}
+
+// ── Billing helpers ────────────────────────────────────────────────────────────
+
+export async function getBillingPeriods(apiKey: string): Promise<BillingPeriodList> {
+  return apiFetch<BillingPeriodList>('/billing/periods', apiKey)
+}
+
+export async function createBillingPeriod(
+  apiKey: string,
+  body: { period_start: string; period_end: string }
+): Promise<BillingPeriod> {
+  return apiFetch<BillingPeriod>('/billing/periods', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function closeBillingPeriod(apiKey: string, id: string): Promise<UsageSnapshot> {
+  return apiFetch<UsageSnapshot>(`/billing/periods/${id}/close`, apiKey, { method: 'POST' })
+}
+
+export async function getReconciliation(
+  apiKey: string,
+  id: string
+): Promise<ReconciliationResult> {
+  return apiFetch<ReconciliationResult>(`/billing/periods/${id}/reconciliation`, apiKey)
+}
+
+export async function getPeriodBreakdown(
+  apiKey: string,
+  id: string
+): Promise<PeriodBreakdown> {
+  return apiFetch<PeriodBreakdown>(`/billing/periods/${id}/breakdown`, apiKey)
+}
+
+export async function exportPeriodCsv(apiKey: string, id: string): Promise<string> {
+  const res = await fetch(`${API_URL}/billing/periods/${id}/export?format=csv`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  return res.text()
+}
+
+export async function exportPeriodSignedJson(apiKey: string, id: string): Promise<object> {
+  return apiFetch<object>(`/billing/periods/${id}/export?format=signed_json`, apiKey)
 }

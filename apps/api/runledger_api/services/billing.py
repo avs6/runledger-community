@@ -1,0 +1,541 @@
+"""
+Billing service layer — period management, reconciliation, signing, export.
+
+All functions are pure async with no FastAPI dependencies so they can be
+imported directly from Celery workers.
+"""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import hmac
+import io
+import json
+import uuid
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
+
+import structlog
+from sqlalchemy import func, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from runledger_api.core.config import settings
+from runledger_api.models.billing import BillingPeriod, ChargebackRule, UsageSnapshot
+from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.metering import UsageDaily
+from runledger_api.schemas.billing import (
+    BreakdownApp,
+    BreakdownUser,
+    PeriodBreakdown,
+    ReconciliationResult,
+)
+
+log = structlog.get_logger()
+
+
+# ── HMAC signing ──────────────────────────────────────────────────────────────
+
+
+def sign_snapshot(data: dict[str, Any], key: str) -> str:
+    """HMAC-SHA256 of canonical JSON (sort_keys=True). Returns hex string."""
+    body = json.dumps(data, sort_keys=True, default=str).encode()
+    return hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+
+
+# ── Period cost ───────────────────────────────────────────────────────────────
+
+
+async def get_period_total_cost(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    period_start: Any,
+    period_end: Any,
+) -> Decimal:
+    """SUM(provider_calls.cost_usd) for the date range."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+            ProviderCall.cost_usd.is_not(None),
+        )
+    )
+    return result.scalar_one() or Decimal(0)
+
+
+# ── Reconciliation ────────────────────────────────────────────────────────────
+
+
+async def run_reconciliation(
+    db: AsyncSession,
+    billing_period_id: uuid.UUID,
+) -> ReconciliationResult:
+    """
+    Cross-check provider_calls vs usage_daily for consistency.
+
+    1. Fetch period dates + workspace_id
+    2. Sum provider_calls.cost_usd (source of truth)
+    3. Sum usage_daily.cost_usd for same date range
+    4. delta_pct = abs(calls_sum - daily_sum) / calls_sum * 100
+    5. Count orphaned calls (no matching agent_run)
+    6. Count duplicate calls (same run_id, model, second-truncated timestamp)
+    """
+    period_result = await db.execute(
+        select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError(f"BillingPeriod {billing_period_id} not found")
+
+    workspace_id = period.workspace_id
+    period_start = period.period_start
+    period_end = period.period_end
+
+    # Sum from provider_calls
+    calls_result = await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+            ProviderCall.cost_usd.is_not(None),
+        )
+    )
+    calls_sum: Decimal = calls_result.scalar_one() or Decimal(0)
+
+    # Sum from usage_daily
+    daily_result = await db.execute(
+        select(func.coalesce(func.sum(UsageDaily.cost_usd), Decimal(0))).where(
+            UsageDaily.workspace_id == workspace_id,
+            UsageDaily.day >= period_start,
+            UsageDaily.day <= period_end,
+        )
+    )
+    daily_sum: Decimal = daily_result.scalar_one() or Decimal(0)
+
+    # Delta percentage
+    if calls_sum > 0:
+        delta_pct = abs(calls_sum - daily_sum) / calls_sum * 100
+    else:
+        delta_pct = Decimal(0)
+
+    # Count orphaned calls (LEFT JOIN agent_runs WHERE agent_runs.id IS NULL)
+    orphan_result = await db.execute(
+        select(func.count(ProviderCall.id))
+        .outerjoin(AgentRun, ProviderCall.run_id == AgentRun.id)
+        .where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+            AgentRun.id.is_(None),
+        )
+    )
+    orphaned_calls: int = orphan_result.scalar_one() or 0
+
+    # Count duplicates: same (run_id, model, date_trunc('second', created_at))
+    dup_subq = (
+        select(
+            ProviderCall.run_id,
+            ProviderCall.model,
+            func.date_trunc("second", ProviderCall.created_at).label("ts_second"),
+            func.count().label("cnt"),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+        )
+        .group_by(
+            ProviderCall.run_id,
+            ProviderCall.model,
+            func.date_trunc("second", ProviderCall.created_at),
+        )
+        .having(func.count() > 1)
+        .subquery()
+    )
+    dup_result = await db.execute(select(func.count()).select_from(dup_subq))
+    duplicate_calls: int = dup_result.scalar_one() or 0
+
+    issues: list[str] = []
+    recon_status = "pass"
+
+    if delta_pct > Decimal("0.01"):
+        issues.append(
+            f"Cost delta {delta_pct:.4f}% exceeds 0.01% threshold "
+            f"(calls={calls_sum}, daily={daily_sum})"
+        )
+        recon_status = "fail"
+    if orphaned_calls > 0:
+        issues.append(f"{orphaned_calls} orphaned provider_call(s) with no matching agent_run")
+        recon_status = "fail"
+    if duplicate_calls > 0:
+        issues.append(f"{duplicate_calls} duplicate provider_call group(s) detected")
+        recon_status = "fail"
+
+    log.info(
+        "reconciliation_complete",
+        period_id=str(billing_period_id),
+        status=recon_status,
+        calls_sum=str(calls_sum),
+        daily_sum=str(daily_sum),
+        delta_pct=str(delta_pct),
+        orphaned=orphaned_calls,
+        duplicates=duplicate_calls,
+    )
+
+    return ReconciliationResult(
+        period_id=str(billing_period_id),
+        status=recon_status,
+        provider_calls_sum=calls_sum,
+        usage_daily_sum=daily_sum,
+        delta_pct=delta_pct,
+        orphaned_calls=orphaned_calls,
+        duplicate_calls=duplicate_calls,
+        issues=issues,
+    )
+
+
+# ── Close billing period ──────────────────────────────────────────────────────
+
+
+async def close_billing_period(
+    db: AsyncSession,
+    billing_period_id: uuid.UUID,
+) -> UsageSnapshot:
+    """
+    Close a billing period, compute final cost, build + sign a usage snapshot.
+
+    1. Check status != 'closed' → raise ValueError if already closed
+    2. SET status='closing'
+    3. Compute total from provider_calls
+    4. Build snapshot_data with by_model breakdown
+    5. Sign and create UsageSnapshot
+    6. Update BillingPeriod: status='closed', closed_at=now()
+    7. Commit + return snapshot
+    """
+    period_result = await db.execute(
+        select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError(f"BillingPeriod {billing_period_id} not found")
+    if period.status == "closed":
+        raise ValueError("already_closed")
+
+    # Mark as closing
+    await db.execute(
+        update(BillingPeriod)
+        .where(BillingPeriod.id == billing_period_id)
+        .values(status="closing")
+    )
+
+    workspace_id = period.workspace_id
+    period_start = period.period_start
+    period_end = period.period_end
+
+    # Total cost
+    total_cost = await get_period_total_cost(db, workspace_id, period_start, period_end)
+
+    # By-model breakdown
+    model_rows_result = await db.execute(
+        select(
+            ProviderCall.model,
+            ProviderCall.provider,
+            func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("input_tokens"),
+            func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("output_tokens"),
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost_usd"),
+            func.count(ProviderCall.id).label("call_count"),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+        )
+        .group_by(ProviderCall.model, ProviderCall.provider)
+    )
+    model_rows = model_rows_result.all()
+
+    now = datetime.now(UTC)
+    snapshot_data: dict[str, Any] = {
+        "period_id": str(billing_period_id),
+        "workspace_id": str(workspace_id),
+        "period_start": str(period_start),
+        "period_end": str(period_end),
+        "total_cost_usd": str(total_cost),
+        "closed_at": now.isoformat(),
+        "by_model": [
+            {
+                "model": row.model,
+                "provider": row.provider,
+                "input_tokens": row.input_tokens,
+                "output_tokens": row.output_tokens,
+                "cost_usd": str(row.cost_usd),
+                "call_count": row.call_count,
+            }
+            for row in model_rows
+        ],
+    }
+
+    sig = sign_snapshot(snapshot_data, settings.secret_key)
+
+    snapshot = UsageSnapshot(
+        billing_period_id=billing_period_id,
+        snapshot_data=snapshot_data,
+        signature=sig,
+        signing_key_id="v1",
+    )
+    db.add(snapshot)
+    await db.flush()  # get snapshot.id + created_at
+
+    # Close the period
+    await db.execute(
+        update(BillingPeriod)
+        .where(BillingPeriod.id == billing_period_id)
+        .values(
+            status="closed",
+            total_cost_usd=total_cost,
+            snapshot_hash=sig[:16],
+            closed_at=now,
+        )
+    )
+    await db.commit()
+    await db.refresh(snapshot)
+
+    log.info(
+        "billing_period_closed",
+        period_id=str(billing_period_id),
+        total_cost_usd=str(total_cost),
+        snapshot_id=str(snapshot.id),
+    )
+
+    return snapshot
+
+
+# ── Breakdown ─────────────────────────────────────────────────────────────────
+
+
+async def get_period_breakdown(
+    db: AsyncSession,
+    billing_period_id: uuid.UUID,
+) -> PeriodBreakdown:
+    """
+    GROUP BY application_id, end_user_id from provider_calls JOIN agent_runs.
+    Build nested BreakdownApp → BreakdownUser structure.
+    """
+    period_result = await db.execute(
+        select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError(f"BillingPeriod {billing_period_id} not found")
+
+    workspace_id = period.workspace_id
+    period_start = period.period_start
+    period_end = period.period_end
+
+    rows_result = await db.execute(
+        select(
+            AgentRun.application_id,
+            ProviderCall.end_user_id,
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost_usd"),
+            func.count(func.distinct(AgentRun.id)).label("run_count"),
+        )
+        .join(AgentRun, ProviderCall.run_id == AgentRun.id)
+        .where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+        )
+        .group_by(AgentRun.application_id, ProviderCall.end_user_id)
+    )
+    rows = rows_result.all()
+
+    # Group into app → users
+    apps: dict[str | None, dict[str, Any]] = {}
+    total_cost = Decimal(0)
+
+    for row in rows:
+        app_key = str(row.application_id) if row.application_id else None
+        if app_key not in apps:
+            apps[app_key] = {"cost_usd": Decimal(0), "users": []}
+        user_cost = row.cost_usd or Decimal(0)
+        apps[app_key]["cost_usd"] += user_cost
+        total_cost += user_cost
+        apps[app_key]["users"].append(
+            BreakdownUser(
+                end_user_id=row.end_user_id,
+                cost_usd=user_cost,
+                run_count=row.run_count,
+            )
+        )
+
+    by_application = [
+        BreakdownApp(
+            application_id=app_id,
+            cost_usd=app_data["cost_usd"],
+            users=app_data["users"],
+        )
+        for app_id, app_data in apps.items()
+    ]
+
+    return PeriodBreakdown(
+        period_id=str(billing_period_id),
+        total_cost_usd=total_cost,
+        by_application=by_application,
+    )
+
+
+# ── Export CSV ────────────────────────────────────────────────────────────────
+
+
+async def export_csv(db: AsyncSession, billing_period_id: uuid.UUID) -> str:
+    """
+    Columns: date, end_user_id, model, input_tokens, output_tokens, cost_usd, run_id
+    Query provider_calls LEFT JOIN agent_runs for the period date range.
+    """
+    period_result = await db.execute(
+        select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError(f"BillingPeriod {billing_period_id} not found")
+
+    rows_result = await db.execute(
+        select(
+            func.date(ProviderCall.created_at).label("date"),
+            ProviderCall.end_user_id,
+            ProviderCall.model,
+            ProviderCall.input_tokens,
+            ProviderCall.output_tokens,
+            ProviderCall.cost_usd,
+            ProviderCall.run_id,
+        )
+        .where(
+            ProviderCall.workspace_id == period.workspace_id,
+            func.date(ProviderCall.created_at) >= period.period_start,
+            func.date(ProviderCall.created_at) <= period.period_end,
+        )
+        .order_by(func.date(ProviderCall.created_at), ProviderCall.end_user_id)
+    )
+    rows = rows_result.all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        ["date", "end_user_id", "model", "input_tokens", "output_tokens", "cost_usd", "run_id"]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.date,
+                row.end_user_id or "",
+                row.model,
+                row.input_tokens or 0,
+                row.output_tokens or 0,
+                str(row.cost_usd) if row.cost_usd is not None else "",
+                str(row.run_id),
+            ]
+        )
+
+    return buf.getvalue()
+
+
+# ── Export signed JSON ────────────────────────────────────────────────────────
+
+
+async def export_signed_json(
+    db: AsyncSession,
+    billing_period_id: uuid.UUID,
+) -> dict[str, Any]:
+    """
+    Build a signed JSON export with all provider_call rows.
+    Signature covers the full payload (rows included).
+    """
+    period_result = await db.execute(
+        select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError(f"BillingPeriod {billing_period_id} not found")
+
+    rows_result = await db.execute(
+        select(
+            func.date(ProviderCall.created_at).label("date"),
+            ProviderCall.end_user_id,
+            ProviderCall.model,
+            ProviderCall.provider,
+            ProviderCall.input_tokens,
+            ProviderCall.output_tokens,
+            ProviderCall.cost_usd,
+            ProviderCall.run_id,
+        )
+        .where(
+            ProviderCall.workspace_id == period.workspace_id,
+            func.date(ProviderCall.created_at) >= period.period_start,
+            func.date(ProviderCall.created_at) <= period.period_end,
+        )
+        .order_by(func.date(ProviderCall.created_at))
+    )
+    rows = rows_result.all()
+
+    total_cost = sum(
+        (row.cost_usd or Decimal(0) for row in rows),
+        Decimal(0),
+    )
+
+    payload: dict[str, Any] = {
+        "period_id": str(billing_period_id),
+        "period_start": str(period.period_start),
+        "period_end": str(period.period_end),
+        "total_cost_usd": str(total_cost),
+        "rows": [
+            {
+                "date": str(row.date),
+                "end_user_id": row.end_user_id,
+                "model": row.model,
+                "provider": row.provider,
+                "input_tokens": row.input_tokens,
+                "output_tokens": row.output_tokens,
+                "cost_usd": str(row.cost_usd) if row.cost_usd is not None else None,
+                "run_id": str(row.run_id),
+            }
+            for row in rows
+        ],
+        "signing_key_id": "v1",
+    }
+
+    sig = sign_snapshot(payload, settings.secret_key)
+    payload["signature"] = sig
+
+    return payload
+
+
+# ── Chargeback rules ──────────────────────────────────────────────────────────
+
+
+async def apply_chargeback_rules(
+    db: AsyncSession,
+    billing_period_id: uuid.UUID,
+) -> dict[str, Decimal]:
+    """
+    Fetch chargeback_rules for workspace. Multiply period total by each weight.
+    Returns {dimension: allocated_cost_usd} mapping.
+    """
+    period_result = await db.execute(
+        select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError(f"BillingPeriod {billing_period_id} not found")
+
+    total_cost = period.total_cost_usd or Decimal(0)
+
+    rules_result = await db.execute(
+        select(ChargebackRule).where(
+            ChargebackRule.workspace_id == period.workspace_id
+        )
+    )
+    rules: list[ChargebackRule] = list(rules_result.scalars())
+
+    return {rule.dimension: total_cost * rule.weight for rule in rules}

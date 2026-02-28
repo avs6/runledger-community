@@ -226,3 +226,65 @@ export interface Breach {
 export interface BreachList {
   items: Breach[]
 }
+
+// ── Billing ───────────────────────────────────────────────────────────────────
+
+export interface BillingPeriod {
+  id: string
+  period_start: string
+  period_end: string
+  status: 'open' | 'closing' | 'closed'
+  total_cost_usd: string | null
+  snapshot_hash: string | null
+  closed_at: string | null
+  created_at: string
+}
+
+export interface BillingPeriodList {
+  items: BillingPeriod[]
+}
+
+export interface ChargebackRule {
+  id: string
+  allocation_type: 'cost_center' | 'team' | 'env'
+  dimension: string
+  weight: string
+  created_at: string
+}
+
+export interface ReconciliationResult {
+  period_id: string
+  status: 'pass' | 'fail'
+  provider_calls_sum: string
+  usage_daily_sum: string
+  delta_pct: string
+  orphaned_calls: number
+  duplicate_calls: number
+  issues: string[]
+}
+
+export interface BreakdownUser {
+  end_user_id: string | null
+  cost_usd: string
+  run_count: number
+}
+
+export interface BreakdownApp {
+  application_id: string | null
+  cost_usd: string
+  users: BreakdownUser[]
+}
+
+export interface PeriodBreakdown {
+  period_id: string
+  total_cost_usd: string
+  by_application: BreakdownApp[]
+}
+
+export interface UsageSnapshot {
+  id: string
+  billing_period_id: string
+  signature: string
+  signing_key_id: string
+  created_at: string
+}

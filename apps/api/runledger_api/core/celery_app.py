@@ -10,6 +10,7 @@ celery_app = Celery(
         "runledger_api.workers.pipeline",
         "runledger_api.workers.metering",
         "runledger_api.workers.budgets",
+        "runledger_api.workers.billing",
     ],
 )
 
@@ -51,6 +52,16 @@ celery_app.conf.update(
         # Budget spend sync: daily (recovery from Redis eviction)
         "budget-spend-sync-daily": {
             "task": "budgets.budget_spend_sync",
+            "schedule": 86400.0,
+        },
+        # Nightly reconciliation: daily at 00:15 UTC
+        "nightly-reconciliation": {
+            "task": "billing.nightly_reconciliation",
+            "schedule": 86400.0,
+        },
+        # Auto-create billing periods: daily at 00:01 UTC
+        "auto-create-billing-periods": {
+            "task": "billing.auto_create_billing_periods",
             "schedule": 86400.0,
         },
     },

@@ -20,7 +20,9 @@
       "Bash(git push:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(python:*)",
+      "Bash(cat:*)"
     ]
   }
 }
