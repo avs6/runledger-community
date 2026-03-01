@@ -35,29 +35,69 @@ Every team shipping AI agents in production hits the same wall:
 
 **Privacy-first modes** — payload logging off by default. Errors-only / sampled / full opt-in. Deploy safely from day one.
 
----
 
-## Current Status
-
-| Phase | What ships | Status |
-|-------|------------|--------|
-| 0 | Monorepo · infrastructure · health API · CI | ✅ Complete |
-| 1 | Ingestion API · multi-tenancy · API-key auth · event pipeline | ✅ Complete |
-| 2 | SDK — OpenAI wrapper · context propagation · local mode | ✅ Complete |
-| 3 | SDK — LangChain · LangGraph · CLI · example agents | ✅ Complete |
-| 4 | Billing-grade metering · pricing engine · analytics API | ✅ Complete |
-| 5 | Run Explorer + DAG viewer UI (Next.js dashboard) | ✅ Complete |
-| 6 | Metering dashboard (spend by model/user/feature) | ✅ Complete |
-| 7 | Budgets + spend guardrails with automatic actions | ✅ Complete |
-| 8 | Chargeback engine + reconciliation + dispute trail | ✅ Complete |
-| 9 | Unit economics graph + change impact diffs | ✅ Complete |
-| 10 | End-user analytics + replay harness | ✅ Complete |
-| 11 | Tamper-evident ledger + security boundaries + privacy governance | ✅ Complete |
-| 12 | Settings console · API key management · provider pricing · dark mode | ✅ Complete |
-| 14 | Integrations — Slack alerts · analytics export · CI regression gate | ✅ Complete |
-| 16 | Production hardening — rate limiting · PII scrubbing · health probes · UI polish | ✅ Complete |
 
 ---
+
+## Architecture
+
+```mermaid
+flowchart TB
+
+  subgraph LLM["LLM Backends / Providers"]
+    direction LR
+    OAI["OpenAI API"]
+    ANT["Anthropic API"]
+    VLLM["Self-hosted vLLM (OpenAI-compatible)"]
+    OTH["Other Providers (Azure OpenAI, Bedrock, etc.)"]
+  end
+
+  subgraph A["Your Agent App"]
+    direction LR
+    OA["OpenAI SDK"]
+    LC["LangChain / LangGraph"]
+    CT["Custom Tools"]
+    SDK["runledger-sdk (async)\n(batch + non-blocking)"]
+    OA --> SDK
+    LC --> SDK
+    CT --> SDK
+  end
+
+  OA -->|"LLM requests"| OAI
+  LC -->|"LLM requests"| ANT
+  LC -->|"OpenAI-compatible"| VLLM
+  CT -->|"provider adapters"| OTH
+
+  SDK -->|"HTTP batch (non-blocking)"| CA
+
+  subgraph P["RunLedger Platform"]
+    direction TB
+    CA["Collector API (FastAPI)"]
+    RS["Redis Streams\n(event buffer)"]
+    CW["Celery Workers\n- cost enrich\n- hourly rollup\n- data quality"]
+    BA["Business API (FastAPI)"]
+    PG["PostgreSQL 16\n(events, spans, metering, pricing)\n(usage_hourly, usage_daily, budgets)"]
+    RC["Redis (cache)\n(idempotency)"]
+    BE["Budget Enforcement (hot path)\n<5ms p99 spend check"]
+
+    CA --> RS
+    RS --> CW
+    CW --> PG
+    BA --> PG
+    BA <--> RC
+    BA <--> BE
+  end
+
+  subgraph D["RunLedger Dashboard (Next.js 14)"]
+    direction TB
+    UI["Run Explorer / DAG Viewer\nMetering / Budgets / Chargeback"]
+  end
+
+  BA --> D
+```
+
+---
+
 
 ## Setup from Scratch
 
@@ -608,54 +648,6 @@ No prompts or completions are sent unless you opt in to `PrivacyMode.FULL`.
 
 Add a new model by inserting a row into `provider_pricing` — no code change required.
 
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Your Agent App                          │
-│  ┌──────────────┐  ┌────────────────┐  ┌────────────────┐   │
-│  │ OpenAI SDK   │  │ LangChain/Graph│  │  Custom Tools  │   │
-│  └──────┬───────┘  └───────┬────────┘  └───────┬────────┘   │
-│         └──────────────────┼───────────────────┘            │
-│                   runledger-sdk (async)                     │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ HTTP batch (non-blocking)
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    RunLedger Platform                       │
-│                                                             │
-│  ┌────────────────┐    ┌──────────────────────────────────┐ │
-│  │  Collector API │──▶ │  Redis Streams (event buffer)     │ 
-│  │  (FastAPI)     │    └──────────────┬───────────────────┘ │
-│  └────────────────┘                  │                      │
-│                             ┌────────▼────────┐             │
-│  ┌────────────────┐         │  Celery Workers   │           │
-│  │  Business API  │         │  · cost enrich    │           │
-│  │  (FastAPI)     │◀───────│  · hourly rollup  │           │
-│  └───────┬────────┘         │  · data quality   │           │
-│          │                  └────────┬──────────┘           │
-│  ┌───────▼────────────────────────────────────┐             │
-│  │              PostgreSQL 16                 │             │
-│  │  events · spans · metering · pricing       │             │
-│  │  usage_hourly · usage_daily · budgets      │             │
-│  └────────────────────────────────────────────┘             │
-│                                                             │
-│  ┌────────────────┐   ┌──────────────────────────────────┐  │
-│  │  Redis (cache) │   │  Budget Enforcement (hot path)   │  │
-│  │  idempotency   │   │  <5ms p99 spend check            │  │
-│  └────────────────┘   └──────────────────────────────────┘  │
-└───────────────────────────────────────────────────────────┬─┘
-                                                            │
-                            ┌───────────────────────────────▼──┐
-                            │        RunLedger Dashboard        │
-                            │        (Next.js 14)               │
-                            │                                   │
-                            │  Run Explorer · DAG Viewer        │
-                            │  Metering · Budgets · Chargeback  │
-                            └───────────────────────────────────┘
-```
 
 ---
 
@@ -923,6 +915,28 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 - Tamper-evident ledger + evidence packs
 - Advanced integrations (Stripe, data warehouse, CI gates)
 - RBAC + SSO (enterprise)
+
+---
+
+## Current Status
+
+| Phase | What ships | Status |
+|-------|------------|--------|
+| 0 | Monorepo · infrastructure · health API · CI | ✅ Complete |
+| 1 | Ingestion API · multi-tenancy · API-key auth · event pipeline | ✅ Complete |
+| 2 | SDK — OpenAI wrapper · context propagation · local mode | ✅ Complete |
+| 3 | SDK — LangChain · LangGraph · CLI · example agents | ✅ Complete |
+| 4 | Billing-grade metering · pricing engine · analytics API | ✅ Complete |
+| 5 | Run Explorer + DAG viewer UI (Next.js dashboard) | ✅ Complete |
+| 6 | Metering dashboard (spend by model/user/feature) | ✅ Complete |
+| 7 | Budgets + spend guardrails with automatic actions | ✅ Complete |
+| 8 | Chargeback engine + reconciliation + dispute trail | ✅ Complete |
+| 9 | Unit economics graph + change impact diffs | ✅ Complete |
+| 10 | End-user analytics + replay harness | ✅ Complete |
+| 11 | Tamper-evident ledger + security boundaries + privacy governance | ✅ Complete |
+| 12 | Settings console · API key management · provider pricing · dark mode | ✅ Complete |
+| 14 | Integrations — Slack alerts · analytics export · CI regression gate | ✅ Complete |
+| 16 | Production hardening — rate limiting · PII scrubbing · health probes · UI polish | ✅ Complete |
 
 ---
 
