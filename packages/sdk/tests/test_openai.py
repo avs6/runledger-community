@@ -172,6 +172,7 @@ def test_instrument_openai_patches_sync_create() -> None:
 
     captured: list[dict[str, Any]] = []
     transport = MagicMock(spec=SyncTransport)
+    transport.budget_check = False
     transport.enqueue = lambda event: captured.append(event)
 
     with pytest.MonkeyPatch().context() as mp:
@@ -218,6 +219,7 @@ def test_instrument_openai_captures_error() -> None:
 
     captured: list[dict[str, Any]] = []
     transport = MagicMock(spec=SyncTransport)
+    transport.budget_check = False
     transport.enqueue = lambda event: captured.append(event)
 
     def failing_create(self: Any, **kwargs: Any) -> Any:

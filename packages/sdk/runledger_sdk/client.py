@@ -7,6 +7,8 @@ LangChain/LangGraph instrumentation: Phase 3.
 
 from __future__ import annotations
 
+import os
+
 from runledger_sdk.context import RunLedgerContext, get_context_snapshot
 from runledger_sdk.transport import SyncTransport, Transport
 
@@ -71,13 +73,24 @@ class RunLedger:
         local: bool = False,
         budget_check: bool = False,
     ) -> None:
+        # Resolve base_url + api_key from env if not provided
+        self.base_url = os.getenv("RUNLEDGER_BASE_URL", base_url)
+
+        if api_key is None:
+            api_key = os.getenv("RUNLEDGER_API_KEY")
+
         self.api_key = api_key
-        self.base_url = base_url
+
+        # local means "print only" — ONLY when explicitly requested
+        env_local = os.getenv("RUNLEDGER_LOCAL", "").lower() in ("1", "true", "yes")
+        self.local = bool(local or env_local)
+
         self.privacy_mode = privacy_mode
-        # local=True → log events to console instead of sending to API
-        self.local = local or api_key is None
-        # budget_check=True → pre-call /budgets/check before each LLM call
         self.budget_check = budget_check
+
+        # If not local, require a key
+        if not self.local and not self.api_key:
+            raise ValueError("RUNLEDGER_API_KEY is required unless local=True")
 
         self._sync_transport: SyncTransport | None = None
         self._async_transport: Transport | None = None
