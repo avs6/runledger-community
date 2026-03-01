@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_admin
+from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import ApiKey, Application, Tenant, Workspace
 from runledger_api.schemas.auth import (
     ApiKeyCreate,
@@ -22,6 +23,11 @@ from runledger_api.schemas.auth import (
     TenantResponse,
     WorkspaceCreate,
     WorkspaceResponse,
+)
+from runledger_api.schemas.providers import (
+    ProviderPricingCreate,
+    ProviderPricingResponse,
+    ProviderPricingUpdate,
 )
 from runledger_api.services.auth import generate_api_key
 
@@ -158,3 +164,64 @@ async def revoke_api_key(key_id: uuid.UUID, db: DbDep) -> None:
     api_key.revoked_at = datetime.now(UTC)
     await db.commit()
     log.info("api_key_revoked", key_id=str(key_id))
+
+
+# ── Global Pricing (admin-only) ────────────────────────────────────────────────
+
+
+@router.post(
+    "/global-pricing", status_code=status.HTTP_201_CREATED, response_model=ProviderPricingResponse
+)
+async def create_global_pricing(body: ProviderPricingCreate, db: DbDep) -> ProviderPricing:
+    pricing = ProviderPricing(
+        workspace_id=None,
+        provider=body.provider,
+        model=body.model,
+        input_cost_per_1m=body.input_cost_per_1m,
+        output_cost_per_1m=body.output_cost_per_1m,
+        cached_input_cost_per_1m=body.cached_input_cost_per_1m,
+        effective_from=body.effective_from or datetime.now(UTC),
+    )
+    db.add(pricing)
+    await db.flush()
+    await db.commit()
+    await db.refresh(pricing)
+    log.info("global_pricing_created", pricing_id=str(pricing.id), provider=pricing.provider)
+    return pricing
+
+
+@router.put("/global-pricing/{pricing_id}", response_model=ProviderPricingResponse)
+async def update_global_pricing(
+    pricing_id: uuid.UUID, body: ProviderPricingUpdate, db: DbDep
+) -> ProviderPricing:
+    pricing = await db.get(ProviderPricing, pricing_id)
+    if pricing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing profile not found")
+    if pricing.workspace_id is not None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Use workspace API for workspace-scoped pricing"
+        )
+    if body.input_cost_per_1m is not None:
+        pricing.input_cost_per_1m = body.input_cost_per_1m
+    if body.output_cost_per_1m is not None:
+        pricing.output_cost_per_1m = body.output_cost_per_1m
+    if body.cached_input_cost_per_1m is not None:
+        pricing.cached_input_cost_per_1m = body.cached_input_cost_per_1m
+    await db.commit()
+    await db.refresh(pricing)
+    log.info("global_pricing_updated", pricing_id=str(pricing_id))
+    return pricing
+
+
+@router.delete("/global-pricing/{pricing_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_global_pricing(pricing_id: uuid.UUID, db: DbDep) -> None:
+    pricing = await db.get(ProviderPricing, pricing_id)
+    if pricing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing profile not found")
+    if pricing.workspace_id is not None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Use workspace API for workspace-scoped pricing"
+        )
+    await db.delete(pricing)
+    await db.commit()
+    log.info("global_pricing_deleted", pricing_id=str(pricing_id))

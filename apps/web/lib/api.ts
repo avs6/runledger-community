@@ -648,3 +648,38 @@ export async function createAdminWorkspace(
     body: JSON.stringify(body),
   })
 }
+
+export async function createGlobalPricing(
+  adminSecret: string,
+  body: {
+    provider: string
+    model: string
+    input_cost_per_1m: string
+    output_cost_per_1m: string
+    cached_input_cost_per_1m?: string | null
+  }
+): Promise<ProviderPricingResponse> {
+  return adminFetch<ProviderPricingResponse>('/admin/global-pricing', adminSecret, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateGlobalPricing(
+  adminSecret: string,
+  pricingId: string,
+  body: {
+    input_cost_per_1m?: string
+    output_cost_per_1m?: string
+    cached_input_cost_per_1m?: string | null
+  }
+): Promise<ProviderPricingResponse> {
+  return adminFetch<ProviderPricingResponse>(`/admin/global-pricing/${pricingId}`, adminSecret, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteGlobalPricing(adminSecret: string, pricingId: string): Promise<void> {
+  await adminFetch<void>(`/admin/global-pricing/${pricingId}`, adminSecret, { method: 'DELETE' })
+}

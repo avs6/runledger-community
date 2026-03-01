@@ -13,6 +13,9 @@ import {
   createProviderPricing,
   updateProviderPricing,
   deleteProviderPricing,
+  createGlobalPricing,
+  updateGlobalPricing,
+  deleteGlobalPricing,
   testSlackWebhook,
   getCapturePolicy,
   upsertCapturePolicy,
@@ -24,6 +27,7 @@ import {
 
 interface EditState {
   id: string
+  isGlobal: boolean
   input: string
   output: string
   cached: string
@@ -187,6 +191,7 @@ export default function SettingsPage() {
   function startEdit(p: ProviderPricingResponse) {
     setEditState({
       id: p.id,
+      isGlobal: !p.workspace_id,
       input: parseFloat(p.input_cost_per_1m).toString(),
       output: parseFloat(p.output_cost_per_1m).toString(),
       cached: p.cached_input_cost_per_1m ? parseFloat(p.cached_input_cost_per_1m).toString() : '',
@@ -194,14 +199,17 @@ export default function SettingsPage() {
   }
 
   async function handleSaveEdit() {
-    if (!apiKey || !editState) return
+    if (!editState) return
     setSavingEdit(true)
     try {
-      const updated = await updateProviderPricing(apiKey, editState.id, {
+      const body = {
         input_cost_per_1m: editState.input,
         output_cost_per_1m: editState.output,
         cached_input_cost_per_1m: editState.cached.trim() || null,
-      })
+      }
+      const updated = editState.isGlobal
+        ? await updateGlobalPricing(adminSecret, editState.id, body)
+        : await updateProviderPricing(apiKey!, editState.id, body)
       setPricing((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
       setEditState(null)
       toast.success('Provider profile updated')
@@ -213,11 +221,14 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleDeletePricing(pricingId: string) {
-    if (!apiKey) return
+  async function handleDeletePricing(pricingId: string, isGlobal: boolean) {
     if (!confirm('Delete this pricing profile?')) return
     try {
-      await deleteProviderPricing(apiKey, pricingId)
+      if (isGlobal) {
+        await deleteGlobalPricing(adminSecret, pricingId)
+      } else {
+        await deleteProviderPricing(apiKey!, pricingId)
+      }
       setPricing((prev) => prev.filter((p) => p.id !== pricingId))
       toast.success('Provider profile deleted')
     } catch (err) {
@@ -599,17 +610,17 @@ export default function SettingsPage() {
                       </td>
                       <td className="px-4 py-2">
                         {isOwned ? (
-                          <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                          <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
                             workspace
                           </span>
                         ) : (
-                          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                             global
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        {isOwned && (
+                        {(isOwned || adminAuthed) ? (
                           <div className="flex items-center justify-end gap-3">
                             {isEditing ? (
                               <>
@@ -636,7 +647,7 @@ export default function SettingsPage() {
                                   Edit
                                 </button>
                                 <button
-                                  onClick={() => handleDeletePricing(p.id)}
+                                  onClick={() => handleDeletePricing(p.id, !isOwned)}
                                   className="text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400"
                                 >
                                   Delete
@@ -644,6 +655,10 @@ export default function SettingsPage() {
                               </>
                             )}
                           </div>
+                        ) : (
+                          <span className="text-xs text-gray-300 dark:text-gray-600" title="Authenticate as admin (Tenant Management section) to edit global profiles">
+                            admin only
+                          </span>
                         )}
                       </td>
                     </tr>
