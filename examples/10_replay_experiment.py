@@ -19,11 +19,18 @@ A running RunLedger stack with at least one instrumented run:
 
     docker compose -f infra/docker-compose.yml up -d
 
-    export RUNLEDGER_API_KEY=rl_dev_...
+Install
+───────
+    pip install httpx python-dotenv
 
-Usage
-─────
-    python examples/10_replay_experiment.py
+Run it
+──────
+    # Copy .env.example → .env and fill in your values, then:
+    python 10_replay_experiment.py
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
 """
 
 from __future__ import annotations
@@ -32,12 +39,15 @@ import os
 import time
 
 import httpx
+from dotenv import load_dotenv
 
-API_URL = os.getenv("RUNLEDGER_API_URL", "http://localhost:8000")
+load_dotenv()
+
+API_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
-    raise SystemExit("Set RUNLEDGER_API_KEY before running this example.")
+    raise SystemExit("Set RUNLEDGER_API_KEY in .env before running this example.")
 
 HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 

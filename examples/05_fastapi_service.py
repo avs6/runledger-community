@@ -18,34 +18,44 @@ Option B — directly from GitHub (no clone needed):
     pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 
 Also install:
-    pip install openai fastapi uvicorn
+    pip install openai fastapi uvicorn python-dotenv
 
 Run it
 ──────
-    export OPENAI_API_KEY=sk-...
-
-    # Against a local RunLedger stack (docker compose up)
-    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
-    uvicorn examples.05_fastapi_service:app --reload
+    # Copy .env.example → .env and fill in your values, then:
+    uvicorn 05_fastapi_service:app --reload
 
     curl -X POST http://localhost:8000/chat \\
          -H "Content-Type: application/json" \\
          -H "X-User-Id: user-eve" \\
          -d '{"message": "What is Python?"}'
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY    — your workspace API key
+    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
+    OPENAI_API_KEY       — your OpenAI key
 """
 
 from __future__ import annotations
 
+import os
+
 import openai
-from fastapi import FastAPI, Header, Request
+from dotenv import load_dotenv
+from fastapi import FastAPI, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from runledger_sdk import RunLedger
 
+load_dotenv()
+
+LOCAL_MODE = os.getenv("RUNLEDGER_LOCAL", "false").lower() in ("1", "true", "yes")
+
 app = FastAPI(title="RunLedger FastAPI Demo")
 
-rl = RunLedger(local=True)  # set local=False + RUNLEDGER_API_KEY for live API
+rl = RunLedger(local=LOCAL_MODE)
 rl.instrument()
 
 openai_client = openai.AsyncOpenAI()

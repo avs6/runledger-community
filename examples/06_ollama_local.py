@@ -27,23 +27,26 @@ Option B — directly from GitHub (no clone needed):
     pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 
 Also install:
-    pip install openai   # used as the HTTP client against Ollama's API
+    pip install openai python-dotenv
 
 Run it
 ──────
-    # Against a local RunLedger stack (docker compose up)
-    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
-    python examples/06_ollama_local.py
+    # Copy .env.example → .env and fill in your values, then:
+    python 06_ollama_local.py
 
-    # Or print events to stdout only (no RunLedger stack needed)
-    python examples/06_ollama_local.py --local
+Key .env variables used here:
+    RUNLEDGER_API_KEY    — your workspace API key
+    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
+    OLLAMA_BASE_URL      — http://localhost:11434/v1
+    OLLAMA_MODEL         — e.g. llama3.2
 
 Note on cost_usd
 ────────────────
 Local models have no pricing row in RunLedger so cost_usd will be NULL.
-To add one, insert a row into provider_pricing via the API or seed script:
+To add one, use the settings page or POST /providers/pricing:
 
-    curl -X POST http://localhost:8000/provider-pricing \\
+    curl -X POST http://localhost:8000/providers/pricing \\
          -H "Authorization: Bearer $RUNLEDGER_API_KEY" \\
          -H "Content-Type: application/json" \\
          -d '{
@@ -59,24 +62,33 @@ local models even when there's no dollar cost.
 
 from __future__ import annotations
 
-import sys
+import os
 
 import openai
+from dotenv import load_dotenv
 
 from runledger_sdk import RunLedger
 
+load_dotenv()
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
-OLLAMA_BASE_URL = "http://localhost:11434/v1"
-MODEL = "llama3.2"  # change to whichever model you have pulled
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
-use_local_mode = "--local" in sys.argv
+# RUNLEDGER_LOCAL=true  → prints events as JSON to stdout (no running API needed)
+# RUNLEDGER_LOCAL=false → sends events to your RunLedger container
+LOCAL_MODE = os.getenv("RUNLEDGER_LOCAL", "false").lower() in ("1", "true", "yes")
+
+print(f"Ollama base URL : {OLLAMA_BASE_URL}")
+print(f"Ollama model    : {MODEL}")
+print(f"RunLedger URL   : {os.getenv('RUNLEDGER_BASE_URL', 'http://localhost:8000')}")
+print(f"Local mode      : {LOCAL_MODE}")
 
 # ── 1. RunLedger client ───────────────────────────────────────────────────────
 #
-# local=True  → prints events as JSON to stdout, no API key needed
-# local=False → sends to RunLedger API (set RUNLEDGER_API_KEY env var)
-rl = RunLedger(local=use_local_mode)
+# Reads RUNLEDGER_API_KEY and RUNLEDGER_BASE_URL from .env automatically.
+rl = RunLedger(local=LOCAL_MODE)
 
 # ── 2. Instrument — patches openai.OpenAI so every call is captured ───────────
 rl.instrument()

@@ -16,25 +16,24 @@ A running RunLedger stack with some data:
 
 Then run a few example agents first so there's data to query:
 
-    export OPENAI_API_KEY=sk-...
-    python examples/01_openai_basic.py
-    python examples/02_openai_multi_turn.py
+    python 01_openai_basic.py
+    python 02_openai_multi_turn.py
 
-Install the SDK (not on PyPI yet — install from source)
-────────────────────────────────────────────────────────
-Option A — local path (recommended if you have the repo):
-    pip install -e "/path/to/runledger/packages/sdk"
-
-Option B — directly from GitHub (no clone needed):
-    pip install "runledger-sdk @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+Install
+───────
+    pip install httpx python-dotenv
 
 Run it
 ──────
-    export RUNLEDGER_API_KEY=rl_dev_...   # from docker compose logs api
-    python examples/07_analytics_query.py
+    # Copy .env.example → .env and fill in your values, then:
+    python 07_analytics_query.py
 
     # Custom time window (ISO-8601)
-    python examples/07_analytics_query.py --from 2026-01-01T00:00:00Z --to 2026-01-31T23:59:59Z
+    python 07_analytics_query.py --from 2026-01-01T00:00:00Z --to 2026-01-31T23:59:59Z
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
 """
 
 from __future__ import annotations
@@ -46,16 +45,19 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("RUNLEDGER_API_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
     print(
         "Error: RUNLEDGER_API_KEY is not set.\n"
-        "Run: docker compose -f infra/docker-compose.yml logs api | grep 'API Key'",
+        "Copy .env.example → .env and set RUNLEDGER_API_KEY.",
         file=sys.stderr,
     )
     sys.exit(1)

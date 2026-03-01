@@ -10,6 +10,19 @@ Demonstrates:
 5. GET  /tools/registry             — list tool registry
 6. GET  /tools/security-events      — list events (empty unless worker ran)
 7. PUT  /privacy/capture-policy     — set privacy mode to METADATA_ONLY
+
+Install
+───────
+    pip install httpx python-dotenv
+
+Run it
+──────
+    # Copy .env.example → .env and fill in your values, then:
+    python 11_ledger_verify.py
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
 """
 
 from __future__ import annotations
@@ -18,12 +31,15 @@ import os
 import sys
 
 import httpx
+from dotenv import load_dotenv
 
-API_URL = os.getenv("RUNLEDGER_API_URL", "http://localhost:8000")
+load_dotenv()
+
+API_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
-    print("Set RUNLEDGER_API_KEY env var to a valid workspace API key.")
+    print("Set RUNLEDGER_API_KEY in .env to a valid workspace API key.")
     sys.exit(1)
 
 

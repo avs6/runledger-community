@@ -16,22 +16,23 @@ A running RunLedger stack:
 
     docker compose -f infra/docker-compose.yml up -d
 
-Install the SDK (not on PyPI yet — install from source)
-────────────────────────────────────────────────────────
-Option A — local path (recommended if you have the repo):
-    pip install -e "/path/to/runledger/packages/sdk"
-
-Option B — directly from GitHub (no clone needed):
-    pip install "runledger-sdk @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+Install
+───────
+    pip install httpx python-dotenv
+    pip install -e "/path/to/runledger/packages/sdk[openai]"
 
 Run it
 ──────
-    export RUNLEDGER_API_KEY=rl_dev_...   # from docker compose logs api
-    export OPENAI_API_KEY=sk-...
-    python examples/08_budget_enforcement.py
+    # Copy .env.example → .env and fill in your values, then:
+    python 08_budget_enforcement.py
 
     # Use a custom user ID and limit
-    python examples/08_budget_enforcement.py --user alice --limit 0.05
+    python 08_budget_enforcement.py --user alice --limit 0.05
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+    OPENAI_API_KEY      — your OpenAI key
 """
 
 from __future__ import annotations
@@ -43,24 +44,19 @@ import time
 from decimal import Decimal
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("RUNLEDGER_API_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 if not API_KEY:
     print(
         "Error: RUNLEDGER_API_KEY is not set.\n"
-        "Run: docker compose -f infra/docker-compose.yml logs api | grep 'API Key'",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-if not OPENAI_API_KEY:
-    print(
-        "Error: OPENAI_API_KEY is not set.",
+        "Copy .env.example → .env and set RUNLEDGER_API_KEY.",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -150,36 +146,34 @@ def run_llm_calls(user_id: str, max_calls: int = 20) -> tuple[int, str | None]:
 
     Returns (calls_succeeded, budget_id_that_blocked).
     """
+    import openai
+
     from runledger_sdk import RunLedger, RunLedgerBudgetExceededError
-    from runledger_sdk.openai import patch as rl_patch
 
     rl = RunLedger(
-        api_key=API_KEY,
-        api_url=BASE_URL,
-        budget_check=True,       # enable pre-call budget enforcement
-        default_end_user_id=user_id,
-        default_feature_tag="budget-demo",
+        base_url=BASE_URL,
+        budget_check=True,  # enable pre-call budget enforcement
     )
+    rl.instrument()
 
-    import openai
-    client = openai.OpenAI(api_key=OPENAI_API_KEY)
-    rl_patch(client, rl)         # wrap client with RunLedger instrumentation
+    client = openai.OpenAI()
 
     succeeded = 0
     blocked_by: str | None = None
 
     for i in range(1, max_calls + 1):
         try:
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"Say 'call {i} ok' and nothing else.",
-                    }
-                ],
-                max_tokens=10,
-            )
+            with rl.context(end_user_id=user_id, feature_tag="budget-demo"):
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": f"Say 'call {i} ok' and nothing else.",
+                        }
+                    ],
+                    max_tokens=10,
+                )
             text = resp.choices[0].message.content or ""
             print(f"  Call {i:>2}: {text.strip()}")
             succeeded += 1
@@ -194,9 +188,9 @@ def run_llm_calls(user_id: str, max_calls: int = 20) -> tuple[int, str | None]:
             break
 
         # Small delay so the metering worker can write cost_usd between calls
-        # (the INCRBYFLOAT happens after the worker enriches each call)
         time.sleep(0.3)
 
+    rl.shutdown()
     return succeeded, blocked_by
 
 

@@ -7,8 +7,19 @@ Demonstrates:
   3. GET  /analytics/export?format=csv   — save to export.csv
   4. GET  /analytics/regressions         — print regressions (same data as check-regression CLI)
 
-Run with:
-    RUNLEDGER_API_KEY=rl_test_... python examples/13_integrations.py
+Install
+───────
+    pip install httpx python-dotenv
+
+Run it
+──────
+    # Copy .env.example → .env and fill in your values, then:
+    python 13_integrations.py
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+    SLACK_WEBHOOK_URL   — optional; Slack Incoming Webhook URL for step 1
 """
 
 from __future__ import annotations
@@ -17,6 +28,9 @@ import os
 import sys
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")

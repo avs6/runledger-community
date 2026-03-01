@@ -17,26 +17,34 @@ Option B — directly from GitHub (no clone needed):
     pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 
 Also install:
-    pip install openai
+    pip install openai python-dotenv
 
 Run it
 ──────
-    export OPENAI_API_KEY=sk-...
+    # Copy .env.example → .env and fill in your values, then:
+    python 02_openai_multi_turn.py
 
-    # Against a local RunLedger stack (docker compose up)
-    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
-    python examples/02_openai_multi_turn.py
-
-    # Or set local=True in the script below to print events to stdout
+Key .env variables used here:
+    RUNLEDGER_API_KEY    — your workspace API key
+    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
+    OPENAI_API_KEY       — your OpenAI key
 """
 
 from __future__ import annotations
 
+import os
+
 import openai
+from dotenv import load_dotenv
 
 from runledger_sdk import RunLedger
 
-rl = RunLedger(local=True)  # set local=False + RUNLEDGER_API_KEY for live API
+load_dotenv()
+
+LOCAL_MODE = os.getenv("RUNLEDGER_LOCAL", "false").lower() in ("1", "true", "yes")
+
+rl = RunLedger(local=LOCAL_MODE)
 rl.instrument()
 
 client = openai.OpenAI()

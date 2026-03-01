@@ -19,16 +19,11 @@ A running RunLedger stack with some instrumented runs:
 
 Then send some runs with deployment_version tags:
 
-    export RUNLEDGER_API_KEY=rl_dev_...
-    export OPENAI_API_KEY=sk-...
-
     # Tag some runs as v1
     python -c "
-    from runledger_sdk import RunLedger
-    rl = RunLedger(api_key='rl_dev_...')
+    import os; from runledger_sdk import RunLedger; rl = RunLedger()
     rl.instrument()
-    import openai
-    client = openai.OpenAI()
+    import openai; client = openai.OpenAI()
     for _ in range(3):
         with rl.context(deployment_version='v1', feature_tag='chat'):
             client.chat.completions.create(model='gpt-4o-mini',
@@ -38,11 +33,9 @@ Then send some runs with deployment_version tags:
 
     # Tag some runs as v2
     python -c "
-    from runledger_sdk import RunLedger
-    rl = RunLedger(api_key='rl_dev_...')
+    import os; from runledger_sdk import RunLedger; rl = RunLedger()
     rl.instrument()
-    import openai
-    client = openai.OpenAI()
+    import openai; client = openai.OpenAI()
     for _ in range(3):
         with rl.context(deployment_version='v2', feature_tag='chat'):
             client.chat.completions.create(model='gpt-4o',
@@ -50,12 +43,21 @@ Then send some runs with deployment_version tags:
     rl.shutdown()
     "
 
-Then run this example:
+Install
+───────
+    pip install httpx python-dotenv
 
-    python examples/09_economics_query.py
+Run it
+──────
+    # Copy .env.example → .env and fill in your values, then:
+    python 09_economics_query.py
 
     # With specific run ID and versions
-    python examples/09_economics_query.py --run-id <run_uuid> --baseline v1 --comparison v2
+    python 09_economics_query.py --run-id <run_uuid> --baseline v1 --comparison v2
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
 """
 
 from __future__ import annotations
@@ -66,16 +68,19 @@ import sys
 from datetime import UTC, date, datetime, timedelta
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("RUNLEDGER_API_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
     print(
         "Error: RUNLEDGER_API_KEY is not set.\n"
-        "Run: docker compose -f infra/docker-compose.yml logs api | grep 'API Key'",
+        "Copy .env.example → .env and set RUNLEDGER_API_KEY.",
         file=sys.stderr,
     )
     sys.exit(1)

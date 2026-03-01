@@ -53,6 +53,9 @@ Every team shipping AI agents in production hits the same wall:
 | 9 | Unit economics graph + change impact diffs | ✅ Complete |
 | 10 | End-user analytics + replay harness | ✅ Complete |
 | 11 | Tamper-evident ledger + security boundaries + privacy governance | ✅ Complete |
+| 12 | Settings console · API key management · provider pricing · dark mode | ✅ Complete |
+| 14 | Integrations — Slack alerts · analytics export · CI regression gate | ✅ Complete |
+| 16 | Production hardening — rate limiting · PII scrubbing · health probes · UI polish | ✅ Complete |
 
 ---
 
@@ -124,9 +127,16 @@ docker compose -f infra/docker-compose.yml logs api
 |-----|------------|
 | `http://localhost:3000` | Dashboard — Run Explorer + DAG viewer |
 | `http://localhost:8000/docs` | Interactive API docs (Swagger UI) |
-| `http://localhost:8000/health` | Health check — shows DB + Redis status |
+| `http://localhost:8000/health` | Combined health check — DB + Redis status |
+| `http://localhost:8000/health/live` | Liveness probe — always 200 if process is up |
+| `http://localhost:8000/health/ready` | Readiness probe — 503 if DB or Redis unreachable |
 
 Sign in at `http://localhost:3000` with `admin@runledger.local` / `runledger`.
+
+**Admin secret** — the Settings page at `http://localhost:3000/settings` lets you manage
+tenants. The admin secret for the local stack is `runledger-admin` (set via `ADMIN_SECRET`
+in `infra/docker-compose.yml`). The field is pre-filled if you copy `apps/web/.env.local.example`
+to `apps/web/.env.local`.
 
 ---
 
@@ -144,24 +154,31 @@ uv sync --all-packages
 
 **2. Set environment variables**
 
-Create `apps/api/.env` (or export in your shell):
+Copy the example env files:
 
 ```bash
+cp apps/api/.env.example        apps/api/.env
+cp apps/web/.env.local.example  apps/web/.env.local
+```
+
+Key variables in `apps/api/.env`:
+
+```ini
 DATABASE_URL=postgresql+asyncpg://runledger:runledger@localhost:5432/runledger
 REDIS_URL=redis://localhost:6379/0
 SECRET_KEY=dev-secret-key-change-in-production
+ADMIN_SECRET=runledger-admin      # used for /admin/* endpoints and the Settings page
 ENVIRONMENT=development
 ```
 
-Create `apps/web/.env.local`:
+Key variables in `apps/web/.env.local`:
 
-```bash
+```ini
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=dev-secret-change-in-production-32chars!!
 NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_ADMIN_SECRET=runledger-admin   # pre-fills the admin secret field in Settings
 ```
-
-Example files are at `apps/api/.env.example` and `apps/web/.env.local.example`.
 
 **3. Run migrations and seed**
 
@@ -227,6 +244,102 @@ Each extra pulls in the right peer dependencies:
 | `langchain` | `langchain-core>=0.3.0` |
 | `langgraph` | `langchain-core>=0.3.0` + `langgraph>=0.2.0` |
 | `all` | everything above + CLI |
+
+---
+
+## Running the Examples
+
+The `examples/` directory contains 13 runnable scripts covering every major feature.
+There is also a standalone companion repo — [runledger-samples](https://github.com/avs6/runledger-samples) —
+which is an independent Python project you can clone and run without the full monorepo.
+
+### Option A — Run from this repo
+
+**1. Start the infra** (Postgres + Redis + API, from the repo root):
+
+```bash
+make dev-d          # full stack in background (includes dashboard)
+# or just the infrastructure services:
+make dev-infra      # Postgres + Redis only, then run make dev-api in another terminal
+```
+
+**2. Set up the examples environment**:
+
+```bash
+make samples-setup  # creates examples/.venv and installs all deps
+make samples-env    # creates examples/.env from examples/.env.example (if not yet done)
+```
+
+Edit `examples/.env` and set your API key (printed by `make logs-api` on first start):
+
+```ini
+RUNLEDGER_API_KEY=rl_dev_xxxx...
+RUNLEDGER_BASE_URL=http://localhost:8000
+RUNLEDGER_LOCAL=false
+OPENAI_API_KEY=sk-...
+```
+
+**3. Activate the venv and run**:
+
+```bash
+# macOS / Linux
+source examples/.venv/bin/activate
+cd examples
+python 01_openai_basic.py
+
+# Windows (PowerShell)
+examples\.venv\Scripts\Activate.ps1
+cd examples
+python 01_openai_basic.py
+```
+
+### Option B — Use the standalone runledger-samples repo
+
+```bash
+# 1. Clone the samples repo (no need to clone the full monorepo)
+git clone https://github.com/avs6/runledger-samples
+cd runledger-samples
+
+# 2. Create a virtual environment
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
+pip install httpx python-dotenv openai langchain langchain-openai langgraph
+
+# 4. Install the RunLedger SDK (from the main repo or directly from GitHub)
+pip install "runledger-sdk[all] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+
+# 5. Create your .env file
+cp .env.example .env
+# Edit .env: set RUNLEDGER_API_KEY, RUNLEDGER_BASE_URL, OPENAI_API_KEY
+
+# 6. Start the RunLedger infrastructure (from the runledger main repo)
+cd /path/to/runledger
+make dev-d          # or: docker compose -f infra/docker-compose.yml up -d
+
+# 7. Run any example
+cd /path/to/runledger-samples
+python 01_openai_basic.py
+```
+
+### Example index
+
+| # | Script | Feature |
+|---|--------|---------|
+| 01 | `01_openai_basic.py` | Basic OpenAI instrumentation |
+| 02 | `02_openai_multi_turn.py` | Multi-turn chat with `session_id` |
+| 03 | `03_langchain_chain.py` | LangChain `prompt \| llm \| parser` chain |
+| 04 | `04_langgraph_agent.py` | LangGraph ReAct agent with `instrument_graph()` |
+| 05 | `05_fastapi_service.py` | FastAPI service with per-request async context |
+| 06 | `06_ollama_local.py` | Local Ollama via OpenAI-compatible endpoint |
+| 07 | `07_analytics_query.py` | Query analytics endpoints, print spend tables |
+| 08 | `08_budget_enforcement.py` | Create budget, run until blocked, catch exception |
+| 09 | `09_economics_query.py` | Per-run cost, version compare, regression detection |
+| 10 | `10_replay_experiment.py` | Create dataset, cost-projection experiment, results |
+| 11 | `11_ledger_verify.py` | Generate + verify tamper-evident daily snapshots |
+| 12 | `12_settings.py` | API key management, provider pricing overrides |
+| 13 | `13_integrations.py` | Slack webhook test, CSV/JSON export, regressions |
 
 ---
 

@@ -17,40 +17,45 @@ Option B — directly from GitHub (no clone needed):
     pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 
 Also install:
-    pip install openai
+    pip install openai python-dotenv
 
 Run it
 ──────
-    export OPENAI_API_KEY=sk-...
+    # Copy .env.example → .env and fill in your values, then:
+    python 01_openai_basic.py
 
-    # Against a local RunLedger stack (docker compose up)
-    export RUNLEDGER_API_KEY=rl_dev_...   # printed in: docker compose logs api
-    python examples/01_openai_basic.py
-
-    # Or just print events to stdout (no RunLedger stack needed)
-    # Set local=True in the script below
+Key .env variables used here:
+    RUNLEDGER_API_KEY    — your workspace API key
+    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
+    OPENAI_API_KEY       — your OpenAI key
 """
 
 from __future__ import annotations
 
+import os
+
 import openai
+from dotenv import load_dotenv
 
 from runledger_sdk import RunLedger
 
+# Load variables from .env file (copy .env.example → .env first)
+load_dotenv()
+
+# RUNLEDGER_LOCAL=true  → prints events as JSON to stdout (no running API needed)
+# RUNLEDGER_LOCAL=false → sends events to your RunLedger API container
+LOCAL_MODE = os.getenv("RUNLEDGER_LOCAL", "false").lower() in ("1", "true", "yes")
+
 # ── 1. Create the RunLedger client ────────────────────────────────────────────
 #
-# local=True  → events are printed to stdout as JSON (no API key needed)
-# Drop local=True and set RUNLEDGER_API_KEY to send to the real API.
-rl = RunLedger(
-    api_key=None,   # reads RUNLEDGER_API_KEY env var automatically
-    local=True,     # remove this line once you have a live API running
-)
+# Reads RUNLEDGER_API_KEY and RUNLEDGER_BASE_URL from .env automatically.
+rl = RunLedger(local=LOCAL_MODE)
 
 # ── 2. Instrument OpenAI ──────────────────────────────────────────────────────
 #
-# This monkey-patches openai.OpenAI and openai.AsyncOpenAI so every
-# chat.completions.create call is automatically captured.  Call once at
-# startup — it's idempotent.
+# Monkey-patches openai.OpenAI and openai.AsyncOpenAI so every
+# chat.completions.create call is automatically captured. Idempotent.
 rl.instrument()
 
 # ── 3. Create an ordinary OpenAI client ───────────────────────────────────────

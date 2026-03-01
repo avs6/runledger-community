@@ -9,10 +9,18 @@ Demonstrates:
   5. POST /providers/pricing      → add workspace override
   6. DELETE /providers/pricing    → remove workspace override
 
-Usage:
-  export RUNLEDGER_API_KEY=rl_test_...
-  export RUNLEDGER_BASE_URL=http://localhost:8000   # optional
-  python examples/12_settings.py
+Install
+───────
+    pip install httpx python-dotenv
+
+Run it
+──────
+    # Copy .env.example → .env and fill in your values, then:
+    python 12_settings.py
+
+Key .env variables used here:
+    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
 """
 
 from __future__ import annotations
@@ -21,6 +29,9 @@ import os
 import sys
 
 import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
