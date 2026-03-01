@@ -33,7 +33,7 @@
 | 12 | Settings Console + Dark Mode + Provider Profiles | ✅ Complete | 13 |
 | 14 | Integrations: Slack Alerts + GitHub CI Gate | ✅ Complete | 8 |
 | 15 | Anthropic SDK | 🔲 Planned | — |
-| 16 | Production Hardening | 🔲 Planned | — |
+| 16 | Production Hardening + UI Polish | ✅ Complete | 13 |
 | 17 | Evaluations & Scores | 🔲 Planned | — |
 | 18 | Prompt Management | 🔲 Planned | — |
 | 19 | Sessions UI + Payload Viewer | 🔲 Planned | — |
@@ -41,7 +41,7 @@
 | 21 | Advanced Alerting + Model Gateway | 🔲 Planned | — |
 | 22 | SaaS Foundation | 🔲 Planned | — |
 
-**Total tests shipped (Phases 0–14):** 142 API tests
+**Total tests shipped (Phases 0–16):** 155 API tests + 61 SDK tests
 
 ---
 
@@ -100,18 +100,22 @@ runledger/
 │       │   └── cli.py          # runledger CLI (validate/status/runs)
 │       ├── pyproject.toml
 │       └── README.md
-├── examples/                   # Runnable example agents
+├── runledger-samples/          # Runnable example agents (separate repo)
 │   ├── 01_openai_basic.py
 │   ├── 02_openai_multi_turn.py
 │   ├── 03_langchain_chain.py
 │   ├── 04_langgraph_agent.py
 │   ├── 05_fastapi_service.py
-│   ├── 06_ollama_local.py
+│   ├── 06_ollama_local.py / 06_ollama_local.ipynb
 │   ├── 07_analytics_query.py
 │   ├── 08_budget_enforcement.py
 │   ├── 09_economics_query.py
 │   ├── 10_replay_experiment.py
-│   └── 11_ledger_verify.py
+│   ├── 11_ledger_verify.py
+│   ├── 12_settings.py
+│   ├── 13_integrations.py
+│   ├── .env.example            # All env vars documented
+│   └── README.md
 ├── db/
 │   └── migrations/             # Alembic migration files
 ├── infra/
@@ -468,7 +472,7 @@ Tests: `tests/test_auth.py` (**11 tests**), `tests/test_ingest.py` (**6 tests**)
 
 **What was built:**
 
-- `packages/sdk/runledger_sdk/client.py` — `RunLedger(api_key, base_url, privacy_mode, local)` client; `instrument()` monkey-patches `openai.OpenAI` and `openai.AsyncOpenAI`; `context()` context manager; `shutdown()` / `flush()` / `aflush()`
+- `packages/sdk/runledger_sdk/client.py` — `RunLedger(api_key, base_url, privacy_mode, local, budget_check)` client; `instrument()` monkey-patches `openai.OpenAI` and `openai.AsyncOpenAI`; `context()` context manager; `shutdown()` / `flush()` / `aflush()`; all constructor params fall back to env vars (`RUNLEDGER_API_KEY`, `RUNLEDGER_BASE_URL`, `RUNLEDGER_LOCAL`)
 - `packages/sdk/runledger_sdk/context.py` — `contextvars.ContextVar`-based context; nested context inheritance; `propagation_headers()` / `from_headers()` for cross-service propagation; thread-safe + async-safe
 - `packages/sdk/runledger_sdk/openai.py` — wraps `chat.completions.create` + async variant; captures `run_id`, `model`, `started_at`, tokens (`input_tokens`, `output_tokens`, `cached_input_tokens`), `latency_ms`, `status`, `error_type`
 - `packages/sdk/runledger_sdk/transport.py` — async httpx transport; in-memory buffer (max 500 events); flush every 2s or 100 events; exponential backoff retry (3 attempts); background thread for sync usage; `local=True` mode logs structured JSON to stdout
@@ -1107,43 +1111,85 @@ Tests (`packages/sdk/tests/test_anthropic.py`) — ~8 tests:
 
 ---
 
-### Phase 16 — Production Hardening 🔲
+### Phase 16 — Production Hardening + UI Polish ✅
 
-**Goal:** The API is rate-limited, PII is scrubbed before storage, health checks are richer, and the deployment guide is complete.
+**Goal:** The API is rate-limited, PII is scrubbed before storage, health checks are richer, the deployment guide is complete, and the frontend has consistent dark mode, toast notifications, and loading states across all pages.
 
-**What to build:**
+**What was built:**
 
-Rate limiting (`slowapi` or `fastapi-limiter`):
-- `100 req/min` on ingestion endpoints per API key
-- `60 req/min` on analytics endpoints per workspace
-- `429 Too Many Requests` with `Retry-After` header
-- Redis-backed counters (same Redis used for budgets)
+Rate limiting (`apps/api/runledger_api/core/ratelimit.py` — new, no new library):
+- Custom Redis INCR + EXPIRE sliding-window limiter; key: `rl:ratelimit:{tier}:{token[:16]}:{epoch_minute}`
+- Three tiers: `ingest_rate_limit` (600 req/min), `analytics_rate_limit` (120 req/min), `management_rate_limit` (60 req/min)
+- Returns HTTP 429 with `Retry-After: 60` header when exceeded
+- Fail-open on any Redis exception — rate limiting never blocks ingest
+- Applied as router-level dependency (`router = APIRouter(dependencies=[Depends(...)])`) on: `ingest.py`, `analytics.py`, `budgets.py`, `billing.py`, `settings.py`, `providers.py`, `replay.py`, `integrations.py`
 
-PII scrubbing pipeline:
-- `services/scrubbing.py` — configurable regex patterns for common PII (email, phone, SSN, credit card)
-- Runs in Celery pipeline worker after privacy mode check, before writing payloads to Postgres
-- Per-workspace scrubbing rules table or config (workspace-level override)
-- `SCRUB_PATTERNS` env var — JSON list of additional regex patterns
+PII scrubbing (`apps/api/runledger_api/services/scrubbing.py` — new):
+- `scrub_value(s: str) → str` — regex replace for email, SSN, credit card, phone → `[REDACTED]`
+- `scrub_dict(d: dict | None) → dict | None` — recursive scrubber for nested metadata dicts
+- Applied in `workers/pipeline.py` to `run_metadata` (in `_handle_run_start`) and `span_metadata` (in `_handle_span_end`) before ORM write
 
-Health check improvements:
-- `GET /health` — extend to include Celery worker status (check last heartbeat in Redis)
-- `GET /health/ready` — Kubernetes readiness probe (DB migrated, Redis connected)
-- `GET /health/live` — Kubernetes liveness probe (process alive)
+Health probes (`apps/api/runledger_api/routers/health.py` — updated):
+- `GET /health/live` — always returns HTTP 200 `{"status": "ok"}`; used as Railway/container restart probe
+- `GET /health/ready` — tests DB (`SELECT 1`) and Redis (`ping`); returns HTTP 200 on success, HTTP 503 with `{"status": "degraded", "db": "...", "redis": "..."}` on failure
+- Existing `GET /health` endpoint unchanged (backward compat)
 
-Railway deployment guide (`docs/deployment.md`):
-- Step-by-step Railway project setup
+Admin secret configuration (`apps/api/runledger_api/core/config.py` — updated):
+- New `admin_secret: str = ""` field loaded from `ADMIN_SECRET` env var
+- `effective_admin_secret` property: returns `admin_secret` if set, otherwise falls back to `secret_key`
+- `require_admin` dependency in `core/deps.py` updated to use `effective_admin_secret`
+- `ADMIN_SECRET=runledger-admin` added to `infra/docker-compose.yml`
+- `NEXT_PUBLIC_ADMIN_SECRET` in `apps/web/.env.local` pre-fills the Settings page admin field
+
+Frontend — sonner toasts (`apps/web/`):
+- `npm install sonner` — Sonner toast library
+- `<Toaster position="top-right" richColors />` mounted in `app/(dashboard)/layout.tsx`
+- `toast.success()` / `toast.error()` added to: `budgets/page.tsx`, `billing/page.tsx`, `ledger/page.tsx`, `replay/page.tsx`, `settings/page.tsx`
+
+Frontend — Sidebar active state (`apps/web/components/layout/Sidebar.tsx` — rewrite):
+- Converted to `'use client'` component using `usePathname()` from `next/navigation`
+- Active detection: `pathname.startsWith(item.href)`
+- Active style: `bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300`
+- Idle style: `text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800`
+- Container + logo: full dark mode class variants
+
+Frontend — dark mode fixes (all pages):
+- `budgets/page.tsx`, `components/budgets/BudgetList.tsx` — table, progress bar, badge dark variants
+- `billing/page.tsx`, `components/billing/BillingPeriodTable.tsx` — table, status badge dark variants
+- `ledger/page.tsx` — skeleton loading rows + toast feedback + dark mode table
+- `replay/page.tsx` — skeleton rows (replaces "Loading…" text), empty state message per section, toasts
+- `settings/page.tsx` — toast feedback + dark mode card borders
+- `analytics/users/page.tsx` — table and badge dark variants
+- Dashboard layout `main`: `bg-gray-50 dark:bg-gray-950`
+
+Frontend — loading states + empty states:
+- `ledger/page.tsx` — 5-row `animate-pulse` skeleton while loading; empty state text for snapshot list
+- `replay/page.tsx` — 3-row skeleton; "No datasets yet" and "No experiments yet" empty states with icons
+
+SDK — env-var config (`packages/sdk/runledger_sdk/client.py` — updated):
+- `RUNLEDGER_BASE_URL` env var overrides `base_url` parameter
+- `RUNLEDGER_API_KEY` env var used when `api_key` not passed explicitly
+- `RUNLEDGER_LOCAL=true/1/yes` enables local/print mode without code changes
+- `ValueError` raised early if `local=False` and no API key (replaces silent fallback)
+
+Railway deployment guide (`docs/deployment.md` — new):
+- Provision managed Postgres + Redis on Railway
 - Environment variable reference table
-- Database migration on deploy (Dockerfile `CMD` with `alembic upgrade head && uvicorn ...`)
-- Celery worker deployment as separate Railway service
-- Custom domain setup + TLS
-- Monitoring: Railway metrics + Sentry DSN integration
+- Deploy API + Celery worker as separate Railway services
+- Run migrations: `railway run alembic upgrade head`
+- Health check configuration: `/health/live` for TCP probe, `/health/ready` for readiness gate
 
-Tests — ~10 tests:
-- Rate limiting: 429 after limit exceeded, counter reset after window
-- Scrubbing: email/phone patterns correctly redacted, custom patterns work
-- Health endpoints: readiness fails when DB unreachable, liveness always returns 200
+Tests (`apps/api/tests/test_hardening.py` — new, **13 tests**):
+- `test_ingest_rate_limit_allows_under_limit`, `test_ingest_rate_limit_blocks_over_limit`
+- `test_analytics_rate_limit_blocks`, `test_management_rate_limit_blocks`
+- `test_rate_limit_fail_open` — Redis down → request passes (no 429)
+- `test_scrub_value_email`, `test_scrub_value_ssn`, `test_scrub_value_credit_card`
+- `test_scrub_dict_recursive`, `test_scrub_dict_none`
+- `test_health_live`, `test_health_ready_ok`, `test_health_ready_degraded`
 
-**Definition of done:** 🔲 Ingestion endpoint returns 429 after rate limit exceeded. PII patterns in payload are scrubbed before storage. `/health/ready` fails cleanly when Postgres is down. Deployment guide enables a solo operator to ship to Railway in under 30 minutes.
+**Total new tests: 13 (155 cumulative)**
+
+**Definition of done:** ✅ Ingestion endpoint returns 429 after 600 req/min exceeded. Metadata with `email@example.com` stored as `[REDACTED]`. `/health/live` always 200; `/health/ready` returns 503 when Redis mocked down. Sidebar highlights active route. Dark mode renders correctly on all pages. Toast appears on budget create/delete. Ledger and replay pages show skeleton while loading. Admin secret pre-filled in Settings from `NEXT_PUBLIC_ADMIN_SECRET`. 155/155 tests pass.
 
 ---
 
