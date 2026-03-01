@@ -13,6 +13,7 @@ import SpendOverTimeChart from '@/components/analytics/SpendOverTimeChart'
 import SpendByModelChart from '@/components/analytics/SpendByModelChart'
 import SpendByFeatureChart from '@/components/analytics/SpendByFeatureChart'
 import TimeWindowPicker from '@/components/analytics/TimeWindowPicker'
+import ExportButton from '@/components/analytics/ExportButton'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronRight } from 'lucide-react'
@@ -52,6 +53,9 @@ async function AnalyticsContent({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <ExportButton apiKey={session.apiKey} from={window.from} to={window.to} />
+      </div>
       <SummaryCards summary={summary} />
 
       <Card>

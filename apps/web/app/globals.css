@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure text selection is always visible in both light and dark mode */
+::selection {
+  background-color: #818cf8; /* indigo-400 — visible on both light and dark backgrounds */
+  color: #ffffff;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

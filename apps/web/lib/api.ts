@@ -1,4 +1,5 @@
 import type {
+  AdminWorkspaceResponse,
   AnalyticsExport,
   AnalyticsSummary,
   Annotation,
@@ -9,6 +10,8 @@ import type {
   BillingPeriod,
   BillingPeriodList,
   BreachList,
+  ChargebackRuleList,
+  ChargebackRuleResponse,
   Budget,
   BudgetList,
   CapturePolicyResponse,
@@ -19,6 +22,8 @@ import type {
   ExperimentResponse,
   ExperimentResults,
   LedgerSnapshotList,
+  NotificationList,
+  NotificationResponse,
   LedgerSnapshotResponse,
   LedgerVerifyResult,
   PeriodBreakdown,
@@ -36,6 +41,7 @@ import type {
   SpendByModel,
   SpendByUser,
   SpendOverTime,
+  TenantResponse,
   ToolRegistryList,
   ToolRegistryResponse,
   UserSpendDetail,
@@ -44,7 +50,12 @@ import type {
   WorkflowTopList,
 } from '@/types/api'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+// Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
+// Client-side (browser): use NEXT_PUBLIC_API_URL — baked at build time, must be browser-reachable.
+const API_URL =
+  typeof window === 'undefined'
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
 
 async function apiFetch<T>(path: string, apiKey: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -62,6 +73,25 @@ async function apiFetch<T>(path: string, apiKey: string, init?: RequestInit): Pr
     throw new Error(`API ${res.status}: ${text}`)
   }
 
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
+async function adminFetch<T>(path: string, adminSecret: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Secret': adminSecret,
+      ...init?.headers,
+    },
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
@@ -214,6 +244,20 @@ export async function getBudgetBreaches(apiKey: string, id: string): Promise<Bre
   return apiFetch<BreachList>(`/budgets/${id}/breaches`, apiKey)
 }
 
+export async function listBudgetNotifications(apiKey: string): Promise<NotificationList> {
+  return apiFetch<NotificationList>('/budgets/notifications', apiKey)
+}
+
+export async function createBudgetNotification(
+  apiKey: string,
+  body: { channel: string; destination_url: string; events?: string[] }
+): Promise<NotificationResponse> {
+  return apiFetch<NotificationResponse>('/budgets/notifications', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 // ── Billing helpers ────────────────────────────────────────────────────────────
 
 export async function getBillingPeriods(apiKey: string): Promise<BillingPeriodList> {
@@ -262,6 +306,20 @@ export async function exportPeriodCsv(apiKey: string, id: string): Promise<strin
 
 export async function exportPeriodSignedJson(apiKey: string, id: string): Promise<object> {
   return apiFetch<object>(`/billing/periods/${id}/export?format=signed_json`, apiKey)
+}
+
+export async function listChargebackRules(apiKey: string): Promise<ChargebackRuleList> {
+  return apiFetch<ChargebackRuleList>('/billing/chargeback-rules', apiKey)
+}
+
+export async function createChargebackRule(
+  apiKey: string,
+  body: { allocation_type: string; dimension: string; weight: string }
+): Promise<ChargebackRuleResponse> {
+  return apiFetch<ChargebackRuleResponse>('/billing/chargeback-rules', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 // ── Economics helpers (Phase 9) ────────────────────────────────────────────────
@@ -500,6 +558,21 @@ export async function createProviderPricing(
   })
 }
 
+export async function updateProviderPricing(
+  apiKey: string,
+  pricingId: string,
+  body: {
+    input_cost_per_1m?: string
+    output_cost_per_1m?: string
+    cached_input_cost_per_1m?: string | null
+  }
+): Promise<ProviderPricingResponse> {
+  return apiFetch<ProviderPricingResponse>(`/providers/pricing/${pricingId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function deleteProviderPricing(apiKey: string, pricingId: string): Promise<void> {
   await apiFetch<void>(`/providers/pricing/${pricingId}`, apiKey, { method: 'DELETE' })
 }
@@ -540,5 +613,38 @@ export async function testSlackWebhook(
   return apiFetch<SlackTestResponse>('/integrations/slack/test', apiKey, {
     method: 'POST',
     body: JSON.stringify({ webhook_url: webhookUrl }),
+  })
+}
+
+// ── Admin helpers (X-Admin-Secret) ────────────────────────────────────────────
+
+export async function listTenants(adminSecret: string): Promise<TenantResponse[]> {
+  return adminFetch<TenantResponse[]>('/admin/tenants', adminSecret)
+}
+
+export async function createTenant(
+  adminSecret: string,
+  body: { slug: string; name: string; plan?: string }
+): Promise<TenantResponse> {
+  return adminFetch<TenantResponse>('/admin/tenants', adminSecret, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listAdminWorkspaces(
+  adminSecret: string,
+  tenantId: string
+): Promise<AdminWorkspaceResponse[]> {
+  return adminFetch<AdminWorkspaceResponse[]>(`/admin/tenants/${tenantId}/workspaces`, adminSecret)
+}
+
+export async function createAdminWorkspace(
+  adminSecret: string,
+  body: { tenant_id: string; name: string }
+): Promise<AdminWorkspaceResponse> {
+  return adminFetch<AdminWorkspaceResponse>('/admin/workspaces', adminSecret, {
+    method: 'POST',
+    body: JSON.stringify(body),
   })
 }

@@ -41,6 +41,7 @@ services:
       SECRET_KEY: dev-secret-key-change-in-production
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+      CORS_ORIGINS: http://localhost:3000
     volumes:
       - ../logs:/app/logs
     depends_on:
@@ -71,13 +72,15 @@ services:
       context: ../apps/web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://api:8000
+        # Must be the browser-facing URL — NEXT_PUBLIC_ vars are baked in at build time
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
     environment:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: dev-secret-key-change-in-production
-      NEXT_PUBLIC_API_URL: http://api:8000
+      # Server-side (SSR/RSC) API URL — internal Docker network, never seen by the browser
+      API_URL: http://api:8000
     depends_on:
       - api
 

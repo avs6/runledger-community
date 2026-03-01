@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     runledger_mode: str = "oss"  # "oss" | "cloud"
 
+    # CORS — comma-separated list of allowed origins.
+    # In production set CORS_ORIGINS=https://your-frontend.railway.app
+    cors_origins: str = "http://localhost:3000"
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"

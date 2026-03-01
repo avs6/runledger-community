@@ -429,3 +429,15 @@ export interface ProviderPricingList { items: ProviderPricingResponse[] }
 export interface ExportRow { date: string; provider: string; model: string; cost_usd: string; input_tokens: number; output_tokens: number; call_count: number }
 export interface AnalyticsExport { items: ExportRow[] }
 export interface SlackTestResponse { ok: boolean; error: string | null }
+
+// ── Budget notification types ──────────────────────────────────────────────────
+export interface NotificationResponse { id: string; channel: string; destination_url: string; events: string[]; is_active: boolean; created_at: string }
+export interface NotificationList { items: NotificationResponse[] }
+
+// ── Chargeback rule types ──────────────────────────────────────────────────────
+export interface ChargebackRuleResponse { id: string; allocation_type: string; dimension: string; weight: string; created_at: string }
+export interface ChargebackRuleList { items: ChargebackRuleResponse[] }
+
+// ── Admin types ────────────────────────────────────────────────────────────────
+export interface TenantResponse { id: string; slug: string; name: string; plan: string; created_at: string }
+export interface AdminWorkspaceResponse { id: string; tenant_id: string; name: string; created_at: string }

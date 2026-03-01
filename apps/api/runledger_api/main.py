@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from runledger_api.core.config import settings
 from runledger_api.core.db import engine
@@ -28,6 +29,14 @@ app = FastAPI(
     version="0.1.0",
     description="Agent FinOps Control Plane — billing-grade observability for AI agents.",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(health.router)
