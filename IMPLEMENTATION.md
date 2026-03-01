@@ -34,6 +34,12 @@
 | 14 | Integrations: Slack Alerts + GitHub CI Gate | ✅ Complete | 8 |
 | 15 | Anthropic SDK | 🔲 Planned | — |
 | 16 | Production Hardening | 🔲 Planned | — |
+| 17 | Evaluations & Scores | 🔲 Planned | — |
+| 18 | Prompt Management | 🔲 Planned | — |
+| 19 | Sessions UI + Payload Viewer | 🔲 Planned | — |
+| 20 | TypeScript / Node.js SDK | 🔲 Planned | — |
+| 21 | Advanced Alerting + Model Gateway | 🔲 Planned | — |
+| 22 | SaaS Foundation | 🔲 Planned | — |
 
 **Total tests shipped (Phases 0–14):** 142 API tests
 
@@ -279,6 +285,126 @@ capture_policies (id UUID PK, workspace_id UUID FK workspaces.id UNIQUE,
                   privacy_mode TEXT DEFAULT 'METADATA_ONLY',
                   sampled_rate NUMERIC(5,4) NULL,
                   updated_at TIMESTAMPTZ, created_at TIMESTAMPTZ)
+```
+
+### Evaluations & Scores (Phase 17)
+
+```sql
+scores           (id UUID PK, workspace_id UUID FK workspaces.id,
+                  run_id UUID FK agent_runs.id NULL,
+                  span_id UUID FK spans.id NULL,
+                  name TEXT NOT NULL,           -- e.g. "relevance", "faithfulness", "thumbs"
+                  value NUMERIC(6,4) NOT NULL,  -- 0.0–1.0 normalised; or -1/0/1 for categorical
+                  label TEXT NULL,              -- optional human-readable label (e.g. "good", "bad")
+                  comment TEXT NULL,
+                  source TEXT DEFAULT 'human',  -- 'human' | 'llm' | 'rule'
+                  evaluator_id UUID FK evaluators.id NULL,
+                  created_at TIMESTAMPTZ)
+                  -- INDEX ix_scores_run on (run_id, name)
+                  -- INDEX ix_scores_workspace_created on (workspace_id, created_at)
+
+evaluators       (id UUID PK, workspace_id UUID FK workspaces.id,
+                  name TEXT NOT NULL,
+                  type TEXT NOT NULL,           -- 'llm_judge' | 'rule' | 'python'
+                  config JSONB NOT NULL,        -- judge_model, system_prompt, scoring_key, threshold
+                  is_active BOOL DEFAULT TRUE,
+                  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_evaluators_workspace_name on (workspace_id, name)
+```
+
+### Prompt Management (Phase 18)
+
+```sql
+prompts          (id UUID PK, workspace_id UUID FK workspaces.id,
+                  name TEXT NOT NULL,           -- slug-style unique name, e.g. "support-agent-v2"
+                  description TEXT NULL,
+                  default_environment TEXT DEFAULT 'production',  -- 'production' | 'staging' | 'dev'
+                  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_prompts_workspace_name on (workspace_id, name)
+
+prompt_versions  (id UUID PK, prompt_id UUID FK prompts.id,
+                  version INT NOT NULL,         -- auto-increment per prompt
+                  content TEXT NOT NULL,        -- template with {{variable}} placeholders
+                  variables JSONB DEFAULT '[]', -- [{name, type, description}]
+                  commit_message TEXT NULL,
+                  environment TEXT NOT NULL DEFAULT 'production',
+                  model_hint TEXT NULL,         -- suggested model for this version
+                  created_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_prompt_versions_prompt_version on (prompt_id, version)
+                  -- INDEX ix_prompt_versions_prompt_env on (prompt_id, environment)
+```
+
+### Sessions (Phase 19 — no new tables)
+
+```sql
+-- session_id already exists on agent_runs.
+-- Sessions are virtual aggregations — a GROUP BY session_id query.
+-- No new table needed. New index:
+-- INDEX ix_agent_runs_workspace_session on (workspace_id, session_id, started_at)
+-- where session_id IS NOT NULL
+```
+
+### Model Gateway (Phase 21)
+
+```sql
+gateway_routes   (id UUID PK, workspace_id UUID FK workspaces.id,
+                  name TEXT NOT NULL,
+                  provider TEXT NOT NULL,           -- 'openai' | 'anthropic' | 'google' | 'cohere'
+                  model TEXT NOT NULL,
+                  fallback_model TEXT NULL,
+                  priority INT DEFAULT 0,           -- lower = try first
+                  weight NUMERIC(4,3) DEFAULT 1.0,  -- for load-balanced routes
+                  is_active BOOL DEFAULT TRUE,
+                  created_at TIMESTAMPTZ)
+
+gateway_requests (id UUID PK, workspace_id UUID FK workspaces.id,
+                  route_id UUID FK gateway_routes.id NULL,
+                  run_id UUID FK agent_runs.id NULL,
+                  provider TEXT, model TEXT,
+                  fallback_used BOOL DEFAULT FALSE,
+                  cache_hit BOOL DEFAULT FALSE,
+                  latency_ms INT, cost_usd NUMERIC(14,8),
+                  status TEXT, created_at TIMESTAMPTZ)
+                  -- PARTITIONED BY RANGE (created_at) — monthly partitions
+
+prompt_cache     (id UUID PK, workspace_id UUID FK workspaces.id,
+                  cache_key TEXT NOT NULL,   -- sha256 of (model + normalized_prompt)
+                  response JSONB NOT NULL,
+                  input_tokens INT, output_tokens INT,
+                  model TEXT, provider TEXT,
+                  hit_count INT DEFAULT 0,
+                  expires_at TIMESTAMPTZ NOT NULL,
+                  created_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_prompt_cache_workspace_key on (workspace_id, cache_key)
+```
+
+### SaaS Foundation (Phase 22)
+
+```sql
+plans            (id UUID PK, name TEXT UNIQUE,   -- 'free' | 'starter' | 'growth' | 'enterprise'
+                  monthly_price_usd NUMERIC(8,2),
+                  event_quota_monthly BIGINT,       -- max events/month; NULL = unlimited
+                  seat_quota INT,                   -- max workspace users
+                  features JSONB DEFAULT '{}',      -- feature flags per plan
+                  created_at TIMESTAMPTZ)
+
+subscriptions    (id UUID PK, tenant_id UUID FK tenants.id,
+                  plan_id UUID FK plans.id,
+                  stripe_subscription_id TEXT NULL,
+                  stripe_customer_id TEXT NULL,
+                  status TEXT DEFAULT 'active',     -- 'active' | 'past_due' | 'cancelled'
+                  current_period_start DATE,
+                  current_period_end DATE,
+                  cancel_at DATE NULL,
+                  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_subscriptions_tenant on (tenant_id)
+
+usage_quotas     (id UUID PK, workspace_id UUID FK workspaces.id,
+                  period_start DATE, period_end DATE,
+                  events_used BIGINT DEFAULT 0,
+                  seats_used INT DEFAULT 0,
+                  updated_at TIMESTAMPTZ)
+                  -- UNIQUE INDEX ix_usage_quotas_workspace_period on (workspace_id, period_start)
 ```
 
 ---
@@ -1021,6 +1147,307 @@ Tests — ~10 tests:
 
 ---
 
+### Phase 17 — Evaluations & Scores 🔲
+**Goal:** Attach quality scores to any run or span — from human feedback, automated LLM-as-judge, or rule-based evaluators. Cost without quality is half the picture. This closes the loop: *how much did it cost, and was it worth it?*
+
+**Why now:** LangSmith and Langfuse are primarily known as eval platforms. This is the most impactful gap. Every subsequent feature (prompt management, smart routing, alerting) becomes significantly more powerful with a quality signal. It directly multiplies the value of all existing cost analytics.
+
+**What to build:**
+
+Backend (`apps/api/`):
+- `alembic/versions/009_evaluations.py` — `scores` + `evaluators` tables
+- `models/evaluations.py` — `Score`, `Evaluator` ORM models
+- `schemas/evaluations.py` — `ScoreCreate`, `ScoreResponse`, `EvaluatorCreate`, `EvaluatorResponse`
+- `routers/evaluations.py` — prefix `/evaluations`:
+  - `POST /evaluations/scores` — attach score to run or span (source: human | llm | rule)
+  - `GET /evaluations/scores` — list scores for workspace (filterable by run_id, name, source)
+  - `GET /evaluations/scores/{run_id}` — all scores for a run
+  - `POST /evaluations/evaluators` — create LLM-as-judge evaluator (judge_model, system_prompt, scoring_key)
+  - `GET /evaluations/evaluators` — list evaluators
+  - `POST /evaluations/evaluators/{id}/run` — trigger evaluator against a run or batch
+  - `GET /analytics/scores/summary` — avg score per feature_tag / model / version (analytics extension)
+- `workers/evaluations.py` — `run_evaluator_task(evaluator_id, run_id)` Celery task:
+  - Fetches run metadata (+ payload if FULL/SAMPLED)
+  - Formats judge prompt using evaluator's system_prompt + scoring_key config
+  - Calls provider via existing `ProviderPricing` + tracks cost as a `ProviderCall`
+  - Writes `Score` record with `source='llm'` and `evaluator_id`
+- `services/evaluations.py` — `compute_score_stats()`, `build_judge_prompt()`, `parse_judge_response()`
+
+SDK (`packages/sdk/`):
+- `runledger_sdk/transport.py` — add `score(run_id, name, value, comment=None, label=None)` method
+- `runledger_sdk/transport.py` — add `async ascore(...)` async variant
+- `runledger_sdk/client.py` — expose `rl.score()` / `rl.ascore()` on `RunLedger` client
+
+Frontend (`apps/web/`):
+- `/app/(dashboard)/evaluations/page.tsx` — Evaluators management: list, create (name, type, judge model, system prompt, scoring key), toggle active
+- `/components/runs/ScorePanel.tsx` — score chips in run detail sidebar (avg score, per-evaluator breakdown); thumbs up/down for human feedback
+- `/components/analytics/ScoreOverTimeChart.tsx` — recharts line chart: avg score per day overlaid on cost chart
+- `/app/(dashboard)/analytics/page.tsx` — add "Score vs Cost" section below existing charts
+- Settings: add "Evaluators" sub-section (reuse existing settings page pattern)
+
+**New API routes:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/evaluations/scores` | Attach score to run or span |
+| GET | `/evaluations/scores` | List scores (filterable) |
+| GET | `/evaluations/scores/{run_id}` | All scores for a run |
+| POST | `/evaluations/evaluators` | Create evaluator |
+| GET | `/evaluations/evaluators` | List evaluators |
+| PUT | `/evaluations/evaluators/{id}` | Update evaluator |
+| POST | `/evaluations/evaluators/{id}/run` | Run evaluator against run(s) |
+| GET | `/analytics/scores/summary` | Score aggregations by dimension |
+
+**Tests:** `tests/test_evaluations.py` — 14 tests:
+- Score CRUD (create, list, filter by run_id, filter by name)
+- Evaluator CRUD (create, update, list)
+- Evaluator run task (mock judge response → score created with correct value)
+- Score summary analytics (avg per feature_tag, per model)
+- SDK `transport.score()` sends correct payload
+- Auth: scores scoped to workspace, no cross-workspace leakage
+
+**Definition of done:** 🔲 Create an LLM-as-judge evaluator via UI. Run it against 3 existing runs. Scores appear in the run detail sidebar. `rl.score(run_id, "relevance", 0.9)` from SDK creates a score record. Avg score per feature_tag visible in analytics.
+
+---
+
+### Phase 18 — Prompt Management 🔲
+**Goal:** Version-controlled prompt registry with variable templating, environment promotion (staging → production), and per-version cost + quality metrics. Closes the gap between "cost regression detected on v2" and "here is exactly what changed in the prompt."
+
+**Why now:** RunLedger already tracks `deployment_version` on every run. Without prompt management, that field is just a string label — users can't see what changed. With it, every regression report links directly to a prompt diff.
+
+**What to build:**
+
+Backend (`apps/api/`):
+- `alembic/versions/010_prompts.py` — `prompts` + `prompt_versions` tables
+- `models/prompts.py` — `Prompt`, `PromptVersion` ORM models
+- `schemas/prompts.py` — request/response schemas; `PromptRender` schema for variable substitution
+- `routers/prompts.py` — prefix `/prompts`:
+  - `POST /prompts` — create prompt (name, description, default_environment)
+  - `GET /prompts` — list prompts for workspace
+  - `GET /prompts/{name}` — get prompt metadata
+  - `DELETE /prompts/{name}` — delete prompt + all versions
+  - `POST /prompts/{name}/versions` — commit a new version (content, variables, commit_message, environment)
+  - `GET /prompts/{name}/versions` — list all versions (desc)
+  - `GET /prompts/{name}/latest` — latest version for an environment (SDK pull endpoint)
+  - `GET /prompts/{name}/versions/{version}` — get specific version
+  - `POST /prompts/{name}/promote` — copy latest staging version → production
+  - `GET /prompts/{name}/metrics` — per-version cost + avg score + run count
+
+SDK (`packages/sdk/`):
+- `runledger_sdk/transport.py` — `get_prompt(name, environment="production", variables={})` method
+  - Fetches `/prompts/{name}/latest` with caching (60s TTL in-memory)
+  - Renders `{{variable}}` placeholders with provided values
+  - Returns rendered string + version metadata
+- `runledger_sdk/transport.py` — `async aget_prompt(...)` async variant
+
+Frontend (`apps/web/`):
+- `/app/(dashboard)/prompts/page.tsx` — Prompts list: name, latest version, environment, run count, avg cost, avg score badge
+- `/app/(dashboard)/prompts/[name]/page.tsx` — Prompt detail:
+  - Version history list with commit messages + dates
+  - Side-by-side diff viewer between any two versions (highlight added/removed tokens)
+  - Variable schema editor (name, type, description)
+  - Promote-to-production button
+  - Cost + score chart per version (line chart, version on X axis)
+- Sidebar: add "Prompts" nav entry between Replay and Ledger
+
+**New API routes:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/prompts` | Create prompt |
+| GET | `/prompts` | List prompts |
+| GET | `/prompts/{name}` | Get prompt |
+| DELETE | `/prompts/{name}` | Delete prompt |
+| POST | `/prompts/{name}/versions` | Commit new version |
+| GET | `/prompts/{name}/versions` | List versions |
+| GET | `/prompts/{name}/latest` | Latest version for environment (SDK pull) |
+| GET | `/prompts/{name}/versions/{v}` | Get specific version |
+| POST | `/prompts/{name}/promote` | Promote staging → production |
+| GET | `/prompts/{name}/metrics` | Per-version cost + score metrics |
+
+**Tests:** `tests/test_prompts.py` — 12 tests:
+- Prompt CRUD (create, list, delete)
+- Version commit and retrieval (latest by environment, specific version)
+- Variable rendering (`{{name}}` substitution)
+- Promotion: staging version becomes production latest
+- Per-version metrics query (join with agent_runs on deployment_version)
+- Workspace scoping (no cross-workspace leakage)
+
+**Definition of done:** 🔲 Create a prompt "support-agent" with 2 versions. Promote v1 to production. `transport.get_prompt("support-agent", variables={"user_name": "Alice"})` returns rendered string. Per-version cost visible in UI. Diff between v1 and v2 shown correctly.
+
+---
+
+### Phase 19 — Sessions UI + Payload Viewer 🔲
+**Goal:** Surface session-level analytics (multi-turn conversations) and display captured payloads inline in the trace viewer. Both features use data that is already collected — this phase is purely about making it visible.
+
+**Why now:** `session_id` exists on every `AgentRun`. Multi-turn conversations are the primary LLM use case in production. Without session grouping, a 12-turn customer support conversation appears as 12 disconnected runs. Payload viewing is the difference between "span took 800ms" and "span took 800ms because the context window was 90k tokens."
+
+**What to build:**
+
+Backend (`apps/api/`):
+- `routers/sessions.py` — prefix `/sessions`:
+  - `GET /sessions` — list sessions (GROUP BY session_id, filterable by end_user_id, date range)
+    - Returns: session_id, end_user_id, run_count, total_cost_usd, started_at, ended_at, avg_score
+  - `GET /sessions/{session_id}` — ordered runs in session + cumulative cost timeline
+  - `GET /sessions/{session_id}/cost-over-turns` — cost per turn number (for charting)
+- `routers/runs.py` — extend `GET /runs/{run_id}` response to include:
+  - `input_payload`: request content (only present when captured — SAMPLED or FULL mode)
+  - `output_payload`: response content (same condition)
+  - `span_payloads`: per-span input/output map
+
+Frontend (`apps/web/`):
+- `/app/(dashboard)/sessions/page.tsx` — Sessions list:
+  - Table: session_id (truncated), end_user_id, run count, turns, total cost, duration, avg score badge
+  - Filter by end_user_id and date range
+  - Click → session detail
+- `/app/(dashboard)/sessions/[session_id]/page.tsx` — Session detail:
+  - Ordered run timeline (horizontal timeline chart showing cost per turn)
+  - Each run card: feature_tag, cost, latency, score badges
+  - Cumulative cost chart (cost accumulates across turns)
+- `/components/runs/PayloadViewer.tsx` — In run detail sidebar, new "Payload" tab:
+  - Shown only when `input_payload` / `output_payload` are present in API response
+  - Input: rendered prompt (with system message, user turn, assistant turn clearly labelled)
+  - Output: completion text
+  - Token count annotation inline with the text
+  - Privacy mode indicator ("captured because: FULL mode")
+- Sidebar: add "Sessions" nav entry
+
+**Tests:** `tests/test_sessions.py` — 8 tests:
+- Sessions list: groups correctly by session_id, correct run count + cost aggregation
+- Sessions list: filterable by end_user_id
+- Session detail: runs returned in chronological order
+- Cost-over-turns endpoint: correct per-turn breakdown
+- Payload passthrough: run detail includes payloads when captured, omits when not
+- Privacy gate: run in METADATA_ONLY mode returns no payload fields
+
+**Definition of done:** 🔲 Create 3 runs with same session_id. Sessions list shows 1 session with run_count=3 and correct total cost. Session detail shows all 3 runs in order with cumulative cost chart. Run with FULL privacy mode shows input/output in payload tab.
+
+---
+
+### Phase 20 — TypeScript / Node.js SDK 🔲
+**Goal:** First-class TypeScript SDK published to npm as `@runledger/sdk`. Instruments OpenAI Node.js client, Vercel AI SDK, and raw `fetch` calls. Opens the entire JS/TS ecosystem to RunLedger.
+
+**Why now:** The Python SDK works for Python-native agents. The majority of production LLM applications (Next.js apps, Node.js backends, Vercel AI SDK) are TypeScript. Langfuse and LangSmith both have native TypeScript SDKs. This is a market access blocker.
+
+**What to build:**
+
+New package `packages/sdk-ts/` (TypeScript, npm):
+- `src/client.ts` — `RunLedger` class: `new RunLedger({ apiKey, baseUrl, privacyMode })`
+- `src/context.ts` — `AsyncLocalStorage`-based context (Node.js equivalent of Python's contextvars)
+  - `withRun(fn, { runId, endUserId, sessionId, featureTag })` — async context wrapper
+  - `getContext()` — read current context from AsyncLocalStorage
+- `src/openai.ts` — `instrumentOpenAI(client, transport)` — wraps `openai` npm package
+  - Patches `client.chat.completions.create` (streaming + non-streaming)
+  - Pre-call: budget check (optional)
+  - Post-call: capture model, tokens, latency, cost → emit event
+- `src/vercel-ai.ts` — `createRunLedgerMiddleware()` — Vercel AI SDK middleware
+  - Wraps `streamText`, `generateText`, `streamObject`
+  - Compatible with `useChat` / `useCompletion` React hooks
+- `src/fetch.ts` — `instrumentFetch(transport)` — global `fetch` wrapper for arbitrary HTTP calls to AI providers
+- `src/transport.ts` — `Transport` class: batching (50 events / 2s flush), retry (3x exponential backoff), async `score()` method
+- `src/types.ts` — full TypeScript types mirroring Python SDK event schemas
+- `src/index.ts` — public exports
+
+Tests (`packages/sdk-ts/tests/`, Jest):
+- OpenAI wrapper: correct event shape, token counts, latency recorded
+- Context propagation: `withRun` correctly scopes nested calls
+- Batch flushing: events buffered then sent in correct shape
+- `score()` method: sends correct payload to `/evaluations/scores`
+- Vercel AI middleware: wraps `streamText`, emits event on completion
+
+**Definition of done:** 🔲 `npm install @runledger/sdk` in a Next.js app. Add `instrumentOpenAI(openai)` in one line. Make 5 chat completions. Runs appear in the RunLedger UI with correct token counts. `score(runId, "relevance", 0.9)` from TypeScript creates a score.
+
+---
+
+### Phase 21 — Advanced Alerting + Model Gateway 🔲
+**Goal:** Two related features that each add significant value independently but are strongest together: (1) alerting rules beyond budget breaches, and (2) an intelligent model gateway that can route requests to the cheapest model meeting quality requirements.
+
+**Why now:** The alerting infrastructure (Slack, webhooks, notification channels) already exists from Phase 14. Error rate and quality alerts are the next-most-requested monitoring feature. The gateway is RunLedger's biggest architectural differentiator vs Langfuse/LangSmith — they are observability-only. A gateway makes RunLedger active infrastructure, not just passive monitoring.
+
+**Part A — Advanced Alerting:**
+
+Backend:
+- `models/alerts.py` — `AlertRule` (id, workspace_id, name, metric, operator, threshold, window_minutes, action, channel_id, is_active, created_at)
+- `routers/alerts.py` — prefix `/alerts`:
+  - `POST /alerts/rules` — create rule (metric: error_rate | p95_latency | avg_score | spend_velocity; operator: gt/lt; threshold; window_minutes; notification channel)
+  - `GET /alerts/rules` — list rules
+  - `PUT /alerts/rules/{id}` — update / toggle rule
+  - `DELETE /alerts/rules/{id}` — delete rule
+  - `GET /alerts/history` — recent alert firings
+- `workers/alerts.py` — `alert_evaluation_worker()` Celery beat task (every 5 min):
+  - For each active rule: compute metric for window → compare → fire notification if threshold crossed
+  - Deduplication: don't re-fire if already fired in last window
+- Frontend: Alert Rules section in Settings page — create/list/toggle rules
+
+**Part B — Model Gateway:**
+
+Backend:
+- `models/gateway.py` — `GatewayRoute`, `GatewayRequest`, `PromptCache` ORM models
+- `routers/gateway.py` — prefix `/gateway`:
+  - `POST /gateway/chat/completions` — OpenAI-compatible proxy endpoint
+    - Authenticate via Bearer API key (same as ingest)
+    - Match request to configured routes by model requested
+    - Apply load balancing / priority / cost-aware routing
+    - On provider error: retry next route in priority order
+    - Check `PromptCache` before forwarding (cache hit → return cached, record zero-cost hit)
+    - Stream response back to client
+    - Async: emit `ProviderCall` event for cost tracking (same pipeline as SDK)
+  - `POST /gateway/routes` — create route (provider, model, priority, fallback_model)
+  - `GET /gateway/routes` — list routes
+  - `GET /gateway/stats` — cache hit rate, error rate, cost saved via caching
+- `services/gateway.py` — `route_request()`, `check_cache()`, `store_cache()`, `select_cheapest_route()`
+- Frontend: Gateway section in Settings — configure routes, view stats, toggle cache
+
+**Key Gateway differentiation:**
+- Uses existing `ProviderPricing` table for cost-per-route calculation
+- Cache key = SHA256(model + normalized messages) — identical prompts share cache
+- Fallback chain: if primary route 429s or 5xxs, retry next route automatically
+- All gateway requests visible in Run Explorer as normal `AgentRun` records
+- No SDK changes needed — just point `base_url` at the RunLedger gateway
+
+**Tests:** `tests/test_alerts.py` (8 tests) + `tests/test_gateway.py` (10 tests):
+- Alert rule CRUD
+- Alert evaluation: error rate threshold triggers notification
+- Alert deduplication: no double-fire within window
+- Gateway: routes request to configured provider
+- Gateway: fallback on 429
+- Gateway: cache hit returns cached response, records zero tokens
+- Gateway: all requests appear as ProviderCall records
+
+**Definition of done:** 🔲 Create error-rate alert rule (threshold: 5%). Trigger 6 errors in 10 min. Slack notification fires. Configure a gateway route for `gpt-4o`. Point `OPENAI_BASE_URL` at RunLedger gateway. Make 10 completions — all appear in Run Explorer. Make same prompt twice — second is cache hit, cost is $0.
+
+---
+
+### Phase 22 — SaaS Foundation 🔲
+**Goal:** Self-service signup, Stripe subscription management, and usage quota enforcement. Transforms RunLedger from a self-hosted tool into a deployable SaaS product.
+
+**Why now:** After Phase 21 the core product is complete. Commercialization infrastructure is the last major unlock. Without it, every user must self-host, limiting distribution.
+
+**What to build:**
+
+Backend:
+- `alembic/versions/013_saas.py` — `plans`, `subscriptions`, `usage_quotas` tables
+- `models/saas.py` — `Plan`, `Subscription`, `UsageQuota` ORM models
+- `routers/saas.py`:
+  - `POST /auth/signup` — create tenant + workspace + user in one transaction; auto-assign free plan
+  - `GET /billing/subscription` — current plan + usage for the tenant
+  - `POST /billing/checkout` — create Stripe checkout session (upgrade flow)
+  - `POST /billing/portal` — Stripe customer portal link (manage subscription)
+  - `POST /webhooks/stripe` — handle `invoice.paid`, `customer.subscription.deleted`, `customer.subscription.updated`
+- `services/quotas.py` — `check_quota(workspace_id, event_type)` — enforced in ingest router (return 402 when exceeded)
+- `workers/quotas.py` — `quota_reset_worker()` — monthly reset of `usage_quotas.events_used`
+- `core/feature_gate.py` — extend existing feature gate with plan-based checks
+
+Frontend:
+- `/app/signup/page.tsx` — self-service signup form (email, password, org name → POST /auth/signup)
+- `/app/(dashboard)/billing/subscription/page.tsx` — current plan card, usage meter (events used / quota), upgrade button → Stripe checkout
+- Upgrade modal: plan comparison table (Free vs Starter vs Growth vs Enterprise)
+- Quota exceeded banner: inline notification when >90% of monthly events used
+
+**Definition of done:** 🔲 Sign up via `/signup` with no admin intervention. Receive API key. Send 100 events. See usage meter at 100/10000. Click upgrade → Stripe checkout loads. Complete Stripe test payment → plan upgrades to Starter. Quota increases.
+
+---
+
 ## Testing Strategy
 
 ### Unit tests (pytest)
@@ -1092,3 +1519,10 @@ NEXT_PUBLIC_API_URL  = https://api.runledger.io
 | Integrations: Slack Block Kit alerts + CI gate + analytics export | 14 | ✅ |
 | Anthropic SDK (Claude wrapper) | 15 | 🔲 |
 | Production hardening (rate limiting, PII scrubbing, deployment) | 16 | 🔲 |
+| **Evaluations & Scores** — LLM-as-judge, human feedback, score analytics | **17** | 🔲 |
+| **Prompt Management** — versioned registry, variables, diff, per-version metrics | **18** | 🔲 |
+| **Sessions UI + Payload Viewer** — multi-turn grouping, inline prompt/completion display | **19** | 🔲 |
+| **TypeScript / Node.js SDK** — npm `@runledger/sdk`, OpenAI Node + Vercel AI SDK | **20** | 🔲 |
+| **Advanced Alerting** — error rate / latency / quality threshold rules | **21** | 🔲 |
+| **Model Gateway** — OpenAI-compatible proxy, smart routing, prompt caching | **21** | 🔲 |
+| **SaaS Foundation** — self-service signup, Stripe subscriptions, quota enforcement | **22** | 🔲 |
