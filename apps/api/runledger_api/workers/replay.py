@@ -45,9 +45,7 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
 
     async with factory() as session:
         # 1. Load experiment
-        exp_stmt = select(ReplayExperiment).where(
-            ReplayExperiment.id == experiment_id
-        )
+        exp_stmt = select(ReplayExperiment).where(ReplayExperiment.id == experiment_id)
         exp_result = await session.execute(exp_stmt)
         experiment = exp_result.scalar_one_or_none()
         if experiment is None:
