@@ -9,8 +9,8 @@ wheels/
 .env
 *.env.local
 
-# uv
-uv.lock
+# uv — lock file must be committed for reproducible CI builds
+# uv.lock
 
 # Alembic — migrations MUST be committed
 alembic/versions/.gitkeep
@@ -26,11 +26,15 @@ yarn-error.log*
 apps/web/.env.local
 apps/web/.env*.local
 
-# IDE
+# IDE / Claude Code local state
 .vscode/
 .idea/
 *.swp
 *.swo
+.claude/settings.local.json
+
+# TypeScript incremental build info
+apps/web/tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
