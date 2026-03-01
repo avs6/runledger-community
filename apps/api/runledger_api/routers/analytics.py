@@ -35,7 +35,6 @@ from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
-    AnomalyItem,
     AnomalyList,
     CohortList,
     CohortSummary,
@@ -65,7 +64,9 @@ from runledger_api.schemas.economics import (
     WorkflowTopList,
 )
 
-router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(analytics_rate_limit)])
+router = APIRouter(
+    prefix="/analytics", tags=["analytics"], dependencies=[Depends(analytics_rate_limit)]
+)
 log = structlog.get_logger()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -535,9 +536,7 @@ async def user_spend_detail(
     feature_rows = feature_result.all()
 
     avg_cost_per_run = (
-        summary_row.cost_usd / summary_row.run_count
-        if summary_row.run_count > 0
-        else Decimal(0)
+        summary_row.cost_usd / summary_row.run_count if summary_row.run_count > 0 else Decimal(0)
     )
 
     return UserSpendDetail(
@@ -546,9 +545,7 @@ async def user_spend_detail(
         run_count=summary_row.run_count,
         call_count=summary_row.call_count,
         avg_cost_per_run=avg_cost_per_run,
-        last_active=(
-            summary_row.last_active.isoformat() if summary_row.last_active else None
-        ),
+        last_active=(summary_row.last_active.isoformat() if summary_row.last_active else None),
         spend_over_time=[
             SpendPoint(
                 period=row.period.isoformat(),
@@ -633,9 +630,7 @@ async def run_economics(
     model_rows = model_result.all()
 
     # Retry cost: child LLM spans (parent_span_id IS NOT NULL, span_type='llm')
-    retry_stmt = select(
-        func.coalesce(func.sum(Span.cost_usd), Decimal(0))
-    ).where(
+    retry_stmt = select(func.coalesce(func.sum(Span.cost_usd), Decimal(0))).where(
         Span.run_id == run_id,
         Span.parent_span_id.is_not(None),
         Span.span_type == "llm",
@@ -650,8 +645,7 @@ async def run_economics(
         run_id=run_id,
         total_cost_usd=total_cost,
         cost_by_span_type=[
-            SpanTypeCost(span_type=str(row.span_type), cost_usd=row.cost_usd)
-            for row in span_rows
+            SpanTypeCost(span_type=str(row.span_type), cost_usd=row.cost_usd) for row in span_rows
         ],
         cost_by_model=[
             ModelCost(
@@ -685,9 +679,9 @@ async def top_workflows(
     order_col = (
         func.avg(AgentRun.total_cost_usd).desc().nulls_last()
         if metric == "cost"
-        else func.avg(
-            func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
-        ).desc().nulls_last()
+        else func.avg(func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000)
+        .desc()
+        .nulls_last()
     )
 
     # Query 1: run-level aggregates from agent_runs (correct avg/p95)
@@ -697,9 +691,7 @@ async def top_workflows(
             AgentRun.application_id,
             func.count(AgentRun.id).label("run_count"),
             func.coalesce(func.avg(AgentRun.total_cost_usd), Decimal(0)).label("avg_cost_usd"),
-            func.percentile_cont(0.95)
-            .within_group(AgentRun.total_cost_usd)
-            .label("p95_cost_usd"),
+            func.percentile_cont(0.95).within_group(AgentRun.total_cost_usd).label("p95_cost_usd"),
             func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("total_cost_usd"),
         )
         .where(
@@ -781,9 +773,9 @@ async def version_compare(
             func.coalesce(func.avg(AgentRun.total_output_tokens), Decimal(0)).label(
                 "avg_output_tokens"
             ),
-            func.avg(
-                func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
-            ).label("avg_latency_ms"),
+            func.avg(func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000).label(
+                "avg_latency_ms"
+            ),
         ).where(
             AgentRun.workspace_id == workspace.id,
             AgentRun.deployment_version == version,
@@ -850,9 +842,7 @@ async def version_compare(
             span_type=st,
             baseline_cost=base_span_map.get(st, Decimal(0)),
             comparison_cost=cmp_span_map.get(st, Decimal(0)),
-            delta_pct=_delta(
-                cmp_span_map.get(st, Decimal(0)), base_span_map.get(st, Decimal(0))
-            ),
+            delta_pct=_delta(cmp_span_map.get(st, Decimal(0)), base_span_map.get(st, Decimal(0))),
         )
         for st in all_span_types
     ]
@@ -1017,7 +1007,15 @@ async def list_annotations(
 
 # ── /analytics/export ─────────────────────────────────────────────────────────
 
-_EXPORT_COLUMNS = ["date", "provider", "model", "cost_usd", "input_tokens", "output_tokens", "call_count"]
+_EXPORT_COLUMNS = [
+    "date",
+    "provider",
+    "model",
+    "cost_usd",
+    "input_tokens",
+    "output_tokens",
+    "call_count",
+]
 
 
 @router.get("/export", response_model=None)

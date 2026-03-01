@@ -13,14 +13,13 @@ Uses authed_client / mock_db_session fixtures from conftest. No live DB required
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

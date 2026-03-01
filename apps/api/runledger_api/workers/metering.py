@@ -109,17 +109,13 @@ async def _run_cost_enrichment() -> dict[str, int]:
                     continue
 
                 await session.execute(
-                    update(ProviderCall)
-                    .where(ProviderCall.id == pc.id)
-                    .values(cost_usd=cost)
+                    update(ProviderCall).where(ProviderCall.id == pc.id).values(cost_usd=cost)
                 )
                 enriched += 1
 
                 # Increment Redis budget spend counters for matching budgets
                 try:
-                    budgets = await get_workspace_budgets_cached(
-                        redis, session, pc.workspace_id
-                    )
+                    budgets = await get_workspace_budgets_cached(redis, session, pc.workspace_id)
                     matched = _matching_budgets(
                         budgets,
                         end_user_id=pc.end_user_id,

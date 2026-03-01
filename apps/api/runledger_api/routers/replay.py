@@ -19,11 +19,11 @@ GET   /replay/experiments/{id}/results  Results (or pending stub)
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -125,7 +125,7 @@ async def get_dataset(
     try:
         did = uuid.UUID(dataset_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise HTTPException(status_code=404, detail="Dataset not found") from None
 
     stmt = select(ReplayDataset).where(
         ReplayDataset.id == did,
@@ -151,7 +151,7 @@ async def create_experiment(
     try:
         did = uuid.UUID(body.dataset_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise HTTPException(status_code=404, detail="Dataset not found") from None
 
     # Verify dataset belongs to workspace
     ds_stmt = select(ReplayDataset).where(
@@ -208,7 +208,7 @@ async def get_experiment(
     try:
         eid = uuid.UUID(experiment_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Experiment not found")
+        raise HTTPException(status_code=404, detail="Experiment not found") from None
 
     stmt = select(ReplayExperiment).where(
         ReplayExperiment.id == eid,
@@ -236,7 +236,7 @@ async def run_experiment(
     try:
         eid = uuid.UUID(experiment_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Experiment not found")
+        raise HTTPException(status_code=404, detail="Experiment not found") from None
 
     stmt = select(ReplayExperiment).where(
         ReplayExperiment.id == eid,
@@ -270,7 +270,7 @@ async def get_experiment_results(
     try:
         eid = uuid.UUID(experiment_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Experiment not found")
+        raise HTTPException(status_code=404, detail="Experiment not found") from None
 
     stmt = select(ReplayExperiment).where(
         ReplayExperiment.id == eid,

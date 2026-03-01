@@ -8,7 +8,8 @@ from decimal import Decimal
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
@@ -18,9 +19,7 @@ class UserAnomaly(Base):
     """Nightly anomaly flag: a user whose daily spend exceeds 3σ above their 30d mean."""
 
     __tablename__ = "user_anomalies"
-    __table_args__ = (
-        sa.Index("ix_user_anomalies_workspace_date", "workspace_id", "detected_at"),
-    )
+    __table_args__ = (sa.Index("ix_user_anomalies_workspace_date", "workspace_id", "detected_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -41,9 +40,7 @@ class ReplayDataset(Base):
     """Named collection of run IDs used as input for cost-projection experiments."""
 
     __tablename__ = "replay_datasets"
-    __table_args__ = (
-        sa.Index("ix_replay_datasets_workspace", "workspace_id", "created_at"),
-    )
+    __table_args__ = (sa.Index("ix_replay_datasets_workspace", "workspace_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -66,9 +63,7 @@ class ReplayExperiment(Base):
     """
 
     __tablename__ = "replay_experiments"
-    __table_args__ = (
-        sa.Index("ix_replay_experiments_workspace", "workspace_id", "created_at"),
-    )
+    __table_args__ = (sa.Index("ix_replay_experiments_workspace", "workspace_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -79,9 +74,7 @@ class ReplayExperiment(Base):
     configs: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, default="pending")
     results: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(
-        sa.Numeric(14, 8), nullable=True
-    )
+    estimated_cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

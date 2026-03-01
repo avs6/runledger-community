@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-
 # ── Mock result helpers (copied from test_economics.py pattern) ────────────────
 
 
@@ -47,8 +46,12 @@ async def test_user_cohorts_returns_tiers(
 ) -> None:
     """GET /analytics/users/cohorts → items list with cohort_tier fields."""
     tier_rows = [
-        SimpleNamespace(tier="P0", user_count=5, avg_cost_usd=Decimal("0.50"), total_cost_usd=Decimal("2.50")),
-        SimpleNamespace(tier="P1", user_count=2, avg_cost_usd=Decimal("5.00"), total_cost_usd=Decimal("10.00")),
+        SimpleNamespace(
+            tier="P0", user_count=5, avg_cost_usd=Decimal("0.50"), total_cost_usd=Decimal("2.50")
+        ),
+        SimpleNamespace(
+            tier="P1", user_count=2, avg_cost_usd=Decimal("5.00"), total_cost_usd=Decimal("10.00")
+        ),
     ]
     # cohorts endpoint makes 1 db.execute call (subquery is inline)
     mock_db_session.execute = AsyncMock(return_value=_row_result(tier_rows))

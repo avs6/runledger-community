@@ -381,16 +381,18 @@ async def test_user_spend_detail(
     summary_result.one = MagicMock(return_value=summary_row)
 
     time_result = _list_result([])
-    model_result = _list_result([
-        _make_row(
-            provider="openai",
-            model="gpt-4o",
-            cost_usd=Decimal("1.50"),
-            input_tokens=5000,
-            output_tokens=1000,
-            call_count=40,
-        )
-    ])
+    model_result = _list_result(
+        [
+            _make_row(
+                provider="openai",
+                model="gpt-4o",
+                cost_usd=Decimal("1.50"),
+                input_tokens=5000,
+                output_tokens=1000,
+                call_count=40,
+            )
+        ]
+    )
     feature_result = _list_result([])
 
     mock_db_session.execute = AsyncMock(

@@ -15,16 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
 from runledger_api.services.budgets import (
     _matching_budgets,
     _period_key,
-    check_budgets,
     get_budget_spend,
     incr_budget_spend,
 )
-from runledger_api.schemas.budgets import BudgetCheckResponse
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,17 +46,17 @@ def _scalar_result(value: object) -> MagicMock:
     result = MagicMock()
     result.scalar_one_or_none = MagicMock(return_value=value)
     result.scalar_one = MagicMock(return_value=value)
-    result.scalars = MagicMock(return_value=MagicMock(
-        __iter__=MagicMock(return_value=iter([value] if value is not None else []))
-    ))
+    result.scalars = MagicMock(
+        return_value=MagicMock(
+            __iter__=MagicMock(return_value=iter([value] if value is not None else []))
+        )
+    )
     return result
 
 
 def _list_result(rows: list[object]) -> MagicMock:
     result = MagicMock()
-    result.scalars = MagicMock(return_value=MagicMock(
-        __iter__=MagicMock(return_value=iter(rows))
-    ))
+    result.scalars = MagicMock(return_value=MagicMock(__iter__=MagicMock(return_value=iter(rows))))
     result.all = MagicMock(return_value=rows)
     return result
 
@@ -265,15 +261,17 @@ async def test_budget_check_blocked(
         }
     ]
 
-    with patch(
-        "runledger_api.services.budgets.get_workspace_budgets_cached",
-        new=AsyncMock(return_value=budgets),
-    ):
-        with patch(
+    with (
+        patch(
+            "runledger_api.services.budgets.get_workspace_budgets_cached",
+            new=AsyncMock(return_value=budgets),
+        ),
+        patch(
             "runledger_api.services.budgets.get_budget_spend",
             new=AsyncMock(return_value=Decimal("0.12")),
-        ):
-            response = await authed_client.get("/budgets/check?end_user_id=u_test")
+        ),
+    ):
+        response = await authed_client.get("/budgets/check?end_user_id=u_test")
 
     assert response.status_code == 200
     data = response.json()
@@ -302,15 +300,17 @@ async def test_budget_check_downgrade(
         }
     ]
 
-    with patch(
-        "runledger_api.services.budgets.get_workspace_budgets_cached",
-        new=AsyncMock(return_value=budgets),
-    ):
-        with patch(
+    with (
+        patch(
+            "runledger_api.services.budgets.get_workspace_budgets_cached",
+            new=AsyncMock(return_value=budgets),
+        ),
+        patch(
             "runledger_api.services.budgets.get_budget_spend",
             new=AsyncMock(return_value=Decimal("150.00")),
-        ):
-            response = await authed_client.get("/budgets/check")
+        ),
+    ):
+        response = await authed_client.get("/budgets/check")
 
     assert response.status_code == 200
     data = response.json()
@@ -347,9 +347,7 @@ async def test_breach_history_empty(
 ) -> None:
     budget = _make_budget_row()
     # First call: verify budget ownership; second: list breaches
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar_result(budget), _list_result([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar_result(budget), _list_result([])])
 
     response = await authed_client.get(f"/budgets/{budget.id}/breaches")
 
@@ -398,11 +396,11 @@ async def test_runaway_protection_retry_storm() -> None:
 
     session.execute = AsyncMock(
         side_effect=[
-            active_runs_result,   # select active runs
-            call_count_result,    # count calls in last 2 min
-            spike_count_result,   # count token spike calls
-            update_result,        # update run status='cancelled'
-            notif_result,         # select notifications
+            active_runs_result,  # select active runs
+            call_count_result,  # count calls in last 2 min
+            spike_count_result,  # count token spike calls
+            update_result,  # update run status='cancelled'
+            notif_result,  # select notifications
         ]
     )
     session.__aenter__ = AsyncMock(return_value=session)

@@ -17,26 +17,26 @@ from sqlalchemy.orm import Mapped, mapped_column
 from runledger_api.core.db import Base
 
 
-class ScopeTypeEnum(str, enum.Enum):
+class ScopeTypeEnum(enum.StrEnum):
     workspace = "workspace"
     end_user = "end_user"
     feature_tag = "feature_tag"
     app = "app"
 
 
-class PeriodTypeEnum(str, enum.Enum):
+class PeriodTypeEnum(enum.StrEnum):
     daily = "daily"
     monthly = "monthly"
     total = "total"
 
 
-class ActionEnum(str, enum.Enum):
+class ActionEnum(enum.StrEnum):
     notify = "notify"
     block = "block"
     downgrade = "downgrade"
 
 
-class ChannelEnum(str, enum.Enum):
+class ChannelEnum(enum.StrEnum):
     webhook = "webhook"
     slack = "slack"
 
@@ -53,9 +53,7 @@ class Budget(Base):
     """
 
     __tablename__ = "budgets"
-    __table_args__ = (
-        sa.Index("ix_budgets_workspace", "workspace_id", "is_active"),
-    )
+    __table_args__ = (sa.Index("ix_budgets_workspace", "workspace_id", "is_active"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -81,9 +79,7 @@ class BudgetBreach(Base):
     """
 
     __tablename__ = "budget_breaches"
-    __table_args__ = (
-        sa.Index("ix_budget_breaches_budget", "budget_id", "occurred_at"),
-    )
+    __table_args__ = (sa.Index("ix_budget_breaches_budget", "budget_id", "occurred_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -92,13 +88,9 @@ class BudgetBreach(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
-    spend_at_breach_usd: Mapped[Decimal | None] = mapped_column(
-        sa.Numeric(14, 6), nullable=True
-    )
+    spend_at_breach_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     action_taken: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
-    notified_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    notified_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
 
 
 class BudgetNotification(Base):
@@ -107,9 +99,7 @@ class BudgetNotification(Base):
     """
 
     __tablename__ = "budget_notifications"
-    __table_args__ = (
-        sa.Index("ix_budget_notifications_workspace", "workspace_id"),
-    )
+    __table_args__ = (sa.Index("ix_budget_notifications_workspace", "workspace_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

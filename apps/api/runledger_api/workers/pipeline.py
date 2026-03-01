@@ -21,7 +21,6 @@ from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
-from runledger_api.services.scrubbing import scrub_dict
 from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
@@ -33,6 +32,7 @@ from runledger_api.models.events import (
     ToolCall,
     ToolTypeEnum,
 )
+from runledger_api.services.scrubbing import scrub_dict
 
 log = structlog.get_logger()
 

@@ -14,12 +14,11 @@ import asyncio
 import uuid
 
 import bcrypt
+from runledger_api.core.config import settings
+from runledger_api.models.tenant import Tenant, User, Workspace, WorkspaceUser
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-
-from runledger_api.core.config import settings
-from runledger_api.models.tenant import Tenant, User, Workspace, WorkspaceUser
 
 DEFAULT_EMAIL = "admin@runledger.local"
 DEFAULT_PASSWORD = "runledger"
@@ -45,9 +44,7 @@ async def seed() -> None:
             print(f"Tenant already exists: {tenant.name} ({tenant.id})")
 
         # ── Workspace ─────────────────────────────────────────────────────────
-        result = await session.execute(
-            select(Workspace).where(Workspace.tenant_id == tenant.id)
-        )
+        result = await session.execute(select(Workspace).where(Workspace.tenant_id == tenant.id))
         workspace = result.scalar_one_or_none()
         if workspace is None:
             workspace = Workspace(id=uuid.uuid4(), tenant_id=tenant.id, name=WORKSPACE_NAME)
@@ -86,7 +83,7 @@ async def seed() -> None:
             )
             session.add(wu)
             await session.flush()
-            print(f"Linked user → workspace (role=admin)")
+            print("Linked user → workspace (role=admin)")
         else:
             print("WorkspaceUser link already exists")
 

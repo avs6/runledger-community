@@ -145,9 +145,7 @@ async def verify_snapshot(
         )
 
     # Fetch the signing key
-    key_result = await db.execute(
-        select(LedgerKey).where(LedgerKey.id == snapshot.key_id)
-    )
+    key_result = await db.execute(select(LedgerKey).where(LedgerKey.id == snapshot.key_id))
     key = key_result.scalar_one_or_none()
     if key is None:
         return LedgerVerifyResult(

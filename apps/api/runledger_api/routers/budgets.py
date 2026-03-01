@@ -49,7 +49,9 @@ from runledger_api.services.budgets import (
     invalidate_workspace_budgets_cache,
 )
 
-router = APIRouter(prefix="/budgets", tags=["budgets"], dependencies=[Depends(management_rate_limit)])
+router = APIRouter(
+    prefix="/budgets", tags=["budgets"], dependencies=[Depends(management_rate_limit)]
+)
 log = structlog.get_logger()
 
 
@@ -322,11 +324,7 @@ async def delete_budget(
             detail="Budget not found",
         )
 
-    await db.execute(
-        update(Budget)
-        .where(Budget.id == budget_id)
-        .values(is_active=False)
-    )
+    await db.execute(update(Budget).where(Budget.id == budget_id).values(is_active=False))
     await db.commit()
     await invalidate_workspace_budgets_cache(redis, workspace.id)
 

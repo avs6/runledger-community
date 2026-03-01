@@ -103,9 +103,7 @@ async def calculate_cost(
     # Output cost
     output_cost = (out_tok * pricing.output_cost_per_1m) / _MILLION
 
-    total = (input_cost + cached_cost + output_cost).quantize(
-        _QUANTIZE, rounding=ROUND_HALF_UP
-    )
+    total = (input_cost + cached_cost + output_cost).quantize(_QUANTIZE, rounding=ROUND_HALF_UP)
     return total
 
 

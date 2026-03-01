@@ -18,13 +18,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
 
 # ── Mock result helpers ────────────────────────────────────────────────────────
 
@@ -298,9 +296,7 @@ async def test_get_results_completed(
                 "pricing_found": True,
             },
         ],
-        "deltas": [
-            {"config_a": "gpt-4o", "config_b": "gpt-4o-mini", "cost_delta_pct": "-85.0"}
-        ],
+        "deltas": [{"config_a": "gpt-4o", "config_b": "gpt-4o-mini", "cost_delta_pct": "-85.0"}],
         "dataset_run_count": 5,
         "completed_at": completed_at,
     }

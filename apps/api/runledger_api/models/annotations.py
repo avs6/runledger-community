@@ -22,9 +22,7 @@ class Annotation(Base):
     """
 
     __tablename__ = "annotations"
-    __table_args__ = (
-        sa.Index("ix_annotations_workspace_date", "workspace_id", "annotation_date"),
-    )
+    __table_args__ = (sa.Index("ix_annotations_workspace_date", "workspace_id", "annotation_date"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

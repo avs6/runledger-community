@@ -26,7 +26,12 @@ def upgrade() -> None:
     # workspace_id IS NOT NULL means a workspace-specific override.
     op.create_table(
         "provider_pricing",
-        sa.Column("id", PGUUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            PGUUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("provider", sa.String(64), nullable=False),
         sa.Column("model", sa.String(128), nullable=False),
         sa.Column("input_cost_per_1m", sa.Numeric(14, 8), nullable=False),
@@ -62,7 +67,12 @@ def upgrade() -> None:
     # ── usage_hourly ──────────────────────────────────────────────────────────
     op.create_table(
         "usage_hourly",
-        sa.Column("id", PGUUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            PGUUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("workspace_id", PGUUID(as_uuid=True), nullable=False),
         sa.Column("model", sa.String(128), nullable=False),
         sa.Column("provider", sa.String(64), nullable=False),
@@ -95,7 +105,12 @@ def upgrade() -> None:
     # ── usage_daily ───────────────────────────────────────────────────────────
     op.create_table(
         "usage_daily",
-        sa.Column("id", PGUUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            PGUUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("workspace_id", PGUUID(as_uuid=True), nullable=False),
         sa.Column("model", sa.String(128), nullable=False),
         sa.Column("provider", sa.String(64), nullable=False),
@@ -123,7 +138,12 @@ def upgrade() -> None:
     # ── data_quality_issues ───────────────────────────────────────────────────
     op.create_table(
         "data_quality_issues",
-        sa.Column("id", PGUUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+        sa.Column(
+            "id",
+            PGUUID(as_uuid=True),
+            primary_key=True,
+            server_default=sa.text("gen_random_uuid()"),
+        ),
         sa.Column("workspace_id", PGUUID(as_uuid=True), nullable=False),
         sa.Column("provider_call_id", PGUUID(as_uuid=True), nullable=True),
         sa.Column("run_id", PGUUID(as_uuid=True), nullable=True),

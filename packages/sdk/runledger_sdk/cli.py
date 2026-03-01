@@ -235,7 +235,9 @@ def status(
 def check_regression(
     threshold: Annotated[
         float,
-        typer.Option("--threshold", help="Fail if cost regression exceeds this % change"),
+        typer.Option(
+            "--threshold", help="Fail if cost regression exceeds this % change"
+        ),
     ] = 20.0,
     api_key: ApiKeyOpt = None,
     base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
@@ -259,7 +261,9 @@ def check_regression(
     failed = [r for r in regressions if float(r.get("change_pct", 0)) > threshold]
 
     if not failed:
-        console.print(f"[green]✓ No regressions detected[/green] (threshold: {threshold}%)")
+        console.print(
+            f"[green]✓ No regressions detected[/green] (threshold: {threshold}%)"
+        )
         return
 
     table = Table(
@@ -283,7 +287,9 @@ def check_regression(
         )
 
     console.print(table)
-    err_console.print(f"✗ {len(failed)} regression(s) exceed {threshold}% threshold — failing CI gate")
+    err_console.print(
+        f"✗ {len(failed)} regression(s) exceed {threshold}% threshold — failing CI gate"
+    )
     raise typer.Exit(code=1)
 
 

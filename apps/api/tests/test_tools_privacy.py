@@ -17,13 +17,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

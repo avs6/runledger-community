@@ -20,21 +20,15 @@ from runledger_api.core.db import Base
 
 class LedgerKey(Base):
     __tablename__ = "ledger_keys"
-    __table_args__ = (
-        sa.Index("ix_ledger_keys_workspace", "workspace_id", "active", "expires_at"),
-    )
+    __table_args__ = (sa.Index("ix_ledger_keys_workspace", "workspace_id", "active", "expires_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     key_value: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    active: Mapped[bool] = mapped_column(
-        sa.Boolean, nullable=False, server_default=sa.text("TRUE")
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=False
-    )
+    active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("TRUE"))
+    expires_at: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
@@ -60,9 +54,7 @@ class LedgerSnapshot(Base):
     model_breakdown: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )
-    call_count: Mapped[int] = mapped_column(
-        sa.Integer, nullable=False, server_default=sa.text("0")
-    )
+    call_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
     hash: Mapped[str] = mapped_column(sa.Text, nullable=False)
     key_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -86,9 +78,7 @@ class ToolRegistry(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     tool_name: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    policy: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'audit'")
-    )
+    policy: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'audit'"))
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

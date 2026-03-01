@@ -25,7 +25,9 @@ from runledger_api.services.auth import generate_api_key
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/settings", tags=["settings"], dependencies=[Depends(management_rate_limit)])
+router = APIRouter(
+    prefix="/settings", tags=["settings"], dependencies=[Depends(management_rate_limit)]
+)
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -46,9 +48,7 @@ async def list_api_keys(workspace: WorkspaceDep, db: DbDep) -> list[ApiKey]:
     status_code=status.HTTP_201_CREATED,
     response_model=ApiKeyCreateResponse,
 )
-async def create_api_key(
-    body: ApiKeyCreate, workspace: WorkspaceDep, db: DbDep
-) -> dict[str, Any]:
+async def create_api_key(body: ApiKeyCreate, workspace: WorkspaceDep, db: DbDep) -> dict[str, Any]:
     raw_key, key_hash, key_prefix = generate_api_key(body.environment)
     api_key = ApiKey(
         workspace_id=workspace.id,

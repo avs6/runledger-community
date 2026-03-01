@@ -42,9 +42,7 @@ class ProviderPricing(Base):
     cached_input_cost_per_1m: Mapped[Decimal | None] = mapped_column(
         sa.Numeric(14, 8), nullable=True
     )
-    effective_from: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=False
-    )
+    effective_from: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
     effective_to: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )
@@ -92,9 +90,7 @@ class UsageDaily(Base):
     """
 
     __tablename__ = "usage_daily"
-    __table_args__ = (
-        sa.Index("ix_usage_daily_workspace_day", "workspace_id", "day"),
-    )
+    __table_args__ = (sa.Index("ix_usage_daily_workspace_day", "workspace_id", "day"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

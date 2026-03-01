@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
 import sqlalchemy as sa
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,8 +55,8 @@ async def list_runs(
     to_dt: datetime | None = Query(None, alias="to"),
 ) -> RunListResponse:
     # Total count query (without cursor/limit)
-    count_stmt = select(func.count()).select_from(AgentRun).where(
-        AgentRun.workspace_id == workspace.id
+    count_stmt = (
+        select(func.count()).select_from(AgentRun).where(AgentRun.workspace_id == workspace.id)
     )
     if status_filter:
         count_stmt = count_stmt.where(AgentRun.status == status_filter)
@@ -250,9 +250,7 @@ async def get_run_graph(
     spans = list(spans_result.scalars().all())
 
     # Build a map of span_id → provider_call for enriching LLM nodes
-    pc_result = await db.execute(
-        select(ProviderCall).where(ProviderCall.run_id == run_id)
-    )
+    pc_result = await db.execute(select(ProviderCall).where(ProviderCall.run_id == run_id))
     pc_by_span: dict[str, ProviderCall] = {}
     for row_pc in pc_result.scalars().all():
         if row_pc.span_id:

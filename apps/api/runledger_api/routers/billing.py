@@ -44,7 +44,6 @@ from runledger_api.schemas.billing import (
     UsageSnapshotResponse,
 )
 from runledger_api.services.billing import (
-    apply_chargeback_rules,
     close_billing_period,
     export_csv,
     export_signed_json,
@@ -52,7 +51,9 @@ from runledger_api.services.billing import (
     run_reconciliation,
 )
 
-router = APIRouter(prefix="/billing", tags=["billing"], dependencies=[Depends(management_rate_limit)])
+router = APIRouter(
+    prefix="/billing", tags=["billing"], dependencies=[Depends(management_rate_limit)]
+)
 log = structlog.get_logger()
 
 
@@ -110,9 +111,7 @@ async def list_billing_periods(
     status_filter: Annotated[str | None, Query(alias="status")] = None,
 ) -> BillingPeriodList:
     """List billing periods, optionally filtered by status."""
-    stmt = select(BillingPeriod).where(
-        BillingPeriod.workspace_id == workspace.id
-    )
+    stmt = select(BillingPeriod).where(BillingPeriod.workspace_id == workspace.id)
     if status_filter:
         stmt = stmt.where(BillingPeriod.status == status_filter)
     stmt = stmt.order_by(BillingPeriod.period_start.desc())
@@ -155,7 +154,9 @@ async def get_billing_period(
     )
     period = result.scalar_one_or_none()
     if period is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
 
     return BillingPeriodResponse(
         id=str(period.id),
@@ -188,7 +189,9 @@ async def close_period(
     )
     period = result.scalar_one_or_none()
     if period is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
 
     try:
         snapshot = await close_billing_period(db, period_id)
@@ -197,8 +200,8 @@ async def close_period(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Billing period is already closed",
-            )
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+            ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return UsageSnapshotResponse(
         id=str(snapshot.id),
@@ -227,12 +230,14 @@ async def get_reconciliation(
         )
     )
     if result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
 
     try:
         return await run_reconciliation(db, period_id)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 # ── GET /billing/periods/{id}/breakdown ───────────────────────────────────────
@@ -252,12 +257,14 @@ async def get_breakdown(
         )
     )
     if result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
 
     try:
         return await get_period_breakdown(db, period_id)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 # ── GET /billing/periods/{id}/export ──────────────────────────────────────────
@@ -278,7 +285,9 @@ async def export_period(
         )
     )
     if result.scalar_one_or_none() is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
 
     try:
         if format == "csv":
@@ -286,22 +295,19 @@ async def export_period(
             return Response(
                 content=csv_content,
                 media_type="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename=period_{period_id}.csv"
-                },
+                headers={"Content-Disposition": f"attachment; filename=period_{period_id}.csv"},
             )
         else:
             import json  # noqa: PLC0415
+
             payload = await export_signed_json(db, period_id)
             return Response(
                 content=json.dumps(payload, default=str),
                 media_type="application/json",
-                headers={
-                    "Content-Disposition": f"attachment; filename=period_{period_id}.json"
-                },
+                headers={"Content-Disposition": f"attachment; filename=period_{period_id}.json"},
             )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 # ── POST /billing/chargeback-rules ────────────────────────────────────────────

@@ -19,9 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
 from runledger_api.services.billing import sign_snapshot
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -82,9 +80,7 @@ def _scalar_result(value: object) -> MagicMock:
 
 def _list_result(rows: list[object]) -> MagicMock:
     result = MagicMock()
-    result.scalars = MagicMock(
-        return_value=MagicMock(__iter__=MagicMock(return_value=iter(rows)))
-    )
+    result.scalars = MagicMock(return_value=MagicMock(__iter__=MagicMock(return_value=iter(rows))))
     result.all = MagicMock(return_value=rows)
     return result
 
@@ -378,9 +374,7 @@ async def test_export_csv_columns(
         "runledger_api.routers.billing.export_csv",
         new=AsyncMock(return_value=csv_content),
     ):
-        response = await authed_client.get(
-            f"/billing/periods/{period.id}/export?format=csv"
-        )
+        response = await authed_client.get(f"/billing/periods/{period.id}/export?format=csv")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
@@ -474,8 +468,8 @@ async def test_apply_chargeback_rules() -> None:
 @pytest.mark.asyncio
 async def test_nightly_reconciliation_worker() -> None:
     """Celery task returns {'checked': N, 'failed': M}."""
-    from runledger_api.workers.billing import _run_nightly_reconciliation
     from runledger_api.schemas.billing import ReconciliationResult
+    from runledger_api.workers.billing import _run_nightly_reconciliation
 
     period_id = uuid.uuid4()
     period = SimpleNamespace(id=period_id, status="closed", created_at=datetime.now(UTC))

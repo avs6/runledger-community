@@ -263,7 +263,7 @@ def _build_provider_call_error(
 
 
 def _sync_budget_check(
-    transport: "SyncTransport",
+    transport: SyncTransport,
     ctx: dict[str, str | None],
     kwargs: dict[str, Any],
 ) -> None:

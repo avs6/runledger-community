@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
@@ -115,10 +115,7 @@ async def run_reconciliation(
     daily_sum: Decimal = daily_result.scalar_one() or Decimal(0)
 
     # Delta percentage
-    if calls_sum > 0:
-        delta_pct = abs(calls_sum - daily_sum) / calls_sum * 100
-    else:
-        delta_pct = Decimal(0)
+    delta_pct = abs(calls_sum - daily_sum) / calls_sum * 100 if calls_sum > 0 else Decimal(0)
 
     # Count orphaned calls (LEFT JOIN agent_runs WHERE agent_runs.id IS NULL)
     orphan_result = await db.execute(
@@ -225,9 +222,7 @@ async def close_billing_period(
 
     # Mark as closing
     await db.execute(
-        update(BillingPeriod)
-        .where(BillingPeriod.id == billing_period_id)
-        .values(status="closing")
+        update(BillingPeriod).where(BillingPeriod.id == billing_period_id).values(status="closing")
     )
 
     workspace_id = period.workspace_id
@@ -532,9 +527,7 @@ async def apply_chargeback_rules(
     total_cost = period.total_cost_usd or Decimal(0)
 
     rules_result = await db.execute(
-        select(ChargebackRule).where(
-            ChargebackRule.workspace_id == period.workspace_id
-        )
+        select(ChargebackRule).where(ChargebackRule.workspace_id == period.workspace_id)
     )
     rules: list[ChargebackRule] = list(rules_result.scalars())
 

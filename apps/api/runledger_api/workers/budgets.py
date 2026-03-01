@@ -35,7 +35,6 @@ from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.services.budgets import (
     _period_key,
     _spend_key,
-    get_workspace_budgets_cached,
     send_notification,
 )
 
@@ -174,9 +173,7 @@ async def _run_budget_spend_sync() -> dict[str, int]:
 
     try:
         async with factory() as session:
-            result = await session.execute(
-                select(Budget).where(Budget.is_active.is_(True))
-            )
+            result = await session.execute(select(Budget).where(Budget.is_active.is_(True)))
             budgets: list[Budget] = list(result.scalars())
 
             now = datetime.now(UTC)
@@ -186,19 +183,13 @@ async def _run_budget_spend_sync() -> dict[str, int]:
 
                 # Determine time window for this period
                 if budget.period_type == "daily":
-                    period_start = now.replace(
-                        hour=0, minute=0, second=0, microsecond=0
-                    )
+                    period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     period_end = period_start + timedelta(days=1)
                 elif budget.period_type == "monthly":
-                    period_start = now.replace(
-                        day=1, hour=0, minute=0, second=0, microsecond=0
-                    )
+                    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                     # First day of next month
                     if now.month == 12:
-                        period_end = period_start.replace(
-                            year=now.year + 1, month=1
-                        )
+                        period_end = period_start.replace(year=now.year + 1, month=1)
                     else:
                         period_end = period_start.replace(month=now.month + 1)
                 else:
@@ -209,9 +200,7 @@ async def _run_budget_spend_sync() -> dict[str, int]:
                 # Build scope filter
                 scope_filter = [ProviderCall.workspace_id == budget.workspace_id]
                 if budget.scope_type == "end_user" and budget.scope_id:
-                    scope_filter.append(
-                        ProviderCall.end_user_id == budget.scope_id
-                    )
+                    scope_filter.append(ProviderCall.end_user_id == budget.scope_id)
                 # feature_tag is on agent_runs, not provider_calls — skip for now
                 # (workspace and total scope are handled by workspace_id filter)
 

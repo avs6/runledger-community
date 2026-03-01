@@ -9,14 +9,11 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-
 # ── Budget ────────────────────────────────────────────────────────────────────
 
 
 class BudgetCreate(BaseModel):
-    scope_type: str = Field(
-        ..., pattern="^(workspace|end_user|feature_tag|app)$"
-    )
+    scope_type: str = Field(..., pattern="^(workspace|end_user|feature_tag|app)$")
     scope_id: str | None = None
     period_type: str = Field(..., pattern="^(daily|monthly|total)$")
     limit_usd: Decimal = Field(..., gt=0)
@@ -78,9 +75,7 @@ class BreachList(BaseModel):
 class NotificationCreate(BaseModel):
     channel: str = Field(..., pattern="^(webhook|slack)$")
     destination_url: str
-    events: list[str] = Field(
-        default_factory=lambda: ["budget.breach", "runaway.detected"]
-    )
+    events: list[str] = Field(default_factory=lambda: ["budget.breach", "runaway.detected"])
 
 
 class NotificationResponse(BaseModel):

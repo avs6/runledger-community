@@ -18,13 +18,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from runledger_api.core.db import Base
 
 
-class BillingPeriodStatusEnum(str, enum.Enum):
+class BillingPeriodStatusEnum(enum.StrEnum):
     open = "open"
     closing = "closing"
     closed = "closed"
 
 
-class AllocationTypeEnum(str, enum.Enum):
+class AllocationTypeEnum(enum.StrEnum):
     cost_center = "cost_center"
     team = "team"
     env = "env"
@@ -53,9 +53,7 @@ class BillingPeriod(Base):
     )
     total_cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     snapshot_hash: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    closed_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    closed_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
@@ -63,9 +61,7 @@ class BillingPeriod(Base):
 
 class ChargebackRule(Base):
     __tablename__ = "chargeback_rules"
-    __table_args__ = (
-        sa.Index("ix_chargeback_rules_workspace", "workspace_id"),
-    )
+    __table_args__ = (sa.Index("ix_chargeback_rules_workspace", "workspace_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -81,9 +77,7 @@ class ChargebackRule(Base):
 
 class UsageSnapshot(Base):
     __tablename__ = "usage_snapshots"
-    __table_args__ = (
-        sa.Index("ix_usage_snapshots_period", "billing_period_id"),
-    )
+    __table_args__ = (sa.Index("ix_usage_snapshots_period", "billing_period_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

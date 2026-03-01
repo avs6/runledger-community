@@ -23,7 +23,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-
 # ── Mock result helpers ────────────────────────────────────────────────────────
 
 
@@ -113,16 +112,14 @@ async def test_run_economics_by_span_type(
         SimpleNamespace(span_type="tool", cost_usd=Decimal("0.01")),
     ]
     model_rows = [
-        SimpleNamespace(
-            model="gpt-4o", provider="openai", cost_usd=Decimal("0.05"), call_count=2
-        )
+        SimpleNamespace(model="gpt-4o", provider="openai", cost_usd=Decimal("0.05"), call_count=2)
     ]
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _scalar_orm_result(run),   # run lookup
-            _row_result(span_rows),    # span-type costs
-            _row_result(model_rows),   # model costs
+            _scalar_orm_result(run),  # run lookup
+            _row_result(span_rows),  # span-type costs
+            _row_result(model_rows),  # model costs
             _scalar_value_result(Decimal("0")),  # retry cost
         ]
     )
@@ -208,13 +205,9 @@ async def test_top_workflows_returns_list(
             total_cost_usd=Decimal("0.50"),
         )
     ]
-    call_rows = [
-        SimpleNamespace(feature_tag="chat", application_id=None, call_count=30)
-    ]
+    call_rows = [SimpleNamespace(feature_tag="chat", application_id=None, call_count=30)]
 
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_row_result(run_rows), _row_result(call_rows)]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_row_result(run_rows), _row_result(call_rows)])
 
     response = await authed_client.get("/analytics/workflows/top")
 
@@ -236,9 +229,7 @@ async def test_top_workflows_limit(
     mock_db_session: AsyncMock,
 ) -> None:
     """?limit=5 is honoured (SQL LIMIT applied; mock returns empty list)."""
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_row_result([]), _row_result([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_row_result([]), _row_result([])])
 
     response = await authed_client.get("/analytics/workflows/top?limit=5")
 
@@ -274,8 +265,8 @@ async def test_version_compare_delta_pct(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _one_result(base_row),   # baseline run stats
-            _one_result(cmp_row),    # comparison run stats
+            _one_result(base_row),  # baseline run stats
+            _one_result(cmp_row),  # comparison run stats
             _row_result(span_rows),  # baseline span costs
             _row_result(span_rows),  # comparison span costs
         ]
@@ -345,12 +336,8 @@ async def test_regressions_detected(
     mock_db_session: AsyncMock,
 ) -> None:
     """>20% cost increase with run_count>=3 is flagged in items."""
-    curr_rows = [
-        SimpleNamespace(feature_tag="chat", avg_cost=Decimal("0.30"), run_count=5)
-    ]
-    prior_rows = [
-        SimpleNamespace(feature_tag="chat", avg_cost=Decimal("0.20"), run_count=6)
-    ]
+    curr_rows = [SimpleNamespace(feature_tag="chat", avg_cost=Decimal("0.30"), run_count=5)]
+    prior_rows = [SimpleNamespace(feature_tag="chat", avg_cost=Decimal("0.20"), run_count=6)]
 
     mock_db_session.execute = AsyncMock(
         side_effect=[_row_result(curr_rows), _row_result(prior_rows)]
@@ -375,12 +362,8 @@ async def test_regressions_below_threshold(
     mock_db_session: AsyncMock,
 ) -> None:
     """<20% increase → items is empty."""
-    curr_rows = [
-        SimpleNamespace(feature_tag="search", avg_cost=Decimal("0.22"), run_count=5)
-    ]
-    prior_rows = [
-        SimpleNamespace(feature_tag="search", avg_cost=Decimal("0.20"), run_count=5)
-    ]
+    curr_rows = [SimpleNamespace(feature_tag="search", avg_cost=Decimal("0.22"), run_count=5)]
+    prior_rows = [SimpleNamespace(feature_tag="search", avg_cost=Decimal("0.20"), run_count=5)]
 
     mock_db_session.execute = AsyncMock(
         side_effect=[_row_result(curr_rows), _row_result(prior_rows)]

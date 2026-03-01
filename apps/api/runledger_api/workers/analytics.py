@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -60,9 +60,8 @@ async def _run_anomaly_detection() -> dict[str, int]:
 
     async with factory() as session:
         # 1. Get all workspace IDs active in the last 30d
-        ws_stmt = (
-            select(ProviderCall.workspace_id.distinct())
-            .where(ProviderCall.created_at >= lookback_start)
+        ws_stmt = select(ProviderCall.workspace_id.distinct()).where(
+            ProviderCall.created_at >= lookback_start
         )
         ws_result = await session.execute(ws_stmt)
         workspace_ids = [row[0] for row in ws_result.all()]
@@ -71,13 +70,10 @@ async def _run_anomaly_detection() -> dict[str, int]:
             workspaces_checked += 1
 
             # 2. Get distinct end_user_ids active in last 30d for this workspace
-            user_stmt = (
-                select(ProviderCall.end_user_id.distinct())
-                .where(
-                    ProviderCall.workspace_id == workspace_id,
-                    ProviderCall.created_at >= lookback_start,
-                    ProviderCall.end_user_id.is_not(None),
-                )
+            user_stmt = select(ProviderCall.end_user_id.distinct()).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= lookback_start,
+                ProviderCall.end_user_id.is_not(None),
             )
             user_result = await session.execute(user_stmt)
             end_user_ids = [row[0] for row in user_result.all()]

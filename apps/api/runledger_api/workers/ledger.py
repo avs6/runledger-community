@@ -19,7 +19,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -27,7 +27,6 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import ProviderCall, ToolCall
 from runledger_api.models.ledger import LedgerSnapshot, SecurityEvent
-from runledger_api.models.tenant import Workspace
 from runledger_api.services.ledger import (
     build_daily_snapshot,
     compute_snapshot_hash,

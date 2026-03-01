@@ -13,13 +13,12 @@ GET  /ledger/verify/{snapshot_date} Verify integrity of a snapshot
 
 from __future__ import annotations
 
-import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 

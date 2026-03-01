@@ -35,7 +35,9 @@ from runledger_api.schemas.providers import (
 
 log = structlog.get_logger()
 
-router = APIRouter(prefix="/providers", tags=["providers"], dependencies=[Depends(management_rate_limit)])
+router = APIRouter(
+    prefix="/providers", tags=["providers"], dependencies=[Depends(management_rate_limit)]
+)
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
@@ -110,9 +112,7 @@ async def update_pricing(
 
 
 @router.delete("/pricing/{pricing_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_pricing(
-    pricing_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep
-) -> None:
+async def delete_pricing(pricing_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) -> None:
     pricing = await db.get(ProviderPricing, pricing_id)
     if pricing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")

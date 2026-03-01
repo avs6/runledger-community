@@ -36,18 +36,18 @@ _PRICING_EFFECTIVE_FROM = datetime(2025, 1, 1, tzinfo=UTC)
 # (provider, model, input_per_1m, output_per_1m, cached_input_per_1m)
 _PRICING_DATA: list[tuple[str, str, str, str, str | None]] = [
     # ── OpenAI ────────────────────────────────────────────────────────────────
-    ("openai", "gpt-4o",         "2.50",  "10.00", "1.25"),
-    ("openai", "gpt-4o-mini",    "0.15",   "0.60", "0.075"),
-    ("openai", "gpt-4-turbo",   "10.00",  "30.00", "5.00"),
-    ("openai", "gpt-3.5-turbo",  "0.50",   "1.50", None),
-    ("openai", "o1",            "15.00",  "60.00", "7.50"),
-    ("openai", "o3-mini",        "1.10",   "4.40", "0.55"),
+    ("openai", "gpt-4o", "2.50", "10.00", "1.25"),
+    ("openai", "gpt-4o-mini", "0.15", "0.60", "0.075"),
+    ("openai", "gpt-4-turbo", "10.00", "30.00", "5.00"),
+    ("openai", "gpt-3.5-turbo", "0.50", "1.50", None),
+    ("openai", "o1", "15.00", "60.00", "7.50"),
+    ("openai", "o3-mini", "1.10", "4.40", "0.55"),
     # ── Anthropic ─────────────────────────────────────────────────────────────
-    ("anthropic", "claude-opus-4-6",    "15.00", "75.00", None),
-    ("anthropic", "claude-sonnet-4-6",   "3.00", "15.00", None),
-    ("anthropic", "claude-haiku-4-5",    "0.80",  "4.00", None),
+    ("anthropic", "claude-opus-4-6", "15.00", "75.00", None),
+    ("anthropic", "claude-sonnet-4-6", "3.00", "15.00", None),
+    ("anthropic", "claude-haiku-4-5", "0.80", "4.00", None),
     # ── Google ────────────────────────────────────────────────────────────────
-    ("google", "gemini-1.5-pro",   "1.25",  "5.00", None),
+    ("google", "gemini-1.5-pro", "1.25", "5.00", None),
     ("google", "gemini-1.5-flash", "0.075", "0.30", None),
 ]
 
@@ -65,6 +65,7 @@ async def seed() -> None:
 
 async def _seed_tenant(session: object) -> Workspace | None:
     from sqlalchemy.ext.asyncio import AsyncSession
+
     assert isinstance(session, AsyncSession)
 
     existing = await session.execute(select(Tenant).where(Tenant.slug == "default"))
@@ -108,6 +109,7 @@ async def _seed_tenant(session: object) -> Workspace | None:
 
 async def _seed_user(session: object, workspace: Workspace) -> None:
     from sqlalchemy.ext.asyncio import AsyncSession
+
     assert isinstance(session, AsyncSession)
 
     _DEFAULT_EMAIL = "admin@runledger.local"
@@ -120,9 +122,7 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
 
     user = User(
         email=_DEFAULT_EMAIL,
-        password_hash=bcrypt.hashpw(
-            _DEFAULT_PASSWORD.encode(), bcrypt.gensalt()
-        ).decode(),
+        password_hash=bcrypt.hashpw(_DEFAULT_PASSWORD.encode(), bcrypt.gensalt()).decode(),
     )
     session.add(user)
     await session.flush()
@@ -143,6 +143,7 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
 
 async def _seed_pricing(session: object) -> None:
     from sqlalchemy.ext.asyncio import AsyncSession
+
     assert isinstance(session, AsyncSession)
 
     # Check if pricing data already exists

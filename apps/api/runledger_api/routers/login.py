@@ -44,9 +44,7 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
     user = result.scalar_one_or_none()
 
     # Constant-time failure (avoids timing attacks)
-    if user is None or not bcrypt.checkpw(
-        body.password.encode(), user.password_hash.encode()
-    ):
+    if user is None or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode()):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Invalid email or password",
@@ -65,6 +63,7 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
 
     # Load workspace
     from runledger_api.models.tenant import Workspace
+
     workspace = await db.get(Workspace, workspace_user.workspace_id)
     if workspace is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace not found")

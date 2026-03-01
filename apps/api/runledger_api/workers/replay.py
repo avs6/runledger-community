@@ -106,9 +106,7 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
             label: str | None = cfg.get("label")
 
             pricing_stmt = (
-                select(ProviderPricing)
-                .where(ProviderPricing.model == model_name)
-                .limit(1)
+                select(ProviderPricing).where(ProviderPricing.model == model_name).limit(1)
             )
             pricing_result = await session.execute(pricing_stmt)
             pricing = pricing_result.scalar_one_or_none()
@@ -123,9 +121,7 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
                 projected_cost = Decimal(0)
                 pricing_found = False
 
-            avg_cost_per_run = (
-                projected_cost / Decimal(run_count) if run_count > 0 else Decimal(0)
-            )
+            avg_cost_per_run = projected_cost / Decimal(run_count) if run_count > 0 else Decimal(0)
 
             config_results.append(
                 {
