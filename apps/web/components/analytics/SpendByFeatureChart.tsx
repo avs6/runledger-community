@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 import type { FeatureSpend } from '@/types/api'
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
@@ -19,6 +21,19 @@ interface Props {
 }
 
 export default function SpendByFeatureChart({ items }: Props) {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  const isDark = mounted && resolvedTheme === 'dark'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+    color: isDark ? '#f3f4f6' : '#111827',
+    fontSize: 12,
+  }
+  const legendColor = isDark ? '#9ca3af' : '#6b7280'
+
   if (items.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
@@ -50,9 +65,9 @@ export default function SpendByFeatureChart({ items }: Props) {
         </Pie>
         <Tooltip
           formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
-          contentStyle={{ fontSize: 12 }}
+          contentStyle={tooltipStyle}
         />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Legend wrapperStyle={{ fontSize: 11, color: legendColor }} />
       </PieChart>
     </ResponsiveContainer>
   )

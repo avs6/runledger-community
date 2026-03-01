@@ -39,7 +39,7 @@ export default async function RunDetailPage({
 
       <RunSummaryBar run={run} />
 
-      <div className="min-h-0 flex-1 rounded-lg border border-gray-200 overflow-hidden">
+      <div className="min-h-0 flex-1 rounded-lg border border-gray-200 overflow-hidden dark:border-gray-700">
         <RunGraph graphNodes={graph.nodes} graphEdges={graph.edges} />
       </div>
     </div>

@@ -14,8 +14,8 @@ import { formatCost, formatTokens, formatDuration } from '@/lib/utils'
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 py-1.5 text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+      <span className="text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="text-right font-medium text-gray-900 dark:text-gray-100">{value}</span>
     </div>
   )
 }
@@ -73,10 +73,10 @@ export default function SpanDetailPanel({
               Object.keys(node.data.metadata).length > 0 && (
                 <>
                   <Separator className="my-4" />
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                    Metadata
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    Payload / Metadata
                   </p>
-                  <pre className="overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700">
+                  <pre className="overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                     {JSON.stringify(node.data.metadata, null, 2)}
                   </pre>
                 </>

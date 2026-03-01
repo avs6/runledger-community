@@ -5,8 +5,8 @@ import { formatCost, formatTokens, formatDuration } from '@/lib/utils'
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-gray-400">{label}</span>
-      <span className="text-sm font-medium">{value}</span>
+      <span className="text-xs text-gray-400 dark:text-gray-500">{label}</span>
+      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{value}</span>
     </div>
   )
 }
@@ -16,9 +16,11 @@ export default function RunSummaryBar({ run }: { run: RunDetailResponse }) {
     (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0)
 
   return (
-    <div className="flex flex-wrap items-center gap-6 rounded-lg border border-gray-200 bg-white px-4 py-3">
+    <div className="flex flex-wrap items-center gap-6 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-xs text-gray-400">{run.id.slice(0, 8)}…</span>
+        <span title={run.id} className="cursor-default font-mono text-xs text-gray-500 dark:text-gray-400">
+          {run.id.slice(0, 12)}…
+        </span>
         <RunStatusBadge status={run.status} />
       </div>
       <Stat label="Cost" value={formatCost(run.total_cost_usd)} />
@@ -26,6 +28,7 @@ export default function RunSummaryBar({ run }: { run: RunDetailResponse }) {
       <Stat label="Duration" value={formatDuration(run.duration_ms)} />
       {run.end_user_id && <Stat label="User" value={run.end_user_id} />}
       {run.feature_tag && <Stat label="Feature" value={run.feature_tag} />}
+      {run.deployment_version && <Stat label="Version" value={run.deployment_version} />}
     </div>
   )
 }

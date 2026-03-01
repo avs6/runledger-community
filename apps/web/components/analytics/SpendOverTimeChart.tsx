@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 import type { SpendOverTime } from '@/types/api'
 import {
   CartesianGrid,
@@ -24,6 +26,20 @@ function fmtPeriod(period: string, granularity: string): string {
 }
 
 export default function SpendOverTimeChart({ data }: Props) {
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  const isDark = mounted && resolvedTheme === 'dark'
+  const gridColor = isDark ? '#374151' : '#e5e7eb'
+  const tickColor = isDark ? '#9ca3af' : '#6b7280'
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#1f2937' : '#ffffff',
+    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+    color: isDark ? '#f3f4f6' : '#111827',
+    fontSize: 12,
+  }
+
   if (data.points.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
@@ -40,15 +56,15 @@ export default function SpendOverTimeChart({ data }: Props) {
   return (
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
         <XAxis
           dataKey="period"
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize: 11, fill: tickColor }}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize: 11, fill: tickColor }}
           tickLine={false}
           axisLine={false}
           tickFormatter={(v: number) => `$${v.toFixed(3)}`}
@@ -56,8 +72,8 @@ export default function SpendOverTimeChart({ data }: Props) {
         />
         <Tooltip
           formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
-          labelStyle={{ fontSize: 12 }}
-          contentStyle={{ fontSize: 12 }}
+          labelStyle={{ fontSize: 12, color: isDark ? '#f3f4f6' : '#111827' }}
+          contentStyle={tooltipStyle}
         />
         <Line
           type="monotone"

@@ -70,6 +70,26 @@ services:
       redis:
         condition: service_healthy
 
+  # Celery Beat scheduler — fires periodic tasks: cost_enrichment (60s),
+  # hourly rollup (30m), daily rollup (00:05 UTC), anomaly detection (nightly)
+  beat:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: celery -A runledger_api.core.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://runledger:runledger@postgres:5432/runledger
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
+      ADMIN_SECRET: runledger-admin
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   web:
     build:
       context: ../apps/web
