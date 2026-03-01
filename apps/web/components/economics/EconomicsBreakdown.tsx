@@ -40,16 +40,16 @@ export default function EconomicsBreakdown({ data }: Props) {
     <div className="space-y-4">
       {/* Summary callouts */}
       <div className="flex flex-wrap gap-4">
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-          <p className="text-xs text-gray-500">Total Cost</p>
-          <p className="text-lg font-semibold text-gray-900">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs text-gray-500 dark:text-gray-400">Total Cost</p>
+          <p className="text-lg font-semibold text-gray-900 dark:text-white">
             ${parseFloat(data.total_cost_usd).toFixed(6)}
           </p>
         </div>
         {retryCost > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="text-xs text-amber-600">Retry Cost (child LLM spans)</p>
-            <p className="text-lg font-semibold text-amber-800">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950">
+            <p className="text-xs text-amber-600 dark:text-amber-400">Retry Cost (child LLM spans)</p>
+            <p className="text-lg font-semibold text-amber-800 dark:text-amber-300">
               ${retryCost.toFixed(6)}
             </p>
           </div>
@@ -60,14 +60,17 @@ export default function EconomicsBreakdown({ data }: Props) {
       {chartData.length > 0 ? (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis dataKey="span_type" tick={{ fontSize: 12 }} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" />
+            <XAxis dataKey="span_type" tick={{ fontSize: 12, fill: '#9ca3af' }} />
             <YAxis
               tickFormatter={(v: number) => `$${v.toFixed(4)}`}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
               width={72}
             />
-            <Tooltip formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']} />
+            <Tooltip
+              formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
+              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px', color: '#f3f4f6' }}
+            />
             <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
               {chartData.map((entry) => (
                 <Cell key={entry.span_type} fill={spanColour(entry.span_type)} />
@@ -76,14 +79,14 @@ export default function EconomicsBreakdown({ data }: Props) {
           </BarChart>
         </ResponsiveContainer>
       ) : (
-        <p className="text-sm text-gray-500">No span cost data for this run.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">No span cost data for this run.</p>
       )}
 
       {/* Model cost table */}
       {data.cost_by_model.length > 0 && (
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b text-left text-xs text-gray-500">
+            <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
               <th className="pb-1 font-medium">Model</th>
               <th className="pb-1 font-medium">Provider</th>
               <th className="pb-1 text-right font-medium">Calls</th>
@@ -92,11 +95,11 @@ export default function EconomicsBreakdown({ data }: Props) {
           </thead>
           <tbody>
             {data.cost_by_model.map((m) => (
-              <tr key={`${m.provider}/${m.model}`} className="border-b last:border-0">
-                <td className="py-1.5 font-mono text-xs">{m.model}</td>
-                <td className="py-1.5 text-gray-500">{m.provider}</td>
-                <td className="py-1.5 text-right tabular-nums">{m.call_count}</td>
-                <td className="py-1.5 text-right tabular-nums font-medium">
+              <tr key={`${m.provider}/${m.model}`} className="border-b border-gray-100 last:border-0 dark:border-gray-700">
+                <td className="py-1.5 font-mono text-xs dark:text-gray-300">{m.model}</td>
+                <td className="py-1.5 text-gray-500 dark:text-gray-400">{m.provider}</td>
+                <td className="py-1.5 text-right tabular-nums dark:text-gray-300">{m.call_count}</td>
+                <td className="py-1.5 text-right tabular-nums font-medium dark:text-gray-200">
                   ${parseFloat(m.cost_usd).toFixed(6)}
                 </td>
               </tr>

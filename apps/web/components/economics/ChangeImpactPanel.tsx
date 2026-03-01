@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { getVersionCompare } from '@/lib/api'
 import type { VersionCompareResult } from '@/types/api'
 
+const inputCls =
+  'h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500'
+
 interface DeltaCardProps {
   label: string
   value: string | null | undefined
@@ -12,19 +15,21 @@ interface DeltaCardProps {
 function DeltaCard({ label, value }: DeltaCardProps) {
   if (value == null) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-        <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-base font-semibold text-gray-400">—</p>
+      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+        <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-base font-semibold text-gray-400 dark:text-gray-500">—</p>
       </div>
     )
   }
   const pct = parseFloat(value)
   const positive = pct > 0
-  const colour = positive ? 'text-red-600' : 'text-green-600'
-  const bg = positive ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
+  const colour = positive ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+  const bg = positive
+    ? 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+    : 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
   return (
     <div className={`rounded-lg border px-4 py-3 ${bg}`}>
-      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
       <p className={`text-lg font-semibold tabular-nums ${colour}`}>
         {positive ? '+' : ''}{pct.toFixed(2)}%
       </p>
@@ -62,17 +67,17 @@ export default function ChangeImpactPanel({ apiKey }: Props) {
       {/* Inputs */}
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Baseline version</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Baseline version</label>
           <input
             type="text"
             value={baseline}
             onChange={(e) => setBaseline(e.target.value)}
             placeholder="e.g. v1"
-            className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={inputCls}
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">
+          <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
             Comparison version
           </label>
           <input
@@ -80,7 +85,7 @@ export default function ChangeImpactPanel({ apiKey }: Props) {
             value={comparison}
             onChange={(e) => setComparison(e.target.value)}
             placeholder="e.g. v2"
-            className="h-9 rounded-md border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className={inputCls}
           />
         </div>
         <button
@@ -92,7 +97,7 @@ export default function ChangeImpactPanel({ apiKey }: Props) {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {result && (
         <div className="space-y-4">
@@ -106,13 +111,13 @@ export default function ChangeImpactPanel({ apiKey }: Props) {
           {/* Version summaries */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {([result.baseline, result.comparison] as const).map((v) => (
-              <div key={v.version} className="rounded-lg border border-gray-200 p-3">
-                <p className="mb-1 font-semibold text-gray-700">{v.version}</p>
-                <p className="text-gray-500">
+              <div key={v.version} className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <p className="mb-1 font-semibold text-gray-700 dark:text-gray-300">{v.version}</p>
+                <p className="text-gray-500 dark:text-gray-400">
                   {v.run_count} runs · ${parseFloat(v.avg_cost_usd).toFixed(6)} avg cost
                 </p>
                 {v.avg_latency_ms && (
-                  <p className="text-gray-500">
+                  <p className="text-gray-500 dark:text-gray-400">
                     {parseFloat(v.avg_latency_ms).toFixed(0)} ms avg latency
                   </p>
                 )}
@@ -124,7 +129,7 @@ export default function ChangeImpactPanel({ apiKey }: Props) {
           {result.by_span_type.length > 0 && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs text-gray-500">
+                <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
                   <th className="pb-1 font-medium">Span type</th>
                   <th className="pb-1 text-right font-medium">Baseline cost</th>
                   <th className="pb-1 text-right font-medium">Comparison cost</th>
@@ -135,21 +140,21 @@ export default function ChangeImpactPanel({ apiKey }: Props) {
                 {result.by_span_type.map((row) => {
                   const pct = row.delta_pct != null ? parseFloat(row.delta_pct) : null
                   return (
-                    <tr key={row.span_type} className="border-b last:border-0">
-                      <td className="py-1.5">{row.span_type}</td>
-                      <td className="py-1.5 text-right tabular-nums">
+                    <tr key={row.span_type} className="border-b border-gray-100 last:border-0 dark:border-gray-700">
+                      <td className="py-1.5 dark:text-gray-300">{row.span_type}</td>
+                      <td className="py-1.5 text-right tabular-nums dark:text-gray-300">
                         ${parseFloat(row.baseline_cost).toFixed(6)}
                       </td>
-                      <td className="py-1.5 text-right tabular-nums">
+                      <td className="py-1.5 text-right tabular-nums dark:text-gray-300">
                         ${parseFloat(row.comparison_cost).toFixed(6)}
                       </td>
                       <td
                         className={`py-1.5 text-right tabular-nums font-medium ${
                           pct == null
-                            ? 'text-gray-400'
+                            ? 'text-gray-400 dark:text-gray-500'
                             : pct > 0
-                            ? 'text-red-600'
-                            : 'text-green-600'
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-green-600 dark:text-green-400'
                         }`}
                       >
                         {pct == null

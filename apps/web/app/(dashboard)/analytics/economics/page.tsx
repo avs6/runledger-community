@@ -16,15 +16,15 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-base font-semibold text-gray-800">{title}</h2>
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
       {children}
     </div>
   )
 }
 
 function Skeleton() {
-  return <div className="h-40 w-full animate-pulse rounded-lg bg-gray-100" />
+  return <div className="h-40 w-full animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700" />
 }
 
 export default function EconomicsPage() {
@@ -60,7 +60,7 @@ export default function EconomicsPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold text-gray-900">Economics</h1>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Economics</h1>
 
       {/* ── Top Workflows ────────────────────────────────────────────────── */}
       <Section title="Top Workflows by Cost">
@@ -69,7 +69,7 @@ export default function EconomicsPage() {
         ) : workflows && workflows.items.length > 0 ? (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-xs text-gray-500">
+              <tr className="border-b border-gray-200 text-left text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
                 <th className="pb-1 font-medium">Feature tag</th>
                 <th className="pb-1 text-right font-medium">Runs</th>
                 <th className="pb-1 text-right font-medium">Avg cost</th>
@@ -80,25 +80,25 @@ export default function EconomicsPage() {
             </thead>
             <tbody>
               {workflows.items.map((w, i) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-2 font-mono text-xs">{w.feature_tag ?? '—'}</td>
-                  <td className="py-2 text-right tabular-nums">{w.run_count}</td>
-                  <td className="py-2 text-right tabular-nums">
+                <tr key={i} className="border-b border-gray-100 last:border-0 dark:border-gray-700">
+                  <td className="py-2 font-mono text-xs dark:text-gray-300">{w.feature_tag ?? '—'}</td>
+                  <td className="py-2 text-right tabular-nums dark:text-gray-300">{w.run_count}</td>
+                  <td className="py-2 text-right tabular-nums dark:text-gray-300">
                     ${parseFloat(w.avg_cost_usd).toFixed(6)}
                   </td>
-                  <td className="py-2 text-right tabular-nums">
+                  <td className="py-2 text-right tabular-nums dark:text-gray-300">
                     ${parseFloat(w.p95_cost_usd).toFixed(6)}
                   </td>
-                  <td className="py-2 text-right tabular-nums font-medium">
+                  <td className="py-2 text-right tabular-nums font-medium dark:text-gray-200">
                     ${parseFloat(w.total_cost_usd).toFixed(4)}
                   </td>
-                  <td className="py-2 text-right tabular-nums">{w.call_count}</td>
+                  <td className="py-2 text-right tabular-nums dark:text-gray-300">{w.call_count}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-gray-500">No workflow data yet.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No workflow data yet.</p>
         )}
       </Section>
 
@@ -134,22 +134,22 @@ export default function EconomicsPage() {
             {annotations.map((a) => (
               <li
                 key={a.id}
-                className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
+                className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
               >
-                <div className="min-w-[100px] text-xs text-gray-500">
+                <div className="min-w-[100px] text-xs text-gray-500 dark:text-gray-400">
                   <span>{a.annotation_date}</span>
                   {a.version && (
-                    <span className="ml-2 rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-indigo-700">
+                    <span className="ml-2 rounded bg-indigo-100 px-1.5 py-0.5 font-mono text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
                       {a.version}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-800">{a.note}</p>
+                <p className="text-sm text-gray-800 dark:text-gray-200">{a.note}</p>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-500">No annotations yet.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No annotations yet.</p>
         )}
       </Section>
     </div>
