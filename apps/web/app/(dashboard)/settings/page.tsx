@@ -73,7 +73,7 @@ export default function SettingsPage() {
   const [savingPrivacy, setSavingPrivacy] = useState(false)
 
   // ── Tenant management ───────────────────────────────────────────────────────
-  const [adminSecret, setAdminSecret] = useState('')
+  const [adminSecret, setAdminSecret] = useState(process.env.NEXT_PUBLIC_ADMIN_SECRET ?? '')
   const [adminAuthed, setAdminAuthed] = useState(false)
   const [tenants, setTenants] = useState<TenantResponse[]>([])
   const [newTenantSlug, setNewTenantSlug] = useState('')
@@ -809,7 +809,7 @@ export default function SettingsPage() {
       <section>
         <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Tenant Management</h2>
         <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          Admin-only. Enter the server&apos;s admin secret (SECRET_KEY env var) to manage tenants.
+          Admin-only. Enter the server&apos;s admin secret (ADMIN_SECRET env var, or SECRET_KEY as fallback) to manage tenants.
         </p>
 
         {!adminAuthed ? (

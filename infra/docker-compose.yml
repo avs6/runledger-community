@@ -39,6 +39,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://runledger:runledger@postgres:5432/runledger
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: dev-secret-key-change-in-production
+      # Admin secret for /admin/* endpoints — enter this in Settings > Tenant Management
+      ADMIN_SECRET: runledger-admin
       ENVIRONMENT: development
       LOG_LEVEL: INFO
       CORS_ORIGINS: http://localhost:3000
@@ -59,6 +61,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://runledger:runledger@postgres:5432/runledger
       REDIS_URL: redis://redis:6379/0
       SECRET_KEY: dev-secret-key-change-in-production
+      ADMIN_SECRET: runledger-admin
       ENVIRONMENT: development
       LOG_LEVEL: INFO
     depends_on:

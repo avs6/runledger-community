@@ -11,7 +11,7 @@ import pytest
 from httpx import AsyncClient
 from runledger_api.core.config import settings
 
-ADMIN_HEADERS = {"X-Admin-Secret": settings.secret_key}
+ADMIN_HEADERS = {"X-Admin-Secret": settings.effective_admin_secret}
 
 
 def _scalar_result(value: object) -> MagicMock:

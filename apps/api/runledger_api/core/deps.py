@@ -40,7 +40,7 @@ async def get_current_workspace(
 
 async def require_admin(x_admin_secret: Annotated[str, Header()]) -> None:
     """Validates X-Admin-Secret header for admin-only endpoints."""
-    if x_admin_secret != settings.secret_key:
+    if x_admin_secret != settings.effective_admin_secret:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid admin secret",

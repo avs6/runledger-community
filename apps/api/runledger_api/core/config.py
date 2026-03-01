@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     # Security
     secret_key: str = "dev-secret-key-change-in-production"
+    # Admin secret for /admin/* endpoints.  If empty, falls back to secret_key.
+    admin_secret: str = ""
 
     # App
     environment: str = "development"
@@ -29,6 +31,11 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.environment == "development"
+
+    @property
+    def effective_admin_secret(self) -> str:
+        """Returns ADMIN_SECRET if set, otherwise falls back to SECRET_KEY."""
+        return self.admin_secret or self.secret_key
 
 
 settings = Settings()
