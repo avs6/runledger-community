@@ -9,6 +9,7 @@ import {
   listApiKeys,
   createApiKey,
   revokeApiKey,
+  repriceProvider,
   listProviderPricing,
   createProviderPricing,
   updateProviderPricing,
@@ -123,6 +124,7 @@ export default function SettingsPage() {
         name: newKeyName.trim() || null,
         environment: newKeyEnv,
         scopes: [],
+        created_by: session?.user?.email ?? null,
       })
       setNewRawKey(created.key)
       setCopied(false)
@@ -218,6 +220,18 @@ export default function SettingsPage() {
       toast.error('Failed to update provider profile')
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  async function handleReprice(provider: string, model: string) {
+    if (!apiKey) return
+    if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich? This may take a minute.`)) return
+    try {
+      const result = await repriceProvider(apiKey, { provider, model })
+      toast.success(`Reprice queued — ${result.reset} calls reset`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to queue reprice')
     }
   }
 
@@ -429,13 +443,14 @@ export default function SettingsPage() {
                 <th className="px-4 py-2 text-left">Prefix</th>
                 <th className="px-4 py-2 text-left">Name</th>
                 <th className="px-4 py-2 text-left">Created</th>
+                <th className="px-4 py-2 text-left">Created By</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {apiKeys.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                     No active API keys.
                   </td>
                 </tr>
@@ -446,6 +461,9 @@ export default function SettingsPage() {
                     <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{k.name ?? '—'}</td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">
                       {new Date(k.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
+                      {k.created_by ?? '—'}
                     </td>
                     <td className="px-4 py-2 text-right">
                       <button
@@ -641,6 +659,13 @@ export default function SettingsPage() {
                             ) : (
                               <>
                                 <button
+                                  onClick={() => handleReprice(p.provider, p.model)}
+                                  className="text-xs text-amber-600 hover:underline dark:text-amber-400"
+                                  title="Reset cost_usd to NULL and trigger re-enrichment"
+                                >
+                                  Reprice
+                                </button>
+                                <button
                                   onClick={() => startEdit(p)}
                                   className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
                                 >
@@ -656,9 +681,18 @@ export default function SettingsPage() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-300 dark:text-gray-600" title="Authenticate as admin (Tenant Management section) to edit global profiles">
-                            admin only
-                          </span>
+                          <div className="flex items-center justify-end gap-3">
+                            <button
+                              onClick={() => handleReprice(p.provider, p.model)}
+                              className="text-xs text-amber-600 hover:underline dark:text-amber-400"
+                              title="Reset cost_usd to NULL and trigger re-enrichment"
+                            >
+                              Reprice
+                            </button>
+                            <span className="text-xs text-gray-300 dark:text-gray-600" title="Authenticate as admin (Tenant Management section) to edit global profiles">
+                              admin only
+                            </span>
+                          </div>
                         )}
                       </td>
                     </tr>

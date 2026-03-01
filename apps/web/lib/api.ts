@@ -524,7 +524,7 @@ export async function listApiKeys(apiKey: string): Promise<ApiKeyResponse[]> {
 
 export async function createApiKey(
   apiKey: string,
-  body: { name?: string | null; environment?: string; scopes?: string[] }
+  body: { name?: string | null; environment?: string; scopes?: string[]; created_by?: string | null }
 ): Promise<ApiKeyCreateResponse> {
   return apiFetch<ApiKeyCreateResponse>('/settings/api-keys', apiKey, {
     method: 'POST',
@@ -534,6 +534,16 @@ export async function createApiKey(
 
 export async function revokeApiKey(apiKey: string, keyId: string): Promise<void> {
   await apiFetch<void>(`/settings/api-keys/${keyId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function repriceProvider(
+  apiKey: string,
+  body: { provider: string; model?: string | null }
+): Promise<{ reset: number }> {
+  return apiFetch<{ reset: number }>('/providers/reprice', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 // ── Phase 12 — Provider pricing helpers ────────────────────────────────────────

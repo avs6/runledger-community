@@ -177,6 +177,8 @@ async def test_create_api_key_success(client: AsyncClient, mock_db_session: Asyn
             obj.created_at = datetime.now(UTC)  # type: ignore[union-attr]
         if not getattr(obj, "scopes", None):
             obj.scopes = []  # type: ignore[union-attr]
+        if not hasattr(obj, "created_by"):
+            obj.created_by = None  # type: ignore[union-attr]
 
     mock_db_session.refresh = AsyncMock(side_effect=mock_refresh)
 

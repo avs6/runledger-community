@@ -77,6 +77,8 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
         name="dashboard-session",
         scopes=[],
         expires_at=datetime.now(UTC) + _SESSION_EXPIRY,
+        is_session=True,
+        created_by=user.email,
     )
     db.add(session_key)
     await db.commit()

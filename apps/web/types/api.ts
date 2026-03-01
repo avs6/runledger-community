@@ -416,7 +416,7 @@ export interface CapturePolicyResponse { id: string; workspace_id: string; priva
 
 // ── Phase 12 — Settings ────────────────────────────────────────────────────────
 
-export interface ApiKeyResponse { id: string; workspace_id: string; key_prefix: string; name: string | null; scopes: string[]; created_at: string }
+export interface ApiKeyResponse { id: string; workspace_id: string; key_prefix: string; name: string | null; scopes: string[]; created_at: string; created_by: string | null }
 export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 
 // ── Phase 12 — Providers ───────────────────────────────────────────────────────

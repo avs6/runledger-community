@@ -61,6 +61,7 @@ async def test_create_api_key(
     async def set_attrs(obj: object) -> None:
         obj.id = key_id  # type: ignore[attr-defined]
         obj.created_at = now  # type: ignore[attr-defined]
+        obj.created_by = None  # type: ignore[attr-defined]
 
     mock_db_session.refresh.side_effect = set_attrs
 
@@ -88,6 +89,7 @@ async def test_create_api_key_raw_key_not_stored(
     async def set_attrs(obj: object) -> None:
         obj.id = uuid.uuid4()  # type: ignore[attr-defined]
         obj.created_at = now  # type: ignore[attr-defined]
+        obj.created_by = None  # type: ignore[attr-defined]
         captured.append(obj)
 
     mock_db_session.refresh.side_effect = set_attrs

@@ -37,7 +37,11 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 async def list_api_keys(workspace: WorkspaceDep, db: DbDep) -> list[ApiKey]:
     result = await db.execute(
         select(ApiKey)
-        .where(ApiKey.workspace_id == workspace.id, ApiKey.revoked_at.is_(None))
+        .where(
+            ApiKey.workspace_id == workspace.id,
+            ApiKey.revoked_at.is_(None),
+            ApiKey.is_session.is_(False),
+        )
         .order_by(ApiKey.created_at.desc())
     )
     return list(result.scalars().all())
@@ -56,6 +60,7 @@ async def create_api_key(body: ApiKeyCreate, workspace: WorkspaceDep, db: DbDep)
         key_prefix=key_prefix,
         name=body.name,
         scopes=body.scopes,
+        created_by=body.created_by,
     )
     db.add(api_key)
     await db.flush()
@@ -69,6 +74,7 @@ async def create_api_key(body: ApiKeyCreate, workspace: WorkspaceDep, db: DbDep)
         "name": api_key.name,
         "scopes": api_key.scopes,
         "created_at": api_key.created_at,
+        "created_by": api_key.created_by,
         "key": raw_key,
     }
 

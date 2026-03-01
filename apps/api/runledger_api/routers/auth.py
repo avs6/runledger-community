@@ -142,6 +142,7 @@ async def create_api_key(workspace_id: uuid.UUID, body: ApiKeyCreate, db: DbDep)
         "name": api_key.name,
         "scopes": api_key.scopes,
         "created_at": api_key.created_at,
+        "created_by": api_key.created_by,
         "key": raw_key,
     }
 

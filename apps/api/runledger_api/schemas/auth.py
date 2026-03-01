@@ -58,6 +58,7 @@ class ApiKeyCreate(BaseModel):
     name: str | None = None
     environment: EnvironmentEnum = EnvironmentEnum.dev
     scopes: list[str] = []
+    created_by: str | None = None
 
 
 class ApiKeyResponse(BaseModel):
@@ -67,6 +68,7 @@ class ApiKeyResponse(BaseModel):
     name: str | None
     scopes: list[str]
     created_at: datetime
+    created_by: str | None
 
     model_config = {"from_attributes": True}
 

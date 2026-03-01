@@ -103,6 +103,10 @@ class ApiKey(Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
+    is_session: Mapped[bool] = mapped_column(
+        sa.Boolean, server_default=sa.text("false"), nullable=False
+    )
+    created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
     workspace: Mapped["Workspace"] = relationship(back_populates="api_keys")
 

@@ -18,12 +18,14 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from pydantic import BaseModel
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.models.events import ProviderCall
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.providers import (
@@ -121,3 +123,40 @@ async def delete_pricing(pricing_id: uuid.UUID, workspace: WorkspaceDep, db: DbD
     await db.delete(pricing)
     await db.commit()
     log.info("provider_pricing_deleted", pricing_id=str(pricing_id))
+
+
+class RepriceRequest(BaseModel):
+    provider: str
+    model: str | None = None
+
+
+@router.post("/reprice", response_model=dict[str, int])
+async def reprice_provider(
+    body: RepriceRequest, workspace: WorkspaceDep, db: DbDep
+) -> dict[str, int]:
+    """Reset cost_usd to NULL for provider_calls so the enrichment worker re-prices them.
+
+    Useful after updating pricing rates — provider_calls that already have cost_usd = 0.00
+    will not be re-enriched automatically (the worker only picks up cost_usd IS NULL).
+    This endpoint nullifies their cost so they get repriced on the next enrichment cycle.
+    """
+    filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.provider == body.provider,
+    ]
+    if body.model:
+        filters.append(ProviderCall.model == body.model)
+
+    result = await db.execute(
+        update(ProviderCall).where(*filters).values(cost_usd=None).returning(ProviderCall.id)
+    )
+    reset = len(result.fetchall())
+    await db.commit()
+
+    if reset:
+        from runledger_api.workers.metering import cost_enrichment_worker  # noqa: PLC0415
+
+        cost_enrichment_worker.delay()
+        log.info("reprice_triggered", provider=body.provider, model=body.model, reset=reset)
+
+    return {"reset": reset}
