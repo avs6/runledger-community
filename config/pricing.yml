@@ -108,38 +108,38 @@ models:
 
   - provider: ollama
     model: llama3.2
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   - provider: ollama
     model: llama3.2:3b
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   - provider: ollama
     model: llama3.1
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   - provider: ollama
     model: llama3.1:8b
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   - provider: ollama
     model: mistral
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   - provider: ollama
     model: qwen2.5
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   - provider: ollama
     model: phi4
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    input_per_1m: 110.00
+    output_per_1m: 110.00
 
   # ── vLLM / other self-hosted ─────────────────────────────────────────────────
   # Example — uncomment and fill in your model + cost:

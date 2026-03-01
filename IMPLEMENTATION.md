@@ -1572,3 +1572,672 @@ NEXT_PUBLIC_API_URL  = https://api.runledger.io
 | **Advanced Alerting** — error rate / latency / quality threshold rules | **21** | 🔲 |
 | **Model Gateway** — OpenAI-compatible proxy, smart routing, prompt caching | **21** | 🔲 |
 | **SaaS Foundation** — self-service signup, Stripe subscriptions, quota enforcement | **22** | 🔲 |
+
+
+
+# RunLedger — Roadmap Enhancements (Phases 17–22+)
+**Keep Phases 0–16 as-is (already shipped).** This document enhances Phases **17–22** and adds **new phases** that strengthen long-term defensibility (3–5 years) and strategic-acquisition fit.
+
+---
+
+## Guiding Goal for Phases 17–22+
+RunLedger becomes the **billing-grade System of Record + Enforcement Plane** for agent spend and quality across providers, models, tools, and business outcomes.
+
+**North-star outcomes**
+- **Invoice-grade correctness:** reconcile RunLedger ledger totals to provider invoices/exports.
+- **Cost ↔ Quality ↔ Outcome loop:** optimize *cost per outcome* with quality gates.
+- **Control plane:** budgets + policies + routing + caching enforce in the hot path.
+- **Enterprise-grade governance:** retention, audit logs, approvals, RBAC, export.
+
+---
+
+## Phase 17 — Evaluations, Scores & Quality Signals (Enhanced)
+### Goal
+Turn “traces + spend” into “spend + quality + confidence”, enabling optimization and safe automation.
+
+### What to ship
+#### A) Scores v1 (you already planned) — make it “scores-as-a-first-class currency”
+- Score types:
+  - **Scalar**: 0–1 or 0–100 (relevance, faithfulness, correctness)
+  - **Categorical**: {good, neutral, bad} or {-1,0,1}
+  - **Boolean**: pass/fail (policy compliance, safety)
+- Score scope:
+  - Per **run**, per **span**, per **session**, and optionally per **end-user/day** rollups
+- Score provenance:
+  - `source`: human | llm_judge | rule | telemetry
+  - `evidence`: optional references to spans/messages/chunks used to compute score
+  - `confidence`: 0–1 or low/med/high
+- Score governance:
+  - soft-delete, immutable audit trail for score edits (see Audit Events in Phase 22+)
+
+#### B) Evaluator framework v1 — extensible “judge runner”
+- Evaluator types:
+  - **LLM Judge**: calls a provider/model (cost tracked as ProviderCall)
+  - **Rule-based**: regex, schema validation, JSON validity, tool-policy checks
+  - **Python**: user-supplied sandboxed function (OSS only or paid feature)
+- Judging modes:
+  - **Single-run** evaluation
+  - **Batch** evaluation (time window, feature_tag, deployment_version)
+  - **Canary** evaluation (evaluate only 1% of runs)
+- Judge prompt templates:
+  - standardized judge envelopes (system prompt + rubric + scoring schema)
+  - robust parsing with schema (JSON schema) + fallback heuristics
+- Anti-gaming:
+  - “judge drift detection”: monitor judge score distribution changes week-to-week
+  - “judge reliability”: correlation between human & judge for sampled items
+
+#### C) Score analytics surfaces
+- Cost vs score (scatter, quartiles)
+- Score trend over time (by model, version, feature)
+- “Best bang for buck” ranking: highest score per $ or per 1k tokens
+- “Score regressions” similar to your cost regressions:
+  - flags if avg score drops > X% and run_count ≥ N
+
+#### D) New tables (adds)
+```sql
+score_events (
+  id UUID PK,
+  workspace_id UUID,
+  run_id UUID NULL,
+  span_id UUID NULL,
+  session_id TEXT NULL,
+  end_user_id TEXT NULL,
+  name TEXT NOT NULL,
+  value NUMERIC(8,4) NOT NULL,
+  label TEXT NULL,
+  source TEXT NOT NULL,           -- human|llm|rule|telemetry
+  evaluator_id UUID NULL,
+  confidence NUMERIC(4,3) NULL,
+  evidence JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ
+);
+
+score_rollups_daily (
+  workspace_id UUID,
+  day DATE,
+  feature_tag TEXT NULL,
+  model TEXT NULL,
+  deployment_version TEXT NULL,
+  score_name TEXT,
+  avg_value NUMERIC(8,4),
+  p50 NUMERIC(8,4),
+  p90 NUMERIC(8,4),
+  sample_count INT,
+  PRIMARY KEY (workspace_id, day, score_name, feature_tag, model, deployment_version)
+);
+```
+
+#### E) New API routes
+- `POST /evaluations/scores` (run/span/session)
+- `GET /evaluations/scores` (filters)
+- `POST /evaluations/evaluators`
+- `POST /evaluations/evaluators/{id}/run` (batch support)
+- `GET /analytics/scores/summary`
+- `GET /analytics/scores/regressions`
+
+#### F) SDK additions (Python)
+- `rl.score(run_id, name, value, label=None, comment=None, confidence=None, evidence=None)`
+- `rl.evaluate(run_id, evaluator="relevance_v1")` (optional helper; calls API)
+- LangChain/LangGraph hook: optional **auto-score** on chain completion
+
+#### G) Tests
+- Score CRUD, filters, scoping
+- Judge task creates ProviderCall cost entry + Score entry
+- Score regressions detection correctness
+- Rollup idempotency
+
+**Definition of done**
+- Create evaluator → run batch → scores appear in Run Detail + Analytics overlays → score regressions alertable.
+
+---
+
+## Phase 18 — Prompt Management & Experimentation (Enhanced)
+### Goal
+Make `deployment_version` meaningful: connect versions to **prompt diffs**, **cost**, **quality**, and **outcomes**.
+
+### What to ship
+#### A) Prompt registry with environment promotion (planned) — make it “release-grade”
+- Prompt objects:
+  - `name`, `description`, `owner`, `tags`, `default_environment`
+- Prompt versions:
+  - version integer auto-increment
+  - `content` template with variables
+  - `schema` for variables (type, required, constraints)
+  - `commit_message`, `author`
+  - `created_at`
+- Promotion pipeline:
+  - staging → production with **approval workflow** (optional)
+  - lock production edits (must go through staging promotion)
+- Prompt rendering:
+  - safe templating (no arbitrary code)
+  - variable validation against schema
+- Prompt diff viewer:
+  - token diff + semantic diff option (LLM-generated summary of changes)
+- Prompt “usage references”:
+  - where used (feature_tag, app_id)
+  - last used, run_count
+
+#### B) Prompt-to-run linkage (critical)
+- Add `prompt_ref` to events:
+  - `prompt_name`, `prompt_version`, `environment`
+- SDK support:
+  - `transport.get_prompt(name, env, vars)` returns `(rendered, prompt_version)`
+  - automatically sets `deployment_version` or separate `prompt_version` fields
+
+#### C) Experimentation layer v1 (adds)
+- Prompt experiments:
+  - A/B test by end_user_id hash
+  - Multi-variant allocation weights
+  - Guardrails: max spend per variant, min score threshold
+- Metrics:
+  - cost/run, score, latency, tool-risk events, outcomes
+- Rollout:
+  - ramp from 1% → 10% → 50% → 100% (manual control)
+
+#### D) New tables (adds)
+```sql
+prompt_experiments (
+  id UUID PK,
+  workspace_id UUID,
+  name TEXT,
+  prompt_name TEXT,
+  environment TEXT,              -- production/staging/dev
+  variants JSONB NOT NULL,       -- [{version, weight}]
+  ramp_pct NUMERIC(5,2) DEFAULT 0,
+  score_guardrail JSONB DEFAULT '{}',  -- {score_name, min_value}
+  budget_guardrail_usd NUMERIC(12,4) NULL,
+  status TEXT DEFAULT 'draft',   -- draft|running|paused|completed
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+```
+
+#### E) API routes (add)
+- Prompt CRUD + versions (planned)
+- `POST /prompts/{name}/render` (server-side render with validation)
+- `POST /prompts/experiments`
+- `PUT /prompts/experiments/{id}` (ramp, pause, stop)
+- `GET /prompts/experiments/{id}/metrics`
+
+#### F) UI
+- Prompt list + version history + diff + promote
+- Experiment creation wizard:
+  - variants selection
+  - ramp control
+  - guardrails control
+  - metrics dashboard
+
+#### G) Tests
+- Promotion correctness
+- Rendering validation
+- Experiment allocation determinism (hash-based)
+- Guardrails enforcement
+
+**Definition of done**
+- Prompt v1 → v2 diff visible; v2 promoted; A/B test running with score + spend guardrails.
+
+---
+
+## Phase 19 — Sessions, Payload Viewer & Data Governance (Enhanced)
+### Goal
+Sessions become first-class, and payload capture becomes governance-grade with retention, sampling, and access control.
+
+### What to ship
+#### A) Session model as a product surface
+- Session list: cost, turns, duration, avg score, anomalies
+- Session timeline: cost per turn, score per turn, tool risk per turn
+- Session “state” panels:
+  - summary of models used
+  - retries/errors
+  - caching hits (Phase 21/23)
+- Session replay viewer (UI) using captured payloads if allowed
+
+#### B) Payload viewer v1 (planned) — make it safe + controlled
+- Payload tabs:
+  - prompt/messages (system/user/assistant)
+  - tool inputs/outputs
+  - provider raw response (optional)
+- Redaction:
+  - apply existing scrubber
+  - add structured redaction rules (regex library + allowlist keys)
+- Access control:
+  - payload view requires role `security_admin` or explicit permission
+- Export:
+  - export a single run/session as JSON with signatures (Phase 22+)
+
+#### C) Data retention & deletion (adds)
+- Workspace-level retention policies:
+  - metadata retention: 90d/180d/365d
+  - payload retention: 0d/7d/30d/90d
+- “Right to delete”:
+  - delete end_user_id data within a window
+  - creates audit record + tombstone
+- Storage:
+  - keep payloads in Postgres JSONB initially
+  - optional S3 blob store for payloads later (Phase 22+ or 23+)
+
+#### D) New tables (adds)
+```sql
+retention_policies (
+  workspace_id UUID PK,
+  metadata_days INT DEFAULT 180,
+  payload_days INT DEFAULT 0,
+  updated_at TIMESTAMPTZ
+);
+
+deletion_requests (
+  id UUID PK,
+  workspace_id UUID,
+  end_user_id TEXT,
+  requested_by UUID NULL,
+  status TEXT DEFAULT 'pending',   -- pending|running|completed|failed
+  created_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ NULL,
+  details JSONB DEFAULT '{}'
+);
+```
+
+#### E) Workers
+- `retention_sweeper` daily: purge expired payloads, then metadata if configured
+- `deletion_worker`: hard delete payloads + soft delete metadata with tombstones
+
+**Definition of done**
+- Sessions UI ships; payload viewer respects privacy + RBAC; retention sweeps run daily.
+
+---
+
+## Phase 20 — TypeScript / Node SDK + Ecosystem Hooks (Enhanced)
+### Goal
+Win distribution via JS/TS ecosystems where most production LLM apps live.
+
+### What to ship
+#### A) SDK core (planned)
+- `AsyncLocalStorage` context propagation
+- OpenAI client instrumentation + streaming support
+- Transport batching + retries + backpressure
+
+#### B) Ecosystem hooks (adds)
+- Vercel AI SDK middleware (planned)
+- LangChain.js callbacks (add)
+- Next.js route handler helpers:
+  - `withRunLedger(req, handler)` auto-injects context from headers
+- OpenTelemetry/OpenInference bridge:
+  - accept spans from OTel exporters and translate into RunLedger spans/events
+  - enables non-SDK adoption (critical for enterprise)
+
+#### C) DX features
+- `runledger init` (CLI): sets env vars, creates API key, prints sample code
+- `runledger verify` parity in TS
+- Typesafe event schemas mirrored from backend OpenAPI
+
+#### D) Tests
+- Streaming token aggregation tests
+- ALS nesting behavior tests
+- OTel bridge test: ingests synthetic span tree and produces run DAG
+
+**Definition of done**
+- `npm i @runledger/sdk` + one-line instrumentation + events appear with correct DAG and tokens.
+
+---
+
+## Phase 21 — Advanced Alerting + Model Gateway (Enhanced to “Control Plane”)
+### Goal
+Move from observability to **active enforcement**: routing, caching, fallbacks, quality gates, and cost guarantees.
+
+### Part A: Advanced Alerting (enhanced)
+#### Alert rule types
+- Spend velocity (USD/min, USD/hour)
+- Error rate, retry storms (already have runaway detection—formalize it)
+- p95 latency
+- Avg score drop (requires Phase 17)
+- Cost per outcome spike (Phase 23)
+- Tool-policy violations (Phase 11 tool registry)
+
+#### Alert delivery
+- Slack (done)
+- Webhooks (done)
+- Email (optional later)
+- PagerDuty/Opsgenie (Phase 22+ integrations)
+
+#### Dedup & suppression
+- per-rule cooldown windows
+- “maintenance windows” (mute alerts temporarily)
+- “alert grouping” by feature_tag or app_id
+
+---
+
+### Part B: Model Gateway v1 (make it meaningfully better than generic proxies)
+#### Gateway capabilities
+1) **Routing policies**
+- route by: requested model, feature_tag, tenant plan, environment
+- priority + weighted load balancing
+- fallback chains on 429/5xx/timeouts
+- allowlist/denylist models per workspace
+
+2) **Cost-aware + Quality-aware routing**
+- choose cheapest route that meets:
+  - min score threshold (Phase 17)
+  - max latency target
+  - tool-policy constraints
+- “quality floor” per feature_tag: enforce baseline quality
+
+3) **Caching**
+- Exact-match prompt cache (planned)
+- Normalized-message cache:
+  - whitespace normalization
+  - tool result stripping in cache key (optional)
+- Cache governance:
+  - per-workspace TTL
+  - disable cache for sensitive routes
+  - cache hit reporting + cost saved
+
+4) **Shadow traffic / mirroring**
+- Send 1% traffic to candidate model/prompt for evaluation only
+- Store shadow results with cost estimate + score (Phase 17)
+- No user-visible impact
+
+5) **Budget enforcement in gateway**
+- Hard block or downgrade before forwarding
+- Guarantees: “never exceed $X/day for this feature”
+- Logs enforcement decisions as security/audit events
+
+#### New tables (adds)
+```sql
+gateway_policies (
+  id UUID PK,
+  workspace_id UUID,
+  feature_tag TEXT NULL,
+  environment TEXT DEFAULT 'production',
+  min_score JSONB DEFAULT '{}',     -- {score_name: min_value}
+  max_latency_ms INT NULL,
+  max_cost_per_run_usd NUMERIC(12,4) NULL,
+  allow_models JSONB DEFAULT '[]',
+  deny_models JSONB DEFAULT '[]',
+  updated_at TIMESTAMPTZ
+);
+
+gateway_shadow_runs (
+  id UUID PK,
+  workspace_id UUID,
+  run_id UUID,
+  candidate JSONB NOT NULL,         -- {provider, model, prompt_version?}
+  status TEXT,
+  estimated_cost_usd NUMERIC(12,4),
+  scores JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ
+);
+```
+
+#### API
+- OpenAI-compatible endpoints (`/gateway/*`)
+- Policy CRUD:
+  - `GET/PUT /gateway/policies`
+- Shadow controls:
+  - `POST /gateway/shadow` (set sampling, candidates)
+  - `GET /gateway/shadow/results`
+
+#### Tests
+- routing selection correctness
+- fallback correctness
+- cache hit behavior and cost saved accounting
+- quality-aware routing chooses alternative when score floor violated
+- shadow run creation + result storage
+
+**Definition of done**
+- RunLedger gateway enforces budgets + policies and demonstrates measurable cost savings via caching/routing.
+
+---
+
+## Phase 22 — SaaS Foundation (Enhanced to Enterprise-Ready SaaS)
+### Goal
+Self-serve SaaS that can sell to serious teams: subscription + quotas + RBAC + audit + exports.
+
+### What to ship
+#### A) Plans & quotas (planned) — add enforcement surfaces
+- event ingestion quota (events/month)
+- retention policy constraints by plan
+- gateway features by plan (cache/shadow/quality routing)
+- score/evaluator limits by plan (judge runs/day)
+
+#### B) RBAC and permissions (adds, critical)
+Roles:
+- `owner`
+- `admin`
+- `billing_admin`
+- `security_admin`
+- `developer`
+- `viewer`
+
+Permission groups:
+- view traces
+- view payloads (restricted)
+- manage budgets
+- manage billing/chargeback
+- manage evaluators/prompts
+- manage gateway policies
+
+Add:
+```sql
+roles (id, name UNIQUE, permissions JSONB);
+workspace_user_roles (workspace_id, user_id, role_id);
+```
+
+#### C) Audit log / compliance-grade eventing (adds)
+Every sensitive action emits an audit record:
+- API key created/revoked
+- pricing override changed
+- budget created/changed/deleted
+- prompt promoted
+- retention policy changed
+- payload viewed/exported
+- deletion request executed
+- gateway policy changes
+
+```sql
+audit_events (
+  id UUID PK,
+  workspace_id UUID,
+  actor_user_id UUID NULL,
+  actor_api_key_prefix TEXT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT NULL,
+  target_id TEXT NULL,
+  before JSONB DEFAULT '{}',
+  after JSONB DEFAULT '{}',
+  ip_hash TEXT NULL,
+  user_agent_hash TEXT NULL,
+  created_at TIMESTAMPTZ
+);
+```
+
+#### D) Billing integrations
+- Stripe checkout + portal (planned)
+- Invoice exports:
+  - CSV (done)
+  - Signed JSON (done)
+  - **QuickBooks / Netsuite export format** (adds, optional)
+
+#### E) Data export + warehouse connectors (adds, high stickiness)
+- Scheduled export to S3 (daily usage snapshots)
+- BigQuery/Snowflake via external stage (later)
+- Webhook “usage.closed” event after billing period closes
+
+#### F) Security hardening packaging
+- SSO (SAML/OIDC) as enterprise plan feature
+- SCIM provisioning (later)
+- IP allowlisting for admin endpoints
+
+**Definition of done**
+- Customer can sign up, set roles, enforce quotas, export finance-ready statements, and show an audit trail.
+
+---
+
+# New Phases (Defensibility Boosters)
+
+## Phase 23 — Provider Invoice Reconciliation (Flagship Moat)
+### Goal
+Make RunLedger “invoice-grade”: reconcile against provider usage exports and explain deltas.
+
+### What to ship
+#### A) Import pipelines
+- Upload provider usage CSV/JSON exports (OpenAI, Anthropic, Google)
+- Parse into normalized `provider_invoice_lines`
+
+```sql
+provider_invoices (
+  id UUID PK,
+  workspace_id UUID,
+  provider TEXT,
+  period_start DATE,
+  period_end DATE,
+  currency TEXT DEFAULT 'USD',
+  total_amount NUMERIC(14,4),
+  status TEXT DEFAULT 'imported', -- imported|reconciled|flagged
+  created_at TIMESTAMPTZ
+);
+
+provider_invoice_lines (
+  id UUID PK,
+  invoice_id UUID,
+  provider_request_id TEXT NULL,
+  model TEXT NULL,
+  input_tokens BIGINT NULL,
+  output_tokens BIGINT NULL,
+  amount NUMERIC(14,6) NOT NULL,
+  occurred_at TIMESTAMPTZ NULL,
+  raw JSONB DEFAULT '{}'
+);
+```
+
+#### B) Reconciliation engine
+- Match invoice lines to RunLedger `provider_calls`:
+  - exact match via provider request id where available
+  - fuzzy match on timestamp/model/token ranges when not
+- Output:
+  - matched %, unmatched totals, rounding deltas, token mismatch buckets
+- “Dispute trail”:
+  - mark invoice lines as disputed
+  - attach notes + evidence links to runs/spans
+
+#### C) UI
+- Invoice list + reconciliation summary
+- Drill-down into unmatched lines and why
+- “Export dispute package” (signed JSON) for finance
+
+**Definition of done**
+- Import invoice export → RunLedger reconciles ≥ X% and explains remainder with drilldown.
+
+---
+
+## Phase 24 — Outcome & ROI Ledger (Cost Per Outcome)
+### Goal
+Move beyond tokens: measure and optimize **cost per business outcome**.
+
+### What to ship
+#### A) Outcome taxonomy
+- Outcomes emitted via SDK or API:
+  - `ticket_resolved`, `lead_qualified`, `bug_fixed`, `refund_issued`, etc.
+- Outcome value:
+  - optional revenue impact or business value score
+- Link outcomes to run_id/session_id/end_user_id
+
+```sql
+outcomes (
+  id UUID PK,
+  workspace_id UUID,
+  run_id UUID NULL,
+  session_id TEXT NULL,
+  end_user_id TEXT NULL,
+  outcome_type TEXT,
+  success BOOL,
+  value_usd NUMERIC(14,4) NULL,
+  labels JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ
+);
+
+outcome_rollups_daily (
+  workspace_id UUID,
+  day DATE,
+  outcome_type TEXT,
+  success_rate NUMERIC(6,4),
+  count INT,
+  total_cost_usd NUMERIC(14,6),
+  cost_per_success_usd NUMERIC(14,6),
+  total_value_usd NUMERIC(14,4) NULL,
+  roi NUMERIC(10,4) NULL
+);
+```
+
+#### B) Analytics
+- Cost per outcome over time
+- ROI trend and “most profitable workflows”
+- Quality ↔ outcome correlation
+
+#### C) Alerts
+- “Cost per success” spike alerts
+- “Success rate drop” alerts
+
+**Definition of done**
+- Customer can instrument outcomes and see cost/success/ROI per workflow.
+
+---
+
+## Phase 25 — Approvals & Policy Workflows (Enterprise Stickiness)
+### Goal
+Bring governance into control plane: approvals for sensitive actions and tool access.
+
+### What to ship
+- Approval-required actions:
+  - raise budget limits
+  - promote prompt to production
+  - allow privileged tool
+  - enable FULL payload capture
+  - enable shadow routing to external provider
+- Workflow:
+  - request → approve/deny → audit record
+  - Slack approvals (interactive buttons later)
+
+```sql
+approvals (
+  id UUID PK,
+  workspace_id UUID,
+  request_type TEXT,
+  request JSONB,
+  status TEXT DEFAULT 'pending',
+  requested_by UUID,
+  decided_by UUID NULL,
+  decided_at TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ
+);
+```
+
+**Definition of done**
+- Sensitive changes require approvals; audit trail is complete.
+
+---
+
+# Phase Sequencing Recommendation (Founder-Friendly)
+1) **17 (Enhanced)** scores + judge runner + score analytics  
+2) **18 (Enhanced)** prompt registry + promotion + experiments  
+3) **21 (Enhanced)** gateway with quality-aware routing + caching + shadow  
+4) **23** invoice reconciliation (moat + finance buyer)  
+5) **22 (Enhanced)** SaaS + RBAC + audit + exports (commercial readiness)  
+6) **24** outcomes & ROI (exec relevance)  
+7) **25** approvals workflows (enterprise stickiness)
+
+---
+
+## Defensibility Checklist (What this buys you)
+- **System of record:** signed ledger snapshots + invoice reconciliation
+- **Control plane:** budgets + gateway enforcement + policy engine
+- **Optimization loop:** scores + prompts + experiments + shadow routing
+- **Business relevance:** outcomes + ROI, not just traces
+- **Enterprise readiness:** RBAC + audit logs + retention + approvals + exports
+
+---
+
+## “Definition of Winning” (3–5 year north-star)
+RunLedger is the default:
+- for **finance**: internal chargeback + reconciled invoices + audit trails  
+- for **platform**: centralized gateway + policy enforcement + safe routing  
+- for **AI teams**: prompt + eval + cost/quality/outcome optimization loop

@@ -3,9 +3,19 @@ OpenAI client instrumentation.
 
 Monkey-patches ``openai.OpenAI`` and ``openai.AsyncOpenAI`` so that every
 ``chat.completions.create`` call is automatically captured as a
-``provider_call`` event with surrounding ``run_start`` / ``run_end`` events.
+``provider_call`` event with surrounding ``run_start`` / ``run_end`` events
+and a ``span_start`` / ``span_end`` pair that carries the prompt and response
+when the workspace privacy mode permits it.
 
-No payloads are transmitted in METADATA_ONLY mode (the default).
+Privacy modes (set in the dashboard under Ledger > Privacy)
+-----------------------------------------------------------
+METADATA_ONLY (default)  — tokens, model, latency only.  No messages/content.
+ERRORS_ONLY              — payload stored only on failed/error calls.
+SAMPLED                  — payload stored at the configured sampling rate.
+FULL                     — full prompt messages + response stored on every call.
+
+The SDK always transmits the payload to the API; the Celery pipeline decides
+what to persist based on the workspace's CapturePolicy.
 
 Usage::
 
@@ -21,6 +31,7 @@ Usage::
 from __future__ import annotations
 
 import time
+import uuid as _uuid_mod
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -100,6 +111,8 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
         run_id = get_run_id()
         ctx = get_context_snapshot()
         model = kwargs.get("model", "unknown")
+        span_id = str(_uuid_mod.uuid4())
+        messages = _safe_serialize(kwargs.get("messages", []))
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
 
@@ -108,17 +121,26 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
             _sync_budget_check(transport, ctx, kwargs)
 
         transport.enqueue(_build_run_start(run_id, ctx, started_at))
+        transport.enqueue(_build_span_start(run_id, span_id, model, started_at))
 
         try:
             result = original(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_provider_call(run_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_span_end(run_id, span_id, "succeeded", messages, result)
+            )
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(
-                _build_provider_call_error(run_id, model, exc, latency_ms)
+                _build_span_end(run_id, span_id, "failed", messages, None)
+            )
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
             )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
@@ -138,6 +160,8 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
         run_id = get_run_id()
         ctx = get_context_snapshot()
         model = kwargs.get("model", "unknown")
+        span_id = str(_uuid_mod.uuid4())
+        messages = _safe_serialize(kwargs.get("messages", []))
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
 
@@ -147,17 +171,26 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
 
         # SyncTransport.enqueue is non-blocking (schedules on background thread)
         transport.enqueue(_build_run_start(run_id, ctx, started_at))
+        transport.enqueue(_build_span_start(run_id, span_id, model, started_at))
 
         try:
             result = await original_async(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_provider_call(run_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_span_end(run_id, span_id, "succeeded", messages, result)
+            )
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(
-                _build_provider_call_error(run_id, model, exc, latency_ms)
+                _build_span_end(run_id, span_id, "failed", messages, None)
+            )
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
             )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
@@ -189,6 +222,61 @@ def _build_run_start(
     return event
 
 
+def _build_span_start(
+    run_id: str,
+    span_id: str,
+    model: str,
+    started_at: datetime,
+) -> dict[str, Any]:
+    """Span open event — creates the Span row in the DB."""
+    return {
+        "event_type": "span_start",
+        "run_id": run_id,
+        "span_id": span_id,
+        "span_type": "llm",
+        "name": f"openai:{model}",
+        "started_at": started_at.isoformat(),
+    }
+
+
+def _build_span_end(
+    run_id: str,
+    span_id: str,
+    status: str,
+    messages: list[Any],
+    result: Any,
+) -> dict[str, Any]:
+    """Span close event — carries request messages and response content.
+
+    The pipeline applies the workspace's CapturePolicy before storing
+    ``span_metadata``; ``messages`` and ``response`` are only persisted
+    when the mode is FULL, ERRORS_ONLY (on failure), or SAMPLED.
+    """
+    event: dict[str, Any] = {
+        "event_type": "span_end",
+        "run_id": run_id,
+        "span_id": span_id,
+        "status": status,
+        "ended_at": datetime.now(UTC).isoformat(),
+    }
+
+    # Always include messages + response so the pipeline can apply policy.
+    metadata: dict[str, Any] = {"messages": messages}
+    if result is not None:
+        choices = getattr(result, "choices", None)
+        if choices:
+            first = choices[0]
+            message = getattr(first, "message", None)
+            content = getattr(message, "content", None) if message else None
+            finish_reason = getattr(first, "finish_reason", None)
+            if content is not None:
+                metadata["response"] = content
+            if finish_reason is not None:
+                metadata["finish_reason"] = finish_reason
+    event["metadata"] = metadata
+    return event
+
+
 def _build_run_end(
     run_id: str,
     status: str,
@@ -214,6 +302,7 @@ def _build_run_end(
 
 def _build_provider_call(
     run_id: str,
+    span_id: str,
     model: str,
     result: Any,
     latency_ms: int,
@@ -221,6 +310,7 @@ def _build_provider_call(
     event: dict[str, Any] = {
         "event_type": "provider_call",
         "run_id": run_id,
+        "span_id": span_id,
         "provider": "openai",
         "model": model,
         "latency_ms": latency_ms,
@@ -244,6 +334,7 @@ def _build_provider_call(
 
 def _build_provider_call_error(
     run_id: str,
+    span_id: str,
     model: str,
     exc: Exception,
     latency_ms: int,
@@ -251,12 +342,35 @@ def _build_provider_call_error(
     return {
         "event_type": "provider_call",
         "run_id": run_id,
+        "span_id": span_id,
         "provider": "openai",
         "model": model,
         "latency_ms": latency_ms,
         "status": "error",
         "error_type": type(exc).__name__,
     }
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _safe_serialize(obj: Any) -> Any:
+    """Recursively convert obj to a JSON-safe structure.
+
+    Handles Pydantic models (v1 .dict() / v2 .model_dump()), dicts, lists,
+    and falls back to str() for any other type.
+    """
+    if isinstance(obj, dict):
+        return {k: _safe_serialize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_safe_serialize(i) for i in obj]
+    if hasattr(obj, "model_dump"):  # Pydantic v2
+        return _safe_serialize(obj.model_dump())
+    if hasattr(obj, "dict"):  # Pydantic v1
+        return _safe_serialize(obj.dict())
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    return str(obj)
 
 
 # ── Budget pre-call check ──────────────────────────────────────────────────────

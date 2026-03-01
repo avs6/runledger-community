@@ -28,16 +28,19 @@ def scrub_value(s: str) -> str:
     return s
 
 
+def _scrub_any(v: Any) -> Any:
+    """Scrub a single value of any type."""
+    if isinstance(v, str):
+        return scrub_value(v)
+    if isinstance(v, dict):
+        return scrub_dict(v)
+    if isinstance(v, list):
+        return [_scrub_any(item) for item in v]
+    return v
+
+
 def scrub_dict(d: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Recursively scrub all string values in a dict."""
+    """Recursively scrub all string values in a dict (including nested lists)."""
     if d is None:
         return None
-    result: dict[str, Any] = {}
-    for k, v in d.items():
-        if isinstance(v, str):
-            result[k] = scrub_value(v)
-        elif isinstance(v, dict):
-            result[k] = scrub_dict(v)
-        else:
-            result[k] = v
-    return result
+    return {k: _scrub_any(v) for k, v in d.items()}
