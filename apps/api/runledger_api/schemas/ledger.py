@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -13,7 +14,7 @@ class LedgerSnapshotResponse(BaseModel):
     workspace_id: str
     snapshot_date: date
     total_cost_usd: Decimal
-    model_breakdown: dict
+    model_breakdown: dict[str, Any]
     call_count: int
     hash: str
     key_id: str

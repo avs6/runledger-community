@@ -17,7 +17,7 @@ import csv
 import io
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, Query
@@ -35,6 +35,7 @@ from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
+    AnomalyItem,
     AnomalyList,
     CohortList,
     CohortSummary,
@@ -107,7 +108,7 @@ async def analytics_summary(
     prev_from = t_from - duration
     prev_to = t_from
 
-    def _summary_stmt(period_from: datetime, period_to: datetime):  # type: ignore[return]
+    def _summary_stmt(period_from: datetime, period_to: datetime) -> Any:
         return select(
             func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("total_cost"),
             func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("total_input"),
@@ -445,7 +446,7 @@ async def user_anomalies(
     )
     result = await db.execute(stmt)
     items = result.scalars().all()
-    return AnomalyList(items=list(items))
+    return AnomalyList(items=[AnomalyItem.model_validate(r) for r in items])
 
 
 # ── /analytics/users/{end_user_id} ────────────────────────────────────────────
@@ -763,7 +764,7 @@ async def version_compare(
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
 
-    def _run_stats_stmt(version: str):  # type: ignore[return]
+    def _run_stats_stmt(version: str) -> Any:
         return select(
             func.count(AgentRun.id).label("run_count"),
             func.coalesce(func.avg(AgentRun.total_cost_usd), Decimal(0)).label("avg_cost_usd"),
@@ -783,7 +784,7 @@ async def version_compare(
             AgentRun.started_at < t_to,
         )
 
-    def _span_costs_stmt(version: str):  # type: ignore[return]
+    def _span_costs_stmt(version: str) -> Any:
         return (
             select(
                 Span.span_type,
@@ -882,7 +883,7 @@ async def regressions(
     prior_from = t_from - duration
     prior_to = t_from
 
-    def _window_stmt(w_from: object, w_to: object):  # type: ignore[return]
+    def _window_stmt(w_from: object, w_to: object) -> Any:
         return (
             select(
                 AgentRun.feature_tag,
@@ -1025,7 +1026,7 @@ async def analytics_export(
     format: Annotated[str, Query(pattern="^(csv|json)$")] = "json",
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
-) -> StreamingResponse | dict:
+) -> StreamingResponse | dict[str, Any]:
     """Bulk export of daily spend data from usage_daily, ordered by date desc."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())

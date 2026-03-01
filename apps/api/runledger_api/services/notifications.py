@@ -8,6 +8,7 @@ and anomaly detections. No HMAC needed for outbound Slack webhook calls.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 import httpx
 import structlog
@@ -25,7 +26,7 @@ def build_budget_breach_blocks(
     spend_usd: Decimal | str,
     limit_usd: Decimal | str,
     action: str | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return Slack Block Kit JSON for a budget breach alert."""
     scope_label = f"{scope_type}:{scope_id}" if scope_id else (scope_type or "workspace")
     return [
@@ -65,7 +66,7 @@ def build_anomaly_blocks(
     mean_spend: Decimal | str,
     zscore: Decimal | str,
     reason: str,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Return Slack Block Kit JSON for an anomaly detection alert."""
     return [
         {
@@ -101,7 +102,7 @@ def build_anomaly_blocks(
     ]
 
 
-def build_test_blocks() -> list[dict]:
+def build_test_blocks() -> list[dict[str, Any]]:
     """Return Slack Block Kit JSON for a connectivity test message."""
     return [
         {
@@ -128,7 +129,7 @@ def build_test_blocks() -> list[dict]:
 
 async def send_slack_message(
     webhook_url: str,
-    blocks: list[dict],
+    blocks: list[dict[str, Any]],
     fallback_text: str,
 ) -> None:
     """

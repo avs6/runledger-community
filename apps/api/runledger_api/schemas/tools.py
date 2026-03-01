@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -41,7 +42,7 @@ class SecurityEventResponse(BaseModel):
     tool_name: str | None
     end_user_id: str | None
     run_id: str | None
-    details: dict
+    details: dict[str, Any]
     detected_at: datetime
 
     model_config = {"from_attributes": True}

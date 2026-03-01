@@ -25,7 +25,7 @@ from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
-from runledger_api.models.events import ProviderCall, ToolCall
+from runledger_api.models.events import AgentRun, ProviderCall, ToolCall
 from runledger_api.models.ledger import LedgerSnapshot, SecurityEvent
 from runledger_api.services.ledger import (
     build_daily_snapshot,
@@ -154,11 +154,12 @@ async def _run_suspicious_sequences() -> dict[str, int]:
             select(
                 ToolCall.workspace_id,
                 ToolCall.tool_name,
-                ToolCall.end_user_id,
+                AgentRun.end_user_id,
                 func.count(ToolCall.id).label("cnt"),
             )
+            .join(AgentRun, AgentRun.id == ToolCall.run_id)
             .where(ToolCall.created_at >= window_start)
-            .group_by(ToolCall.workspace_id, ToolCall.tool_name, ToolCall.end_user_id)
+            .group_by(ToolCall.workspace_id, ToolCall.tool_name, AgentRun.end_user_id)
             .having(func.count(ToolCall.id) > 5)
         )
         bursts = burst_result.all()

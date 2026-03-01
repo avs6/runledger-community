@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from redis.asyncio import Redis
@@ -47,7 +47,7 @@ def _make_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 def _make_redis() -> Redis:
-    return Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+    return cast(Redis, Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True))
 
 
 # ── runaway_protection ────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ async def _run_runaway_protection() -> dict[str, int]:
                         select(BudgetNotification).where(
                             BudgetNotification.workspace_id == run.workspace_id,
                             BudgetNotification.is_active.is_(True),
-                            BudgetNotification.events.any("runaway.detected"),
+                            BudgetNotification.events.contains(["runaway.detected"]),
                         )
                     )
                     notifications: list[BudgetNotification] = list(notif_result.scalars())

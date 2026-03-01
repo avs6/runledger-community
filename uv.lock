@@ -1426,12 +1426,6 @@ wheels = [
 name = "runledger"
 version = "0.1.0"
 source = { virtual = "." }
-dependencies = [
-    { name = "python-dotenv" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "python-dotenv", specifier = ">=1.2.1" }]
 
 [[package]]
 name = "runledger-api"

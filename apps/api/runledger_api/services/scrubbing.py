@@ -11,6 +11,7 @@ Patterns replaced with [REDACTED]:
 from __future__ import annotations
 
 import re
+from typing import Any
 
 _PATTERNS = [
     re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),  # email
@@ -27,11 +28,11 @@ def scrub_value(s: str) -> str:
     return s
 
 
-def scrub_dict(d: dict | None) -> dict | None:
+def scrub_dict(d: dict[str, Any] | None) -> dict[str, Any] | None:
     """Recursively scrub all string values in a dict."""
     if d is None:
         return None
-    result: dict = {}
+    result: dict[str, Any] = {}
     for k, v in d.items():
         if isinstance(v, str):
             result[k] = scrub_value(v)

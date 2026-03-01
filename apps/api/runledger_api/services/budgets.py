@@ -249,7 +249,7 @@ async def fire_breach(
             select(BudgetNotification).where(
                 BudgetNotification.workspace_id == workspace_id,
                 BudgetNotification.is_active.is_(True),
-                BudgetNotification.events.any("budget.breach"),
+                BudgetNotification.events.contains(["budget.breach"]),
             )
         )
         notifications: list[BudgetNotification] = list(result.scalars())

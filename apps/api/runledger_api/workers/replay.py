@@ -46,7 +46,7 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
     async with factory() as session:
         # 1. Load experiment
         exp_stmt = select(ReplayExperiment).where(
-            ReplayExperiment.id == experiment_id  # type: ignore[arg-type]
+            ReplayExperiment.id == experiment_id
         )
         exp_result = await session.execute(exp_stmt)
         experiment = exp_result.scalar_one_or_none()
@@ -113,8 +113,8 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
 
             if pricing is not None:
                 projected_cost = (
-                    Decimal(total_input) / Decimal(1_000_000) * pricing.input_per_1m
-                    + Decimal(total_output) / Decimal(1_000_000) * pricing.output_per_1m
+                    Decimal(total_input) / Decimal(1_000_000) * pricing.input_cost_per_1m
+                    + Decimal(total_output) / Decimal(1_000_000) * pricing.output_cost_per_1m
                 )
                 pricing_found = True
             else:

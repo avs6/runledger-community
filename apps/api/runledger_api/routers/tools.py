@@ -16,7 +16,7 @@ GET    /tools/security-events            List security events (limit 100)
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -147,7 +147,7 @@ async def update_tool_registry(
     if tool is None:
         raise HTTPException(status_code=404, detail="Tool not found")
 
-    values: dict = {"updated_at": datetime.now(UTC)}
+    values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
     if body.policy is not None:
         values["policy"] = body.policy
     if body.description is not None:
