@@ -3,6 +3,10 @@ Celery metering workers for RunLedger.
 
 Workers
 -------
+sync_pricing_from_file_worker
+    Reads config/pricing.yml and upserts global provider_pricing rows.
+    Runs every 6 hours via Celery Beat (and also on API startup).
+
 cost_enrichment_worker
     Picks up provider_calls with NULL cost_usd (and known token counts), computes
     cost using the pricing engine, and rolls the result up to the parent span and
@@ -509,3 +513,35 @@ async def _run_replay_backfill(from_iso: str, to_iso: str) -> dict[str, Any]:
         "hourly_window": hourly_result,
         "days_rerolled": days_rerolled,
     }
+
+
+# ── sync_pricing_from_file_worker ─────────────────────────────────────────────
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="metering.sync_pricing_from_file",
+    max_retries=1,
+    default_retry_delay=30,
+)
+def sync_pricing_from_file_worker() -> dict[str, int]:
+    """Read config/pricing.yml and upsert global provider_pricing rows.
+
+    Runs every 6 hours via Celery Beat.  Also called on API startup.
+    Safe to run multiple times — fully idempotent.
+    """
+    return asyncio.run(_run_sync_pricing_from_file())
+
+
+async def _run_sync_pricing_from_file() -> dict[str, int]:
+    from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing  # noqa: PLC0415
+
+    factory = _make_session_factory()
+    entries = load_pricing_yaml(settings.pricing_file)
+    if not entries:
+        return {"inserted": 0, "updated": 0, "unchanged": 0}
+
+    async with factory() as session:
+        result = await sync_pricing(session, entries)
+
+    log.info("sync_pricing_from_file_done", **result)
+    return result

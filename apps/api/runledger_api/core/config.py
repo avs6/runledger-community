@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # In production set CORS_ORIGINS=https://your-frontend.railway.app
     cors_origins: str = "http://localhost:3000"
 
+    # Provider pricing YAML file.  Mounted into the container by docker-compose.
+    # Set PRICING_FILE=/path/to/pricing.yml to override.
+    pricing_file: str = "/app/config/pricing.yml"
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"

@@ -6,9 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from runledger_api.core.config import settings
-from runledger_api.core.db import engine
+from runledger_api.core.db import AsyncSessionLocal, engine
 from runledger_api.core.logging import configure_logging
 from runledger_api.core.redis import redis_client
+from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
 from runledger_api.routers import (
     analytics,
     auth,
@@ -34,6 +35,17 @@ log = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log.info("startup", environment=settings.environment)
+
+    # Sync provider pricing from YAML file on every startup
+    try:
+        entries = load_pricing_yaml(settings.pricing_file)
+        if entries:
+            async with AsyncSessionLocal() as session:
+                result = await sync_pricing(session, entries)
+                log.info("pricing_startup_sync", **result)
+    except Exception:
+        log.exception("pricing_startup_sync_failed")  # non-fatal
+
     yield
     log.info("shutdown")
     await engine.dispose()

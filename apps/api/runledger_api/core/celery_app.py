@@ -25,6 +25,11 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     beat_schedule={
+        # Pricing sync from YAML file: every 6 hours
+        "sync-pricing-from-file-6h": {
+            "task": "metering.sync_pricing_from_file",
+            "schedule": 21600.0,
+        },
         # Cost enrichment: every 60 seconds
         "cost-enrichment-60s": {
             "task": "metering.cost_enrichment",

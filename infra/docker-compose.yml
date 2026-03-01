@@ -46,6 +46,8 @@ services:
       CORS_ORIGINS: http://localhost:3000
     volumes:
       - ../logs:/app/logs
+      # Provider pricing — edit config/pricing.yml then restart api + beat to apply
+      - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,14 +66,16 @@ services:
       ADMIN_SECRET: runledger-admin
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+    volumes:
+      - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  # Celery Beat scheduler — fires periodic tasks: cost_enrichment (60s),
-  # hourly rollup (30m), daily rollup (00:05 UTC), anomaly detection (nightly)
+  # Celery Beat scheduler — fires periodic tasks: pricing sync (6h),
+  # cost_enrichment (60s), hourly rollup (30m), daily rollup, anomaly detection
   beat:
     build:
       context: ..
@@ -84,6 +88,8 @@ services:
       ADMIN_SECRET: runledger-admin
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+    volumes:
+      - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
       postgres:
         condition: service_healthy
