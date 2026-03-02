@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import RunStatusBadge from './RunStatusBadge'
-import { formatCost, formatTokens, formatDuration, formatAge, truncateId } from '@/lib/utils'
+import { formatCost, formatTokens, formatDuration, formatAge, formatTimestamp, truncateId } from '@/lib/utils'
 
 export default function RunsTable({ items }: { items: RunListItem[] }) {
   if (items.length === 0) {
@@ -75,7 +75,11 @@ export default function RunsTable({ items }: { items: RunListItem[] }) {
                 {formatDuration(run.duration_ms)}
               </TableCell>
               <TableCell className="text-right text-xs text-gray-400 dark:text-gray-500">
-                {run.started_at ? formatAge(run.started_at) : '—'}
+                {run.started_at ? (
+                  <span title={formatAge(run.started_at)}>
+                    {formatTimestamp(run.started_at)}
+                  </span>
+                ) : '—'}
               </TableCell>
             </TableRow>
           ))}

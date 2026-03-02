@@ -24,6 +24,7 @@ from runledger_api.routers import (
     runs,
     tools,
 )
+from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import integrations as integrations_router
 from runledger_api.routers import providers as providers_router
 from runledger_api.routers import settings as settings_router
@@ -82,3 +83,4 @@ app.include_router(privacy.router)
 app.include_router(settings_router.router)
 app.include_router(providers_router.router)
 app.include_router(integrations_router.router)
+app.include_router(evaluations_router.router)

@@ -8,9 +8,14 @@ LangChain/LangGraph instrumentation: Phase 3.
 from __future__ import annotations
 
 import os
+from typing import Any
+
+import structlog
 
 from runledger_sdk.context import RunLedgerContext, get_context_snapshot
 from runledger_sdk.transport import SyncTransport, Transport
+
+log = structlog.get_logger()
 
 # Propagation header names
 _HEADER_RUN_ID = "X-RunLedger-Run-Id"
@@ -239,6 +244,83 @@ class RunLedger:
             feature_tag=lowered.get(_HEADER_FEATURE_TAG.lower()),
             deployment_version=lowered.get(_HEADER_DEPLOYMENT_VERSION.lower()),
         )
+
+    # ── Quality scores ────────────────────────────────────────────────────────
+
+    def score(
+        self,
+        name: str,
+        value: float,
+        *,
+        run_id: str | None = None,
+        span_id: str | None = None,
+        label: str | None = None,
+        source: str = "human",
+        confidence: float | None = None,
+        evidence: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Submit a quality score for a run or span.
+
+        Scores are posted synchronously and directly (not via the event queue).
+        Failures are logged as warnings — scoring must never break application flow.
+
+        Parameters
+        ----------
+        name:
+            Score dimension name (e.g. "relevance", "accuracy", "helpfulness").
+        value:
+            Numeric score, 0–100 scale.
+        run_id:
+            Optional UUID of the run being scored. Defaults to current context run_id.
+        span_id:
+            Optional UUID of the span being scored.
+        label:
+            Human-readable label (e.g. "good", "bad", "pass", "fail").
+        source:
+            Scorer type: "human", "llm", "rule", or "telemetry".
+        confidence:
+            Confidence in the score, 0–1. Optional.
+        evidence:
+            Arbitrary JSON evidence dict.
+        """
+        if self.local:
+            log.info("score_local", name=name, value=value, run_id=run_id)
+            return
+
+        # Fall back to current context run_id if not explicitly provided
+        if run_id is None:
+            ctx = get_context_snapshot()
+            run_id = ctx.get("run_id")  # type: ignore[assignment]
+
+        payload: dict[str, Any] = {
+            "name": name,
+            "value": value,
+            "source": source,
+        }
+        if run_id is not None:
+            payload["run_id"] = str(run_id)
+        if span_id is not None:
+            payload["span_id"] = str(span_id)
+        if label is not None:
+            payload["label"] = label
+        if confidence is not None:
+            payload["confidence"] = confidence
+        if evidence is not None:
+            payload["evidence"] = evidence
+
+        try:
+            import httpx  # noqa: PLC0415
+
+            resp = httpx.post(
+                f"{self.base_url}/evaluations/scores",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            log.warning("score_post_failed", name=name, error=str(exc))
 
     # ── Flush / shutdown ──────────────────────────────────────────────────────
 

@@ -43,6 +43,18 @@ export function formatAge(iso: string): string {
   return `${d}d ago`
 }
 
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
 export function truncateId(id: string, chars = 8): string {
   return id.slice(0, chars) + '…'
 }

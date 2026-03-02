@@ -35,6 +35,9 @@ import type {
   RunEconomics,
   RunGraphResponse,
   RunListResponse,
+  ScoreEvent,
+  ScoreList,
+  ScoreSummary,
   SecurityEventList,
   SlackTestResponse,
   SpendByFeature,
@@ -692,4 +695,51 @@ export async function updateGlobalPricing(
 
 export async function deleteGlobalPricing(adminSecret: string, pricingId: string): Promise<void> {
   await adminFetch<void>(`/admin/global-pricing/${pricingId}`, adminSecret, { method: 'DELETE' })
+}
+
+// ── Phase 17 — Evaluations & Scores ───────────────────────────────────────────
+
+export async function submitScore(
+  apiKey: string,
+  body: {
+    name: string
+    value: number
+    run_id?: string | null
+    span_id?: string | null
+    label?: string | null
+    source?: string
+    confidence?: number | null
+    evidence?: Record<string, unknown> | null
+  }
+): Promise<ScoreEvent> {
+  return apiFetch<ScoreEvent>('/evaluations/scores', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listScores(
+  apiKey: string,
+  params: {
+    run_id?: string
+    name?: string
+    source?: string
+    from?: string
+    to?: string
+    limit?: number
+  } = {}
+): Promise<ScoreList> {
+  const qs = new URLSearchParams()
+  if (params.run_id) qs.set('run_id', params.run_id)
+  if (params.name) qs.set('name', params.name)
+  if (params.source) qs.set('source', params.source)
+  if (params.from) qs.set('from', params.from)
+  if (params.to) qs.set('to', params.to)
+  if (params.limit) qs.set('limit', String(params.limit))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<ScoreList>(`/evaluations/scores${query}`, apiKey)
+}
+
+export async function getScoreSummary(apiKey: string): Promise<ScoreSummary> {
+  return apiFetch<ScoreSummary>('/analytics/scores/summary', apiKey)
 }

@@ -32,6 +32,7 @@ from runledger_api.models.annotations import Annotation
 from runledger_api.models.events import AgentRun, ProviderCall, Span
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.replay import UserAnomaly
+from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
@@ -48,6 +49,11 @@ from runledger_api.schemas.analytics import (
     SpendPoint,
     UserSpend,
     UserSpendDetail,
+)
+from runledger_api.schemas.scores import (
+    ScoreRegressionItem,
+    ScoreSummary,
+    ScoreSummaryItem,
 )
 from runledger_api.schemas.economics import (
     AnnotationCreate,
@@ -1071,3 +1077,140 @@ async def analytics_export(
         )
 
     return {"items": items}
+
+
+# ── /analytics/scores/summary ─────────────────────────────────────────────────
+
+_SCORE_REGRESSION_THRESHOLD = Decimal("0.20")
+_SCORE_REGRESSION_MIN_SAMPLES = 3
+
+
+@router.get("/scores/summary", response_model=ScoreSummary)
+async def score_summary(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> ScoreSummary:
+    """Average score values per score name for the current window vs prior window."""
+    t_to = _parse_dt(to_dt, _default_to())
+    t_from = _parse_dt(from_dt, _default_from())
+    duration = t_to - t_from
+    prior_from = t_from - duration
+    prior_to = t_from
+
+    def _score_window_stmt(w_from: object, w_to: object) -> Any:
+        return (
+            select(
+                ScoreEvent.name,
+                func.avg(ScoreEvent.value).label("avg_value"),
+                func.count(ScoreEvent.id).label("sample_count"),
+            )
+            .where(
+                ScoreEvent.workspace_id == workspace.id,
+                ScoreEvent.created_at >= w_from,
+                ScoreEvent.created_at < w_to,
+            )
+            .group_by(ScoreEvent.name)
+        )
+
+    curr_result = await db.execute(_score_window_stmt(t_from, t_to))
+    curr_rows = curr_result.all()
+
+    prior_result = await db.execute(_score_window_stmt(prior_from, prior_to))
+    prior_rows = prior_result.all()
+
+    prior_map: dict[str, tuple[Decimal, int]] = {
+        row.name: (Decimal(str(row.avg_value)), row.sample_count) for row in prior_rows
+    }
+
+    items: list[ScoreSummaryItem] = []
+    for row in curr_rows:
+        curr_avg = Decimal(str(row.avg_value))
+        prior = prior_map.get(row.name)
+        prev_avg: Decimal | None = None
+        change_pct: Decimal | None = None
+        if prior is not None:
+            prev_avg, prior_count = prior
+            if prior_count > 0 and prev_avg and prev_avg != Decimal(0):
+                change_pct = (curr_avg - prev_avg) / prev_avg * Decimal(100)
+
+        items.append(
+            ScoreSummaryItem(
+                name=row.name,
+                avg_value=curr_avg,
+                p50=None,
+                p90=None,
+                sample_count=row.sample_count,
+                prev_avg_value=prev_avg,
+                change_pct=change_pct,
+            )
+        )
+
+    return ScoreSummary(items=items)
+
+
+# ── /analytics/scores/regressions ─────────────────────────────────────────────
+
+
+@router.get("/scores/regressions", response_model=list[ScoreRegressionItem])
+async def score_regressions(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> list[ScoreRegressionItem]:
+    """Detect score names where avg value dropped >20% vs prior window (sample_count >= 3)."""
+    t_to = _parse_dt(to_dt, _default_to())
+    t_from = _parse_dt(from_dt, _default_from())
+    duration = t_to - t_from
+    prior_from = t_from - duration
+    prior_to = t_from
+
+    def _score_window_stmt(w_from: object, w_to: object) -> Any:
+        return (
+            select(
+                ScoreEvent.name,
+                func.avg(ScoreEvent.value).label("avg_value"),
+                func.count(ScoreEvent.id).label("sample_count"),
+            )
+            .where(
+                ScoreEvent.workspace_id == workspace.id,
+                ScoreEvent.created_at >= w_from,
+                ScoreEvent.created_at < w_to,
+            )
+            .group_by(ScoreEvent.name)
+        )
+
+    curr_result = await db.execute(_score_window_stmt(t_from, t_to))
+    curr_rows = curr_result.all()
+
+    prior_result = await db.execute(_score_window_stmt(prior_from, prior_to))
+    prior_rows = prior_result.all()
+
+    prior_map: dict[str, Decimal] = {
+        row.name: Decimal(str(row.avg_value)) for row in prior_rows
+    }
+
+    regressions: list[ScoreRegressionItem] = []
+    for row in curr_rows:
+        if row.sample_count < _SCORE_REGRESSION_MIN_SAMPLES:
+            continue
+        prior_avg = prior_map.get(row.name)
+        if prior_avg is None or prior_avg == Decimal(0):
+            continue
+        curr_avg = Decimal(str(row.avg_value))
+        change = (curr_avg - prior_avg) / prior_avg
+        # Negative change means degradation; threshold is >20% drop
+        if change < -_SCORE_REGRESSION_THRESHOLD:
+            regressions.append(
+                ScoreRegressionItem(
+                    name=row.name,
+                    current_avg=curr_avg,
+                    prior_avg=prior_avg,
+                    change_pct=change * Decimal(100),
+                    sample_count=row.sample_count,
+                )
+            )
+
+    return regressions

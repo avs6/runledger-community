@@ -441,3 +441,47 @@ export interface ChargebackRuleList { items: ChargebackRuleResponse[] }
 // ── Admin types ────────────────────────────────────────────────────────────────
 export interface TenantResponse { id: string; slug: string; name: string; plan: string; created_at: string }
 export interface AdminWorkspaceResponse { id: string; tenant_id: string; name: string; created_at: string }
+
+// ── Phase 17 — Evaluations & Scores ───────────────────────────────────────────
+
+export interface ScoreEvent {
+  id: string
+  workspace_id: string
+  run_id: string | null
+  span_id: string | null
+  session_id: string | null
+  end_user_id: string | null
+  name: string
+  value: string
+  label: string | null
+  source: string
+  confidence: string | null
+  evidence: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface ScoreList {
+  items: ScoreEvent[]
+}
+
+export interface ScoreSummaryItem {
+  name: string
+  avg_value: string
+  p50: string | null
+  p90: string | null
+  sample_count: number
+  prev_avg_value: string | null
+  change_pct: string | null
+}
+
+export interface ScoreSummary {
+  items: ScoreSummaryItem[]
+}
+
+export interface ScoreRegressionItem {
+  name: string
+  current_avg: string
+  prior_avg: string
+  change_pct: string
+  sample_count: number
+}
