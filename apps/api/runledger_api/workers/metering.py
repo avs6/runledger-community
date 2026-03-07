@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -110,7 +111,7 @@ async def _run_cost_enrichment() -> dict[str, int]:
                     workspace_id=pc.workspace_id,
                 )
                 if cost is None:
-                    continue
+                    cost = Decimal("0")  # Free/local provider (e.g. Ollama) — mark as $0
 
                 await session.execute(
                     update(ProviderCall).where(ProviderCall.id == pc.id).values(cost_usd=cost)
@@ -131,8 +132,6 @@ async def _run_cost_enrichment() -> dict[str, int]:
                         budget_id = uuid.UUID(b["id"])
                         await incr_budget_spend(redis, budget_id, b["period_type"], cost)
                         spend = await get_budget_spend(redis, budget_id, b["period_type"])
-                        from decimal import Decimal  # noqa: PLC0415
-
                         if spend >= Decimal(b["limit_usd"]) and b["action"] != "notify":
                             await fire_breach(session, redis, b, spend, b["action"])
                 except Exception as exc:

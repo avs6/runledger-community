@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import type { ApiKeyResponse, ProviderPricingResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse } from '@/types/api'
+import type { AlertRule, AlertFiring, ApiKeyResponse, ProviderPricingResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, GatewayRoute, GatewayStats } from '@/types/api'
 import {
   listApiKeys,
   createApiKey,
@@ -24,6 +24,16 @@ import {
   createTenant,
   listAdminWorkspaces,
   createAdminWorkspace,
+  listAlertRules,
+  createAlertRule,
+  updateAlertRule,
+  deleteAlertRule,
+  listAlertHistory,
+  listGatewayRoutes,
+  createGatewayRoute,
+  updateGatewayRoute,
+  deleteGatewayRoute,
+  getGatewayStats,
 } from '@/lib/api'
 
 interface EditState {
@@ -88,21 +98,50 @@ export default function SettingsPage() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('')
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
 
+  // ── Alert Rules ──────────────────────────────────────────────────────────────
+  const [alertRules, setAlertRules] = useState<AlertRule[]>([])
+  const [alertHistory, setAlertHistory] = useState<AlertFiring[]>([])
+  const [newAlertName, setNewAlertName] = useState('')
+  const [newAlertMetric, setNewAlertMetric] = useState('error_rate')
+  const [newAlertOperator, setNewAlertOperator] = useState('gt')
+  const [newAlertThreshold, setNewAlertThreshold] = useState('')
+  const [newAlertWindow, setNewAlertWindow] = useState('60')
+  const [creatingAlert, setCreatingAlert] = useState(false)
+
+  // ── Model Gateway ─────────────────────────────────────────────────────────────
+  const [gatewayRoutes, setGatewayRoutes] = useState<GatewayRoute[]>([])
+  const [gatewayStats, setGatewayStats] = useState<GatewayStats | null>(null)
+  const [newRouteAlias, setNewRouteAlias] = useState('')
+  const [newRouteProvider, setNewRouteProvider] = useState('openai')
+  const [newRouteTargetModel, setNewRouteTargetModel] = useState('')
+  const [newRouteBaseUrl, setNewRouteBaseUrl] = useState('')
+  const [newRouteApiKeyEnvVar, setNewRouteApiKeyEnvVar] = useState('OPENAI_API_KEY')
+  const [newRoutePriority, setNewRoutePriority] = useState('10')
+  const [creatingRoute, setCreatingRoute] = useState(false)
+
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [keys, pricingData, policy] = await Promise.all([
+      const [keys, pricingData, policy, alertsData, historyData, routesData, statsData] = await Promise.all([
         listApiKeys(apiKey),
         listProviderPricing(apiKey),
         getCapturePolicy(apiKey),
+        listAlertRules(apiKey, true),
+        listAlertHistory(apiKey, 10),
+        listGatewayRoutes(apiKey, true),
+        getGatewayStats(apiKey),
       ])
-      setApiKeys(keys)
+      setApiKeys(keys.filter((k) => !k.is_session))
       setPricing(pricingData.items)
       if (policy) {
         setCapturePolicy(policy)
         setPrivacyMode(policy.privacy_mode)
         setSampledRate(policy.sampled_rate ? String(parseFloat(policy.sampled_rate) * 100) : '')
       }
+      setAlertRules(alertsData.items)
+      setAlertHistory(historyData.items)
+      setGatewayRoutes(routesData.items)
+      setGatewayStats(statsData)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load settings')
@@ -299,6 +338,110 @@ export default function SettingsPage() {
     }
   }
 
+  // ── Alert rule handlers ──────────────────────────────────────────────────────
+
+  async function handleCreateAlert(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !newAlertName.trim() || !newAlertThreshold) return
+    setCreatingAlert(true)
+    try {
+      const rule = await createAlertRule(apiKey, {
+        name: newAlertName.trim(),
+        metric: newAlertMetric,
+        operator: newAlertOperator,
+        threshold: parseFloat(newAlertThreshold),
+        window_minutes: parseInt(newAlertWindow, 10),
+      })
+      setAlertRules((prev) => [rule, ...prev])
+      setNewAlertName('')
+      setNewAlertThreshold('')
+      toast.success('Alert rule created')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to create alert rule')
+    } finally {
+      setCreatingAlert(false)
+    }
+  }
+
+  async function handleToggleAlert(rule: AlertRule) {
+    if (!apiKey) return
+    try {
+      const updated = await updateAlertRule(apiKey, rule.id, { is_active: !rule.is_active })
+      setAlertRules((prev) => prev.map((r) => (r.id === rule.id ? updated : r)))
+      toast.success(updated.is_active ? 'Rule enabled' : 'Rule disabled')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to update rule')
+    }
+  }
+
+  async function handleDeleteAlert(ruleId: string) {
+    if (!apiKey || !confirm('Delete this alert rule?')) return
+    try {
+      await deleteAlertRule(apiKey, ruleId)
+      setAlertRules((prev) => prev.filter((r) => r.id !== ruleId))
+      toast.success('Alert rule deleted')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to delete rule')
+    }
+  }
+
+  // ── Model Gateway handlers ────────────────────────────────────────────────────
+
+  async function handleCreateRoute(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !newRouteAlias || !newRouteTargetModel) return
+    setCreatingRoute(true)
+    try {
+      const route = await createGatewayRoute(apiKey, {
+        alias: newRouteAlias.trim(),
+        provider: newRouteProvider,
+        target_model: newRouteTargetModel.trim(),
+        base_url: newRouteBaseUrl.trim() || null,
+        api_key_env_var: newRouteApiKeyEnvVar.trim() || null,
+        priority: parseInt(newRoutePriority, 10) || 10,
+      })
+      setGatewayRoutes((prev) => [...prev, route])
+      setNewRouteAlias('')
+      setNewRouteTargetModel('')
+      setNewRouteBaseUrl('')
+      setNewRouteApiKeyEnvVar('OPENAI_API_KEY')
+      setNewRoutePriority('10')
+      toast.success('Gateway route created')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to create gateway route')
+    } finally {
+      setCreatingRoute(false)
+    }
+  }
+
+  async function handleToggleRoute(route: GatewayRoute) {
+    if (!apiKey) return
+    try {
+      const updated = await updateGatewayRoute(apiKey, route.id, { is_active: !route.is_active })
+      setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
+      toast.success(updated.is_active ? 'Route enabled' : 'Route disabled')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to update route')
+    }
+  }
+
+  async function handleDeleteRoute(routeId: string) {
+    if (!apiKey || !confirm('Delete this gateway route?')) return
+    try {
+      await deleteGatewayRoute(apiKey, routeId)
+      setGatewayRoutes((prev) => prev.filter((r) => r.id !== routeId))
+      toast.success('Gateway route deleted')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to delete route')
+    }
+  }
+
   // ── Tenant management handlers ──────────────────────────────────────────────
 
   async function handleAdminAuth(e: React.FormEvent) {
@@ -460,7 +603,7 @@ export default function SettingsPage() {
                     <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{k.key_prefix}…</td>
                     <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{k.name ?? '—'}</td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">
-                      {new Date(k.created_at).toLocaleDateString()}
+                      {new Date(k.created_at).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
                       {k.created_by ?? '—'}
@@ -835,6 +978,300 @@ export default function SettingsPage() {
             }`}
           >
             {slackTestResult.ok ? '✓ Test message sent successfully.' : <>✗ Failed: {slackTestResult.error}</>}
+          </div>
+        )}
+      </section>
+
+      {/* ── Alert Rules ─────────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Alert Rules</h2>
+        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+          Fire Slack notifications when a metric crosses a threshold. Rules are evaluated every 5 minutes.
+        </p>
+
+        {/* Create form */}
+        <form onSubmit={handleCreateAlert} className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <input
+            className={inputCls}
+            placeholder="Rule name (e.g. High error rate)"
+            value={newAlertName}
+            onChange={(e) => setNewAlertName(e.target.value)}
+            required
+          />
+          <select className={inputCls} value={newAlertMetric} onChange={(e) => setNewAlertMetric(e.target.value)}>
+            <option value="error_rate">Error Rate</option>
+            <option value="p95_latency">P95 Latency (ms)</option>
+            <option value="avg_score">Avg Score</option>
+            <option value="spend_velocity">Spend Velocity ($)</option>
+          </select>
+          <div className="flex gap-2">
+            <select className={`${inputCls} w-24`} value={newAlertOperator} onChange={(e) => setNewAlertOperator(e.target.value)}>
+              <option value="gt">&gt; (above)</option>
+              <option value="lt">&lt; (below)</option>
+            </select>
+            <input
+              className={`${inputCls} flex-1`}
+              type="number"
+              step="any"
+              min="0"
+              placeholder="Threshold"
+              value={newAlertThreshold}
+              onChange={(e) => setNewAlertThreshold(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              className={`${inputCls} w-24`}
+              type="number"
+              min="5"
+              max="1440"
+              placeholder="60"
+              value={newAlertWindow}
+              onChange={(e) => setNewAlertWindow(e.target.value)}
+            />
+            <span className="text-sm text-gray-500 dark:text-gray-400">min window</span>
+          </div>
+          <button
+            type="submit"
+            disabled={creatingAlert}
+            className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {creatingAlert ? 'Creating…' : 'Add Rule'}
+          </button>
+        </form>
+
+        {/* Rules table */}
+        {alertRules.length === 0 ? (
+          <p className="text-sm text-gray-400 dark:text-gray-500">No alert rules yet.</p>
+        ) : (
+          <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700 mb-4">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-2 text-left">Name</th>
+                  <th className="px-4 py-2 text-left">Metric</th>
+                  <th className="px-4 py-2 text-left">Condition</th>
+                  <th className="px-4 py-2 text-left">Window</th>
+                  <th className="px-4 py-2 text-left">Status</th>
+                  <th className="px-4 py-2 text-left" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {alertRules.map((rule) => (
+                  <tr key={rule.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="px-4 py-2 font-medium dark:text-gray-200">{rule.name}</td>
+                    <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{rule.metric}</td>
+                    <td className="px-4 py-2 text-xs dark:text-gray-300">
+                      {rule.operator === 'gt' ? '>' : '<'} {rule.threshold}
+                    </td>
+                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => handleToggleAlert(rule)}
+                        className={`rounded px-2 py-0.5 text-xs font-medium ${
+                          rule.is_active
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                        }`}
+                      >
+                        {rule.is_active ? 'Active' : 'Paused'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => handleDeleteAlert(rule.id)}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Recent firings */}
+        {alertHistory.length > 0 && (
+          <div>
+            <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Recent Firings</h3>
+            <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 uppercase text-gray-400 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Rule</th>
+                    <th className="px-3 py-2 text-left">Value</th>
+                    <th className="px-3 py-2 text-left">Fired At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {alertHistory.map((f) => (
+                    <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td className="px-3 py-2 font-medium dark:text-gray-200">{f.rule_name}</td>
+                      <td className="px-3 py-2 font-mono dark:text-gray-300">{parseFloat(f.metric_value).toFixed(4)}</td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                        {new Date(f.fired_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── Model Gateway ───────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Model Gateway</h2>
+        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+          Configure provider routes for the OpenAI-compatible proxy. Point your app&apos;s{' '}
+          <code className="font-mono">base_url</code> to{' '}
+          <code className="font-mono">/gateway</code> to enable routing, caching, and fallback.
+        </p>
+
+        {/* Stats strip */}
+        {gatewayStats && gatewayStats.total_requests > 0 && (
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: 'Total Requests', value: gatewayStats.total_requests.toLocaleString() },
+              { label: 'Cache Hits', value: gatewayStats.cache_hits.toLocaleString() },
+              {
+                label: 'Cache Hit Rate',
+                value: `${(parseFloat(gatewayStats.cache_hit_rate) * 100).toFixed(1)}%`,
+              },
+              {
+                label: 'Avg Latency',
+                value: gatewayStats.avg_latency_ms
+                  ? `${parseFloat(gatewayStats.avg_latency_ms).toFixed(0)}ms`
+                  : '—',
+              },
+            ].map((s) => (
+              <div
+                key={s.label}
+                className="rounded border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
+              >
+                <p className="text-xs text-gray-500 dark:text-gray-400">{s.label}</p>
+                <p className="text-lg font-semibold dark:text-gray-100">{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Create route form */}
+        <form
+          onSubmit={handleCreateRoute}
+          className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          <input
+            type="text"
+            placeholder="Alias (e.g. gpt-4o)"
+            value={newRouteAlias}
+            onChange={(e) => setNewRouteAlias(e.target.value)}
+            className={inputCls}
+            required
+          />
+          <select
+            value={newRouteProvider}
+            onChange={(e) => setNewRouteProvider(e.target.value)}
+            className={inputCls}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="ollama">Ollama</option>
+            <option value="groq">Groq</option>
+            <option value="mistral">Mistral</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Target model (e.g. gpt-4o-2024-11-20)"
+            value={newRouteTargetModel}
+            onChange={(e) => setNewRouteTargetModel(e.target.value)}
+            className={inputCls}
+            required
+          />
+          <input
+            type="text"
+            placeholder="Base URL (optional, default: OpenAI)"
+            value={newRouteBaseUrl}
+            onChange={(e) => setNewRouteBaseUrl(e.target.value)}
+            className={inputCls}
+          />
+          <input
+            type="text"
+            placeholder="API key env var (e.g. OPENAI_API_KEY)"
+            value={newRouteApiKeyEnvVar}
+            onChange={(e) => setNewRouteApiKeyEnvVar(e.target.value)}
+            className={inputCls}
+          />
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              placeholder="Priority"
+              value={newRoutePriority}
+              onChange={(e) => setNewRoutePriority(e.target.value)}
+              className={`w-24 ${inputCls}`}
+              min={1}
+              max={100}
+            />
+            <button
+              type="submit"
+              disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel}
+              className="flex-1 rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+            >
+              {creatingRoute ? 'Adding…' : 'Add Route'}
+            </button>
+          </div>
+        </form>
+
+        {/* Routes table */}
+        {gatewayRoutes.length > 0 && (
+          <div className="mb-4 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <tr>
+                  <th className="px-4 py-2 text-left">Alias</th>
+                  <th className="px-4 py-2 text-left">Provider</th>
+                  <th className="px-4 py-2 text-left">Target Model</th>
+                  <th className="px-4 py-2 text-left">Priority</th>
+                  <th className="px-4 py-2 text-left">Status</th>
+                  <th className="px-4 py-2 text-left" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {gatewayRoutes.map((route) => (
+                  <tr key={route.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="px-4 py-2 font-mono text-sm dark:text-gray-200">{route.alias}</td>
+                    <td className="px-4 py-2 text-xs capitalize dark:text-gray-300">{route.provider}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{route.target_model}</td>
+                    <td className="px-4 py-2 text-xs dark:text-gray-300">{route.priority}</td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => handleToggleRoute(route)}
+                        className={`rounded px-2 py-0.5 text-xs font-medium ${
+                          route.is_active
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                        }`}
+                      >
+                        {route.is_active ? 'Active' : 'Disabled'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => handleDeleteRoute(route.id)}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

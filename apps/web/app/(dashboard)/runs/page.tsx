@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { getRuns } from '@/lib/api'
 import RunsTable from '@/components/runs/RunsTable'
 import RunFilters from '@/components/runs/RunFilters'
+import RunsExportButton from '@/components/runs/RunsExportButton'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -18,6 +19,9 @@ interface PageProps {
     to?: string
     cursor?: string
     preset?: string
+    model?: string
+    min_cost?: string
+    max_cost?: string
   }
 }
 
@@ -36,6 +40,9 @@ async function RunsContent({ searchParams }: PageProps) {
     from: searchParams.from ?? sevenDaysAgo,
     to: searchParams.to,
     cursor: searchParams.cursor,
+    model: searchParams.model,
+    min_cost: searchParams.min_cost,
+    max_cost: searchParams.max_cost,
   })
 
   const nextHref = data.next_cursor
@@ -69,6 +76,9 @@ export default function RunsPage({ searchParams }: PageProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Runs</h1>
+        <Suspense fallback={null}>
+          <RunsExportButton />
+        </Suspense>
       </div>
       <Suspense fallback={null}>
         <RunFilters />

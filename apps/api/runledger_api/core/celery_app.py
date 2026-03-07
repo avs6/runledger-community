@@ -12,6 +12,7 @@ celery_app = Celery(
         "runledger_api.workers.budgets",
         "runledger_api.workers.billing",
         "runledger_api.workers.ledger",
+        "runledger_api.workers.alerts",
     ],
 )
 
@@ -79,6 +80,11 @@ celery_app.conf.update(
         "ledger-suspicious-sequences": {
             "task": "ledger.suspicious_sequences",
             "schedule": 60.0,
+        },
+        # Alert rule evaluation: every 5 minutes
+        "alert-evaluation-5m": {
+            "task": "alerts.evaluate_rules",
+            "schedule": 300.0,
         },
     },
 )

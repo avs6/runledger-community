@@ -98,6 +98,10 @@ class RunDetailResponse(BaseModel):
     spans: list[SpanDetail]
     provider_calls: list[ProviderCallDetail]
     tool_calls: list[ToolCallDetail]
+    # Payload fields — only present when capture policy is SAMPLED or FULL
+    input_payload: list[dict[str, Any]] | None = None
+    output_payload: Any | None = None
+    span_payloads: dict[str, dict[str, Any]] | None = None
 
 
 class GraphNodeData(BaseModel):

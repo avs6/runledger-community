@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 
 const TIME_PRESETS = [
+  { label: '5m', value: '5m', minutes: 5 },
   { label: '15m', value: '15m', minutes: 15 },
   { label: '30m', value: '30m', minutes: 30 },
   { label: '1h', value: '1h', minutes: 60 },
@@ -28,13 +29,13 @@ function minutesAgoIso(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString()
 }
 
-/** ISO string → datetime-local input value (YYYY-MM-DDTHH:MM) in local tz */
+/** ISO string → datetime-local input value (YYYY-MM-DDTHH:MM:SS) in local tz */
 function isoToLocal(iso: string): string {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   return (
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
   )
 }
 
@@ -69,7 +70,6 @@ export default function RunFilters() {
   const switchToCustom = useCallback(() => {
     const next = new URLSearchParams(params.toString())
     next.set('preset', 'custom')
-    // Carry existing from/to if present, else default to last 7 days → now
     if (!next.has('from')) next.set('from', minutesAgoIso(60 * 24 * 7))
     if (!next.has('to')) next.set('to', new Date().toISOString())
     next.delete('cursor')
@@ -80,6 +80,9 @@ export default function RunFilters() {
   const search = params.get('search') ?? ''
   const featureTag = params.get('feature_tag') ?? ''
   const endUser = params.get('end_user_id') ?? ''
+  const model = params.get('model') ?? ''
+  const minCost = params.get('min_cost') ?? ''
+  const maxCost = params.get('max_cost') ?? ''
   const preset = params.get('preset') ?? '7d'
   const fromParam = params.get('from') ?? ''
   const toParam = params.get('to') ?? ''
@@ -136,7 +139,51 @@ export default function RunFilters() {
         />
       </div>
 
-      {/* Row 2: time presets + optional custom range */}
+      {/* Row 2: model + cost range filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Model (e.g. gpt-4o)…"
+          className="h-8 w-44 text-sm"
+          defaultValue={model}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter')
+              updateParam('model', (e.target as HTMLInputElement).value || null)
+          }}
+        />
+
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-400 dark:text-gray-500">Cost $</span>
+          <Input
+            type="number"
+            placeholder="min"
+            className="h-8 w-20 text-sm"
+            defaultValue={minCost}
+            step="0.000001"
+            min="0"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter')
+                updateParam('min_cost', (e.target as HTMLInputElement).value || null)
+            }}
+            onBlur={(e) => updateParam('min_cost', e.target.value || null)}
+          />
+          <span className="text-xs text-gray-400 dark:text-gray-500">–</span>
+          <Input
+            type="number"
+            placeholder="max"
+            className="h-8 w-20 text-sm"
+            defaultValue={maxCost}
+            step="0.000001"
+            min="0"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter')
+                updateParam('max_cost', (e.target as HTMLInputElement).value || null)
+            }}
+            onBlur={(e) => updateParam('max_cost', e.target.value || null)}
+          />
+        </div>
+      </div>
+
+      {/* Row 3: time presets + optional custom range */}
       <div className="flex flex-wrap items-center gap-1">
         {TIME_PRESETS.map(({ label, value, minutes }) => (
           <Button
@@ -164,6 +211,7 @@ export default function RunFilters() {
             <span className="text-xs text-gray-400 dark:text-gray-500">from</span>
             <input
               type="datetime-local"
+              step="1"
               className="h-7 rounded-md border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
               defaultValue={fromParam ? isoToLocal(fromParam) : ''}
               onBlur={(e) => {
@@ -173,6 +221,7 @@ export default function RunFilters() {
             <span className="text-xs text-gray-400 dark:text-gray-500">to</span>
             <input
               type="datetime-local"
+              step="1"
               className="h-7 rounded-md border border-gray-300 bg-white px-2 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
               defaultValue={toParam ? isoToLocal(toParam) : ''}
               onBlur={(e) => {

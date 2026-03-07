@@ -377,6 +377,21 @@ curl "$BASE/analytics/summary?from=2026-01-01T00:00:00Z&to=2026-01-31T23:59:59Z"
 
 The analytics dashboard at `http://localhost:3000/analytics` visualises all of the above with Recharts — summary cards, spend-over-time line chart, spend-by-model bar chart, spend-by-feature donut, and a top-spenders table with clickable user profiles. Use the 24h / 7d / 30d preset buttons to change the time window.
 
+### Runs API + CSV export
+
+```bash
+# List runs — filter by model, cost range, status, time window
+curl "$BASE/runs?model=gpt-4o&min_cost=0.01&status=succeeded&from=2026-01-01T00:00:00Z" \
+     -H "Authorization: Bearer $KEY"
+
+# Download filtered runs as CSV (up to 5 000 rows)
+curl "$BASE/runs/export?model=gpt-4o&from=2026-03-01T00:00:00Z" \
+     -H "Authorization: Bearer $KEY" \
+     -o runs.csv
+```
+
+The dashboard Run Explorer at `http://localhost:3000/runs` exposes the same filters via the UI — including model substring search, cost range, and a custom datetime picker with second-level granularity. The **Export CSV** button downloads the currently filtered view.
+
 ---
 
 ## 11. Run the example agents
@@ -454,6 +469,10 @@ celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
 celery -A runledger_api.core.celery_app beat --loglevel=info
 ```
 
+### Ollama / local provider shows $0 cost
+
+That's correct — Ollama and other self-hosted providers have no API cost, so RunLedger stores `cost_usd = 0.00`. Runs will appear in the analytics with zero cost, which is accurate. If you want to assign an internal transfer price to Ollama usage, add a pricing row via **Settings → Provider Profiles** (or `POST /providers/pricing`) for `provider = ollama`.
+
 ---
 
 ## Reference
@@ -502,7 +521,7 @@ required.
 
 ---
 
-## 11. Quality scores
+## 12. Quality scores
 
 Attach quality scores to runs from anywhere — human raters, rule-based checks, or post-processing pipelines:
 
@@ -549,7 +568,7 @@ The **/evaluations** dashboard page (`http://localhost:3000/evaluations`) provid
 
 ---
 
-## 12. Prompt management
+## 13. Prompt management
 
 Version-controlled prompt templates with `{{variable}}` substitution and environment promotion:
 
@@ -612,8 +631,186 @@ The **/prompts** dashboard page (`http://localhost:3000/prompts`) provides:
 
 ---
 
+## 14. Sessions & payload viewer
+
+Group multi-turn conversations and inspect captured prompts/completions:
+
+```python
+import uuid
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_test_...")
+rl.instrument()
+
+# Assign a stable session_id across turns to group them
+session_id = str(uuid.uuid4())
+
+for turn, message in enumerate(["Hello!", "What's the weather?", "Thanks, bye."]):
+    with rl.context(
+        end_user_id="u_123",
+        session_id=session_id,
+        feature_tag="support-chat",
+    ):
+        # ... call your LLM here ...
+        pass
+
+rl.shutdown()
+```
+
+**Query sessions via the API:**
+
+```bash
+KEY=rl_test_...
+BASE=http://localhost:8000
+
+# List sessions (grouped by session_id, ordered by most recent)
+curl "$BASE/sessions" -H "Authorization: Bearer $KEY"
+# → { "items": [{ "session_id": "...", "run_count": 3, "total_cost_usd": "0.0042", ... }] }
+
+# Session detail with turn-ordered run list
+curl "$BASE/sessions/{session_id}" -H "Authorization: Bearer $KEY"
+
+# Per-turn and cumulative cost (for chart rendering)
+curl "$BASE/sessions/{session_id}/cost-over-turns" -H "Authorization: Bearer $KEY"
+# → { "turns": [{ "turn_number": 1, "cost_usd": "0.001", "cumulative_cost_usd": "0.001" }, ...] }
+```
+
+To see captured payloads inline in the run detail, enable SAMPLED capture first:
+
+```bash
+curl -X PUT "$BASE/privacy/capture-policy" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"privacy_mode": "SAMPLED", "sampled_rate": "1.0"}'
+```
+
+The **/sessions** dashboard page (`http://localhost:3000/sessions`) provides:
+- A filterable session list with user, turn count, total cost, and duration
+- Session detail with a cumulative cost line chart and per-turn run timeline
+- The run detail page (`/runs/[id]`) shows an inline **Payload Viewer** with colour-coded message roles when payloads are captured
+
+---
+
+## 15. Alert rules
+
+Set up threshold-based alerts that fire every 5 minutes via Celery Beat:
+
+```bash
+KEY=rl_test_...
+BASE=http://localhost:8000
+
+# Alert when error rate exceeds 5% in a 1-hour window
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"High error rate","metric":"error_rate","operator":"gt","threshold":0.05,"window_minutes":60}'
+
+# Alert when p95 latency exceeds 5 000 ms in a 30-minute window
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Slow responses","metric":"p95_latency","operator":"gt","threshold":5000,"window_minutes":30}'
+
+# Alert when average quality score drops below 0.6
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Low quality","metric":"avg_score","operator":"lt","threshold":0.6,"window_minutes":60}'
+
+# Alert when hourly spend exceeds $5
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Spend spike","metric":"spend_velocity","operator":"gt","threshold":5.0,"window_minutes":60}'
+
+# List all rules
+curl "$BASE/alerts/rules" -H "Authorization: Bearer $KEY"
+
+# Toggle a rule on/off
+curl -X PUT "$BASE/alerts/rules/{rule_id}" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"is_active": false}'
+
+# Recent firings
+curl "$BASE/alerts/history?limit=20" -H "Authorization: Bearer $KEY"
+```
+
+Supported metrics:
+
+| Metric | Description |
+|--------|-------------|
+| `error_rate` | Fraction of failed runs in the window (0–1) |
+| `p95_latency` | 95th-percentile run duration in milliseconds |
+| `avg_score` | Average value from `/evaluations/scores` in the window |
+| `spend_velocity` | Total `cost_usd` across all runs in the window |
+
+The **Settings → Alert Rules** section in the dashboard provides a full UI for managing rules and viewing recent firings.
+
+---
+
+## 16. Model gateway
+
+Point any OpenAI client at RunLedger's proxy to get prompt caching, provider fallback, and automatic request logging — with zero code changes:
+
+**Configure a route** (Settings → Model Gateway or via API):
+
+```bash
+KEY=rl_test_...
+BASE=http://localhost:8000
+
+curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "alias": "gpt-4o-mini",
+       "provider": "openai",
+       "target_model": "gpt-4o-mini",
+       "api_key_env_var": "OPENAI_API_KEY",
+       "priority": 10
+     }'
+```
+
+**Use it** — change only `base_url`, keep your existing code:
+
+```python
+import openai
+
+client = openai.OpenAI(
+    api_key="rl_test_...",                     # RunLedger API key
+    base_url="http://localhost:8000/gateway",  # RunLedger gateway
+)
+
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",   # alias from the route above
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
+# First call: forwarded to OpenAI, response stored in cache.
+# Identical second call: returned from cache in <5ms.
+```
+
+**Fallback routing** — add a second route with higher `priority` number:
+
+```bash
+# priority 20 = lower priority than 10; tried only if priority-10 route fails
+curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "alias": "gpt-4o-mini",
+       "provider": "groq",
+       "target_model": "llama-3.3-70b-versatile",
+       "base_url": "https://api.groq.com/openai/v1",
+       "api_key_env_var": "GROQ_API_KEY",
+       "priority": 20
+     }'
+```
+
+If OpenAI returns 429 or 5xx, the gateway automatically retries via Groq.
+
+**Check stats:**
+
+```bash
+curl "$BASE/gateway/stats" -H "Authorization: Bearer $KEY"
+# → { "total_requests": 42, "cache_hits": 18, "cache_hit_rate": "0.4286",
+#     "avg_latency_ms": "312.50", "routes": [...] }
+```
+
+---
+
 ## What's next
 
-- **Phase 17B** — LLM-as-judge evaluator framework (batch evaluation, judge drift detection)
-- **Phase 19** — Sessions UI + payload viewer
-- **Phase 20** — TypeScript / Node.js SDK
+- **Phase 20** — TypeScript / Node.js SDK (`@runledger/sdk`, OpenAI Node, Vercel AI SDK)
+- **Phase 22** — SaaS Foundation — self-service signup, Stripe subscriptions, usage quota enforcement

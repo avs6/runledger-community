@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from datetime import datetime
-from typing import Annotated
+from decimal import Decimal
+from typing import Annotated, Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +45,47 @@ def _duration_ms(started: datetime, ended: datetime | None) -> int | None:
 # ── List runs ─────────────────────────────────────────────────────────────────
 
 
+def _apply_run_filters(
+    stmt: Any,
+    *,
+    workspace_id: Any,
+    status_filter: str | None,
+    feature_tag: str | None,
+    end_user_id: str | None,
+    search: str | None,
+    from_dt: datetime | None,
+    to_dt: datetime | None,
+    model_filter: str | None,
+    min_cost: Decimal | None,
+    max_cost: Decimal | None,
+) -> Any:
+    stmt = stmt.where(AgentRun.workspace_id == workspace_id)
+    if status_filter:
+        stmt = stmt.where(AgentRun.status == status_filter)
+    if feature_tag:
+        stmt = stmt.where(AgentRun.feature_tag == feature_tag)
+    if end_user_id:
+        stmt = stmt.where(AgentRun.end_user_id == end_user_id)
+    if search:
+        stmt = stmt.where(func.cast(AgentRun.id, sa.Text()).like(f"{search}%"))
+    if from_dt:
+        stmt = stmt.where(AgentRun.started_at >= from_dt)
+    if to_dt:
+        stmt = stmt.where(AgentRun.started_at <= to_dt)
+    if model_filter:
+        model_sub = (
+            select(ProviderCall.run_id)
+            .where(ProviderCall.model.ilike(f"%{model_filter}%"))
+            .distinct()
+        )
+        stmt = stmt.where(AgentRun.id.in_(model_sub))
+    if min_cost is not None:
+        stmt = stmt.where(AgentRun.total_cost_usd >= min_cost)
+    if max_cost is not None:
+        stmt = stmt.where(AgentRun.total_cost_usd <= max_cost)
+    return stmt
+
+
 @router.get("", response_model=RunListResponse)
 async def list_runs(
     workspace: WorkspaceDep,
@@ -53,47 +98,37 @@ async def list_runs(
     search: str | None = Query(None, description="Prefix match on run_id"),
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
+    model_filter: str | None = Query(None, alias="model", description="Substring match on model name"),
+    min_cost: Decimal | None = Query(None, description="Minimum total cost (USD)"),
+    max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
 ) -> RunListResponse:
-    # Total count query (without cursor/limit)
-    count_stmt = (
-        select(func.count()).select_from(AgentRun).where(AgentRun.workspace_id == workspace.id)
+    filter_kwargs = dict(
+        workspace_id=workspace.id,
+        status_filter=status_filter,
+        feature_tag=feature_tag,
+        end_user_id=end_user_id,
+        search=search,
+        from_dt=from_dt,
+        to_dt=to_dt,
+        model_filter=model_filter,
+        min_cost=min_cost,
+        max_cost=max_cost,
     )
-    if status_filter:
-        count_stmt = count_stmt.where(AgentRun.status == status_filter)
-    if feature_tag:
-        count_stmt = count_stmt.where(AgentRun.feature_tag == feature_tag)
-    if end_user_id:
-        count_stmt = count_stmt.where(AgentRun.end_user_id == end_user_id)
-    if from_dt:
-        count_stmt = count_stmt.where(AgentRun.started_at >= from_dt)
-    if to_dt:
-        count_stmt = count_stmt.where(AgentRun.started_at <= to_dt)
 
+    # Total count query (without cursor/limit)
+    count_stmt = _apply_run_filters(
+        select(func.count()).select_from(AgentRun), **filter_kwargs
+    )
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Data query
-    stmt = (
-        select(AgentRun)
-        .where(AgentRun.workspace_id == workspace.id)
-        .order_by(AgentRun.started_at.desc())
-        .limit(limit + 1)
+    stmt = _apply_run_filters(
+        select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit + 1),
+        **filter_kwargs,
     )
-    if status_filter:
-        stmt = stmt.where(AgentRun.status == status_filter)
-    if feature_tag:
-        stmt = stmt.where(AgentRun.feature_tag == feature_tag)
-    if end_user_id:
-        stmt = stmt.where(AgentRun.end_user_id == end_user_id)
-    if search:
-        # Prefix match on string representation of UUID
-        stmt = stmt.where(func.cast(AgentRun.id, sa.Text()).like(f"{search}%"))
     if cursor:
         cursor_dt = datetime.fromisoformat(cursor)
         stmt = stmt.where(AgentRun.started_at < cursor_dt)
-    if from_dt:
-        stmt = stmt.where(AgentRun.started_at >= from_dt)
-    if to_dt:
-        stmt = stmt.where(AgentRun.started_at <= to_dt)
 
     result = await db.execute(stmt)
     runs = list(result.scalars().all())
@@ -140,6 +175,91 @@ async def list_runs(
     return RunListResponse(items=items, next_cursor=next_cursor, total=total)
 
 
+# ── Export runs as CSV ────────────────────────────────────────────────────────
+
+
+@router.get("/export", response_model=None)
+async def export_runs(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    status_filter: str | None = Query(None, alias="status"),
+    feature_tag: str | None = Query(None),
+    end_user_id: str | None = Query(None),
+    search: str | None = Query(None),
+    from_dt: datetime | None = Query(None, alias="from"),
+    to_dt: datetime | None = Query(None, alias="to"),
+    model_filter: str | None = Query(None, alias="model"),
+    min_cost: Decimal | None = Query(None),
+    max_cost: Decimal | None = Query(None),
+    limit: int = Query(1000, ge=1, le=5000),
+) -> StreamingResponse:
+    filter_kwargs = dict(
+        workspace_id=workspace.id,
+        status_filter=status_filter,
+        feature_tag=feature_tag,
+        end_user_id=end_user_id,
+        search=search,
+        from_dt=from_dt,
+        to_dt=to_dt,
+        model_filter=model_filter,
+        min_cost=min_cost,
+        max_cost=max_cost,
+    )
+    stmt = _apply_run_filters(
+        select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit),
+        **filter_kwargs,
+    )
+    result = await db.execute(stmt)
+    runs = list(result.scalars().all())
+
+    # Fetch primary models
+    run_ids = [r.id for r in runs]
+    primary_models: dict[uuid.UUID, str | None] = {}
+    if run_ids:
+        pc_stmt = (
+            select(ProviderCall.run_id, ProviderCall.model)
+            .where(ProviderCall.run_id.in_(run_ids))
+            .order_by(ProviderCall.run_id, ProviderCall.cost_usd.desc().nulls_last())
+            .distinct(ProviderCall.run_id)
+        )
+        for row in (await db.execute(pc_stmt)).all():
+            primary_models[row.run_id] = row.model
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(
+        buf,
+        fieldnames=[
+            "run_id", "status", "feature_tag", "end_user_id", "session_id",
+            "deployment_version", "model", "cost_usd", "input_tokens",
+            "output_tokens", "duration_ms", "started_at", "ended_at",
+        ],
+    )
+    writer.writeheader()
+    for r in runs:
+        writer.writerow({
+            "run_id": str(r.id),
+            "status": r.status,
+            "feature_tag": r.feature_tag or "",
+            "end_user_id": r.end_user_id or "",
+            "session_id": r.session_id or "",
+            "deployment_version": r.deployment_version or "",
+            "model": primary_models.get(r.id) or "",
+            "cost_usd": str(r.total_cost_usd) if r.total_cost_usd is not None else "",
+            "input_tokens": r.total_input_tokens or "",
+            "output_tokens": r.total_output_tokens or "",
+            "duration_ms": _duration_ms(r.started_at, r.ended_at) or "",
+            "started_at": r.started_at.isoformat(),
+            "ended_at": r.ended_at.isoformat() if r.ended_at else "",
+        })
+
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=runs.csv"},
+    )
+
+
 # ── Run detail ────────────────────────────────────────────────────────────────
 
 
@@ -168,6 +288,24 @@ async def get_run(
     )
     tool_calls = list(tc_result.scalars().all())
 
+    # Extract payloads from span metadata (only present when capture policy is SAMPLED/FULL)
+    input_payload: list[dict[str, Any]] | None = None
+    output_payload: Any | None = None
+    span_payloads: dict[str, dict[str, Any]] = {}
+    for s in spans:
+        if s.span_metadata:
+            span_payload: dict[str, Any] = {}
+            if "messages" in s.span_metadata:
+                span_payload["input"] = s.span_metadata["messages"]
+                if input_payload is None:
+                    input_payload = s.span_metadata["messages"]
+            if "response" in s.span_metadata:
+                span_payload["output"] = s.span_metadata["response"]
+                if output_payload is None:
+                    output_payload = s.span_metadata["response"]
+            if span_payload:
+                span_payloads[str(s.id)] = span_payload
+
     return RunDetailResponse(
         id=run.id,
         status=run.status,
@@ -181,6 +319,9 @@ async def get_run(
         started_at=run.started_at,
         ended_at=run.ended_at,
         duration_ms=_duration_ms(run.started_at, run.ended_at),
+        input_payload=input_payload,
+        output_payload=output_payload,
+        span_payloads=span_payloads if span_payloads else None,
         spans=[
             SpanDetail(
                 id=s.id,

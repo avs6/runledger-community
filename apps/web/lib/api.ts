@@ -1,4 +1,11 @@
 import type {
+  AlertFiring,
+  AlertHistoryList,
+  AlertRule,
+  AlertRuleList,
+  GatewayRoute,
+  GatewayRouteList,
+  GatewayStats,
   AdminWorkspaceResponse,
   AnalyticsExport,
   AnalyticsSummary,
@@ -42,6 +49,9 @@ import type {
   ScoreEvent,
   ScoreList,
   ScoreSummary,
+  SessionDetail,
+  SessionList,
+  TurnCostResponse,
   VersionList,
   SecurityEventList,
   SlackTestResponse,
@@ -114,6 +124,9 @@ export async function getRuns(
     search?: string
     from?: string
     to?: string
+    model?: string
+    min_cost?: string
+    max_cost?: string
   } = {}
 ): Promise<RunListResponse> {
   const qs = new URLSearchParams()
@@ -125,6 +138,9 @@ export async function getRuns(
   if (params.search) qs.set('search', params.search)
   if (params.from) qs.set('from', params.from)
   if (params.to) qs.set('to', params.to)
+  if (params.model) qs.set('model', params.model)
+  if (params.min_cost) qs.set('min_cost', params.min_cost)
+  if (params.max_cost) qs.set('max_cost', params.max_cost)
 
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<RunListResponse>(`/runs${query}`, apiKey)
@@ -840,4 +856,152 @@ export async function getPromptMetrics(
     `/prompts/${encodeURIComponent(name)}/metrics`,
     apiKey
   )
+}
+
+// ── Phase 19 — Sessions ────────────────────────────────────────────────────────
+
+export async function listSessions(
+  apiKey: string,
+  params: {
+    end_user_id?: string
+    from?: string
+    to?: string
+    limit?: number
+  } = {}
+): Promise<SessionList> {
+  const qs = new URLSearchParams()
+  if (params.end_user_id) qs.set('end_user_id', params.end_user_id)
+  if (params.from) qs.set('from', params.from)
+  if (params.to) qs.set('to', params.to)
+  if (params.limit) qs.set('limit', String(params.limit))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<SessionList>(`/sessions${query}`, apiKey)
+}
+
+export async function getSession(
+  apiKey: string,
+  sessionId: string
+): Promise<SessionDetail> {
+  return apiFetch<SessionDetail>(`/sessions/${encodeURIComponent(sessionId)}`, apiKey)
+}
+
+export async function getSessionCostOverTurns(
+  apiKey: string,
+  sessionId: string
+): Promise<TurnCostResponse> {
+  return apiFetch<TurnCostResponse>(
+    `/sessions/${encodeURIComponent(sessionId)}/cost-over-turns`,
+    apiKey
+  )
+}
+
+// ── Phase 21A — Alert Rules ────────────────────────────────────────────────────
+
+export async function listAlertRules(
+  apiKey: string,
+  includeInactive = false
+): Promise<AlertRuleList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<AlertRuleList>(`/alerts/rules${qs}`, apiKey)
+}
+
+export async function createAlertRule(
+  apiKey: string,
+  body: {
+    name: string
+    metric: string
+    operator: string
+    threshold: number
+    window_minutes?: number
+    channel_id?: string | null
+  }
+): Promise<AlertRule> {
+  return apiFetch<AlertRule>('/alerts/rules', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateAlertRule(
+  apiKey: string,
+  ruleId: string,
+  body: {
+    name?: string
+    threshold?: number
+    window_minutes?: number
+    is_active?: boolean
+    channel_id?: string | null
+  }
+): Promise<AlertRule> {
+  return apiFetch<AlertRule>(`/alerts/rules/${ruleId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteAlertRule(apiKey: string, ruleId: string): Promise<void> {
+  await apiFetch<void>(`/alerts/rules/${ruleId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listAlertHistory(
+  apiKey: string,
+  limit = 50
+): Promise<AlertHistoryList> {
+  return apiFetch<AlertHistoryList>(`/alerts/history?limit=${limit}`, apiKey)
+}
+
+// suppress unused import warnings for AlertFiring
+export type { AlertFiring }
+
+// ── Phase 21B — Model Gateway ──────────────────────────────────────────────────
+
+export async function listGatewayRoutes(
+  apiKey: string,
+  includeInactive = false
+): Promise<GatewayRouteList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<GatewayRouteList>(`/gateway/routes${qs}`, apiKey)
+}
+
+export async function createGatewayRoute(
+  apiKey: string,
+  body: {
+    alias: string
+    provider: string
+    target_model: string
+    base_url?: string | null
+    api_key_env_var?: string | null
+    priority?: number
+  }
+): Promise<GatewayRoute> {
+  return apiFetch<GatewayRoute>('/gateway/routes', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateGatewayRoute(
+  apiKey: string,
+  routeId: string,
+  body: {
+    alias?: string
+    target_model?: string
+    base_url?: string | null
+    api_key_env_var?: string | null
+    priority?: number
+    is_active?: boolean
+  }
+): Promise<GatewayRoute> {
+  return apiFetch<GatewayRoute>(`/gateway/routes/${routeId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteGatewayRoute(apiKey: string, routeId: string): Promise<void> {
+  await apiFetch<void>(`/gateway/routes/${routeId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getGatewayStats(apiKey: string): Promise<GatewayStats> {
+  return apiFetch<GatewayStats>('/gateway/stats', apiKey)
 }

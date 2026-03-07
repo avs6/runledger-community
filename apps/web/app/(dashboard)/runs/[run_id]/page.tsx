@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { getRun, getRunGraph } from '@/lib/api'
 import RunSummaryBar from '@/components/runs/RunSummaryBar'
 import RunGraph from '@/components/dag/RunGraph'
+import PayloadViewer from '@/components/runs/PayloadViewer'
 import { ChevronLeft } from 'lucide-react'
 
 export default async function RunDetailPage({
@@ -42,6 +43,10 @@ export default async function RunDetailPage({
       <div className="min-h-0 flex-1 rounded-lg border border-gray-200 overflow-hidden dark:border-gray-700">
         <RunGraph graphNodes={graph.nodes} graphEdges={graph.edges} />
       </div>
+
+      {(run.input_payload != null || run.output_payload != null) && (
+        <PayloadViewer run={run} />
+      )}
     </div>
   )
 }

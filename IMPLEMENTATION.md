@@ -36,12 +36,14 @@
 | 16 | Production Hardening + UI Polish | ✅ Complete | 13 |
 | 17 | Evaluations & Scores | ✅ Complete | 13 |
 | 18 | Prompt Management | ✅ Complete | 12 |
-| 19 | Sessions UI + Payload Viewer | 🔲 Planned | — |
+| 19 | Sessions UI + Payload Viewer | ✅ Complete | 8 |
 | 20 | TypeScript / Node.js SDK | 🔲 Planned | — |
-| 21 | Advanced Alerting + Model Gateway | 🔲 Planned | — |
+| 21A | Advanced Alerting | ✅ Complete | 9 |
+| 21B | Model Gateway | ✅ Complete | 12 |
+| 21C | Runs enhancements — model/cost filters · CSV export · Ollama cost fix · API key UX | ✅ Complete | — |
 | 22 | SaaS Foundation | 🔲 Planned | — |
 
-**Total tests shipped (Phases 0–18):** 195 API tests + 61 SDK tests
+**Total tests shipped (Phases 0–21B):** 224 API tests + 61 SDK tests
 
 ---
 
@@ -1352,7 +1354,7 @@ Frontend (`apps/web/`):
 
 ---
 
-### Phase 19 — Sessions UI + Payload Viewer 🔲
+### Phase 19 — Sessions UI + Payload Viewer ✅
 **Goal:** Surface session-level analytics (multi-turn conversations) and display captured payloads inline in the trace viewer. Both features use data that is already collected — this phase is purely about making it visible.
 
 **Why now:** `session_id` exists on every `AgentRun`. Multi-turn conversations are the primary LLM use case in production. Without session grouping, a 12-turn customer support conversation appears as 12 disconnected runs. Payload viewing is the difference between "span took 800ms" and "span took 800ms because the context window was 90k tokens."
@@ -1434,7 +1436,7 @@ Tests (`packages/sdk-ts/tests/`, Jest):
 
 ---
 
-### Phase 21 — Advanced Alerting + Model Gateway 🔲
+### Phase 21 — Advanced Alerting + Model Gateway ✅
 **Goal:** Two related features that each add significant value independently but are strongest together: (1) alerting rules beyond budget breaches, and (2) an intelligent model gateway that can route requests to the cheapest model meeting quality requirements.
 
 **Why now:** The alerting infrastructure (Slack, webhooks, notification channels) already exists from Phase 14. Error rate and quality alerts are the next-most-requested monitoring feature. The gateway is RunLedger's biggest architectural differentiator vs Langfuse/LangSmith — they are observability-only. A gateway makes RunLedger active infrastructure, not just passive monitoring.
@@ -1593,13 +1595,14 @@ NEXT_PUBLIC_API_URL  = https://api.runledger.io
 | Settings console: API keys, provider profiles, dark mode | 12 | ✅ |
 | Integrations: Slack Block Kit alerts + CI gate + analytics export | 14 | ✅ |
 | Anthropic SDK (Claude wrapper) | 15 | 🔲 |
-| Production hardening (rate limiting, PII scrubbing, deployment) | 16 | 🔲 |
-| **Evaluations & Scores** — LLM-as-judge, human feedback, score analytics | **17** | 🔲 |
-| **Prompt Management** — versioned registry, variables, diff, per-version metrics | **18** | 🔲 |
-| **Sessions UI + Payload Viewer** — multi-turn grouping, inline prompt/completion display | **19** | 🔲 |
+| Production hardening (rate limiting, PII scrubbing, deployment) | 16 | ✅ |
+| **Evaluations & Scores** — LLM-as-judge, human feedback, score analytics | **17** | ✅ |
+| **Prompt Management** — versioned registry, variables, diff, per-version metrics | **18** | ✅ |
+| **Sessions UI + Payload Viewer** — multi-turn grouping, inline prompt/completion display | **19** | ✅ |
 | **TypeScript / Node.js SDK** — npm `@runledger/sdk`, OpenAI Node + Vercel AI SDK | **20** | 🔲 |
-| **Advanced Alerting** — error rate / latency / quality threshold rules | **21** | 🔲 |
-| **Model Gateway** — OpenAI-compatible proxy, smart routing, prompt caching | **21** | 🔲 |
+| **Advanced Alerting** — error rate / latency / quality threshold rules | **21A** | ✅ |
+| **Model Gateway** — OpenAI-compatible proxy, smart routing, prompt caching | **21B** | ✅ |
+| **Runs enhancements** — model/cost filters, CSV export, Ollama cost fix, API key UX | **21C** | ✅ |
 | **SaaS Foundation** — self-service signup, Stripe subscriptions, quota enforcement | **22** | 🔲 |
 
 

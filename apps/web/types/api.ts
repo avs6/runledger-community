@@ -77,6 +77,10 @@ export interface RunDetailResponse {
   spans: SpanDetail[]
   provider_calls: ProviderCallDetail[]
   tool_calls: ToolCallDetail[]
+  // Phase 19 — present only when capture policy is SAMPLED or FULL
+  input_payload: Array<{ role: string; content: string }> | null
+  output_payload: unknown | null
+  span_payloads: Record<string, { input?: unknown; output?: unknown }> | null
 }
 
 export interface GraphNodeData {
@@ -416,7 +420,7 @@ export interface CapturePolicyResponse { id: string; workspace_id: string; priva
 
 // ── Phase 12 — Settings ────────────────────────────────────────────────────────
 
-export interface ApiKeyResponse { id: string; workspace_id: string; key_prefix: string; name: string | null; scopes: string[]; created_at: string; created_by: string | null }
+export interface ApiKeyResponse { id: string; workspace_id: string; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null }
 export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 
 // ── Phase 12 — Providers ───────────────────────────────────────────────────────
@@ -530,4 +534,126 @@ export interface VersionMetrics {
 
 export interface PromptMetrics {
   items: VersionMetrics[]
+}
+
+// ── Phase 19 — Sessions ────────────────────────────────────────────────────────
+
+export interface SessionItem {
+  session_id: string
+  end_user_id: string | null
+  run_count: number
+  total_cost_usd: string | null
+  started_at: string
+  ended_at: string | null
+  avg_score: string | null
+}
+
+export interface SessionList {
+  items: SessionItem[]
+  total: number
+}
+
+export interface SessionRunItem {
+  id: string
+  status: string
+  feature_tag: string | null
+  deployment_version: string | null
+  total_cost_usd: string | null
+  started_at: string
+  ended_at: string | null
+  duration_ms: number | null
+  turn_number: number
+}
+
+export interface SessionDetail {
+  session_id: string
+  end_user_id: string | null
+  run_count: number
+  total_cost_usd: string | null
+  started_at: string
+  ended_at: string | null
+  runs: SessionRunItem[]
+}
+
+export interface TurnCost {
+  turn_number: number
+  run_id: string
+  cost_usd: string | null
+  cumulative_cost_usd: string
+}
+
+export interface TurnCostResponse {
+  session_id: string
+  turns: TurnCost[]
+}
+
+// ── Phase 21A — Alert Rules ────────────────────────────────────────────────────
+
+export interface AlertRule {
+  id: string
+  workspace_id: string
+  name: string
+  metric: 'error_rate' | 'p95_latency' | 'avg_score' | 'spend_velocity'
+  operator: 'gt' | 'lt'
+  threshold: string
+  window_minutes: number
+  action: string
+  channel_id: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface AlertRuleList {
+  items: AlertRule[]
+}
+
+export interface AlertFiring {
+  id: string
+  rule_id: string
+  workspace_id: string
+  fired_at: string
+  metric_value: string
+  resolved_at: string | null
+  rule_name: string
+}
+
+export interface AlertHistoryList {
+  items: AlertFiring[]
+}
+
+// ── Phase 21B — Model Gateway ──────────────────────────────────────────────────
+
+export interface GatewayRoute {
+  id: string
+  workspace_id: string
+  alias: string
+  provider: string
+  target_model: string
+  base_url: string | null
+  api_key_env_var: string | null
+  priority: number
+  is_active: boolean
+  created_at: string
+}
+
+export interface GatewayRouteList {
+  items: GatewayRoute[]
+}
+
+export interface GatewayRouteStats {
+  route_id: string | null
+  alias: string
+  total_requests: number
+  cache_hits: number
+  cache_hit_rate: string
+  avg_latency_ms: string | null
+  error_count: number
+}
+
+export interface GatewayStats {
+  total_requests: number
+  cache_hits: number
+  cache_hit_rate: string
+  avg_latency_ms: string | null
+  routes: GatewayRouteStats[]
 }

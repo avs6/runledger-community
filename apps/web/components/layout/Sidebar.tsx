@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp, FlaskConical, ShieldCheck, Settings, Star, BookText } from 'lucide-react'
+import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp, FlaskConical, ShieldCheck, Settings, Star, BookText, MessageSquare } from 'lucide-react'
 
 const nav = [
   { href: '/runs', label: 'Runs', icon: LayoutList },
+  { href: '/sessions', label: 'Sessions', icon: MessageSquare },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/analytics/economics', label: 'Economics', icon: TrendingUp },
   { href: '/budgets', label: 'Budgets', icon: ShieldAlert },

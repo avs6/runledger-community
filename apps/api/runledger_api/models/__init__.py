@@ -21,6 +21,8 @@ from runledger_api.models.metering import (
     UsageHourly,
 )
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAnomaly
+from runledger_api.models.alerts import AlertFiring, AlertRule
+from runledger_api.models.gateway import GatewayRequest, GatewayRoute, PromptCache
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent, ScoreRollupDaily
 from runledger_api.models.tenant import ApiKey, Application, Tenant, Workspace
@@ -52,4 +54,9 @@ __all__ = [
     "ScoreRollupDaily",
     "Prompt",
     "PromptVersion",
+    "AlertRule",
+    "AlertFiring",
+    "GatewayRoute",
+    "GatewayRequest",
+    "PromptCache",
 ]

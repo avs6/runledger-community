@@ -289,7 +289,7 @@ Each extra pulls in the right peer dependencies:
 
 ## Running the Examples
 
-The `examples/` directory contains 15 runnable scripts covering every major feature.
+The `examples/` directory contains 18 runnable scripts covering every major feature.
 There is also a standalone companion repo — [runledger-samples](https://github.com/avs6/runledger-samples) —
 which is an independent Python project you can clone and run without the full monorepo.
 
@@ -382,6 +382,9 @@ python 01_openai_basic.py
 | 13 | `13_integrations.py` | Slack webhook test, CSV/JSON export, regressions |
 | 14 | `14_evaluations.py` | Submit quality scores via `rl.score()`, query score summary and regressions |
 | 15 | `15_prompts.py` | Create prompt, commit versions, promote to production, `rl.get_prompt()` with variable substitution, per-version metrics |
+| 16 | `16_sessions.py` | List sessions, session detail with turn order, cost-over-turns chart data, run payload inspection |
+| 17 | `17_alerts.py` | Create alert rules (error_rate / p95_latency / avg_score / spend_velocity), toggle, history, cleanup |
+| 18 | `18_gateway.py` | Configure provider routes, send completions through the proxy, observe cache hit vs miss, stats |
 
 ---
 
@@ -522,6 +525,63 @@ with rl.context(feature_tag="support-chat") as run_id:
 
 Scores are posted synchronously and fail silently — they will never break application flow.
 
+### Model Gateway (OpenAI-compatible proxy)
+
+Point any OpenAI client at the RunLedger gateway to get prompt caching, provider fallback, and full request logging — with zero code changes:
+
+```python
+import openai
+
+# Replace api.openai.com with your RunLedger API
+client = openai.OpenAI(
+    api_key="rl_dev_...",                      # your RunLedger API key
+    base_url="http://localhost:8000/gateway",   # RunLedger gateway
+)
+
+# Use the alias you configured in Settings → Model Gateway (e.g. "gpt-4o-mini")
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "What is 2+2?"}],
+)
+print(resp.choices[0].message.content)
+# First call → forwarded to OpenAI, response cached.
+# Identical second call → served from cache in <1ms.
+```
+
+Configure routes via the API or Settings page:
+
+```bash
+KEY=rl_dev_...
+BASE=http://localhost:8000
+
+curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "alias": "gpt-4o-mini",
+       "provider": "openai",
+       "target_model": "gpt-4o-mini",
+       "api_key_env_var": "OPENAI_API_KEY",
+       "priority": 10
+     }'
+```
+
+Add a second route with higher priority number for automatic fallback:
+
+```bash
+curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "alias": "gpt-4o-mini",
+       "provider": "groq",
+       "target_model": "llama-3.3-70b-versatile",
+       "base_url": "https://api.groq.com/openai/v1",
+       "api_key_env_var": "GROQ_API_KEY",
+       "priority": 20
+     }'
+```
+
+If the priority-10 OpenAI route returns 429 or 5xx, the gateway automatically retries via the priority-20 Groq route.
+
 ### Local mode (zero setup)
 
 Skip the API entirely during early development. Events are printed to stdout as structured JSON:
@@ -602,7 +662,8 @@ All spans from both services share the same `run_id` and appear together in the 
 The dashboard at `http://localhost:3000` has two main areas:
 
 ### Run Explorer (`/runs`)
-- **Runs list** — searchable, filterable by status/feature/user, time-window presets (1h / 6h / 24h / 7d)
+- **Runs list** — filterable by status, feature tag, end-user ID, model (substring match), cost range (min/max USD); time-window presets (5m / 15m / 30m / 1h / 3h / 6h / 12h / 24h / 7d / 30d) or custom datetime-local range with second-level granularity
+- **Export CSV** — "Export CSV" button downloads filtered runs as `runs.csv` (up to 5 000 rows, same filters as list view)
 - **Run detail** — cost + tokens + duration summary, full execution DAG
 - **DAG viewer** — interactive graph of every span (LLM, tool, chain, agent, retrieval) with cost per node; click any node to see full span metadata in a slide-in panel
 
@@ -646,6 +707,11 @@ The dashboard at `http://localhost:3000` has two main areas:
 - **Score Summary** — per-score-name cards showing avg value with ↑/↓ period-over-period delta badge
 - **Recent Scores table** — Name, Value, Label, Source, Run ID (truncated link), Confidence, Created; skeleton while loading, empty state with icon
 
+### Sessions (`/sessions`)
+- **Session list** — all `session_id` groups with user, turn count, total cost, duration; filter by `end_user_id`
+- **Session detail** (`/sessions/[id]`) — turn-ordered run list with cost + duration per turn; Recharts `LineChart` showing per-turn and cumulative cost over conversation turns
+- **Payload Viewer** — inline in run detail (`/runs/[id]`): shows captured messages with role colour-coding (system / user / assistant / tool) and the assistant completion when `capture_policy = SAMPLED | FULL`
+
 ### Prompts (`/prompts`)
 - **Prompt list** — all named prompts with description, default environment, created date; click to detail
 - **Create Prompt** — toggle form: name, description, default environment; 409 shown as user-friendly error
@@ -654,6 +720,22 @@ The dashboard at `http://localhost:3000` has two main areas:
 - **Commit form** — textarea for template content (supports `{{variable}}` syntax), commit message, environment, model hint
 - **Side-by-side diff viewer** — select any two versions as "before"/"after"; highlights changed lines in red (removed) / green (added)
 - **Promote button** — one click to copy latest staging version to production
+
+### Settings (`/settings`) — API Keys
+- **User keys only** — session keys (auto-created on dashboard login) are hidden; the table shows only workspace API keys created by users
+- **Created At + Created By** — full timestamp and creator email visible per key; helps audit who provisioned which key
+- **Revoke** — permanently deletes a key; takes effect on the next request
+
+### Alert Rules (Settings → Alert Rules)
+- **Create rule** — pick metric (error_rate / p95_latency / avg_score / spend_velocity), operator (> / <), threshold, and evaluation window (5 min – 24 h)
+- **Rules table** — active/paused toggle per rule; delete
+- **Recent Firings** — table of threshold breaches with metric value and timestamp
+- Rules evaluate every 5 minutes via Celery Beat; Slack notifications fire when a `channel_id` is set on the rule
+
+### Model Gateway (Settings → Model Gateway)
+- **Stats strip** — total requests, cache hits, hit rate, avg latency (shown when traffic exists)
+- **Add Route form** — alias (what clients use as model name), provider, target model, base URL, API key env var, priority
+- **Routes table** — active/disabled toggle per route; delete; priority column controls fallback order
 
 ### Ledger (`/ledger`)
 - **Daily snapshots table** — date, total cost, call count, hash preview, per-row "Verify" button; "Generate snapshot" button triggers immediate signing for yesterday
@@ -741,6 +823,7 @@ The pricing engine runs as a Celery worker and enriches every provider call with
 - **Effective-dated pricing** — prices are versioned by date, so retroactive corrections apply correctly
 - **Workspace overrides** — per-workspace pricing rows take priority over global defaults
 - **Cached input discount** — applies OpenAI Prompt Caching rates (50% off input by default)
+- **Free / local providers** — Ollama and any provider without a pricing row are stored as `$0.00` (not skipped), so they appear correctly in analytics and economics views
 - **Idempotent rollups** — `usage_hourly` and `usage_daily` are fully recomputed per window; replaying produces identical results
 
 | Task | Interval |
@@ -757,6 +840,7 @@ The pricing engine runs as a Celery worker and enriches every provider call with
 | `ledger.daily_snapshots` | Daily at 01:00 UTC |
 | `ledger.suspicious_sequences` | Every 60s |
 | `score_rollup.run` | Daily at 01:30 UTC |
+| `alerts.evaluate_rules` | Every 5 min |
 
 ---
 
@@ -768,7 +852,8 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/runs` | List runs (cursor pagination + filters) |
+| `GET` | `/runs` | List runs — cursor pagination; filters: `status`, `feature_tag`, `end_user_id`, `search`, `from`, `to`, `model`, `min_cost`, `max_cost` |
+| `GET` | `/runs/export` | Download filtered runs as CSV (up to 5 000 rows; same filter params as `/runs`) |
 | `GET` | `/runs/{id}` | Run detail — spans + provider calls + tool calls |
 | `GET` | `/runs/{id}/graph` | DAG nodes + edges for the dashboard viewer |
 
@@ -808,12 +893,41 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `GET` | `/analytics/scores/summary` | Avg score per score name + period-over-period delta % |
 | `GET` | `/analytics/scores/regressions` | Score names where avg dropped >20% vs prior period |
 
+### Sessions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/sessions` | List sessions grouped by `session_id` (`end_user_id=`, `from=`, `to=`, `limit=`) |
+| `GET` | `/sessions/{session_id}` | Session detail — ordered run list with `turn_number` assigned |
+| `GET` | `/sessions/{session_id}/cost-over-turns` | Per-turn and cumulative cost for chart rendering |
+
 ### Evaluations
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/evaluations/scores` | Submit a quality score for a run, span, session, or end-user |
 | `GET` | `/evaluations/scores` | List scores (`run_id=`, `name=`, `source=`, `from=`, `to=`, `limit=`) |
+
+### Alerts
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/alerts/rules` | Create an alert rule (metric, operator, threshold, window_minutes) |
+| `GET` | `/alerts/rules` | List alert rules (`include_inactive=true` to include paused) |
+| `PUT` | `/alerts/rules/{id}` | Update / toggle a rule (`is_active`, `threshold`, `window_minutes`) |
+| `DELETE` | `/alerts/rules/{id}` | Delete an alert rule |
+| `GET` | `/alerts/history` | Recent alert firings with `rule_name` + `metric_value` (`limit=`) |
+
+### Gateway
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/gateway/chat/completions` | OpenAI-compatible proxy — cache lookup → provider route → cache store |
+| `POST` | `/gateway/routes` | Add a provider route (alias, provider, target_model, priority) |
+| `GET` | `/gateway/routes` | List routes (`include_inactive=true`) |
+| `PUT` | `/gateway/routes/{id}` | Update or disable a route |
+| `DELETE` | `/gateway/routes/{id}` | Remove a route |
+| `GET` | `/gateway/stats` | Aggregate stats — total requests, cache hits, hit rate, avg latency per route |
 
 ### Prompts
 
@@ -903,6 +1017,9 @@ python examples/10_replay_experiment.py     # create a dataset, run a replay exp
 python examples/11_ledger_verify.py         # generate a snapshot, verify integrity, register tools, set privacy policy
 python examples/14_evaluations.py           # submit quality scores, query score summary and regressions
 python examples/15_prompts.py               # create prompt, commit versions, promote, rl.get_prompt(), metrics
+python examples/16_sessions.py             # list sessions, turn order, cost chart, payload inspection
+python examples/17_alerts.py               # create alert rules, toggle, history, cleanup
+python examples/18_gateway.py              # configure gateway routes, proxy completions, cache stats
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload
@@ -1049,6 +1166,10 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 | 16 | Production hardening — rate limiting · PII scrubbing · health probes · UI polish | ✅ Complete |
 | 17 | Evaluations & Scores — `rl.score()` · score CRUD · analytics summary + regressions · `/evaluations` dashboard page | ✅ Complete |
 | 18 | Prompt Management — `rl.get_prompt()` · CRUD + version history · environment promotion · diff viewer · per-version metrics · `/prompts` dashboard | ✅ Complete |
+| 19 | Sessions UI + Payload Viewer — multi-turn session grouping · cost-over-turns chart · inline prompt/completion display · `/sessions` dashboard | ✅ Complete |
+| 21A | Advanced Alerting — threshold rules · error rate / latency / quality / spend metrics · Celery beat evaluation · Slack notifications · Alert Rules in Settings | ✅ Complete |
+| 21B | Model Gateway — OpenAI-compatible proxy · prompt caching · priority-ordered routing · fallback · per-route stats · Gateway section in Settings | ✅ Complete |
+| 21C | Runs enhancements — model + cost range filters · `GET /runs/export` CSV download · seconds-granularity datetime picker · Ollama `cost_usd=$0` fix · session API key UX | ✅ Complete |
 
 ---
 
