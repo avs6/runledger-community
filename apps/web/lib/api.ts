@@ -27,6 +27,10 @@ import type {
   LedgerSnapshotResponse,
   LedgerVerifyResult,
   PeriodBreakdown,
+  PromptList,
+  PromptMetrics,
+  PromptResponse,
+  PromptVersion,
   ProviderPricingList,
   ProviderPricingResponse,
   ReconciliationResult,
@@ -38,6 +42,7 @@ import type {
   ScoreEvent,
   ScoreList,
   ScoreSummary,
+  VersionList,
   SecurityEventList,
   SlackTestResponse,
   SpendByFeature,
@@ -742,4 +747,97 @@ export async function listScores(
 
 export async function getScoreSummary(apiKey: string): Promise<ScoreSummary> {
   return apiFetch<ScoreSummary>('/analytics/scores/summary', apiKey)
+}
+
+// ── Phase 18 — Prompt Management ───────────────────────────────────────────────
+
+export async function listPrompts(apiKey: string): Promise<PromptList> {
+  return apiFetch<PromptList>('/prompts', apiKey)
+}
+
+export async function createPrompt(
+  apiKey: string,
+  body: { name: string; description?: string | null; default_environment?: string }
+): Promise<PromptResponse> {
+  return apiFetch<PromptResponse>('/prompts', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getPrompt(apiKey: string, name: string): Promise<PromptResponse> {
+  return apiFetch<PromptResponse>(`/prompts/${encodeURIComponent(name)}`, apiKey)
+}
+
+export async function deletePrompt(apiKey: string, name: string): Promise<void> {
+  return apiFetch<void>(`/prompts/${encodeURIComponent(name)}`, apiKey, {
+    method: 'DELETE',
+  })
+}
+
+export async function createVersion(
+  apiKey: string,
+  name: string,
+  body: {
+    content: string
+    variables?: Array<{ name: string; type?: string; description?: string }>
+    commit_message?: string | null
+    environment?: string
+    model_hint?: string | null
+  }
+): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(
+    `/prompts/${encodeURIComponent(name)}/versions`,
+    apiKey,
+    { method: 'POST', body: JSON.stringify(body) }
+  )
+}
+
+export async function listVersions(
+  apiKey: string,
+  name: string,
+  environment?: string
+): Promise<VersionList> {
+  const qs = environment ? `?environment=${encodeURIComponent(environment)}` : ''
+  return apiFetch<VersionList>(
+    `/prompts/${encodeURIComponent(name)}/versions${qs}`,
+    apiKey
+  )
+}
+
+export async function getLatestVersion(
+  apiKey: string,
+  name: string,
+  environment = 'production'
+): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(
+    `/prompts/${encodeURIComponent(name)}/latest?environment=${environment}`,
+    apiKey
+  )
+}
+
+export async function promoteVersion(
+  apiKey: string,
+  name: string,
+  body: {
+    source_environment?: string
+    target_environment?: string
+    commit_message?: string | null
+  }
+): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(
+    `/prompts/${encodeURIComponent(name)}/promote`,
+    apiKey,
+    { method: 'POST', body: JSON.stringify(body) }
+  )
+}
+
+export async function getPromptMetrics(
+  apiKey: string,
+  name: string
+): Promise<PromptMetrics> {
+  return apiFetch<PromptMetrics>(
+    `/prompts/${encodeURIComponent(name)}/metrics`,
+    apiKey
+  )
 }

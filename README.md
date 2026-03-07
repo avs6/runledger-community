@@ -289,7 +289,7 @@ Each extra pulls in the right peer dependencies:
 
 ## Running the Examples
 
-The `examples/` directory contains 13 runnable scripts covering every major feature.
+The `examples/` directory contains 15 runnable scripts covering every major feature.
 There is also a standalone companion repo — [runledger-samples](https://github.com/avs6/runledger-samples) —
 which is an independent Python project you can clone and run without the full monorepo.
 
@@ -380,6 +380,8 @@ python 01_openai_basic.py
 | 11 | `11_ledger_verify.py` | Generate + verify tamper-evident daily snapshots |
 | 12 | `12_settings.py` | API key management, provider pricing overrides |
 | 13 | `13_integrations.py` | Slack webhook test, CSV/JSON export, regressions |
+| 14 | `14_evaluations.py` | Submit quality scores via `rl.score()`, query score summary and regressions |
+| 15 | `15_prompts.py` | Create prompt, commit versions, promote to production, `rl.get_prompt()` with variable substitution, per-version metrics |
 
 ---
 
@@ -452,6 +454,73 @@ with rl.context(end_user_id="u_789", feature_tag="qa-agent") as run_id:
 
 rl.shutdown()
 ```
+
+### Prompt management
+
+Fetch versioned prompts and render `{{variable}}` placeholders in one call:
+
+```python
+rl = RunLedger(api_key="rl_dev_...")
+
+# Pull the latest production version (60s in-memory cache — safe per request)
+rendered = rl.get_prompt(
+    "support-agent",
+    environment="production",
+    variables={"user_name": "Alice", "company": "Acme"},
+)
+# rendered["content"]  → "Welcome Alice! How can I assist you at Acme today?"
+# rendered["version"]  → 3
+# rendered["model_hint"] → "gpt-4o-mini"
+
+# Link the run to this prompt version for per-version cost + quality metrics:
+with rl.context(
+    end_user_id="u_123",
+    deployment_version=f"support-agent:{rendered['version']}",
+) as run_id:
+    resp = client.chat.completions.create(
+        model=rendered["model_hint"] or "gpt-4o-mini",
+        messages=[{"role": "system", "content": rendered["content"]}],
+    )
+```
+
+**Prompt API (HTTP):**
+
+```bash
+KEY=rl_dev_...
+BASE=http://localhost:8000
+
+# Create a prompt
+curl -X POST "$BASE/prompts" -H "Authorization: Bearer $KEY" \
+     -d '{"name":"support-agent","default_environment":"production"}'
+
+# Commit a new version to staging
+curl -X POST "$BASE/prompts/support-agent/versions" -H "Authorization: Bearer $KEY" \
+     -d '{"content":"Hello {{user_name}}!","environment":"staging","commit_message":"Add greeting"}'
+
+# Promote staging → production
+curl -X POST "$BASE/prompts/support-agent/promote" -H "Authorization: Bearer $KEY" \
+     -d '{"source_environment":"staging","target_environment":"production"}'
+
+# Per-version metrics (run count + avg cost + avg score)
+curl "$BASE/prompts/support-agent/metrics" -H "Authorization: Bearer $KEY"
+```
+
+### Quality scores
+
+Submit human, rule-based, or automated quality scores for any run:
+
+```python
+with rl.context(feature_tag="support-chat") as run_id:
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Is this answer helpful?"}],
+    )
+    # Rate the response — run_id is picked up from context automatically
+    rl.score("helpfulness", 0.9, label="good", source="human")
+    rl.score("relevance", 0.8, run_id=str(run_id), confidence=0.95)
+```
+
+Scores are posted synchronously and fail silently — they will never break application flow.
 
 ### Local mode (zero setup)
 
@@ -572,6 +641,20 @@ The dashboard at `http://localhost:3000` has two main areas:
 - **Experiments** — run the same dataset against multiple model configs; projected cost shown before confirming
 - **Results** (`/replay/[id]`) — side-by-side per-config cost, token, and call-count comparison with Δ% badges
 
+### Evaluations (`/evaluations`)
+- **Submit Score form** — attach a quality score to any run; fields: Run ID (optional), Score Name, Value (0–100), Label (good/neutral/bad/pass/fail), Source (human/llm/rule/telemetry), Confidence
+- **Score Summary** — per-score-name cards showing avg value with ↑/↓ period-over-period delta badge
+- **Recent Scores table** — Name, Value, Label, Source, Run ID (truncated link), Confidence, Created; skeleton while loading, empty state with icon
+
+### Prompts (`/prompts`)
+- **Prompt list** — all named prompts with description, default environment, created date; click to detail
+- **Create Prompt** — toggle form: name, description, default environment; 409 shown as user-friendly error
+- **Delete** — removes the prompt and all its versions
+- **Prompt detail** (`/prompts/[name]`) — version history list showing environment badge, model hint, commit message, run count, avg cost, avg score per version (pulled from metrics endpoint)
+- **Commit form** — textarea for template content (supports `{{variable}}` syntax), commit message, environment, model hint
+- **Side-by-side diff viewer** — select any two versions as "before"/"after"; highlights changed lines in red (removed) / green (added)
+- **Promote button** — one click to copy latest staging version to production
+
 ### Ledger (`/ledger`)
 - **Daily snapshots table** — date, total cost, call count, hash preview, per-row "Verify" button; "Generate snapshot" button triggers immediate signing for yesterday
 - **Integrity status** — inline ✓ ok / ⚠ tampered badge after verification; re-computed hash compared against stored HMAC-SHA256
@@ -673,6 +756,7 @@ The pricing engine runs as a Celery worker and enriches every provider call with
 | `nightly_analytics` | Daily at 02:00 UTC (anomaly detection) |
 | `ledger.daily_snapshots` | Daily at 01:00 UTC |
 | `ledger.suspicious_sequences` | Every 60s |
+| `score_rollup.run` | Daily at 01:30 UTC |
 
 ---
 
@@ -721,6 +805,30 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `GET` | `/analytics/regressions` | Workflows with >20% cost increase vs prior period |
 | `POST` | `/analytics/annotations` | Create a team note anchored to a date and optional version |
 | `GET` | `/analytics/annotations` | List annotations (`from=&to=&version=`) |
+| `GET` | `/analytics/scores/summary` | Avg score per score name + period-over-period delta % |
+| `GET` | `/analytics/scores/regressions` | Score names where avg dropped >20% vs prior period |
+
+### Evaluations
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/evaluations/scores` | Submit a quality score for a run, span, session, or end-user |
+| `GET` | `/evaluations/scores` | List scores (`run_id=`, `name=`, `source=`, `from=`, `to=`, `limit=`) |
+
+### Prompts
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/prompts` | Create a named prompt template |
+| `GET` | `/prompts` | List prompts for workspace |
+| `GET` | `/prompts/{name}` | Get prompt metadata |
+| `DELETE` | `/prompts/{name}` | Delete prompt + all versions |
+| `POST` | `/prompts/{name}/versions` | Commit a new version (content, variables, environment, model_hint) |
+| `GET` | `/prompts/{name}/versions` | List all versions descending (`environment=` filter) |
+| `GET` | `/prompts/{name}/latest` | Latest version for an environment — SDK pull endpoint (`environment=production`) |
+| `GET` | `/prompts/{name}/versions/{v}` | Get a specific version by number |
+| `POST` | `/prompts/{name}/promote` | Copy latest from `source_environment` → new version in `target_environment` |
+| `GET` | `/prompts/{name}/metrics` | Per-version run count, avg cost, avg score (join via `deployment_version="{name}:{v}"`) |
 
 ### Billing
 
@@ -793,6 +901,8 @@ python examples/08_budget_enforcement.py    # create a budget, exceed it, catch 
 python examples/09_economics_query.py       # per-run economics, version compare, regressions, annotations
 python examples/10_replay_experiment.py     # create a dataset, run a replay experiment, compare models
 python examples/11_ledger_verify.py         # generate a snapshot, verify integrity, register tools, set privacy policy
+python examples/14_evaluations.py           # submit quality scores, query score summary and regressions
+python examples/15_prompts.py               # create prompt, commit versions, promote, rl.get_prompt(), metrics
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload
@@ -937,6 +1047,8 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 | 12 | Settings console · API key management · provider pricing · dark mode | ✅ Complete |
 | 14 | Integrations — Slack alerts · analytics export · CI regression gate | ✅ Complete |
 | 16 | Production hardening — rate limiting · PII scrubbing · health probes · UI polish | ✅ Complete |
+| 17 | Evaluations & Scores — `rl.score()` · score CRUD · analytics summary + regressions · `/evaluations` dashboard page | ✅ Complete |
+| 18 | Prompt Management — `rl.get_prompt()` · CRUD + version history · environment promotion · diff viewer · per-version metrics · `/prompts` dashboard | ✅ Complete |
 
 ---
 

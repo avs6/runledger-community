@@ -34,14 +34,14 @@
 | 14 | Integrations: Slack Alerts + GitHub CI Gate | ✅ Complete | 8 |
 | 15 | Anthropic SDK | 🔲 Planned | — |
 | 16 | Production Hardening + UI Polish | ✅ Complete | 13 |
-| 17 | Evaluations & Scores | 🔲 Planned | — |
-| 18 | Prompt Management | 🔲 Planned | — |
+| 17 | Evaluations & Scores | ✅ Complete | 13 |
+| 18 | Prompt Management | ✅ Complete | 12 |
 | 19 | Sessions UI + Payload Viewer | 🔲 Planned | — |
 | 20 | TypeScript / Node.js SDK | 🔲 Planned | — |
 | 21 | Advanced Alerting + Model Gateway | 🔲 Planned | — |
 | 22 | SaaS Foundation | 🔲 Planned | — |
 
-**Total tests shipped (Phases 0–16):** 155 API tests + 61 SDK tests
+**Total tests shipped (Phases 0–18):** 195 API tests + 61 SDK tests
 
 ---
 
@@ -114,6 +114,8 @@ runledger/
 │   ├── 11_ledger_verify.py
 │   ├── 12_settings.py
 │   ├── 13_integrations.py
+│   ├── 14_evaluations.py
+│   ├── 15_prompts.py
 │   ├── .env.example            # All env vars documented
 │   └── README.md
 ├── db/
@@ -294,27 +296,33 @@ capture_policies (id UUID PK, workspace_id UUID FK workspaces.id UNIQUE,
 ### Evaluations & Scores (Phase 17)
 
 ```sql
-scores           (id UUID PK, workspace_id UUID FK workspaces.id,
-                  run_id UUID FK agent_runs.id NULL,
-                  span_id UUID FK spans.id NULL,
-                  name TEXT NOT NULL,           -- e.g. "relevance", "faithfulness", "thumbs"
-                  value NUMERIC(6,4) NOT NULL,  -- 0.0–1.0 normalised; or -1/0/1 for categorical
-                  label TEXT NULL,              -- optional human-readable label (e.g. "good", "bad")
-                  comment TEXT NULL,
-                  source TEXT DEFAULT 'human',  -- 'human' | 'llm' | 'rule'
-                  evaluator_id UUID FK evaluators.id NULL,
+score_events     (id UUID PK, workspace_id UUID NOT NULL,
+                  run_id UUID NULL,             -- soft reference; no FK (scores outlive runs for audit)
+                  span_id UUID NULL,
+                  session_id TEXT NULL,
+                  end_user_id TEXT NULL,
+                  name TEXT NOT NULL,           -- e.g. "relevance", "accuracy", "helpfulness"
+                  value NUMERIC(8,4) NOT NULL,  -- 0–100 scale
+                  label TEXT NULL,              -- "good" | "bad" | "pass" | "fail" | ...
+                  source TEXT DEFAULT 'human',  -- 'human' | 'llm' | 'rule' | 'telemetry'
+                  confidence NUMERIC(4,3) NULL, -- 0–1
+                  evidence JSONB NULL,
                   created_at TIMESTAMPTZ)
-                  -- INDEX ix_scores_run on (run_id, name)
-                  -- INDEX ix_scores_workspace_created on (workspace_id, created_at)
+                  -- INDEX ix_score_events_workspace on (workspace_id, created_at)
+                  -- INDEX ix_score_events_run on (run_id)
+                  -- INDEX ix_score_events_name on (workspace_id, name)
 
-evaluators       (id UUID PK, workspace_id UUID FK workspaces.id,
-                  name TEXT NOT NULL,
-                  type TEXT NOT NULL,           -- 'llm_judge' | 'rule' | 'python'
-                  config JSONB NOT NULL,        -- judge_model, system_prompt, scoring_key, threshold
-                  is_active BOOL DEFAULT TRUE,
-                  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)
-                  -- UNIQUE INDEX ix_evaluators_workspace_name on (workspace_id, name)
+score_rollups_daily (workspace_id UUID NOT NULL, day DATE NOT NULL,
+                  score_name TEXT NOT NULL, feature_tag TEXT NOT NULL DEFAULT '',
+                  model TEXT NOT NULL DEFAULT '', deployment_version TEXT NOT NULL DEFAULT '',
+                  avg_value NUMERIC(8,4) NOT NULL,
+                  p50 NUMERIC(8,4) NOT NULL, p90 NUMERIC(8,4) NOT NULL,
+                  sample_count INT NOT NULL)
+                  -- PRIMARY KEY (workspace_id, day, score_name, feature_tag, model, deployment_version)
+                  -- Populated nightly by score_rollup.run Celery task (idempotent DELETE + INSERT)
 ```
+
+Note: V1 ships without the `evaluators` table (LLM-as-judge framework deferred to Phase 17B). The `evaluators` table remains in the schema plan for Phase 17B.
 
 ### Prompt Management (Phase 18)
 
@@ -1193,71 +1201,92 @@ Tests (`apps/api/tests/test_hardening.py` — new, **13 tests**):
 
 ---
 
-### Phase 17 — Evaluations & Scores 🔲
-**Goal:** Attach quality scores to any run or span — from human feedback, automated LLM-as-judge, or rule-based evaluators. Cost without quality is half the picture. This closes the loop: *how much did it cost, and was it worth it?*
+### Phase 17 — Evaluations & Scores ✅
 
-**Why now:** LangSmith and Langfuse are primarily known as eval platforms. This is the most impactful gap. Every subsequent feature (prompt management, smart routing, alerting) becomes significantly more powerful with a quality signal. It directly multiplies the value of all existing cost analytics.
+**Goal:** Attach quality scores to any run or span — from human feedback, rule-based evaluators, or telemetry. Cost without quality is half the picture. This closes the loop: *how much did it cost, and was it worth it?*
 
-**What to build:**
+**Why now:** LangSmith and Langfuse are primarily known as eval platforms. This is the most impactful gap vs both. Every subsequent feature (prompt management, smart routing, alerting) becomes significantly more powerful with a quality signal.
+
+**V1 scope:** Score CRUD + analytics (summary + regressions) + nightly rollup worker + `/evaluations` frontend page + `rl.score()` SDK method. LLM-as-judge evaluator framework (batch evaluation, judge drift) deferred to Phase 17B.
+
+**What was built:**
 
 Backend (`apps/api/`):
-- `alembic/versions/009_evaluations.py` — `scores` + `evaluators` tables
-- `models/evaluations.py` — `Score`, `Evaluator` ORM models
-- `schemas/evaluations.py` — `ScoreCreate`, `ScoreResponse`, `EvaluatorCreate`, `EvaluatorResponse`
-- `routers/evaluations.py` — prefix `/evaluations`:
-  - `POST /evaluations/scores` — attach score to run or span (source: human | llm | rule)
-  - `GET /evaluations/scores` — list scores for workspace (filterable by run_id, name, source)
-  - `GET /evaluations/scores/{run_id}` — all scores for a run
-  - `POST /evaluations/evaluators` — create LLM-as-judge evaluator (judge_model, system_prompt, scoring_key)
-  - `GET /evaluations/evaluators` — list evaluators
-  - `POST /evaluations/evaluators/{id}/run` — trigger evaluator against a run or batch
-  - `GET /analytics/scores/summary` — avg score per feature_tag / model / version (analytics extension)
-- `workers/evaluations.py` — `run_evaluator_task(evaluator_id, run_id)` Celery task:
-  - Fetches run metadata (+ payload if FULL/SAMPLED)
-  - Formats judge prompt using evaluator's system_prompt + scoring_key config
-  - Calls provider via existing `ProviderPricing` + tracks cost as a `ProviderCall`
-  - Writes `Score` record with `source='llm'` and `evaluator_id`
-- `services/evaluations.py` — `compute_score_stats()`, `build_judge_prompt()`, `parse_judge_response()`
+- `alembic/versions/010_scores.py` — `score_events` + `score_rollups_daily` tables (no FK constraints on run_id/span_id — scores outlive runs for audit)
+- `models/scores.py` — `ScoreEvent`, `ScoreRollupDaily` ORM models; both registered in `models/__init__.py` for Alembic autogenerate
+- `schemas/scores.py` — `ScoreCreate`, `ScoreResponse`, `ScoreList`, `ScoreSummaryItem`, `ScoreSummary`, `ScoreRegressionItem`
+- `routers/evaluations.py` — prefix `/evaluations`, `management_rate_limit`:
+  - `POST /evaluations/scores` → HTTP 201 with `ScoreResponse`; fields: name, value (0–100), label, source (human|llm|rule|telemetry), confidence (0–1), evidence JSONB, run_id, span_id, session_id, end_user_id
+  - `GET /evaluations/scores` — filterable by run_id, name, source, from/to, limit (≤200); returns `ScoreList`
+- `routers/analytics.py` — two new endpoints appended:
+  - `GET /analytics/scores/summary` — two-execute pattern (current + prior window), GROUP BY name, AVG + COUNT; `ScoreSummary` with `change_pct` (None when no prior data)
+  - `GET /analytics/scores/regressions` — same two-execute pattern; threshold >20% drop in avg_value with sample_count ≥ 3; returns `list[ScoreRegressionItem]`
+- `workers/score_rollup.py` — `score_rollup_worker(day_str=None)` Celery task (NullPool + asyncio.run pattern); idempotent DELETE + raw SQL INSERT using PERCENTILE_CONT(0.5/0.9); LEFT JOINs `agent_runs` + `provider_calls` for feature_tag/model/deployment_version enrichment; fails gracefully (log + no raise)
 
 SDK (`packages/sdk/`):
-- `runledger_sdk/transport.py` — add `score(run_id, name, value, comment=None, label=None)` method
-- `runledger_sdk/transport.py` — add `async ascore(...)` async variant
-- `runledger_sdk/client.py` — expose `rl.score()` / `rl.ascore()` on `RunLedger` client
+- `client.py` — `rl.score(name, value, *, run_id, span_id, label, source, confidence, evidence)` method: direct `httpx.post()` to `/evaluations/scores`, fail-silent (log warning), auto-fills run_id from current context via `get_context_snapshot()`; `local=True` → log to stdout, no HTTP
 
 Frontend (`apps/web/`):
-- `/app/(dashboard)/evaluations/page.tsx` — Evaluators management: list, create (name, type, judge model, system prompt, scoring key), toggle active
-- `/components/runs/ScorePanel.tsx` — score chips in run detail sidebar (avg score, per-evaluator breakdown); thumbs up/down for human feedback
-- `/components/analytics/ScoreOverTimeChart.tsx` — recharts line chart: avg score per day overlaid on cost chart
-- `/app/(dashboard)/analytics/page.tsx` — add "Score vs Cost" section below existing charts
-- Settings: add "Evaluators" sub-section (reuse existing settings page pattern)
+- `types/api.ts` — `ScoreEvent`, `ScoreList`, `ScoreSummaryItem`, `ScoreSummary`, `ScoreRegressionItem` interfaces
+- `lib/api.ts` — `submitScore()`, `listScores()`, `getScoreSummary()` functions (same `apiFetch` pattern)
+- `app/(dashboard)/evaluations/page.tsx` — `'use client'` page with two-column layout: left = score submit form (run_id, name, value, label select, source select, confidence), right = per-score summary cards with `ChangeBadge` (↑/↓ %, green/red); bottom = recent scores table (7 columns, skeleton + empty state with Star icon); toast on submit success/error
+- `components/layout/Sidebar.tsx` — Evaluations entry with `Star` icon, inserted after Replay
 
 **New API routes:**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/evaluations/scores` | Attach score to run or span |
-| GET | `/evaluations/scores` | List scores (filterable) |
-| GET | `/evaluations/scores/{run_id}` | All scores for a run |
-| POST | `/evaluations/evaluators` | Create evaluator |
-| GET | `/evaluations/evaluators` | List evaluators |
-| PUT | `/evaluations/evaluators/{id}` | Update evaluator |
-| POST | `/evaluations/evaluators/{id}/run` | Run evaluator against run(s) |
-| GET | `/analytics/scores/summary` | Score aggregations by dimension |
+| `POST` | `/evaluations/scores` | Submit a quality score (HTTP 201) |
+| `GET` | `/evaluations/scores` | List scores (filterable by run_id, name, source, from, to) |
+| `GET` | `/analytics/scores/summary` | Avg score per name + period-over-period delta |
+| `GET` | `/analytics/scores/regressions` | Names where avg dropped >20% vs prior period |
 
-**Tests:** `tests/test_evaluations.py` — 14 tests:
-- Score CRUD (create, list, filter by run_id, filter by name)
-- Evaluator CRUD (create, update, list)
-- Evaluator run task (mock judge response → score created with correct value)
-- Score summary analytics (avg per feature_tag, per model)
-- SDK `transport.score()` sends correct payload
-- Auth: scores scoped to workspace, no cross-workspace leakage
+**Tests:** `tests/test_evaluations.py` — **13 tests**:
+- `test_create_score_success` — POST 201, response has id/name/value/source
+- `test_create_score_requires_auth` — unauthenticated → 401
+- `test_create_score_with_run_id` — run_id stored and returned
+- `test_create_score_value_out_of_range` — value=150 → 422
+- `test_create_score_invalid_source` — source="robot" → 422
+- `test_create_score_confidence_validation` — confidence=1.5 → 422
+- `test_list_scores_empty` — GET → `{"items": []}`
+- `test_list_scores_returns_items` — mock 2 rows → items len 2
+- `test_score_summary_empty` — no rows → `{"items": []}`
+- `test_score_summary_returns_aggregates` — mocked row → avg/count in response
+- `test_score_summary_delta_pct` — prior data → change_pct = 12.5%
+- `test_score_regressions_none` — no drop → empty list
+- `test_score_regressions_detected` — current 0.5, prior 0.8 → −37.5% flagged
 
-**Definition of done:** 🔲 Create an LLM-as-judge evaluator via UI. Run it against 3 existing runs. Scores appear in the run detail sidebar. `rl.score(run_id, "relevance", 0.9)` from SDK creates a score record. Avg score per feature_tag visible in analytics.
+**Total new tests: 13 (183 cumulative)**
+
+**Definition of done:** ✅ `POST /evaluations/scores {"name":"relevance","value":0.9}` → 201. `GET /analytics/scores/summary` → `{"items": [...]}`. `GET /analytics/scores/regressions` → `[]` when no regressions. `/evaluations` page renders form, submits score → toast, table refreshes. Sidebar shows "Evaluations" with Star icon; active link highlights on navigate. `rl.score("relevance", 0.9, run_id="<uuid>")` posts to `/evaluations/scores`. 183/183 tests pass.
 
 ---
 
-### Phase 18 — Prompt Management 🔲
-**Goal:** Version-controlled prompt registry with variable templating, environment promotion (staging → production), and per-version cost + quality metrics. Closes the gap between "cost regression detected on v2" and "here is exactly what changed in the prompt."
+### Phase 18 — Prompt Management ✅ Complete (12 tests, 195 total)
+
+**What was built:**
+
+Backend:
+- `models/prompts.py` — `Prompt` ORM model (workspace-scoped, UNIQUE on workspace_id+name) + `PromptVersion` ORM model (auto-increment version per prompt, UNIQUE on prompt_id+version, INDEX on prompt_id+environment)
+- `alembic/versions/011_prompts.py` — migration (revision "011", down_revision "010"); creates `prompts` + `prompt_versions` tables with FK cascade delete
+- `schemas/prompts.py` — `PromptCreate`, `PromptResponse`, `PromptList`, `VersionCreate`, `VersionResponse`, `VersionList`, `PromptRender`, `PromoteRequest`, `VersionMetrics`, `PromptMetrics`
+- `routers/prompts.py` — prefix `/prompts`, 10 endpoints: `POST /prompts` (201), `GET /prompts`, `GET /prompts/{name}`, `DELETE /prompts/{name}` (204), `POST /prompts/{name}/versions` (201, auto-increment version), `GET /prompts/{name}/versions`, `GET /prompts/{name}/latest` (SDK pull, query param `environment`), `GET /prompts/{name}/versions/{v}`, `POST /prompts/{name}/promote` (copies latest from source env → new version in target env), `GET /prompts/{name}/metrics` (per-version run_count+avg_cost+avg_score, joins agent_runs on `deployment_version="{name}:{version}"`)
+- `main.py` updated — includes prompts router
+- `models/__init__.py` updated — registers Prompt + PromptVersion for Alembic autogenerate
+
+SDK:
+- `packages/sdk/runledger_sdk/client.py` — `rl.get_prompt(name, environment, variables)` with 60s in-memory cache (threading.Lock), `{{variable}}` regex substitution, fails loudly (re-raises httpx errors), local=True mode returns placeholder
+
+Frontend:
+- `types/api.ts` — `PromptResponse`, `PromptList`, `PromptVersion`, `VersionList`, `VersionMetrics`, `PromptMetrics`
+- `lib/api.ts` — `listPrompts`, `createPrompt`, `getPrompt`, `deletePrompt`, `createVersion`, `listVersions`, `getLatestVersion`, `promoteVersion`, `getPromptMetrics`
+- `app/(dashboard)/prompts/page.tsx` — list page with create form (toggle) + table (name, description, env badge, created, delete button) + click → detail
+- `app/(dashboard)/prompts/[name]/page.tsx` — detail page: version history list with env badges + metrics (run count, avg cost, avg score per version) + commit form + side-by-side line-level diff viewer (select any two versions as before/after) + promote staging→production button
+- `Sidebar.tsx` — added `BookText` icon + Prompts nav entry between Evaluations and Ledger
+
+**Deployment_version convention:** `"{prompt_name}:{version_number}"` (e.g. `"support-agent:3"`) — set this in `rl.context(deployment_version=f"{name}:{version}")` to link runs to prompt versions in metrics.
+
+**Original goal:** Version-controlled prompt registry with variable templating, environment promotion (staging → production), and per-version cost + quality metrics. Closes the gap between "cost regression detected on v2" and "here is exactly what changed in the prompt."
 
 **Why now:** RunLedger already tracks `deployment_version` on every run. Without prompt management, that field is just a string label — users can't see what changed. With it, every regression report links directly to a prompt diff.
 

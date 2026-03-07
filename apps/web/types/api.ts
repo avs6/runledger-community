@@ -485,3 +485,49 @@ export interface ScoreRegressionItem {
   change_pct: string
   sample_count: number
 }
+
+// ── Phase 18 — Prompt Management ──────────────────────────────────────────────
+
+export interface PromptResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  default_environment: string
+  created_at: string
+  updated_at: string
+}
+
+export interface PromptList {
+  items: PromptResponse[]
+}
+
+export interface PromptVersion {
+  id: string
+  prompt_id: string
+  version: number
+  content: string
+  variables: Array<{ name: string; type?: string; description?: string }>
+  commit_message: string | null
+  environment: string
+  model_hint: string | null
+  created_at: string
+}
+
+export interface VersionList {
+  items: PromptVersion[]
+}
+
+export interface VersionMetrics {
+  version: number
+  environment: string
+  run_count: number
+  avg_cost_usd: number | null
+  avg_score: number | null
+  commit_message: string | null
+  created_at: string
+}
+
+export interface PromptMetrics {
+  items: VersionMetrics[]
+}

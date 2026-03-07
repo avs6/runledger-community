@@ -8,6 +8,9 @@ LangChain/LangGraph instrumentation: Phase 3.
 from __future__ import annotations
 
 import os
+import re
+import threading
+import time
 from typing import Any
 
 import structlog
@@ -321,6 +324,103 @@ class RunLedger:
             resp.raise_for_status()
         except Exception as exc:
             log.warning("score_post_failed", name=name, error=str(exc))
+
+    # ── Prompt management ─────────────────────────────────────────────────────
+
+    # In-memory cache: key → (data_dict, expires_at_monotonic)
+    _prompt_cache: dict[str, tuple[dict[str, Any], float]] = {}
+    _prompt_cache_lock: threading.Lock = threading.Lock()
+    _PROMPT_CACHE_TTL: float = 60.0
+
+    def get_prompt(
+        self,
+        name: str,
+        environment: str = "production",
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Fetch the latest prompt version for the given environment and render it.
+
+        Caches results for 60 seconds to avoid repeated API calls per request.
+
+        The deployment_version convention for linking prompts to runs is:
+        ``f"{name}:{version_number}"``
+
+        Parameters
+        ----------
+        name:
+            Prompt name (slug-style, e.g. "support-agent").
+        environment:
+            Environment to fetch ("production", "staging", "dev").
+        variables:
+            Dict of ``{{variable}}`` substitution values.
+
+        Returns
+        -------
+        dict with keys:
+            content: str — rendered prompt string
+            version: int — version number fetched
+            environment: str
+            model_hint: str | None
+            variables: list — variable schema from the registry
+        """
+        cache_key = f"{name}:{environment}"
+        now = time.monotonic()
+
+        with self._prompt_cache_lock:
+            cached = self._prompt_cache.get(cache_key)
+            if cached is not None:
+                data, expires_at = cached
+                if now < expires_at:
+                    return self._render_prompt(data, variables)
+
+        if self.local:
+            log.info("get_prompt_local", name=name, environment=environment)
+            return {
+                "content": f"[local] prompt:{name}:{environment}",
+                "version": 0,
+                "environment": environment,
+                "model_hint": None,
+                "variables": [],
+            }
+
+        try:
+            import httpx  # noqa: PLC0415
+
+            resp = httpx.get(
+                f"{self.base_url}/prompts/{name}/latest",
+                params={"environment": environment},
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            log.warning("get_prompt_failed", name=name, error=str(exc))
+            raise
+
+        with self._prompt_cache_lock:
+            self._prompt_cache[cache_key] = (data, now + self._PROMPT_CACHE_TTL)
+
+        return self._render_prompt(data, variables)
+
+    @staticmethod
+    def _render_prompt(
+        data: dict[str, Any],
+        variables: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Apply ``{{variable}}`` substitution and return a render result dict."""
+        content: str = data.get("content", "")
+        if variables:
+            for key, value in variables.items():
+                content = re.sub(r"\{\{" + re.escape(key) + r"\}\}", str(value), content)
+        return {
+            "content": content,
+            "version": data.get("version"),
+            "environment": data.get("environment"),
+            "model_hint": data.get("model_hint"),
+            "variables": data.get("variables", []),
+        }
 
     # ── Flush / shutdown ──────────────────────────────────────────────────────
 

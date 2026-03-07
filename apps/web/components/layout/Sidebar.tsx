@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp, FlaskConical, ShieldCheck, Settings, Star } from 'lucide-react'
+import { LayoutList, BarChart2, ShieldAlert, Receipt, TrendingUp, FlaskConical, ShieldCheck, Settings, Star, BookText } from 'lucide-react'
 
 const nav = [
   { href: '/runs', label: 'Runs', icon: LayoutList },
@@ -12,6 +12,7 @@ const nav = [
   { href: '/billing', label: 'Billing', icon: Receipt },
   { href: '/replay', label: 'Replay', icon: FlaskConical },
   { href: '/evaluations', label: 'Evaluations', icon: Star },
+  { href: '/prompts', label: 'Prompts', icon: BookText },
   { href: '/ledger', label: 'Ledger', icon: ShieldCheck },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]

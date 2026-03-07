@@ -502,9 +502,118 @@ required.
 
 ---
 
+## 11. Quality scores
+
+Attach quality scores to runs from anywhere — human raters, rule-based checks, or post-processing pipelines:
+
+```python
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_test_...")
+
+with rl.context(end_user_id="u_123", feature_tag="support-chat") as run_id:
+    # ... your agent logic ...
+
+    # Rate the response after the run completes
+    rl.score("helpfulness", 0.9, label="good", source="human")
+    rl.score("relevance", 0.75, run_id=str(run_id), confidence=0.9)
+
+rl.shutdown()
+```
+
+`rl.score()` is synchronous and fails silently — it will never raise or interrupt your agent.
+
+When `run_id` is omitted, it is picked up from the current `rl.context()` automatically.
+
+**Query score analytics via the API:**
+
+```bash
+KEY=rl_test_...
+BASE=http://localhost:8000
+
+# Average score per score name + period-over-period delta
+curl "$BASE/analytics/scores/summary" -H "Authorization: Bearer $KEY"
+# → { "items": [{ "name": "helpfulness", "avg_value": "0.88", "change_pct": "+5.2", ... }] }
+
+# Score names where avg dropped >20% vs prior week
+curl "$BASE/analytics/scores/regressions" -H "Authorization: Bearer $KEY"
+# → [] if no regressions
+```
+
+The **/evaluations** dashboard page (`http://localhost:3000/evaluations`) provides:
+- A submit-score form (no code needed for human ratings)
+- Per-score-name summary cards with ↑/↓ delta badges
+- A recent scores table with run-ID links
+
+---
+
+---
+
+## 12. Prompt management
+
+Version-controlled prompt templates with `{{variable}}` substitution and environment promotion:
+
+```python
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_test_...")
+
+# Fetch latest production version (60s in-memory cache)
+rendered = rl.get_prompt(
+    "support-agent",
+    environment="production",
+    variables={"user_name": "Alice", "company": "Acme"},
+)
+# rendered["content"]  → "Welcome Alice! How can I assist you at Acme today?"
+# rendered["version"]  → 3
+
+# Link runs to prompt versions for per-version metrics:
+with rl.context(
+    end_user_id="u_123",
+    deployment_version=f"support-agent:{rendered['version']}",
+) as run_id:
+    # ... your agent logic ...
+    pass
+
+rl.shutdown()
+```
+
+**Manage prompts via the API:**
+
+```bash
+KEY=rl_test_...
+BASE=http://localhost:8000
+
+# Create a prompt
+curl -X POST "$BASE/prompts" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"support-agent","default_environment":"production"}'
+
+# Commit a staging version
+curl -X POST "$BASE/prompts/support-agent/versions" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"content":"Hello {{user_name}}!","environment":"staging","commit_message":"v1 draft"}'
+
+# Promote to production
+curl -X POST "$BASE/prompts/support-agent/promote" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"source_environment":"staging","target_environment":"production"}'
+
+# Per-version metrics (run count, avg cost, avg score)
+curl "$BASE/prompts/support-agent/metrics" -H "Authorization: Bearer $KEY"
+```
+
+The **/prompts** dashboard page (`http://localhost:3000/prompts`) provides:
+- A prompt list with create/delete controls
+- Per-prompt detail: version history with env badges, commit messages, metrics cards
+- Commit form with `{{variable}}` syntax hint
+- Side-by-side line-level diff viewer between any two versions
+- One-click "Promote staging → production" button
+
+---
+
 ## What's next
 
-- **Phase 7** — Budget guardrails (`block` / `throttle` / `downgrade` actions)
-- **Phase 8** — Chargeback engine + signed billing statements
-- **Phase 9** — Unit economics graph + deployment version change-impact diffs
-- **Phase 10** — End-user cohort analytics + replay harness
+- **Phase 17B** — LLM-as-judge evaluator framework (batch evaluation, judge drift detection)
+- **Phase 19** — Sessions UI + payload viewer
+- **Phase 20** — TypeScript / Node.js SDK
