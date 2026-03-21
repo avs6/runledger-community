@@ -39,7 +39,7 @@ import httpx
 import structlog
 
 from runledger_sdk.context import get_context_snapshot, get_run_id
-from runledger_sdk.exceptions import RunLedgerBudgetExceededError
+from runledger_sdk.exceptions import RunLedgerBudgetExceededError, ToolBlockedError
 
 if TYPE_CHECKING:
     from runledger_sdk.transport import SyncTransport
@@ -115,6 +115,7 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
         messages = _safe_serialize(kwargs.get("messages", []))
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
+        provider = _detect_provider(str(getattr(self._client, "base_url", "")))
 
         # Pre-call budget check (optional, enabled by budget_check=True)
         if transport.budget_check and not transport._local:
@@ -126,21 +127,31 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
         try:
             result = original(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
+
+            # Runtime tool enforcement — check tool_calls in response before returning
+            if transport.tool_enforcement:
+                _check_response_tool_calls(result, transport)
+
             transport.enqueue(
                 _build_span_end(run_id, span_id, "succeeded", messages, result)
             )
             transport.enqueue(
-                _build_provider_call(run_id, span_id, model, result, latency_ms)
+                _build_provider_call(run_id, span_id, model, result, latency_ms, provider=provider)
             )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
+        except ToolBlockedError:
+            # Re-raise blocked tool errors without wrapping them in run_end(failed)
+            # so they surface clearly to the caller
+            transport.enqueue(_build_run_end(run_id, "failed", None))
+            raise
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(
                 _build_span_end(run_id, span_id, "failed", messages, None)
             )
             transport.enqueue(
-                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms, provider=provider)
             )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
@@ -164,6 +175,7 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
         messages = _safe_serialize(kwargs.get("messages", []))
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
+        provider = _detect_provider(str(getattr(self._client, "base_url", "")))
 
         # Pre-call budget check (optional, enabled by budget_check=True)
         if transport.budget_check and not transport._local:
@@ -176,21 +188,29 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
         try:
             result = await original_async(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
+
+            # Runtime tool enforcement — check tool_calls in response before returning
+            if transport.tool_enforcement:
+                _check_response_tool_calls(result, transport)
+
             transport.enqueue(
                 _build_span_end(run_id, span_id, "succeeded", messages, result)
             )
             transport.enqueue(
-                _build_provider_call(run_id, span_id, model, result, latency_ms)
+                _build_provider_call(run_id, span_id, model, result, latency_ms, provider=provider)
             )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
+        except ToolBlockedError:
+            transport.enqueue(_build_run_end(run_id, "failed", None))
+            raise
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(
                 _build_span_end(run_id, span_id, "failed", messages, None)
             )
             transport.enqueue(
-                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms, provider=provider)
             )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
@@ -300,22 +320,50 @@ def _build_run_end(
     return event
 
 
+def _detect_provider(base_url: str) -> str:
+    """Infer the provider name from the OpenAI-client base URL.
+
+    Ollama uses port 11434 or a hostname containing 'ollama'.
+    OpenAI uses api.openai.com. Everything else falls back to the hostname.
+    """
+    url = base_url.lower()
+    if "11434" in url or "ollama" in url:
+        return "ollama"
+    if "openai.com" in url:
+        return "openai"
+    if "anthropic.com" in url:
+        return "anthropic"
+    if "googleapis.com" in url or "generativelanguage" in url:
+        return "google"
+    # Derive from hostname for custom / self-hosted endpoints
+    try:
+        from urllib.parse import urlparse  # noqa: PLC0415
+        host = urlparse(base_url).hostname or "unknown"
+        # Strip common subdomains and TLD to get a clean provider name
+        parts = host.split(".")
+        return parts[-2] if len(parts) >= 2 else host
+    except Exception:
+        return "unknown"
+
+
 def _build_provider_call(
     run_id: str,
     span_id: str,
     model: str,
     result: Any,
     latency_ms: int,
+    provider: str = "openai",
 ) -> dict[str, Any]:
     event: dict[str, Any] = {
         "event_type": "provider_call",
         "run_id": run_id,
         "span_id": span_id,
-        "provider": "openai",
+        "provider": provider,
         "model": model,
         "latency_ms": latency_ms,
         "status": "success",
     }
+
     usage = getattr(result, "usage", None)
     if usage:
         prompt_tokens = getattr(usage, "prompt_tokens", None)
@@ -338,17 +386,19 @@ def _build_provider_call_error(
     model: str,
     exc: Exception,
     latency_ms: int,
+    provider: str = "openai",
 ) -> dict[str, Any]:
-    return {
+    event: dict[str, Any] = {
         "event_type": "provider_call",
         "run_id": run_id,
         "span_id": span_id,
-        "provider": "openai",
+        "provider": provider,
         "model": model,
         "latency_ms": latency_ms,
         "status": "error",
         "error_type": type(exc).__name__,
     }
+    return event
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -371,6 +421,33 @@ def _safe_serialize(obj: Any) -> Any:
     if isinstance(obj, (str, int, float, bool, type(None))):
         return obj
     return str(obj)
+
+
+# ── Runtime tool enforcement ───────────────────────────────────────────────────
+
+
+def _check_response_tool_calls(result: Any, transport: SyncTransport) -> None:
+    """
+    Inspect an LLM response for tool_calls and check each tool name against
+    the workspace Tool Registry policy.
+
+    Called after the LLM responds but *before* returning to the caller, so the
+    agent loop never gets to execute a blocked tool.
+
+    Raises ToolBlockedError if any tool_call is blocked with runtime_enforcement=True.
+    """
+    from runledger_sdk.tool_check import check_tool_sync  # noqa: PLC0415
+
+    choices = getattr(result, "choices", None) or []
+    for choice in choices:
+        if getattr(choice, "finish_reason", None) == "tool_calls":
+            message = getattr(choice, "message", None)
+            tool_calls = getattr(message, "tool_calls", None) or []
+            for tc in tool_calls:
+                func = getattr(tc, "function", None)
+                tool_name = getattr(func, "name", None) if func else None
+                if tool_name:
+                    check_tool_sync(tool_name, transport)  # raises ToolBlockedError on block
 
 
 # ── Budget pre-call check ──────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ def _make_tool(**kwargs: object) -> SimpleNamespace:
         workspace_id=uuid.uuid4(),
         tool_name="search",
         policy="audit",
+        runtime_enforcement=False,
         description=None,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
@@ -223,6 +224,144 @@ async def test_upsert_capture_policy(
     data = resp.json()
     assert data["privacy_mode"] == "METADATA_ONLY"
     assert data["sampled_rate"] is None
+
+
+# ── test_check_tool_allow (cache miss → DB allow) ─────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_tool_allow_db_miss(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    """Unknown tool (not in DB) → defaults to allow."""
+    mock_redis_client.get = AsyncMock(return_value=None)
+    mock_redis_client.setex = AsyncMock()
+    mock_db_session.execute = AsyncMock(return_value=_scalar_result(None))
+
+    resp = await authed_client.get("/tools/check/unknown_tool")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["tool_name"] == "unknown_tool"
+    assert data["policy"] == "allow"
+    assert data["runtime_enforcement"] is False
+    assert data["allowed"] is True
+
+
+# ── test_check_tool_audit (cache miss → DB audit) ─────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_tool_audit_from_db(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    """Audit tool (not blocked) returns 200 allowed=True."""
+    tool = _make_tool(
+        workspace_id=mock_workspace.id,
+        tool_name="read_file",
+        policy="audit",
+        runtime_enforcement=True,
+    )
+    mock_redis_client.get = AsyncMock(return_value=None)
+    mock_redis_client.setex = AsyncMock()
+    mock_db_session.execute = AsyncMock(return_value=_scalar_result(tool))
+
+    resp = await authed_client.get("/tools/check/read_file")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["policy"] == "audit"
+    assert data["runtime_enforcement"] is True
+    assert data["allowed"] is True
+
+
+# ── test_check_tool_block → 403 ───────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_tool_blocked_returns_403(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    """Blocked tool (policy=block, runtime_enforcement=True) → 403."""
+    tool = _make_tool(
+        workspace_id=mock_workspace.id,
+        tool_name="delete_record",
+        policy="block",
+        runtime_enforcement=True,
+    )
+    mock_redis_client.get = AsyncMock(return_value=None)
+    mock_redis_client.setex = AsyncMock()
+    mock_db_session.execute = AsyncMock(return_value=_scalar_result(tool))
+    mock_db_session.commit = AsyncMock()
+
+    resp = await authed_client.get("/tools/check/delete_record")
+    assert resp.status_code == 403
+    assert "blocked" in resp.json()["detail"].lower()
+
+
+# ── test_check_tool_block_no_enforcement → 200 ───────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_tool_block_no_runtime_enforcement(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    """policy=block but runtime_enforcement=False → 200 allowed (post-hoc only)."""
+    tool = _make_tool(
+        workspace_id=mock_workspace.id,
+        tool_name="send_email",
+        policy="block",
+        runtime_enforcement=False,
+    )
+    mock_redis_client.get = AsyncMock(return_value=None)
+    mock_redis_client.setex = AsyncMock()
+    mock_db_session.execute = AsyncMock(return_value=_scalar_result(tool))
+
+    resp = await authed_client.get("/tools/check/send_email")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["allowed"] is True
+
+
+# ── test_check_tool_redis_cache_hit → 200 ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_tool_redis_cache_hit(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+) -> None:
+    """Redis cache hit — DB should not be queried."""
+    import json
+
+    cached = json.dumps({"policy": "allow", "runtime_enforcement": False})
+    mock_redis_client.get = AsyncMock(return_value=cached)
+
+    resp = await authed_client.get("/tools/check/web_search")
+    assert resp.status_code == 200
+    assert resp.json()["policy"] == "allow"
+    # DB should not be touched — execute not called after cache hit
+    mock_db_session.execute.assert_not_called()
+
+
+# ── test_check_tool_requires_auth ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_tool_requires_auth(client: AsyncClient) -> None:
+    resp = await client.get("/tools/check/web_search")
+    assert resp.status_code == 401
 
 
 # ── test_tools_requires_auth ──────────────────────────────────────────────────

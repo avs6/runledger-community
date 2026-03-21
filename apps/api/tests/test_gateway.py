@@ -20,9 +20,9 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from httpx import AsyncClient
-
 
 # ── Helper factories ──────────────────────────────────────────────────────────
 
@@ -216,6 +216,45 @@ async def test_gateway_stats_empty(
     assert data["routes"] == []
 
 
+@pytest.mark.asyncio
+async def test_gateway_stats_uses_weighted_latency(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """Overall avg latency is weighted by request counts, not route count."""
+    route_a = uuid.uuid4()
+    route_b = uuid.uuid4()
+
+    stats_rows = [
+        SimpleNamespace(
+            route_id=route_a,
+            total=100,
+            cache_hits=10,
+            avg_latency=300,
+            errors=1,
+        ),
+        SimpleNamespace(
+            route_id=route_b,
+            total=10,
+            cache_hits=1,
+            avg_latency=100,
+            errors=0,
+        ),
+    ]
+    route_rows = [
+        SimpleNamespace(id=route_a, alias="primary"),
+        SimpleNamespace(id=route_b, alias="fallback"),
+    ]
+    mock_db_session.execute = AsyncMock(
+        side_effect=[_all_result(stats_rows), _all_result(route_rows)]
+    )
+
+    resp = await authed_client.get("/gateway/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert float(data["avg_latency_ms"]) == pytest.approx(281.82)
+
+
 # ── POST /gateway/chat/completions ─────────────────────────────────────────────
 
 
@@ -281,8 +320,8 @@ async def test_completions_no_routes_returns_502(
             new=AsyncMock(return_value=None),
         ),
         patch(
-            "runledger_api.services.gateway.select_routes",
-            new=AsyncMock(return_value=[]),
+            "runledger_api.services.routing.select_route_with_policy",
+            new=AsyncMock(side_effect=ValueError("No active gateway routes for alias 'unknown-model'")),
         ),
         patch(
             "runledger_api.routers.gateway.record_gateway_request",
@@ -321,3 +360,40 @@ async def test_make_cache_key_differs_by_model() -> None:
     key1 = make_cache_key("gpt-4o", messages)
     key2 = make_cache_key("gpt-4-turbo", messages)
     assert key1 != key2
+
+
+@pytest.mark.asyncio
+async def test_route_and_forward_retries_once_on_transient_failure() -> None:
+    """Each route is retried once on transient 429/5xx before fallback."""
+    from runledger_api.services.gateway import route_and_forward
+
+    route = _make_route()
+    request = httpx.Request("POST", "https://example.com/chat/completions")
+    response_503 = httpx.Response(503, request=request)
+    transient_error = httpx.HTTPStatusError("unavailable", request=request, response=response_503)
+
+    mock_db = AsyncMock()
+    # _fetch_policy returns None (no policy → manual)
+    mock_db.execute = AsyncMock(return_value=_scalar_one_or_none_result(None))
+
+    with (
+        patch("runledger_api.services.routing._fetch_active_routes", new=AsyncMock(return_value=[route])),
+        patch("runledger_api.services.gateway.select_routes", new=AsyncMock(return_value=[route])),
+        patch(
+            "runledger_api.services.gateway.forward_request",
+            new=AsyncMock(side_effect=[transient_error, {"id": "ok"}]),
+        ) as forward_mock,
+    ):
+        payload, winning_route, latency_ms, decision_reason = await route_and_forward(
+            db=mock_db,
+            workspace_id=uuid.uuid4(),
+            model_alias="gpt-4o",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=None,
+            max_tokens=None,
+        )
+
+    assert payload["id"] == "ok"
+    assert winning_route.id == route.id
+    assert isinstance(latency_ms, int)
+    assert forward_mock.await_count == 2

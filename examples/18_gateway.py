@@ -144,8 +144,8 @@ if resp.status_code == 200:
     print(f"  Latency:   {elapsed_ms}ms  (first call — cache miss, real provider call)")
     print(f"  Tokens:    in={usage.get('prompt_tokens')}  out={usage.get('completion_tokens')}")
 elif resp.status_code == 502:
-    print(f"  502 — No routes reachable or no provider key set on the server.")
-    print(f"  Set OPENAI_API_KEY in apps/api/.env, then restart the API.")
+    print("  502 — No routes reachable or no provider key set on the server.")
+    print("  Set OPENAI_API_KEY in apps/api/.env, then restart the API.")
     print(f"  Detail: {resp.json().get('detail', '')}")
 else:
     print(f"  ERROR {resp.status_code}: {resp.text}")

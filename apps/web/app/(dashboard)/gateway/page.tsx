@@ -1,0 +1,522 @@
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { toast } from 'sonner'
+import {
+  Network, RefreshCw, Plus, Trash2, Activity,
+  ChevronDown, ChevronUp, BarChart2,
+} from 'lucide-react'
+import { useRole } from '@/components/rbac/useRole'
+import {
+  listGatewayRoutes, createGatewayRoute, updateGatewayRoute, deleteGatewayRoute,
+  getGatewayStats, listRoutingPolicies, createRoutingPolicy, updateRoutingPolicy,
+  deleteRoutingPolicy, listGatewayRequests, listProviderPricing,
+} from '@/lib/api'
+import type {
+  GatewayRoute, GatewayStats, GatewayRequestLog,
+  RoutingPolicy, RoutingPolicyType, ProviderPricingResponse,
+} from '@/types/api'
+
+const inputCls =
+  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+
+export default function GatewayPage() {
+  const { data: session } = useSession()
+  const apiKey = (session as { apiKey?: string })?.apiKey
+  const { isWorkspaceAdmin, isOrgAdmin, isPlatformAdmin } = useRole()
+  const canManage = isWorkspaceAdmin || isOrgAdmin || isPlatformAdmin
+
+  const [gatewayRoutes, setGatewayRoutes] = useState<GatewayRoute[]>([])
+  const [gatewayStats, setGatewayStats] = useState<GatewayStats | null>(null)
+  const [newRouteAlias, setNewRouteAlias] = useState('')
+  const [newRouteProvider, setNewRouteProvider] = useState('openai')
+  const [newRouteTargetModel, setNewRouteTargetModel] = useState('')
+  const [newRouteBaseUrl, setNewRouteBaseUrl] = useState('')
+  const [newRouteApiKeyEnvVar, setNewRouteApiKeyEnvVar] = useState('OPENAI_API_KEY')
+  const [newRoutePriority, setNewRoutePriority] = useState('10')
+  const [creatingRoute, setCreatingRoute] = useState(false)
+  const [showRouteForm, setShowRouteForm] = useState(false)
+
+  const [routingPolicies, setRoutingPolicies] = useState<RoutingPolicy[]>([])
+  const [policyAlias, setPolicyAlias] = useState('')
+  const [policyType, setPolicyType] = useState<RoutingPolicyType>('manual')
+  const [policyConfigStr, setPolicyConfigStr] = useState('{}')
+  const [creatingPolicy, setCreatingPolicy] = useState(false)
+  const [policyConfigError, setPolicyConfigError] = useState('')
+  const [showPolicyForm, setShowPolicyForm] = useState(false)
+
+  const [routingLog, setRoutingLog] = useState<GatewayRequestLog[]>([])
+  const [loadingLog, setLoadingLog] = useState(false)
+
+  const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    if (!apiKey) return
+    setLoading(true)
+    try {
+      const [routesData, statsData, policiesData, pricingData] = await Promise.all([
+        listGatewayRoutes(apiKey, true),
+        getGatewayStats(apiKey),
+        listRoutingPolicies(apiKey),
+        listProviderPricing(apiKey),
+      ])
+      setGatewayRoutes(routesData.items)
+      setGatewayStats(statsData)
+      setRoutingPolicies(policiesData.items)
+      setPricing(pricingData.items)
+    } catch {
+      toast.error('Failed to load gateway data')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiKey])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleCreateRoute(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !newRouteAlias || !newRouteTargetModel) return
+    setCreatingRoute(true)
+    try {
+      const route = await createGatewayRoute(apiKey, {
+        alias: newRouteAlias.trim(),
+        provider: newRouteProvider,
+        target_model: newRouteTargetModel.trim(),
+        base_url: newRouteBaseUrl.trim() || null,
+        api_key_env_var: newRouteApiKeyEnvVar.trim() || null,
+        priority: parseInt(newRoutePriority, 10) || 10,
+      })
+      setGatewayRoutes((prev) => [...prev, route])
+      setNewRouteAlias('')
+      setNewRouteTargetModel('')
+      setNewRouteBaseUrl('')
+      setNewRouteApiKeyEnvVar('OPENAI_API_KEY')
+      setNewRoutePriority('10')
+      setShowRouteForm(false)
+      toast.success('Gateway route created')
+    } catch {
+      toast.error('Failed to create gateway route')
+    } finally {
+      setCreatingRoute(false)
+    }
+  }
+
+  async function handleToggleRoute(route: GatewayRoute) {
+    if (!apiKey) return
+    try {
+      const updated = await updateGatewayRoute(apiKey, route.id, { is_active: !route.is_active })
+      setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
+      toast.success(updated.is_active ? 'Route enabled' : 'Route disabled')
+    } catch {
+      toast.error('Failed to update route')
+    }
+  }
+
+  async function handleDeleteRoute(routeId: string) {
+    if (!apiKey || !confirm('Delete this gateway route?')) return
+    try {
+      await deleteGatewayRoute(apiKey, routeId)
+      setGatewayRoutes((prev) => prev.filter((r) => r.id !== routeId))
+      toast.success('Gateway route deleted')
+    } catch {
+      toast.error('Failed to delete route')
+    }
+  }
+
+  async function handleCreatePolicy(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !policyAlias) return
+    setPolicyConfigError('')
+    let config: Record<string, unknown> = {}
+    try {
+      config = JSON.parse(policyConfigStr || '{}')
+    } catch {
+      setPolicyConfigError('Config must be valid JSON')
+      return
+    }
+    setCreatingPolicy(true)
+    try {
+      const p = await createRoutingPolicy(apiKey, { alias: policyAlias.trim(), policy_type: policyType, config })
+      setRoutingPolicies((prev) => [...prev, p])
+      setPolicyAlias('')
+      setPolicyConfigStr('{}')
+      setShowPolicyForm(false)
+      toast.success('Routing policy created')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      toast.error(msg.includes('409') ? `A policy for alias '${policyAlias}' already exists` : 'Failed to create policy')
+    } finally {
+      setCreatingPolicy(false)
+    }
+  }
+
+  async function handleTogglePolicy(p: RoutingPolicy) {
+    if (!apiKey) return
+    try {
+      const updated = await updateRoutingPolicy(apiKey, p.id, { is_active: !p.is_active })
+      setRoutingPolicies((prev) => prev.map((x) => (x.id === p.id ? updated : x)))
+    } catch {
+      toast.error('Failed to update policy')
+    }
+  }
+
+  async function handleDeletePolicy(id: string) {
+    if (!apiKey || !confirm('Delete this routing policy?')) return
+    try {
+      await deleteRoutingPolicy(apiKey, id)
+      setRoutingPolicies((prev) => prev.filter((p) => p.id !== id))
+      toast.success('Policy deleted')
+    } catch {
+      toast.error('Failed to delete policy')
+    }
+  }
+
+  async function handleLoadRoutingLog() {
+    if (!apiKey) return
+    setLoadingLog(true)
+    try {
+      const data = await listGatewayRequests(apiKey, { limit: 50 })
+      setRoutingLog(data.items)
+    } catch {
+      toast.error('Failed to load routing log')
+    } finally {
+      setLoadingLog(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <RefreshCw className="h-5 w-5 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8 max-w-5xl">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Network className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <h1 className="text-2xl font-bold tracking-tight dark:text-white">Model Gateway</h1>
+          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            OpenAI-compatible proxy with caching, fallback, and intelligent routing. Point your app&apos;s{' '}
+            <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">base_url</code> to{' '}
+            <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">/gateway</code>.
+          </p>
+        </div>
+        <button
+          onClick={load}
+          className="shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+        </button>
+      </div>
+
+      {/* Stats strip */}
+      {gatewayStats && gatewayStats.total_requests > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: 'Total Requests', value: gatewayStats.total_requests.toLocaleString() },
+            { label: 'Cache Hits', value: gatewayStats.cache_hits.toLocaleString() },
+            { label: 'Cache Hit Rate', value: `${(parseFloat(gatewayStats.cache_hit_rate) * 100).toFixed(1)}%` },
+            { label: 'Avg Latency', value: gatewayStats.avg_latency_ms ? `${parseFloat(gatewayStats.avg_latency_ms).toFixed(0)}ms` : '—' },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{s.label}</p>
+              <p className="text-xl font-semibold dark:text-white mt-0.5">{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Routes ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Provider Routes</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Each route maps an alias to a provider model with priority and fallback.</p>
+          </div>
+          {canManage && (
+            <button
+              onClick={() => setShowRouteForm((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+            >
+              {showRouteForm ? <ChevronUp className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {showRouteForm ? 'Cancel' : 'Add Route'}
+            </button>
+          )}
+        </div>
+
+        {showRouteForm && canManage && (
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-4">
+            <form onSubmit={handleCreateRoute} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 dark:text-gray-400">Alias (route name) *</label>
+                <input type="text" placeholder="e.g. gpt-4o" value={newRouteAlias} onChange={(e) => setNewRouteAlias(e.target.value)} className={inputCls} required />
+              </div>
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <label className="text-xs text-gray-500 dark:text-gray-400">Provider &amp; Model *</label>
+                <select
+                  className={inputCls}
+                  value={`${newRouteProvider}::${newRouteTargetModel}`}
+                  onChange={(e) => {
+                    const [prov, model] = e.target.value.split('::')
+                    setNewRouteProvider(prov)
+                    setNewRouteTargetModel(model ?? '')
+                  }}
+                  required
+                >
+                  <option value="::">— select model —</option>
+                  {pricing.length > 0 ? (
+                    (() => {
+                      const grouped: Record<string, typeof pricing> = {}
+                      pricing.forEach((p) => { ;(grouped[p.provider] ??= []).push(p) })
+                      return Object.entries(grouped).map(([prov, models]) => (
+                        <optgroup key={prov} label={prov}>
+                          {models.map((m) => (
+                            <option key={m.id} value={`${m.provider}::${m.model}`}>{m.model}</option>
+                          ))}
+                        </optgroup>
+                      ))
+                    })()
+                  ) : (
+                    <>
+                      <optgroup label="openai">
+                        <option value="openai::gpt-4o">gpt-4o</option>
+                        <option value="openai::gpt-4o-mini">gpt-4o-mini</option>
+                      </optgroup>
+                      <optgroup label="anthropic">
+                        <option value="anthropic::claude-sonnet-4-6">claude-sonnet-4-6</option>
+                      </optgroup>
+                    </>
+                  )}
+                </select>
+              </div>
+              <input type="text" placeholder="Base URL (optional)" value={newRouteBaseUrl} onChange={(e) => setNewRouteBaseUrl(e.target.value)} className={inputCls} />
+              <input type="text" placeholder="API key env var (e.g. OPENAI_API_KEY)" value={newRouteApiKeyEnvVar} onChange={(e) => setNewRouteApiKeyEnvVar(e.target.value)} className={inputCls} />
+              <div className="flex items-center gap-2">
+                <input type="number" placeholder="Priority" value={newRoutePriority} onChange={(e) => setNewRoutePriority(e.target.value)} className={`w-24 ${inputCls}`} min={1} max={100} />
+                <button type="submit" disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel} className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                  {creatingRoute ? 'Adding…' : 'Add Route'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {gatewayRoutes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2">
+              <Network className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">No routes configured yet.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Alias</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Provider</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Model</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Priority</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  {canManage && <th className="px-4 py-2.5" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {gatewayRoutes.map((route) => (
+                  <tr key={route.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-sm font-semibold dark:text-slate-200">{route.alias}</td>
+                    <td className="px-4 py-2.5 text-xs capitalize text-slate-600 dark:text-slate-300">{route.provider}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{route.target_model}</td>
+                    <td className="px-4 py-2.5 text-center text-xs text-slate-500 dark:text-slate-400">{route.priority}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <button
+                        onClick={() => canManage && handleToggleRoute(route)}
+                        disabled={!canManage}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${route.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                      >
+                        {route.is_active ? 'Active' : 'Disabled'}
+                      </button>
+                    </td>
+                    {canManage && (
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => handleDeleteRoute(route.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
+      {/* ── Routing Policies ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Routing Policies</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Intelligent routing strategies backed by live telemetry — cost, latency, quality.</p>
+          </div>
+          {canManage && (
+            <button
+              onClick={() => setShowPolicyForm((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+            >
+              {showPolicyForm ? <ChevronUp className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {showPolicyForm ? 'Cancel' : 'Add Policy'}
+            </button>
+          )}
+        </div>
+
+        {showPolicyForm && canManage && (
+          <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-4">
+            <form onSubmit={handleCreatePolicy} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <input type="text" placeholder="Alias (e.g. local)" value={policyAlias} onChange={(e) => setPolicyAlias(e.target.value)} className={inputCls} required />
+              <select value={policyType} onChange={(e) => setPolicyType(e.target.value as RoutingPolicyType)} className={inputCls}>
+                <option value="manual">manual — priority order</option>
+                <option value="cost_optimized">cost_optimized — cheapest above quality floor</option>
+                <option value="latency_optimized">latency_optimized — lowest p95</option>
+                <option value="quality_optimized">quality_optimized — highest score</option>
+                <option value="weighted">weighted — random split by weight</option>
+                <option value="canary">canary — % to canary route</option>
+                <option value="budget_aware">budget_aware — fallback when budget % hit</option>
+                <option value="complexity_based">complexity_based — branch on token count</option>
+              </select>
+              <div>
+                <input
+                  type="text"
+                  placeholder='Config JSON e.g. {"quality_floor": 0.6}'
+                  value={policyConfigStr}
+                  onChange={(e) => { setPolicyConfigStr(e.target.value); setPolicyConfigError('') }}
+                  className={`${inputCls} font-mono text-xs`}
+                />
+                {policyConfigError && <p className="mt-1 text-xs text-red-500">{policyConfigError}</p>}
+              </div>
+              <button type="submit" disabled={creatingPolicy || !policyAlias} className="sm:col-span-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                {creatingPolicy ? 'Creating…' : 'Add Policy'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {routingPolicies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <Activity className="h-7 w-7 text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">No routing policies yet.</p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Alias</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Strategy</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Config</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  {canManage && <th className="px-4 py-2.5" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {routingPolicies.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-4 py-2.5 font-mono text-sm font-semibold dark:text-slate-200">{p.alias}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300">{p.policy_type}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-400 max-w-[200px] truncate" title={JSON.stringify(p.config)}>
+                      {Object.keys(p.config).length ? JSON.stringify(p.config) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <button
+                        onClick={() => canManage && handleTogglePolicy(p)}
+                        disabled={!canManage}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${p.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                      >
+                        {p.is_active ? 'Active' : 'Disabled'}
+                      </button>
+                    </td>
+                    {canManage && (
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => handleDeletePolicy(p.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
+      {/* ── Routing Log ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Routing Log</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Which route was selected and why — including the full policy decision.</p>
+          </div>
+          <button
+            onClick={handleLoadRoutingLog}
+            disabled={loadingLog}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+          >
+            <BarChart2 className="h-3.5 w-3.5" />
+            {loadingLog ? 'Loading…' : 'Load recent'}
+          </button>
+        </div>
+
+        {routingLog.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Time</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Alias</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Model Used</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Latency</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Decision Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {routingLog.map((req) => (
+                  <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{new Date(req.created_at).toLocaleTimeString()}</td>
+                    <td className="px-3 py-2 font-mono dark:text-slate-200">{req.model_requested}</td>
+                    <td className="px-3 py-2 font-mono text-slate-500 dark:text-slate-400">{req.model_used ?? '—'}</td>
+                    <td className="px-3 py-2 dark:text-slate-300">{req.latency_ms != null ? `${req.latency_ms}ms` : '—'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        req.status === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                        req.status === 'cache_hit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                      }`}>
+                        {req.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-indigo-600 dark:text-indigo-400 max-w-[280px] truncate" title={req.decision_reason ?? ''}>
+                      {req.decision_reason ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {routingLog.length === 0 && !loadingLog && (
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400">
+            Click &quot;Load recent&quot; to fetch the last 50 gateway requests.
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

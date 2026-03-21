@@ -32,8 +32,11 @@ Run it
     python 07_analytics_query.py --from 2026-01-01T00:00:00Z --to 2026-01-31T23:59:59Z
 
 Key .env variables used here:
-    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_API_KEY   — your workspace API key (analytics are scoped to this workspace)
     RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+
+All analytics endpoints return data scoped to the workspace the API key belongs to.
+To query a different workspace, use a key from that workspace (Settings → API Keys).
 """
 
 from __future__ import annotations

@@ -24,7 +24,7 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.budgets import BudgetNotification
-from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.events import AgentRun
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.services.notifications import send_slack_message
 
@@ -228,7 +228,7 @@ async def _send_alert_notification(
         f"{rule.metric} = {metric_label} {operator_label} {threshold_label} "
         f"(last {window_label})"
     )
-    blocks: list[dict] = [
+    blocks: list[dict[str, object]] = [
         {
             "type": "header",
             "text": {

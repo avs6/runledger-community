@@ -69,7 +69,7 @@ if resp.status_code == 201:
     prompt = resp.json()
     print(f"  Created: name={prompt['name']}  id={prompt['id'][:8]}…")
 elif resp.status_code == 409:
-    print(f"  Already exists — continuing with existing prompt")
+    print("  Already exists — continuing with existing prompt")
 else:
     print(f"  ERROR {resp.status_code}: {resp.text}")
 
@@ -164,7 +164,7 @@ try:
         variables={"user_name": "Alice", "company": "Acme Corp"},
     )
     print(f"  Fetched version: v{rendered['version']}")
-    print(f"  Rendered content:")
+    print("  Rendered content:")
     print(f"    {rendered['content']}")
 
     # Second call hits the cache (no HTTP request)

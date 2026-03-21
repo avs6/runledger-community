@@ -4,8 +4,12 @@ import type {
   AlertRule,
   AlertRuleList,
   GatewayRoute,
+  GatewayRequestList,
   GatewayRouteList,
   GatewayStats,
+  RoutingPolicy,
+  RoutingPolicyList,
+  RoutingPolicyType,
   AdminWorkspaceResponse,
   AnalyticsExport,
   AnalyticsSummary,
@@ -286,6 +290,10 @@ export async function createBudgetNotification(
 
 export async function getBillingPeriods(apiKey: string): Promise<BillingPeriodList> {
   return apiFetch<BillingPeriodList>('/billing/periods', apiKey)
+}
+
+export async function getBillingPeriod(apiKey: string, id: string): Promise<BillingPeriod> {
+  return apiFetch<BillingPeriod>(`/billing/periods/${id}`, apiKey)
 }
 
 export async function createBillingPeriod(
@@ -1004,4 +1012,53 @@ export async function deleteGatewayRoute(apiKey: string, routeId: string): Promi
 
 export async function getGatewayStats(apiKey: string): Promise<GatewayStats> {
   return apiFetch<GatewayStats>('/gateway/stats', apiKey)
+}
+
+export async function listGatewayRequests(
+  apiKey: string,
+  params?: { alias?: string; status?: string; limit?: number; offset?: number }
+): Promise<GatewayRequestList> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<GatewayRequestList>(`/gateway/requests${qs}`, apiKey)
+}
+
+// ── Routing policies ──────────────────────────────────────────────────────────
+
+export async function listRoutingPolicies(apiKey: string): Promise<RoutingPolicyList> {
+  return apiFetch<RoutingPolicyList>('/gateway/policies', apiKey)
+}
+
+export async function createRoutingPolicy(
+  apiKey: string,
+  body: { alias: string; policy_type: RoutingPolicyType; config: Record<string, unknown> }
+): Promise<RoutingPolicy> {
+  return apiFetch<RoutingPolicy>('/gateway/policies', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateRoutingPolicy(
+  apiKey: string,
+  policyId: string,
+  body: { policy_type?: RoutingPolicyType; config?: Record<string, unknown>; is_active?: boolean }
+): Promise<RoutingPolicy> {
+  return apiFetch<RoutingPolicy>(`/gateway/policies/${policyId}`, apiKey, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteRoutingPolicy(apiKey: string, policyId: string): Promise<void> {
+  await apiFetch<void>(`/gateway/policies/${policyId}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Org Dashboard ─────────────────────────────────────────────────────────────
+
+export async function getOrgDashboard(apiKey: string): Promise<import('@/types/api').OrgDashboard> {
+  return apiFetch<import('@/types/api').OrgDashboard>('/org/dashboard', apiKey)
 }

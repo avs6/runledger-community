@@ -23,6 +23,40 @@ class EnvironmentEnum(StrEnum):
     prod = "prod"
 
 
+class TenantRoleEnum(StrEnum):
+    org_admin = "org_admin"
+    org_manager = "org_manager"
+    org_member = "org_member"
+    org_billing_admin = "org_billing_admin"
+    org_auditor = "org_auditor"
+
+
+class WorkspaceRoleEnum(StrEnum):
+    workspace_admin = "workspace_admin"
+    workspace_editor = "workspace_editor"
+    workspace_contributor = "workspace_contributor"
+    member = "member"           # legacy alias for workspace_editor
+    viewer = "viewer"
+
+
+class TenantStatusEnum(StrEnum):
+    active = "active"
+    suspended = "suspended"
+    archived = "archived"
+
+
+class WorkspaceStatusEnum(StrEnum):
+    active = "active"
+    suspended = "suspended"
+    archived = "archived"
+
+
+class MemberStatusEnum(StrEnum):
+    active = "active"
+    invited = "invited"
+    suspended = "suspended"
+
+
 class Tenant(Base):
     __tablename__ = "tenants"
 
@@ -34,11 +68,23 @@ class Tenant(Base):
     plan: Mapped[PlanEnum] = mapped_column(
         sa.Enum(PlanEnum, name="plan_enum"), default=PlanEnum.free
     )
+    status: Mapped[TenantStatusEnum] = mapped_column(
+        sa.String(16), nullable=False, server_default="active"
+    )
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    is_default: Mapped[bool] = mapped_column(
+        sa.Boolean, server_default=sa.text("false"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
-    workspaces: Mapped[list["Workspace"]] = relationship(back_populates="tenant")
+    workspaces: Mapped[list["Workspace"]] = relationship(back_populates="tenant", passive_deletes=True)
+    tenant_users: Mapped[list["TenantUser"]] = relationship(back_populates="tenant", passive_deletes=True)
 
 
 class Workspace(Base):
@@ -51,13 +97,19 @@ class Workspace(Base):
         PGUUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(sa.String(255))
+    status: Mapped[WorkspaceStatusEnum] = mapped_column(
+        sa.String(16), nullable=False, server_default="active"
+    )
+    is_restricted: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="workspaces")
-    applications: Mapped[list["Application"]] = relationship(back_populates="workspace")
-    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="workspace")
+    applications: Mapped[list["Application"]] = relationship(back_populates="workspace", passive_deletes=True)
+    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="workspace", passive_deletes=True)
 
 
 class Application(Base):
@@ -118,12 +170,24 @@ class User(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
+    username: Mapped[str | None] = mapped_column(sa.String(64), unique=True, nullable=True)
     password_hash: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    full_name: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, server_default=sa.text("true"), nullable=False
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    is_platform_admin: Mapped[bool] = mapped_column(
+        sa.Boolean, server_default=sa.text("false"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
-    workspace_users: Mapped[list["WorkspaceUser"]] = relationship(back_populates="user")
+    workspace_users: Mapped[list["WorkspaceUser"]] = relationship(back_populates="user", passive_deletes=True)
+    tenant_users: Mapped[list["TenantUser"]] = relationship(back_populates="user", passive_deletes=True)
 
 
 class WorkspaceUser(Base):
@@ -142,10 +206,77 @@ class WorkspaceUser(Base):
         sa.ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
     )
-    role: Mapped[str] = mapped_column(sa.String(32), server_default="admin")
+    role: Mapped[WorkspaceRoleEnum] = mapped_column(
+        sa.Enum(WorkspaceRoleEnum, name="workspace_role_enum"),
+        server_default="workspace_admin",
+        nullable=False,
+    )
+    status: Mapped[MemberStatusEnum] = mapped_column(
+        sa.String(16), nullable=False, server_default="active"
+    )
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
     user: Mapped["User"] = relationship(back_populates="workspace_users")
     workspace: Mapped["Workspace"] = relationship()
+
+
+class TenantUser(Base):
+    __tablename__ = "tenant_users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    role: Mapped[TenantRoleEnum] = mapped_column(
+        sa.Enum(TenantRoleEnum, name="tenant_role_enum"),
+        server_default="org_member",
+        nullable=False,
+    )
+    status: Mapped[MemberStatusEnum] = mapped_column(
+        sa.String(16), nullable=False, server_default="active"
+    )
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
+    )
+
+    user: Mapped["User"] = relationship(back_populates="tenant_users")
+    tenant: Mapped["Tenant"] = relationship(back_populates="tenant_users")
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    target_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    scope_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    scope_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    action: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    old_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )

@@ -60,22 +60,41 @@ pip install "runledger-sdk[all]"
 # 1. Clone the repo and start the stack
 git clone https://github.com/yourorg/runledger
 cd runledger
-docker compose up -d          # starts Postgres + Redis + API
+docker compose -f infra/docker-compose.yml up -d --build
 
 # 2. Run migrations
-docker compose exec api uv run alembic upgrade head
+docker exec infra-api-1 uv run alembic upgrade head
 
-# 3. Seed a dev workspace and API key
-docker compose exec api uv run python scripts/seed.py
+# 3. Bootstrap the platform admin (one-time setup)
+curl -s -X POST http://localhost:8000/admin/bootstrap \
+  -H "X-Admin-Secret: runledger-admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@runledger.io",
+    "password": "Admin123!",
+    "full_name": "Platform Admin",
+    "org_name": "RunLedger"
+  }'
 ```
 
-The seed script prints your API key — save it, it won't be shown again:
+The bootstrap call returns your API key and org details:
 
+```json
+{
+  "user_id": "...",
+  "tenant_id": "...",
+  "workspace_id": "...",
+  "api_key": "rl_test_xxxxxxxxxxxxxxxxxxxx",
+  "message": "Platform admin 'admin@runledger.io' ready."
+}
 ```
-Tenant:    default  (a1b2c3...)
-Workspace: default  (d4e5f6...)
-API Key:   rl_test_xxxxxxxxxxxxxxxxxxxx
-```
+
+4. Update `examples/.env` with the returned `api_key`, then:
+   - Open **http://localhost:3000**
+   - Login with `admin@runledger.io` / `Admin123!`
+   - You'll see a **Platform Admin** section in the sidebar
+
+> **Roles**: Platform admin can create new organizations via **Admin → Tenants**. Each org gets its own admin user and workspace. Org admins manage their own users, workspaces, and settings without needing the platform admin secret.
 
 ### Option B — Local mode (zero setup, events logged to console)
 
@@ -433,6 +452,9 @@ uv run python examples/06_ollama_local.py           # sends to RunLedger API
 # Example 7: Analytics API query (requires a running RunLedger stack with data)
 export RUNLEDGER_API_KEY=rl_test_...
 uv run python examples/07_analytics_query.py
+
+# Example 19: Unified policy decision checks
+uv run python examples/19_policy_check.py
 ```
 
 ---
@@ -806,6 +828,32 @@ If OpenAI returns 429 or 5xx, the gateway automatically retries via Groq.
 curl "$BASE/gateway/stats" -H "Authorization: Bearer $KEY"
 # → { "total_requests": 42, "cache_hits": 18, "cache_hit_rate": "0.4286",
 #     "avg_latency_ms": "312.50", "routes": [...] }
+```
+
+---
+
+## 17. Unified policy checks
+
+Use one endpoint to evaluate budgets, tool policies, gateway route readiness, and optional score gates before allowing an action.
+
+```bash
+KEY=rl_test_...
+BASE=http://localhost:8000
+
+# Simple admission check
+curl -X POST "$BASE/policies/check" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{}'
+
+# Tool + gateway checks
+curl -X POST "$BASE/policies/check" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"tool_name":"search","model_alias":"gpt-4o-mini","end_user_id":"user-alice"}'
+
+# Add a score gate for release checks
+curl -X POST "$BASE/policies/check" -H "Authorization: Bearer $KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"score_gate":{"name":"helpfulness","min_value":80,"source":"human"}}'
 ```
 
 ---

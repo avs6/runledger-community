@@ -284,19 +284,25 @@ async def test_get_results_completed(
                 "projected_cost_usd": "0.15000000",
                 "avg_cost_per_run": "0.03000000",
                 "pricing_found": True,
+                "prompt_name": "support-agent",
+                "prompt_version": 2,
+                "prompt_content_preview": "You are a helpful support agent...",
             },
             {
                 "model": "gpt-4o-mini",
                 "label": None,
-                "run_count": 5,
-                "total_input_tokens": 10000,
-                "total_output_tokens": 5000,
+                "run_count": 3,
+                "total_input_tokens": 6000,
+                "total_output_tokens": 3000,
                 "projected_cost_usd": "0.02250000",
                 "avg_cost_per_run": "0.00450000",
                 "pricing_found": True,
+                "prompt_name": "support-agent",
+                "prompt_version": 3,
+                "prompt_content_preview": "You are a concise support agent...",
             },
         ],
-        "deltas": [{"config_a": "gpt-4o", "config_b": "gpt-4o-mini", "cost_delta_pct": "-85.0"}],
+        "deltas": [{"config_a": "gpt-4o / support-agent@v2", "config_b": "gpt-4o-mini / support-agent@v3", "cost_delta_pct": "-85.0"}],
         "dataset_run_count": 5,
         "completed_at": completed_at,
     }
@@ -312,8 +318,58 @@ async def test_get_results_completed(
     assert len(data["configs"]) == 2
     assert len(data["deltas"]) == 1
     assert data["configs"][0]["model"] == "gpt-4o"
-    assert data["deltas"][0]["config_a"] == "gpt-4o"
+    assert data["configs"][0]["prompt_name"] == "support-agent"
+    assert data["configs"][0]["prompt_version"] == 2
+    assert data["configs"][0]["prompt_content_preview"] == "You are a helpful support agent..."
+    assert data["configs"][1]["run_count"] == 3
+    assert "support-agent@v2" in data["deltas"][0]["config_a"]
     assert data["completed_at"] is not None
+
+
+# ── POST /replay/experiments with prompt config ───────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_experiment_with_prompt(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """Experiment configs with prompt_name + prompt_version are accepted and persisted."""
+    dataset = _make_dataset()
+    experiment = _make_experiment(
+        dataset_id=dataset.id,
+        configs=[
+            {"model": "gpt-4o", "prompt_name": "support-agent", "prompt_version": 2},
+            {"model": "gpt-4o", "prompt_name": "support-agent", "prompt_version": 3},
+        ],
+    )
+
+    async def mock_refresh(obj: object) -> None:
+        obj.id = experiment.id  # type: ignore[attr-defined]
+        obj.created_at = experiment.created_at  # type: ignore[attr-defined]
+
+    mock_db_session.refresh = mock_refresh
+    mock_db_session.execute = AsyncMock(return_value=_scalar_orm_result(dataset))
+
+    response = await authed_client.post(
+        "/replay/experiments",
+        json={
+            "dataset_id": str(dataset.id),
+            "name": "prompt-v2-vs-v3",
+            "configs": [
+                {"model": "gpt-4o", "prompt_name": "support-agent", "prompt_version": 2},
+                {"model": "gpt-4o", "prompt_name": "support-agent", "prompt_version": 3},
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["status"] == "pending"
+    assert len(data["configs"]) == 2
+    assert data["configs"][0]["prompt_name"] == "support-agent"
+    assert data["configs"][0]["prompt_version"] == 2
+    assert data["configs"][1]["prompt_version"] == 3
 
 
 # ── Auth guard ────────────────────────────────────────────────────────────────

@@ -1,12 +1,12 @@
 """
-ORM models for the Model Gateway: routes, request log, and prompt cache.
+ORM models for the Model Gateway: routes, routing policies, request log, and prompt cache.
 """
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from decimal import Decimal
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
@@ -83,7 +83,60 @@ class GatewayRequest(Base):
     output_tokens: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="success")
+    decision_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+
+class RoutingPolicy(Base):
+    """
+    A routing policy that governs how the gateway selects routes for a given alias.
+
+    policy_type values:
+      manual            — priority order (default, existing behaviour)
+      cost_optimized    — cheapest route above a quality floor
+      latency_optimized — lowest p95 latency from recent gateway_requests
+      quality_optimized — highest avg score from score_events
+      weighted          — weighted random split across routes
+      canary            — send X% to a canary route, rest via priority
+      budget_aware      — downgrade to cheaper alias when budget threshold hit
+      complexity_based  — branch to different alias based on input token count
+
+    config keys (by type):
+      cost_optimized:    quality_floor (0–1), lookback_days
+      latency_optimized: max_p95_ms, quality_floor, lookback_hours
+      quality_optimized: metric ("quality"|"relevance"), lookback_days
+      weighted:          weights {route_id: float, ...}
+      canary:            canary_route_id, canary_pct (0–1)
+      budget_aware:      budget_id, threshold_pct (0–1), fallback_alias
+      complexity_based:  token_threshold, simple_alias, complex_alias
+    """
+
+    __tablename__ = "routing_policies"
+    __table_args__ = (
+        sa.UniqueConstraint("workspace_id", "alias", name="uq_routing_policies_workspace_alias"),
+        sa.Index("ix_routing_policies_workspace", "workspace_id", "alias"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    alias: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    policy_type: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default="manual"
+    )
+    config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
 
@@ -109,7 +162,7 @@ class PromptCache(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     cache_key: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     model: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    response_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    response_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     prompt_tokens: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     hit_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="0")

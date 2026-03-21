@@ -23,8 +23,11 @@ from runledger_api.models.tenant import (
     EnvironmentEnum,
     PlanEnum,
     Tenant,
+    TenantRoleEnum,
+    TenantUser,
     User,
     Workspace,
+    WorkspaceRoleEnum,
     WorkspaceUser,
 )
 from runledger_api.services.auth import generate_api_key
@@ -73,7 +76,7 @@ async def _seed_tenant(session: object) -> Workspace | None:
         print("Tenant seed data already exists — skipping.")
         return None
 
-    tenant = Tenant(slug="default", name="Default Org", plan=PlanEnum.free)
+    tenant = Tenant(slug="default", name="Default Org", plan=PlanEnum.free, is_default=True)
     session.add(tenant)
     await session.flush()
 
@@ -123,22 +126,32 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
     user = User(
         email=_DEFAULT_EMAIL,
         password_hash=bcrypt.hashpw(_DEFAULT_PASSWORD.encode(), bcrypt.gensalt()).decode(),
+        full_name="Platform Admin",
+        is_active=True,
+        is_platform_admin=True,
     )
     session.add(user)
     await session.flush()
 
-    workspace_user = WorkspaceUser(
+    # Link user as org admin on the default tenant
+    tenant_result = await session.execute(select(Tenant).where(Tenant.is_default == True))  # noqa: E712
+    default_tenant = tenant_result.scalar_one_or_none()
+    if default_tenant is not None:
+        default_tenant.owner_user_id = user.id
+        session.add(TenantUser(tenant_id=default_tenant.id, user_id=user.id, role=TenantRoleEnum.org_admin))
+
+    session.add(WorkspaceUser(
         workspace_id=workspace.id,
         user_id=user.id,
-        role="admin",
-    )
-    session.add(workspace_user)
+        role=WorkspaceRoleEnum.workspace_admin,
+    ))
     await session.commit()
 
-    print("\nDashboard login:")
+    print("\nDashboard login (Platform Admin):")
     print(f"  Email:    {_DEFAULT_EMAIL}")
     print(f"  Password: {_DEFAULT_PASSWORD}")
     print("  URL:      http://localhost:3000")
+    print("  Role:     Platform Admin (can create orgs via Sidebar → Platform Admin → Tenants)")
 
 
 async def _seed_pricing(session: object) -> None:

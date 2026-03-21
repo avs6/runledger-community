@@ -1,3 +1,5 @@
+name: runledger
+
 services:
   # ── Infrastructure ───────────────────────────────────────────────────────────
 
@@ -44,10 +46,18 @@ services:
       ENVIRONMENT: development
       LOG_LEVEL: INFO
       CORS_ORIGINS: http://localhost:3000
+      # MCP server (mounted at /mcp) calls back to itself via loopback
+      RUNLEDGER_BASE_URL: http://localhost:8000
+      RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
     volumes:
       - ../logs:/app/logs
       # Provider pricing — edit config/pricing.yml then restart api + beat to apply
       - ../config/pricing.yml:/app/config/pricing.yml:ro
+    # Allows the gateway to reach Ollama (or other host-based services) at
+    # http://host.docker.internal:11434 on all platforms (Linux needs this extra_hosts entry;
+    # Docker Desktop on Mac/Windows provides it automatically).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

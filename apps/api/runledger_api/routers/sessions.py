@@ -117,7 +117,8 @@ async def get_session(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
 
     total_cost: Decimal = sum(
-        (r.total_cost_usd or Decimal("0")) for r in runs
+        ((r.total_cost_usd or Decimal("0")) for r in runs),
+        start=Decimal("0"),
     )
 
     run_items = [

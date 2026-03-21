@@ -1,4 +1,4 @@
-"""Pydantic schemas for tool registry and security events (Phase 11)."""
+"""Pydantic schemas for tool registry and security events (Phase 11 + runtime enforcement)."""
 
 from __future__ import annotations
 
@@ -12,11 +12,13 @@ class ToolRegistryCreate(BaseModel):
     tool_name: str
     policy: str = "audit"
     description: str | None = None
+    runtime_enforcement: bool = False
 
 
 class ToolRegistryUpdate(BaseModel):
     policy: str | None = None
     description: str | None = None
+    runtime_enforcement: bool | None = None
 
 
 class ToolRegistryResponse(BaseModel):
@@ -24,6 +26,7 @@ class ToolRegistryResponse(BaseModel):
     workspace_id: str
     tool_name: str
     policy: str
+    runtime_enforcement: bool
     description: str | None
     created_at: datetime
     updated_at: datetime
@@ -33,6 +36,15 @@ class ToolRegistryResponse(BaseModel):
 
 class ToolRegistryList(BaseModel):
     items: list[ToolRegistryResponse]
+
+
+class ToolCheckResponse(BaseModel):
+    """Response from GET /tools/check/{tool_name} — used by SDK runtime enforcement."""
+
+    tool_name: str
+    policy: str  # allow | audit | block
+    runtime_enforcement: bool
+    allowed: bool  # False when policy=block and runtime_enforcement=True
 
 
 class SecurityEventResponse(BaseModel):

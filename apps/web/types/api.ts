@@ -259,13 +259,14 @@ export interface ChargebackRule {
 
 export interface ReconciliationResult {
   period_id: string
-  status: 'pass' | 'fail'
+  status: 'pass' | 'warning' | 'fail'
   provider_calls_sum: string
   usage_daily_sum: string
   delta_pct: string
   orphaned_calls: number
   duplicate_calls: number
   issues: string[]
+  warnings?: string[]
 }
 
 export interface BreakdownUser {
@@ -392,12 +393,12 @@ export interface AnomalyList { items: AnomalyItem[] }
 
 // ── Phase 10 — Replay ─────────────────────────────────────────────────────────
 
-export interface ExperimentConfig { model: string; label?: string }
+export interface ExperimentConfig { model: string; label?: string | null; prompt_name?: string | null; prompt_version?: number | null }
 export interface DatasetResponse { id: string; name: string; source: string; run_ids: string[]; run_count: number; created_at: string }
 export interface DatasetList { items: DatasetResponse[] }
 export interface ExperimentResponse { id: string; dataset_id: string; name: string; configs: ExperimentConfig[]; status: string; estimated_cost_usd: string | null; created_at: string }
 export interface ExperimentList { items: ExperimentResponse[] }
-export interface ConfigResult { model: string; label?: string; run_count: number; total_input_tokens: number; total_output_tokens: number; projected_cost_usd: string; avg_cost_per_run: string; pricing_found: boolean }
+export interface ConfigResult { model: string; label?: string | null; run_count: number; total_input_tokens: number; total_output_tokens: number; projected_cost_usd: string; avg_cost_per_run: string; pricing_found: boolean; prompt_name?: string | null; prompt_version?: number | null; prompt_content_preview?: string | null }
 export interface ConfigDelta { config_a: string; config_b: string; cost_delta_pct: string | null }
 export interface ExperimentResults { experiment_id: string; experiment_name: string; status: string; dataset_run_count: number; configs: ConfigResult[]; deltas: ConfigDelta[]; completed_at: string | null }
 
@@ -442,9 +443,42 @@ export interface NotificationList { items: NotificationResponse[] }
 export interface ChargebackRuleResponse { id: string; allocation_type: string; dimension: string; weight: string; created_at: string }
 export interface ChargebackRuleList { items: ChargebackRuleResponse[] }
 
-// ── Admin types ────────────────────────────────────────────────────────────────
-export interface TenantResponse { id: string; slug: string; name: string; plan: string; created_at: string }
-export interface AdminWorkspaceResponse { id: string; tenant_id: string; name: string; created_at: string }
+// ── Admin / multi-tenancy types ─────────────────────────────────────────────────
+export type TenantStatus = 'active' | 'suspended' | 'archived'
+export type WorkspaceStatus = 'active' | 'suspended' | 'archived'
+export type MemberStatus = 'active' | 'invited' | 'suspended'
+
+export interface TenantResponse {
+  id: string
+  name: string
+  plan: string
+  status: TenantStatus
+  is_default: boolean
+  owner_user_id: string | null
+  created_at: string
+  workspace_count: number
+  member_count: number
+}
+export interface AdminWorkspaceResponse {
+  id: string
+  tenant_id: string
+  name: string
+  status: WorkspaceStatus
+  is_restricted: boolean
+  created_at: string
+}
+
+export interface AuditEventResponse {
+  id: string
+  actor_user_id: string | null
+  target_user_id: string | null
+  scope_type: string
+  scope_id: string
+  action: string
+  old_value: string | null
+  new_value: string | null
+  created_at: string
+}
 
 // ── Phase 17 — Evaluations & Scores ───────────────────────────────────────────
 
@@ -656,4 +690,88 @@ export interface GatewayStats {
   cache_hit_rate: string
   avg_latency_ms: string | null
   routes: GatewayRouteStats[]
+}
+
+export interface GatewayRequestLog {
+  id: string
+  workspace_id: string
+  route_id: string | null
+  model_requested: string
+  model_used: string | null
+  cache_hit: boolean
+  input_tokens: number | null
+  output_tokens: number | null
+  latency_ms: number | null
+  status: string
+  decision_reason: string | null
+  created_at: string
+}
+
+export interface GatewayRequestList {
+  items: GatewayRequestLog[]
+  total: number
+}
+
+export type RoutingPolicyType =
+  | 'manual'
+  | 'cost_optimized'
+  | 'latency_optimized'
+  | 'quality_optimized'
+  | 'weighted'
+  | 'canary'
+  | 'budget_aware'
+  | 'complexity_based'
+
+export interface RoutingPolicy {
+  id: string
+  workspace_id: string
+  alias: string
+  policy_type: RoutingPolicyType
+  config: Record<string, unknown>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface RoutingPolicyList {
+  items: RoutingPolicy[]
+}
+
+// ── Org Dashboard ──────────────────────────────────────────────────────────────
+
+export interface OrgDashboardWorkspace {
+  id: string
+  name: string
+  status: string
+  cost_usd: string
+  run_count: number
+  member_count: number
+}
+
+export interface OrgDashboardModel {
+  model: string
+  cost_usd: string
+  call_count: number
+}
+
+export interface OrgDashboardRun {
+  id: string
+  workspace_name: string
+  status: string
+  feature_tag: string | null
+  total_cost_usd: string | null
+  started_at: string | null
+}
+
+export interface OrgDashboard {
+  tenant_name: string
+  workspace_count: number
+  member_count: number
+  total_cost_usd: string
+  run_count: number
+  total_tokens: number
+  cost_delta_pct: string | null
+  workspaces: OrgDashboardWorkspace[]
+  top_models: OrgDashboardModel[]
+  recent_runs: OrgDashboardRun[]
 }

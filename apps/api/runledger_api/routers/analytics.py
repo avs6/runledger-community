@@ -50,11 +50,6 @@ from runledger_api.schemas.analytics import (
     UserSpend,
     UserSpendDetail,
 )
-from runledger_api.schemas.scores import (
-    ScoreRegressionItem,
-    ScoreSummary,
-    ScoreSummaryItem,
-)
 from runledger_api.schemas.economics import (
     AnnotationCreate,
     AnnotationList,
@@ -69,6 +64,11 @@ from runledger_api.schemas.economics import (
     VersionSummary,
     WorkflowSummary,
     WorkflowTopList,
+)
+from runledger_api.schemas.scores import (
+    ScoreRegressionItem,
+    ScoreSummary,
+    ScoreSummaryItem,
 )
 
 router = APIRouter(

@@ -56,8 +56,11 @@ Run it
     python 09_economics_query.py --run-id <run_uuid> --baseline v1 --comparison v2
 
 Key .env variables used here:
-    RUNLEDGER_API_KEY   — your workspace API key
+    RUNLEDGER_API_KEY   — your workspace API key (all queries scoped to this workspace)
     RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+
+All economics and analytics endpoints return data scoped to the workspace the
+API key belongs to. Switching workspaces = swap RUNLEDGER_API_KEY.
 """
 
 from __future__ import annotations
@@ -65,7 +68,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 
 import httpx
 from dotenv import load_dotenv
@@ -185,7 +188,7 @@ def main() -> None:
     parser.add_argument("--skip-annotation", action="store_true", help="Skip annotation creation")
     args = parser.parse_args()
 
-    print(f"\nRunLedger Economics + Change Impact")
+    print("\nRunLedger Economics + Change Impact")
     print(f"API: {BASE_URL}\n")
 
     # ── Section 1: Per-run economics ──────────────────────────────────────────
@@ -290,7 +293,7 @@ def main() -> None:
 
         if cmp["by_span_type"]:
             print()
-            print(f"  Cost delta by span type:")
+            print("  Cost delta by span type:")
             print(f"  {'Span type':<14} {'Baseline':>12} {'Comparison':>12} {'Δ%':>10}")
             print(f"  {'─'*14} {'─'*12} {'─'*12} {'─'*10}")
             for row in cmp["by_span_type"]:

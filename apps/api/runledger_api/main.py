@@ -9,7 +9,7 @@ from runledger_api.core.config import settings
 from runledger_api.core.db import AsyncSessionLocal, engine
 from runledger_api.core.logging import configure_logging
 from runledger_api.core.redis import redis_client
-from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
+from runledger_api.routers import alerts as alerts_router
 from runledger_api.routers import (
     analytics,
     auth,
@@ -24,14 +24,19 @@ from runledger_api.routers import (
     runs,
     tools,
 )
-from runledger_api.routers import alerts as alerts_router
 from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import gateway as gateway_router
 from runledger_api.routers import integrations as integrations_router
+from runledger_api.routers import policies as policies_router
 from runledger_api.routers import prompts as prompts_router
 from runledger_api.routers import providers as providers_router
 from runledger_api.routers import sessions as sessions_router
 from runledger_api.routers import settings as settings_router
+from runledger_api.routers import users as users_router
+from runledger_api.routers import org as org_router
+from runledger_api.routers import platform as platform_router
+from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
+from runledger_api.mcp_server import mcp as _mcp_server
 
 configure_logging()
 log = structlog.get_logger()
@@ -92,3 +97,14 @@ app.include_router(gateway_router.router)
 app.include_router(evaluations_router.router)
 app.include_router(prompts_router.router)
 app.include_router(sessions_router.router)
+app.include_router(policies_router.router)
+app.include_router(users_router.router)
+app.include_router(org_router.router)
+app.include_router(platform_router.router)
+
+# ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
+# Connect Claude Desktop / Claude Code:
+#   claude mcp add --transport http runledger http://localhost:8000/mcp
+# Or in claude_desktop_config.json:
+#   { "mcpServers": { "runledger": { "url": "http://localhost:8000/mcp" } } }
+app.mount("/mcp", _mcp_server.streamable_http_app())

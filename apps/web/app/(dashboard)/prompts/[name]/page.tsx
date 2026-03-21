@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
@@ -93,10 +93,9 @@ function SimpleDiff({ oldText, newText }: { oldText: string; newText: string }) 
 export default function PromptDetailPage({
   params,
 }: {
-  params: Promise<{ name: string }>
+  params: { name: string }
 }) {
-  const { name } = use(params)
-  const decodedName = decodeURIComponent(name)
+  const decodedName = decodeURIComponent(params.name)
   const { data: session } = useSession()
   const router = useRouter()
 
@@ -407,7 +406,7 @@ export default function PromptDetailPage({
                 <SimpleDiff oldText={versionA.content} newText={versionB.content} />
               ) : (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Select a "before" and "after" version from the history to compare them.
+                  Select a &quot;before&quot; and &quot;after&quot; version from the history to compare them.
                 </p>
               )}
             </CardContent>

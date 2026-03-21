@@ -2,21 +2,29 @@
 
 import { useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { AlertRule, AlertFiring, ApiKeyResponse, ProviderPricingResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, GatewayRoute, GatewayStats } from '@/types/api'
+import {
+  Key, Bell, Shield, Settings2, Users, Building2, Plug, Terminal, CheckCheck, Lock,
+  Search, X, SlidersHorizontal,
+} from 'lucide-react'
+import type {
+  LedgerSnapshotResponse,
+  LedgerVerifyResult,
+} from '@/types/api'
+import {
+  listLedgerSnapshots,
+  generateLedgerSnapshot,
+  verifyLedgerSnapshot,
+} from '@/lib/api'
+import { useRole } from '@/components/rbac/useRole'
+import OrgTab from '@/components/settings/OrgTab'
+import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse } from '@/types/api'
 import {
   listApiKeys,
   createApiKey,
   revokeApiKey,
-  repriceProvider,
-  listProviderPricing,
-  createProviderPricing,
-  updateProviderPricing,
-  deleteProviderPricing,
-  createGlobalPricing,
-  updateGlobalPricing,
-  deleteGlobalPricing,
   testSlackWebhook,
   getCapturePolicy,
   upsertCapturePolicy,
@@ -29,48 +37,55 @@ import {
   updateAlertRule,
   deleteAlertRule,
   listAlertHistory,
-  listGatewayRoutes,
-  createGatewayRoute,
-  updateGatewayRoute,
-  deleteGatewayRoute,
-  getGatewayStats,
 } from '@/lib/api'
 
-interface EditState {
-  id: string
-  isGlobal: boolean
-  input: string
-  output: string
-  cached: string
+interface WorkspaceUser {
+  user_id: string
+  workspace_id: string
+  email: string
+  full_name: string | null
+  role: string
+  is_active: boolean
+  last_login_at: string | null
+  joined_at: string
 }
 
 // Shared input/select class with full dark mode support
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
 
+const TABS = [
+  { id: 'api-keys', label: 'API Keys', icon: Key, adminOnly: false },
+  { id: 'mcp', label: 'MCP', icon: Plug, adminOnly: false },
+  { id: 'alerts', label: 'Alert Rules', icon: Bell, adminOnly: false },
+  { id: 'integrations', label: 'Integrations', icon: Settings2, adminOnly: false },
+  { id: 'privacy', label: 'Data Capture', icon: Shield, adminOnly: false },
+  { id: 'compliance', label: 'Compliance', icon: Lock, adminOnly: false },
+]
+
 export default function SettingsPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
   const { theme, setTheme } = useTheme()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const { isWorkspaceAdmin, isOrgAdmin, isPlatformAdmin } = useRole()
+
+  const activeTab = searchParams.get('tab') || 'api-keys'
+  const setTab = (tab: string) => router.push(`/settings?tab=${tab}`)
 
   // ── API Keys ────────────────────────────────────────────────────────────────
   const [apiKeys, setApiKeys] = useState<ApiKeyResponse[]>([])
+  const [keySearch, setKeySearch] = useState('')
+  const [keyUserFilter, setKeyUserFilter] = useState('')
   const [newKeyName, setNewKeyName] = useState('')
   const [newKeyEnv, setNewKeyEnv] = useState('dev')
   const [creatingKey, setCreatingKey] = useState(false)
   const [newRawKey, setNewRawKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [mcpCopied, setMcpCopied] = useState<'cli' | 'json' | null>(null)
+  const [mcpSelectedKey, setMcpSelectedKey] = useState<string>('')
 
-  // ── Provider pricing ────────────────────────────────────────────────────────
-  const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
-  const [newProvider, setNewProvider] = useState('')
-  const [newModel, setNewModel] = useState('')
-  const [newInputCost, setNewInputCost] = useState('')
-  const [newOutputCost, setNewOutputCost] = useState('')
-  const [newCachedCost, setNewCachedCost] = useState('')
-  const [addingPricing, setAddingPricing] = useState(false)
-  const [editState, setEditState] = useState<EditState | null>(null)
-  const [savingEdit, setSavingEdit] = useState(false)
 
   // ── Integrations ────────────────────────────────────────────────────────────
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('')
@@ -91,7 +106,6 @@ export default function SettingsPage() {
   const [newTenantName, setNewTenantName] = useState('')
   const [newTenantPlan, setNewTenantPlan] = useState('free')
   const [creatingTenant, setCreatingTenant] = useState(false)
-  // Workspace management (within tenant management)
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null)
   const [workspaces, setWorkspaces] = useState<AdminWorkspaceResponse[]>([])
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false)
@@ -108,31 +122,33 @@ export default function SettingsPage() {
   const [newAlertWindow, setNewAlertWindow] = useState('60')
   const [creatingAlert, setCreatingAlert] = useState(false)
 
-  // ── Model Gateway ─────────────────────────────────────────────────────────────
-  const [gatewayRoutes, setGatewayRoutes] = useState<GatewayRoute[]>([])
-  const [gatewayStats, setGatewayStats] = useState<GatewayStats | null>(null)
-  const [newRouteAlias, setNewRouteAlias] = useState('')
-  const [newRouteProvider, setNewRouteProvider] = useState('openai')
-  const [newRouteTargetModel, setNewRouteTargetModel] = useState('')
-  const [newRouteBaseUrl, setNewRouteBaseUrl] = useState('')
-  const [newRouteApiKeyEnvVar, setNewRouteApiKeyEnvVar] = useState('OPENAI_API_KEY')
-  const [newRoutePriority, setNewRoutePriority] = useState('10')
-  const [creatingRoute, setCreatingRoute] = useState(false)
+
+  // ── Compliance (Ledger) ────────────────────────────────────────────────────────
+  const [snapshots, setSnapshots] = useState<LedgerSnapshotResponse[]>([])
+  const [verifyResults, setVerifyResults] = useState<Record<string, LedgerVerifyResult>>({})
+  const [generatingSnap, setGeneratingSnap] = useState(false)
+  const [verifyingSnap, setVerifyingSnap] = useState<string | null>(null)
+  const [loadingCompliance, setLoadingCompliance] = useState(false)
+  const [complianceAttempted, setComplianceAttempted] = useState(false)
+
+  // ── Workspace users ──────────────────────────────────────────────────────────
+  const [wsUsers, setWsUsers] = useState<WorkspaceUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('member')
+  const [inviting, setInviting] = useState(false)
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [keys, pricingData, policy, alertsData, historyData, routesData, statsData] = await Promise.all([
+      const [keys, policy, alertsData, historyData] = await Promise.all([
         listApiKeys(apiKey),
-        listProviderPricing(apiKey),
         getCapturePolicy(apiKey),
         listAlertRules(apiKey, true),
         listAlertHistory(apiKey, 10),
-        listGatewayRoutes(apiKey, true),
-        getGatewayStats(apiKey),
       ])
       setApiKeys(keys.filter((k) => !k.is_session))
-      setPricing(pricingData.items)
       if (policy) {
         setCapturePolicy(policy)
         setPrivacyMode(policy.privacy_mode)
@@ -140,17 +156,51 @@ export default function SettingsPage() {
       }
       setAlertRules(alertsData.items)
       setAlertHistory(historyData.items)
-      setGatewayRoutes(routesData.items)
-      setGatewayStats(statsData)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load settings')
     }
   }, [apiKey])
 
+  useEffect(() => { load() }, [load])
+
+  const loadWsUsers = useCallback(async () => {
+    if (!apiKey) return
+    setLoadingUsers(true)
+    try {
+      const r = await fetch(`${apiBase}/users`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+      if (r.ok) setWsUsers(await r.json())
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }, [apiKey, apiBase])
+
   useEffect(() => {
-    load()
-  }, [load])
+    if (activeTab === 'users') loadWsUsers()
+  }, [activeTab, loadWsUsers])
+
+  const loadCompliance = useCallback(async () => {
+    if (!apiKey) return
+    setComplianceAttempted(true)
+    setLoadingCompliance(true)
+    try {
+      const snapList = await listLedgerSnapshots(apiKey)
+      setSnapshots(snapList.items)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load compliance data')
+    } finally {
+      setLoadingCompliance(false)
+    }
+  }, [apiKey])
+
+  useEffect(() => {
+    if (activeTab === 'compliance' && !complianceAttempted) loadCompliance()
+  }, [activeTab, complianceAttempted, loadCompliance])
 
   // ── API Key handlers ────────────────────────────────────────────────────────
 
@@ -198,96 +248,6 @@ export default function SettingsPage() {
     await navigator.clipboard.writeText(newRawKey)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  // ── Provider pricing handlers ───────────────────────────────────────────────
-
-  async function handleAddPricing(e: React.FormEvent) {
-    e.preventDefault()
-    if (!apiKey || !newProvider.trim() || !newModel.trim()) return
-    setAddingPricing(true)
-    try {
-      const created = await createProviderPricing(apiKey, {
-        provider: newProvider.trim(),
-        model: newModel.trim(),
-        input_cost_per_1m: newInputCost,
-        output_cost_per_1m: newOutputCost,
-        cached_input_cost_per_1m: newCachedCost.trim() || null,
-      })
-      setPricing((prev) => [created, ...prev])
-      setNewProvider('')
-      setNewModel('')
-      setNewInputCost('')
-      setNewOutputCost('')
-      setNewCachedCost('')
-      toast.success('Provider profile added')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to add provider profile')
-    } finally {
-      setAddingPricing(false)
-    }
-  }
-
-  function startEdit(p: ProviderPricingResponse) {
-    setEditState({
-      id: p.id,
-      isGlobal: !p.workspace_id,
-      input: parseFloat(p.input_cost_per_1m).toString(),
-      output: parseFloat(p.output_cost_per_1m).toString(),
-      cached: p.cached_input_cost_per_1m ? parseFloat(p.cached_input_cost_per_1m).toString() : '',
-    })
-  }
-
-  async function handleSaveEdit() {
-    if (!editState) return
-    setSavingEdit(true)
-    try {
-      const body = {
-        input_cost_per_1m: editState.input,
-        output_cost_per_1m: editState.output,
-        cached_input_cost_per_1m: editState.cached.trim() || null,
-      }
-      const updated = editState.isGlobal
-        ? await updateGlobalPricing(adminSecret, editState.id, body)
-        : await updateProviderPricing(apiKey!, editState.id, body)
-      setPricing((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-      setEditState(null)
-      toast.success('Provider profile updated')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to update provider profile')
-    } finally {
-      setSavingEdit(false)
-    }
-  }
-
-  async function handleReprice(provider: string, model: string) {
-    if (!apiKey) return
-    if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich? This may take a minute.`)) return
-    try {
-      const result = await repriceProvider(apiKey, { provider, model })
-      toast.success(`Reprice queued — ${result.reset} calls reset`)
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to queue reprice')
-    }
-  }
-
-  async function handleDeletePricing(pricingId: string, isGlobal: boolean) {
-    if (!confirm('Delete this pricing profile?')) return
-    try {
-      if (isGlobal) {
-        await deleteGlobalPricing(adminSecret, pricingId)
-      } else {
-        await deleteProviderPricing(apiKey!, pricingId)
-      }
-      setPricing((prev) => prev.filter((p) => p.id !== pricingId))
-      toast.success('Provider profile deleted')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to delete provider profile')
-    }
   }
 
   // ── Integrations handlers ───────────────────────────────────────────────────
@@ -388,58 +348,29 @@ export default function SettingsPage() {
     }
   }
 
-  // ── Model Gateway handlers ────────────────────────────────────────────────────
+  // ── Compliance handlers ─────────────────────────────────────────────────────
 
-  async function handleCreateRoute(e: React.FormEvent) {
-    e.preventDefault()
-    if (!apiKey || !newRouteAlias || !newRouteTargetModel) return
-    setCreatingRoute(true)
-    try {
-      const route = await createGatewayRoute(apiKey, {
-        alias: newRouteAlias.trim(),
-        provider: newRouteProvider,
-        target_model: newRouteTargetModel.trim(),
-        base_url: newRouteBaseUrl.trim() || null,
-        api_key_env_var: newRouteApiKeyEnvVar.trim() || null,
-        priority: parseInt(newRoutePriority, 10) || 10,
-      })
-      setGatewayRoutes((prev) => [...prev, route])
-      setNewRouteAlias('')
-      setNewRouteTargetModel('')
-      setNewRouteBaseUrl('')
-      setNewRouteApiKeyEnvVar('OPENAI_API_KEY')
-      setNewRoutePriority('10')
-      toast.success('Gateway route created')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to create gateway route')
-    } finally {
-      setCreatingRoute(false)
-    }
-  }
-
-  async function handleToggleRoute(route: GatewayRoute) {
+  async function handleGenerateSnapshot() {
     if (!apiKey) return
+    setGeneratingSnap(true)
     try {
-      const updated = await updateGatewayRoute(apiKey, route.id, { is_active: !route.is_active })
-      setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
-      toast.success(updated.is_active ? 'Route enabled' : 'Route disabled')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to update route')
-    }
+      const snap = await generateLedgerSnapshot(apiKey)
+      setSnapshots((prev) => [snap, ...prev.filter((s) => s.snapshot_date !== snap.snapshot_date)])
+      toast.success('Snapshot generated')
+    } catch { toast.error('Failed to generate snapshot') }
+    finally { setGeneratingSnap(false) }
   }
 
-  async function handleDeleteRoute(routeId: string) {
-    if (!apiKey || !confirm('Delete this gateway route?')) return
+  async function handleVerifySnapshot(snap: LedgerSnapshotResponse) {
+    if (!apiKey) return
+    setVerifyingSnap(snap.snapshot_date)
     try {
-      await deleteGatewayRoute(apiKey, routeId)
-      setGatewayRoutes((prev) => prev.filter((r) => r.id !== routeId))
-      toast.success('Gateway route deleted')
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to delete route')
-    }
+      const result = await verifyLedgerSnapshot(apiKey, snap.snapshot_date)
+      setVerifyResults((prev) => ({ ...prev, [snap.snapshot_date]: result }))
+      if (result.match) toast.success('Snapshot integrity verified')
+      else toast.error(`Integrity check failed: ${result.status}`)
+    } catch { toast.error('Failed to verify snapshot') }
+    finally { setVerifyingSnap(null) }
   }
 
   // ── Tenant management handlers ──────────────────────────────────────────────
@@ -518,889 +449,284 @@ export default function SettingsPage() {
     }
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Users handlers ──────────────────────────────────────────────────────────
+
+  async function handleInviteUser(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !inviteEmail.trim()) return
+    setInviting(true)
+    try {
+      const r = await fetch(`${apiBase}/users/invite`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      })
+      if (!r.ok) {
+        const d = await r.json()
+        toast.error(d.detail || 'Failed to invite user')
+        return
+      }
+      setInviteEmail('')
+      toast.success('Invitation sent')
+      await loadWsUsers()
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to invite user')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  async function handleRemoveUser(userId: string, email: string) {
+    if (!apiKey || !confirm(`Remove ${email} from this workspace?`)) return
+    try {
+      await fetch(`${apiBase}/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+      setWsUsers((prev) => prev.filter((u) => u.user_id !== userId))
+      toast.success('User removed from workspace')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to remove user')
+    }
+  }
+
+  async function handleChangeRole(userId: string, role: string) {
+    if (!apiKey) return
+    try {
+      await fetch(`${apiBase}/users/${userId}/role`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
+      setWsUsers((prev) => prev.map((u) => u.user_id === userId ? { ...u, role } : u))
+      toast.success('Role updated')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to update role')
+    }
+  }
+
+  // ── API key filtering ────────────────────────────────────────────────────────
+
+  const currentUserEmail = (session as Record<string, unknown> | null)?.email as string | undefined
+  const workspaceName = (session as Record<string, unknown> | null)?.workspaceName as string | undefined
+  const tenantName = ((session as Record<string, unknown> | null)?.tenantName ?? (session as Record<string, unknown> | null)?.orgName) as string | undefined
+
+  const filteredApiKeys = useMemo(() => {
+    let rows = apiKeys
+    // Non-admins only see their own keys
+    if (!isWorkspaceAdmin && !isPlatformAdmin && currentUserEmail) {
+      rows = rows.filter((k) => k.created_by === currentUserEmail)
+    }
+    if (keyUserFilter.trim()) {
+      const u = keyUserFilter.toLowerCase()
+      rows = rows.filter((k) => (k.created_by ?? '').toLowerCase().includes(u))
+    }
+    if (keySearch.trim()) {
+      const q = keySearch.toLowerCase()
+      rows = rows.filter(
+        (k) =>
+          (k.name ?? '').toLowerCase().includes(q) ||
+          k.key_prefix.toLowerCase().includes(q) ||
+          (k.created_by ?? '').toLowerCase().includes(q)
+      )
+    }
+    return rows
+  }, [apiKeys, keySearch, keyUserFilter, isWorkspaceAdmin, isPlatformAdmin, currentUserEmail])
+
+  // ── Tab content ─────────────────────────────────────────────────────────────
+
+  const visibleTabs = TABS.filter((t) => !t.adminOnly || isOrgAdmin)
 
   return (
-    <div className="space-y-10 p-6">
-      <h1 className="text-2xl font-semibold dark:text-white">Settings</h1>
+    <div className="flex h-full">
+      {/* Sidebar */}
+      <div className="w-52 shrink-0 border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 py-4 px-2">
+        <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Settings</div>
+        <nav className="flex flex-col gap-0.5">
+          {visibleTabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-left w-full transition-colors ${
+                activeTab === id
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm font-medium'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {label}
+            </button>
+          ))}
+        </nav>
 
-      {/* ── API Keys ────────────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-4 text-lg font-medium dark:text-gray-100">API Keys</h2>
-
-        {newRawKey && (
-          <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
-            <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-200">
-              Save this key — it won&apos;t be shown again.
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 rounded bg-white px-3 py-1.5 font-mono text-xs text-gray-800 shadow-inner dark:bg-gray-900 dark:text-gray-100">
-                {newRawKey}
-              </code>
-              <button
-                onClick={handleCopy}
-                className="rounded bg-amber-600 px-3 py-1.5 text-xs text-white hover:bg-amber-700"
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-              <button
-                onClick={() => setNewRawKey(null)}
-                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleCreateKey} className="mb-4 flex flex-wrap gap-2">
-          <input
-            type="text"
-            placeholder="Key name (optional)"
-            value={newKeyName}
-            onChange={(e) => setNewKeyName(e.target.value)}
-            className={inputCls}
-          />
-          <select
-            value={newKeyEnv}
-            onChange={(e) => setNewKeyEnv(e.target.value)}
-            className={inputCls}
-          >
-            <option value="dev">dev</option>
-            <option value="staging">staging</option>
-            <option value="prod">prod</option>
-          </select>
-          <button
-            type="submit"
-            disabled={creatingKey}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {creatingKey ? 'Creating…' : 'Create Key'}
-          </button>
-        </form>
-
-        <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2 text-left">Prefix</th>
-                <th className="px-4 py-2 text-left">Name</th>
-                <th className="px-4 py-2 text-left">Created</th>
-                <th className="px-4 py-2 text-left">Created By</th>
-                <th className="px-4 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {apiKeys.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
-                    No active API keys.
-                  </td>
-                </tr>
-              ) : (
-                apiKeys.map((k) => (
-                  <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{k.key_prefix}…</td>
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{k.name ?? '—'}</td>
-                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">
-                      {new Date(k.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
-                      {k.created_by ?? '—'}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => handleRevoke(k.id)}
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400"
-                      >
-                        Revoke
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ── Provider Profiles ────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-4 text-lg font-medium dark:text-gray-100">Provider Profiles</h2>
-
-        <form onSubmit={handleAddPricing} className="mb-4 flex flex-wrap gap-2">
-          <input
-            type="text"
-            placeholder="Provider (e.g. openai)"
-            value={newProvider}
-            onChange={(e) => setNewProvider(e.target.value)}
-            className={inputCls}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Model (e.g. gpt-4o)"
-            value={newModel}
-            onChange={(e) => setNewModel(e.target.value)}
-            className={inputCls}
-            required
-          />
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="Input $/1M"
-            value={newInputCost}
-            onChange={(e) => setNewInputCost(e.target.value)}
-            className={`w-28 ${inputCls}`}
-            required
-          />
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="Output $/1M"
-            value={newOutputCost}
-            onChange={(e) => setNewOutputCost(e.target.value)}
-            className={`w-28 ${inputCls}`}
-            required
-          />
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="Cached $/1M (opt)"
-            value={newCachedCost}
-            onChange={(e) => setNewCachedCost(e.target.value)}
-            className={`w-36 ${inputCls}`}
-          />
-          <button
-            type="submit"
-            disabled={addingPricing}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {addingPricing ? 'Adding…' : 'Add Profile'}
-          </button>
-        </form>
-
-        <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <tr>
-                <th className="px-4 py-2 text-left">Provider</th>
-                <th className="px-4 py-2 text-left">Model</th>
-                <th className="px-4 py-2 text-right">Input $/1M</th>
-                <th className="px-4 py-2 text-right">Output $/1M</th>
-                <th className="px-4 py-2 text-right">Cached $/1M</th>
-                <th className="px-4 py-2 text-left">Effective From</th>
-                <th className="px-4 py-2 text-left">Scope</th>
-                <th className="px-4 py-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {pricing.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
-                    No pricing profiles. Add a workspace override above.
-                  </td>
-                </tr>
-              ) : (
-                pricing.map((p) => {
-                  const isEditing = editState?.id === p.id
-                  const isOwned = !!p.workspace_id
-                  const miniInput =
-                    'w-24 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-0.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-indigo-500'
-
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{p.provider}</td>
-                      <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{p.model}</td>
-
-                      {isEditing ? (
-                        <>
-                          <td className="px-4 py-1 text-right">
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={editState.input}
-                              onChange={(e) => setEditState({ ...editState, input: e.target.value })}
-                              className={miniInput}
-                            />
-                          </td>
-                          <td className="px-4 py-1 text-right">
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={editState.output}
-                              onChange={(e) => setEditState({ ...editState, output: e.target.value })}
-                              className={miniInput}
-                            />
-                          </td>
-                          <td className="px-4 py-1 text-right">
-                            <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              placeholder="—"
-                              value={editState.cached}
-                              onChange={(e) => setEditState({ ...editState, cached: e.target.value })}
-                              className={miniInput}
-                            />
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-4 py-2 text-right font-mono text-xs dark:text-gray-300">
-                            ${parseFloat(p.input_cost_per_1m).toFixed(4)}
-                          </td>
-                          <td className="px-4 py-2 text-right font-mono text-xs dark:text-gray-300">
-                            ${parseFloat(p.output_cost_per_1m).toFixed(4)}
-                          </td>
-                          <td className="px-4 py-2 text-right font-mono text-xs dark:text-gray-300">
-                            {p.cached_input_cost_per_1m
-                              ? `$${parseFloat(p.cached_input_cost_per_1m).toFixed(4)}`
-                              : '—'}
-                          </td>
-                        </>
-                      )}
-
-                      <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(p.effective_from).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-2">
-                        {isOwned ? (
-                          <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                            workspace
-                          </span>
-                        ) : (
-                          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                            global
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {(isOwned || adminAuthed) ? (
-                          <div className="flex items-center justify-end gap-3">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  onClick={handleSaveEdit}
-                                  disabled={savingEdit}
-                                  className="text-xs font-medium text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
-                                >
-                                  {savingEdit ? 'Saving…' : 'Save'}
-                                </button>
-                                <button
-                                  onClick={() => setEditState(null)}
-                                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                >
-                                  Cancel
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleReprice(p.provider, p.model)}
-                                  className="text-xs text-amber-600 hover:underline dark:text-amber-400"
-                                  title="Reset cost_usd to NULL and trigger re-enrichment"
-                                >
-                                  Reprice
-                                </button>
-                                <button
-                                  onClick={() => startEdit(p)}
-                                  className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDeletePricing(p.id, !isOwned)}
-                                  className="text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400"
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-3">
-                            <button
-                              onClick={() => handleReprice(p.provider, p.model)}
-                              className="text-xs text-amber-600 hover:underline dark:text-amber-400"
-                              title="Reset cost_usd to NULL and trigger re-enrichment"
-                            >
-                              Reprice
-                            </button>
-                            <span className="text-xs text-gray-300 dark:text-gray-600" title="Authenticate as admin (Tenant Management section) to edit global profiles">
-                              admin only
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ── Appearance ──────────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-4 text-lg font-medium dark:text-gray-100">Appearance</h2>
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600 dark:text-gray-400">Theme</label>
+        {/* Appearance at bottom */}
+        <div className="mt-6 px-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Appearance</div>
           <select
             value={theme ?? 'system'}
             onChange={(e) => setTheme(e.target.value)}
-            className={inputCls}
+            className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="light">Light</option>
             <option value="dark">Dark</option>
             <option value="system">System</option>
           </select>
         </div>
-      </section>
+      </div>
 
-      {/* ── Data Capture Policy ─────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Data Capture Policy</h2>
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          Controls what payload data the SDK sends to the collector. Affects privacy and storage.
-        </p>
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-6">
 
-        {capturePolicy && (
-          <div className="mb-4 flex items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Current:</span>
-            <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-              {capturePolicy.privacy_mode}
-            </span>
-            {capturePolicy.sampled_rate && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                @ {(parseFloat(capturePolicy.sampled_rate) * 100).toFixed(0)}% sample rate
-              </span>
-            )}
-          </div>
-        )}
-
-        <form onSubmit={handleSavePrivacy} className="space-y-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 dark:text-gray-400">Privacy mode</label>
-              <select
-                value={privacyMode}
-                onChange={(e) => setPrivacyMode(e.target.value)}
-                className={inputCls}
-              >
-                <option value="METADATA_ONLY">METADATA_ONLY — tokens, model, latency only (default)</option>
-                <option value="ERRORS_ONLY">ERRORS_ONLY — metadata + error messages</option>
-                <option value="SAMPLED">SAMPLED — full payload on a % of runs</option>
-                <option value="FULL">FULL — complete request/response payloads</option>
-              </select>
+        {/* ── API Keys ─────────────────────────────────────────────────────────── */}
+        {activeTab === 'api-keys' && (
+          <div className="space-y-6 max-w-4xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold dark:text-white">API Keys</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Manage API keys for SDK and MCP authentication. Each key is scoped to the current workspace — runs, sessions, and analytics are automatically filtered to this workspace.
+                </p>
+              </div>
+              {workspaceName && (
+                <div className="shrink-0 flex flex-col items-end gap-0.5">
+                  {tenantName && <span className="text-[10px] text-slate-400 dark:text-slate-500">{tenantName}</span>}
+                  <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                    {workspaceName}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {privacyMode === 'SAMPLED' && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Sample rate (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  placeholder="10"
-                  value={sampledRate}
-                  onChange={(e) => setSampledRate(e.target.value)}
-                  className={`w-24 ${inputCls}`}
-                  required
-                />
+            {newRawKey && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
+                <p className="mb-1 text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Save this key — it won&apos;t be shown again.
+                </p>
+                <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+                  This key is scoped to <strong>{workspaceName ?? 'your workspace'}</strong>. Use it in your SDK or MCP config to send runs here.
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-white px-3 py-1.5 font-mono text-xs text-gray-800 shadow-inner dark:bg-gray-900 dark:text-gray-100">
+                    {newRawKey}
+                  </code>
+                  <button onClick={handleCopy} className="rounded bg-amber-600 px-3 py-1.5 text-xs text-white hover:bg-amber-700">
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                  <button
+                    onClick={() => { setTab('mcp'); setMcpSelectedKey(newRawKey) }}
+                    className="rounded bg-teal-600 px-3 py-1.5 text-xs text-white hover:bg-teal-700"
+                  >
+                    Set up MCP →
+                  </button>
+                  <button onClick={() => setNewRawKey(null)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    Dismiss
+                  </button>
+                </div>
               </div>
             )}
-          </div>
 
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-            <strong>FULL</strong> mode stores raw prompts and completions. Ensure you have user consent
-            and appropriate data retention policies before enabling.
-          </div>
-
-          <button
-            type="submit"
-            disabled={savingPrivacy}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {savingPrivacy ? 'Saving…' : 'Save Policy'}
-          </button>
-        </form>
-      </section>
-
-      {/* ── Integrations ────────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-4 text-lg font-medium dark:text-gray-100">Integrations</h2>
-
-        <div className="mb-3 rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
-          Configure budget notifications via{' '}
-          <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">
-            POST /budgets/{'{id}'}/notifications
-          </code>{' '}
-          with <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">channel: &quot;slack&quot;</code>.
-        </div>
-
-        <div className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Slack Webhook</div>
-        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          Paste an incoming webhook URL to test connectivity before configuring budget notifications.
-        </p>
-
-        <form onSubmit={handleTestSlack} className="flex flex-wrap gap-2">
-          <input
-            type="url"
-            placeholder="https://hooks.slack.com/services/..."
-            value={slackWebhookUrl}
-            onChange={(e) => setSlackWebhookUrl(e.target.value)}
-            className={`flex-1 ${inputCls}`}
-            required
-          />
-          <button
-            type="submit"
-            disabled={testingSlack || !slackWebhookUrl.trim()}
-            className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {testingSlack ? 'Sending…' : 'Test'}
-          </button>
-        </form>
-
-        {slackTestResult && (
-          <div
-            className={`mt-3 rounded border px-3 py-2 text-sm ${
-              slackTestResult.ok
-                ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300'
-                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
-            }`}
-          >
-            {slackTestResult.ok ? '✓ Test message sent successfully.' : <>✗ Failed: {slackTestResult.error}</>}
-          </div>
-        )}
-      </section>
-
-      {/* ── Alert Rules ─────────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Alert Rules</h2>
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          Fire Slack notifications when a metric crosses a threshold. Rules are evaluated every 5 minutes.
-        </p>
-
-        {/* Create form */}
-        <form onSubmit={handleCreateAlert} className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <input
-            className={inputCls}
-            placeholder="Rule name (e.g. High error rate)"
-            value={newAlertName}
-            onChange={(e) => setNewAlertName(e.target.value)}
-            required
-          />
-          <select className={inputCls} value={newAlertMetric} onChange={(e) => setNewAlertMetric(e.target.value)}>
-            <option value="error_rate">Error Rate</option>
-            <option value="p95_latency">P95 Latency (ms)</option>
-            <option value="avg_score">Avg Score</option>
-            <option value="spend_velocity">Spend Velocity ($)</option>
-          </select>
-          <div className="flex gap-2">
-            <select className={`${inputCls} w-24`} value={newAlertOperator} onChange={(e) => setNewAlertOperator(e.target.value)}>
-              <option value="gt">&gt; (above)</option>
-              <option value="lt">&lt; (below)</option>
-            </select>
-            <input
-              className={`${inputCls} flex-1`}
-              type="number"
-              step="any"
-              min="0"
-              placeholder="Threshold"
-              value={newAlertThreshold}
-              onChange={(e) => setNewAlertThreshold(e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              className={`${inputCls} w-24`}
-              type="number"
-              min="5"
-              max="1440"
-              placeholder="60"
-              value={newAlertWindow}
-              onChange={(e) => setNewAlertWindow(e.target.value)}
-            />
-            <span className="text-sm text-gray-500 dark:text-gray-400">min window</span>
-          </div>
-          <button
-            type="submit"
-            disabled={creatingAlert}
-            className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {creatingAlert ? 'Creating…' : 'Add Rule'}
-          </button>
-        </form>
-
-        {/* Rules table */}
-        {alertRules.length === 0 ? (
-          <p className="text-sm text-gray-400 dark:text-gray-500">No alert rules yet.</p>
-        ) : (
-          <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700 mb-4">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                <tr>
-                  <th className="px-4 py-2 text-left">Name</th>
-                  <th className="px-4 py-2 text-left">Metric</th>
-                  <th className="px-4 py-2 text-left">Condition</th>
-                  <th className="px-4 py-2 text-left">Window</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {alertRules.map((rule) => (
-                  <tr key={rule.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-2 font-medium dark:text-gray-200">{rule.name}</td>
-                    <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{rule.metric}</td>
-                    <td className="px-4 py-2 text-xs dark:text-gray-300">
-                      {rule.operator === 'gt' ? '>' : '<'} {rule.threshold}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => handleToggleAlert(rule)}
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          rule.is_active
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                        }`}
-                      >
-                        {rule.is_active ? 'Active' : 'Paused'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => handleDeleteAlert(rule.id)}
-                        className="text-xs text-red-500 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Recent firings */}
-        {alertHistory.length > 0 && (
-          <div>
-            <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Recent Firings</h3>
-            <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 uppercase text-gray-400 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Rule</th>
-                    <th className="px-3 py-2 text-left">Value</th>
-                    <th className="px-3 py-2 text-left">Fired At</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {alertHistory.map((f) => (
-                    <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-3 py-2 font-medium dark:text-gray-200">{f.rule_name}</td>
-                      <td className="px-3 py-2 font-mono dark:text-gray-300">{parseFloat(f.metric_value).toFixed(4)}</td>
-                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
-                        {new Date(f.fired_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ── Model Gateway ───────────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Model Gateway</h2>
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          Configure provider routes for the OpenAI-compatible proxy. Point your app&apos;s{' '}
-          <code className="font-mono">base_url</code> to{' '}
-          <code className="font-mono">/gateway</code> to enable routing, caching, and fallback.
-        </p>
-
-        {/* Stats strip */}
-        {gatewayStats && gatewayStats.total_requests > 0 && (
-          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { label: 'Total Requests', value: gatewayStats.total_requests.toLocaleString() },
-              { label: 'Cache Hits', value: gatewayStats.cache_hits.toLocaleString() },
-              {
-                label: 'Cache Hit Rate',
-                value: `${(parseFloat(gatewayStats.cache_hit_rate) * 100).toFixed(1)}%`,
-              },
-              {
-                label: 'Avg Latency',
-                value: gatewayStats.avg_latency_ms
-                  ? `${parseFloat(gatewayStats.avg_latency_ms).toFixed(0)}ms`
-                  : '—',
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="rounded border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800"
-              >
-                <p className="text-xs text-gray-500 dark:text-gray-400">{s.label}</p>
-                <p className="text-lg font-semibold dark:text-gray-100">{s.value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Create route form */}
-        <form
-          onSubmit={handleCreateRoute}
-          className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          <input
-            type="text"
-            placeholder="Alias (e.g. gpt-4o)"
-            value={newRouteAlias}
-            onChange={(e) => setNewRouteAlias(e.target.value)}
-            className={inputCls}
-            required
-          />
-          <select
-            value={newRouteProvider}
-            onChange={(e) => setNewRouteProvider(e.target.value)}
-            className={inputCls}
-          >
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="ollama">Ollama</option>
-            <option value="groq">Groq</option>
-            <option value="mistral">Mistral</option>
-            <option value="custom">Custom</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Target model (e.g. gpt-4o-2024-11-20)"
-            value={newRouteTargetModel}
-            onChange={(e) => setNewRouteTargetModel(e.target.value)}
-            className={inputCls}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Base URL (optional, default: OpenAI)"
-            value={newRouteBaseUrl}
-            onChange={(e) => setNewRouteBaseUrl(e.target.value)}
-            className={inputCls}
-          />
-          <input
-            type="text"
-            placeholder="API key env var (e.g. OPENAI_API_KEY)"
-            value={newRouteApiKeyEnvVar}
-            onChange={(e) => setNewRouteApiKeyEnvVar(e.target.value)}
-            className={inputCls}
-          />
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              placeholder="Priority"
-              value={newRoutePriority}
-              onChange={(e) => setNewRoutePriority(e.target.value)}
-              className={`w-24 ${inputCls}`}
-              min={1}
-              max={100}
-            />
-            <button
-              type="submit"
-              disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel}
-              className="flex-1 rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-600"
-            >
-              {creatingRoute ? 'Adding…' : 'Add Route'}
-            </button>
-          </div>
-        </form>
-
-        {/* Routes table */}
-        {gatewayRoutes.length > 0 && (
-          <div className="mb-4 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                <tr>
-                  <th className="px-4 py-2 text-left">Alias</th>
-                  <th className="px-4 py-2 text-left">Provider</th>
-                  <th className="px-4 py-2 text-left">Target Model</th>
-                  <th className="px-4 py-2 text-left">Priority</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-left" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {gatewayRoutes.map((route) => (
-                  <tr key={route.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-4 py-2 font-mono text-sm dark:text-gray-200">{route.alias}</td>
-                    <td className="px-4 py-2 text-xs capitalize dark:text-gray-300">{route.provider}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{route.target_model}</td>
-                    <td className="px-4 py-2 text-xs dark:text-gray-300">{route.priority}</td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => handleToggleRoute(route)}
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          route.is_active
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                        }`}
-                      >
-                        {route.is_active ? 'Active' : 'Disabled'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => handleDeleteRoute(route.id)}
-                        className="text-xs text-red-500 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ── Tenant Management ───────────────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-1 text-lg font-medium dark:text-gray-100">Tenant Management</h2>
-        <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
-          Admin-only. Enter the server&apos;s admin secret (ADMIN_SECRET env var, or SECRET_KEY as fallback) to manage tenants.
-        </p>
-
-        {!adminAuthed ? (
-          <form onSubmit={handleAdminAuth} className="flex gap-2">
-            <input
-              type="password"
-              placeholder="Admin secret"
-              value={adminSecret}
-              onChange={(e) => setAdminSecret(e.target.value)}
-              className={`max-w-xs flex-1 ${inputCls}`}
-              required
-            />
-            <button
-              type="submit"
-              className="rounded bg-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500"
-            >
-              Authenticate
-            </button>
-          </form>
-        ) : (
-          <div className="space-y-6">
-            {/* Create tenant */}
-            <form onSubmit={handleCreateTenant} className="flex flex-wrap items-end gap-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Slug</label>
-                <input
-                  type="text"
-                  placeholder="my-org"
-                  value={newTenantSlug}
-                  onChange={(e) => setNewTenantSlug(e.target.value)}
-                  className={inputCls}
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Name</label>
-                <input
-                  type="text"
-                  placeholder="My Organization"
-                  value={newTenantName}
-                  onChange={(e) => setNewTenantName(e.target.value)}
-                  className={inputCls}
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Plan</label>
-                <select
-                  value={newTenantPlan}
-                  onChange={(e) => setNewTenantPlan(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="free">free</option>
-                  <option value="starter">starter</option>
-                  <option value="growth">growth</option>
-                  <option value="enterprise">enterprise</option>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Create new key for <span className="text-teal-600 dark:text-teal-400">{workspaceName ?? 'this workspace'}</span></p>
+              <form onSubmit={handleCreateKey} className="flex flex-wrap gap-2">
+                <input type="text" placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className={inputCls} />
+                <select value={newKeyEnv} onChange={(e) => setNewKeyEnv(e.target.value)} className={inputCls}>
+                  <option value="dev">dev</option>
+                  <option value="staging">staging</option>
+                  <option value="prod">prod</option>
                 </select>
-              </div>
-              <button
-                type="submit"
-                disabled={creatingTenant}
-                className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {creatingTenant ? 'Creating…' : 'New Tenant'}
-              </button>
-            </form>
+                <button type="submit" disabled={creatingKey} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {creatingKey ? 'Creating…' : 'Create Key'}
+                </button>
+              </form>
+            </div>
 
-            {/* Tenants table */}
+            {/* Filter bar */}
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+              </div>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                {(isWorkspaceAdmin || isPlatformAdmin) && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Created by</span>
+                    <div className="relative">
+                      <input
+                        value={keyUserFilter}
+                        onChange={(e) => setKeyUserFilter(e.target.value)}
+                        placeholder="email…"
+                        className={`${inputCls} w-44`}
+                      />
+                      {keyUserFilter && (
+                        <button onClick={() => setKeyUserFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {keyUserFilter && (
+                  <button onClick={() => { setKeyUserFilter('') }}
+                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white ml-auto">
+                    <X className="h-3.5 w-3.5" /> Clear filters
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  value={keySearch}
+                  onChange={(e) => setKeySearch(e.target.value)}
+                  placeholder={`Search within ${filteredApiKeys.length} key${filteredApiKeys.length !== 1 ? 's' : ''}…`}
+                  className={`${inputCls} pl-8 w-full`}
+                />
+                {keySearch && (
+                  <button onClick={() => setKeySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {filteredApiKeys.length !== apiKeys.length && (
+                <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
+                  {filteredApiKeys.length} of {apiKeys.length} keys
+                </span>
+              )}
+              {!isWorkspaceAdmin && !isPlatformAdmin && (
+                <span className="text-xs text-slate-400 italic">Showing your keys only</span>
+              )}
+            </div>
+
             <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                   <tr>
+                    <th className="px-4 py-2 text-left">Prefix</th>
                     <th className="px-4 py-2 text-left">Name</th>
-                    <th className="px-4 py-2 text-left">Slug</th>
-                    <th className="px-4 py-2 text-left">Plan</th>
                     <th className="px-4 py-2 text-left">Created</th>
-                    <th className="px-4 py-2 text-left">ID</th>
-                    <th className="px-4 py-2 text-right">Workspaces</th>
+                    <th className="px-4 py-2 text-left">Created By</th>
+                    <th className="px-4 py-2" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {tenants.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
-                        No tenants found.
-                      </td>
-                    </tr>
+                  {filteredApiKeys.length === 0 ? (
+                    <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+                      {apiKeys.length === 0 ? 'No active API keys.' : 'No keys match your filters.'}
+                    </td></tr>
                   ) : (
-                    tenants.map((t) => (
-                      <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <td className="px-4 py-2 font-medium dark:text-gray-200">{t.name}</td>
-                        <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{t.slug}</td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={`rounded px-2 py-0.5 text-xs ${
-                              t.plan === 'enterprise'
-                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
-                                : t.plan === 'growth'
-                                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                                  : t.plan === 'starter'
-                                    ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
-                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                            }`}
-                          >
-                            {t.plan}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(t.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-2 font-mono text-xs text-gray-400 dark:text-gray-500">
-                          {t.id}
-                        </td>
+                    filteredApiKeys.map((k) => (
+                      <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{k.key_prefix}…</td>
+                        <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{k.name ?? '—'}</td>
+                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">{new Date(k.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{k.created_by ?? '—'}</td>
                         <td className="px-4 py-2 text-right">
-                          <button
-                            onClick={() => handleSelectTenant(t.id)}
-                            className={`text-xs hover:underline ${selectedTenantId === t.id ? 'font-medium text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'}`}
-                          >
-                            {selectedTenantId === t.id ? 'Hide' : 'Manage'}
-                          </button>
+                          <button onClick={() => handleRevoke(k.id)} className="text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400">Revoke</button>
                         </td>
                       </tr>
                     ))
@@ -1409,66 +735,515 @@ export default function SettingsPage() {
               </table>
             </div>
 
-            {/* Workspace management panel */}
-            {selectedTenantId && (
-              <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <h3 className="mb-3 text-sm font-semibold dark:text-gray-200">
-                  Workspaces for {tenants.find((t) => t.id === selectedTenantId)?.name}
-                </h3>
+          </div>
+        )}
 
-                <form onSubmit={handleCreateWorkspace} className="mb-4 flex gap-2">
+        {/* ── MCP ──────────────────────────────────────────────────────────────── */}
+        {activeTab === 'mcp' && (() => {
+          const mcpKey = mcpSelectedKey || newRawKey || ''
+          const mcpKeyDisplay = mcpKey || '<your-api-key>'
+          return (
+            <div className="space-y-6 max-w-3xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold dark:text-white">MCP Setup</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Connect Claude Desktop or Claude Code to your RunLedger workspace via the Model Context Protocol.
+                    All MCP tool calls are attributed to <strong className="text-slate-700 dark:text-slate-200">{workspaceName ?? 'your workspace'}</strong>.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                  /mcp
+                </span>
+              </div>
+
+              {/* Key selector */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40 space-y-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Select API key to use</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  The key below will be pre-filled in the snippets. It must belong to{' '}
+                  <strong className="text-teal-600 dark:text-teal-400">{workspaceName ?? 'this workspace'}</strong>.
+                </p>
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Workspace name"
-                    value={newWorkspaceName}
-                    onChange={(e) => setNewWorkspaceName(e.target.value)}
-                    className={`flex-1 ${inputCls}`}
-                    required
+                    value={mcpSelectedKey}
+                    onChange={(e) => setMcpSelectedKey(e.target.value)}
+                    placeholder="Paste your API key here (rl_…)"
+                    className={`${inputCls} flex-1 font-mono`}
                   />
                   <button
-                    type="submit"
-                    disabled={creatingWorkspace}
-                    className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                    onClick={() => setTab('api-keys')}
+                    className="shrink-0 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:border-teal-300 hover:text-teal-700 dark:hover:border-teal-600 dark:hover:text-teal-400 transition-colors"
                   >
-                    {creatingWorkspace ? 'Creating…' : 'New Workspace'}
+                    + Create key
                   </button>
-                </form>
-
-                {loadingWorkspaces ? (
-                  <div className="space-y-1.5">
-                    {[1, 2].map((i) => <div key={i} className="h-8 animate-pulse rounded bg-gray-100 dark:bg-gray-700" />)}
-                  </div>
-                ) : workspaces.length === 0 ? (
-                  <p className="text-sm text-gray-400 dark:text-gray-500">No workspaces yet.</p>
-                ) : (
-                  <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Name</th>
-                          <th className="px-4 py-2 text-left">Created</th>
-                          <th className="px-4 py-2 text-left">ID</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {workspaces.map((w) => (
-                          <tr key={w.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <td className="px-4 py-2 font-medium dark:text-gray-200">{w.name}</td>
-                            <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
-                              {new Date(w.created_at).toLocaleDateString()}
-                            </td>
-                            <td className="px-4 py-2 font-mono text-xs text-gray-400 dark:text-gray-500">{w.id}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                </div>
+                {newRawKey && !mcpSelectedKey && (
+                  <button
+                    onClick={() => setMcpSelectedKey(newRawKey)}
+                    className="text-[11px] text-teal-600 dark:text-teal-400 hover:underline"
+                  >
+                    ↑ Use your recently created key
+                  </button>
                 )}
+                {!mcpKey && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Paste an API key or create a new one — snippets will auto-fill.
+                  </p>
+                )}
+              </div>
+
+              {/* Claude Code CLI */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+                  <Terminal className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Claude Code</h3>
+                  <span className="text-xs text-slate-400">— one command to register</span>
+                </div>
+                <div className="p-4 space-y-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Run this once in your terminal. Claude Code will remember the server across sessions.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 overflow-x-auto rounded-lg bg-slate-900 px-3 py-2.5 font-mono text-xs text-emerald-400 dark:bg-slate-950">
+                      {`RUNLEDGER_API_KEY=${mcpKeyDisplay} claude mcp add --transport http runledger ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/mcp`}
+                    </code>
+                    <button
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(
+                          `RUNLEDGER_API_KEY=${mcpKeyDisplay} claude mcp add --transport http runledger ${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/mcp`
+                        )
+                        setMcpCopied('cli')
+                        setTimeout(() => setMcpCopied(null), 2000)
+                      }}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-teal-300 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-teal-600 dark:hover:text-teal-400"
+                    >
+                      {mcpCopied === 'cli' ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500" /> : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Claude Desktop JSON */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+                  <Key className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Claude Desktop</h3>
+                  <span className="text-xs text-slate-400">— add to <code className="font-mono">claude_desktop_config.json</code></span>
+                </div>
+                <div className="p-4 space-y-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Add the block below to your Claude Desktop config file, then restart the app.
+                  </p>
+                  <div className="flex items-start gap-2">
+                    <pre className="flex-1 overflow-x-auto rounded-lg bg-slate-900 px-3 py-3 font-mono text-xs text-slate-300 dark:bg-slate-950 dark:text-slate-200">{`{
+  "mcpServers": {
+    "runledger": {
+      "url": "${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/mcp",
+      "env": {
+        "RUNLEDGER_API_KEY": "${mcpKeyDisplay}"
+      }
+    }
+  }
+}`}</pre>
+                    <button
+                      onClick={async () => {
+                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+                        const json = `{\n  "mcpServers": {\n    "runledger": {\n      "url": "${apiUrl}/mcp",\n      "env": {\n        "RUNLEDGER_API_KEY": "${mcpKeyDisplay}"\n      }\n    }\n  }\n}`
+                        await navigator.clipboard.writeText(json)
+                        setMcpCopied('json')
+                        setTimeout(() => setMcpCopied(null), 2000)
+                      }}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-teal-300 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-teal-600 dark:hover:text-teal-400"
+                    >
+                      {mcpCopied === 'json' ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500" /> : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-3 text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                <p className="font-semibold text-slate-700 dark:text-slate-300">How it works</p>
+                <ul className="list-disc list-inside space-y-0.5 pl-1">
+                  <li>The MCP server exposes RunLedger tools to Claude (query runs, budgets, analytics).</li>
+                  <li>All tool calls are authenticated with your workspace API key — data is scoped to <strong className="text-teal-600 dark:text-teal-400">{workspaceName ?? 'this workspace'}</strong>.</li>
+                  <li>Switch workspaces by changing <code className="font-mono">RUNLEDGER_API_KEY</code> to a key from the target workspace.</li>
+                </ul>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── Users ────────────────────────────────────────────────────────────── */}
+        {activeTab === 'users' && (
+          <div className="space-y-6 max-w-4xl">
+            <div>
+              <h2 className="text-xl font-semibold dark:text-white">Workspace Users</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage who has access to this workspace.</p>
+            </div>
+
+            {isWorkspaceAdmin && (
+              <form onSubmit={handleInviteUser} className="flex flex-wrap gap-2">
+                <input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className={inputCls}
+                  required
+                />
+                <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} className={inputCls}>
+                  <option value="workspace_admin">Admin</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <button type="submit" disabled={inviting} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {inviting ? 'Inviting…' : 'Invite User'}
+                </button>
+              </form>
+            )}
+
+            <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-2 text-left">User</th>
+                    <th className="px-4 py-2 text-left">Role</th>
+                    <th className="px-4 py-2 text-left">Joined</th>
+                    {isWorkspaceAdmin && <th className="px-4 py-2" />}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {loadingUsers ? (
+                    <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">Loading…</td></tr>
+                  ) : wsUsers.length === 0 ? (
+                    <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">No users in this workspace.</td></tr>
+                  ) : (
+                    wsUsers.map((u) => (
+                      <tr key={u.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <td className="px-4 py-2">
+                          <p className="font-medium dark:text-gray-200">{u.full_name || '—'}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{u.email}</p>
+                        </td>
+                        <td className="px-4 py-2">
+                          {isWorkspaceAdmin ? (
+                            <select
+                              value={u.role}
+                              onChange={(e) => handleChangeRole(u.user_id, e.target.value)}
+                              className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="workspace_admin">Admin</option>
+                              <option value="member">Member</option>
+                              <option value="viewer">Viewer</option>
+                            </select>
+                          ) : (
+                            <span className="rounded bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">{u.role}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{new Date(u.joined_at).toLocaleDateString()}</td>
+                        {isWorkspaceAdmin && (
+                          <td className="px-4 py-2 text-right">
+                            <button onClick={() => handleRemoveUser(u.user_id, u.email)} className="text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400">Remove</button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {/* ── Alert Rules ───────────────────────────────────────────────────────── */}
+        {activeTab === 'alerts' && (
+          <div className="space-y-6 max-w-4xl">
+            <div>
+              <h2 className="text-xl font-semibold dark:text-white">Alert Rules</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Fire Slack notifications when a metric crosses a threshold. Evaluated every 5 minutes.</p>
+            </div>
+
+            <form onSubmit={handleCreateAlert} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <input className={inputCls} placeholder="Rule name (e.g. High error rate)" value={newAlertName} onChange={(e) => setNewAlertName(e.target.value)} required />
+              <select className={inputCls} value={newAlertMetric} onChange={(e) => setNewAlertMetric(e.target.value)}>
+                <option value="error_rate">Error Rate</option>
+                <option value="p95_latency">P95 Latency (ms)</option>
+                <option value="avg_score">Avg Score</option>
+                <option value="spend_velocity">Spend Velocity ($)</option>
+              </select>
+              <div className="flex gap-2">
+                <select className={`${inputCls} w-24`} value={newAlertOperator} onChange={(e) => setNewAlertOperator(e.target.value)}>
+                  <option value="gt">&gt; (above)</option>
+                  <option value="lt">&lt; (below)</option>
+                </select>
+                <input className={`${inputCls} flex-1`} type="number" step="any" min="0" placeholder="Threshold" value={newAlertThreshold} onChange={(e) => setNewAlertThreshold(e.target.value)} required />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className={`${inputCls} w-24`} type="number" min="5" max="1440" placeholder="60" value={newAlertWindow} onChange={(e) => setNewAlertWindow(e.target.value)} />
+                <span className="text-sm text-gray-500 dark:text-gray-400">min window</span>
+              </div>
+              <button type="submit" disabled={creatingAlert} className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                {creatingAlert ? 'Creating…' : 'Add Rule'}
+              </button>
+            </form>
+
+            {alertRules.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No alert rules yet.</p>
+            ) : (
+              <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Metric</th>
+                      <th className="px-4 py-2 text-left">Condition</th>
+                      <th className="px-4 py-2 text-left">Window</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                      <th className="px-4 py-2 text-left" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {alertRules.map((rule) => (
+                      <tr key={rule.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <td className="px-4 py-2 font-medium dark:text-gray-200">{rule.name}</td>
+                        <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{rule.metric}</td>
+                        <td className="px-4 py-2 text-xs dark:text-gray-300">{rule.operator === 'gt' ? '>' : '<'} {rule.threshold}</td>
+                        <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => handleToggleAlert(rule)} className={`rounded px-2 py-0.5 text-xs font-medium ${rule.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                            {rule.is_active ? 'Active' : 'Paused'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => handleDeleteAlert(rule.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {alertHistory.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Recent Firings</h3>
+                <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 uppercase text-gray-400 dark:bg-gray-800">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Rule</th>
+                        <th className="px-3 py-2 text-left">Value</th>
+                        <th className="px-3 py-2 text-left">Fired At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                      {alertHistory.map((f) => (
+                        <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-3 py-2 font-medium dark:text-gray-200">{f.rule_name}</td>
+                          <td className="px-3 py-2 font-mono dark:text-gray-300">{parseFloat(f.metric_value).toFixed(4)}</td>
+                          <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{new Date(f.fired_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
         )}
-      </section>
+        {/* ── Integrations ──────────────────────────────────────────────────────── */}
+        {activeTab === 'integrations' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h2 className="text-xl font-semibold dark:text-white">Integrations</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect external services for notifications and alerts.</p>
+            </div>
+
+            <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
+              Configure budget notifications via{' '}
+              <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">POST /budgets/{'{id}'}/notifications</code>{' '}
+              with <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">channel: &quot;slack&quot;</code>.
+            </div>
+
+            <div>
+              <div className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Slack Webhook</div>
+              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                Paste an incoming webhook URL to test connectivity before configuring budget notifications.
+              </p>
+              <form onSubmit={handleTestSlack} className="flex flex-wrap gap-2">
+                <input type="url" placeholder="https://hooks.slack.com/services/..." value={slackWebhookUrl} onChange={(e) => setSlackWebhookUrl(e.target.value)} className={`flex-1 ${inputCls}`} required />
+                <button type="submit" disabled={testingSlack || !slackWebhookUrl.trim()} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {testingSlack ? 'Sending…' : 'Test'}
+                </button>
+              </form>
+              {slackTestResult && (
+                <div className={`mt-3 rounded border px-3 py-2 text-sm ${slackTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'}`}>
+                  {slackTestResult.ok ? '✓ Test message sent successfully.' : <>✗ Failed: {slackTestResult.error}</>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Data Capture Policy ───────────────────────────────────────────────── */}
+        {activeTab === 'privacy' && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h2 className="text-xl font-semibold dark:text-white">Data Capture Policy</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Controls what payload data the SDK sends to the collector. Affects privacy and storage.</p>
+            </div>
+
+            {capturePolicy && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Current:</span>
+                <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{capturePolicy.privacy_mode}</span>
+                {capturePolicy.sampled_rate && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">@ {(parseFloat(capturePolicy.sampled_rate) * 100).toFixed(0)}% sample rate</span>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={handleSavePrivacy} className="space-y-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 dark:text-gray-400">Privacy mode</label>
+                  <select value={privacyMode} onChange={(e) => setPrivacyMode(e.target.value)} className={inputCls}>
+                    <option value="METADATA_ONLY">METADATA_ONLY — tokens, model, latency only (default)</option>
+                    <option value="ERRORS_ONLY">ERRORS_ONLY — metadata + error messages</option>
+                    <option value="SAMPLED">SAMPLED — full payload on a % of runs</option>
+                    <option value="FULL">FULL — complete request/response payloads</option>
+                  </select>
+                </div>
+                {privacyMode === 'SAMPLED' && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Sample rate (%)</label>
+                    <input type="number" min="0" max="100" step="1" placeholder="10" value={sampledRate} onChange={(e) => setSampledRate(e.target.value)} className={`w-24 ${inputCls}`} required />
+                  </div>
+                )}
+              </div>
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                <strong>FULL</strong> mode stores raw prompts and completions. Ensure you have user consent and appropriate data retention policies before enabling.
+              </div>
+              <button type="submit" disabled={savingPrivacy} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                {savingPrivacy ? 'Saving…' : 'Save Policy'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ── Compliance ────────────────────────────────────────────────────────── */}
+        {activeTab === 'compliance' && (
+          <div className="space-y-8">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-semibold dark:text-white">Compliance</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Tamper-evident HMAC-signed ledger snapshots and agent tool audit registry.
+                </p>
+              </div>
+              <button
+                onClick={() => { setComplianceAttempted(false) }}
+                disabled={loadingCompliance}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+              >
+                <svg className={`h-4 w-4 ${loadingCompliance ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loadingCompliance ? 'Loading…' : 'Refresh'}
+              </button>
+            </div>
+
+            {/* Ledger Snapshots */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-medium dark:text-gray-100">Daily Snapshots</h3>
+                <button
+                  onClick={handleGenerateSnapshot}
+                  disabled={generatingSnap}
+                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {generatingSnap ? 'Generating…' : 'Generate Snapshot'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Each snapshot is an HMAC-SHA256 signed record of daily spend. Use Verify to confirm integrity hasn&apos;t been tampered.
+              </p>
+              <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Date</th>
+                      <th className="px-4 py-2 text-right">Total Cost</th>
+                      <th className="px-4 py-2 text-right">Calls</th>
+                      <th className="px-4 py-2 text-left">Hash</th>
+                      <th className="px-4 py-2 text-left">Integrity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {loadingCompliance ? (
+                      [1,2,3].map((i) => (
+                        <tr key={i}>
+                          {[1,2,3,4,5].map((j) => (
+                            <td key={j} className="px-4 py-3">
+                              <div className="h-4 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : snapshots.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+                          No snapshots yet. Click &ldquo;Generate Snapshot&rdquo; to create one.
+                        </td>
+                      </tr>
+                    ) : snapshots.map((snap) => {
+                      const vr = verifyResults[snap.snapshot_date]
+                      return (
+                        <tr key={snap.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-4 py-2 font-mono dark:text-gray-200">{snap.snapshot_date}</td>
+                          <td className="px-4 py-2 text-right font-mono dark:text-gray-200">${parseFloat(snap.total_cost_usd).toFixed(6)}</td>
+                          <td className="px-4 py-2 text-right dark:text-gray-200">{snap.call_count}</td>
+                          <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{snap.hash.slice(0, 12)}…</td>
+                          <td className="px-4 py-2">
+                            {vr ? (
+                              vr.match
+                                ? <span className="rounded bg-green-100 dark:bg-green-900 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">✓ ok</span>
+                                : <span className="rounded bg-red-100 dark:bg-red-900 px-2 py-0.5 text-xs text-red-700 dark:text-red-300">⚠ {vr.status}</span>
+                            ) : (
+                              <button
+                                onClick={() => handleVerifySnapshot(snap)}
+                                disabled={verifyingSnap === snap.snapshot_date}
+                                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+                              >
+                                {verifyingSnap === snap.snapshot_date ? 'Verifying…' : 'Verify'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Tool Registry moved to /tool-registry page */}
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-600 dark:text-slate-300">
+              <p className="font-medium">Tool Registry</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Tool governance has moved to its own page.{' '}
+                <a href="/tool-registry" className="text-teal-600 dark:text-teal-400 hover:underline">Go to Tool Registry →</a>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Organization (Admin only) ─────────────────────────────────────────── */}
+        {activeTab === 'org' && isOrgAdmin && (
+          <OrgTab apiKey={apiKey ?? ''} apiBase={apiBase} />
+        )}
+      </div>
     </div>
   )
 }

@@ -46,7 +46,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-
 from runledger_sdk import RunLedger
 
 load_dotenv()

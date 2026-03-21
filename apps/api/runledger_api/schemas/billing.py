@@ -59,13 +59,14 @@ class ChargebackRuleList(BaseModel):
 
 class ReconciliationResult(BaseModel):
     period_id: str
-    status: str  # "pass" | "fail"
+    status: str  # "pass" | "warning" | "fail"
     provider_calls_sum: Decimal
     usage_daily_sum: Decimal
     delta_pct: Decimal
     orphaned_calls: int
     duplicate_calls: int
     issues: list[str]
+    warnings: list[str] = []
 
 
 class BreakdownUser(BaseModel):

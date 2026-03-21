@@ -25,7 +25,7 @@ Run it
     python 02_openai_multi_turn.py
 
 Key .env variables used here:
-    RUNLEDGER_API_KEY    — your workspace API key
+    RUNLEDGER_API_KEY    — your workspace API key (all runs scoped to this workspace)
     RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
     RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
     OPENAI_API_KEY       — your OpenAI key
@@ -37,7 +37,6 @@ import os
 
 import openai
 from dotenv import load_dotenv
-
 from runledger_sdk import RunLedger
 
 load_dotenv()

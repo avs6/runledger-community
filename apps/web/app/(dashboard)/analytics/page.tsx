@@ -1,131 +1,430 @@
-import { getServerSession } from 'next-auth'
-import { Suspense } from 'react'
-import Link from 'next/link'
-import { authOptions } from '@/lib/auth'
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { toast } from 'sonner'
 import {
-  getAnalyticsSummary,
-  getSpendByFeature,
-  getSpendByModel,
-  getSpendOverTime,
+  BarChart2, Users, Layers, TrendingDown, TrendingUp,
+  RefreshCw, Download, SlidersHorizontal, ArrowUpRight,
+} from 'lucide-react'
+import {
+  getAnalyticsSummary, getSpendOverTime, getSpendByModel,
+  getSpendByFeature, getSpendByUser,
 } from '@/lib/api'
-import SummaryCards from '@/components/analytics/SummaryCards'
-import SpendOverTimeChart from '@/components/analytics/SpendOverTimeChart'
-import SpendByModelChart from '@/components/analytics/SpendByModelChart'
-import SpendByFeatureChart from '@/components/analytics/SpendByFeatureChart'
-import TimeWindowPicker from '@/components/analytics/TimeWindowPicker'
-import ExportButton from '@/components/analytics/ExportButton'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChevronRight } from 'lucide-react'
+import type {
+  AnalyticsSummary, SpendOverTime, SpendByModel,
+  SpendByUser, SpendByFeature,
+} from '@/types/api'
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+} from 'recharts'
 
-interface PageProps {
-  searchParams: {
-    from?: string
-    to?: string
-    preset?: string
-    granularity?: string
-  }
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmt$(v: string | number) {
+  const n = typeof v === 'string' ? parseFloat(v) : v
+  if (isNaN(n)) return '$0.00'
+  if (n >= 1000) return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+  if (n >= 1) return `$${n.toFixed(2)}`
+  if (n >= 0.001) return `$${n.toFixed(4)}`
+  return `$${n.toFixed(6)}`
 }
 
-function defaultWindow() {
-  const to = new Date()
-  const from = new Date(to.getTime() - 7 * 24 * 3_600_000)
-  return { from: from.toISOString(), to: to.toISOString() }
+function fmtTokens(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
 }
 
-async function AnalyticsContent({ searchParams }: PageProps) {
-  const session = await getServerSession(authOptions)
-  if (!session) return null
+const COLORS = [
+  '#0d9488', '#7c3aed', '#2563eb', '#d97706',
+  '#db2777', '#16a34a', '#ea580c', '#9333ea',
+]
 
-  const window = {
-    from: searchParams.from ?? defaultWindow().from,
-    to: searchParams.to ?? defaultWindow().to,
-  }
-  const granularity =
-    (searchParams.granularity as 'hourly' | 'daily' | undefined) ?? 'daily'
+type Preset = '24h' | '7d' | '30d' | '90d'
 
-  const [summary, spendOverTime, spendByModel, spendByFeature] = await Promise.all([
-    getAnalyticsSummary(session.apiKey, window),
-    getSpendOverTime(session.apiKey, granularity, window),
-    getSpendByModel(session.apiKey, window),
-    getSpendByFeature(session.apiKey, window),
-  ])
+function presetWindow(p: Preset) {
+  const now = new Date()
+  const from = new Date(now)
+  if (p === '24h') from.setHours(from.getHours() - 24)
+  if (p === '7d') from.setDate(from.getDate() - 7)
+  if (p === '30d') from.setDate(from.getDate() - 30)
+  if (p === '90d') from.setDate(from.getDate() - 90)
+  return { from: from.toISOString(), to: now.toISOString() }
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function KpiStrip({ summary, prev }: { summary: AnalyticsSummary; prev?: AnalyticsSummary }) {
+  const totalTokens = summary.total_input_tokens + summary.total_output_tokens
+  const delta = summary.cost_delta_pct !== null ? parseFloat(summary.cost_delta_pct ?? '0') : null
+
+  const cards = [
+    {
+      label: 'Total Spend',
+      value: fmt$(summary.total_cost_usd),
+      delta,
+      sub: prev ? `prev: ${fmt$(prev.total_cost_usd)}` : undefined,
+      color: 'teal',
+    },
+    { label: 'Runs', value: summary.run_count.toLocaleString(), color: 'violet' },
+    { label: 'LLM Calls', value: summary.call_count.toLocaleString(), color: 'blue' },
+    { label: 'Tokens', value: fmtTokens(totalTokens), color: 'cyan' },
+  ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <ExportButton apiKey={session.apiKey} from={window.from} to={window.to} />
-      </div>
-      <SummaryCards summary={summary} />
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold">Spend Over Time</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SpendOverTimeChart data={spendOverTime} />
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Spend by Model</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SpendByModelChart items={spendByModel.items} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Spend by Feature</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SpendByFeatureChart items={spendByFeature.items} />
-          </CardContent>
-        </Card>
-      </div>
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {cards.map(c => (
+        <div
+          key={c.label}
+          className={`rounded-xl border border-${c.color}-200/60 dark:border-${c.color}-800/40 bg-${c.color}-50/50 dark:bg-${c.color}-950/20 p-4`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">{c.label}</p>
+          <p className="mt-1.5 text-2xl font-bold text-slate-900 dark:text-white">{c.value}</p>
+          {c.sub && <p className="mt-0.5 text-xs text-slate-400">{c.sub}</p>}
+          {c.delta !== undefined && c.delta !== null && (
+            <div className={`mt-1 flex items-center gap-1 text-xs font-medium ${c.delta >= 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+              {c.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {c.delta >= 0 ? '+' : ''}{c.delta.toFixed(1)}% vs prior period
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
 
-export default function AnalyticsPage({ searchParams }: PageProps) {
+function SpendChart({ data }: { data: SpendOverTime }) {
+  const points = data.points.map(p => ({
+    date: p.period.slice(0, 10),
+    cost: parseFloat(p.cost_usd),
+    tokens: p.input_tokens + p.output_tokens,
+  }))
+  if (points.length === 0) return <EmptyState label="No spend data for this period" />
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <AreaChart data={points} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25} />
+            <stop offset="95%" stopColor="#0d9488" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
+        <Tooltip formatter={(v: number) => [`$${v.toFixed(4)}`, 'Cost']} />
+        <Area type="monotone" dataKey="cost" stroke="#0d9488" strokeWidth={2} fill="url(#g1)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+function ModelChart({ data }: { data: SpendByModel }) {
+  if (data.items.length === 0) return <EmptyState label="No model data" />
+  const pie = data.items.map(m => ({
+    name: `${m.provider}/${m.model}`,
+    value: parseFloat(m.cost_usd),
+    tokens: m.input_tokens + m.output_tokens,
+    calls: m.call_count,
+  }))
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Analytics</h1>
-        <div className="flex items-center gap-3">
-          <Suspense>
-            <TimeWindowPicker currentPreset={searchParams.preset ?? '7d'} />
-          </Suspense>
-          <Link
-            href="/analytics/users"
-            className="flex items-center gap-1 text-sm text-indigo-600 hover:underline"
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie data={pie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name.split('/')[1]} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+            {pie.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+          </Pie>
+          <Tooltip formatter={(v: number) => fmt$(v)} />
+        </PieChart>
+      </ResponsiveContainer>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-slate-100 dark:border-slate-700 text-slate-400">
+            <th className="pb-1.5 text-left font-medium">Model</th>
+            <th className="pb-1.5 text-right font-medium">Cost</th>
+            <th className="pb-1.5 text-right font-medium">Tokens</th>
+            <th className="pb-1.5 text-right font-medium">Calls</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+          {data.items.map((m, i) => (
+            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td className="py-1.5 font-mono flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                {m.model}
+              </td>
+              <td className="py-1.5 text-right font-medium">{fmt$(m.cost_usd)}</td>
+              <td className="py-1.5 text-right text-slate-400">{fmtTokens(m.input_tokens + m.output_tokens)}</td>
+              <td className="py-1.5 text-right text-slate-400">{m.call_count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function FeatureChart({ data }: { data: SpendByFeature }) {
+  if (data.items.length === 0) return <EmptyState label="No feature data" />
+  const bars = data.items
+    .filter(f => f.feature_tag)
+    .map(f => ({ name: f.feature_tag!, cost: parseFloat(f.cost_usd), runs: f.run_count }))
+  return (
+    <div className="space-y-4">
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={bars} layout="vertical" margin={{ left: 8, right: 16 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
+          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `$${v}`} />
+          <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} />
+          <Tooltip formatter={(v: number) => [fmt$(v), 'Cost']} />
+          <Bar dataKey="cost" fill="#7c3aed" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function UserTable({ data }: { data: SpendByUser }) {
+  if (data.items.length === 0) return <EmptyState label="No user data for this period" />
+  return (
+    <table className="w-full text-sm">
+      <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+        <tr>
+          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">User</th>
+          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Spend</th>
+          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Runs</th>
+          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Avg/Run</th>
+          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Calls</th>
+          <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Last Active</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        {data.items.map((u, i) => (
+          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+            <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{u.end_user_id}</td>
+            <td className="px-4 py-2.5 text-right font-mono font-semibold text-teal-700 dark:text-teal-400">{fmt$(u.cost_usd)}</td>
+            <td className="px-4 py-2.5 text-right text-slate-500">{u.run_count}</td>
+            <td className="px-4 py-2.5 text-right text-slate-500">{fmt$(u.avg_cost_per_run)}</td>
+            <td className="px-4 py-2.5 text-right text-slate-500">{u.call_count}</td>
+            <td className="px-4 py-2.5 text-right text-xs text-slate-400">
+              {u.last_active ? new Date(u.last_active).toLocaleDateString() : '—'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center py-16 text-sm text-slate-400 dark:text-slate-500">{label}</div>
+  )
+}
+
+function Card({ title, sub, children, action }: {
+  title: string; sub?: string; children: React.ReactNode; action?: React.ReactNode
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+      <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p>
+          {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+        </div>
+        {action}
+      </div>
+      <div className="px-5 py-4">{children}</div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function AnalyticsPage() {
+  const { data: session } = useSession()
+  const apiKey = (session as { apiKey?: string })?.apiKey
+
+  const [preset, setPreset] = useState<Preset>('7d')
+  const [loading, setLoading] = useState(true)
+
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null)
+  const [spendTime, setSpendTime] = useState<SpendOverTime | null>(null)
+  const [byModel, setByModel] = useState<SpendByModel | null>(null)
+  const [byFeature, setByFeature] = useState<SpendByFeature | null>(null)
+  const [byUser, setByUser] = useState<SpendByUser | null>(null)
+
+  const load = useCallback(async () => {
+    if (!apiKey) return
+    setLoading(true)
+    const win = presetWindow(preset)
+    const gran = preset === '24h' ? 'hourly' : 'daily'
+    try {
+      const [s, t, m, f, u] = await Promise.all([
+        getAnalyticsSummary(apiKey, win),
+        getSpendOverTime(apiKey, gran, win),
+        getSpendByModel(apiKey, win),
+        getSpendByFeature(apiKey, win),
+        getSpendByUser(apiKey, 20, win),
+      ])
+      setSummary(s); setSpendTime(t); setByModel(m); setByFeature(f); setByUser(u)
+    } catch {
+      toast.error('Failed to load analytics')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiKey, preset])
+
+  useEffect(() => { load() }, [load])
+
+  const PRESETS: { v: Preset; label: string }[] = [
+    { v: '24h', label: '24h' },
+    { v: '7d', label: '7d' },
+    { v: '30d', label: '30d' },
+    { v: '90d', label: '90d' },
+  ]
+
+  async function handleExport(format: 'csv' | 'json') {
+    if (!apiKey) return
+    const win = presetWindow(preset)
+    const qs = new URLSearchParams({ format, from: win.from, to: win.to })
+    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+    const url = `${base}/analytics/export?${qs}`
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } })
+      if (!r.ok) throw new Error()
+      const blob = await r.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `analytics-${preset}.${format}`
+      a.click()
+      toast.success(`Exported as ${format.toUpperCase()}`)
+    } catch {
+      toast.error('Export failed')
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-6xl">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <BarChart2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <h1 className="text-2xl font-bold tracking-tight dark:text-white">Analytics</h1>
+          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Spend breakdown, model usage, and per-user attribution for this workspace.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={load}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
-            Top Spenders <ChevronRight className="h-4 w-4" />
-          </Link>
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+          <div className="relative group">
+            <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+            <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col z-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden text-sm min-w-[100px]">
+              <button onClick={() => handleExport('csv')} className="px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-left">CSV</button>
+              <button onClick={() => handleExport('json')} className="px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-left">JSON</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Suspense
-        fallback={
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 w-full rounded-xl" />
-              ))}
-            </div>
-            <Skeleton className="h-64 w-full rounded-xl" />
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Skeleton className="h-64 w-full rounded-xl" />
-              <Skeleton className="h-64 w-full rounded-xl" />
-            </div>
-          </div>
+      {/* Time range selector */}
+      <div className="flex items-center gap-2">
+        <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
+        <span className="text-xs text-slate-400 font-medium uppercase tracking-wide mr-1">Period</span>
+        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-sm">
+          {PRESETS.map(({ v, label }) => (
+            <button
+              key={v}
+              onClick={() => setPreset(v)}
+              className={`px-3 py-1.5 transition-colors ${
+                preset === v
+                  ? 'bg-teal-600 text-white font-medium'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      {summary && <KpiStrip summary={summary} />}
+
+      {/* Spend over time */}
+      <Card
+        title="Spend Over Time"
+        sub={`${preset === '24h' ? 'Hourly' : 'Daily'} — last ${preset}`}
+        action={
+          <ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />
         }
       >
-        <AnalyticsContent searchParams={searchParams} />
-      </Suspense>
+        {spendTime ? <SpendChart data={spendTime} /> : <EmptyState label="Loading…" />}
+      </Card>
+
+      {/* Model + Feature row */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card title="Spend by Model" sub="Cost attribution across providers">
+          {byModel ? <ModelChart data={byModel} /> : <EmptyState label="Loading…" />}
+        </Card>
+        <Card title="Spend by Feature Tag" sub="Top features by cost">
+          {byFeature ? <FeatureChart data={byFeature} /> : <EmptyState label="Loading…" />}
+        </Card>
+      </div>
+
+      {/* Per-user spend */}
+      <Card
+        title="Spend by End User"
+        sub="Attribution per end_user_id — top 20"
+        action={<Users className="h-4 w-4 text-slate-300 dark:text-slate-600" />}
+      >
+        {byUser ? <UserTable data={byUser} /> : <EmptyState label="Loading…" />}
+      </Card>
+
+      {/* Model breakdown full table */}
+      <Card
+        title="Model Breakdown"
+        sub="Full cost, token, and call detail per model"
+        action={<Layers className="h-4 w-4 text-slate-300 dark:text-slate-600" />}
+      >
+        {byModel && byModel.items.length > 0 ? (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+              <tr>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Provider</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Model</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Cost</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Input Tokens</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Output Tokens</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Calls</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              {byModel.items.map((m, i) => (
+                <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{m.provider}</td>
+                  <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{m.model}</td>
+                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-teal-700 dark:text-teal-400">{fmt$(m.cost_usd)}</td>
+                  <td className="px-4 py-2.5 text-right text-slate-500">{m.input_tokens.toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-right text-slate-500">{m.output_tokens.toLocaleString()}</td>
+                  <td className="px-4 py-2.5 text-right text-slate-500">{m.call_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <EmptyState label="No model data for this period" />}
+      </Card>
     </div>
   )
 }

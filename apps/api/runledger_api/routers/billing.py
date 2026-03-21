@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_org_admin, require_workspace_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.tenant import Workspace
@@ -67,9 +67,10 @@ log = structlog.get_logger()
 )
 async def create_billing_period(
     body: BillingPeriodCreate,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BillingPeriodResponse:
+    workspace: Workspace = auth[0]
     """Create a new billing period for this workspace."""
     period = BillingPeriod(
         workspace_id=workspace.id,
@@ -106,10 +107,11 @@ async def create_billing_period(
 
 @router.get("/periods", response_model=BillingPeriodList)
 async def list_billing_periods(
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
 ) -> BillingPeriodList:
+    workspace: Workspace = auth[0]
     """List billing periods, optionally filtered by status."""
     stmt = select(BillingPeriod).where(BillingPeriod.workspace_id == workspace.id)
     if status_filter:
@@ -142,9 +144,10 @@ async def list_billing_periods(
 @router.get("/periods/{period_id}", response_model=BillingPeriodResponse)
 async def get_billing_period(
     period_id: uuid.UUID,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BillingPeriodResponse:
+    workspace: Workspace = auth[0]
     """Get a single billing period by ID."""
     result = await db.execute(
         select(BillingPeriod).where(
@@ -176,9 +179,10 @@ async def get_billing_period(
 @router.post("/periods/{period_id}/close", response_model=UsageSnapshotResponse)
 async def close_period(
     period_id: uuid.UUID,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> UsageSnapshotResponse:
+    workspace: Workspace = auth[0]
     """Close a billing period and produce a signed usage snapshot."""
     # Verify ownership
     result = await db.execute(
@@ -218,9 +222,10 @@ async def close_period(
 @router.get("/periods/{period_id}/reconciliation", response_model=ReconciliationResult)
 async def get_reconciliation(
     period_id: uuid.UUID,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ReconciliationResult:
+    workspace: Workspace = auth[0]
     """Run a reconciliation check for the billing period."""
     # Verify ownership
     result = await db.execute(
@@ -246,9 +251,10 @@ async def get_reconciliation(
 @router.get("/periods/{period_id}/breakdown", response_model=PeriodBreakdown)
 async def get_breakdown(
     period_id: uuid.UUID,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> PeriodBreakdown:
+    workspace: Workspace = auth[0]
     """Get hierarchical cost breakdown by application → user."""
     result = await db.execute(
         select(BillingPeriod).where(
@@ -273,10 +279,11 @@ async def get_breakdown(
 @router.get("/periods/{period_id}/export")
 async def export_period(
     period_id: uuid.UUID,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     format: Annotated[str, Query(pattern="^(csv|signed_json)$")] = "csv",
 ) -> Response:
+    workspace: Workspace = auth[0]
     """Export billing period data as CSV or signed JSON."""
     result = await db.execute(
         select(BillingPeriod).where(
@@ -320,9 +327,10 @@ async def export_period(
 )
 async def create_chargeback_rule(
     body: ChargebackRuleCreate,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleResponse:
+    workspace: Workspace = auth[0]
     """Create a chargeback allocation rule for this workspace."""
     rule = ChargebackRule(
         workspace_id=workspace.id,
@@ -357,9 +365,10 @@ async def create_chargeback_rule(
 
 @router.get("/chargeback-rules", response_model=ChargebackRuleList)
 async def list_chargeback_rules(
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleList:
+    workspace: Workspace = auth[0]
     """List chargeback rules for this workspace."""
     result = await db.execute(
         select(ChargebackRule)

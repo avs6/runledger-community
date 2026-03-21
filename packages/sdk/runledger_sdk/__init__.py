@@ -8,9 +8,10 @@ from runledger_sdk.context import (
     get_run_id,
     get_session_id,
 )
-from runledger_sdk.exceptions import RunLedgerBudgetExceededError
+from runledger_sdk.exceptions import RunLedgerBudgetExceededError, ToolBlockedError
 from runledger_sdk.langchain import RunLedgerCallbackHandler
 from runledger_sdk.langgraph import RunLedgerNodeWrapper, instrument_graph
+from runledger_sdk.mcp import instrument_mcp_session
 
 __all__ = [
     # Client
@@ -26,10 +27,13 @@ __all__ = [
     "get_context_snapshot",
     # Exceptions
     "RunLedgerBudgetExceededError",
+    "ToolBlockedError",
     # LangChain
     "RunLedgerCallbackHandler",
     # LangGraph
     "RunLedgerNodeWrapper",
     "instrument_graph",
+    # MCP
+    "instrument_mcp_session",
 ]
-__version__ = "0.4.0"
+__version__ = "0.5.0"

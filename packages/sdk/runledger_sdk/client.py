@@ -80,6 +80,7 @@ class RunLedger:
         privacy_mode: str = PrivacyMode.METADATA_ONLY,
         local: bool = False,
         budget_check: bool = False,
+        tool_enforcement: bool = False,
     ) -> None:
         # Resolve base_url + api_key from env if not provided
         self.base_url = os.getenv("RUNLEDGER_BASE_URL", base_url)
@@ -95,6 +96,7 @@ class RunLedger:
 
         self.privacy_mode = privacy_mode
         self.budget_check = budget_check
+        self.tool_enforcement = tool_enforcement
 
         # If not local, require a key
         if not self.local and not self.api_key:
@@ -113,6 +115,7 @@ class RunLedger:
                 base_url=self.base_url,
                 local=self.local,
                 budget_check=self.budget_check,
+                tool_enforcement=self.tool_enforcement,
             )
         return self._sync_transport
 
@@ -143,6 +146,31 @@ class RunLedger:
 
         instrument_openai(self._get_sync_transport())
         self._instrumented = True
+
+    def instrument_anthropic(self) -> None:
+        """
+        Monkey-patches Anthropic clients so every ``messages.create`` call is
+        automatically captured. Requires ``anthropic`` package installed.
+
+        Safe to call multiple times (idempotent).
+        """
+        from runledger_sdk.anthropic import instrument_anthropic  # noqa: PLC0415
+
+        instrument_anthropic(self._get_sync_transport())
+
+    def instrument_mcp(self, session: object) -> None:
+        """
+        Patch an ``mcp.ClientSession`` so every ``call_tool`` invocation is
+        captured as a ``tool_call`` event.
+
+        Parameters
+        ----------
+        session:
+            An initialised ``mcp.ClientSession`` instance.
+        """
+        from runledger_sdk.mcp import instrument_mcp_session  # noqa: PLC0415
+
+        instrument_mcp_session(session, self._get_sync_transport())
 
     def callback_handler(self, *, track_llm_cost: bool = True) -> object:
         """

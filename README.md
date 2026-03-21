@@ -289,7 +289,7 @@ Each extra pulls in the right peer dependencies:
 
 ## Running the Examples
 
-The `examples/` directory contains 18 runnable scripts covering every major feature.
+The `examples/` directory contains 19 runnable scripts covering every major feature.
 There is also a standalone companion repo — [runledger-samples](https://github.com/avs6/runledger-samples) —
 which is an independent Python project you can clone and run without the full monorepo.
 
@@ -385,6 +385,7 @@ python 01_openai_basic.py
 | 16 | `16_sessions.py` | List sessions, session detail with turn order, cost-over-turns chart data, run payload inspection |
 | 17 | `17_alerts.py` | Create alert rules (error_rate / p95_latency / avg_score / spend_velocity), toggle, history, cleanup |
 | 18 | `18_gateway.py` | Configure provider routes, send completions through the proxy, observe cache hit vs miss, stats |
+| 19 | `19_policy_check.py` | Unified policy decision checks (budgets + tools + gateway + eval gate) |
 
 ---
 
@@ -995,6 +996,12 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `POST` | `/budgets/notifications` | Create a webhook or Slack notification channel |
 | `GET` | `/budgets/notifications` | List notification channels |
 
+### Policies
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/policies/check` | Unified policy decision check across budgets, tool policy, gateway route readiness, and optional score gate |
+
 Interactive docs: `http://localhost:8000/docs`
 
 ---
@@ -1020,6 +1027,7 @@ python examples/15_prompts.py               # create prompt, commit versions, pr
 python examples/16_sessions.py             # list sessions, turn order, cost chart, payload inspection
 python examples/17_alerts.py               # create alert rules, toggle, history, cleanup
 python examples/18_gateway.py              # configure gateway routes, proxy completions, cache stats
+python examples/19_policy_check.py         # unified policy decision check for admission control and release gates
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload
@@ -1170,6 +1178,23 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 | 21A | Advanced Alerting — threshold rules · error rate / latency / quality / spend metrics · Celery beat evaluation · Slack notifications · Alert Rules in Settings | ✅ Complete |
 | 21B | Model Gateway — OpenAI-compatible proxy · prompt caching · priority-ordered routing · fallback · per-route stats · Gateway section in Settings | ✅ Complete |
 | 21C | Runs enhancements — model + cost range filters · `GET /runs/export` CSV download · seconds-granularity datetime picker · Ollama `cost_usd=$0` fix · session API key UX | ✅ Complete |
+| 21D | Unified policy checks — `/policies/check` combines budget guardrails, tool policy, gateway readiness, and optional score gates | ✅ Complete |
+
+**Validation Snapshot (2026-03-15)**
+- API tests: `233/233` passing
+- SDK tests: `61/61` passing
+- Web lint: clean (`next lint`)
+- Repo lint: clean (`ruff check .`)
+- Core API typing: clean (`mypy apps/api/runledger_api`)
+
+**Recent Audit Fixes**
+- Budgets: fixed breach-notification fan-out by including `workspace_id` in cached budget rows.
+- Gateway: corrected overall latency metric to use weighted averaging by request volume.
+- Gateway: added retry-once behavior for transient provider failures before route fallback.
+- SDK: restored backward-compatible OpenAI provider-call builder signatures.
+- Web UI: fixed prompts diff-view lint/UX text escaping issue.
+- Core API typing hardening: fixed source-level typing issues in `runs`, `sessions`, `policies`, `gateway` model, and alert block typing.
+- UI polish pass: upgraded typography, refined dashboard shell (sidebar/topbar/main), improved login visual hierarchy, and refreshed color tokens for a cleaner, more premium look.
 
 ---
 

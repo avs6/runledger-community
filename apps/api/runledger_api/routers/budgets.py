@@ -27,11 +27,11 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.tenant import Workspace, WorkspaceUser
 from runledger_api.schemas.budgets import (
     BreachList,
     BreachResponse,
@@ -61,10 +61,11 @@ log = structlog.get_logger()
 @router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
 async def create_budget(
     body: BudgetCreate,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> BudgetResponse:
+    workspace: Workspace = auth[0]
     """Create a new budget for this workspace."""
     budget = Budget(
         workspace_id=workspace.id,
@@ -221,9 +222,10 @@ async def list_notifications(
 )
 async def create_notification(
     body: NotificationCreate,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> NotificationResponse:
+    workspace: Workspace = auth[0]
     """Create a webhook or Slack notification channel."""
     notification = BudgetNotification(
         workspace_id=workspace.id,
@@ -306,10 +308,11 @@ async def get_breaches(
 @router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_budget(
     budget_id: uuid.UUID,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple, Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> None:
+    workspace: Workspace = auth[0]
     """Soft-delete a budget (sets is_active=False)."""
     result = await db.execute(
         select(Budget).where(

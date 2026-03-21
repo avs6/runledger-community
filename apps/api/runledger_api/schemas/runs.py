@@ -144,10 +144,18 @@ class RunGraphResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    workspace_id: str | None = None
 
 
 class LoginResponse(BaseModel):
     email: str
-    workspace_id: uuid.UUID
+    full_name: str | None
+    user_id: str
+    workspace_id: str
     workspace_name: str
-    api_key: str  # raw key for this dashboard session (stored in NextAuth JWT)
+    tenant_id: str
+    api_key: str
+    is_platform_admin: bool
+    tenant_role: str | None
+    workspace_role: str | None
+    workspace_ids: list[str]

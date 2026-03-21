@@ -9,7 +9,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ── Route schemas ──────────────────────────────────────────────────────────────
 
 
@@ -57,14 +56,26 @@ class GatewayRouteList(BaseModel):
 
 class GatewayMessage(BaseModel):
     role: str
-    content: str
+    content: str | list[Any]  # str for text; list for multimodal content parts
 
 
 class GatewayCompletionRequest(BaseModel):
     model: str = Field(..., description="Alias or model name to route")
     messages: list[GatewayMessage]
+    # Core sampling params
     temperature: float | None = None
     max_tokens: int | None = None
+    top_p: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    # Determinism / output control
+    seed: int | None = None
+    stop: str | list[str] | None = None
+    response_format: dict[str, Any] | None = None
+    # Tool / function calling
+    tools: list[dict[str, Any]] | None = None
+    tool_choice: str | dict[str, Any] | None = None
+    # Gateway-specific
     stream: bool = False
     cache: bool = Field(True, description="Enable prompt cache lookup for this request")
 
@@ -104,6 +115,61 @@ class GatewayRequestResponse(BaseModel):
     output_tokens: int | None
     latency_ms: int | None
     status: str
+    decision_reason: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class GatewayRequestList(BaseModel):
+    items: list[GatewayRequestResponse]
+    total: int
+
+
+# ── Routing policy schemas ─────────────────────────────────────────────────────
+
+VALID_POLICY_TYPES = {
+    "manual",
+    "cost_optimized",
+    "latency_optimized",
+    "quality_optimized",
+    "weighted",
+    "canary",
+    "budget_aware",
+    "complexity_based",
+}
+
+
+class RoutingPolicyCreate(BaseModel):
+    alias: str = Field(..., min_length=1, max_length=128)
+    policy_type: str = Field("manual", description="Strategy for route selection")
+    config: dict[str, Any] = Field(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:  # noqa: ANN401
+        if self.policy_type not in VALID_POLICY_TYPES:
+            raise ValueError(
+                f"policy_type must be one of {sorted(VALID_POLICY_TYPES)}"
+            )
+
+
+class RoutingPolicyUpdate(BaseModel):
+    policy_type: str | None = None
+    config: dict[str, Any] | None = None
+    is_active: bool | None = None
+
+
+class RoutingPolicyResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    alias: str
+    policy_type: str
+    config: dict[str, Any]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class RoutingPolicyList(BaseModel):
+    items: list[RoutingPolicyResponse]

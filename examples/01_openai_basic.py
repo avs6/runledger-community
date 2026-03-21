@@ -7,6 +7,8 @@ What this demonstrates
 - Attaching user / session / feature metadata via rl.context()
 - Automatic capture of: model, input_tokens, output_tokens, latency_ms, cost_usd
 - run_id is auto-generated and returned by the context manager
+- Runs are automatically scoped to the workspace the API key belongs to
+  (visible only in that workspace's Runs / Sessions / Analytics pages)
 
 Install the SDK (not on PyPI yet — install from source)
 ────────────────────────────────────────────────────────
@@ -25,10 +27,16 @@ Run it
     python 01_openai_basic.py
 
 Key .env variables used here:
-    RUNLEDGER_API_KEY    — your workspace API key
+    RUNLEDGER_API_KEY    — your workspace API key (scopes all runs to one workspace)
     RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
     RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
     OPENAI_API_KEY       — your OpenAI key
+
+Workspace scoping
+─────────────────
+Each API key is tied to exactly one workspace. Every run recorded through this key
+appears only in that workspace's dashboard. To send runs to a different workspace,
+set RUNLEDGER_API_KEY to a key generated for that workspace (Settings → API Keys).
 """
 
 from __future__ import annotations
@@ -37,7 +45,6 @@ import os
 
 import openai
 from dotenv import load_dotenv
-
 from runledger_sdk import RunLedger
 
 # Load variables from .env file (copy .env.example → .env first)
@@ -50,6 +57,9 @@ LOCAL_MODE = os.getenv("RUNLEDGER_LOCAL", "false").lower() in ("1", "true", "yes
 # ── 1. Create the RunLedger client ────────────────────────────────────────────
 #
 # Reads RUNLEDGER_API_KEY and RUNLEDGER_BASE_URL from .env automatically.
+# The API key is workspace-scoped: every run, session, and cost record is
+# attributed to the workspace the key belongs to. Switch workspaces by
+# changing RUNLEDGER_API_KEY (Settings → API Keys in the dashboard).
 rl = RunLedger(local=LOCAL_MODE)
 
 # ── 2. Instrument OpenAI ──────────────────────────────────────────────────────

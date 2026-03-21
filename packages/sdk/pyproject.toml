@@ -1,7 +1,7 @@
 [project]
 name = "runledger-sdk"
-version = "0.3.0"
-description = "RunLedger SDK — instrument LangChain, LangGraph, and OpenAI agents"
+version = "0.5.0"
+description = "RunLedger SDK — instrument LangChain, LangGraph, OpenAI, and Anthropic agents"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -17,7 +17,9 @@ openai = ["openai>=1.0.0"]
 langchain = ["langchain-core>=0.3.0"]
 langgraph = ["langchain-core>=0.3.0", "langgraph>=0.2.0"]
 cli = ["typer>=0.12.0", "rich>=13.0.0"]
-all = ["runledger-sdk[openai,langchain,langgraph,cli]"]
+anthropic = ["anthropic>=0.40.0"]
+mcp = ["mcp>=1.9.0"]
+all = ["runledger-sdk[openai,langchain,langgraph,cli,anthropic,mcp]"]
 
 [project.scripts]
 runledger = "runledger_sdk.cli:app"

@@ -23,7 +23,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-
 # ── Mock result helpers ────────────────────────────────────────────────────────
 
 

@@ -21,6 +21,7 @@ from sqlalchemy.pool import NullPool
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.metering import ProviderPricing
+from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment
 
 log = structlog.get_logger()
@@ -98,10 +99,60 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
         run_count: int = int(token_row.run_count or 0)
 
         # 4. Project cost for each config
+        # Shared prompt-filtered token query (used when config specifies prompt_name + prompt_version)
+        _prompt_filtered_token_sql = text(
+            """
+            SELECT
+                SUM(pc.input_tokens)::bigint  AS total_input,
+                SUM(pc.output_tokens)::bigint AS total_output,
+                COUNT(DISTINCT pc.run_id)     AS run_count
+            FROM provider_calls pc
+            JOIN agent_runs ar ON ar.id = pc.run_id
+            WHERE pc.run_id = ANY(CAST(:run_ids AS UUID[]))
+              AND ar.deployment_version = :deployment_version
+              AND pc.status = 'success'
+            """
+        )
+
         config_results: list[dict[str, Any]] = []
         for cfg in configs:
             model_name: str = cfg["model"]
             label: str | None = cfg.get("label")
+            prompt_name: str | None = cfg.get("prompt_name")
+            prompt_version_num: int | None = cfg.get("prompt_version")
+
+            # Determine token totals — prompt-scoped or full-dataset
+            content_preview: str | None = None
+            if prompt_name and prompt_version_num is not None:
+                dep_ver = f"{prompt_name}:{prompt_version_num}"
+                filtered_result = await session.execute(
+                    _prompt_filtered_token_sql,
+                    {"run_ids": run_ids, "deployment_version": dep_ver},
+                )
+                filtered_row = filtered_result.one()
+                cfg_input = int(filtered_row.total_input or 0)
+                cfg_output = int(filtered_row.total_output or 0)
+                cfg_run_count = int(filtered_row.run_count or 0)
+
+                # Fetch prompt version content for preview
+                pv_stmt = (
+                    select(PromptVersion)
+                    .join(Prompt, Prompt.id == PromptVersion.prompt_id)
+                    .where(
+                        Prompt.workspace_id == experiment.workspace_id,
+                        Prompt.name == prompt_name,
+                        PromptVersion.version == prompt_version_num,
+                    )
+                    .limit(1)
+                )
+                pv_result = await session.execute(pv_stmt)
+                prompt_ver = pv_result.scalar_one_or_none()
+                if prompt_ver is not None:
+                    content_preview = prompt_ver.content[:200]
+            else:
+                cfg_input = total_input
+                cfg_output = total_output
+                cfg_run_count = run_count
 
             pricing_stmt = (
                 select(ProviderPricing).where(ProviderPricing.model == model_name).limit(1)
@@ -111,30 +162,40 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
 
             if pricing is not None:
                 projected_cost = (
-                    Decimal(total_input) / Decimal(1_000_000) * pricing.input_cost_per_1m
-                    + Decimal(total_output) / Decimal(1_000_000) * pricing.output_cost_per_1m
+                    Decimal(cfg_input) / Decimal(1_000_000) * pricing.input_cost_per_1m
+                    + Decimal(cfg_output) / Decimal(1_000_000) * pricing.output_cost_per_1m
                 )
                 pricing_found = True
             else:
                 projected_cost = Decimal(0)
                 pricing_found = False
 
-            avg_cost_per_run = projected_cost / Decimal(run_count) if run_count > 0 else Decimal(0)
+            avg_cost_per_run = projected_cost / Decimal(cfg_run_count) if cfg_run_count > 0 else Decimal(0)
 
             config_results.append(
                 {
                     "model": model_name,
                     "label": label,
-                    "run_count": run_count,
-                    "total_input_tokens": total_input,
-                    "total_output_tokens": total_output,
+                    "run_count": cfg_run_count,
+                    "total_input_tokens": cfg_input,
+                    "total_output_tokens": cfg_output,
                     "projected_cost_usd": str(projected_cost),
                     "avg_cost_per_run": str(avg_cost_per_run),
                     "pricing_found": pricing_found,
+                    "prompt_name": prompt_name,
+                    "prompt_version": prompt_version_num,
+                    "prompt_content_preview": content_preview,
                 }
             )
 
         # 5. Build pairwise deltas (config[0] vs config[1], config[0] vs config[2], …)
+        def _config_label(cfg_result: dict[str, Any]) -> str:
+            """Human-readable label for a config in delta comparisons."""
+            parts = [cfg_result.get("label") or cfg_result["model"]]
+            if cfg_result.get("prompt_name"):
+                parts.append(f"{cfg_result['prompt_name']}@v{cfg_result['prompt_version']}")
+            return " / ".join(parts)
+
         deltas: list[dict[str, Any]] = []
         if len(config_results) >= 2:
             base = config_results[0]
@@ -146,8 +207,8 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
                     delta_pct = str((cost_b - cost_a) / cost_a * Decimal(100))
                 deltas.append(
                     {
-                        "config_a": base["model"],
-                        "config_b": other["model"],
+                        "config_a": _config_label(base),
+                        "config_b": _config_label(other),
                         "cost_delta_pct": delta_pct,
                     }
                 )

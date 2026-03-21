@@ -167,11 +167,13 @@ class SyncTransport:
         base_url: str,
         local: bool = False,
         budget_check: bool = False,
+        tool_enforcement: bool = False,
     ) -> None:
         self._api_key = api_key
         self._base_url = base_url
         self._local = local
         self.budget_check = budget_check
+        self.tool_enforcement = tool_enforcement
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._transport: Transport | None = None

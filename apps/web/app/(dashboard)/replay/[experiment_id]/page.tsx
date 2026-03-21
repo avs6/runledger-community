@@ -146,6 +146,8 @@ export default function ExperimentResultsPage() {
             <thead>
               <tr className="border-b text-left text-xs font-medium text-gray-500">
                 <th className="pb-2 pr-3">Model</th>
+                <th className="pb-2 pr-3">Prompt</th>
+                <th className="pb-2 pr-3">Runs</th>
                 <th className="pb-2 pr-3">Input tokens</th>
                 <th className="pb-2 pr-3">Output tokens</th>
                 <th className="pb-2 pr-3">Avg cost/run</th>
@@ -160,6 +162,23 @@ export default function ExperimentResultsPage() {
                     {c.model}
                     {c.label && <span className="ml-1 text-gray-400">({c.label})</span>}
                   </td>
+                  <td className="py-2 pr-3">
+                    {c.prompt_name ? (
+                      <div>
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-700 font-mono">
+                          {c.prompt_name}{c.prompt_version != null ? `@v${c.prompt_version}` : ''}
+                        </span>
+                        {c.prompt_content_preview && (
+                          <p className="mt-1 max-w-[200px] truncate text-[10px] text-gray-400" title={c.prompt_content_preview}>
+                            {c.prompt_content_preview}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">all runs</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3">{c.run_count.toLocaleString()}</td>
                   <td className="py-2 pr-3">{c.total_input_tokens.toLocaleString()}</td>
                   <td className="py-2 pr-3">{c.total_output_tokens.toLocaleString()}</td>
                   <td className="py-2 pr-3">${parseFloat(c.avg_cost_per_run).toFixed(6)}</td>

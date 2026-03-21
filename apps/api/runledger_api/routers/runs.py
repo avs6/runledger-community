@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -102,7 +102,9 @@ async def list_runs(
     min_cost: Decimal | None = Query(None, description="Minimum total cost (USD)"),
     max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
 ) -> RunListResponse:
-    filter_kwargs = dict(
+    # Total count query (without cursor/limit)
+    count_stmt = _apply_run_filters(
+        select(func.count()).select_from(AgentRun),
         workspace_id=workspace.id,
         status_filter=status_filter,
         feature_tag=feature_tag,
@@ -114,17 +116,21 @@ async def list_runs(
         min_cost=min_cost,
         max_cost=max_cost,
     )
-
-    # Total count query (without cursor/limit)
-    count_stmt = _apply_run_filters(
-        select(func.count()).select_from(AgentRun), **filter_kwargs
-    )
     total = (await db.execute(count_stmt)).scalar_one()
 
     # Data query
     stmt = _apply_run_filters(
         select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit + 1),
-        **filter_kwargs,
+        workspace_id=workspace.id,
+        status_filter=status_filter,
+        feature_tag=feature_tag,
+        end_user_id=end_user_id,
+        search=search,
+        from_dt=from_dt,
+        to_dt=to_dt,
+        model_filter=model_filter,
+        min_cost=min_cost,
+        max_cost=max_cost,
     )
     if cursor:
         cursor_dt = datetime.fromisoformat(cursor)
@@ -193,7 +199,8 @@ async def export_runs(
     max_cost: Decimal | None = Query(None),
     limit: int = Query(1000, ge=1, le=5000),
 ) -> StreamingResponse:
-    filter_kwargs = dict(
+    stmt = _apply_run_filters(
+        select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit),
         workspace_id=workspace.id,
         status_filter=status_filter,
         feature_tag=feature_tag,
@@ -204,10 +211,6 @@ async def export_runs(
         model_filter=model_filter,
         min_cost=min_cost,
         max_cost=max_cost,
-    )
-    stmt = _apply_run_filters(
-        select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit),
-        **filter_kwargs,
     )
     result = await db.execute(stmt)
     runs = list(result.scalars().all())
@@ -257,6 +260,47 @@ async def export_runs(
         iter([buf.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=runs.csv"},
+    )
+
+
+# ── Cancel a stuck run ────────────────────────────────────────────────────────
+
+
+@router.patch("/{run_id}/cancel", response_model=RunListItem)
+async def cancel_run(
+    run_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> RunListItem:
+    """Mark a running run as cancelled (useful when a script crashes mid-run)."""
+    run = await db.get(AgentRun, run_id)
+    if run is None or run.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+    if run.status != "running":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Run is in '{run.status}' state, only 'running' runs can be cancelled",
+        )
+
+    run.status = "cancelled"
+    run.ended_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(run)
+
+    return RunListItem(
+        id=run.id,
+        status=run.status,
+        end_user_id=run.end_user_id,
+        session_id=run.session_id,
+        feature_tag=run.feature_tag,
+        deployment_version=run.deployment_version,
+        total_cost_usd=run.total_cost_usd,
+        total_input_tokens=run.total_input_tokens,
+        total_output_tokens=run.total_output_tokens,
+        started_at=run.started_at,
+        ended_at=run.ended_at,
+        duration_ms=_duration_ms(run.started_at, run.ended_at),
+        primary_model=None,
     )
 
 

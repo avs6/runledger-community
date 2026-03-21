@@ -13,6 +13,8 @@ from pydantic import BaseModel
 class ExperimentConfig(BaseModel):
     model: str
     label: str | None = None
+    prompt_name: str | None = None
+    prompt_version: int | None = None
 
 
 class DatasetCreate(BaseModel):
@@ -65,6 +67,9 @@ class ConfigResult(BaseModel):
     projected_cost_usd: Decimal
     avg_cost_per_run: Decimal
     pricing_found: bool
+    prompt_name: str | None = None
+    prompt_version: int | None = None
+    prompt_content_preview: str | None = None
 
 
 class ConfigDelta(BaseModel):

@@ -224,13 +224,24 @@ async def _handle_span_end(
     )
 
 
+def _provider_call_id(run_id: str, span_id: str | None) -> uuid.UUID:
+    """Deterministic UUID when span_id is present so retries are idempotent."""
+    if span_id:
+        return uuid.uuid5(uuid.NAMESPACE_URL, f"pc:{run_id}:{span_id}")
+    return uuid.uuid4()
+
+
 async def _handle_provider_call(
     session: AsyncSession, workspace_id: str, e: dict[str, Any]
 ) -> None:
-    session.add(
-        ProviderCall(
+    span_id = e.get("span_id")
+    pc_id = _provider_call_id(e["run_id"], span_id)
+    stmt = (
+        insert(ProviderCall)
+        .values(
+            id=pc_id,
             run_id=uuid.UUID(e["run_id"]),
-            span_id=_uuid(e.get("span_id")),
+            span_id=_uuid(span_id),
             workspace_id=uuid.UUID(workspace_id),
             provider=e["provider"],
             model=e["model"],
@@ -242,7 +253,9 @@ async def _handle_provider_call(
             status=e["status"],
             error_type=e.get("error_type"),
         )
+        .on_conflict_do_nothing(index_elements=["id"])
     )
+    await session.execute(stmt)
 
 
 async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:

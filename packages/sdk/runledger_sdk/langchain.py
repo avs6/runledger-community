@@ -314,6 +314,15 @@ class RunLedgerCallbackHandler(BaseCallbackHandler):  # type: ignore[misc]
         **kwargs: Any,
     ) -> None:
         name = (serialized or {}).get("name") or "tool"
+
+        # Runtime tool enforcement — check policy *before* the tool executes.
+        # Raises ToolBlockedError which propagates up through the LangChain
+        # callback system and into the agent loop as an exception.
+        if getattr(self._transport, "tool_enforcement", False):
+            from runledger_sdk.tool_check import check_tool_sync  # noqa: PLC0415
+
+            check_tool_sync(str(name), self._transport)
+
         self._open_span(run_id, parent_run_id, "tool", str(name))
 
     def on_tool_end(

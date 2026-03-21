@@ -39,11 +39,20 @@
 | 19 | Sessions UI + Payload Viewer | ✅ Complete | 8 |
 | 20 | TypeScript / Node.js SDK | 🔲 Planned | — |
 | 21A | Advanced Alerting | ✅ Complete | 9 |
-| 21B | Model Gateway | ✅ Complete | 12 |
+| 21B | Model Gateway | ✅ Complete | 14 |
 | 21C | Runs enhancements — model/cost filters · CSV export · Ollama cost fix · API key UX | ✅ Complete | — |
+| 21D | Unified policy checks — budgets + tools + gateway + eval gate | ✅ Complete | 6 |
 | 22 | SaaS Foundation | 🔲 Planned | — |
 
-**Total tests shipped (Phases 0–21B):** 224 API tests + 61 SDK tests
+**Total tests shipped (Phases 0–21D):** 233 API tests + 61 SDK tests
+
+**Audit snapshot (2026-03-15):**
+- API suite: `233/233` passing
+- SDK suite: `61/61` passing
+- Web lint: clean (`next lint`)
+- Repo lint: clean (`ruff check .`)
+- Core API typing: clean (`mypy apps/api/runledger_api`)
+- Web UI polish: refined dashboard shell + login experience; lint remains clean
 
 ---
 
@@ -2273,3 +2282,5 @@ RunLedger is the default:
 - for **finance**: internal chargeback + reconciled invoices + audit trails  
 - for **platform**: centralized gateway + policy enforcement + safe routing  
 - for **AI teams**: prompt + eval + cost/quality/outcome optimization loop
+
+

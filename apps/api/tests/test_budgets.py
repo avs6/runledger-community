@@ -19,6 +19,7 @@ from runledger_api.services.budgets import (
     _matching_budgets,
     _period_key,
     get_budget_spend,
+    get_workspace_budgets_cached,
     incr_budget_spend,
 )
 
@@ -149,6 +150,25 @@ async def test_get_budget_spend_returns_value() -> None:
     budget_id = uuid.uuid4()
     spend = await get_budget_spend(redis, budget_id, "daily")
     assert spend == Decimal("0.123456")
+
+
+@pytest.mark.asyncio
+async def test_get_workspace_budgets_cached_includes_workspace_id() -> None:
+    """Serialized cache rows include workspace_id for breach notification fan-out."""
+    workspace_id = uuid.uuid4()
+    budget = _make_budget_row(workspace_id=workspace_id)
+
+    redis = AsyncMock()
+    redis.get = AsyncMock(return_value=None)
+    redis.set = AsyncMock()
+
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=_list_result([budget]))
+
+    rows = await get_workspace_budgets_cached(redis, session, workspace_id)
+
+    assert len(rows) == 1
+    assert rows[0]["workspace_id"] == str(workspace_id)
 
 
 # ── POST /budgets ─────────────────────────────────────────────────────────────

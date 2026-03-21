@@ -6,45 +6,60 @@ Auth: Bearer API key (workspace-scoped)
 
 Endpoints
 ---------
-POST   /gateway/chat/completions   OpenAI-compatible proxy endpoint
-POST   /gateway/routes             Create a route
-GET    /gateway/routes             List routes
-PUT    /gateway/routes/{id}        Update / disable route
-DELETE /gateway/routes/{id}        Delete route
-GET    /gateway/stats              Request statistics
+POST   /gateway/chat/completions          OpenAI-compatible proxy (non-streaming + SSE streaming)
+POST   /gateway/routes                    Create a route
+GET    /gateway/routes                    List routes
+PUT    /gateway/routes/{id}               Update / disable route
+DELETE /gateway/routes/{id}               Delete route
+GET    /gateway/stats                     Request statistics
+GET    /gateway/requests                  Routing log with decision_reason
+POST   /gateway/policies                  Create a routing policy
+GET    /gateway/policies                  List routing policies
+PUT    /gateway/policies/{id}             Update a routing policy
+DELETE /gateway/policies/{id}             Delete a routing policy
 """
 
 from __future__ import annotations
 
 import time
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.gateway import GatewayRequest, GatewayRoute, PromptCache
+from runledger_api.models.gateway import GatewayRequest, GatewayRoute, RoutingPolicy
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.gateway import (
     GatewayCompletionRequest,
+    GatewayRequestList,
+    GatewayRequestResponse,
     GatewayRouteCreate,
     GatewayRouteList,
     GatewayRouteResponse,
     GatewayRouteStats,
     GatewayRouteUpdate,
     GatewayStats,
+    RoutingPolicyCreate,
+    RoutingPolicyList,
+    RoutingPolicyResponse,
+    RoutingPolicyUpdate,
 )
 from runledger_api.services.gateway import (
     check_cache,
     increment_hit_count,
+    make_cache_key,
     record_gateway_request,
     route_and_forward,
     store_cache,
+    stream_request,
 )
 
 router = APIRouter(
@@ -56,6 +71,7 @@ router = APIRouter(
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 
+
 # ── Chat completions ────────────────────────────────────────────────────────────
 
 
@@ -64,26 +80,24 @@ async def gateway_chat_completions(
     body: GatewayCompletionRequest,
     workspace: WorkspaceDep,
     db: DbDep,
-) -> dict[str, Any]:
+) -> Any:
     """
     OpenAI-compatible chat completions proxy.
 
     Flow:
       1. Check prompt cache (if body.cache=True)
       2. If cache hit: record + return cached response
-      3. Else: forward to provider via configured routes (with fallback)
-      4. Store result in cache + record GatewayRequest
+      3. Apply routing policy to select target route
+      4. Forward to provider (with retry + fallback)
+      5. Store result in cache + record GatewayRequest with decision_reason
+      6. If body.stream=True: return SSE StreamingResponse
     """
-    from runledger_api.services.gateway import make_cache_key
-
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
     # ── 1. Cache lookup ──────────────────────────────────────────────────────
     cache_entry = None
-    if body.cache:
-        # We need the target_model for the cache key; use alias for now,
-        # actual target resolved when forwarding. Use alias as surrogate.
-        cache_key = make_cache_key(body.model, messages)
+    if body.cache and not body.stream:
+        cache_key = make_cache_key(body.model, messages)  # type: ignore[arg-type]
         cache_entry = await check_cache(db, workspace.id, cache_key)
 
     if cache_entry is not None:
@@ -99,22 +113,81 @@ async def gateway_chat_completions(
             output_tokens=cache_entry.completion_tokens,
             latency_ms=0,
             req_status="cache_hit",
+            decision_reason="cache_hit",
         )
         return cache_entry.response_json
 
-    # ── 2. Forward to provider ────────────────────────────────────────────────
+    # ── 2. Streaming path ────────────────────────────────────────────────────
+    if body.stream:
+        from runledger_api.services.routing import select_route_with_policy
+
+        try:
+            route, decision_reason = await select_route_with_policy(
+                db, workspace.id, body.model, messages  # type: ignore[arg-type]
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"No active gateway routes for alias '{body.model}'",
+            )
+
+        async def _sse_gen():  # type: ignore[return]
+            async for chunk in stream_request(
+                route=route,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=body.temperature,
+                max_tokens=body.max_tokens,
+                top_p=body.top_p,
+                frequency_penalty=body.frequency_penalty,
+                presence_penalty=body.presence_penalty,
+                seed=body.seed,
+                stop=body.stop,
+                response_format=body.response_format,
+                tools=body.tools,
+                tool_choice=body.tool_choice,
+            ):
+                yield chunk
+
+        # Record the streaming request (no token counts available until stream ends)
+        await record_gateway_request(
+            db=db,
+            workspace_id=workspace.id,
+            model_requested=body.model,
+            route=route,
+            model_used=route.target_model,
+            cache_hit=False,
+            input_tokens=None,
+            output_tokens=None,
+            latency_ms=None,
+            req_status="success",
+            decision_reason=decision_reason,
+        )
+        return StreamingResponse(
+            _sse_gen(),
+            media_type="text/event-stream",
+            headers={"X-Decision-Reason": decision_reason},
+        )
+
+    # ── 3. Non-streaming forward ─────────────────────────────────────────────
     t0 = time.monotonic()
     try:
-        response_json, winning_route, latency_ms = await route_and_forward(
+        response_json, winning_route, latency_ms, decision_reason = await route_and_forward(
             db=db,
             workspace_id=workspace.id,
             model_alias=body.model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             temperature=body.temperature,
             max_tokens=body.max_tokens,
+            top_p=body.top_p,
+            frequency_penalty=body.frequency_penalty,
+            presence_penalty=body.presence_penalty,
+            seed=body.seed,
+            stop=body.stop,
+            response_format=body.response_format,
+            tools=body.tools,
+            tool_choice=body.tool_choice,
         )
     except HTTPException:
-        # Record the failed attempt before re-raising
         await record_gateway_request(
             db=db,
             workspace_id=workspace.id,
@@ -126,17 +199,17 @@ async def gateway_chat_completions(
             output_tokens=None,
             latency_ms=int((time.monotonic() - t0) * 1000),
             req_status="error",
+            decision_reason=None,
         )
         raise
 
-    # ── 3. Extract token usage ───────────────────────────────────────────────
     usage = response_json.get("usage") or {}
     input_tokens = usage.get("prompt_tokens")
     output_tokens = usage.get("completion_tokens")
 
     # ── 4. Store in cache ────────────────────────────────────────────────────
     if body.cache:
-        cache_key = make_cache_key(body.model, messages)
+        cache_key = make_cache_key(body.model, messages)  # type: ignore[arg-type]
         await store_cache(
             db=db,
             workspace_id=workspace.id,
@@ -159,6 +232,7 @@ async def gateway_chat_completions(
         output_tokens=output_tokens,
         latency_ms=latency_ms,
         req_status="success",
+        decision_reason=decision_reason,
     )
 
     return response_json
@@ -246,6 +320,137 @@ async def delete_gateway_route(
     await db.commit()
 
 
+# ── Routing policies CRUD ──────────────────────────────────────────────────────
+
+
+@router.post(
+    "/policies",
+    response_model=RoutingPolicyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_routing_policy(
+    body: RoutingPolicyCreate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> RoutingPolicyResponse:
+    """
+    Create or replace a routing policy for the given alias.
+    Only one active policy per alias is allowed (unique constraint on workspace+alias).
+    """
+    # Check for existing policy on this alias
+    existing_stmt = select(RoutingPolicy).where(
+        RoutingPolicy.workspace_id == workspace.id,
+        RoutingPolicy.alias == body.alias,
+    )
+    existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"A routing policy for alias '{body.alias}' already exists. "
+            "Use PUT /gateway/policies/{id} to update it.",
+        )
+
+    policy = RoutingPolicy(
+        workspace_id=workspace.id,
+        alias=body.alias,
+        policy_type=body.policy_type,
+        config=body.config,
+    )
+    db.add(policy)
+    await db.flush()
+    await db.commit()
+    await db.refresh(policy)
+    return RoutingPolicyResponse.model_validate(policy)
+
+
+@router.get("/policies", response_model=RoutingPolicyList)
+async def list_routing_policies(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    include_inactive: bool = Query(False),
+) -> RoutingPolicyList:
+    stmt = select(RoutingPolicy).where(RoutingPolicy.workspace_id == workspace.id)
+    if not include_inactive:
+        stmt = stmt.where(RoutingPolicy.is_active.is_(True))
+    stmt = stmt.order_by(RoutingPolicy.alias.asc())
+    result = await db.execute(stmt)
+    policies = list(result.scalars().all())
+    return RoutingPolicyList(items=[RoutingPolicyResponse.model_validate(p) for p in policies])
+
+
+@router.put("/policies/{policy_id}", response_model=RoutingPolicyResponse)
+async def update_routing_policy(
+    policy_id: uuid.UUID,
+    body: RoutingPolicyUpdate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> RoutingPolicyResponse:
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+
+    if body.policy_type is not None:
+        policy.policy_type = body.policy_type
+    if body.config is not None:
+        policy.config = body.config
+    if body.is_active is not None:
+        policy.is_active = body.is_active
+    policy.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(policy)
+    return RoutingPolicyResponse.model_validate(policy)
+
+
+@router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_routing_policy(
+    policy_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> None:
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    await db.delete(policy)
+    await db.commit()
+
+
+# ── Request log (routing log) ─────────────────────────────────────────────────
+
+
+@router.get("/requests", response_model=GatewayRequestList)
+async def list_gateway_requests(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    alias: str | None = Query(None, description="Filter by model alias"),
+    status_filter: str | None = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> GatewayRequestList:
+    """
+    Return recent gateway requests with routing decision reasons.
+    Useful for auditing which policy selected which route and why.
+    """
+    stmt = select(GatewayRequest).where(GatewayRequest.workspace_id == workspace.id)
+
+    if alias:
+        stmt = stmt.where(GatewayRequest.model_requested == alias)
+    if status_filter:
+        stmt = stmt.where(GatewayRequest.status == status_filter)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    stmt = stmt.order_by(GatewayRequest.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(stmt)
+    items = list(result.scalars().all())
+
+    return GatewayRequestList(
+        items=[GatewayRequestResponse.model_validate(r) for r in items],
+        total=total,
+    )
+
+
 # ── Stats ──────────────────────────────────────────────────────────────────────
 
 
@@ -282,7 +487,8 @@ async def gateway_stats(
     route_stats: list[GatewayRouteStats] = []
     total_requests = 0
     total_cache_hits = 0
-    latencies: list[Decimal] = []
+    latency_weighted_sum = Decimal("0")
+    latency_weight = 0
 
     for row in rows:
         total = int(row.total)
@@ -306,13 +512,16 @@ async def gateway_stats(
         total_requests += total
         total_cache_hits += cache_hits
         if avg_lat is not None:
-            latencies.append(avg_lat)
+            latency_weighted_sum += avg_lat * Decimal(total)
+            latency_weight += total
 
     overall_hit_rate = (
         Decimal(str(round(total_cache_hits / total_requests, 4))) if total_requests else Decimal("0")
     )
     overall_latency = (
-        Decimal(str(round(sum(latencies) / len(latencies), 2))) if latencies else None
+        (latency_weighted_sum / Decimal(latency_weight)).quantize(Decimal("0.01"))
+        if latency_weight
+        else None
     )
 
     return GatewayStats(

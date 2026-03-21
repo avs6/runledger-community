@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select, update
+from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
@@ -131,11 +131,14 @@ async def run_reconciliation(
     orphaned_calls: int = orphan_result.scalar_one() or 0
 
     # Count duplicates: same (run_id, model, date_trunc('second', created_at))
+    # Use literal_column for 'second' so both SELECT and GROUP BY emit the same
+    # inline literal — bound parameters at different positions confuse PostgreSQL.
+    ts_trunc = func.date_trunc(literal_column("'second'"), ProviderCall.created_at)
     dup_subq = (
         select(
             ProviderCall.run_id,
             ProviderCall.model,
-            func.date_trunc("second", ProviderCall.created_at).label("ts_second"),
+            ts_trunc.label("ts_second"),
             func.count().label("cnt"),
         )
         .where(
@@ -146,7 +149,7 @@ async def run_reconciliation(
         .group_by(
             ProviderCall.run_id,
             ProviderCall.model,
-            func.date_trunc("second", ProviderCall.created_at),
+            ts_trunc,
         )
         .having(func.count() > 1)
         .subquery()
@@ -155,6 +158,7 @@ async def run_reconciliation(
     duplicate_calls: int = dup_result.scalar_one() or 0
 
     issues: list[str] = []
+    warnings: list[str] = []
     recon_status = "pass"
 
     if delta_pct > Decimal("0.01"):
@@ -167,8 +171,12 @@ async def run_reconciliation(
         issues.append(f"{orphaned_calls} orphaned provider_call(s) with no matching agent_run")
         recon_status = "fail"
     if duplicate_calls > 0:
-        issues.append(f"{duplicate_calls} duplicate provider_call group(s) detected")
-        recon_status = "fail"
+        # Duplicates are a data-quality warning, not a billing failure — the
+        # pipeline now uses deterministic IDs so new ingestion won't produce
+        # duplicates; existing ones are pre-fix legacy rows.
+        warnings.append(f"{duplicate_calls} duplicate provider_call group(s) detected (data quality warning)")
+        if recon_status == "pass":
+            recon_status = "warning"
 
     log.info(
         "reconciliation_complete",
@@ -190,6 +198,7 @@ async def run_reconciliation(
         orphaned_calls=orphaned_calls,
         duplicate_calls=duplicate_calls,
         issues=issues,
+        warnings=warnings,
     )
 
 

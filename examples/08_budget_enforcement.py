@@ -147,7 +147,6 @@ def run_llm_calls(user_id: str, max_calls: int = 20) -> tuple[int, str | None]:
     Returns (calls_succeeded, budget_id_that_blocked).
     """
     import openai
-
     from runledger_sdk import RunLedger, RunLedgerBudgetExceededError
 
     rl = RunLedger(
@@ -225,7 +224,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"\nRunLedger Budget Enforcement Demo")
+    print("\nRunLedger Budget Enforcement Demo")
     print(f"User: {args.user_id}  |  Daily limit: ${args.limit_usd}  |  API: {BASE_URL}\n")
 
     # ── Step 1: Create budget ─────────────────────────────────────────────────

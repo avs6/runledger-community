@@ -111,7 +111,9 @@ async def _run_cost_enrichment() -> dict[str, int]:
                     workspace_id=pc.workspace_id,
                 )
                 if cost is None:
-                    cost = Decimal("0")  # Free/local provider (e.g. Ollama) — mark as $0
+                    # No pricing row found — leave cost_usd as NULL so it will
+                    # be re-enriched once pricing is configured.
+                    continue
 
                 await session.execute(
                     update(ProviderCall).where(ProviderCall.id == pc.id).values(cost_usd=cost)
@@ -143,8 +145,10 @@ async def _run_cost_enrichment() -> dict[str, int]:
 
     if enriched:
         log.info("cost_enrichment_done", enriched=enriched)
-        # Roll up costs to spans and runs after enriching
-        asyncio.run(_rollup_span_and_run_costs())
+        # Roll up costs to spans and runs after enriching.
+        # Must use await here — we're already inside asyncio.run() from the
+        # Celery task wrapper, so calling asyncio.run() again would fail.
+        await _rollup_span_and_run_costs()
 
     return {"enriched": enriched}
 

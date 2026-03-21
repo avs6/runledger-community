@@ -8,17 +8,27 @@ NextAuth stores the raw key in the encrypted JWT session.
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.models.tenant import ApiKey, EnvironmentEnum, User, WorkspaceUser
+from runledger_api.core.deps import require_user
+from runledger_api.models.tenant import (
+    ApiKey,
+    EnvironmentEnum,
+    TenantUser,
+    User,
+    Workspace,
+    WorkspaceUser,
+)
 from runledger_api.schemas.runs import LoginRequest, LoginResponse
 from runledger_api.services.auth import generate_api_key
 
@@ -28,7 +38,6 @@ router = APIRouter(tags=["auth"])
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
-# Dashboard session keys expire after 30 days
 _SESSION_EXPIRY = timedelta(days=30)
 
 
@@ -37,38 +46,57 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
     """
     Authenticate with email + password.
     Returns a workspace-scoped API key for the dashboard session.
-    The key is valid for 30 days and named "dashboard-session".
     """
-    # Find user
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    # Constant-time failure (avoids timing attacks)
     if user is None or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode()):
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Invalid email or password",
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
-    # Find the user's first workspace
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is deactivated")
+
+    # Load all workspace memberships
     wu_result = await db.execute(
         select(WorkspaceUser)
         .where(WorkspaceUser.user_id == user.id)
         .order_by(WorkspaceUser.created_at)
-        .limit(1)
     )
-    workspace_user = wu_result.scalar_one_or_none()
-    if workspace_user is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "User has no workspace")
+    workspace_users = list(wu_result.scalars().all())
 
-    # Load workspace
-    from runledger_api.models.tenant import Workspace
+    if not workspace_users:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "User has no workspace access")
+
+    # Pick requested workspace or default to first
+    workspace_user = workspace_users[0]
+    if body.workspace_id:
+        for wu in workspace_users:
+            if str(wu.workspace_id) == body.workspace_id:
+                workspace_user = wu
+                break
 
     workspace = await db.get(Workspace, workspace_user.workspace_id)
     if workspace is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace not found")
 
-    # Generate a fresh session API key
+    # Load tenant role
+    tu_result = await db.execute(
+        select(TenantUser).where(
+            TenantUser.user_id == user.id,
+            TenantUser.tenant_id == workspace.tenant_id,
+        )
+    )
+    tenant_user = tu_result.scalar_one_or_none()
+    tenant_role = tenant_user.role.value if tenant_user else None
+    workspace_role = workspace_user.role.value
+
+    # All workspaces this user can access
+    workspace_ids = [str(wu.workspace_id) for wu in workspace_users]
+
+    # Update last login
+    user.last_login_at = datetime.now(UTC)
+
+    # Generate session key
     raw_key, key_hash, key_prefix = generate_api_key(EnvironmentEnum.dev)
     session_key = ApiKey(
         workspace_id=workspace.id,
@@ -83,11 +111,105 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
     db.add(session_key)
     await db.commit()
 
-    log.info("dashboard_login", user_id=str(user.id), workspace_id=str(workspace.id))
+    log.info(
+        "dashboard_login",
+        user_id=str(user.id),
+        workspace_id=str(workspace.id),
+        tenant_id=str(workspace.tenant_id),
+        is_platform_admin=user.is_platform_admin,
+    )
 
     return LoginResponse(
         email=user.email,
-        workspace_id=workspace.id,
+        full_name=user.full_name,
+        user_id=str(user.id),
+        workspace_id=str(workspace.id),
         workspace_name=workspace.name,
+        tenant_id=str(workspace.tenant_id),
         api_key=raw_key,
+        is_platform_admin=user.is_platform_admin,
+        tenant_role=tenant_role,
+        workspace_role=workspace_role,
+        workspace_ids=workspace_ids,
+    )
+
+
+class SwitchWorkspaceRequest(BaseModel):
+    workspace_id: str
+
+
+@router.post("/auth/switch-workspace", response_model=LoginResponse)
+async def switch_workspace(
+    body: SwitchWorkspaceRequest,
+    auth: Annotated[tuple, Depends(require_user)],
+    db: DbDep,
+) -> LoginResponse:
+    """
+    Switch to a different workspace without re-entering credentials.
+    Validates the user has access, issues a new session API key, returns full session data.
+    """
+    _, user = auth
+    target_ws_id = uuid.UUID(body.workspace_id)
+
+    # Verify user has access to the target workspace
+    wu_result = await db.execute(
+        select(WorkspaceUser).where(
+            WorkspaceUser.workspace_id == target_ws_id,
+            WorkspaceUser.user_id == user.id,
+        )
+    )
+    workspace_user = wu_result.scalar_one_or_none()
+    if workspace_user is None and not user.is_platform_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "No access to this workspace")
+
+    target_workspace = await db.get(Workspace, target_ws_id)
+    if target_workspace is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
+
+    # Load tenant role
+    tu_result = await db.execute(
+        select(TenantUser).where(
+            TenantUser.user_id == user.id,
+            TenantUser.tenant_id == target_workspace.tenant_id,
+        )
+    )
+    tenant_user = tu_result.scalar_one_or_none()
+    tenant_role = tenant_user.role.value if tenant_user else None
+    workspace_role = workspace_user.role.value if workspace_user else None
+
+    # All workspaces this user can access
+    wu_all = await db.execute(
+        select(WorkspaceUser).where(WorkspaceUser.user_id == user.id).order_by(WorkspaceUser.created_at)
+    )
+    workspace_ids = [str(wu.workspace_id) for wu in wu_all.scalars().all()]
+
+    # Generate new session key for target workspace
+    raw_key, key_hash, key_prefix = generate_api_key(EnvironmentEnum.dev)
+    session_key = ApiKey(
+        workspace_id=target_workspace.id,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        name="dashboard-session",
+        scopes=[],
+        expires_at=datetime.now(UTC) + _SESSION_EXPIRY,
+        is_session=True,
+        created_by=user.email,
+    )
+    db.add(session_key)
+    await db.commit()
+
+    log.info("workspace_switch", user_id=str(user.id), workspace_id=str(target_workspace.id))
+
+    return LoginResponse(
+        email=user.email,
+        full_name=user.full_name,
+        user_id=str(user.id),
+        workspace_id=str(target_workspace.id),
+        workspace_name=target_workspace.name,
+        tenant_id=str(target_workspace.tenant_id),
+        api_key=raw_key,
+        is_platform_admin=user.is_platform_admin,
+        tenant_role=tenant_role,
+        workspace_role=workspace_role,
+        workspace_ids=workspace_ids,
     )
