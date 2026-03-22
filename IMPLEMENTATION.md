@@ -42,7 +42,7 @@
 | 21B | Model Gateway | ✅ Complete | 14 |
 | 21C | Runs enhancements — model/cost filters · CSV export · Ollama cost fix · API key UX | ✅ Complete | — |
 | 21D | Unified policy checks — budgets + tools + gateway + eval gate | ✅ Complete | 6 |
-| 22 | SaaS Foundation | 🔲 Planned | — |
+| 22 | SaaS Foundation | ✅ Complete | — |
 
 **Total tests shipped (Phases 0–21D + 15 + 20):** 233 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
