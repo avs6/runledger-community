@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { signIn } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -162,6 +163,13 @@ export default function LoginPage() {
             </form>
           </CardContent>
         </Card>
+
+        <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+          Don&apos;t have an account?{' '}
+          <Link href="/signup" className="font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400">
+            Sign up free
+          </Link>
+        </p>
 
         {/* Footer */}
         <p className="text-center text-xs text-slate-400 dark:text-slate-600">

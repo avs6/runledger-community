@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, LayoutList, MessageSquare,
   FlaskConical, Activity, Wallet, Settings,
-  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2,
+  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -157,6 +157,9 @@ export default function Sidebar() {
           {bottomItems.map(({ href, label, icon: Icon }) => (
             <NavLink key={href} href={href} label={label} icon={Icon} />
           ))}
+          {canAccessFinance && (
+            <NavLink href="/billing/subscription" label="Subscription" icon={CreditCard} />
+          )}
           <NavLink href="/settings" label="Settings" icon={Settings} />
         </div>
       </div>

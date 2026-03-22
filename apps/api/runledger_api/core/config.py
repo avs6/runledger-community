@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     # Set PRICING_FILE=/path/to/pricing.yml to override.
     pricing_file: str = "/app/config/pricing.yml"
 
+    # Stripe — leave empty for OSS / self-hosted deployments
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_starter: str = ""   # Stripe Price ID for Starter plan
+    stripe_price_growth: str = ""    # Stripe Price ID for Growth plan
+    stripe_price_enterprise: str = ""  # Stripe Price ID for Enterprise plan
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"

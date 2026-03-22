@@ -775,3 +775,17 @@ export interface OrgDashboard {
   top_models: OrgDashboardModel[]
   recent_runs: OrgDashboardRun[]
 }
+
+
+export interface SubscriptionResponse {
+  tenant_id: string
+  plan: string
+  status: string
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  current_period_start: string | null
+  current_period_end: string | null
+  events_limit: number
+  events_used: number
+  usage_pct: number
+}

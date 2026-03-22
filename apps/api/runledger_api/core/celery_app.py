@@ -13,6 +13,7 @@ celery_app = Celery(
         "runledger_api.workers.billing",
         "runledger_api.workers.ledger",
         "runledger_api.workers.alerts",
+        "runledger_api.workers.quotas",
     ],
 )
 
@@ -85,6 +86,11 @@ celery_app.conf.update(
         "alert-evaluation-5m": {
             "task": "alerts.evaluate_rules",
             "schedule": 300.0,
+        },
+        # Quota monthly reset: daily check (idempotent, only resets on month boundary)
+        "quota-monthly-reset-daily": {
+            "task": "quota_monthly_reset",
+            "schedule": 86400.0,
         },
     },
 )

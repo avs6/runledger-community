@@ -35,6 +35,7 @@ from runledger_api.routers import settings as settings_router
 from runledger_api.routers import users as users_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import platform as platform_router
+from runledger_api.routers import saas as saas_router
 from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
 from runledger_api.mcp_server import mcp as _mcp_server
 
@@ -101,6 +102,7 @@ app.include_router(policies_router.router)
 app.include_router(users_router.router)
 app.include_router(org_router.router)
 app.include_router(platform_router.router)
+app.include_router(saas_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

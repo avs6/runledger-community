@@ -13,8 +13,13 @@ from runledger_api.models.events import RunStatusEnum
 
 
 @pytest.mark.asyncio
-async def test_ingest_single_event_accepted(authed_client: AsyncClient) -> None:
+async def test_ingest_single_event_accepted(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
     run_id = str(uuid.uuid4())
+    # quota check returns None (no quota row → fail open)
+    mock_db_session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+    )
+    mock_db_session.commit = AsyncMock()
     payload = {
         "event_type": "run_start",
         "run_id": run_id,
@@ -33,8 +38,13 @@ async def test_ingest_single_event_accepted(authed_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ingest_batch_accepted(authed_client: AsyncClient) -> None:
+async def test_ingest_batch_accepted(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
     run_id = str(uuid.uuid4())
+    # quota check returns None (no quota row → fail open)
+    mock_db_session.execute = AsyncMock(
+        return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=None))
+    )
+    mock_db_session.commit = AsyncMock()
     payload = {
         "events": [
             {

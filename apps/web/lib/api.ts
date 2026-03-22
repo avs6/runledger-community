@@ -1062,3 +1062,16 @@ export async function deleteRoutingPolicy(apiKey: string, policyId: string): Pro
 export async function getOrgDashboard(apiKey: string): Promise<import('@/types/api').OrgDashboard> {
   return apiFetch<import('@/types/api').OrgDashboard>('/org/dashboard', apiKey)
 }
+
+// ── SaaS / Billing ────────────────────────────────────────────────────────────
+
+export async function getSubscription(apiKey: string): Promise<import('@/types/api').SubscriptionResponse> {
+  return apiFetch<import('@/types/api').SubscriptionResponse>('/billing/subscription', apiKey)
+}
+
+export async function createCheckout(apiKey: string, plan: string, successUrl: string, cancelUrl: string): Promise<{ checkout_url: string }> {
+  return apiFetch<{ checkout_url: string }>('/billing/checkout', apiKey, {
+    method: 'POST',
+    body: JSON.stringify({ plan, success_url: successUrl, cancel_url: cancelUrl }),
+  })
+}
