@@ -13,12 +13,18 @@ import {
   createDataset, listDatasets, createExperiment, listExperiments, runExperiment,
   listPrompts, createPrompt, deletePrompt, listVersions,
   listGatewayRoutes, listProviderPricing,
+  listEvaluators, createEvaluator, deleteEvaluator, runEvaluator,
+  getCostQuality, getBestValueModels,
 } from '@/lib/api'
-import type { DatasetResponse, ExperimentResponse, PromptResponse, GatewayRoute, ProviderPricingResponse, PromptVersion } from '@/types/api'
+import type {
+  DatasetResponse, ExperimentResponse, PromptResponse, GatewayRoute,
+  ProviderPricingResponse, PromptVersion, EvaluatorResponse,
+  CostQualityPoint, BestValueModel,
+} from '@/types/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type Tab = 'experiments' | 'datasets' | 'prompts'
+type Tab = 'experiments' | 'datasets' | 'prompts' | 'evaluators'
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -567,6 +573,225 @@ function PromptsTab({
   )
 }
 
+// ── Evaluators tab ────────────────────────────────────────────────────────────
+
+function EvaluatorsTab({
+  evaluators, costQuality, bestValue, loading,
+  onCreate, onDelete, onRun,
+}: {
+  evaluators: EvaluatorResponse[]
+  costQuality: CostQualityPoint[]
+  bestValue: BestValueModel[]
+  loading: boolean
+  onCreate: (data: { name: string; description: string; type: string; config: Record<string, unknown> }) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  onRun: (id: string) => Promise<void>
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [running, setRunning] = useState<string | null>(null)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [type, setType] = useState<'rule' | 'llm_judge'>('rule')
+  const [configText, setConfigText] = useState('{\n  "rules": []\n}')
+  const [configError, setConfigError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    let config: Record<string, unknown> = {}
+    try { config = JSON.parse(configText) } catch { setConfigError('Invalid JSON'); return }
+    setConfigError('')
+    setCreating(true)
+    try {
+      await onCreate({ name, description, type, config })
+      setName(''); setDescription(''); setConfigText('{\n  "rules": []\n}'); setShowForm(false)
+    } finally { setCreating(false) }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Create evaluator */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Evaluators</h2>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />{showForm ? 'Cancel' : 'New Evaluator'}
+          </button>
+        </div>
+
+        {showForm && (
+          <form onSubmit={handleSubmit} className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="e.g. Quality Judge" />
+              </div>
+              <div>
+                <label className={labelCls}>Type</label>
+                <select value={type} onChange={(e) => { setType(e.target.value as 'rule' | 'llm_judge'); setConfigText(e.target.value === 'llm_judge' ? '{\n  "model": "gpt-4o-mini",\n  "criteria": "Rate the quality of the response from 0 to 1."\n}' : '{\n  "rules": []\n}') }} className={inputCls}>
+                  <option value="rule">Rule-based</option>
+                  <option value="llm_judge">LLM Judge</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Description (optional)</label>
+              <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="What does this evaluator check?" />
+            </div>
+            <div>
+              <label className={labelCls}>Config (JSON)</label>
+              <textarea
+                value={configText}
+                onChange={(e) => { setConfigText(e.target.value); setConfigError('') }}
+                rows={6}
+                className={`${inputCls} font-mono text-xs`}
+              />
+              {configError && <p className="mt-1 text-xs text-red-500">{configError}</p>}
+              {type === 'rule' && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Rules: <code className="font-mono">{'[{"field":"status","op":"eq","value":"succeeded","score_if_pass":1,"score_if_fail":0}]'}</code>
+                </p>
+              )}
+            </div>
+            <button type="submit" disabled={creating || !name} className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors">
+              {creating && <Loader2 className="h-4 w-4 animate-spin" />}Create
+            </button>
+          </form>
+        )}
+
+        {/* Evaluators table */}
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                <th className="pb-2 text-left font-medium px-1">Name</th>
+                <th className="pb-2 text-left font-medium px-1">Type</th>
+                <th className="pb-2 text-left font-medium px-1">Status</th>
+                <th className="pb-2 text-right font-medium px-1">Runs</th>
+                <th className="pb-2 text-left font-medium px-1">Last Run</th>
+                <th className="pb-2 px-1"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <SkeletonRows cols={6} />
+              ) : evaluators.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+                    No evaluators yet — create one above.
+                  </td>
+                </tr>
+              ) : (
+                evaluators.map((ev) => (
+                  <tr key={ev.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="py-2.5 px-1 font-medium text-slate-800 dark:text-slate-100">{ev.name}</td>
+                    <td className="py-2.5 px-1">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ev.type === 'llm_judge' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'}`}>
+                        {ev.type === 'llm_judge' ? 'LLM Judge' : 'Rule'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-1">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ev.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                        {ev.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{ev.last_run_count.toLocaleString()}</td>
+                    <td className="py-2.5 px-1 text-slate-500 dark:text-slate-400 text-xs">
+                      {ev.last_run_at ? new Date(ev.last_run_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="py-2.5 px-1">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={async () => { setRunning(ev.id); try { await onRun(ev.id) } finally { setRunning(null) } }}
+                          disabled={running === ev.id}
+                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-colors disabled:opacity-50"
+                        >
+                          {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
+                        </button>
+                        <button onClick={() => onDelete(ev.id)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Cost-quality chart */}
+      {costQuality.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-4">Cost vs Quality by Model</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                  <th className="pb-2 text-left font-medium px-1">Model</th>
+                  <th className="pb-2 text-right font-medium px-1">Avg Cost</th>
+                  <th className="pb-2 text-right font-medium px-1">Avg Score</th>
+                  <th className="pb-2 text-right font-medium px-1">Runs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costQuality.map((pt) => (
+                  <tr key={pt.model} className="border-b border-slate-50 dark:border-slate-800/50">
+                    <td className="py-2 px-1 font-mono text-xs text-slate-700 dark:text-slate-200">{pt.model}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(pt.avg_cost_usd).toFixed(6)}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                      {pt.avg_score != null ? Number(pt.avg_score).toFixed(3) : '—'}
+                    </td>
+                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{pt.run_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Best value models */}
+      {bestValue.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">Best Value Models</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Ranked by quality ÷ cost ratio (higher = better value)</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+                  <th className="pb-2 text-left font-medium px-1">Rank</th>
+                  <th className="pb-2 text-left font-medium px-1">Model</th>
+                  <th className="pb-2 text-right font-medium px-1">Avg Score</th>
+                  <th className="pb-2 text-right font-medium px-1">Avg Cost</th>
+                  <th className="pb-2 text-right font-medium px-1">Value Score</th>
+                  <th className="pb-2 text-right font-medium px-1">Runs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bestValue.map((bv, i) => (
+                  <tr key={bv.model} className="border-b border-slate-50 dark:border-slate-800/50">
+                    <td className="py-2 px-1 text-slate-500 dark:text-slate-400 text-xs font-medium">#{i + 1}</td>
+                    <td className="py-2 px-1 font-mono text-xs text-slate-700 dark:text-slate-200">{bv.model}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">{Number(bv.avg_score).toFixed(3)}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(bv.avg_cost_usd).toFixed(6)}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-teal-600 dark:text-teal-400 font-semibold">{Number(bv.value_score).toFixed(2)}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{bv.run_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function EvaluationPage() {
@@ -581,22 +806,31 @@ export default function EvaluationPage() {
   const [prompts, setPrompts] = useState<PromptResponse[]>([])
   const [routes, setRoutes] = useState<GatewayRoute[]>([])
   const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
+  const [evaluators, setEvaluators] = useState<EvaluatorResponse[]>([])
+  const [costQuality, setCostQuality] = useState<CostQualityPoint[]>([])
+  const [bestValue, setBestValue] = useState<BestValueModel[]>([])
 
   const refresh = useCallback(async () => {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [exp, ds, pr, rt, prc] = await Promise.all([
+      const [exp, ds, pr, rt, prc, evs, cq, bv] = await Promise.all([
         listExperiments(apiKey),
         listDatasets(apiKey),
         listPrompts(apiKey),
         listGatewayRoutes(apiKey, true),
         listProviderPricing(apiKey),
+        listEvaluators(apiKey),
+        getCostQuality(apiKey).catch(() => ({ items: [] })),
+        getBestValueModels(apiKey).catch(() => ({ items: [] })),
       ])
       setExperiments(exp.items)
       setDatasets(ds.items)
       setPrompts(pr.items)
       setRoutes(rt.items)
+      setEvaluators(evs.items)
+      setCostQuality(cq.items)
+      setBestValue(bv.items)
       setPricing(prc.items)
     } catch (err) {
       console.error(err)
@@ -632,10 +866,35 @@ export default function EvaluationPage() {
     } catch { toast.error('Failed to create dataset') }
   }
 
+  async function handleCreateEvaluator(data: { name: string; description: string; type: string; config: Record<string, unknown> }) {
+    try {
+      await createEvaluator(apiKey, data)
+      toast.success('Evaluator created')
+      await refresh()
+    } catch { toast.error('Failed to create evaluator') }
+  }
+
+  async function handleDeleteEvaluator(id: string) {
+    try {
+      await deleteEvaluator(apiKey, id)
+      toast.success('Evaluator deleted')
+      setEvaluators((prev) => prev.filter((e) => e.id !== id))
+    } catch { toast.error('Failed to delete evaluator') }
+  }
+
+  async function handleRunEvaluator(id: string) {
+    try {
+      await runEvaluator(apiKey, id)
+      toast.success('Evaluation queued — scores will appear shortly')
+      await refresh()
+    } catch { toast.error('Failed to queue evaluation') }
+  }
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'experiments', label: 'Experiments', icon: <FlaskConical className="h-4 w-4" />, count: experiments.length },
     { id: 'datasets', label: 'Datasets', icon: <Database className="h-4 w-4" />, count: datasets.length },
     { id: 'prompts', label: 'Prompts', icon: <BookText className="h-4 w-4" />, count: prompts.length },
+    { id: 'evaluators', label: 'Evaluators', icon: <CheckCircle className="h-4 w-4" />, count: evaluators.length },
   ]
 
   return (
@@ -696,6 +955,17 @@ export default function EvaluationPage() {
           prompts={prompts}
           loading={loading}
           onRefresh={refresh}
+        />
+      )}
+      {tab === 'evaluators' && (
+        <EvaluatorsTab
+          evaluators={evaluators}
+          costQuality={costQuality}
+          bestValue={bestValue}
+          loading={loading}
+          onCreate={handleCreateEvaluator}
+          onDelete={handleDeleteEvaluator}
+          onRun={handleRunEvaluator}
         />
       )}
     </div>

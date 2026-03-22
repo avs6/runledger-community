@@ -14,6 +14,7 @@ celery_app = Celery(
         "runledger_api.workers.ledger",
         "runledger_api.workers.alerts",
         "runledger_api.workers.quotas",
+        "runledger_api.workers.evaluators",
     ],
 )
 
@@ -91,6 +92,11 @@ celery_app.conf.update(
         "quota-monthly-reset-daily": {
             "task": "quota_monthly_reset",
             "schedule": 86400.0,
+        },
+        # Judge drift detection: every 6 hours
+        "judge-drift-6h": {
+            "task": "evaluators.detect_judge_drift",
+            "schedule": 21600.0,
         },
     },
 )

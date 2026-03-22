@@ -65,6 +65,12 @@ from runledger_api.schemas.economics import (
     WorkflowSummary,
     WorkflowTopList,
 )
+from runledger_api.schemas.evaluators import (
+    BestValueModel,
+    BestValueResponse,
+    CostQualityPoint,
+    CostQualityResponse,
+)
 from runledger_api.schemas.scores import (
     ScoreRegressionItem,
     ScoreSummary,
@@ -1214,3 +1220,122 @@ async def score_regressions(
             )
 
     return regressions
+
+
+# ── Cost-quality analytics ─────────────────────────────────────────────────────
+
+@router.get("/scores/cost-quality", response_model=CostQualityResponse)
+async def cost_quality(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    score_name: Annotated[str | None, Query()] = None,
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> CostQualityResponse:
+    """
+    Return avg cost vs avg score per model over the selected window.
+    Joins agent_runs → provider_calls → score_events on run_id.
+    """
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+
+    from runledger_api.models.evaluators import Evaluator  # noqa: F401
+
+    # Subquery: avg cost per run (from provider_calls)
+    cost_sq = (
+        select(
+            ProviderCall.run_id.label("run_id"),
+            ProviderCall.model.label("model"),
+            func.sum(ProviderCall.cost_usd).label("run_cost"),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= t_from,
+            ProviderCall.created_at < t_to,
+        )
+        .group_by(ProviderCall.run_id, ProviderCall.model)
+        .subquery()
+    )
+
+    # Subquery: avg score per run
+    score_filter = [
+        ScoreEvent.workspace_id == workspace.id,
+        ScoreEvent.created_at >= t_from,
+        ScoreEvent.created_at < t_to,
+    ]
+    if score_name:
+        score_filter.append(ScoreEvent.name == score_name)
+
+    score_sq = (
+        select(
+            ScoreEvent.run_id.label("run_id"),
+            func.avg(ScoreEvent.value).label("avg_score"),
+        )
+        .where(*score_filter)
+        .group_by(ScoreEvent.run_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            cost_sq.c.model,
+            func.avg(cost_sq.c.run_cost).label("avg_cost_usd"),
+            func.avg(score_sq.c.avg_score).label("avg_score"),
+            func.count(cost_sq.c.run_id.distinct()).label("run_count"),
+        )
+        .outerjoin(score_sq, cost_sq.c.run_id == score_sq.c.run_id)
+        .group_by(cost_sq.c.model)
+        .order_by(func.avg(cost_sq.c.run_cost).asc())
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    items = [
+        CostQualityPoint(
+            model=row.model or "unknown",
+            avg_cost_usd=str(round(Decimal(str(row.avg_cost_usd or 0)), 6)),
+            avg_score=str(round(Decimal(str(row.avg_score)), 4)) if row.avg_score is not None else None,
+            run_count=row.run_count,
+        )
+        for row in rows
+    ]
+    return CostQualityResponse(items=items)
+
+
+@router.get("/scores/best-value", response_model=BestValueResponse)
+async def best_value_models(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    score_name: Annotated[str | None, Query()] = None,
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+    min_runs: Annotated[int, Query(ge=1)] = 3,
+) -> BestValueResponse:
+    """
+    Return models ranked by quality/cost ratio (best value = high score, low cost).
+    Excludes models with avg_cost_usd == 0 to avoid division by zero.
+    """
+    cq = await cost_quality(workspace, db, score_name, from_dt, to_dt)
+
+    best: list[BestValueModel] = []
+    for pt in cq.items:
+        if pt.avg_score is None:
+            continue
+        avg_cost = float(pt.avg_cost_usd)
+        avg_score = float(pt.avg_score)
+        if avg_cost <= 0 or pt.run_count < min_runs:
+            continue
+        value_score = avg_score / avg_cost
+        best.append(
+            BestValueModel(
+                model=pt.model,
+                avg_cost_usd=pt.avg_cost_usd,
+                avg_score=pt.avg_score,
+                value_score=str(round(value_score, 4)),
+                run_count=pt.run_count,
+            )
+        )
+
+    best.sort(key=lambda x: float(x.value_score), reverse=True)
+    return BestValueResponse(items=best)

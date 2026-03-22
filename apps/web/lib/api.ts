@@ -1075,3 +1075,58 @@ export async function createCheckout(apiKey: string, plan: string, successUrl: s
     body: JSON.stringify({ plan, success_url: successUrl, cancel_url: cancelUrl }),
   })
 }
+
+// ── Evaluators ────────────────────────────────────────────────────────────────
+
+export async function listEvaluators(apiKey: string): Promise<import('@/types/api').EvaluatorList> {
+  return apiFetch<import('@/types/api').EvaluatorList>('/evaluations/evaluators', apiKey)
+}
+
+export async function createEvaluator(
+  apiKey: string,
+  body: { name: string; description?: string; type: string; config: Record<string, unknown> }
+): Promise<import('@/types/api').EvaluatorResponse> {
+  return apiFetch<import('@/types/api').EvaluatorResponse>('/evaluations/evaluators', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteEvaluator(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/evaluations/evaluators/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function runEvaluator(
+  apiKey: string,
+  id: string,
+  body?: { limit?: number }
+): Promise<import('@/types/api').EvaluatorRunResult> {
+  return apiFetch<import('@/types/api').EvaluatorRunResult>(`/evaluations/evaluators/${id}/run`, apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? { limit: 100 }),
+  })
+}
+
+// ── Cost-quality analytics ────────────────────────────────────────────────────
+
+export async function getCostQuality(
+  apiKey: string,
+  params?: { score_name?: string; from?: string; to?: string }
+): Promise<import('@/types/api').CostQualityResponse> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<import('@/types/api').CostQualityResponse>(`/analytics/scores/cost-quality${qs}`, apiKey)
+}
+
+export async function getBestValueModels(
+  apiKey: string,
+  params?: { score_name?: string; from?: string; to?: string }
+): Promise<import('@/types/api').BestValueResponse> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<import('@/types/api').BestValueResponse>(`/analytics/scores/best-value${qs}`, apiKey)
+}

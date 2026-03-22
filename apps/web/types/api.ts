@@ -789,3 +789,54 @@ export interface SubscriptionResponse {
   events_used: number
   usage_pct: number
 }
+
+// ── Evaluators ────────────────────────────────────────────────────────────────
+
+export interface EvaluatorResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  type: 'llm_judge' | 'rule'
+  config: Record<string, unknown>
+  status: 'active' | 'inactive'
+  last_run_at: string | null
+  last_run_count: number
+  created_at: string
+}
+
+export interface EvaluatorList {
+  items: EvaluatorResponse[]
+}
+
+export interface EvaluatorRunResult {
+  evaluator_id: string
+  evaluated: number
+  scores_created: number
+  errors: number
+}
+
+// ── Cost-quality analytics ────────────────────────────────────────────────────
+
+export interface CostQualityPoint {
+  model: string
+  avg_cost_usd: string
+  avg_score: string | null
+  run_count: number
+}
+
+export interface CostQualityResponse {
+  items: CostQualityPoint[]
+}
+
+export interface BestValueModel {
+  model: string
+  avg_cost_usd: string
+  avg_score: string
+  value_score: string
+  run_count: number
+}
+
+export interface BestValueResponse {
+  items: BestValueModel[]
+}

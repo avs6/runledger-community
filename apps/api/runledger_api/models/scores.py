@@ -39,6 +39,7 @@ class ScoreEvent(Base):
     source: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="human")
     confidence: Mapped[Decimal | None] = mapped_column(sa.Numeric(4, 3), nullable=True)
     evidence: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    evaluator_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
