@@ -282,12 +282,6 @@ export default async function DashboardPage() {
               Global Dashboard →
             </Link>
           )}
-          <Link
-            href="/analytics"
-            className="text-sm text-teal-600 hover:underline dark:text-teal-400"
-          >
-            Advanced analytics →
-          </Link>
         </div>
       </div>
       <Suspense fallback={<DashboardSkeleton />}>

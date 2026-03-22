@@ -49,9 +49,32 @@ _PRICING_DATA: list[tuple[str, str, str, str, str | None]] = [
     ("anthropic", "claude-opus-4-6", "15.00", "75.00", None),
     ("anthropic", "claude-sonnet-4-6", "3.00", "15.00", None),
     ("anthropic", "claude-haiku-4-5", "0.80", "4.00", None),
-    # ── Google ────────────────────────────────────────────────────────────────
+    # ── Google Gemini ─────────────────────────────────────────────────────────
+    ("google", "gemini-2.5-pro", "1.25", "10.00", None),
+    ("google", "gemini-2.0-flash", "0.075", "0.30", None),
+    ("google", "gemini-2.0-flash-lite", "0.019", "0.075", None),
     ("google", "gemini-1.5-pro", "1.25", "5.00", None),
     ("google", "gemini-1.5-flash", "0.075", "0.30", None),
+    ("google", "gemini-1.5-flash-8b", "0.019", "0.075", None),
+    # ── xAI (Grok) ───────────────────────────────────────────────────────────
+    ("xai", "grok-3-latest", "3.00", "15.00", None),
+    ("xai", "grok-3-mini-latest", "0.30", "0.50", None),
+    ("xai", "grok-2-latest", "2.00", "10.00", "1.00"),
+    ("xai", "grok-2-vision-1212", "2.00", "10.00", "1.00"),
+    ("xai", "grok-beta", "5.00", "15.00", None),
+    # ── Mistral ───────────────────────────────────────────────────────────────
+    ("mistral", "mistral-large-latest", "2.00", "6.00", None),
+    ("mistral", "mistral-medium-latest", "0.40", "2.00", None),
+    ("mistral", "mistral-small-latest", "0.20", "0.60", None),
+    ("mistral", "open-mistral-nemo", "0.15", "0.15", None),
+    ("mistral", "codestral-latest", "0.20", "0.60", None),
+    ("mistral", "mistral-embed", "0.10", "0.00", None),
+    # ── Cohere ────────────────────────────────────────────────────────────────
+    ("cohere", "command-r-plus", "2.50", "10.00", None),
+    ("cohere", "command-r-plus-08-2024", "2.50", "10.00", None),
+    ("cohere", "command-r", "0.15", "0.60", None),
+    ("cohere", "command-r-08-2024", "0.15", "0.60", None),
+    ("cohere", "command-light", "0.30", "0.60", None),
 ]
 
 

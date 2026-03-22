@@ -36,10 +36,14 @@ def _make_fake_openai() -> types.ModuleType:
     completions = types.ModuleType("openai.resources.chat.completions")
 
     class Completions:
+        _client = MagicMock(base_url="http://localhost:11434")
+
         def create(self, **kwargs: Any) -> Any:
             raise NotImplementedError
 
     class AsyncCompletions:
+        _client = MagicMock(base_url="http://localhost:11434")
+
         async def create(self, **kwargs: Any) -> Any:
             raise NotImplementedError
 
@@ -113,8 +117,9 @@ def test_build_run_start_with_context() -> None:
 
 def test_build_provider_call_extracts_usage() -> None:
     run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
     resp = _fake_response(100, 50)
-    event = _build_provider_call(run_id, "gpt-4o", resp, 250)
+    event = _build_provider_call(run_id, span_id, "gpt-4o", resp, 250)
     assert event["event_type"] == "provider_call"
     assert event["provider"] == "openai"
     assert event["model"] == "gpt-4o"
@@ -127,8 +132,9 @@ def test_build_provider_call_extracts_usage() -> None:
 
 def test_build_provider_call_with_cached_tokens() -> None:
     run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
     resp = _fake_response(200, 80, cached_tokens=50)
-    event = _build_provider_call(run_id, "gpt-4o", resp, 300)
+    event = _build_provider_call(run_id, span_id, "gpt-4o", resp, 300)
     assert event["cached_input_tokens"] == 50
 
 
@@ -137,8 +143,9 @@ def test_build_provider_call_with_cached_tokens() -> None:
 
 def test_build_provider_call_error() -> None:
     run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
     exc = ValueError("rate limited")
-    event = _build_provider_call_error(run_id, "gpt-4o", exc, 100)
+    event = _build_provider_call_error(run_id, span_id, "gpt-4o", exc, 100)
     assert event["status"] == "error"
     assert event["error_type"] == "ValueError"
 
@@ -173,6 +180,7 @@ def test_instrument_openai_patches_sync_create() -> None:
     captured: list[dict[str, Any]] = []
     transport = MagicMock(spec=SyncTransport)
     transport.budget_check = False
+    transport.tool_enforcement = False
     transport.enqueue = lambda event: captured.append(event)
 
     with pytest.MonkeyPatch().context() as mp:

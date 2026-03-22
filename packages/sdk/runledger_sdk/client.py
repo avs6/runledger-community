@@ -158,6 +158,39 @@ class RunLedger:
 
         instrument_anthropic(self._get_sync_transport())
 
+    def instrument_gemini(self) -> None:
+        """
+        Monkey-patches Google Gemini ``client.models.generate_content`` (sync + async).
+        Requires ``google-genai`` package installed (``pip install google-genai``).
+
+        Safe to call multiple times (idempotent).
+        """
+        from runledger_sdk.gemini import instrument_gemini  # noqa: PLC0415
+
+        instrument_gemini(self._get_sync_transport())
+
+    def instrument_mistral(self) -> None:
+        """
+        Monkey-patches Mistral ``client.chat.complete`` (sync + async).
+        Requires ``mistralai`` package installed (``pip install mistralai``).
+
+        Safe to call multiple times (idempotent).
+        """
+        from runledger_sdk.mistral import instrument_mistral  # noqa: PLC0415
+
+        instrument_mistral(self._get_sync_transport())
+
+    def instrument_cohere(self) -> None:
+        """
+        Monkey-patches Cohere ``ClientV2.chat`` (sync + async).
+        Requires ``cohere`` package installed (``pip install cohere``).
+
+        Safe to call multiple times (idempotent).
+        """
+        from runledger_sdk.cohere import instrument_cohere  # noqa: PLC0415
+
+        instrument_cohere(self._get_sync_transport())
+
     def instrument_mcp(self, session: object) -> None:
         """
         Patch an ``mcp.ClientSession`` so every ``call_tool`` invocation is

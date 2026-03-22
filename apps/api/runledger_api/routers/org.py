@@ -576,11 +576,16 @@ async def get_org_finance(
     workspaces = list(ws_result.scalars().all())
     ws_ids = [ws.id for ws in workspaces]
 
-    # 30-day spend per workspace from UsageDaily
+    # 30-day spend per workspace — query provider_calls directly so intra-day
+    # costs appear immediately without waiting for the nightly rollup.
     spend_result = await db.execute(
-        select(UsageDaily.workspace_id, func.sum(UsageDaily.cost_usd).label("total"))
-        .where(UsageDaily.workspace_id.in_(ws_ids), UsageDaily.day >= since.date())
-        .group_by(UsageDaily.workspace_id)
+        select(ProviderCall.workspace_id, func.sum(ProviderCall.cost_usd).label("total"))
+        .where(
+            ProviderCall.workspace_id.in_(ws_ids),
+            ProviderCall.created_at >= since,
+            ProviderCall.cost_usd.is_not(None),
+        )
+        .group_by(ProviderCall.workspace_id)
     )
     spend_by_ws: dict[uuid.UUID, Decimal] = {row.workspace_id: row.total or Decimal(0) for row in spend_result.all()}
 

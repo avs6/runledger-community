@@ -321,11 +321,7 @@ def _build_run_end(
 
 
 def _detect_provider(base_url: str) -> str:
-    """Infer the provider name from the OpenAI-client base URL.
-
-    Ollama uses port 11434 or a hostname containing 'ollama'.
-    OpenAI uses api.openai.com. Everything else falls back to the hostname.
-    """
+    """Infer the provider name from the OpenAI-client base URL."""
     url = base_url.lower()
     if "11434" in url or "ollama" in url:
         return "ollama"
@@ -335,11 +331,24 @@ def _detect_provider(base_url: str) -> str:
         return "anthropic"
     if "googleapis.com" in url or "generativelanguage" in url:
         return "google"
+    if "x.ai" in url or "xai.com" in url:
+        return "xai"
+    if "mistral.ai" in url:
+        return "mistral"
+    if "cohere.com" in url:
+        return "cohere"
+    if "together.xyz" in url or "togetherai" in url:
+        return "together"
+    if "fireworks.ai" in url:
+        return "fireworks"
+    if "groq.com" in url:
+        return "groq"
+    if "perplexity.ai" in url:
+        return "perplexity"
     # Derive from hostname for custom / self-hosted endpoints
     try:
         from urllib.parse import urlparse  # noqa: PLC0415
         host = urlparse(base_url).hostname or "unknown"
-        # Strip common subdomains and TLD to get a clean provider name
         parts = host.split(".")
         return parts[-2] if len(parts) >= 2 else host
     except Exception:
