@@ -40,15 +40,31 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://runledger:runledger@postgres:5432/runledger
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: dev-secret-key-change-in-production
-      # Admin secret for /admin/* endpoints — enter this in Settings > Tenant Management
-      ADMIN_SECRET: runledger-admin
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
       CORS_ORIGINS: http://localhost:3000
       # MCP server (mounted at /mcp) calls back to itself via loopback
       RUNLEDGER_BASE_URL: http://localhost:8000
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
+      # Brevo SMTP — set these in infra/.env to enable transactional email
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      # Firebase Admin SDK — set in infra/.env to enable social login
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      # Stripe — set in infra/.env for paid plans
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
+      STRIPE_PRICE_GROWTH: ${STRIPE_PRICE_GROWTH:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
     volumes:
       - ../logs:/app/logs
       # Provider pricing — edit config/pricing.yml then restart api + beat to apply
@@ -72,8 +88,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://runledger:runledger@postgres:5432/runledger
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: dev-secret-key-change-in-production
-      ADMIN_SECRET: runledger-admin
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
     volumes:
@@ -94,8 +110,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://runledger:runledger@postgres:5432/runledger
       REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: dev-secret-key-change-in-production
-      ADMIN_SECRET: runledger-admin
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
     volumes:
@@ -113,11 +129,17 @@ services:
       args:
         # Must be the browser-facing URL — NEXT_PUBLIC_ vars are baked in at build time
         NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
     ports:
       - "3000:3000"
     environment:
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: dev-secret-key-change-in-production
+      NEXTAUTH_SECRET: ${SECRET_KEY:-dev-secret-key-change-in-production}
       # Server-side (SSR/RSC) API URL — internal Docker network, never seen by the browser
       API_URL: http://api:8000
     depends_on:

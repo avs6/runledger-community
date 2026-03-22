@@ -8,6 +8,7 @@ wheels/
 .venv
 .env
 *.env.local
+infra/.env
 
 # uv — lock file must be committed for reproducible CI builds
 # uv.lock

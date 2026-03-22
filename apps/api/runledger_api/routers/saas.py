@@ -48,6 +48,7 @@ from runledger_api.schemas.saas import (
     SubscriptionResponse,
 )
 from runledger_api.services.auth import generate_api_key
+from runledger_api.services.email import send_welcome_email
 
 log = structlog.get_logger()
 
@@ -84,12 +85,15 @@ async def signup(body: SignupRequest, db: DbDep) -> SignupResponse:
 
     # Create user
     pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    verify_token = secrets.token_urlsafe(32)
     user = User(
         email=body.email,
         password_hash=pw_hash,
         full_name=body.full_name,
         is_active=True,
         is_platform_admin=False,
+        email_verified=False,
+        email_verify_token=verify_token,
     )
     db.add(user)
     await db.flush()
@@ -141,13 +145,39 @@ async def signup(body: SignupRequest, db: DbDep) -> SignupResponse:
     await db.commit()
     log.info("signup_complete", email=body.email, tenant_id=str(tenant.id))
 
+    # Send welcome email with credentials + verification link (non-blocking)
+    verify_url = f"{settings.app_base_url}/verify-email?token={verify_token}"
+    await send_welcome_email(
+        to_email=body.email,
+        full_name=body.full_name,
+        password=body.password,
+        api_key=raw_key,
+        verify_url=verify_url,
+    )
+
     return SignupResponse(
         user_id=user.id,
         tenant_id=tenant.id,
         workspace_id=workspace.id,
         api_key=raw_key,
-        message="Account created. Use the api_key to send events.",
+        message="Account created. Check your email to verify your address.",
     )
+
+
+# ── Email verification ────────────────────────────────────────────────────────
+
+@router.get("/auth/verify-email")
+async def verify_email(token: str, db: DbDep) -> dict[str, str]:
+    """Verify email address using the token sent on signup."""
+    result = await db.execute(select(User).where(User.email_verify_token == token))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired verification link")
+    user.email_verified = True
+    user.email_verify_token = None
+    await db.commit()
+    log.info("email_verified", user_id=str(user.id), email=user.email)
+    return {"status": "verified", "email": user.email}
 
 
 # ── Subscription / quota ──────────────────────────────────────────────────────

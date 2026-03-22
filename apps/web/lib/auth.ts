@@ -3,6 +3,24 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
+function buildUserFromApiResponse(data: Record<string, unknown>) {
+  return {
+    id: data.user_id as string,
+    email: data.email as string,
+    name: (data.full_name as string) || (data.email as string),
+    apiKey: data.api_key as string,
+    workspaceId: data.workspace_id as string,
+    workspaceName: data.workspace_name as string,
+    tenantId: data.tenant_id as string,
+    userId: data.user_id as string,
+    fullName: data.full_name as string | null,
+    isPlatformAdmin: (data.is_platform_admin as boolean) ?? false,
+    tenantRole: (data.tenant_role as string | null) ?? null,
+    workspaceRole: (data.workspace_role as string | null) ?? null,
+    workspaceIds: (data.workspace_ids as string[]) ?? [],
+  }
+}
+
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -27,23 +45,29 @@ export const authOptions: AuthOptions = {
           })
 
           if (!res.ok) return null
+          return buildUserFromApiResponse(await res.json())
+        } catch {
+          return null
+        }
+      },
+    }),
 
-          const data = await res.json()
-          return {
-            id: data.user_id,
-            email: data.email,
-            name: data.full_name || data.email,
-            apiKey: data.api_key,
-            workspaceId: data.workspace_id,
-            workspaceName: data.workspace_name,
-            tenantId: data.tenant_id,
-            userId: data.user_id,
-            fullName: data.full_name,
-            isPlatformAdmin: data.is_platform_admin ?? false,
-            tenantRole: data.tenant_role ?? null,
-            workspaceRole: data.workspace_role ?? null,
-            workspaceIds: data.workspace_ids ?? [],
-          }
+    CredentialsProvider({
+      id: 'firebase',
+      name: 'Firebase',
+      credentials: {
+        idToken: { label: 'Firebase ID Token', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.idToken) return null
+        try {
+          const res = await fetch(`${API_URL}/auth/firebase-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: credentials.idToken }),
+          })
+          if (!res.ok) return null
+          return buildUserFromApiResponse(await res.json())
         } catch {
           return null
         }

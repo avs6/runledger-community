@@ -32,12 +32,26 @@ class Settings(BaseSettings):
     # Set PRICING_FILE=/path/to/pricing.yml to override.
     pricing_file: str = "/app/config/pricing.yml"
 
+    # Email — Brevo SMTP (leave empty to disable email sending)
+    smtp_host: str = "smtp-relay.brevo.com"
+    smtp_port: int = 587
+    smtp_user: str = ""          # Brevo login email
+    smtp_password: str = ""      # Brevo SMTP key
+    smtp_from: str = "runledger@gmail.com"
+    app_base_url: str = "http://localhost:3000"  # used for verification links
+
     # Stripe — leave empty for OSS / self-hosted deployments
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_price_starter: str = ""   # Stripe Price ID for Starter plan
     stripe_price_growth: str = ""    # Stripe Price ID for Growth plan
     stripe_price_enterprise: str = ""  # Stripe Price ID for Enterprise plan
+
+    # Firebase Admin SDK — leave empty to disable social login
+    # Create a service account at: Firebase Console → Project Settings → Service Accounts
+    firebase_project_id: str = ""
+    firebase_client_email: str = ""
+    firebase_private_key: str = ""  # PEM key; \n in value is auto-converted
 
     @property
     def is_development(self) -> bool:

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 import structlog
 
-from runledger_api.core.celery import celery_app
+from runledger_api.core.celery_app import celery_app
 
 log = structlog.get_logger()
 

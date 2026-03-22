@@ -171,7 +171,7 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(sa.String(255), unique=True, nullable=False)
     username: Mapped[str | None] = mapped_column(sa.String(64), unique=True, nullable=True)
-    password_hash: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     full_name: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         sa.Boolean, server_default=sa.text("true"), nullable=False
@@ -182,6 +182,11 @@ class User(Base):
     is_platform_admin: Mapped[bool] = mapped_column(
         sa.Boolean, server_default=sa.text("false"), nullable=False
     )
+    email_verified: Mapped[bool] = mapped_column(
+        sa.Boolean, server_default=sa.text("false"), nullable=False
+    )
+    email_verify_token: Mapped[str | None] = mapped_column(sa.String(64), nullable=True, index=True)
+    firebase_uid: Mapped[str | None] = mapped_column(sa.String(128), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )

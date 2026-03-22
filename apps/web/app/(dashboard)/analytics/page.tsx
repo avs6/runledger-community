@@ -114,7 +114,7 @@ function SpendChart({ data }: { data: SpendOverTime }) {
         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
-        <Tooltip formatter={(v: number) => [`$${v.toFixed(4)}`, 'Cost']} />
+        <Tooltip formatter={(v) => [`$${Number(v).toFixed(4)}`, 'Cost']} />
         <Area type="monotone" dataKey="cost" stroke="#0d9488" strokeWidth={2} fill="url(#g1)" />
       </AreaChart>
     </ResponsiveContainer>
@@ -133,10 +133,10 @@ function ModelChart({ data }: { data: SpendByModel }) {
     <div className="space-y-4">
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
-          <Pie data={pie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name.split('/')[1]} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+          <Pie data={pie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: { name?: string; percent?: number }) => `${(name ?? '').split('/')[1] ?? name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
             {pie.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Pie>
-          <Tooltip formatter={(v: number) => fmt$(v)} />
+          <Tooltip formatter={(v) => fmt$(Number(v))} />
         </PieChart>
       </ResponsiveContainer>
       <table className="w-full text-xs">
@@ -178,7 +178,7 @@ function FeatureChart({ data }: { data: SpendByFeature }) {
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
           <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `$${v}`} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} />
-          <Tooltip formatter={(v: number) => [fmt$(v), 'Cost']} />
+          <Tooltip formatter={(v) => [fmt$(Number(v)), 'Cost']} />
           <Bar dataKey="cost" fill="#7c3aed" radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
