@@ -32,27 +32,27 @@
 | 11 | Tamper-evident Ledger + Security + Privacy | ✅ Complete | 15 |
 | 12 | Settings Console + Dark Mode + Provider Profiles | ✅ Complete | 13 |
 | 14 | Integrations: Slack Alerts + GitHub CI Gate | ✅ Complete | 8 |
-| 15 | Anthropic SDK | 🔲 Planned | — |
+| 15 | Anthropic SDK | ✅ Complete | 8 |
 | 16 | Production Hardening + UI Polish | ✅ Complete | 13 |
 | 17 | Evaluations & Scores | ✅ Complete | 13 |
 | 18 | Prompt Management | ✅ Complete | 12 |
 | 19 | Sessions UI + Payload Viewer | ✅ Complete | 8 |
-| 20 | TypeScript / Node.js SDK | 🔲 Planned | — |
+| 20 | TypeScript / Node.js SDK | ✅ Complete | 9 |
 | 21A | Advanced Alerting | ✅ Complete | 9 |
 | 21B | Model Gateway | ✅ Complete | 14 |
 | 21C | Runs enhancements — model/cost filters · CSV export · Ollama cost fix · API key UX | ✅ Complete | — |
 | 21D | Unified policy checks — budgets + tools + gateway + eval gate | ✅ Complete | 6 |
 | 22 | SaaS Foundation | 🔲 Planned | — |
 
-**Total tests shipped (Phases 0–21D):** 233 API tests + 61 SDK tests
+**Total tests shipped (Phases 0–21D + 15 + 20):** 233 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
-**Audit snapshot (2026-03-15):**
+**Audit snapshot (2026-03-21):**
 - API suite: `233/233` passing
-- SDK suite: `61/61` passing
+- Python SDK suite: `61/61` passing
+- TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
 - Repo lint: clean (`ruff check .`)
 - Core API typing: clean (`mypy apps/api/runledger_api`)
-- Web UI polish: refined dashboard shell + login experience; lint remains clean
 
 ---
 
@@ -1126,7 +1126,7 @@ Tests (`packages/sdk/tests/test_anthropic.py`) — ~8 tests:
 - `test_async_instrument`, `test_streaming_token_count`
 - `test_error_captures_error_type`, `test_context_propagated`
 
-**Definition of done:** 🔲 Two-line instrumentation captures all Anthropic Claude calls with correct token and cost attribution.
+**Definition of done:** ✅ Two-line instrumentation captures all Anthropic Claude calls with correct token and cost attribution.
 
 ---
 
@@ -1441,7 +1441,7 @@ Tests (`packages/sdk-ts/tests/`, Jest):
 - `score()` method: sends correct payload to `/evaluations/scores`
 - Vercel AI middleware: wraps `streamText`, emits event on completion
 
-**Definition of done:** 🔲 `npm install @runledger/sdk` in a Next.js app. Add `instrumentOpenAI(openai)` in one line. Make 5 chat completions. Runs appear in the RunLedger UI with correct token counts. `score(runId, "relevance", 0.9)` from TypeScript creates a score.
+**Definition of done:** ✅ `npm install @runledger/sdk` in a Next.js app. Add `rl.instrument(openai)` in one line. Make 5 chat completions. Runs appear in the RunLedger UI with correct token counts. Context propagation works across nested async calls. Multi-provider support: OpenAI-compatible, Gemini, Mistral, Cohere. TypeScript examples in `examples/ts/`.
 
 ---
 

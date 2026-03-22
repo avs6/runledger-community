@@ -255,13 +255,16 @@ Dashboard runs at `http://localhost:3000`.
 
 ## Install the SDK
 
-The SDK is not yet published to PyPI. Install directly from the repo.
+### Python SDK (`runledger-sdk`)
+
+Not yet published to PyPI. Install directly from the repo.
 
 **Option A — local path** (if you have the repo cloned):
 
 ```bash
 # Pick the extras you need
 pip install -e "/path/to/runledger/packages/sdk[openai]"
+pip install -e "/path/to/runledger/packages/sdk[anthropic]"
 pip install -e "/path/to/runledger/packages/sdk[langchain]"
 pip install -e "/path/to/runledger/packages/sdk[langgraph]"
 pip install -e "/path/to/runledger/packages/sdk[all]"
@@ -271,6 +274,7 @@ pip install -e "/path/to/runledger/packages/sdk[all]"
 
 ```bash
 pip install "runledger-sdk[openai]    @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+pip install "runledger-sdk[anthropic] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 pip install "runledger-sdk[langchain] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 pip install "runledger-sdk[langgraph] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
 pip install "runledger-sdk[all]       @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
@@ -281,9 +285,27 @@ Each extra pulls in the right peer dependencies:
 | Extra | What it adds |
 |-------|-------------|
 | `openai` | `openai>=1.0.0` |
+| `anthropic` | `anthropic>=0.25.0` |
 | `langchain` | `langchain-core>=0.3.0` |
 | `langgraph` | `langchain-core>=0.3.0` + `langgraph>=0.2.0` |
 | `all` | everything above + CLI |
+
+### TypeScript / Node.js SDK (`@runledger/sdk`)
+
+Not yet published to npm. Install from the repo:
+
+```bash
+# from the repo root
+npm install ./packages/ts-sdk
+# or with pnpm / yarn:
+pnpm add ./packages/ts-sdk
+```
+
+Peer dependency (optional — only needed if using `rl.instrument(openai)`):
+
+```bash
+npm install openai
+```
 
 ---
 
@@ -386,6 +408,11 @@ python 01_openai_basic.py
 | 17 | `17_alerts.py` | Create alert rules (error_rate / p95_latency / avg_score / spend_velocity), toggle, history, cleanup |
 | 18 | `18_gateway.py` | Configure provider routes, send completions through the proxy, observe cache hit vs miss, stats |
 | 19 | `19_policy_check.py` | Unified policy decision checks (budgets + tools + gateway + eval gate) |
+| 20 | `20_anthropic_basic.py` | Anthropic Claude instrumentation with `rl.instrument_anthropic()` |
+| 21 | `20_tool_registry_ollama.py` | Tool registry + Ollama local model (OpenAI-compatible, cost = $0) |
+| — | `ts/01_openai_basic.ts` | TypeScript: OpenAI instrumentation with `@runledger/sdk` |
+| — | `ts/02_multi_turn.ts` | TypeScript: multi-turn chat with `withContext` |
+| — | `ts/03_vercel_ai.ts` | TypeScript: Vercel AI SDK integration |
 
 ---
 
@@ -457,6 +484,78 @@ with rl.context(end_user_id="u_789", feature_tag="qa-agent") as run_id:
     result = instrumented.invoke({"question": "What is 2+2?"})
 
 rl.shutdown()
+```
+
+### Anthropic Claude
+
+```python
+from runledger_sdk import RunLedger
+import anthropic
+
+rl = RunLedger(api_key="rl_dev_...")
+rl.instrument_anthropic()          # patches anthropic.Anthropic + AsyncAnthropic
+
+client = anthropic.Anthropic()
+
+with rl.context(end_user_id="u_123", feature_tag="support-chat") as run_id:
+    message = client.messages.create(
+        model="claude-3-5-sonnet-20241022",
+        max_tokens=256,
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+    )
+    print(message.content[0].text)
+
+rl.shutdown()
+```
+
+Streaming and `AsyncAnthropic` are both supported. Tokens, latency, and cost are captured automatically from `usage.input_tokens` / `usage.output_tokens`.
+
+### TypeScript / Node.js
+
+```typescript
+import OpenAI from 'openai'
+import { RunLedger } from '@runledger/sdk'
+
+const rl = new RunLedger({ apiKey: process.env.RUNLEDGER_API_KEY })
+const openai = new OpenAI()
+
+rl.instrument(openai)   // wraps chat.completions.create — streaming + non-streaming
+
+const result = await rl.withContext(
+  { endUserId: 'u_123', featureTag: 'support-chat' },
+  async (runId) => {
+    return await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: 'Hello!' }],
+    })
+  },
+)
+
+await rl.flush()
+```
+
+Other providers are supported via dedicated instrument methods:
+
+```typescript
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import { Mistral } from '@mistralai/mistralai'
+import { CohereClientV2 } from 'cohere-ai'
+
+rl.instrumentGemini(new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!))
+rl.instrumentMistral(new Mistral({ apiKey: process.env.MISTRAL_API_KEY }))
+rl.instrumentCohere(new CohereClientV2({ token: process.env.COHERE_API_KEY }))
+```
+
+Context propagates across service boundaries via HTTP headers:
+
+```typescript
+// Service A — outgoing request
+const headers = rl.propagationHeaders()
+// { 'x-runledger-run-id': '...', 'x-runledger-session-id': '...' }
+
+// Service B — incoming request
+const ctx = RunLedger.contextFromHeaders(incomingHeaders)
+await rl.withContext(ctx, async () => { /* all calls tagged with same run */ })
 ```
 
 ### Prompt management
@@ -1136,7 +1235,8 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 ## OSS vs Paid
 
 **Open source (free forever):**
-- SDK — OpenAI, LangChain, LangGraph
+- SDK — OpenAI, Anthropic Claude, LangChain, LangGraph (Python)
+- TypeScript SDK — OpenAI, Gemini, Mistral, Cohere (`@runledger/sdk`)
 - Collector + event pipeline
 - Metering + pricing engine + analytics API
 - Run Explorer + DAG viewer
@@ -1171,6 +1271,7 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 | 11 | Tamper-evident ledger + security boundaries + privacy governance | ✅ Complete |
 | 12 | Settings console · API key management · provider pricing · dark mode | ✅ Complete |
 | 14 | Integrations — Slack alerts · analytics export · CI regression gate | ✅ Complete |
+| 15 | Anthropic SDK — `rl.instrument_anthropic()` · streaming · async · budget enforcement | ✅ Complete |
 | 16 | Production hardening — rate limiting · PII scrubbing · health probes · UI polish | ✅ Complete |
 | 17 | Evaluations & Scores — `rl.score()` · score CRUD · analytics summary + regressions · `/evaluations` dashboard page | ✅ Complete |
 | 18 | Prompt Management — `rl.get_prompt()` · CRUD + version history · environment promotion · diff viewer · per-version metrics · `/prompts` dashboard | ✅ Complete |
@@ -1179,10 +1280,12 @@ NEXT_PUBLIC_API_URL = https://your-api-domain.com
 | 21B | Model Gateway — OpenAI-compatible proxy · prompt caching · priority-ordered routing · fallback · per-route stats · Gateway section in Settings | ✅ Complete |
 | 21C | Runs enhancements — model + cost range filters · `GET /runs/export` CSV download · seconds-granularity datetime picker · Ollama `cost_usd=$0` fix · session API key UX | ✅ Complete |
 | 21D | Unified policy checks — `/policies/check` combines budget guardrails, tool policy, gateway readiness, and optional score gates | ✅ Complete |
+| 20 | TypeScript / Node.js SDK — `@runledger/sdk` · OpenAI · Gemini · Mistral · Cohere · `AsyncLocalStorage` context · multi-provider detection | ✅ Complete |
 
-**Validation Snapshot (2026-03-15)**
+**Validation Snapshot (2026-03-21)**
 - API tests: `233/233` passing
-- SDK tests: `61/61` passing
+- Python SDK tests: `61/61` passing
+- TypeScript SDK tests: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
 - Repo lint: clean (`ruff check .`)
 - Core API typing: clean (`mypy apps/api/runledger_api`)
