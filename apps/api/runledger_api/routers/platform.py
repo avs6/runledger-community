@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import secrets
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 import bcrypt
 import structlog
@@ -55,7 +55,7 @@ def _make_slug(name: str) -> str:
     return f"{base}-{secrets.token_hex(3)}"
 
 
-async def _ws_detail(db: AsyncSession, ws: Workspace) -> dict:
+async def _ws_detail(db: AsyncSession, ws: Workspace) -> dict[str, Any]:
     tenant = await db.get(Tenant, ws.tenant_id)
     mc = (
         await db.execute(
@@ -83,8 +83,8 @@ async def _ws_detail(db: AsyncSession, ws: Workspace) -> dict:
 
 @router.get("/stats")
 async def get_platform_stats(
-    auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
-) -> dict:
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
+) -> dict[str, Any]:
     tenant_count = (await db.execute(select(func.count()).select_from(Tenant))).scalar() or 0
     user_count = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
     workspace_count = (await db.execute(select(func.count()).select_from(Workspace))).scalar() or 0
@@ -102,12 +102,12 @@ async def get_platform_stats(
 
 @router.get("/orgs", response_model=list[TenantResponse])
 async def list_all_orgs(
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
     search: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     query = select(Tenant).order_by(Tenant.created_at.desc()).offset(skip).limit(limit)
     if search:
         query = query.where(Tenant.name.ilike(f"%{search}%"))
@@ -142,8 +142,8 @@ async def list_all_orgs(
 
 @router.post("/orgs", status_code=status.HTTP_201_CREATED, response_model=TenantResponse)
 async def platform_create_org(
-    body: TenantCreate, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
-) -> dict:
+    body: TenantCreate, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
+) -> dict[str, Any]:
     existing = await db.execute(select(User).where(User.email == body.admin_email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Email '{body.admin_email}' already exists")
@@ -190,8 +190,8 @@ async def platform_create_org(
 
 @router.get("/orgs/{org_id}", response_model=TenantResponse)
 async def platform_get_org(
-    org_id: uuid.UUID, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
-) -> dict:
+    org_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
+) -> dict[str, Any]:
     tenant = await db.get(Tenant, org_id)
     if tenant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
@@ -222,9 +222,9 @@ async def platform_get_org(
 async def platform_update_org(
     org_id: uuid.UUID,
     body: TenantUpdate,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     tenant = await db.get(Tenant, org_id)
     if tenant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
@@ -261,9 +261,9 @@ async def platform_update_org(
 async def platform_update_org_status(
     org_id: uuid.UUID,
     body: TenantStatusUpdate,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     _, current_user = auth
     tenant = await db.get(Tenant, org_id)
     if tenant is None:
@@ -310,7 +310,7 @@ async def platform_update_org_status(
 
 @router.delete("/orgs/{org_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def platform_delete_org(
-    org_id: uuid.UUID, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
+    org_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
 ) -> None:
     tenant = await db.get(Tenant, org_id)
     if tenant is None:
@@ -348,7 +348,7 @@ async def platform_delete_org(
 
 @router.get("/orgs/{org_id}/workspaces", response_model=list[WorkspaceResponse])
 async def platform_list_org_workspaces(
-    org_id: uuid.UUID, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
+    org_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
 ) -> list[Workspace]:
     result = await db.execute(
         select(Workspace).where(Workspace.tenant_id == org_id).order_by(Workspace.created_at)
@@ -364,7 +364,7 @@ async def platform_list_org_workspaces(
 async def platform_create_workspace_for_org(
     org_id: uuid.UUID,
     body: WorkspaceCreateForOrg,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
 ) -> Workspace:
     tenant = await db.get(Tenant, org_id)
@@ -382,10 +382,10 @@ async def platform_create_workspace_for_org(
 @router.get("/orgs/{org_id}/members")
 async def platform_list_org_members(
     org_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
     search: str | None = Query(None),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     query = (
         select(TenantUser, User)
         .join(User, TenantUser.user_id == User.id)
@@ -416,13 +416,13 @@ async def platform_list_org_members(
 
 @router.get("/workspaces", response_model=list[WorkspaceDetailResponse])
 async def platform_list_workspaces(
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
     search: str | None = Query(None),
     org_id: uuid.UUID | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     query = (
         select(Workspace, Tenant)
         .join(Tenant, Workspace.tenant_id == Tenant.id)
@@ -462,8 +462,8 @@ async def platform_list_workspaces(
 
 @router.get("/workspaces/{workspace_id}", response_model=WorkspaceDetailResponse)
 async def platform_get_workspace(
-    workspace_id: uuid.UUID, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
-) -> dict:
+    workspace_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
+) -> dict[str, Any]:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
@@ -474,9 +474,9 @@ async def platform_get_workspace(
 async def platform_update_workspace(
     workspace_id: uuid.UUID,
     body: WorkspaceCreateForOrg,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
@@ -490,9 +490,9 @@ async def platform_update_workspace(
 async def platform_update_workspace_status(
     workspace_id: uuid.UUID,
     body: WorkspaceStatusUpdate,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
@@ -506,9 +506,9 @@ async def platform_update_workspace_status(
 async def platform_move_workspace_org(
     workspace_id: uuid.UUID,
     body: WorkspaceOrgAssign,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     """Move workspace to a different organization."""
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
@@ -524,7 +524,7 @@ async def platform_move_workspace_org(
 
 @router.delete("/workspaces/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def platform_delete_workspace(
-    workspace_id: uuid.UUID, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
+    workspace_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
 ) -> None:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
@@ -536,12 +536,12 @@ async def platform_delete_workspace(
 @router.get("/workspaces/{workspace_id}/members")
 async def platform_list_workspace_members(
     workspace_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
     search: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     query = (
         select(WorkspaceUser, User)
         .join(User, WorkspaceUser.user_id == User.id)
@@ -570,9 +570,9 @@ async def platform_list_workspace_members(
 async def platform_add_workspace_member(
     workspace_id: uuid.UUID,
     body: WorkspaceMemberCreate,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
@@ -603,9 +603,9 @@ async def platform_update_workspace_member(
     workspace_id: uuid.UUID,
     user_id: uuid.UUID,
     body: WorkspaceMemberCreate,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     wu = (
         await db.execute(
             select(WorkspaceUser).where(
@@ -626,7 +626,7 @@ async def platform_update_workspace_member(
 async def platform_remove_workspace_member(
     workspace_id: uuid.UUID,
     user_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
 ) -> None:
     wu = (
@@ -649,7 +649,7 @@ async def platform_remove_workspace_member(
 
 @router.post("/users", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def platform_create_user(
-    body: UserCreate, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
+    body: UserCreate, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
 ) -> User:
     if (
         await db.execute(select(User).where(User.email == body.email))
@@ -718,12 +718,12 @@ async def platform_create_user(
 
 @router.get("/users", response_model=list[UserWithOrgsResponse])
 async def list_all_users(
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
     search: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, le=200),
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     query = select(User).order_by(User.created_at.desc()).offset(skip).limit(limit)
     if search:
         query = query.where(
@@ -764,9 +764,9 @@ async def list_all_users(
 @router.get("/users/{user_id}", response_model=UserWithOrgsResponse)
 async def platform_get_user(
     user_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -797,7 +797,7 @@ async def platform_get_user(
 async def platform_update_user(
     user_id: uuid.UUID,
     body: UserUpdate,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
 ) -> User:
     user = await db.get(User, user_id)
@@ -832,9 +832,9 @@ async def platform_update_user(
 async def platform_add_user_to_org(
     user_id: uuid.UUID,
     body: OrgAssignment,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
@@ -886,9 +886,9 @@ async def platform_update_user_org_role(
     user_id: uuid.UUID,
     org_id: uuid.UUID,
     body: OrgAssignment,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     tu = (
         await db.execute(
             select(TenantUser).where(TenantUser.tenant_id == org_id, TenantUser.user_id == user_id)
@@ -915,7 +915,7 @@ async def platform_update_user_org_role(
 async def platform_remove_user_from_org(
     user_id: uuid.UUID,
     org_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_platform_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
     db: DbDep,
 ) -> None:
     tu = (
@@ -948,7 +948,7 @@ async def platform_remove_user_from_org(
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def platform_delete_user(
-    user_id: uuid.UUID, auth: Annotated[tuple, Depends(require_platform_admin)], db: DbDep
+    user_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
 ) -> None:
     _, current_user = auth
     if user_id == current_user.id:

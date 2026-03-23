@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -49,7 +49,7 @@ router = APIRouter(
 log = structlog.get_logger()
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-AdminDep = Annotated[tuple, Depends(require_workspace_admin)]
+AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
 
 
 # ── POST /retention/policies ──────────────────────────────────────────────────

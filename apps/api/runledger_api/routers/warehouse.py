@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -53,7 +53,7 @@ router = APIRouter(
 log = structlog.get_logger()
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-AdminDep = Annotated[tuple, Depends(require_workspace_admin)]
+AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
 
 
 # ── Destinations ──────────────────────────────────────────────────────────────
@@ -92,8 +92,8 @@ async def create_destination(
         db,
         workspace_id=workspace.id,
         action="warehouse_destination.created",
-        resource_id=str(dest.id),
-        metadata={"name": dest.name, "provider": dest.provider, "bucket": dest.bucket},
+        target_id=str(dest.id),
+        after={"name": dest.name, "provider": dest.provider, "bucket": dest.bucket},
     )
     return WarehouseDestinationResponse.model_validate(dest)
 
@@ -163,8 +163,8 @@ async def update_destination(
         db,
         workspace_id=workspace.id,
         action="warehouse_destination.updated",
-        resource_id=str(dest.id),
-        metadata=body.model_dump(exclude_none=True, exclude={"secret_access_key"}),
+        target_id=str(dest.id),
+        after=body.model_dump(exclude_none=True, exclude={"secret_access_key"}),
     )
     return WarehouseDestinationResponse.model_validate(dest)
 
@@ -191,8 +191,8 @@ async def delete_destination(
         db,
         workspace_id=workspace.id,
         action="warehouse_destination.deleted",
-        resource_id=str(destination_id),
-        metadata={"name": dest.name},
+        target_id=str(destination_id),
+        after={"name": dest.name},
     )
 
 

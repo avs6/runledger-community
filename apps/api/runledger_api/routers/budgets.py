@@ -18,7 +18,7 @@ GET    /budgets/notifications    List notification channels
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -62,7 +62,7 @@ log = structlog.get_logger()
 @router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
 async def create_budget(
     body: BudgetCreate,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> BudgetResponse:
@@ -235,7 +235,7 @@ async def list_notifications(
 )
 async def create_notification(
     body: NotificationCreate,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> NotificationResponse:
     workspace: Workspace = auth[0]
@@ -321,7 +321,7 @@ async def get_breaches(
 @router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_budget(
     budget_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> None:

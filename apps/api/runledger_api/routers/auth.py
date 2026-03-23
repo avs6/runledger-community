@@ -370,13 +370,13 @@ async def bootstrap_platform_admin(body: BootstrapRequest, db: DbDep) -> Bootstr
     await db.commit()
 
     log.info("bootstrap_complete", email=body.email, tenant_id=str(tenant.id))
-    return {
-        "user_id": str(user.id),
-        "tenant_id": str(tenant.id),
-        "workspace_id": str(workspace.id),
-        "api_key": raw_key,
-        "message": f"Platform admin '{body.email}' ready. Use the api_key for your .env file.",
-    }
+    return BootstrapResponse(
+        user_id=str(user.id),
+        tenant_id=str(tenant.id),
+        workspace_id=str(workspace.id),
+        api_key=raw_key,
+        message=f"Platform admin '{body.email}' ready. Use the api_key for your .env file.",
+    )
 
 
 # ── Global Pricing ────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import structlog
 
@@ -31,10 +32,9 @@ _MIN_SAMPLE = 5  # minimum outcomes in window to alert
 
 async def _rollup() -> int:
     """Compute outcome_rollups_daily for yesterday across all workspaces."""
-    from sqlalchemy import func, select
+    from sqlalchemy import Integer, func, select
     from sqlalchemy.dialects.postgresql import insert
-    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     from sqlalchemy.pool import NullPool
 
     from runledger_api.core.config import settings
@@ -42,7 +42,7 @@ async def _rollup() -> int:
     from runledger_api.models.outcomes import Outcome, OutcomeRollupDaily
 
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)  # noqa: N806
+    AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)  # noqa: N806
 
     yesterday = date.today() - timedelta(days=1)
     day_start = datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=UTC)
@@ -64,9 +64,7 @@ async def _rollup() -> int:
             agg_result = await db.execute(
                 select(
                     func.count(Outcome.id).label("count"),
-                    func.sum(func.cast(Outcome.success, type_=func.Integer.__class__)).label(
-                        "success_count"
-                    ),
+                    func.sum(func.cast(Outcome.success, Integer)).label("success_count"),
                     func.coalesce(func.sum(Outcome.value_usd), Decimal("0")).label("total_value"),
                 ).where(
                     Outcome.workspace_id == workspace_id,
@@ -171,25 +169,25 @@ def rollup_outcomes_daily() -> None:
     log.info("outcome_rollup_done", rows_written=written)
 
 
-async def _check_alerts() -> list[dict]:
+async def _check_alerts() -> list[dict[str, Any]]:
     """Compare last 7d cost_per_success + success_rate vs prior 7d."""
+
     from sqlalchemy import func, select
-    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     from sqlalchemy.pool import NullPool
 
     from runledger_api.core.config import settings
     from runledger_api.models.outcomes import OutcomeRollupDaily
 
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)  # noqa: N806
+    AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)  # noqa: N806
 
     today = date.today()
     curr_start = today - timedelta(days=7)
     prior_start = today - timedelta(days=14)
     prior_end = curr_start
 
-    alerts: list[dict] = []
+    alerts: list[dict[str, Any]] = []
 
     async with AsyncSessionLocal() as db:
         # Aggregate current window

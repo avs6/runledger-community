@@ -20,7 +20,7 @@ GET    /billing/chargeback-rules           List chargeback rules
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -70,7 +70,7 @@ log = structlog.get_logger()
 )
 async def create_billing_period(
     body: BillingPeriodCreate,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BillingPeriodResponse:
     workspace: Workspace = auth[0]
@@ -110,7 +110,7 @@ async def create_billing_period(
 
 @router.get("/periods", response_model=BillingPeriodList)
 async def list_billing_periods(
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
 ) -> BillingPeriodList:
@@ -147,7 +147,7 @@ async def list_billing_periods(
 @router.get("/periods/{period_id}", response_model=BillingPeriodResponse)
 async def get_billing_period(
     period_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BillingPeriodResponse:
     workspace: Workspace = auth[0]
@@ -182,7 +182,7 @@ async def get_billing_period(
 @router.post("/periods/{period_id}/close", response_model=UsageSnapshotResponse)
 async def close_period(
     period_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> UsageSnapshotResponse:
     workspace: Workspace = auth[0]
@@ -225,7 +225,7 @@ async def close_period(
 @router.get("/periods/{period_id}/reconciliation", response_model=ReconciliationResult)
 async def get_reconciliation(
     period_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ReconciliationResult:
     workspace: Workspace = auth[0]
@@ -254,7 +254,7 @@ async def get_reconciliation(
 @router.get("/periods/{period_id}/breakdown", response_model=PeriodBreakdown)
 async def get_breakdown(
     period_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> PeriodBreakdown:
     workspace: Workspace = auth[0]
@@ -282,7 +282,7 @@ async def get_breakdown(
 @router.get("/periods/{period_id}/export")
 async def export_period(
     period_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     format: Annotated[str, Query(pattern="^(csv|signed_json)$")] = "csv",
 ) -> Response:
@@ -330,7 +330,7 @@ async def export_period(
 )
 async def create_chargeback_rule(
     body: ChargebackRuleCreate,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleResponse:
     workspace: Workspace = auth[0]
@@ -368,7 +368,7 @@ async def create_chargeback_rule(
 
 @router.get("/chargeback-rules", response_model=ChargebackRuleList)
 async def list_chargeback_rules(
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleList:
     workspace: Workspace = auth[0]

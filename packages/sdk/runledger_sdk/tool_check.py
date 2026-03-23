@@ -90,8 +90,8 @@ def check_tool_sync(tool_name: str, transport: SyncTransport) -> str:
 
         if response.status_code == 200:
             data = response.json()
-            policy: str = data.get("policy", "allow")
-            enforced: bool = data.get("runtime_enforcement", False)
+            policy = str(data.get("policy", "allow"))
+            enforced = bool(data.get("runtime_enforcement", False))
             _cache[cache_key] = (policy, enforced, now + _CACHE_TTL)
             return policy
 

@@ -16,7 +16,7 @@ import re
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 import bcrypt
 import structlog
@@ -159,7 +159,7 @@ class SwitchWorkspaceRequest(BaseModel):
 @router.post("/auth/switch-workspace", response_model=LoginResponse)
 async def switch_workspace(
     body: SwitchWorkspaceRequest,
-    auth: Annotated[tuple, Depends(require_user)],
+    auth: Annotated[tuple[Any, ...], Depends(require_user)],
     db: DbDep,
 ) -> LoginResponse:
     """
@@ -382,9 +382,10 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
         raise HTTPException(status.HTTP_403_FORBIDDEN, "User has no workspace access")
 
     workspace_user = workspace_users[0]
-    workspace = await db.get(Workspace, workspace_user.workspace_id)
-    if workspace is None:
+    loaded_ws = await db.get(Workspace, workspace_user.workspace_id)
+    if loaded_ws is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace not found")
+    workspace = loaded_ws
 
     tu_result = await db.execute(
         select(TenantUser).where(

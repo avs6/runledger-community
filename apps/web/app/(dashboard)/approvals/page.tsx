@@ -240,7 +240,7 @@ export default function ApprovalsPage() {
                         <div>Decided by: <span className="font-mono">{approval.decided_by}</span></div>
                       )}
                       {approval.decision_note && (
-                        <div className="italic">"{approval.decision_note}"</div>
+                        <div className="italic">&ldquo;{approval.decision_note}&rdquo;</div>
                       )}
                       {/* Request context */}
                       {requestContextStr !== null && (

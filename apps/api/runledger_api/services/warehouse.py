@@ -18,7 +18,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-import boto3  # type: ignore[import-untyped]
+import boto3
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,8 +60,8 @@ def _to_jsonl(rows: list[Any]) -> bytes:
 
 def _to_parquet(rows: list[Any]) -> bytes:
     try:
-        import pyarrow as pa  # type: ignore[import-untyped]
-        import pyarrow.parquet as pq  # type: ignore[import-untyped]
+        import pyarrow as pa
+        import pyarrow.parquet as pq
     except ImportError as e:
         raise ImportError(
             "pyarrow is required for Parquet exports. Install it with: pip install pyarrow"

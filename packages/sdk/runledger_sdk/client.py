@@ -355,7 +355,7 @@ class RunLedger:
         # Fall back to current context run_id if not explicitly provided
         if run_id is None:
             ctx = get_context_snapshot()
-            run_id = ctx.get("run_id")  # type: ignore[assignment]
+            run_id = ctx.get("run_id")
 
         payload: dict[str, Any] = {
             "name": name,
@@ -434,13 +434,13 @@ class RunLedger:
         # Fall back to current context run_id if not explicitly provided
         if run_id is None:
             ctx = get_context_snapshot()
-            run_id = ctx.get("run_id")  # type: ignore[assignment]
+            run_id = ctx.get("run_id")
         if session_id is None:
             ctx = get_context_snapshot()
-            session_id = ctx.get("session_id")  # type: ignore[assignment]
+            session_id = ctx.get("session_id")
         if end_user_id is None:
             ctx = get_context_snapshot()
-            end_user_id = ctx.get("end_user_id")  # type: ignore[assignment]
+            end_user_id = ctx.get("end_user_id")
 
         payload: dict[str, Any] = {
             "outcome_type": outcome_type,

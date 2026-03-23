@@ -22,8 +22,8 @@ from typing import Any
 import structlog
 from sqlalchemy import select, update
 from sqlalchemy.engine import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
@@ -31,7 +31,7 @@ from runledger_api.core.config import settings
 log = structlog.get_logger()
 
 
-def _get_sync_session():  # type: ignore[return]
+def _get_sync_session() -> Session:
     """Return a sync SQLAlchemy session (NullPool, safe for Celery workers)."""
     from sqlalchemy.pool import NullPool
 
@@ -52,7 +52,7 @@ async def _run_batch(
     from sqlalchemy.pool import NullPool
 
     async_engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    AsyncSessionLocal = sessionmaker(  # noqa: N806
+    AsyncSessionLocal = async_sessionmaker(  # noqa: N806
         async_engine, class_=AsyncSession, expire_on_commit=False
     )
 
@@ -97,7 +97,7 @@ async def _run_batch(
                 "total_cost_usd": str(run.total_cost_usd) if run.total_cost_usd else None,
                 "total_input_tokens": run.total_input_tokens,
                 "total_output_tokens": run.total_output_tokens,
-                "duration_ms": run.duration_ms,
+                "duration_ms": run.duration_ms,  # type: ignore[attr-defined]
             }
 
             try:
@@ -162,7 +162,7 @@ async def _detect_drift() -> list[dict[str, Any]]:
     from sqlalchemy.pool import NullPool
 
     async_engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    AsyncSessionLocal = sessionmaker(  # noqa: N806
+    AsyncSessionLocal = async_sessionmaker(  # noqa: N806
         async_engine, class_=AsyncSession, expire_on_commit=False
     )
 

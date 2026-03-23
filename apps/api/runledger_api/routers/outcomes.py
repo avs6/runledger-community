@@ -373,7 +373,7 @@ async def workflow_roi(
         .group_by(AgentRun.feature_tag, Outcome.outcome_type)
     )
     success_result = await db.execute(success_stmt)
-    success_map: dict[tuple, int] = {
+    success_map: dict[tuple[str | None, str], int] = {
         (r.feature_tag, r.outcome_type): int(r.success_count) for r in success_result.all()
     }
 
@@ -395,7 +395,7 @@ async def workflow_roi(
         .group_by(AgentRun.feature_tag, Outcome.outcome_type)
     )
     cost_result = await db.execute(cost_stmt)
-    cost_map: dict[tuple, Decimal] = {
+    cost_map: dict[tuple[str | None, str], Decimal] = {
         (r.feature_tag, r.outcome_type): Decimal(str(r.total_cost)) for r in cost_result.all()
     }
 

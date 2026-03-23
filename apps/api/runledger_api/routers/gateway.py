@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
@@ -97,7 +98,7 @@ async def gateway_chat_completions(
     # ── 1. Cache lookup ──────────────────────────────────────────────────────
     cache_entry = None
     if body.cache and not body.stream:
-        cache_key = make_cache_key(body.model, messages)  # type: ignore[arg-type]
+        cache_key = make_cache_key(body.model, messages)
         cache_entry = await check_cache(db, workspace.id, cache_key)
 
     if cache_entry is not None:
@@ -126,7 +127,7 @@ async def gateway_chat_completions(
                 db,
                 workspace.id,
                 body.model,
-                messages,  # type: ignore[arg-type]
+                messages,
             )
         except ValueError:
             raise HTTPException(
@@ -134,10 +135,10 @@ async def gateway_chat_completions(
                 detail=f"No active gateway routes for alias '{body.model}'",
             ) from None
 
-        async def _sse_gen():  # type: ignore[return]
+        async def _sse_gen() -> AsyncGenerator[bytes]:
             async for chunk in stream_request(
                 route=route,
-                messages=messages,  # type: ignore[arg-type]
+                messages=messages,
                 temperature=body.temperature,
                 max_tokens=body.max_tokens,
                 top_p=body.top_p,
@@ -178,7 +179,7 @@ async def gateway_chat_completions(
             db=db,
             workspace_id=workspace.id,
             model_alias=body.model,
-            messages=messages,  # type: ignore[arg-type]
+            messages=messages,
             temperature=body.temperature,
             max_tokens=body.max_tokens,
             top_p=body.top_p,
@@ -212,7 +213,7 @@ async def gateway_chat_completions(
 
     # ── 4. Store in cache ────────────────────────────────────────────────────
     if body.cache:
-        cache_key = make_cache_key(body.model, messages)  # type: ignore[arg-type]
+        cache_key = make_cache_key(body.model, messages)
         await store_cache(
             db=db,
             workspace_id=workspace.id,

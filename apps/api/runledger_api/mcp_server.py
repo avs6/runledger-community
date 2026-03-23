@@ -26,7 +26,7 @@ The server calls back to itself via http://localhost:8000 (loopback).
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -48,7 +48,7 @@ mcp = FastMCP(
 # ── HTTP helper ───────────────────────────────────────────────────────────────
 
 
-def _get(path: str, params: dict[str, Any] | None = None) -> Any:
+def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Make a synchronous GET request to the RunLedger API."""
     resp = httpx.get(
         f"{BASE_URL}{path}",
@@ -57,7 +57,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
         timeout=15.0,
     )
     resp.raise_for_status()
-    return resp.json()
+    return cast(dict[str, Any], resp.json())
 
 
 # ── Tools ─────────────────────────────────────────────────────────────────────

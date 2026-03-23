@@ -21,7 +21,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -337,7 +337,7 @@ async def trigger_reconcile(
     invoice_id: uuid.UUID,
     workspace: WorkspaceDep,
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     """
     Run reconciliation: match invoice lines to provider_calls.
 
@@ -505,7 +505,7 @@ async def export_dispute_package(
         "disputed_count": len(disputed),
     }
 
-    payload: dict = {
+    payload: dict[str, Any] = {
         "invoice_id": str(invoice_id),
         "provider": invoice.provider,
         "period_start": invoice.period_start.isoformat(),

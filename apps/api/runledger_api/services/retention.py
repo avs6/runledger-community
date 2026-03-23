@@ -116,7 +116,7 @@ async def _purge_runs(
             AgentRun.started_at < cutoff,
         )
     )
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]
 
 
 async def _purge_spans(
@@ -134,7 +134,7 @@ async def _purge_spans(
         return result.scalar() or 0
 
     result = await db.execute(delete(Span).where(Span.run_id.in_(run_subq)))
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]
 
 
 async def _scrub_payloads(
@@ -183,7 +183,7 @@ async def _scrub_payloads(
         )
     )
 
-    return span_result.rowcount + run_result.rowcount
+    return int(span_result.rowcount) + int(run_result.rowcount)  # type: ignore[attr-defined]
 
 
 async def _purge_provider_calls(
@@ -204,7 +204,7 @@ async def _purge_provider_calls(
             ProviderCall.created_at < cutoff,
         )
     )
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]
 
 
 # ── End-user scope (GDPR erasure) ─────────────────────────────────────────────
@@ -260,7 +260,7 @@ async def _purge_runs_end_user(
             AgentRun.end_user_id == end_user_id,
         )
     )
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]
 
 
 async def _purge_spans_end_user(
@@ -277,7 +277,7 @@ async def _purge_spans_end_user(
         return result.scalar() or 0
 
     result = await db.execute(delete(Span).where(Span.run_id.in_(run_subq)))
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]
 
 
 async def _scrub_payloads_end_user(
@@ -310,7 +310,7 @@ async def _scrub_payloads_end_user(
             {AgentRun.run_metadata: AgentRun.run_metadata.op("-")("messages").op("-")("response")}
         )
     )
-    return span_result.rowcount + run_result.rowcount
+    return int(span_result.rowcount) + int(run_result.rowcount)  # type: ignore[attr-defined]
 
 
 async def _purge_provider_calls_end_user(
@@ -331,4 +331,4 @@ async def _purge_provider_calls_end_user(
             ProviderCall.end_user_id == end_user_id,
         )
     )
-    return result.rowcount
+    return int(result.rowcount)  # type: ignore[attr-defined]

@@ -9,6 +9,7 @@ Supports two evaluator types:
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
@@ -20,7 +21,7 @@ log = structlog.get_logger()
 
 # ── Rule evaluator ────────────────────────────────────────────────────────────
 
-_OPS = {
+_OPS: dict[str, Callable[[Any, Any], bool]] = {
     "eq": lambda a, b: a == b,
     "neq": lambda a, b: a != b,
     "gt": lambda a, b: float(a) > float(b),

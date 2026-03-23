@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import bcrypt
 import structlog
@@ -54,7 +54,7 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.get("/profile", response_model=OrgProfileResponse)
-async def get_org_profile(auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep) -> Tenant:
+async def get_org_profile(auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep) -> Tenant:
     workspace, _, __ = auth
     tenant = await db.get(Tenant, workspace.tenant_id)
     if tenant is None:
@@ -64,7 +64,7 @@ async def get_org_profile(auth: Annotated[tuple, Depends(require_org_admin)], db
 
 @router.put("/profile", response_model=OrgProfileResponse)
 async def update_org_profile(
-    body: OrgProfileUpdate, auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    body: OrgProfileUpdate, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> Tenant:
     workspace, _, __ = auth
     tenant = await db.get(Tenant, workspace.tenant_id)
@@ -81,9 +81,9 @@ async def update_org_profile(
 
 @router.get("/dashboard")
 async def get_org_dashboard(
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     """Org-wide dashboard — spend, runs, and per-workspace breakdown for the last 7 days."""
     workspace, _user, _ = auth
     tenant = await db.get(Tenant, workspace.tenant_id)
@@ -255,7 +255,7 @@ async def get_org_dashboard(
 
 @router.get("/workspaces", response_model=list[WorkspaceResponse])
 async def list_org_workspaces(
-    auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> list[Workspace]:
     workspace, _, __ = auth
     result = await db.execute(
@@ -268,7 +268,7 @@ async def list_org_workspaces(
 
 @router.post("/workspaces", status_code=status.HTTP_201_CREATED, response_model=WorkspaceResponse)
 async def create_org_workspace(
-    body: WorkspaceCreateForOrg, auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    body: WorkspaceCreateForOrg, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> Workspace:
     workspace, user, _ = auth
     new_ws = Workspace(tenant_id=workspace.tenant_id, name=body.name)
@@ -289,7 +289,7 @@ async def create_org_workspace(
 
 @router.get("/workspaces/my", response_model=list[WorkspaceResponse])
 async def list_my_workspaces(
-    auth: Annotated[tuple, Depends(require_user)], db: DbDep
+    auth: Annotated[tuple[Any, ...], Depends(require_user)], db: DbDep
 ) -> list[Workspace]:
     """Returns workspaces the current user belongs to.
     Org admins and platform admins see all workspaces in the org.
@@ -331,7 +331,7 @@ async def list_my_workspaces(
 async def update_workspace_status(
     workspace_id: uuid.UUID,
     body: WorkspaceStatusUpdate,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> Workspace:
     current_ws, current_user, _ = auth
@@ -360,7 +360,7 @@ async def update_workspace_status(
 
 @router.delete("/workspaces/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_org_workspace(
-    workspace_id: uuid.UUID, auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    workspace_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> None:
     current_ws, _, __ = auth
     target = await db.get(Workspace, workspace_id)
@@ -379,7 +379,7 @@ async def delete_org_workspace(
 
 @router.get("/members", response_model=list[TenantMemberResponse])
 async def list_org_members(
-    auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> list[TenantMemberResponse]:
     workspace, _, __ = auth
     result = await db.execute(
@@ -408,7 +408,7 @@ async def list_org_members(
     "/members/invite", status_code=status.HTTP_201_CREATED, response_model=TenantMemberResponse
 )
 async def invite_org_member(
-    body: InviteOrgMemberRequest, auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    body: InviteOrgMemberRequest, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> TenantMemberResponse:
     workspace, inviting_user, _ = auth
 
@@ -455,7 +455,7 @@ async def invite_org_member(
 async def update_org_member_role(
     user_id: uuid.UUID,
     body: OrgRoleUpdateRequest,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> TenantMemberResponse:
     workspace, current_user, _ = auth
@@ -501,7 +501,7 @@ async def update_org_member_role(
 
 @router.delete("/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_org_member(
-    user_id: uuid.UUID, auth: Annotated[tuple, Depends(require_org_admin)], db: DbDep
+    user_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
 ) -> None:
     workspace, current_user, _ = auth
     if user_id == current_user.id:
@@ -550,7 +550,7 @@ async def remove_org_member(
 async def update_org_member_status(
     user_id: uuid.UUID,
     body: MemberStatusUpdate,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> TenantMemberResponse:
     workspace, current_user, _ = auth
@@ -601,7 +601,7 @@ async def update_org_member_status(
 @router.get("/workspaces/{workspace_id}/members", response_model=list[WorkspaceMemberResponse])
 async def list_workspace_members(
     workspace_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> list[WorkspaceMemberResponse]:
     current_ws, _, __ = auth
@@ -637,7 +637,7 @@ async def list_workspace_members(
 async def add_workspace_member(
     workspace_id: uuid.UUID,
     body: AddWorkspaceMemberRequest,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> WorkspaceMemberResponse:
     current_ws, inviting_user, _ = auth
@@ -685,7 +685,7 @@ async def add_workspace_member(
 async def remove_workspace_member(
     workspace_id: uuid.UUID,
     user_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> None:
     current_ws, current_user, _ = auth
@@ -730,7 +730,7 @@ class OrgFinanceSummary(BaseModel):
 
 @router.get("/finance", response_model=OrgFinanceSummary)
 async def get_org_finance(
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> OrgFinanceSummary:
     """Cross-workspace financial summary for org admins."""
@@ -814,7 +814,7 @@ async def get_org_finance(
 
 @router.get("/audit-log", response_model=list[AuditEventResponse])
 async def get_org_audit_log(
-    auth: Annotated[tuple, Depends(require_org_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
     limit: int = 100,
 ) -> list[AuditEvent]:

@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import time
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -34,7 +35,7 @@ log = logging.getLogger(__name__)
 _CACHE_TTL_HOURS = 24
 
 
-def make_cache_key(target_model: str, messages: list[dict[str, str]]) -> str:
+def make_cache_key(target_model: str, messages: list[dict[str, Any]]) -> str:
     """Return a 64-char hex SHA-256 of the canonical request body."""
     payload = json.dumps({"model": target_model, "messages": messages}, sort_keys=True)
     return hashlib.sha256(payload.encode()).hexdigest()
@@ -219,7 +220,7 @@ async def stream_request(
     response_format: dict[str, Any] | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | dict[str, Any] | None = None,
-):  # type: ignore[return]
+) -> AsyncGenerator[bytes]:
     """
     Stream SSE chunks from the provider, yielding raw bytes lines.
 
@@ -325,7 +326,7 @@ async def route_and_forward(
             db,
             workspace_id,
             model_alias,
-            messages,  # type: ignore[arg-type]
+            messages,
         )
         # Policy selected a single route; still fall back to priority order on failure
         candidate_routes = [selected_route]

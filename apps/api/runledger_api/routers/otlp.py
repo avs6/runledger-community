@@ -179,7 +179,7 @@ async def _handle_traces(
         try:
             from runledger_api.workers.pipeline import process_events_task  # noqa: PLC0415
 
-            process_events_task.delay(str(workspace.id), all_events)  # type: ignore[attr-defined]
+            process_events_task.delay(str(workspace.id), all_events)
         except Exception as exc:
             # Non-fatal — batch is already persisted; events can be re-synthesized from raw
             log.warning("otlp_pipeline_enqueue_failed", error=str(exc))

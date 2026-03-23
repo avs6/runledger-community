@@ -200,7 +200,7 @@ def _build_messages_payload(kwargs: dict[str, Any]) -> list[Any]:
                 for block in system
             )
             msgs = [{"role": "system", "content": text}] + msgs
-    return msgs
+    return list(msgs)
 
 
 def _build_run_start(

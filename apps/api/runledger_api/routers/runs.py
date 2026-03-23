@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
-from runledger_api.models.events import AgentRun, ProviderCall, Span, ToolCall
+from runledger_api.models.events import AgentRun, ProviderCall, RunStatusEnum, Span, ToolCall
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.runs import (
     GraphEdge,
@@ -296,7 +296,7 @@ async def cancel_run(
             f"Run is in '{run.status}' state, only 'running' runs can be cancelled",
         )
 
-    run.status = "cancelled"
+    run.status = RunStatusEnum.cancelled
     run.ended_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(run)

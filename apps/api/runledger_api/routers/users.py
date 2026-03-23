@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 import bcrypt
 import structlog
@@ -54,7 +54,7 @@ async def update_me(
 
 @router.get("", response_model=list[WorkspaceMemberResponse])
 async def list_workspace_users(
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: DbDep,
 ) -> list[WorkspaceMemberResponse]:
     workspace, _, __ = auth
@@ -82,7 +82,7 @@ async def list_workspace_users(
 @router.post("/invite", status_code=status.HTTP_201_CREATED, response_model=WorkspaceMemberResponse)
 async def invite_user(
     body: InviteUserRequest,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: DbDep,
 ) -> WorkspaceMemberResponse:
     workspace, inviting_user, _ = auth
@@ -127,7 +127,7 @@ async def invite_user(
 async def update_workspace_role(
     user_id: uuid.UUID,
     body: RoleUpdateRequest,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: DbDep,
 ) -> WorkspaceMemberResponse:
     workspace, current_user, _ = auth
@@ -160,7 +160,7 @@ async def update_workspace_role(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_workspace_user(
     user_id: uuid.UUID,
-    auth: Annotated[tuple, Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: DbDep,
 ) -> None:
     workspace, current_user, _ = auth
