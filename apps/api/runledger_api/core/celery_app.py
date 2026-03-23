@@ -18,6 +18,7 @@ celery_app = Celery(
         "runledger_api.workers.outcomes",
         "runledger_api.workers.otlp_finalize",
         "runledger_api.workers.retention",
+        "runledger_api.workers.warehouse",
     ],
 )
 
@@ -119,6 +120,11 @@ celery_app.conf.update(
         # Data retention policies: nightly at 00:30 UTC
         "retention-apply-policies-daily": {
             "task": "retention.apply_policies",
+            "schedule": 86400.0,
+        },
+        # Warehouse exports: daily at 02:00 UTC (exports previous day's data)
+        "warehouse-exports-daily": {
+            "task": "warehouse.run_scheduled_exports",
             "schedule": 86400.0,
         },
     },

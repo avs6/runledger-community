@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Key, Bell, Shield, Settings2, Users, Building2, Plug, Terminal, CheckCheck, Lock,
-  Search, X, SlidersHorizontal, Radio, Trash2,
+  Search, X, SlidersHorizontal, Radio, Trash2, HardDrive,
 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
@@ -21,6 +21,7 @@ import {
 import { useRole } from '@/components/rbac/useRole'
 import OrgTab from '@/components/settings/OrgTab'
 import RetentionTab from '@/components/settings/RetentionTab'
+import WarehouseTab from '@/components/settings/WarehouseTab'
 import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse } from '@/types/api'
 import {
   listApiKeys,
@@ -67,6 +68,7 @@ const TABS = [
   { id: 'otlp', label: 'OTLP', icon: Radio, adminOnly: false },
   { id: 'compliance', label: 'Compliance', icon: Lock, adminOnly: false },
   { id: 'retention', label: 'Data Retention', icon: Trash2, adminOnly: true },
+  { id: 'warehouse', label: 'Warehouse Export', icon: HardDrive, adminOnly: true },
 ]
 
 export default function SettingsPage() {
@@ -1393,6 +1395,11 @@ curl -X POST https://YOUR_API/v1/traces \\
         {/* ── Data Retention (Admin only) ───────────────────────────────────────── */}
         {activeTab === 'retention' && isWorkspaceAdmin && (
           <RetentionTab apiKey={apiKey ?? ''} />
+        )}
+
+        {/* ── Warehouse Export (Admin only) ─────────────────────────────────────── */}
+        {activeTab === 'warehouse' && isWorkspaceAdmin && (
+          <WarehouseTab apiKey={apiKey ?? ''} />
         )}
 
         {/* ── Organization (Admin only) ─────────────────────────────────────────── */}

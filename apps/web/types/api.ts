@@ -1105,3 +1105,82 @@ export interface PurgeResult {
   dry_run: boolean
   cutoff: string | null
 }
+
+// ── Phase 28: Warehouse Export ────────────────────────────────────────────────
+
+export type WarehouseProvider = 's3' | 'gcs' | 'r2'
+export type WarehouseFormat = 'jsonl' | 'parquet'
+export type ExportJobStatus = 'pending' | 'running' | 'completed' | 'failed'
+
+export interface WarehouseDestination {
+  id: string
+  workspace_id: string
+  name: string
+  provider: WarehouseProvider
+  bucket: string
+  prefix: string
+  region: string | null
+  endpoint_url: string | null
+  access_key_id: string
+  format: WarehouseFormat
+  resources: string[]
+  is_active: boolean
+  created_at: string
+  last_export_at: string | null
+}
+
+export interface WarehouseDestinationList {
+  items: WarehouseDestination[]
+  total: number
+}
+
+export interface WarehouseDestinationCreate {
+  name: string
+  provider: WarehouseProvider
+  bucket: string
+  prefix?: string
+  region?: string | null
+  endpoint_url?: string | null
+  access_key_id: string
+  secret_access_key: string
+  format?: WarehouseFormat
+  resources?: string[]
+  is_active?: boolean
+}
+
+export interface WarehouseDestinationUpdate {
+  name?: string
+  prefix?: string
+  region?: string | null
+  endpoint_url?: string | null
+  access_key_id?: string
+  secret_access_key?: string
+  format?: WarehouseFormat
+  resources?: string[]
+  is_active?: boolean
+}
+
+export interface ConnectionTestResult {
+  ok: boolean
+  error: string | null
+}
+
+export interface ExportJob {
+  id: string
+  workspace_id: string
+  destination_id: string
+  export_date: string
+  status: ExportJobStatus
+  resources: string[]
+  file_keys: Record<string, string> | null
+  row_counts: Record<string, number> | null
+  error: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export interface ExportJobList {
+  items: ExportJob[]
+  total: number
+}

@@ -1435,3 +1435,78 @@ export async function purgeRetention(
     body: JSON.stringify(body),
   })
 }
+
+// ── Phase 28: Warehouse Export ────────────────────────────────────────────────
+import type {
+  WarehouseDestination,
+  WarehouseDestinationList,
+  WarehouseDestinationCreate,
+  WarehouseDestinationUpdate,
+  ConnectionTestResult,
+  ExportJob,
+  ExportJobList,
+} from '@/types/api'
+
+export async function listWarehouseDestinations(
+  apiKey: string,
+  includeInactive = false
+): Promise<WarehouseDestinationList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<WarehouseDestinationList>(`/warehouse/destinations${qs}`, apiKey)
+}
+
+export async function createWarehouseDestination(
+  apiKey: string,
+  body: WarehouseDestinationCreate
+): Promise<WarehouseDestination> {
+  return apiFetch<WarehouseDestination>('/warehouse/destinations', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateWarehouseDestination(
+  apiKey: string,
+  id: string,
+  body: WarehouseDestinationUpdate
+): Promise<WarehouseDestination> {
+  return apiFetch<WarehouseDestination>(`/warehouse/destinations/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteWarehouseDestination(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/warehouse/destinations/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function testWarehouseDestination(
+  apiKey: string,
+  id: string
+): Promise<ConnectionTestResult> {
+  return apiFetch<ConnectionTestResult>(`/warehouse/destinations/${id}/test`, apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function listExportJobs(
+  apiKey: string,
+  destinationId?: string
+): Promise<ExportJobList> {
+  const qs = destinationId ? `?destination_id=${destinationId}` : ''
+  return apiFetch<ExportJobList>(`/warehouse/jobs${qs}`, apiKey)
+}
+
+export async function triggerExportJob(
+  apiKey: string,
+  body: { destination_id: string; export_date?: string; resources?: string[] }
+): Promise<ExportJob> {
+  return apiFetch<ExportJob>('/warehouse/jobs', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getExportJob(apiKey: string, jobId: string): Promise<ExportJob> {
+  return apiFetch<ExportJob>(`/warehouse/jobs/${jobId}`, apiKey)
+}
