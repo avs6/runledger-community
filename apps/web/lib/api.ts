@@ -1130,3 +1130,87 @@ export async function getBestValueModels(
   ).toString() : ''
   return apiFetch<import('@/types/api').BestValueResponse>(`/analytics/scores/best-value${qs}`, apiKey)
 }
+
+// ── Provider Invoice Reconciliation ───────────────────────────────────────────
+
+export async function listInvoices(
+  apiKey: string,
+  params?: { provider?: string; status?: string }
+): Promise<import('@/types/api').InvoiceList> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<import('@/types/api').InvoiceList>(`/invoices${qs}`, apiKey)
+}
+
+export async function getInvoiceSummary(
+  apiKey: string,
+  invoiceId: string
+): Promise<import('@/types/api').ReconciliationSummary> {
+  return apiFetch<import('@/types/api').ReconciliationSummary>(`/invoices/${invoiceId}`, apiKey)
+}
+
+export async function uploadInvoice(
+  apiKey: string,
+  file: File,
+  periodStart: string,
+  periodEnd: string,
+  provider?: string
+): Promise<import('@/types/api').InvoiceResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const qs = new URLSearchParams({ period_start: periodStart, period_end: periodEnd })
+  if (provider) qs.set('provider', provider)
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+  const res = await fetch(`${API_URL}/invoices/upload?${qs}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail ?? `Upload failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function reconcileInvoice(
+  apiKey: string,
+  invoiceId: string
+): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>(`/invoices/${invoiceId}/reconcile`, apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function deleteInvoice(apiKey: string, invoiceId: string): Promise<void> {
+  await apiFetch<void>(`/invoices/${invoiceId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listInvoiceLines(
+  apiKey: string,
+  invoiceId: string,
+  params?: { match_status?: string; limit?: number; offset?: number }
+): Promise<import('@/types/api').InvoiceLineList> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<import('@/types/api').InvoiceLineList>(`/invoices/${invoiceId}/lines${qs}`, apiKey)
+}
+
+export async function disputeInvoiceLine(
+  apiKey: string,
+  invoiceId: string,
+  lineId: string,
+  note: string
+): Promise<import('@/types/api').InvoiceLineResponse> {
+  return apiFetch<import('@/types/api').InvoiceLineResponse>(
+    `/invoices/${invoiceId}/lines/${lineId}/dispute`,
+    apiKey,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    }
+  )
+}

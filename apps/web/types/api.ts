@@ -840,3 +840,73 @@ export interface BestValueModel {
 export interface BestValueResponse {
   items: BestValueModel[]
 }
+
+// ── Provider Invoice Reconciliation ───────────────────────────────────────────
+
+export interface InvoiceResponse {
+  id: string
+  workspace_id: string
+  provider: string
+  period_start: string
+  period_end: string
+  currency: string
+  total_amount: string
+  line_count: number
+  matched_count: number
+  unmatched_amount: string | null
+  status: string
+  filename: string | null
+  created_at: string
+}
+
+export interface InvoiceList {
+  items: InvoiceResponse[]
+}
+
+export interface InvoiceLineResponse {
+  id: string
+  invoice_id: string
+  provider_request_id: string | null
+  model: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  amount: string
+  occurred_at: string | null
+  match_status: 'exact' | 'fuzzy' | 'unmatched' | 'disputed'
+  matched_call_id: string | null
+  token_delta: number | null
+  cost_delta: string | null
+  dispute_note: string | null
+  raw: Record<string, unknown>
+}
+
+export interface InvoiceLineList {
+  items: InvoiceLineResponse[]
+  total: number
+}
+
+export interface TokenMismatchBucket {
+  bucket: string
+  count: number
+  amount: string
+}
+
+export interface ReconciliationSummary {
+  invoice_id: string
+  provider: string
+  period_start: string
+  period_end: string
+  total_amount: string
+  line_count: number
+  matched_exact: number
+  matched_fuzzy: number
+  unmatched: number
+  disputed: number
+  matched_pct: string
+  unmatched_amount: string
+  runledger_total: string
+  delta_amount: string
+  delta_pct: string | null
+  token_mismatch_buckets: TokenMismatchBucket[]
+  status: string
+}
