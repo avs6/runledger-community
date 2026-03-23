@@ -143,6 +143,9 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
             status=RunStatusEnum.running,
             started_at=_dt(e["started_at"]),
             run_metadata=scrub_dict(e.get("metadata")),
+            # OTLP source-provenance (populated only for OTLP-ingested runs)
+            source_type=e.get("source_type"),
+            external_trace_id=e.get("external_trace_id"),
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )
@@ -174,6 +177,11 @@ async def _handle_span_start(session: AsyncSession, e: dict[str, Any]) -> None:
             name=e["name"],
             started_at=_dt(e["started_at"]),
             status=SpanStatusEnum.running,
+            # OTLP source-provenance (populated only for OTLP-ingested spans)
+            external_span_id=e.get("external_span_id"),
+            external_parent_span_id=e.get("external_parent_span_id"),
+            instrumentation_scope_name=e.get("instrumentation_scope_name"),
+            instrumentation_scope_version=e.get("instrumentation_scope_version"),
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )

@@ -49,11 +49,12 @@
 | 25 | Approvals & Policy Workflows | ✅ Complete | 19 |
 | OTEL-0 | OTLP Ingestion — Schema Foundation + Receiver | ✅ Complete | 37 |
 | OTEL-1 | OTLP — Run-context Extraction + Payload Capture + Management API + Settings UI | ✅ Complete | 13 |
+| OTEL-3 | OTLP — Trace Finalization + Source-Provenance Propagation | ✅ Complete | 8 |
 
-**Total tests shipped (Phases 0–25 + OTEL-0 + OTEL-1 + SDK phases):** 366 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
+**Total tests shipped (Phases 0–25 + OTEL-0/1/3 + SDK phases):** 374 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
 **Audit snapshot (2026-03-22):**
-- API suite: `366/366` passing
+- API suite: `374/374` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
@@ -2312,6 +2313,78 @@ Functions added to `apps/web/lib/api.ts`: `getOtlpStats()`, `listOtlpBatches()`
 - `synthesize_canonical_events` with payloads: LLM span_end has metadata.messages+response; non-LLM span_end has no metadata
 - `GET /v1/traces/stats`: returns correct 24h/7d structure
 - `GET /v1/traces/batches`: returns paginated items + total
+
+---
+
+## OTEL Phase 3 — Trace Finalization + Source-Provenance Propagation ✅ Complete
+
+### Goal
+
+Ensure OTLP-ingested runs are always closed, even when the emitting application crashes,
+times out, or sends incomplete traces. Also fix source-provenance fields so `source_type`,
+`external_trace_id`, and external span IDs are persisted to database columns (not buried
+in metadata JSON) — enabling the finalization worker and future analytics to filter by
+ingest source.
+
+### What shipped
+
+#### A) Source-provenance propagation fixes
+
+**`services/otlp_parse.py` — `synthesize_canonical_events`:**
+- `source_type: "otlp"` and `external_trace_id` promoted to top-level keys on `run_start`
+  events (previously inside `metadata` dict, so DB columns stayed NULL)
+- `external_span_id`, `external_parent_span_id`, `instrumentation_scope_name/version`
+  promoted to top-level keys on `span_start` events
+- Metadata dicts slimmed to only non-duplicated keys
+
+**`workers/pipeline.py` — `_handle_run_start`:**
+- Now reads `e.get("source_type")` and `e.get("external_trace_id")` and persists them
+  to `agent_runs.source_type` and `agent_runs.external_trace_id` columns
+- SDK events (no `source_type` field) get NULL — backward compatible
+
+**`workers/pipeline.py` — `_handle_span_start`:**
+- Now reads and persists `external_span_id`, `external_parent_span_id`,
+  `instrumentation_scope_name`, `instrumentation_scope_version` to `spans` columns
+- SDK span events (no external IDs) get NULL — backward compatible
+
+With these fixes, the unique partial indexes from migration 026 are now fully active:
+- `(workspace_id, external_trace_id) WHERE external_trace_id IS NOT NULL` on agent_runs
+- `(run_id, external_span_id) WHERE external_span_id IS NOT NULL` on spans
+
+#### B) Finalization worker (`workers/otlp_finalize.py`)
+
+Celery task `otlp.finalize_stale_traces`, scheduled every 3 minutes:
+
+1. Queries `agent_runs` for rows where `source_type='otlp'`, `status='running'`,
+   `started_at < NOW() - 5 minutes`
+2. Batch-updates all open spans (`status='running'`) for those runs → `failed`, `ended_at=NOW()`
+3. Batch-updates the stale runs → `cancelled`, `ended_at=NOW()`
+4. Uses `cancelled` (not `failed`) to distinguish ingest-level timeout from application error
+5. NullPool + asyncio.run() — same pattern as pipeline/metering workers
+
+#### C) Celery beat schedule
+
+`"otlp-finalize-stale-3m"` → `otlp.finalize_stale_traces` every 180 seconds.
+The 3-minute cadence is tighter than the 5-minute inactivity timeout, ensuring
+stale runs are closed promptly (within ~8 minutes worst-case of the trace becoming stale).
+
+#### D) Tests (`tests/test_otlp_finalize.py`) — 8 tests
+
+- `_close_stale_runs`: stale run closes run + spans (3 execute calls)
+- `_close_stale_runs`: no stale runs → only SELECT, no UPDATEs
+- `_close_stale_runs`: multiple stale runs closed in a single batch
+- `synthesize_canonical_events`: `run_start` has `source_type` + `external_trace_id` at top level, not in metadata
+- `synthesize_canonical_events`: `span_start` has `external_span_id` + scope fields at top level, not in metadata
+- `_handle_run_start`: `source_type` and `external_trace_id` present in INSERT params
+- `_handle_run_start`: SDK events (no source_type) get NULL — backward compatible
+- `_handle_span_start`: external IDs and scope fields in INSERT params
+
+#### E) Key patterns
+
+- Finalization uses `AgentRun.source_type == "otlp"` filter — only OTLP runs are
+  finalized; SDK-originated runs are untouched (they always emit run_end)
+- Batch UPDATE with `Span.run_id.in_(run_ids)` — single query regardless of run count
+- `_INACTIVITY_MINUTES = 5` — module-level constant; easy to make configurable later
 
 ---
 

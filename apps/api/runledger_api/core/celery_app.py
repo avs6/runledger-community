@@ -16,6 +16,7 @@ celery_app = Celery(
         "runledger_api.workers.quotas",
         "runledger_api.workers.evaluators",
         "runledger_api.workers.outcomes",
+        "runledger_api.workers.otlp_finalize",
     ],
 )
 
@@ -108,6 +109,11 @@ celery_app.conf.update(
         "outcome-alerts-6h": {
             "task": "outcomes.check_alerts",
             "schedule": 21600.0,
+        },
+        # OTLP stale trace finalizer: every 3 minutes
+        "otlp-finalize-stale-3m": {
+            "task": "otlp.finalize_stale_traces",
+            "schedule": 180.0,
         },
     },
 )

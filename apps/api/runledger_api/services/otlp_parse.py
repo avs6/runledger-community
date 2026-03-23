@@ -508,9 +508,10 @@ def synthesize_canonical_events(
         "run_id": str(run_id),
         "workspace_id": str(workspace_id),
         "started_at": run_started.isoformat(),
+        # Top-level source fields — pipeline reads these into ORM columns
+        "source_type": "otlp",
+        "external_trace_id": trace.trace_id_hex,
         "metadata": {
-            "source_type": "otlp",
-            "external_trace_id": trace.trace_id_hex,
             "service_name": svc_name,
             "resource_attributes": resource,
         },
@@ -540,11 +541,12 @@ def synthesize_canonical_events(
                 "span_type": span.span_type,
                 "name": span.name,
                 "started_at": span_started.isoformat(),
+                # Top-level source fields — pipeline persists to ORM columns
+                "external_span_id": span.span_id_hex,
+                "external_parent_span_id": span.parent_span_id_hex,
+                "instrumentation_scope_name": span.scope_name,
+                "instrumentation_scope_version": span.scope_version,
                 "metadata": {
-                    "external_span_id": span.span_id_hex,
-                    "external_parent_span_id": span.parent_span_id_hex,
-                    "instrumentation_scope_name": span.scope_name,
-                    "instrumentation_scope_version": span.scope_version,
                     "source_attributes": span.attrs,
                 },
             }
