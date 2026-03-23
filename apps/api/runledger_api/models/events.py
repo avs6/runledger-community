@@ -74,6 +74,12 @@ class AgentRun(Base):
     total_output_tokens: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
     run_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
 
+    # OTLP source-provenance fields (migration 026)
+    source_type: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    external_trace_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    external_trace_state: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    resource_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
 
 class Span(Base):
     __tablename__ = "spans"
@@ -100,6 +106,15 @@ class Span(Base):
     )
     cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
     span_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
+
+    # OTLP source-provenance fields (migration 026)
+    external_span_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    external_parent_span_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    trace_flags: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    instrumentation_scope_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    instrumentation_scope_version: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    source_span_kind: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    source_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
 
 class ProviderCall(Base):
@@ -139,6 +154,14 @@ class ProviderCall(Base):
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
 
+    # OTLP source-provenance fields (migration 026)
+    provider_request_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    reported_cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
+    cost_source: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    model_provider: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    input_tokens_details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    output_tokens_details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
 
 class ToolCall(Base):
     __tablename__ = "tool_calls"
@@ -162,6 +185,11 @@ class ToolCall(Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
+
+    # OTLP source-provenance fields (migration 026)
+    external_span_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    tool_arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    tool_result_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
 
 class OutcomeEvent(Base):

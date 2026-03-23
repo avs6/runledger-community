@@ -145,5 +145,23 @@ services:
     depends_on:
       - api
 
+  # ── OTel Collector (optional) ─────────────────────────────────────────────
+  # Start with: docker compose --profile otel up
+  # Applications send traces to localhost:4318 (HTTP) or localhost:4317 (gRPC).
+  # The Collector batches and forwards them to RunLedger's /v1/traces endpoint.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    profiles: ["otel"]
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP/gRPC
+      - "4318:4318"   # OTLP/HTTP
+    environment:
+      RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
