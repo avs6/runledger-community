@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -119,6 +119,9 @@ async def test_emit_audit_event_api_key_prefix_trimmed() -> None:
 
 @pytest.mark.asyncio
 async def test_list_audit_events_returns_paginated() -> None:
+    from runledger_api.routers.audit import list_audit_events
+    from runledger_api.schemas.audit import AuditEventList
+
     ws_id = uuid.uuid4()
     ev = _make_event(workspace_id=ws_id)
 
@@ -131,25 +134,20 @@ async def test_list_audit_events_returns_paginated() -> None:
 
     ws = _make_ws(ws_id)
 
-    with (
-        patch("runledger_api.routers.audit.get_db", return_value=mock_db),
-        patch("runledger_api.routers.audit.require_workspace_admin", return_value=(ws, None)),
-    ):
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-        from runledger_api.routers.audit import router
+    result = await list_audit_events(
+        auth=(ws, None, None),  # type: ignore[arg-type]
+        db=mock_db,
+        action=None,
+        actor_user_id=None,
+        target_type=None,
+        target_id=None,
+        limit=50,
+        offset=0,
+    )
 
-        app = FastAPI()
-        app.include_router(router)
-
-        with TestClient(app) as client:
-            resp = client.get(
-                "/audit/events",
-                headers={"Authorization": "Bearer testkey"},
-            )
-
-    # In unit tests with test DB, auth will reject the dummy key → 401 is expected
-    assert resp.status_code in (200, 401, 422)
+    assert isinstance(result, AuditEventList)
+    assert result.total == 1
+    assert len(result.items) == 1
 
 
 @pytest.mark.asyncio
@@ -171,7 +169,7 @@ async def test_list_audit_events_action_filter() -> None:
     ws = _make_ws(ws_id)
 
     result = await list_audit_events(
-        ws=ws,  # type: ignore[arg-type]
+        auth=(ws, None, None),  # type: ignore[arg-type]
         db=mock_db,
         action="budget",
         actor_user_id=None,
@@ -202,7 +200,7 @@ async def test_list_audit_events_empty() -> None:
     ws = _make_ws()
 
     result = await list_audit_events(
-        ws=ws,  # type: ignore[arg-type]
+        auth=(ws, None, None),  # type: ignore[arg-type]
         db=mock_db,
         action=None,
         actor_user_id=None,
@@ -235,7 +233,7 @@ async def test_get_audit_event_found() -> None:
     mock_db.execute = AsyncMock(return_value=result)
 
     ws = _make_ws(ws_id)
-    response = await get_audit_event(event_id=ev.id, ws=ws, db=mock_db)  # type: ignore[arg-type]
+    response = await get_audit_event(event_id=ev.id, auth=(ws, None, None), db=mock_db)  # type: ignore[arg-type]
 
     assert isinstance(response, AuditEventResponse)
     assert response.action == ev.action
@@ -254,7 +252,7 @@ async def test_get_audit_event_not_found() -> None:
 
     ws = _make_ws()
     with pytest.raises(HTTPException) as exc_info:
-        await get_audit_event(event_id=uuid.uuid4(), ws=ws, db=mock_db)  # type: ignore[arg-type]
+        await get_audit_event(event_id=uuid.uuid4(), auth=(ws, None, None), db=mock_db)  # type: ignore[arg-type]
 
     assert exc_info.value.status_code == 404
 
@@ -272,7 +270,7 @@ async def test_get_audit_event_wrong_workspace() -> None:
 
     ws = _make_ws()
     with pytest.raises(HTTPException) as exc_info:
-        await get_audit_event(event_id=uuid.uuid4(), ws=ws, db=mock_db)  # type: ignore[arg-type]
+        await get_audit_event(event_id=uuid.uuid4(), auth=(ws, None, None), db=mock_db)  # type: ignore[arg-type]
 
     assert exc_info.value.status_code == 404
 

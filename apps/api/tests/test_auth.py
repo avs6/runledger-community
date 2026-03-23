@@ -75,13 +75,16 @@ async def test_create_tenant_success(client: AsyncClient, mock_db_session: Async
 
     response = await client.post(
         "/admin/tenants",
-        json={"slug": "acme", "name": "Acme Corp"},
+        json={
+            "name": "Acme Corp",
+            "admin_email": "admin@acme.com",
+            "admin_password": "secret123",
+        },
         headers=ADMIN_HEADERS,
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data["slug"] == "acme"
     assert data["name"] == "Acme Corp"
     assert data["plan"] == "free"
     assert data["id"] is not None
@@ -92,12 +95,18 @@ async def test_create_tenant_success(client: AsyncClient, mock_db_session: Async
 async def test_create_tenant_duplicate_slug(
     client: AsyncClient, mock_db_session: AsyncMock
 ) -> None:
-    # Return a truthy object to simulate an existing tenant
-    mock_db_session.execute = AsyncMock(return_value=_scalar_result(SimpleNamespace(slug="acme")))
+    # Return a truthy object to simulate an existing user (duplicate email)
+    mock_db_session.execute = AsyncMock(
+        return_value=_scalar_result(SimpleNamespace(email="admin@acme.com"))
+    )
 
     response = await client.post(
         "/admin/tenants",
-        json={"slug": "acme", "name": "Another Acme"},
+        json={
+            "name": "Another Acme",
+            "admin_email": "admin@acme.com",
+            "admin_password": "secret123",
+        },
         headers=ADMIN_HEADERS,
     )
     assert response.status_code == 409
@@ -131,9 +140,22 @@ async def test_create_workspace_tenant_not_found(
 
 @pytest.mark.asyncio
 async def test_create_workspace_success(client: AsyncClient, mock_db_session: AsyncMock) -> None:
+    from runledger_api.models.tenant import WorkspaceStatusEnum
+
     tenant_id = uuid.uuid4()
     mock_db_session.get = AsyncMock(return_value=SimpleNamespace(id=tenant_id))
-    mock_db_session.refresh = AsyncMock(side_effect=_refresh_side_effect())
+
+    async def mock_refresh_ws(obj: object) -> None:
+        if not getattr(obj, "id", None):
+            obj.id = uuid.uuid4()  # type: ignore[union-attr]
+        if not getattr(obj, "created_at", None):
+            obj.created_at = datetime.now(UTC)  # type: ignore[union-attr]
+        if not getattr(obj, "status", None):
+            obj.status = WorkspaceStatusEnum.active  # type: ignore[union-attr]
+        if getattr(obj, "is_restricted", None) is None:
+            obj.is_restricted = False  # type: ignore[union-attr]
+
+    mock_db_session.refresh = AsyncMock(side_effect=mock_refresh_ws)
 
     response = await client.post(
         "/admin/workspaces",
@@ -179,6 +201,8 @@ async def test_create_api_key_success(client: AsyncClient, mock_db_session: Asyn
             obj.scopes = []  # type: ignore[union-attr]
         if not hasattr(obj, "created_by"):
             obj.created_by = None  # type: ignore[union-attr]
+        if not hasattr(obj, "is_session"):
+            obj.is_session = False  # type: ignore[union-attr]
 
     mock_db_session.refresh = AsyncMock(side_effect=mock_refresh)
 
@@ -213,7 +237,13 @@ async def test_revoke_api_key_not_found(client: AsyncClient, mock_db_session: As
 @pytest.mark.asyncio
 async def test_revoke_api_key_success(client: AsyncClient, mock_db_session: AsyncMock) -> None:
     key_id = uuid.uuid4()
-    api_key = SimpleNamespace(id=key_id, revoked_at=None)
+    api_key = SimpleNamespace(
+        id=key_id,
+        revoked_at=None,
+        workspace_id=uuid.uuid4(),
+        name="test-key",
+        key_prefix="rl_test_abcd",
+    )
     mock_db_session.get = AsyncMock(return_value=api_key)
 
     response = await client.delete(
