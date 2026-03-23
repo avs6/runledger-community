@@ -137,6 +137,11 @@ This starts:
 - `worker` — Celery worker
 - `web` — Next.js dashboard on port 3000
 
+To also start the optional **OTel Collector** (OTLP receiver on ports 4317/4318 → RunLedger):
+```bash
+docker compose -f infra/docker-compose.yml --profile otel up -d
+```
+
 On first start the API container prints:
 
 ```
@@ -311,7 +316,7 @@ npm install openai
 
 ## Running the Examples
 
-The `examples/` directory contains 19 runnable scripts covering every major feature.
+The `examples/` directory contains 22 runnable scripts covering every major feature.
 There is also a standalone companion repo — [runledger-samples](https://github.com/avs6/runledger-samples) —
 which is an independent Python project you can clone and run without the full monorepo.
 
@@ -410,6 +415,7 @@ python 01_openai_basic.py
 | 19 | `19_policy_check.py` | Unified policy decision checks (budgets + tools + gateway + eval gate) |
 | 20 | `20_anthropic_basic.py` | Anthropic Claude instrumentation with `rl.instrument_anthropic()` |
 | 21 | `20_tool_registry_ollama.py` | Tool registry + Ollama local model (OpenAI-compatible, cost = $0) |
+| 22 | `22_otlp_ingest.py` | OTLP/HTTP trace ingestion (OpenInference + OTel GenAI conventions, no SDK required) |
 | — | `ts/01_openai_basic.ts` | TypeScript: OpenAI instrumentation with `@runledger/sdk` |
 | — | `ts/02_multi_turn.ts` | TypeScript: multi-turn chat with `withContext` |
 | — | `ts/03_vercel_ai.ts` | TypeScript: Vercel AI SDK integration |
@@ -681,6 +687,85 @@ curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
 ```
 
 If the priority-10 OpenAI route returns 429 or 5xx, the gateway automatically retries via the priority-20 Groq route.
+
+### OTLP / OpenTelemetry / OpenInference
+
+Send traces from any OTel-instrumented application directly to RunLedger — no SDK adoption required.
+
+**Mode 1 — Direct OTLP/HTTP** (app → RunLedger):
+
+```bash
+curl -X POST http://localhost:8000/v1/traces \
+     -H "Authorization: Bearer rl_dev_..." \
+     -H "Content-Type: application/json" \
+     -d '{
+       "resourceSpans": [{
+         "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "my-agent"}}]},
+         "scopeSpans": [{
+           "scope": {"name": "openinference.instrumentation.openai"},
+           "spans": [{
+             "traceId": "<base64 16 bytes>",
+             "spanId":  "<base64 8 bytes>",
+             "name": "chat.completion",
+             "kind": 3,
+             "startTimeUnixNano": "1700000000000000000",
+             "endTimeUnixNano":   "1700000001500000000",
+             "attributes": [
+               {"key": "openinference.span.kind", "value": {"stringValue": "LLM"}},
+               {"key": "llm.model_name",          "value": {"stringValue": "gpt-4o-mini"}},
+               {"key": "llm.provider",            "value": {"stringValue": "openai"}},
+               {"key": "llm.token_count.prompt",  "value": {"intValue": 128}},
+               {"key": "llm.token_count.completion", "value": {"intValue": 64}}
+             ],
+             "status": {"code": 1}
+           }]
+         }]
+       }]
+     }'
+# → {"partialSuccess": {}}
+```
+
+**Mode 2 — Via OTel Collector** (app → Collector → RunLedger):
+
+```bash
+# Start the optional OTel Collector sidecar
+docker compose --profile otel -f infra/docker-compose.yml up otel-collector
+
+# Point your OTel SDK at the Collector:
+#   OTLP/HTTP → http://localhost:4318
+#   OTLP/gRPC → http://localhost:4317
+# The Collector batches and forwards to RunLedger automatically.
+```
+
+**Attribute priority** — RunLedger normalises in this order:
+1. OpenInference (`openinference.span.kind`, `llm.model_name`, `llm.token_count.*`)
+2. OTel GenAI (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.input_tokens`)
+3. Generic span name / kind heuristics
+
+Span kinds supported: `AGENT` → agent, `CHAIN` → chain, `LLM` → llm, `TOOL` → tool, `RETRIEVER` → retrieval.
+
+**Run-context attributes** — attach to the root span to link traces to sessions and users:
+
+| Attribute | Aliases | Description |
+|-----------|---------|-------------|
+| `runledger.session_id` | `session.id`, `openinference.session_id` | User session |
+| `runledger.end_user_id` | `user.id`, `openinference.user_id`, `enduser.id` | End-user ID |
+| `runledger.feature_tag` | `tag.feature`, `feature_tag` | Product feature label |
+| `runledger.deployment_version` | `service.version` (resource) | Deployment label |
+
+**Message payload capture** — extracted from LLM spans when privacy mode allows:
+
+| Attribute | Description |
+|-----------|-------------|
+| `llm.input_messages.N.message.{role,content}` | Numbered prompt messages (OpenInference) |
+| `llm.output_messages.0.message.content` | First completion message (OpenInference) |
+| `input.value` / `output.value` | Generic fallback |
+
+Each OTLP trace becomes one RunLedger agent run. LLM spans generate `provider_call` records (with cost computed by the pricing engine). Tool spans generate `tool_call` records. All raw OTLP payloads are staged for replay and parser-evolution safety.
+
+Monitor ingest health via **Settings → OTLP** or the management API (`GET /v1/traces/stats`, `GET /v1/traces/batches`).
+
+See `examples/22_otlp_ingest.py` for a full Python demo and `docs/otlp.md` for the complete integration guide.
 
 ### Local mode (zero setup)
 
@@ -964,6 +1049,17 @@ All endpoints require `Authorization: Bearer <api_key>` and are workspace-scoped
 | `POST` | `/ingest/v1/events` | Ingest a single event |
 | `POST` | `/ingest/v1/batch` | Ingest up to 100 events |
 
+### OTLP
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/traces` | OTLP/HTTP trace receiver — accepts `ExportTraceServiceRequest` JSON; gzip supported |
+| `POST` | `/otlp/v1/traces` | Alias for collectors that prefix `/otlp` before `/v1/traces` |
+| `GET` | `/v1/traces/stats` | Ingestion stats for the workspace (24h + 7d aggregate) |
+| `GET` | `/v1/traces/batches` | Paginated list of recent ingest batches |
+
+Response: `{"partialSuccess": {}}` on success. Error codes: 401 (bad key), 413 (payload > 10 MB), 415 (protobuf — use JSON), 422 (parse error).
+
 ### Auth
 
 | Method | Path | Description |
@@ -1127,6 +1223,7 @@ python examples/16_sessions.py             # list sessions, turn order, cost cha
 python examples/17_alerts.py               # create alert rules, toggle, history, cleanup
 python examples/18_gateway.py              # configure gateway routes, proxy completions, cache stats
 python examples/19_policy_check.py         # unified policy decision check for admission control and release gates
+python examples/22_otlp_ingest.py          # OTLP/HTTP trace ingestion — OpenInference + OTel GenAI (no SDK required)
 
 # FastAPI service with per-request context
 uvicorn examples.05_fastapi_service:app --reload

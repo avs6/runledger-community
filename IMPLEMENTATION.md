@@ -47,11 +47,13 @@
 | 23 | Provider Invoice Reconciliation | ✅ Complete | 28 |
 | 24 | Outcome & ROI Ledger | ✅ Complete | 20 |
 | 25 | Approvals & Policy Workflows | ✅ Complete | 19 |
+| OTEL-0 | OTLP Ingestion — Schema Foundation + Receiver | ✅ Complete | 37 |
+| OTEL-1 | OTLP — Run-context Extraction + Payload Capture + Management API + Settings UI | ✅ Complete | 13 |
 
-**Total tests shipped (Phases 0–25 + 15 + 20):** 317 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
+**Total tests shipped (Phases 0–25 + OTEL-0 + OTEL-1 + SDK phases):** 366 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
-**Audit snapshot (2026-03-23):**
-- API suite: `317/317` passing
+**Audit snapshot (2026-03-22):**
+- API suite: `366/366` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
@@ -2177,6 +2179,139 @@ provider_invoice_lines (
 ## Phase 25 — Approvals & Policy Workflows (Enterprise Stickiness) ✅ Complete
 
 Implemented: `approvals` table (migration 025), `Approval` ORM model, 7 REST endpoints (create, list, summary, get, approve, deny, cancel), `validate_approved()` helper used by `POST /prompts/{name}/promote` to enforce governance gate for production deploys. Frontend `/approvals` page with status summary cards, table with approve/deny/cancel actions, create modal. Sidebar "Governance" section. 19 tests.
+
+---
+
+## OTEL Phase 0 — OTLP Ingestion: Schema Foundation + Receiver ✅ Complete
+
+### Goal
+Accept native OTLP traces from any OpenTelemetry or OpenInference instrumented application — no RunLedger SDK required.
+
+### What was shipped
+
+#### A) Schema (migrations 026 + 027)
+
+`026_otlp_source_fields` — source-provenance columns on existing tables:
+- `agent_runs`: `source_type`, `external_trace_id`, `external_trace_state`, `resource_attributes`
+- `spans`: `external_span_id`, `external_parent_span_id`, `trace_flags`, `instrumentation_scope_name`, `instrumentation_scope_version`, `source_span_kind`, `source_attributes`
+- `provider_calls`: `provider_request_id`, `reported_cost_usd`, `cost_source`, `model_provider`, `input_tokens_details`, `output_tokens_details`
+- `tool_calls`: `external_span_id`, `tool_arguments`, `tool_result_summary`
+
+`027_otlp_staging` — raw ingestion staging tables for replay and parser evolution:
+- `otlp_ingest_batches` — one row per HTTP request (content_type, trace_count, span_count, status, raw_payload BYTEA)
+- `otlp_spans_raw` — one row per span (resource_attributes, scope_attributes, span_attributes, events, links, normalized flag)
+
+#### B) OTLP parser (`services/otlp_parse.py`)
+
+- Handles both base64 and hex trace/span ID encoding
+- Attribute normalization: OTLP `[{key, value: {stringValue/intValue/...}}]` → flat dict
+- Span classification priority: OpenInference `openinference.span.kind` → OTel GenAI `gen_ai.system` → name heuristics
+- Deterministic UUID generation: `uuid5(NAMESPACE_URL, "otlp-trace:<ws>:<trace_hex>")` — idempotent re-ingest
+- `synthesize_canonical_events()` produces: `run_start / span_start / provider_call / tool_call / span_end / run_end`
+- OpenInference span kind mapping: AGENT→agent, CHAIN→chain, LLM→llm, TOOL→tool, RETRIEVER→retrieval, PROMPT/EVALUATOR/GUARDRAIL→chain, EMBEDDING→retrieval
+
+#### C) OTLP receiver (`routers/otlp.py`)
+
+- `POST /v1/traces` — primary OTLP/HTTP endpoint
+- `POST /otlp/v1/traces` — alias for collectors that prefix `/otlp`
+- Gzip decompression (`Content-Encoding: gzip`)
+- Error codes: 401 bad key, 413 payload > 10 MB, 415 protobuf (JSON only in Phase 0), 422 parse error
+- Response: `{"partialSuccess": {}}` (OTLP-spec compliant)
+- Persists raw batch → raw spans → calls `process_events_task.delay(workspace_id, events)` to enqueue into existing Celery pipeline
+
+#### D) OTel Collector infra
+
+- `infra/otel-collector-config.yaml` — `otel/opentelemetry-collector-contrib:0.114.0`; receives on 4317 (gRPC) + 4318 (HTTP); batches + retries; forwards to `http://api:8000` with Bearer auth
+- `infra/docker-compose.yml` — collector added under `profiles: ["otel"]` (zero impact on default stack)
+- Start with: `docker compose --profile otel up otel-collector`
+
+#### E) Tests
+
+37 tests in `tests/test_otlp_ingest.py`:
+- Parser unit tests: `_decode_id` (base64/hex/empty), `_ns_to_dt`, `_flatten_attrs` (all value types), `_classify_span` (OI/GenAI/heuristic), `_extract_llm_fields` (OI/GenAI), `_make_run_id` determinism
+- `parse_otlp_json`: empty, single span, classification, resource attrs, multi-span, hex IDs
+- `synthesize_canonical_events`: minimal trace (run_start+span_start+span_end+run_end), LLM→provider_call, TOOL→tool_call, deterministic run_id
+- HTTP routes: success, alias, auth required, protobuf rejected, invalid JSON, gzip, full OpenInference trace with provider_call assertion
+
+---
+
+## OTEL Phase 1 — Run-context Extraction + Payload Capture + Management API + Settings UI ✅ Complete
+
+### Goal
+
+Make OTLP traces first-class citizens in the RunLedger pipeline: enrich agent runs with session/user context from span attributes, forward message payloads through the privacy pipeline, and provide operators a management surface (API + Settings UI) to monitor ingestion health.
+
+### What shipped
+
+#### A) `services/otlp_parse.py` — two new helpers
+
+**`_extract_run_context(resource_attrs, root_span_attrs)`**
+- Reads `runledger.*` helper attributes with priority over generic OTel/OpenInference names
+- Fields extracted: `session_id`, `end_user_id`, `feature_tag`, `deployment_version`
+- Priority order per field:
+  - `session_id`: `runledger.session_id` > `session.id` > `openinference.session_id`
+  - `end_user_id`: `runledger.end_user_id` > `user.id` > `openinference.user_id` > `enduser.id`
+  - `feature_tag`: `runledger.feature_tag` > `tag.feature` > `feature_tag`
+  - `deployment_version`: `runledger.deployment_version` > `service.version` (resource)
+- Returns only keys with a value — never spreads `None` onto pipeline events
+
+**`_extract_message_payloads(attrs)`**
+- Extracts prompt + completion content from OpenInference LLM span attributes
+- Input: `llm.input_messages.N.message.{role,content}` (iterates until gap)
+- Output: `llm.output_messages.0.message.content`
+- Generic fallback: `input.value` → user message, `output.value` → assistant message
+- Returns `{"messages": [...], "response": {...}}` or `None` if no content found
+- Same keys the privacy pipeline expects (`messages` / `response` under span_end `metadata`)
+
+**`synthesize_canonical_events` — updated**
+- Calls `_extract_run_context(resource, root.attrs)` → spreads result as top-level fields on `run_start` event (pipeline `_handle_run_start` reads `session_id`, `end_user_id`, `feature_tag`, `deployment_version` as top-level keys)
+- For LLM spans: calls `_extract_message_payloads(span.attrs)` and attaches result as `span_end["metadata"]` — privacy pipeline applies capture policy before storage
+
+#### B) Management endpoints (`routers/otlp.py`)
+
+**`GET /v1/traces/stats`**
+- Returns 24h and 7d aggregate stats for the workspace:
+  ```json
+  {
+    "last_24h": {"batches": 5, "traces": 10, "spans": 40},
+    "last_7d":  {"batches": 30, "traces": 60, "spans": 240}
+  }
+  ```
+- Queries `otlp_ingest_batches` with `received_at >= cutoff`
+
+**`GET /v1/traces/batches`**
+- Paginated list of recent ingest batches (`limit`/`offset` query params, max 100)
+- Each item: `id`, `created_at` (received_at), `trace_count`, `span_count`, `status`, `error`, `content_type`
+- Includes `total` count for pagination
+
+#### C) Frontend — Settings → OTLP tab
+
+New tab in `apps/web/app/(dashboard)/settings/page.tsx`:
+- Stats strip: 6 cards (24h batches/traces/spans + 7d batches/traces/spans)
+- Quick-start code block with exporter env vars and curl example
+- Batch history table: time, traces, spans, status badge (green=accepted / red), error truncated
+- Refresh button + skeleton loading state + empty state with call-to-action
+
+Types added to `apps/web/types/api.ts`: `OtlpWindowStats`, `OtlpStats`, `OtlpBatchResponse`, `OtlpBatchList`
+
+Functions added to `apps/web/lib/api.ts`: `getOtlpStats()`, `listOtlpBatches()`
+
+#### D) Integration guide
+
+`docs/otlp.md` — full integration guide covering:
+- Three adoption modes (direct / via Collector / RunLedger SDK)
+- All attribute conventions (run-context, LLM spans, message payloads)
+- Privacy mode interaction with payload capture
+- Error codes, quick-start, runnable example pointer
+
+#### E) Tests (13 new, total 50 in test_otlp_ingest.py)
+
+- `_extract_run_context`: OpenInference attrs, `runledger.*` priority, empty, feature_tag fallback
+- `synthesize_canonical_events` with run_ctx: session_id/end_user_id/deployment_version on run_start
+- `_extract_message_payloads`: OpenInference multi-message, generic fallback, None when empty, output-only
+- `synthesize_canonical_events` with payloads: LLM span_end has metadata.messages+response; non-LLM span_end has no metadata
+- `GET /v1/traces/stats`: returns correct 24h/7d structure
+- `GET /v1/traces/batches`: returns paginated items + total
 
 ---
 

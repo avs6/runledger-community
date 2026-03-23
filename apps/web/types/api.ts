@@ -1018,3 +1018,33 @@ export interface ApprovalSummary {
   denied: number
   cancelled: number
 }
+
+// ── OTLP ──────────────────────────────────────────────────────────────────────
+
+export interface OtlpWindowStats {
+  batches: number
+  traces: number
+  spans: number
+}
+
+export interface OtlpStats {
+  last_24h: OtlpWindowStats
+  last_7d: OtlpWindowStats
+}
+
+export interface OtlpBatchResponse {
+  id: string
+  created_at: string | null
+  trace_count: number
+  span_count: number
+  status: string
+  error: string | null
+  content_type: string
+}
+
+export interface OtlpBatchList {
+  items: OtlpBatchResponse[]
+  total: number
+  limit: number
+  offset: number
+}

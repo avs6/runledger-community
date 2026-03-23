@@ -70,6 +70,8 @@ import type {
   UsageSnapshot,
   VersionCompareResult,
   WorkflowTopList,
+  OtlpStats,
+  OtlpBatchList,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -1335,4 +1337,21 @@ export async function cancelApproval(
   return apiFetch<import('@/types/api').ApprovalResponse>(`/approvals/${id}`, apiKey, {
     method: 'DELETE',
   })
+}
+
+// ── OTLP ──────────────────────────────────────────────────────────────────────
+
+export async function getOtlpStats(apiKey: string): Promise<OtlpStats> {
+  return apiFetch<OtlpStats>('/v1/traces/stats', apiKey)
+}
+
+export async function listOtlpBatches(
+  apiKey: string,
+  limit = 20,
+  offset = 0
+): Promise<OtlpBatchList> {
+  return apiFetch<OtlpBatchList>(
+    `/v1/traces/batches?limit=${limit}&offset=${offset}`,
+    apiKey
+  )
 }
