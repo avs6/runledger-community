@@ -54,7 +54,9 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.get("/profile", response_model=OrgProfileResponse)
-async def get_org_profile(auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep) -> Tenant:
+async def get_org_profile(
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
+) -> Tenant:
     workspace, _, __ = auth
     tenant = await db.get(Tenant, workspace.tenant_id)
     if tenant is None:
@@ -268,7 +270,9 @@ async def list_org_workspaces(
 
 @router.post("/workspaces", status_code=status.HTTP_201_CREATED, response_model=WorkspaceResponse)
 async def create_org_workspace(
-    body: WorkspaceCreateForOrg, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
+    body: WorkspaceCreateForOrg,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
 ) -> Workspace:
     workspace, user, _ = auth
     new_ws = Workspace(tenant_id=workspace.tenant_id, name=body.name)
@@ -408,7 +412,9 @@ async def list_org_members(
     "/members/invite", status_code=status.HTTP_201_CREATED, response_model=TenantMemberResponse
 )
 async def invite_org_member(
-    body: InviteOrgMemberRequest, auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep
+    body: InviteOrgMemberRequest,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
 ) -> TenantMemberResponse:
     workspace, inviting_user, _ = auth
 

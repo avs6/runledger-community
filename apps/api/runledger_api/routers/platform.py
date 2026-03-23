@@ -462,7 +462,9 @@ async def platform_list_workspaces(
 
 @router.get("/workspaces/{workspace_id}", response_model=WorkspaceDetailResponse)
 async def platform_get_workspace(
-    workspace_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
+    workspace_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
+    db: DbDep,
 ) -> dict[str, Any]:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
@@ -524,7 +526,9 @@ async def platform_move_workspace_org(
 
 @router.delete("/workspaces/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def platform_delete_workspace(
-    workspace_id: uuid.UUID, auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)], db: DbDep
+    workspace_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
+    db: DbDep,
 ) -> None:
     ws = await db.get(Workspace, workspace_id)
     if ws is None:
