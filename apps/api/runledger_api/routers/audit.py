@@ -13,7 +13,7 @@ GET  /audit/events/{id}     Single event detail
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -34,12 +34,12 @@ router = APIRouter(
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WsDep = Annotated[Workspace, Depends(get_current_workspace)]
-AdminDep = Annotated[Workspace, Depends(require_workspace_admin)]
+AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
 
 
 @router.get("/events", response_model=AuditEventList)
 async def list_audit_events(
-    ws: AdminDep,
+    auth: AdminDep,
     db: DbDep,
     action: str | None = Query(None, description="Filter by action prefix, e.g. 'budget'"),
     actor_user_id: uuid.UUID | None = Query(None),
@@ -49,6 +49,7 @@ async def list_audit_events(
     offset: int = Query(0, ge=0),
 ) -> AuditEventList:
     """Return paginated audit events for this workspace, newest first."""
+    ws: Workspace = auth[0]
     base = select(AuditEvent).where(AuditEvent.workspace_id == ws.id)
 
     if action:
@@ -79,9 +80,10 @@ async def list_audit_events(
 @router.get("/events/{event_id}", response_model=AuditEventResponse)
 async def get_audit_event(
     event_id: uuid.UUID,
-    ws: AdminDep,
+    auth: AdminDep,
     db: DbDep,
 ) -> AuditEventResponse:
+    ws: Workspace = auth[0]
     result = await db.execute(
         select(AuditEvent).where(
             AuditEvent.id == event_id,
