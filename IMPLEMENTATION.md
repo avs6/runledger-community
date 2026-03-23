@@ -1511,7 +1511,7 @@ Backend:
 
 ---
 
-### Phase 22 — SaaS Foundation 🔲
+### Phase 22 — SaaS Foundation ✅ Complete
 **Goal:** Self-service signup, Stripe subscription management, and usage quota enforcement. Transforms RunLedger from a self-hosted tool into a deployable SaaS product.
 
 **Why now:** After Phase 21 the core product is complete. Commercialization infrastructure is the last major unlock. Without it, every user must self-host, limiting distribution.
@@ -1537,7 +1537,7 @@ Frontend:
 - Upgrade modal: plan comparison table (Free vs Starter vs Growth vs Enterprise)
 - Quota exceeded banner: inline notification when >90% of monthly events used
 
-**Definition of done:** 🔲 Sign up via `/signup` with no admin intervention. Receive API key. Send 100 events. See usage meter at 100/10000. Click upgrade → Stripe checkout loads. Complete Stripe test payment → plan upgrades to Starter. Quota increases.
+**Definition of done:** ✅ Sign up via `/signup` with no admin intervention. Receive API key. Send 100 events. See usage meter at 100/10000. Click upgrade → Stripe checkout loads. Complete Stripe test payment → plan upgrades to Starter. Quota increases.
 
 ---
 
@@ -1619,7 +1619,7 @@ NEXT_PUBLIC_API_URL  = https://api.runledger.io
 | **Advanced Alerting** — error rate / latency / quality threshold rules | **21A** | ✅ |
 | **Model Gateway** — OpenAI-compatible proxy, smart routing, prompt caching | **21B** | ✅ |
 | **Runs enhancements** — model/cost filters, CSV export, Ollama cost fix, API key UX | **21C** | ✅ |
-| **SaaS Foundation** — self-service signup, Stripe subscriptions, quota enforcement | **22** | 🔲 |
+| **SaaS Foundation** — self-service signup, Stripe subscriptions, quota enforcement | **22** | ✅ |
 
 
 
@@ -2122,7 +2122,7 @@ audit_events (
 
 # New Phases (Defensibility Boosters)
 
-## Phase 23 — Provider Invoice Reconciliation (Flagship Moat)
+## Phase 23 — Provider Invoice Reconciliation (Flagship Moat) ✅ Complete
 ### Goal
 Make RunLedger “invoice-grade”: reconcile against provider usage exports and explain deltas.
 
