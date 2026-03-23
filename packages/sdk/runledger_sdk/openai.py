@@ -86,11 +86,11 @@ def uninstrument_openai() -> None:
         async_completions_cls = openai.resources.chat.completions.AsyncCompletions
 
         if hasattr(completions_cls, "_rl_original_create"):
-            completions_cls.create = completions_cls._rl_original_create  # type: ignore
+            completions_cls.create = completions_cls._rl_original_create  # type: ignore[method-assign, unused-ignore]
             del completions_cls._rl_original_create
 
         if hasattr(async_completions_cls, "_rl_original_create"):
-            async_completions_cls.create = async_completions_cls._rl_original_create  # type: ignore
+            async_completions_cls.create = async_completions_cls._rl_original_create  # type: ignore[method-assign, unused-ignore]
             del async_completions_cls._rl_original_create
 
     except ImportError:
