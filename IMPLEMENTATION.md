@@ -2388,6 +2388,70 @@ stale runs are closed promptly (within ~8 minutes worst-case of the trace becomi
 
 ---
 
+## OTEL Phase 2 — OTel GenAI Support, Retrieval Metadata, Convention Tracking ✅ Complete
+
+### Goal
+
+Complete the normalization layer so OTel GenAI spans, RETRIEVER spans, and OTel convention
+version information are all handled correctly. Also extends the TypeScript SDK with
+reconciliation-grade `provider_request_id` and token detail fields.
+
+### What shipped
+
+#### A) OTel GenAI span events (`services/otlp_parse.py`)
+
+- `OtlpParsedSpan` gains `span_events: list[dict]` field
+- `parse_otlp_json()` parses `raw_span["events"]` into `span_events` per span
+- `_extract_message_payloads()` extended with OTel GenAI span event support:
+  - `gen_ai.system.message` → `messages[role=system]`
+  - `gen_ai.user.message` → `messages[role=user]`
+  - `gen_ai.assistant.message` → `response`
+  - `gen_ai.tool.message` → `messages[role=tool]`
+  - Content read from `gen_ai.event.content` attribute on each span event
+  - OpenInference attributes still take priority; `input.value`/`output.value` as final fallback
+
+#### B) Retrieval span metadata (`_extract_retrieval_metadata`)
+
+New helper extracts OpenInference `retrieval.documents.N.*` attributes:
+- `document.id`, `document.score`, `document.content` per document
+- Returns `{"document_count": N, "documents": [...]}` stored in `span_end.metadata`
+- Privacy pipeline will apply capture policy to document content
+
+#### C) Convention version tracking (`_extract_convention_metadata`)
+
+New helper reads OTel SDK and scope metadata into `run_start.metadata.instrumentation`:
+- `telemetry.sdk.name/version/language` from resource attributes
+- Instrumentation scope `name/version` from the root span's scope
+
+#### D) Tool call synthesis improvements
+
+`tool_call` events now read `gen_ai.tool.name` and `gen_ai.tool.call.function.arguments`
+(with `tool_call.function.arguments` as fallback) — full OTel GenAI tool span coverage.
+
+#### E) TypeScript SDK (`packages/ts-sdk`)
+
+- `types.ts`: `ProviderCallEvent` gains `provider_request_id?`, `input_tokens_details?`,
+  `output_tokens_details?`; new `TokenDetails` interface
+- `openai.ts`: `_providerCall()` captures `result.id` → `provider_request_id`;
+  extracts `prompt_tokens_details` → `input_tokens_details`;
+  extracts `completion_tokens_details` → `output_tokens_details`
+
+#### F) Documentation
+
+- `docs/openinference.md`: full OpenInference attribute mapping reference (span kinds,
+  run context, LLM fields, tool fields, retrieval fields, GenAI fallback, convention tracking)
+- `docs/collector.md`: OTel Collector integration guide (quick start, enrichment,
+  PII redaction, filtering, fan-out, troubleshooting)
+
+#### G) Tests
+
+- `tests/test_otlp_phase2.py` — 24 tests
+- `packages/ts-sdk/tests/openai.test.ts` — 4 new tests
+
+Total: 102 OTLP API tests pass, 43 TypeScript tests pass.
+
+---
+
 ## OTEL Phase 4 — Reconciliation-grade Enrichment ✅ Complete
 
 ### Goal
