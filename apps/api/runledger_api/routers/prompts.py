@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.services.audit import emit_audit_event
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.routers.approvals import validate_approved
 from runledger_api.models.events import AgentRun
@@ -379,6 +380,11 @@ async def promote_version(
         from_env=body.source_environment,
         to_env=body.target_environment,
         new_version=new_version_num,
+    )
+    await emit_audit_event(
+        db, workspace.id, "prompt.promoted",
+        target_type="prompt", target_id=name,
+        after={"from_env": body.source_environment, "to_env": body.target_environment, "version": new_version_num},
     )
     return VersionResponse.model_validate(promoted)
 

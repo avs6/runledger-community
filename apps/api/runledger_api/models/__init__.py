@@ -1,5 +1,6 @@
 # noqa: F401 — import all models so Alembic autogenerate sees them
 from runledger_api.models.alerts import AlertFiring, AlertRule
+from runledger_api.models.audit import AuditEvent
 from runledger_api.models.annotations import Annotation
 from runledger_api.models.events import (
     AgentRun,
@@ -28,7 +29,6 @@ from runledger_api.models.scores import ScoreEvent, ScoreRollupDaily
 from runledger_api.models.tenant import (
     ApiKey,
     Application,
-    AuditEvent,
     MemberStatusEnum,
     Tenant,
     TenantStatusEnum,

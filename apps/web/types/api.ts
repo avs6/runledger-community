@@ -1019,6 +1019,28 @@ export interface ApprovalSummary {
   cancelled: number
 }
 
+// ── Audit Log ─────────────────────────────────────────────────────────────────
+
+export interface AuditEvent {
+  id: string
+  workspace_id: string
+  actor_user_id: string | null
+  actor_api_key_prefix: string | null
+  action: string
+  target_type: string | null
+  target_id: string | null
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface AuditEventList {
+  items: AuditEvent[]
+  total: number
+  limit: number
+  offset: number
+}
+
 // ── OTLP ──────────────────────────────────────────────────────────────────────
 
 export interface OtlpWindowStats {

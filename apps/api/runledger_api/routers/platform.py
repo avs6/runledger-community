@@ -20,7 +20,7 @@ from runledger_api.models.tenant import (
     Workspace, WorkspaceRoleEnum, WorkspaceUser,
 )
 from runledger_api.schemas.auth import (
-    AuditEventResponse, OrgAssignment, TenantCreate, TenantResponse,
+    OrgAssignment, TenantCreate, TenantResponse,
     TenantStatusUpdate, TenantUpdate,
     UserCreate, UserOrgMembership, UserResponse, UserUpdate, UserWithOrgsResponse,
     WorkspaceDetailResponse, WorkspaceMemberCreate, WorkspaceOrgAssign,

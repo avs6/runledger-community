@@ -8,7 +8,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.models.tenant import AuditEvent, MemberStatusEnum, TenantRoleEnum, TenantUser
+from runledger_api.models.audit import AuditEvent
+from runledger_api.models.tenant import MemberStatusEnum, TenantRoleEnum, TenantUser
 
 
 # ── Last-admin guard ───────────────────────────────────────────────────────────
@@ -62,12 +63,14 @@ def log_audit(
     new_value: str | None = None,
 ) -> None:
     """Add an AuditEvent to the session. Caller must commit."""
+    before = {"value": old_value} if old_value else None
+    after = {"value": new_value} if new_value else None
     db.add(AuditEvent(
+        workspace_id=scope_id,
         actor_user_id=actor_user_id,
-        target_user_id=target_user_id,
-        scope_type=scope_type,
-        scope_id=scope_id,
-        action=action,
-        old_value=old_value,
-        new_value=new_value,
+        action=f"{scope_type}.{action}",
+        target_type=scope_type if target_user_id else None,
+        target_id=str(target_user_id) if target_user_id else None,
+        before=before,
+        after=after,
     ))

@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
+from runledger_api.services.audit import emit_audit_event
 from runledger_api.models.approvals import Approval
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.approvals import (
@@ -261,6 +262,11 @@ async def approve_approval(
         request_type=approval.request_type,
         decided_by=approval.decided_by,
     )
+    await emit_audit_event(
+        db, workspace.id, "approval.approved",
+        target_type="approval", target_id=str(approval.id),
+        after={"request_type": approval.request_type, "decided_by": approval.decided_by},
+    )
     return ApprovalResponse.model_validate(approval)
 
 
@@ -308,6 +314,11 @@ async def deny_approval(
         request_type=approval.request_type,
         decided_by=approval.decided_by,
     )
+    await emit_audit_event(
+        db, workspace.id, "approval.denied",
+        target_type="approval", target_id=str(approval.id),
+        after={"request_type": approval.request_type, "decided_by": approval.decided_by},
+    )
     return ApprovalResponse.model_validate(approval)
 
 
@@ -344,6 +355,11 @@ async def cancel_approval(
     await db.refresh(approval)
 
     log.info("approval_cancelled", approval_id=str(approval.id))
+    await emit_audit_event(
+        db, workspace.id, "approval.cancelled",
+        target_type="approval", target_id=str(approval.id),
+        after={"request_type": approval.request_type},
+    )
     return ApprovalResponse.model_validate(approval)
 
 

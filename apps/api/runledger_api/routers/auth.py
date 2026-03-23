@@ -45,6 +45,7 @@ from runledger_api.schemas.providers import (
     ProviderPricingResponse,
     ProviderPricingUpdate,
 )
+from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.auth import generate_api_key
 
 log = structlog.get_logger()
@@ -194,6 +195,12 @@ async def create_api_key(workspace_id: uuid.UUID, body: ApiKeyCreate, db: DbDep)
     await db.flush()
     await db.commit()
     await db.refresh(api_key)
+    await emit_audit_event(
+        db, workspace_id, "api_key.created",
+        target_type="api_key", target_id=str(api_key.id),
+        after={"name": api_key.name, "key_prefix": api_key.key_prefix},
+    )
+    await db.commit()
     return {"id": api_key.id, "workspace_id": api_key.workspace_id, "key_prefix": api_key.key_prefix,
             "name": api_key.name, "scopes": api_key.scopes, "created_at": api_key.created_at,
             "created_by": api_key.created_by, "is_session": api_key.is_session, "key": raw_key}
@@ -214,6 +221,11 @@ async def revoke_api_key(key_id: uuid.UUID, db: DbDep) -> None:
     if api_key is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
     api_key.revoked_at = datetime.now(UTC)
+    await emit_audit_event(
+        db, api_key.workspace_id, "api_key.revoked",
+        target_type="api_key", target_id=str(api_key.id),
+        before={"name": api_key.name, "key_prefix": api_key.key_prefix},
+    )
     await db.commit()
 
 

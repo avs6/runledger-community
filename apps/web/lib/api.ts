@@ -72,6 +72,7 @@ import type {
   WorkflowTopList,
   OtlpStats,
   OtlpBatchList,
+  AuditEventList,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -1354,4 +1355,23 @@ export async function listOtlpBatches(
     `/v1/traces/batches?limit=${limit}&offset=${offset}`,
     apiKey
   )
+}
+
+export async function listAuditEvents(
+  apiKey: string,
+  params: {
+    action?: string
+    target_type?: string
+    target_id?: string
+    limit?: number
+    offset?: number
+  } = {}
+): Promise<AuditEventList> {
+  const q = new URLSearchParams()
+  if (params.action) q.set('action', params.action)
+  if (params.target_type) q.set('target_type', params.target_type)
+  if (params.target_id) q.set('target_id', params.target_id)
+  q.set('limit', String(params.limit ?? 50))
+  q.set('offset', String(params.offset ?? 0))
+  return apiFetch<AuditEventList>(`/audit/events?${q.toString()}`, apiKey)
 }

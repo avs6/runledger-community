@@ -21,12 +21,14 @@ from runledger_api.models.billing import BillingPeriod
 from runledger_api.models.budgets import Budget
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import UsageDaily
+from runledger_api.models.audit import AuditEvent
 from runledger_api.models.tenant import (
-    AuditEvent, MemberStatusEnum, Tenant, TenantRoleEnum, TenantUser, User,
+    MemberStatusEnum, Tenant, TenantRoleEnum, TenantUser, User,
     Workspace, WorkspaceRoleEnum, WorkspaceStatusEnum, WorkspaceUser,
 )
+from runledger_api.schemas.audit import AuditEventResponse as AuditEventResponse
 from runledger_api.schemas.auth import (
-    AddWorkspaceMemberRequest, AuditEventResponse, InviteOrgMemberRequest,
+    AddWorkspaceMemberRequest, InviteOrgMemberRequest,
     MemberStatusUpdate, OrgProfileResponse, OrgProfileUpdate,
     OrgRoleUpdateRequest, TenantMemberResponse,
     WorkspaceCreateForOrg, WorkspaceMemberResponse, WorkspaceResponse,
@@ -645,16 +647,9 @@ async def get_org_audit_log(
     ws_ids = list((await db.execute(
         select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
     )).scalars().all())
-    # Events scoped to the tenant or any of its workspaces
     result = await db.execute(
         select(AuditEvent)
-        .where(
-            (
-                (AuditEvent.scope_type == "tenant") & (AuditEvent.scope_id == workspace.tenant_id)
-            ) | (
-                (AuditEvent.scope_type == "workspace") & (AuditEvent.scope_id.in_(ws_ids))
-            )
-        )
+        .where(AuditEvent.workspace_id.in_(ws_ids))
         .order_by(AuditEvent.created_at.desc())
         .limit(limit)
     )

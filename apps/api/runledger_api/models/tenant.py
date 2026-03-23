@@ -265,23 +265,3 @@ class TenantUser(Base):
     tenant: Mapped["Tenant"] = relationship(back_populates="tenant_users")
 
 
-class AuditEvent(Base):
-    __tablename__ = "audit_events"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    target_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    scope_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
-    scope_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    action: Mapped[str] = mapped_column(sa.String(64), nullable=False)
-    old_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    new_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
-    )
