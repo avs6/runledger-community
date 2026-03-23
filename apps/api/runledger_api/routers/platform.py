@@ -370,6 +370,14 @@ async def platform_create_workspace_for_org(
     tenant = await db.get(Tenant, org_id)
     if tenant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+    existing = await db.execute(
+        select(Workspace).where(
+            Workspace.tenant_id == org_id,
+            func.lower(Workspace.name) == body.name.lower(),
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A workspace with that name already exists in this organization")
     workspace = Workspace(tenant_id=org_id, name=body.name)
     db.add(workspace)
     await db.flush()

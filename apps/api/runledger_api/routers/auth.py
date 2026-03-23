@@ -10,7 +10,7 @@ import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -165,6 +165,14 @@ async def create_workspace(body: WorkspaceCreate, db: DbDep) -> Workspace:
     tenant = await db.get(Tenant, body.tenant_id)
     if tenant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tenant not found")
+    existing = await db.execute(
+        select(Workspace).where(
+            Workspace.tenant_id == body.tenant_id,
+            func.lower(Workspace.name) == body.name.lower(),
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A workspace with that name already exists in this organization")
     workspace = Workspace(tenant_id=body.tenant_id, name=body.name)
     db.add(workspace)
     await db.flush()
