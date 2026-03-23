@@ -310,6 +310,7 @@ async def bootstrap_platform_admin(body: BootstrapRequest, db: DbDep) -> Bootstr
             full_name=body.full_name or body.email.split("@")[0],
             is_active=True,
             is_platform_admin=True,
+            email_verified=True,
         )
         db.add(user)
         await db.flush()
