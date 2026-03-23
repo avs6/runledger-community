@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Key, Bell, Shield, Settings2, Users, Building2, Plug, Terminal, CheckCheck, Lock,
-  Search, X, SlidersHorizontal, Radio, Trash2, HardDrive,
+  Search, X, SlidersHorizontal, Radio, Trash2, HardDrive, Mail,
 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
@@ -22,7 +22,7 @@ import { useRole } from '@/components/rbac/useRole'
 import OrgTab from '@/components/settings/OrgTab'
 import RetentionTab from '@/components/settings/RetentionTab'
 import WarehouseTab from '@/components/settings/WarehouseTab'
-import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse } from '@/types/api'
+import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, EmailPreference, EmailLogItem } from '@/types/api'
 import {
   listApiKeys,
   createApiKey,
@@ -42,6 +42,10 @@ import {
   emailAnalyticsReport,
   getOtlpStats,
   listOtlpBatches,
+  getEmailPreferences,
+  updateEmailPreferences,
+  testEmailSend,
+  getEmailLog,
 } from '@/lib/api'
 import type { OtlpStats, OtlpBatchList } from '@/types/api'
 
@@ -70,6 +74,7 @@ const TABS = [
   { id: 'compliance', label: 'Compliance', icon: Lock, adminOnly: false },
   { id: 'retention', label: 'Data Retention', icon: Trash2, adminOnly: true },
   { id: 'warehouse', label: 'Warehouse Export', icon: HardDrive, adminOnly: true },
+  { id: 'email', label: 'Email', icon: Mail, adminOnly: false },
 ]
 
 export default function SettingsPage() {
@@ -156,6 +161,14 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false)
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+  // ── Email Preferences ─────────────────────────────────────────────────────────
+  const [emailPrefs, setEmailPrefs] = useState<EmailPreference | null>(null)
+  const [emailLog, setEmailLog] = useState<EmailLogItem[]>([])
+  const [loadingEmailPrefs, setLoadingEmailPrefs] = useState(false)
+  const [emailPrefsAttempted, setEmailPrefsAttempted] = useState(false)
+  const [savingEmailPrefs, setSavingEmailPrefs] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(false)
+
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
@@ -241,6 +254,29 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'otlp' && !otlpAttempted) loadOtlp()
   }, [activeTab, otlpAttempted, loadOtlp])
+
+  const loadEmailPrefs = useCallback(async () => {
+    if (!apiKey) return
+    setEmailPrefsAttempted(true)
+    setLoadingEmailPrefs(true)
+    try {
+      const [prefs, logData] = await Promise.all([
+        getEmailPreferences(apiKey),
+        getEmailLog(apiKey),
+      ])
+      setEmailPrefs(prefs)
+      setEmailLog(logData.items.slice(0, 20))
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load email settings')
+    } finally {
+      setLoadingEmailPrefs(false)
+    }
+  }, [apiKey])
+
+  useEffect(() => {
+    if (activeTab === 'email' && !emailPrefsAttempted) loadEmailPrefs()
+  }, [activeTab, emailPrefsAttempted, loadEmailPrefs])
 
   // ── API Key handlers ────────────────────────────────────────────────────────
 
@@ -1455,6 +1491,167 @@ curl -X POST https://YOUR_API/v1/traces \\
         {/* ── Organization (Admin only) ─────────────────────────────────────────── */}
         {activeTab === 'org' && isOrgAdmin && (
           <OrgTab apiKey={apiKey ?? ''} apiBase={apiBase} />
+        )}
+
+        {/* ── Email Notifications ──────────────────────────────────────────────── */}
+        {activeTab === 'email' && (
+          <div className="space-y-6">
+            {loadingEmailPrefs && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading email settings…</p>
+            )}
+
+            {/* Section 1: Email Preferences */}
+            {emailPrefs && (
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Email Notification Preferences</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Report Frequency
+                    </label>
+                    <select
+                      className={inputCls}
+                      value={emailPrefs.report_frequency}
+                      onChange={(e) => setEmailPrefs({ ...emailPrefs, report_frequency: e.target.value })}
+                    >
+                      <option value="never">Never</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(
+                      [
+                        ['alerts_enabled', 'Alert rule firings'],
+                        ['approvals_enabled', 'Approval requests & decisions'],
+                        ['reconciliation_enabled', 'Invoice reconciliation complete'],
+                        ['budget_alerts_enabled', 'Budget breach & runaway protection'],
+                        ['billing_closed_enabled', 'Billing period closed'],
+                        ['score_regression_enabled', 'Score regressions'],
+                        ['dispute_flagged_enabled', 'Invoice lines disputed'],
+                      ] as [keyof EmailPreference, string][]
+                    ).map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={emailPrefs[key] as boolean}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, [key]: e.target.checked })}
+                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <button
+                    className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                    disabled={savingEmailPrefs}
+                    onClick={async () => {
+                      if (!apiKey || !emailPrefs) return
+                      setSavingEmailPrefs(true)
+                      try {
+                        const updated = await updateEmailPreferences(apiKey, {
+                          report_frequency: emailPrefs.report_frequency,
+                          alerts_enabled: emailPrefs.alerts_enabled,
+                          approvals_enabled: emailPrefs.approvals_enabled,
+                          reconciliation_enabled: emailPrefs.reconciliation_enabled,
+                          budget_alerts_enabled: emailPrefs.budget_alerts_enabled,
+                          billing_closed_enabled: emailPrefs.billing_closed_enabled,
+                          score_regression_enabled: emailPrefs.score_regression_enabled,
+                          dispute_flagged_enabled: emailPrefs.dispute_flagged_enabled,
+                        })
+                        setEmailPrefs(updated)
+                        toast.success('Email preferences saved')
+                      } catch (err) {
+                        console.error(err)
+                        toast.error('Failed to save preferences')
+                      } finally {
+                        setSavingEmailPrefs(false)
+                      }
+                    }}
+                  >
+                    {savingEmailPrefs ? 'Saving…' : 'Save Preferences'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Section 2: SMTP Test */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">Test Email Delivery</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Sends a test email to the address associated with your session to verify SMTP is configured correctly.
+              </p>
+              <button
+                className="px-4 py-2 rounded bg-gray-700 text-white text-sm font-medium hover:bg-gray-600 disabled:opacity-50"
+                disabled={testingEmail}
+                onClick={async () => {
+                  if (!apiKey) return
+                  setTestingEmail(true)
+                  try {
+                    const result = await testEmailSend(apiKey)
+                    if (result.ok) {
+                      toast.success('Test email sent!')
+                    } else {
+                      toast.error(`Failed: ${result.error ?? 'unknown error'}`)
+                    }
+                  } catch (err) {
+                    toast.error('Failed to send test email')
+                    console.error(err)
+                  } finally {
+                    setTestingEmail(false)
+                  }
+                }}
+              >
+                {testingEmail ? 'Sending…' : 'Send Test Email'}
+              </button>
+            </div>
+
+            {/* Section 3: Email Log */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Email Log</h3>
+              {emailLog.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No emails sent yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sent At</th>
+                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">To</th>
+                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Event Type</th>
+                        <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {emailLog.map((item) => (
+                        <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
+                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 font-mono text-xs">
+                            {new Date(item.sent_at).toLocaleString()}
+                          </td>
+                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 text-xs">{item.to_email}</td>
+                          <td className="py-2 pr-4 text-gray-500 dark:text-gray-400 text-xs font-mono">{item.event_type}</td>
+                          <td className="py-2">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                item.status === 'sent'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

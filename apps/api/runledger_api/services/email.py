@@ -5,18 +5,32 @@ from __future__ import annotations
 import asyncio
 import smtplib
 import textwrap
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import uuid
+from typing import TYPE_CHECKING
 
 import structlog
 
 from runledger_api.core.config import settings
 
+if TYPE_CHECKING:
+    pass
+
 log = structlog.get_logger()
+
+
+def get_unsubscribe_url(base_url: str, token: str) -> str:
+    """Build an unsubscribe URL from base URL and user token."""
+    return f"{base_url}/unsubscribe?token={token}"
 
 
 def _send_smtp(to_email: str, subject: str, html: str, text: str) -> None:
     """Synchronous SMTP send — run via asyncio.to_thread."""
+    msg = __import__("email.mime.multipart", fromlist=["MIMEMultipart"]).MIMEMultipart(
+        "alternative"
+    )
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = f"RunLedger <{settings.smtp_from}>"
@@ -31,16 +45,73 @@ def _send_smtp(to_email: str, subject: str, html: str, text: str) -> None:
         smtp.sendmail(settings.smtp_from, to_email, msg.as_string())
 
 
-async def send_email(to_email: str, subject: str, html: str, text: str) -> None:
+async def _log_email(
+    workspace_id: uuid.UUID | None,
+    to_email: str,
+    subject: str,
+    event_type: str,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    """Write email delivery record to email_log table."""
+    from runledger_api.core.config import settings as _settings
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+    from runledger_api.models.email_prefs import EmailLog
+
+    try:
+        engine = create_async_engine(_settings.database_url, poolclass=NullPool)
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as db:
+            db.add(
+                EmailLog(
+                    workspace_id=workspace_id,
+                    to_email=to_email,
+                    subject=subject,
+                    event_type=event_type,
+                    status=status,
+                    error_message=error_message,
+                )
+            )
+            await db.commit()
+        await engine.dispose()
+    except Exception:
+        pass  # logging failure must never break email sending
+
+
+async def send_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    text: str,
+    *,
+    workspace_id: uuid.UUID | None = None,
+    event_type: str = "generic",
+    background: bool = True,
+) -> None:
     """Send an email async. Silently logs on failure so signup never breaks."""
     if not settings.smtp_user or not settings.smtp_password:
         log.warning("email_skipped_no_smtp_config", to=to_email, subject=subject)
         return
+    exc_str: str | None = None
     try:
         await asyncio.to_thread(_send_smtp, to_email, subject, html, text)
         log.info("email_sent", to=to_email, subject=subject)
-    except Exception:
+        _status = "sent"
+    except Exception as exc:
         log.exception("email_send_failed", to=to_email, subject=subject)
+        exc_str = str(exc)
+        _status = "failed"
+
+    log_coro = _log_email(workspace_id, to_email, subject, event_type, _status, exc_str)
+    if background:
+        try:
+            asyncio.get_running_loop()
+            asyncio.create_task(log_coro)
+        except RuntimeError:
+            await log_coro
+    else:
+        await log_coro
 
 
 async def send_welcome_email(
@@ -133,7 +204,7 @@ async def send_welcome_email(
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="welcome")
 
 
 async def send_alert_fired_email(
@@ -145,6 +216,7 @@ async def send_alert_fired_email(
     threshold: str,
     value: str,
     workspace_name: str,
+    unsubscribe_url: str = "",
 ) -> None:
     """Notify a user that an alert rule has fired."""
     name = full_name or to_email
@@ -164,6 +236,13 @@ async def send_alert_fired_email(
 
         — The RunLedger Team
     """)
+
+    unsub_html = (
+        f'<p style="margin:8px 0 0;font-size:11px;color:#475569;">'
+        f'<a href="{unsubscribe_url}" style="color:#475569;">Unsubscribe</a></p>'
+        if unsubscribe_url
+        else ""
+    )
 
     html = f"""\
 <!DOCTYPE html>
@@ -197,6 +276,7 @@ async def send_alert_fired_email(
         </td></tr>
         <tr><td style="padding:20px 40px;border-top:1px solid #334155;">
           <p style="margin:0;font-size:12px;color:#475569;">RunLedger · Billing-grade observability for AI agents</p>
+          {unsub_html}
         </td></tr>
       </table>
     </td></tr>
@@ -204,7 +284,7 @@ async def send_alert_fired_email(
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="alert_fired")
 
 
 async def send_approval_request_email(
@@ -284,7 +364,7 @@ async def send_approval_request_email(
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="approval_request")
 
 
 async def send_approval_decision_email(
@@ -357,7 +437,7 @@ async def send_approval_decision_email(
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="approval_decision")
 
 
 async def send_reconciliation_email(
@@ -438,7 +518,7 @@ async def send_reconciliation_email(
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="reconciliation")
 
 
 async def send_analytics_report_email(
@@ -538,7 +618,339 @@ async def send_analytics_report_email(
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="analytics_report")
+
+
+async def send_budget_breach_email(
+    to_email: str,
+    full_name: str | None,
+    scope_type: str,
+    scope_id: str | None,
+    period_type: str,
+    limit_usd: str,
+    spent_usd: str,
+    action: str,
+    workspace_name: str,
+    unsubscribe_url: str = "",
+) -> None:
+    """Notify workspace admins of a budget breach or runaway protection event."""
+    name = full_name or to_email
+    subject = f"RunLedger Budget Alert: {scope_type} — action: {action}"
+
+    scope_label = f"{scope_type}" + (f" ({scope_id})" if scope_id else "")
+
+    unsub_html = (
+        f'<p style="margin:8px 0 0;font-size:11px;color:#475569;">'
+        f'<a href="{unsubscribe_url}" style="color:#475569;">Unsubscribe</a></p>'
+        if unsubscribe_url
+        else ""
+    )
+
+    text = textwrap.dedent(f"""\
+        Hi {name},
+
+        A budget alert has fired in workspace "{workspace_name}".
+
+        Scope:     {scope_label}
+        Period:    {period_type}
+        Limit:     ${limit_usd}
+        Spent:     ${spent_usd}
+        Action:    {action}
+
+        Log in to RunLedger to review.
+
+        — The RunLedger Team
+    """)
+
+    html = f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#b45309,#ea580c);padding:32px 40px;">
+          <p style="margin:0;font-size:22px;font-weight:700;color:#fff;">RunLedger</p>
+          <p style="margin:4px 0 0;font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#fed7aa;">Budget Alert</p>
+        </td></tr>
+        <tr><td style="padding:36px 40px;">
+          <p style="margin:0 0 8px;font-size:18px;font-weight:600;color:#f1f5f9;">Budget Limit Exceeded</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;">Workspace: <strong style="color:#e2e8f0;">{workspace_name}</strong></p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:8px;border:1px solid #334155;margin-bottom:28px;">
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Scope</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;">{scope_label}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Period</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;">{period_type}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Spent / Limit</p>
+              <p style="margin:4px 0 0;font-size:16px;font-weight:700;color:#f87171;font-family:monospace;">${spent_usd} / ${limit_usd}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Action Taken</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#fbbf24;font-family:monospace;">{action}</p>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:13px;color:#64748b;">Log in to RunLedger to review and adjust your budget settings.</p>
+        </td></tr>
+        <tr><td style="padding:20px 40px;border-top:1px solid #334155;">
+          <p style="margin:0;font-size:12px;color:#475569;">RunLedger · Billing-grade observability for AI agents</p>
+          {unsub_html}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    await send_email(to_email, subject, html, text, event_type="budget_breach")
+
+
+async def send_billing_period_closed_email(
+    to_email: str,
+    full_name: str | None,
+    period_start: str,
+    period_end: str,
+    total_cost_usd: str,
+    snapshot_hash: str,
+    workspace_name: str,
+    unsubscribe_url: str = "",
+) -> None:
+    """Notify workspace admins when a billing period is closed and signed."""
+    name = full_name or to_email
+    subject = f"RunLedger: Billing Period Closed — {period_start} to {period_end}"
+
+    unsub_html = (
+        f'<p style="margin:8px 0 0;font-size:11px;color:#475569;">'
+        f'<a href="{unsubscribe_url}" style="color:#475569;">Unsubscribe</a></p>'
+        if unsubscribe_url
+        else ""
+    )
+
+    text = textwrap.dedent(f"""\
+        Hi {name},
+
+        A billing period has been closed and signed in workspace "{workspace_name}".
+
+        Period:     {period_start} to {period_end}
+        Total Cost: ${total_cost_usd}
+        HMAC Hash:  {snapshot_hash}
+
+        The signed snapshot is tamper-evident and available for audit export.
+
+        — The RunLedger Team
+    """)
+
+    html = f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#065f46,#0891b2);padding:32px 40px;">
+          <p style="margin:0;font-size:22px;font-weight:700;color:#fff;">RunLedger</p>
+          <p style="margin:4px 0 0;font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#6ee7b7;">Billing Period Closed</p>
+        </td></tr>
+        <tr><td style="padding:36px 40px;">
+          <p style="margin:0 0 8px;font-size:18px;font-weight:600;color:#f1f5f9;">Billing Period Signed &amp; Closed</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;">Workspace: <strong style="color:#e2e8f0;">{workspace_name}</strong></p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:8px;border:1px solid #334155;margin-bottom:28px;">
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Period</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;">{period_start} → {period_end}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Total Cost</p>
+              <p style="margin:4px 0 0;font-size:20px;font-weight:700;color:#4ade80;">${total_cost_usd}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">HMAC Signature (first 16 chars)</p>
+              <p style="margin:4px 0 0;font-size:12px;color:#2dd4bf;font-family:monospace;">{snapshot_hash}</p>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:13px;color:#64748b;">The signed snapshot is tamper-evident. Export it from the Billing section for audit purposes.</p>
+        </td></tr>
+        <tr><td style="padding:20px 40px;border-top:1px solid #334155;">
+          <p style="margin:0;font-size:12px;color:#475569;">RunLedger · Billing-grade observability for AI agents</p>
+          {unsub_html}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    await send_email(to_email, subject, html, text, event_type="billing_closed")
+
+
+async def send_dispute_flagged_email(
+    to_email: str,
+    full_name: str | None,
+    provider: str,
+    line_date: str,
+    dispute_note: str | None,
+    workspace_name: str,
+    unsubscribe_url: str = "",
+) -> None:
+    """Notify workspace admins when an invoice line is marked disputed."""
+    name = full_name or to_email
+    subject = f"RunLedger: Invoice Line Disputed — {provider}"
+
+    note_html = (
+        f'<tr><td style="padding:14px 20px;">'
+        f'<p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Dispute Note</p>'
+        f'<p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;">{dispute_note}</p>'
+        f"</td></tr>"
+        if dispute_note
+        else ""
+    )
+    note_text = f"\nNote:      {dispute_note}" if dispute_note else ""
+
+    unsub_html = (
+        f'<p style="margin:8px 0 0;font-size:11px;color:#475569;">'
+        f'<a href="{unsubscribe_url}" style="color:#475569;">Unsubscribe</a></p>'
+        if unsubscribe_url
+        else ""
+    )
+
+    text = textwrap.dedent(f"""\
+        Hi {name},
+
+        An invoice line has been marked as disputed in workspace "{workspace_name}".
+
+        Provider:  {provider}
+        Date:      {line_date}{note_text}
+
+        Log in to RunLedger to review the invoice and export the dispute package.
+
+        — The RunLedger Team
+    """)
+
+    html = f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#78350f,#b45309);padding:32px 40px;">
+          <p style="margin:0;font-size:22px;font-weight:700;color:#fff;">RunLedger</p>
+          <p style="margin:4px 0 0;font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#fde68a;">Invoice Line Disputed</p>
+        </td></tr>
+        <tr><td style="padding:36px 40px;">
+          <p style="margin:0 0 8px;font-size:18px;font-weight:600;color:#f1f5f9;">Invoice Line Flagged as Disputed</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;">Workspace: <strong style="color:#e2e8f0;">{workspace_name}</strong></p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:8px;border:1px solid #334155;margin-bottom:28px;">
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Provider</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;">{provider}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Line Date</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;">{line_date}</p>
+            </td></tr>
+            {note_html}
+          </table>
+          <p style="margin:0;font-size:13px;color:#64748b;">Log in to RunLedger to review the invoice and export the dispute package for finance.</p>
+        </td></tr>
+        <tr><td style="padding:20px 40px;border-top:1px solid #334155;">
+          <p style="margin:0;font-size:12px;color:#475569;">RunLedger · Billing-grade observability for AI agents</p>
+          {unsub_html}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    await send_email(to_email, subject, html, text, event_type="dispute_flagged")
+
+
+async def send_score_regression_email(
+    to_email: str,
+    full_name: str | None,
+    metric_name: str,
+    current_avg: float,
+    prior_avg: float,
+    change_pct: float,
+    workspace_name: str,
+    unsubscribe_url: str = "",
+) -> None:
+    """Notify workspace admins when a score metric regresses significantly."""
+    name = full_name or to_email
+    subject = f"RunLedger: Score Regression Detected — {metric_name}"
+
+    unsub_html = (
+        f'<p style="margin:8px 0 0;font-size:11px;color:#475569;">'
+        f'<a href="{unsubscribe_url}" style="color:#475569;">Unsubscribe</a></p>'
+        if unsubscribe_url
+        else ""
+    )
+
+    text = textwrap.dedent(f"""\
+        Hi {name},
+
+        A score regression has been detected in workspace "{workspace_name}".
+
+        Metric:      {metric_name}
+        Current Avg: {current_avg:.4f}
+        Prior Avg:   {prior_avg:.4f}
+        Change:      -{change_pct:.1f}%
+
+        Log in to RunLedger to investigate.
+
+        — The RunLedger Team
+    """)
+
+    html = f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
+        <tr><td style="background:linear-gradient(135deg,#92400e,#b45309);padding:32px 40px;">
+          <p style="margin:0;font-size:22px;font-weight:700;color:#fff;">RunLedger</p>
+          <p style="margin:4px 0 0;font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#fde68a;">Score Regression Detected</p>
+        </td></tr>
+        <tr><td style="padding:36px 40px;">
+          <p style="margin:0 0 8px;font-size:18px;font-weight:600;color:#f1f5f9;">Score Metric Regression</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;">Workspace: <strong style="color:#e2e8f0;">{workspace_name}</strong></p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:8px;border:1px solid #334155;margin-bottom:28px;">
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Metric</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;font-family:monospace;">{metric_name}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Current Avg</p>
+              <p style="margin:4px 0 0;font-size:16px;font-weight:700;color:#f87171;font-family:monospace;">{current_avg:.4f}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Prior 7-day Avg</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;font-family:monospace;">{prior_avg:.4f}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;">
+              <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Change</p>
+              <p style="margin:4px 0 0;font-size:16px;font-weight:700;color:#f87171;font-family:monospace;">-{change_pct:.1f}%</p>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:13px;color:#64748b;">Log in to RunLedger to investigate this score regression.</p>
+        </td></tr>
+        <tr><td style="padding:20px 40px;border-top:1px solid #334155;">
+          <p style="margin:0;font-size:12px;color:#475569;">RunLedger · Billing-grade observability for AI agents</p>
+          {unsub_html}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    await send_email(to_email, subject, html, text, event_type="score_regression")
 
 
 async def send_verification_email(to_email: str, full_name: str, verify_url: str) -> None:
@@ -573,4 +985,4 @@ async def send_verification_email(to_email: str, full_name: str, verify_url: str
 </body>
 </html>"""
 
-    await send_email(to_email, subject, html, text)
+    await send_email(to_email, subject, html, text, event_type="verification")

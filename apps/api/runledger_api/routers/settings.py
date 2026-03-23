@@ -1,5 +1,5 @@
 """
-Settings router — workspace-scoped API key management.
+Settings router — workspace-scoped API key management + email preferences.
 
 Prefix: /settings
 Auth: Bearer API key via get_current_workspace
@@ -19,9 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
+from runledger_api.schemas.email_prefs import (
+    EmailLogList,
+    EmailPreferenceResponse,
+    EmailPreferenceUpdate,
+)
 from runledger_api.services.auth import generate_api_key
+from runledger_api.services.email import send_email
 
 log = structlog.get_logger()
 
@@ -89,3 +96,116 @@ async def revoke_api_key(key_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) 
     api_key.revoked_at = datetime.now(UTC)
     await db.commit()
     log.info("api_key_revoked", key_id=str(key_id))
+
+
+# ── Email Preferences ─────────────────────────────────────────────────────────
+
+
+@router.get("/email/preferences", response_model=EmailPreferenceResponse)
+async def get_email_preferences(workspace: WorkspaceDep, db: DbDep) -> EmailPreference:
+    """Get or create default email preferences for this workspace."""
+    result = await db.execute(
+        select(EmailPreference).where(EmailPreference.workspace_id == workspace.id)
+    )
+    prefs = result.scalar_one_or_none()
+    if prefs is None:
+        prefs = EmailPreference(workspace_id=workspace.id)
+        db.add(prefs)
+        await db.commit()
+        await db.refresh(prefs)
+    return prefs
+
+
+@router.put("/email/preferences", response_model=EmailPreferenceResponse)
+async def update_email_preferences(
+    body: EmailPreferenceUpdate, workspace: WorkspaceDep, db: DbDep
+) -> EmailPreference:
+    """Update email preferences (PATCH semantics — only provided fields are changed)."""
+    result = await db.execute(
+        select(EmailPreference).where(EmailPreference.workspace_id == workspace.id)
+    )
+    prefs = result.scalar_one_or_none()
+    if prefs is None:
+        prefs = EmailPreference(workspace_id=workspace.id)
+        db.add(prefs)
+
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(prefs, field, value)
+
+    prefs.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(prefs)
+    log.info("email_preferences_updated", workspace_id=str(workspace.id))
+    return prefs
+
+
+@router.get("/email/log", response_model=EmailLogList)
+async def get_email_log(workspace: WorkspaceDep, db: DbDep) -> EmailLogList:
+    """List the 50 most recent email log entries for this workspace."""
+    result = await db.execute(
+        select(EmailLog)
+        .where(EmailLog.workspace_id == workspace.id)
+        .order_by(EmailLog.sent_at.desc())
+        .limit(50)
+    )
+    items = list(result.scalars().all())
+
+    count_result = await db.execute(
+        select(EmailLog).where(EmailLog.workspace_id == workspace.id)
+    )
+    total = len(list(count_result.scalars().all()))
+
+    return EmailLogList(items=items, total=total)  # type: ignore[arg-type]
+
+
+@router.post("/email/test")
+async def test_email_send(
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> dict[str, Any]:
+    """Send a test email to the workspace's API key owner (created_by field)."""
+    # Find a session key to get the user's email
+    key_result = await db.execute(
+        select(ApiKey)
+        .where(
+            ApiKey.workspace_id == workspace.id,
+            ApiKey.revoked_at.is_(None),
+            ApiKey.is_session.is_(True),
+            ApiKey.created_by.isnot(None),
+        )
+        .order_by(ApiKey.created_at.desc())
+        .limit(1)
+    )
+    session_key = key_result.scalar_one_or_none()
+
+    # Fall back: try any key with a created_by email
+    if session_key is None or not session_key.created_by:
+        key_result2 = await db.execute(
+            select(ApiKey)
+            .where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.revoked_at.is_(None),
+                ApiKey.created_by.isnot(None),
+            )
+            .order_by(ApiKey.created_at.desc())
+            .limit(1)
+        )
+        session_key = key_result2.scalar_one_or_none()
+
+    if session_key is None or not session_key.created_by:
+        return {"ok": False, "error": "No user email found for this workspace"}
+
+    to_email = session_key.created_by
+    try:
+        await send_email(
+            to_email=to_email,
+            subject="RunLedger email test",
+            html="<p>This is a test email from RunLedger. Your email notifications are working correctly.</p>",
+            text="This is a test email from RunLedger. Your email notifications are working correctly.",
+            event_type="test",
+            workspace_id=workspace.id,
+            background=False,
+        )
+        return {"ok": True, "error": None}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}

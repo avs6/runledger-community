@@ -1185,3 +1185,35 @@ export interface ExportJobList {
   items: ExportJob[]
   total: number
 }
+
+// ── Email Preferences ──────────────────────────────────────────────────────────
+
+export interface EmailPreference {
+  id: string
+  workspace_id: string
+  report_frequency: string
+  alerts_enabled: boolean
+  approvals_enabled: boolean
+  reconciliation_enabled: boolean
+  budget_alerts_enabled: boolean
+  billing_closed_enabled: boolean
+  score_regression_enabled: boolean
+  dispute_flagged_enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface EmailLogItem {
+  id: string
+  to_email: string
+  subject: string
+  event_type: string
+  status: string
+  error_message: string | null
+  sent_at: string
+}
+
+export interface EmailLogList {
+  items: EmailLogItem[]
+  total: number
+}

@@ -29,11 +29,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import asyncio as _asyncio
+
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.services.email import send_reconciliation_email
-from runledger_api.services.email_utils import get_workspace_admin_users
+from runledger_api.services.email import send_dispute_flagged_email, send_reconciliation_email
+from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 from runledger_api.models.invoices import ProviderInvoice, ProviderInvoiceLine
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.invoices import (
@@ -456,10 +458,45 @@ async def dispute_line(
     if line is None:
         raise HTTPException(status_code=404, detail="Invoice line not found")
 
+    # Need invoice for provider info — re-load it (ownership already checked above)
+    inv_result2 = await db.execute(
+        select(ProviderInvoice).where(ProviderInvoice.id == invoice_id)
+    )
+    invoice = inv_result2.scalar_one_or_none()
+
     line.match_status = "disputed"
     line.dispute_note = body.note
     await db.commit()
     await db.refresh(line)
+
+    # Fire-and-forget: email workspace admins about disputed line
+    async def _notify_dispute() -> None:
+        try:
+            prefs = await get_email_preference(db, workspace.id)
+            if prefs is not None and not prefs.dispute_flagged_enabled:
+                return
+            admins = await get_workspace_admin_users(db, workspace.id)
+            provider = invoice.provider if invoice else "unknown"
+            line_date = str(line.occurred_at.date()) if line.occurred_at else "N/A"
+            await _asyncio.gather(
+                *[
+                    send_dispute_flagged_email(
+                        to_email=u.email,
+                        full_name=u.full_name,
+                        provider=provider,
+                        line_date=line_date,
+                        dispute_note=body.note,
+                        workspace_name=workspace.name,
+                    )
+                    for u in admins
+                ],
+                return_exceptions=True,
+            )
+        except Exception:
+            pass  # never break the response
+
+    _asyncio.create_task(_notify_dispute())
+
     return InvoiceLineResponse.model_validate(line)
 
 

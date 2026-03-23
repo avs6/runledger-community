@@ -20,7 +20,7 @@ from runledger_api.core.config import settings
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.tenant import Workspace
 from runledger_api.services.email import send_analytics_report_email
-from runledger_api.services.email_utils import get_workspace_admin_users
+from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 
 log = structlog.get_logger()
 
@@ -67,6 +67,11 @@ async def _run_weekly_reports() -> dict[str, int]:
 
                 if not rows_orm:
                     continue  # skip workspaces with no activity
+
+                # Check email preferences — skip if report_frequency is 'never'
+                prefs = await get_email_preference(session, workspace.id)
+                if prefs is not None and prefs.report_frequency == "never":
+                    continue
 
                 items = [
                     {

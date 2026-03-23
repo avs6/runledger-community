@@ -197,6 +197,12 @@ class User(Base):
     firebase_uid: Mapped[str | None] = mapped_column(
         sa.String(128), unique=True, nullable=True, index=True
     )
+    email_notifications_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    email_unsubscribe_token: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True, unique=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )

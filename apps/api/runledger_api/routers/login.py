@@ -430,3 +430,32 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
         workspace_role=workspace_role,
         workspace_ids=workspace_ids,
     )
+
+
+# ── Unsubscribe / Resubscribe ──────────────────────────────────────────────────
+
+
+@router.get("/auth/unsubscribe")
+async def unsubscribe_email(token: str, db: DbDep) -> dict[str, Any]:
+    """Unsubscribe a user from email notifications using their unsubscribe token."""
+    result = await db.execute(
+        select(User).where(User.email_unsubscribe_token == token)
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        return {"ok": False, "message": "Invalid or expired token"}
+    user.email_notifications_enabled = False
+    await db.commit()
+    return {"ok": True, "message": "Unsubscribed successfully"}
+
+
+@router.post("/auth/resubscribe")
+async def resubscribe_email(
+    auth: Annotated[Any, Depends(require_user)],
+    db: DbDep,
+) -> dict[str, Any]:
+    """Re-enable email notifications for the authenticated user."""
+    user_obj: User = auth[1] if isinstance(auth, (tuple, list)) else auth
+    user_obj.email_notifications_enabled = True
+    await db.commit()
+    return {"ok": True, "message": "Resubscribed successfully"}

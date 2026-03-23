@@ -79,6 +79,8 @@ import type {
   RetentionActionType,
   RetentionScopeType,
   PurgeResult,
+  EmailPreference,
+  EmailLogList,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -1522,4 +1524,32 @@ export async function triggerExportJob(
 
 export async function getExportJob(apiKey: string, jobId: string): Promise<ExportJob> {
   return apiFetch<ExportJob>(`/warehouse/jobs/${jobId}`, apiKey)
+}
+
+// ── Email Preferences ──────────────────────────────────────────────────────────
+
+export async function getEmailPreferences(apiKey: string): Promise<EmailPreference> {
+  return apiFetch<EmailPreference>('/settings/email/preferences', apiKey)
+}
+
+export async function updateEmailPreferences(
+  apiKey: string,
+  data: Partial<EmailPreference>
+): Promise<EmailPreference> {
+  return apiFetch<EmailPreference>('/settings/email/preferences', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function testEmailSend(
+  apiKey: string
+): Promise<{ ok: boolean; error: string | null }> {
+  return apiFetch<{ ok: boolean; error: string | null }>('/settings/email/test', apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function getEmailLog(apiKey: string): Promise<EmailLogList> {
+  return apiFetch<EmailLogList>('/settings/email/log', apiKey)
 }

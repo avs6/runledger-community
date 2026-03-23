@@ -32,11 +32,14 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.budgets import Budget, BudgetNotification
 from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.tenant import Workspace
 from runledger_api.services.budgets import (
     _period_key,
     _spend_key,
     send_notification,
 )
+from runledger_api.services.email import send_budget_breach_email
+from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 
 log = structlog.get_logger()
 
@@ -141,6 +144,40 @@ async def _run_runaway_protection() -> dict[str, int]:
                                 notification_id=str(notification.id),
                                 error=str(exc),
                             )
+
+                    # Email workspace admins about runaway detection
+                    try:
+                        prefs = await get_email_preference(session, run.workspace_id)
+                        if prefs is None or prefs.budget_alerts_enabled:
+                            ws_result = await session.execute(
+                                select(Workspace).where(Workspace.id == run.workspace_id)
+                            )
+                            ws = ws_result.scalar_one_or_none()
+                            ws_name = ws.name if ws else str(run.workspace_id)
+                            admins = await get_workspace_admin_users(session, run.workspace_id)
+                            await asyncio.gather(
+                                *[
+                                    send_budget_breach_email(
+                                        to_email=u.email,
+                                        full_name=u.full_name,
+                                        scope_type="runaway_protection",
+                                        scope_id=str(run.id),
+                                        period_type="realtime",
+                                        limit_usd="N/A",
+                                        spent_usd="N/A",
+                                        action="cancelled",
+                                        workspace_name=ws_name,
+                                    )
+                                    for u in admins
+                                ],
+                                return_exceptions=True,
+                            )
+                    except Exception as exc:
+                        log.warning(
+                            "runaway_email_failed",
+                            run_id=str(run.id),
+                            error=str(exc),
+                        )
 
             if cancelled:
                 await session.commit()

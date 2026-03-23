@@ -19,6 +19,7 @@ GET    /billing/chargeback-rules           List chargeback rules
 
 from __future__ import annotations
 
+import asyncio as _asyncio
 import uuid
 from typing import Annotated, Any
 
@@ -35,6 +36,8 @@ from runledger_api.core.deps import (
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.tenant import Workspace
+from runledger_api.services.email import send_billing_period_closed_email
+from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 from runledger_api.schemas.billing import (
     BillingPeriodCreate,
     BillingPeriodList,
@@ -209,6 +212,35 @@ async def close_period(
                 detail="Billing period is already closed",
             ) from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    # Fire-and-forget: email workspace admins about closed period
+    async def _notify_billing_closed() -> None:
+        try:
+            prefs = await get_email_preference(db, workspace.id)
+            if prefs is not None and not prefs.billing_closed_enabled:
+                return
+            admins = await get_workspace_admin_users(db, workspace.id)
+            total_cost = str(period.total_cost_usd) if period.total_cost_usd is not None else "N/A"
+            snap_hash = (snapshot.signature[:16] if snapshot.signature else "")
+            await _asyncio.gather(
+                *[
+                    send_billing_period_closed_email(
+                        to_email=u.email,
+                        full_name=u.full_name,
+                        period_start=str(period.period_start),
+                        period_end=str(period.period_end),
+                        total_cost_usd=total_cost,
+                        snapshot_hash=snap_hash,
+                        workspace_name=workspace.name,
+                    )
+                    for u in admins
+                ],
+                return_exceptions=True,
+            )
+        except Exception:
+            pass  # never break the response
+
+    _asyncio.create_task(_notify_billing_closed())
 
     return UsageSnapshotResponse(
         id=str(snapshot.id),

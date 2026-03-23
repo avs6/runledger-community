@@ -26,8 +26,9 @@ from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.budgets import BudgetNotification
 from runledger_api.models.events import AgentRun
 from runledger_api.models.scores import ScoreEvent
+from runledger_api.models.tenant import Workspace
 from runledger_api.services.email import send_alert_fired_email
-from runledger_api.services.email_utils import get_workspace_admin_users
+from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 from runledger_api.services.notifications import send_slack_message
 
 log = structlog.get_logger()
@@ -55,6 +56,9 @@ async def _run_evaluation() -> dict[str, int]:
         rules: list[AlertRule] = list(rules_result.scalars().all())
 
         now = datetime.now(UTC)
+        # Cache email preferences per workspace to avoid repeated DB lookups
+        from runledger_api.models.email_prefs import EmailPreference as _EmailPreference  # noqa: F401
+        prefs_cache: dict[Any, Any] = {}
 
         for rule in rules:
             rules_checked += 1
@@ -115,7 +119,13 @@ async def _run_evaluation() -> dict[str, int]:
 
             # Send email notifications if enabled
             if rule.email_enabled:
-                await _send_alert_emails(session, rule, metric_value)
+                # Check workspace email preferences
+                ws_id = rule.workspace_id
+                if ws_id not in prefs_cache:
+                    prefs_cache[ws_id] = await get_email_preference(session, ws_id)
+                prefs = prefs_cache[ws_id]
+                if prefs is None or prefs.alerts_enabled:
+                    await _send_alert_emails(session, rule, metric_value)
 
         await session.commit()
 
@@ -287,6 +297,13 @@ async def _send_alert_emails(
     }.get(rule.metric, str(rule.threshold))
 
     try:
+        # Look up workspace name
+        ws_result = await session.execute(
+            select(Workspace).where(Workspace.id == rule.workspace_id)
+        )
+        workspace = ws_result.scalar_one_or_none()
+        ws_name = workspace.name if workspace else str(rule.workspace_id)
+
         admins = await get_workspace_admin_users(session, rule.workspace_id)
         await asyncio.gather(
             *[
@@ -298,7 +315,7 @@ async def _send_alert_emails(
                     operator=rule.operator,
                     threshold=threshold_label,
                     value=metric_label,
-                    workspace_name=str(rule.workspace_id),
+                    workspace_name=ws_name,
                 )
                 for u in admins
             ],
