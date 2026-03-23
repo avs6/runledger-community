@@ -910,3 +910,75 @@ export interface ReconciliationSummary {
   token_mismatch_buckets: TokenMismatchBucket[]
   status: string
 }
+
+// ── Outcomes ──────────────────────────────────────────────────────────────────
+
+export interface OutcomeResponse {
+  id: string
+  workspace_id: string
+  run_id: string | null
+  session_id: string | null
+  end_user_id: string | null
+  outcome_type: string
+  success: boolean
+  value_usd: string | null
+  labels: Record<string, unknown>
+  created_at: string
+}
+
+export interface OutcomeList {
+  items: OutcomeResponse[]
+  total: number
+}
+
+export interface OutcomeSummaryItem {
+  outcome_type: string
+  count: number
+  success_count: number
+  success_rate: string
+  total_cost_usd: string
+  cost_per_success_usd: string | null
+  total_value_usd: string | null
+  roi: string | null
+}
+
+export interface OutcomeSummary {
+  items: OutcomeSummaryItem[]
+  window_days: number
+}
+
+export interface OutcomeTrendPoint {
+  day: string
+  outcome_type: string
+  success_rate: string
+  cost_per_success_usd: string | null
+  count: number
+  roi: string | null
+}
+
+export interface OutcomeTrend {
+  items: OutcomeTrendPoint[]
+}
+
+export interface WorkflowROIItem {
+  feature_tag: string
+  outcome_type: string
+  run_count: number
+  success_count: number
+  success_rate: string
+  total_cost_usd: string
+  total_value_usd: string | null
+  roi: string | null
+  cost_per_success_usd: string | null
+}
+
+export interface WorkflowROIList {
+  items: WorkflowROIItem[]
+}
+
+export interface QualityOutcomeCorrelation {
+  outcome_type: string
+  avg_score: string | null
+  success_rate: string
+  sample_count: number
+}

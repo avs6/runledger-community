@@ -45,11 +45,12 @@
 | 22 | SaaS Foundation | ✅ Complete | — |
 | 17B | Evaluator Framework — LLM judge, rule-based, batch eval, drift detection | ✅ Complete | 17 |
 | 23 | Provider Invoice Reconciliation | ✅ Complete | 28 |
+| 24 | Outcome & ROI Ledger | ✅ Complete | 20 |
 
-**Total tests shipped (Phases 0–23 + 15 + 20):** 278 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
+**Total tests shipped (Phases 0–24 + 15 + 20):** 298 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
-**Audit snapshot (2026-03-22):**
-- API suite: `278/278` passing
+**Audit snapshot (2026-03-23):**
+- API suite: `298/298` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
@@ -2172,7 +2173,7 @@ provider_invoice_lines (
 
 ---
 
-## Phase 24 — Outcome & ROI Ledger (Cost Per Outcome)
+## Phase 24 — Outcome & ROI Ledger (Cost Per Outcome) ✅ Complete
 ### Goal
 Move beyond tokens: measure and optimize **cost per business outcome**.
 

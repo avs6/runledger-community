@@ -386,6 +386,90 @@ class RunLedger:
         except Exception as exc:
             log.warning("score_post_failed", name=name, error=str(exc))
 
+    # ── Business outcomes ─────────────────────────────────────────────────────
+
+    def outcome(
+        self,
+        outcome_type: str,
+        success: bool,
+        *,
+        run_id: str | None = None,
+        session_id: str | None = None,
+        end_user_id: str | None = None,
+        value_usd: float | None = None,
+        labels: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Record a business outcome linked to an agent run or session.
+
+        Outcomes are posted synchronously and directly (not via the event queue).
+        Failures are logged as warnings — outcome tracking must never break flow.
+
+        Parameters
+        ----------
+        outcome_type:
+            Business outcome category (e.g. "checkout_completed", "lead_qualified").
+        success:
+            Whether the outcome was achieved successfully.
+        run_id:
+            Optional UUID of the run being evaluated. Defaults to current context.
+        session_id:
+            Optional session identifier.
+        end_user_id:
+            Optional end-user identifier.
+        value_usd:
+            Optional business value of the outcome in USD.
+        labels:
+            Arbitrary JSON labels for grouping / filtering.
+        """
+        if self.local:
+            log.info(
+                "outcome_local",
+                outcome_type=outcome_type,
+                success=success,
+                run_id=run_id,
+            )
+            return
+
+        # Fall back to current context run_id if not explicitly provided
+        if run_id is None:
+            ctx = get_context_snapshot()
+            run_id = ctx.get("run_id")  # type: ignore[assignment]
+        if session_id is None:
+            ctx = get_context_snapshot()
+            session_id = ctx.get("session_id")  # type: ignore[assignment]
+        if end_user_id is None:
+            ctx = get_context_snapshot()
+            end_user_id = ctx.get("end_user_id")  # type: ignore[assignment]
+
+        payload: dict[str, Any] = {
+            "outcome_type": outcome_type,
+            "success": success,
+        }
+        if run_id is not None:
+            payload["run_id"] = str(run_id)
+        if session_id is not None:
+            payload["session_id"] = str(session_id)
+        if end_user_id is not None:
+            payload["end_user_id"] = str(end_user_id)
+        if value_usd is not None:
+            payload["value_usd"] = value_usd
+        if labels is not None:
+            payload["labels"] = labels
+
+        try:
+            import httpx  # noqa: PLC0415
+
+            resp = httpx.post(
+                f"{self.base_url}/outcomes",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            log.warning("outcome_post_failed", outcome_type=outcome_type, error=str(exc))
+
     # ── Prompt management ─────────────────────────────────────────────────────
 
     # In-memory cache: key → (data_dict, expires_at_monotonic)

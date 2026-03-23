@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, LayoutList, MessageSquare,
   FlaskConical, Activity, Wallet, Settings,
-  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt,
+  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt, TrendingUp,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -149,6 +149,7 @@ export default function Sidebar() {
             <SectionLabel label="Finance" />
             <NavLink href="/finance" label="Finance" icon={Wallet} />
             <NavLink href="/invoices" label="Invoice Reconciliation" icon={Receipt} />
+            <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
           </>
         )}
       </nav>

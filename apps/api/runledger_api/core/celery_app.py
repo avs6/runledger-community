@@ -15,6 +15,7 @@ celery_app = Celery(
         "runledger_api.workers.alerts",
         "runledger_api.workers.quotas",
         "runledger_api.workers.evaluators",
+        "runledger_api.workers.outcomes",
     ],
 )
 
@@ -96,6 +97,16 @@ celery_app.conf.update(
         # Judge drift detection: every 6 hours
         "judge-drift-6h": {
             "task": "evaluators.detect_judge_drift",
+            "schedule": 21600.0,
+        },
+        # Outcome daily rollup: every day at 00:10 UTC
+        "outcome-rollup-daily": {
+            "task": "outcomes.rollup_daily",
+            "schedule": 86400.0,
+        },
+        # Outcome alert check: every 6 hours
+        "outcome-alerts-6h": {
+            "task": "outcomes.check_alerts",
             "schedule": 21600.0,
         },
     },

@@ -1214,3 +1214,59 @@ export async function disputeInvoiceLine(
     }
   )
 }
+
+// ── Outcomes ──────────────────────────────────────────────────────────────────
+
+export async function getOutcomeSummary(
+  apiKey: string,
+  windowDays = 30
+): Promise<import('@/types/api').OutcomeSummary> {
+  return apiFetch<import('@/types/api').OutcomeSummary>(
+    `/outcomes/summary?window_days=${windowDays}`,
+    apiKey
+  )
+}
+
+export async function getOutcomeTrend(
+  apiKey: string,
+  windowDays = 30,
+  outcomeType?: string
+): Promise<import('@/types/api').OutcomeTrend> {
+  const params = new URLSearchParams({ window_days: String(windowDays) })
+  if (outcomeType) params.set('outcome_type', outcomeType)
+  return apiFetch<import('@/types/api').OutcomeTrend>(`/outcomes/trend?${params}`, apiKey)
+}
+
+export async function getWorkflowROI(
+  apiKey: string,
+  windowDays = 30
+): Promise<import('@/types/api').WorkflowROIList> {
+  return apiFetch<import('@/types/api').WorkflowROIList>(
+    `/outcomes/workflows?window_days=${windowDays}`,
+    apiKey
+  )
+}
+
+export async function getQualityCorrelation(
+  apiKey: string,
+  windowDays = 30
+): Promise<import('@/types/api').QualityOutcomeCorrelation[]> {
+  return apiFetch<import('@/types/api').QualityOutcomeCorrelation[]>(
+    `/outcomes/quality-correlation?window_days=${windowDays}`,
+    apiKey
+  )
+}
+
+export async function listOutcomes(
+  apiKey: string,
+  params?: { outcome_type?: string; success?: boolean; limit?: number }
+): Promise<import('@/types/api').OutcomeList> {
+  const q = new URLSearchParams()
+  if (params?.outcome_type) q.set('outcome_type', params.outcome_type)
+  if (params?.success !== undefined) q.set('success', String(params.success))
+  if (params?.limit) q.set('limit', String(params.limit))
+  return apiFetch<import('@/types/api').OutcomeList>(
+    `/outcomes${q.toString() ? '?' + q.toString() : ''}`,
+    apiKey
+  )
+}
