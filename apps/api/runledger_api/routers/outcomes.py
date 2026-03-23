@@ -179,9 +179,6 @@ async def outcome_summary(
         select(
             Outcome.outcome_type,
             func.count(Outcome.id).label("count"),
-            func.sum(func.cast(Outcome.success, type_=Outcome.success.type)).label(
-                "success_count_raw"
-            ),
             func.coalesce(func.sum(Outcome.value_usd), Decimal("0")).label("total_value"),
         )
         .where(
