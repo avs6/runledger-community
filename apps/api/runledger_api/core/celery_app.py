@@ -17,6 +17,7 @@ celery_app = Celery(
         "runledger_api.workers.evaluators",
         "runledger_api.workers.outcomes",
         "runledger_api.workers.otlp_finalize",
+        "runledger_api.workers.retention",
     ],
 )
 
@@ -114,6 +115,11 @@ celery_app.conf.update(
         "otlp-finalize-stale-3m": {
             "task": "otlp.finalize_stale_traces",
             "schedule": 180.0,
+        },
+        # Data retention policies: nightly at 00:30 UTC
+        "retention-apply-policies-daily": {
+            "task": "retention.apply_policies",
+            "schedule": 86400.0,
         },
     },
 )

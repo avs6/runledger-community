@@ -2,6 +2,7 @@
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.annotations import Annotation
+from runledger_api.models.retention import RetentionPolicy
 from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
@@ -79,4 +80,5 @@ __all__ = [
     "GatewayRequest",
     "PromptCache",
     "RoutingPolicy",
+    "RetentionPolicy",
 ]

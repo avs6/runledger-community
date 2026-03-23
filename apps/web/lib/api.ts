@@ -73,6 +73,12 @@ import type {
   OtlpStats,
   OtlpBatchList,
   AuditEventList,
+  RetentionPolicy,
+  RetentionPolicyList,
+  RetentionResourceType,
+  RetentionActionType,
+  RetentionScopeType,
+  PurgeResult,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -1374,4 +1380,58 @@ export async function listAuditEvents(
   q.set('limit', String(params.limit ?? 50))
   q.set('offset', String(params.offset ?? 0))
   return apiFetch<AuditEventList>(`/audit/events?${q.toString()}`, apiKey)
+}
+
+export async function listRetentionPolicies(apiKey: string): Promise<RetentionPolicyList> {
+  return apiFetch<RetentionPolicyList>('/retention/policies', apiKey)
+}
+
+export async function createRetentionPolicy(
+  apiKey: string,
+  body: {
+    resource_type: RetentionResourceType
+    action: RetentionActionType
+    scope?: RetentionScopeType
+    scope_value?: string | null
+    max_age_days?: number | null
+    is_active?: boolean
+  }
+): Promise<RetentionPolicy> {
+  return apiFetch<RetentionPolicy>('/retention/policies', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateRetentionPolicy(
+  apiKey: string,
+  policyId: string,
+  body: { max_age_days?: number | null; is_active?: boolean; scope_value?: string | null }
+): Promise<RetentionPolicy> {
+  return apiFetch<RetentionPolicy>(`/retention/policies/${policyId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteRetentionPolicy(apiKey: string, policyId: string): Promise<void> {
+  await apiFetch<void>(`/retention/policies/${policyId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function purgeRetention(
+  apiKey: string,
+  body: {
+    policy_id?: string | null
+    resource_type?: RetentionResourceType | null
+    action?: RetentionActionType | null
+    scope?: RetentionScopeType
+    scope_value?: string | null
+    max_age_days?: number | null
+    dry_run?: boolean
+  }
+): Promise<PurgeResult> {
+  return apiFetch<PurgeResult>('/retention/purge', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }

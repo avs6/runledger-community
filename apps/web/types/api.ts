@@ -1070,3 +1070,38 @@ export interface OtlpBatchList {
   limit: number
   offset: number
 }
+
+// ── Retention ─────────────────────────────────────────────────────────────────
+
+export type RetentionResourceType = 'runs' | 'spans' | 'payloads' | 'provider_calls'
+export type RetentionActionType = 'delete' | 'scrub'
+export type RetentionScopeType = 'workspace' | 'end_user'
+
+export interface RetentionPolicy {
+  id: string
+  workspace_id: string
+  resource_type: RetentionResourceType
+  action: RetentionActionType
+  scope: RetentionScopeType
+  scope_value: string | null
+  max_age_days: number | null
+  is_active: boolean
+  created_at: string
+  last_run_at: string | null
+  last_purged_count: number | null
+}
+
+export interface RetentionPolicyList {
+  items: RetentionPolicy[]
+  total: number
+}
+
+export interface PurgeResult {
+  resource_type: string
+  action: string
+  scope: string
+  scope_value: string | null
+  affected_rows: number
+  dry_run: boolean
+  cutoff: string | null
+}

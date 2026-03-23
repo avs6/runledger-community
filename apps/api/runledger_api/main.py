@@ -40,6 +40,7 @@ from runledger_api.routers import invoices as invoices_router
 from runledger_api.routers import outcomes as outcomes_router
 from runledger_api.routers import approvals as approvals_router
 from runledger_api.routers import audit as audit_router
+from runledger_api.routers import retention as retention_router
 from runledger_api.routers import otlp as otlp_router
 from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
 from runledger_api.mcp_server import mcp as _mcp_server
@@ -112,6 +113,7 @@ app.include_router(invoices_router.router)
 app.include_router(outcomes_router.router)
 app.include_router(approvals_router.router)
 app.include_router(audit_router.router)
+app.include_router(retention_router.router)
 app.include_router(otlp_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────

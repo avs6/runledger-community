@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Key, Bell, Shield, Settings2, Users, Building2, Plug, Terminal, CheckCheck, Lock,
-  Search, X, SlidersHorizontal, Radio,
+  Search, X, SlidersHorizontal, Radio, Trash2,
 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
@@ -20,6 +20,7 @@ import {
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
 import OrgTab from '@/components/settings/OrgTab'
+import RetentionTab from '@/components/settings/RetentionTab'
 import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse } from '@/types/api'
 import {
   listApiKeys,
@@ -65,6 +66,7 @@ const TABS = [
   { id: 'privacy', label: 'Data Capture', icon: Shield, adminOnly: false },
   { id: 'otlp', label: 'OTLP', icon: Radio, adminOnly: false },
   { id: 'compliance', label: 'Compliance', icon: Lock, adminOnly: false },
+  { id: 'retention', label: 'Data Retention', icon: Trash2, adminOnly: true },
 ]
 
 export default function SettingsPage() {
@@ -1386,6 +1388,11 @@ curl -X POST https://YOUR_API/v1/traces \\
               )}
             </div>
           </div>
+        )}
+
+        {/* ── Data Retention (Admin only) ───────────────────────────────────────── */}
+        {activeTab === 'retention' && isWorkspaceAdmin && (
+          <RetentionTab apiKey={apiKey ?? ''} />
         )}
 
         {/* ── Organization (Admin only) ─────────────────────────────────────────── */}
