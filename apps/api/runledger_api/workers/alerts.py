@@ -26,6 +26,8 @@ from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.budgets import BudgetNotification
 from runledger_api.models.events import AgentRun
 from runledger_api.models.scores import ScoreEvent
+from runledger_api.services.email import send_alert_fired_email
+from runledger_api.services.email_utils import get_workspace_admin_users
 from runledger_api.services.notifications import send_slack_message
 
 log = structlog.get_logger()
@@ -107,9 +109,13 @@ async def _run_evaluation() -> dict[str, int]:
                 threshold=str(rule.threshold),
             )
 
-            # Send notification if channel configured
+            # Send Slack notification if channel configured
             if rule.channel_id is not None:
                 await _send_alert_notification(session, rule, metric_value, now)
+
+            # Send email notifications if enabled
+            if rule.email_enabled:
+                await _send_alert_emails(session, rule, metric_value)
 
         await session.commit()
 
@@ -258,3 +264,45 @@ async def _send_alert_notification(
             rule_id=str(rule.id),
             error=str(exc),
         )
+
+
+async def _send_alert_emails(
+    session: AsyncSession,
+    rule: AlertRule,
+    metric_value: Decimal,
+) -> None:
+    """Email workspace admins when an alert rule fires."""
+    metric_label = {
+        "error_rate": f"{float(metric_value) * 100:.1f}%",
+        "p95_latency": f"{float(metric_value):.0f}ms",
+        "avg_score": f"{float(metric_value):.3f}",
+        "spend_velocity": f"${float(metric_value):.4f}",
+    }.get(rule.metric, str(metric_value))
+
+    threshold_label = {
+        "error_rate": f"{float(rule.threshold) * 100:.1f}%",
+        "p95_latency": f"{float(rule.threshold):.0f}ms",
+        "avg_score": f"{float(rule.threshold):.3f}",
+        "spend_velocity": f"${float(rule.threshold):.4f}",
+    }.get(rule.metric, str(rule.threshold))
+
+    try:
+        admins = await get_workspace_admin_users(session, rule.workspace_id)
+        await asyncio.gather(
+            *[
+                send_alert_fired_email(
+                    to_email=u.email,
+                    full_name=u.full_name,
+                    rule_name=rule.name,
+                    metric=rule.metric,
+                    operator=rule.operator,
+                    threshold=threshold_label,
+                    value=metric_label,
+                    workspace_name=str(rule.workspace_id),
+                )
+                for u in admins
+            ],
+            return_exceptions=True,
+        )
+    except Exception as exc:
+        log.warning("alerts.email_failed", rule_id=str(rule.id), error=str(exc))

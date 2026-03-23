@@ -14,6 +14,7 @@ class AlertRuleCreate(BaseModel):
     threshold: Decimal = Field(..., ge=0)
     window_minutes: int = Field(60, ge=5, le=1440)
     channel_id: uuid.UUID | None = None
+    email_enabled: bool = False
 
 
 class AlertRuleUpdate(BaseModel):
@@ -22,6 +23,7 @@ class AlertRuleUpdate(BaseModel):
     window_minutes: int | None = Field(None, ge=5, le=1440)
     is_active: bool | None = None
     channel_id: uuid.UUID | None = None
+    email_enabled: bool | None = None
 
 
 class AlertRuleResponse(BaseModel):
@@ -37,6 +39,7 @@ class AlertRuleResponse(BaseModel):
     action: str
     channel_id: uuid.UUID | None
     is_active: bool
+    email_enabled: bool
     created_at: datetime
 
 

@@ -32,6 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.services.email import send_reconciliation_email
+from runledger_api.services.email_utils import get_workspace_admin_users
 from runledger_api.models.invoices import ProviderInvoice, ProviderInvoiceLine
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.invoices import (
@@ -355,6 +357,29 @@ async def trigger_reconcile(
 
     summary = await reconcile_invoice(db, invoice_id, workspace.id)
     log.info("invoice_reconciled", invoice_id=str(invoice_id), **summary)
+
+    # Email workspace admins with reconciliation summary (fire-and-forget)
+    try:
+        admins = await get_workspace_admin_users(db, workspace.id)
+        ws_name = getattr(workspace, "name", str(workspace.id))
+        period = f"{invoice.period_start} – {invoice.period_end}"
+        matched_pct = float(summary.get("matched_pct", 0))
+        unmatched = int(summary.get("unmatched", 0))
+        delta = str(summary.get("delta_amount", "0"))
+        for u in admins:
+            await send_reconciliation_email(
+                to_email=u.email,
+                full_name=u.full_name,
+                provider=invoice.provider,
+                period=period,
+                matched_pct=matched_pct,
+                unmatched_count=unmatched,
+                delta_amount=delta,
+                workspace_name=ws_name,
+            )
+    except Exception:
+        log.warning("invoice_reconcile_email_failed", invoice_id=str(invoice_id))
+
     return {"invoice_id": str(invoice_id), **summary}
 
 

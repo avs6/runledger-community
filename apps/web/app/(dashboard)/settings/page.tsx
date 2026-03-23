@@ -39,6 +39,7 @@ import {
   updateAlertRule,
   deleteAlertRule,
   listAlertHistory,
+  emailAnalyticsReport,
   getOtlpStats,
   listOtlpBatches,
 } from '@/lib/api'
@@ -128,7 +129,9 @@ export default function SettingsPage() {
   const [newAlertOperator, setNewAlertOperator] = useState('gt')
   const [newAlertThreshold, setNewAlertThreshold] = useState('')
   const [newAlertWindow, setNewAlertWindow] = useState('60')
+  const [newAlertEmailEnabled, setNewAlertEmailEnabled] = useState(false)
   const [creatingAlert, setCreatingAlert] = useState(false)
+  const [sendingReport, setSendingReport] = useState(false)
 
 
   // ── Compliance (Ledger) ────────────────────────────────────────────────────────
@@ -348,10 +351,12 @@ export default function SettingsPage() {
         operator: newAlertOperator,
         threshold: parseFloat(newAlertThreshold),
         window_minutes: parseInt(newAlertWindow, 10),
+        email_enabled: newAlertEmailEnabled,
       })
       setAlertRules((prev) => [rule, ...prev])
       setNewAlertName('')
       setNewAlertThreshold('')
+      setNewAlertEmailEnabled(false)
       toast.success('Alert rule created')
     } catch (err) {
       console.error(err)
@@ -382,6 +387,20 @@ export default function SettingsPage() {
     } catch (err) {
       console.error(err)
       toast.error('Failed to delete rule')
+    }
+  }
+
+  async function handleSendReport() {
+    if (!apiKey) return
+    setSendingReport(true)
+    try {
+      const result = await emailAnalyticsReport(apiKey, 7)
+      toast.success(`Report sent to ${result.recipients} recipient${result.recipients !== 1 ? 's' : ''}`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to send report')
+    } finally {
+      setSendingReport(false)
     }
   }
 
@@ -1020,6 +1039,15 @@ export default function SettingsPage() {
                 <input className={`${inputCls} w-24`} type="number" min="5" max="1440" placeholder="60" value={newAlertWindow} onChange={(e) => setNewAlertWindow(e.target.value)} />
                 <span className="text-sm text-gray-500 dark:text-gray-400">min window</span>
               </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newAlertEmailEnabled}
+                  onChange={(e) => setNewAlertEmailEnabled(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600"
+                />
+                Email workspace admins
+              </label>
               <button type="submit" disabled={creatingAlert} className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
                 {creatingAlert ? 'Creating…' : 'Add Rule'}
               </button>
@@ -1036,6 +1064,7 @@ export default function SettingsPage() {
                       <th className="px-4 py-2 text-left">Metric</th>
                       <th className="px-4 py-2 text-left">Condition</th>
                       <th className="px-4 py-2 text-left">Window</th>
+                      <th className="px-4 py-2 text-left">Email</th>
                       <th className="px-4 py-2 text-left">Status</th>
                       <th className="px-4 py-2 text-left" />
                     </tr>
@@ -1047,6 +1076,11 @@ export default function SettingsPage() {
                         <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{rule.metric}</td>
                         <td className="px-4 py-2 text-xs dark:text-gray-300">{rule.operator === 'gt' ? '>' : '<'} {rule.threshold}</td>
                         <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs ${rule.email_enabled ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-600'}`}>
+                            {rule.email_enabled ? 'On' : 'Off'}
+                          </span>
+                        </td>
                         <td className="px-4 py-2">
                           <button onClick={() => handleToggleAlert(rule)} className={`rounded px-2 py-0.5 text-xs font-medium ${rule.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
                             {rule.is_active ? 'Active' : 'Paused'}
@@ -1087,6 +1121,22 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+
+            {/* ── Email Reports card ── */}
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Email Reports</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                Weekly analytics reports (last 7 days) are automatically emailed every Monday at 07:00 UTC to all workspace admins.
+                You can also send a report on demand.
+              </p>
+              <button
+                onClick={handleSendReport}
+                disabled={sendingReport}
+                className="rounded bg-teal-600 px-4 py-1.5 text-sm text-white hover:bg-teal-700 disabled:opacity-50"
+              >
+                {sendingReport ? 'Sending…' : 'Send Report Now'}
+              </button>
+            </div>
           </div>
         )}
         {/* ── Integrations ──────────────────────────────────────────────────────── */}

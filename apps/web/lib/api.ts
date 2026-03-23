@@ -931,6 +931,7 @@ export async function createAlertRule(
     threshold: number
     window_minutes?: number
     channel_id?: string | null
+    email_enabled?: boolean
   }
 ): Promise<AlertRule> {
   return apiFetch<AlertRule>('/alerts/rules', apiKey, {
@@ -948,12 +949,24 @@ export async function updateAlertRule(
     window_minutes?: number
     is_active?: boolean
     channel_id?: string | null
+    email_enabled?: boolean
   }
 ): Promise<AlertRule> {
   return apiFetch<AlertRule>(`/alerts/rules/${ruleId}`, apiKey, {
     method: 'PUT',
     body: JSON.stringify(body),
   })
+}
+
+export async function emailAnalyticsReport(
+  apiKey: string,
+  windowDays = 7
+): Promise<{ queued: boolean; recipients: number }> {
+  return apiFetch<{ queued: boolean; recipients: number }>(
+    `/analytics/email-report?window_days=${windowDays}`,
+    apiKey,
+    { method: 'POST' }
+  )
 }
 
 export async function deleteAlertRule(apiKey: string, ruleId: string): Promise<void> {

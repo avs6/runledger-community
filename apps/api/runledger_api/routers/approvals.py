@@ -34,6 +34,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
@@ -47,6 +48,8 @@ from runledger_api.schemas.approvals import (
     ApprovalSummary,
 )
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.email import send_approval_decision_email, send_approval_request_email
+from runledger_api.services.email_utils import get_workspace_admin_users
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 log = structlog.get_logger()
@@ -68,6 +71,50 @@ _VALID_TYPES = {
 def _requester_label(api_key: ApiKey) -> str | None:
     """Best-effort identifier of who made the request."""
     return api_key.created_by  # email for session keys, None for raw API keys
+
+
+async def _notify_approval_request(
+    db: AsyncSession,
+    workspace: Workspace,
+    approval: Approval,
+    reason: str | None,
+) -> None:
+    """Fire-and-forget email to workspace admins when a new approval is requested."""
+    try:
+        admins = await get_workspace_admin_users(db, workspace.id)
+        ws_name = getattr(workspace, "name", str(workspace.id))
+        approval_url = f"{settings.app_base_url}/approvals"
+        for u in admins:
+            await send_approval_request_email(
+                to_email=u.email,
+                full_name=u.full_name,
+                request_type=approval.request_type,
+                reason=reason,
+                requester=approval.requested_by,
+                workspace_name=ws_name,
+                approval_url=approval_url,
+            )
+    except Exception:
+        log.warning("approval_email_request_failed", approval_id=str(approval.id))
+
+
+async def _notify_approval_decision(workspace: Workspace, approval: Approval) -> None:
+    """Fire-and-forget email to the requester when an approval is decided."""
+    requester_email = approval.requested_by
+    if not requester_email or "@" not in requester_email:
+        return
+    try:
+        ws_name = getattr(workspace, "name", str(workspace.id))
+        await send_approval_decision_email(
+            to_email=requester_email,
+            request_type=approval.request_type,
+            decision=approval.status,
+            decision_note=approval.decision_note,
+            decided_by=approval.decided_by,
+            workspace_name=ws_name,
+        )
+    except Exception:
+        log.warning("approval_email_decision_failed", approval_id=str(approval.id))
 
 
 async def _notify_slack(workspace: Workspace, approval: Approval) -> None:
@@ -139,6 +186,7 @@ async def create_approval(
         requested_by=approval.requested_by,
     )
     await _notify_slack(workspace, approval)
+    await _notify_approval_request(db, workspace, approval, body.reason)
     return ApprovalResponse.model_validate(approval)
 
 
@@ -279,6 +327,7 @@ async def approve_approval(
         target_id=str(approval.id),
         after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
+    await _notify_approval_decision(workspace, approval)
     return ApprovalResponse.model_validate(approval)
 
 
@@ -335,6 +384,7 @@ async def deny_approval(
         target_id=str(approval.id),
         after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
+    await _notify_approval_decision(workspace, approval)
     return ApprovalResponse.model_validate(approval)
 
 

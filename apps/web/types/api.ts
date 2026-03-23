@@ -634,6 +634,7 @@ export interface AlertRule {
   action: string
   channel_id: string | null
   is_active: boolean
+  email_enabled: boolean
   created_at: string
 }
 

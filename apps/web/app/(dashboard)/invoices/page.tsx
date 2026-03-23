@@ -375,6 +375,7 @@ function InvoiceRow({
     try {
       const result = await reconcileInvoice(apiKey, invoice.id)
       toast.success(`Reconciled: ${result.matched_exact ?? 0} exact + ${result.matched_fuzzy ?? 0} fuzzy, ${result.unmatched ?? 0} unmatched`)
+      toast.info('Reconciliation summary emailed to workspace admins')
       await loadDetail()
     } catch { toast.error('Reconciliation failed') } finally { setReconciling(false) }
   }

@@ -19,6 +19,7 @@ celery_app = Celery(
         "runledger_api.workers.otlp_finalize",
         "runledger_api.workers.retention",
         "runledger_api.workers.warehouse",
+        "runledger_api.workers.email_reports",
     ],
 )
 
@@ -126,6 +127,11 @@ celery_app.conf.update(
         "warehouse-exports-daily": {
             "task": "warehouse.run_scheduled_exports",
             "schedule": 86400.0,
+        },
+        # Weekly analytics email report: every Monday at 07:00 UTC
+        "email-report-weekly": {
+            "task": "email_reports.send_weekly_analytics",
+            "schedule": 604800.0,  # 7 days
         },
     },
 )

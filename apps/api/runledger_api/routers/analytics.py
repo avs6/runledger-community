@@ -1085,6 +1085,65 @@ async def analytics_export(
     return {"items": items}
 
 
+# ── /analytics/email-report ───────────────────────────────────────────────────
+
+
+@router.post("/email-report", response_model=None, dependencies=[Depends(analytics_rate_limit)])
+async def email_analytics_report(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    window_days: Annotated[int, Query(ge=1, le=365)] = 7,
+) -> dict[str, Any]:
+    """Email a usage analytics report to all workspace admins."""
+    from runledger_api.services.email import send_analytics_report_email  # noqa: PLC0415
+    from runledger_api.services.email_utils import get_workspace_admin_users  # noqa: PLC0415
+
+    t_to = _default_to()
+    t_from = t_to - timedelta(days=window_days)
+
+    stmt = (
+        select(UsageDaily)
+        .where(
+            UsageDaily.workspace_id == workspace.id,
+            UsageDaily.day >= t_from.date(),
+            UsageDaily.day <= t_to.date(),
+        )
+        .order_by(UsageDaily.day.desc())
+    )
+    result = await db.execute(stmt)
+    rows_orm = result.scalars().all()
+
+    items = [
+        {
+            "date": str(row.day),
+            "provider": row.provider,
+            "model": row.model,
+            "cost_usd": str(row.cost_usd),
+            "input_tokens": row.input_tokens,
+            "output_tokens": row.output_tokens,
+            "call_count": row.call_count,
+        }
+        for row in rows_orm
+    ]
+
+    total_cost = str(round(sum(float(r["cost_usd"]) for r in items), 6))
+    period_label = f"Last {window_days} days"
+    ws_name = getattr(workspace, "name", str(workspace.id))
+
+    admins = await get_workspace_admin_users(db, workspace.id)
+    for u in admins:
+        await send_analytics_report_email(
+            to_email=u.email,
+            full_name=u.full_name,
+            period_label=period_label,
+            rows=items,  # type: ignore[arg-type]
+            total_cost=total_cost,
+            workspace_name=ws_name,
+        )
+
+    return {"queued": True, "recipients": len(admins)}
+
+
 # ── /analytics/scores/summary ─────────────────────────────────────────────────
 
 _SCORE_REGRESSION_THRESHOLD = Decimal("0.20")

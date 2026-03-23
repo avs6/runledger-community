@@ -63,6 +63,7 @@ async def create_alert_rule(
         threshold=body.threshold,
         window_minutes=body.window_minutes,
         channel_id=body.channel_id,
+        email_enabled=body.email_enabled,
     )
     db.add(rule)
     await db.flush()
@@ -113,6 +114,8 @@ async def update_alert_rule(
         rule.is_active = body.is_active
     if "channel_id" in body.model_fields_set:
         rule.channel_id = body.channel_id
+    if body.email_enabled is not None:
+        rule.email_enabled = body.email_enabled
 
     await db.commit()
     await db.refresh(rule)
