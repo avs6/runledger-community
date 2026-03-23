@@ -2388,6 +2388,70 @@ stale runs are closed promptly (within ~8 minutes worst-case of the trace becomi
 
 ---
 
+## OTEL Phase 4 — Reconciliation-grade Enrichment ✅ Complete
+
+### Goal
+
+Wire every billing-reconciliation field end-to-end: `provider_request_id`, `reported_cost_usd`,
+`cost_source`, `model_provider`, and token detail breakdowns (`input_tokens_details`,
+`output_tokens_details`). All fields existed as DB columns (migration 026) but were never
+populated. Phase 4 populates them from both the OTLP ingest path and the Python SDK.
+
+### What shipped
+
+#### A) OTLP parser extensions (`services/otlp_parse.py`)
+
+**`_extract_llm_fields()` extended:**
+- `provider_request_id`: priority chain — `llm.openai.response.id` → `gen_ai.openai.api.id`
+  → `gen_ai.response.id` → `llm.request_id` → `anthropic.request_id` → `x_request_id`
+- `reported_cost_usd`: `llm.cost.total` with fallback to `llm.token_count.total_cost`
+- `model_provider`: Azure hosting via `gen_ai.openai.api_type="azure"` or `llm.hosting_provider`
+- `input_tokens_details` / `output_tokens_details`: delegated to new `_extract_token_details()`
+
+**New `_extract_token_details()` helper:**
+- Accepts `prefix` (OpenInference) and `genai_prefix` (OTel GenAI) attribute namespaces
+- Extracts: `cached_tokens`, `reasoning_tokens`, `audio_tokens`, `text_tokens`
+- Returns `None` when no sub-token data present
+
+**`synthesize_canonical_events()` — `provider_call` event:**
+- All finance fields now at top-level (not buried in metadata)
+- `cost_source`: `"reported"` when `reported_cost_usd` is present, `"pricing_engine"` otherwise
+
+#### B) Pipeline handler (`workers/pipeline.py`)
+
+`_handle_provider_call` INSERT now persists:
+- `provider_request_id`, `reported_cost_usd`, `cost_source`, `model_provider`
+- `input_tokens_details`, `output_tokens_details` (JSONB columns)
+- SDK-originated events (no reconciliation fields) get NULL — backward compatible
+
+#### C) Python SDK — OpenAI (`packages/sdk/runledger_sdk/openai.py`)
+
+`_build_provider_call()`:
+- Captures `result.id` → `provider_request_id` (e.g. `"chatcmpl-abc123"`)
+- Extracts `prompt_tokens_details` → `input_tokens_details` (cached, audio, text tokens)
+- Extracts `completion_tokens_details` → `output_tokens_details` (reasoning, audio, text tokens)
+
+#### D) Python SDK — Anthropic (`packages/sdk/runledger_sdk/anthropic.py`)
+
+`_build_provider_call()`:
+- Captures `result.id` → `provider_request_id` (e.g. `"msg_01XxYy..."`)
+- Captures `cache_read_input_tokens` → `input_tokens_details.cached_tokens`
+- Captures `cache_creation_input_tokens` → `input_tokens_details.cache_creation_tokens`
+
+#### E) Tests
+
+- `tests/test_otlp_phase4.py` — 20 tests covering all `_extract_llm_fields`,
+  `_extract_token_details`, `synthesize_canonical_events`, and `_handle_provider_call`
+  scenarios (OTLP and SDK event paths)
+- `packages/sdk/tests/test_openai.py` — 4 new tests: request ID capture, no-ID omission,
+  reasoning tokens, input token details
+- `packages/sdk/tests/test_anthropic.py` — 3 new tests: message ID capture, no-ID omission,
+  cache-write tokens in input_tokens_details
+
+Total: 78 OTLP API tests pass, 37 SDK tests pass.
+
+---
+
 ## Phase 24 — Outcome & ROI Ledger (Cost Per Outcome) ✅ Complete
 ### Goal
 Move beyond tokens: measure and optimize **cost per business outcome**.
