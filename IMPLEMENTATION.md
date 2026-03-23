@@ -46,11 +46,12 @@
 | 17B | Evaluator Framework — LLM judge, rule-based, batch eval, drift detection | ✅ Complete | 17 |
 | 23 | Provider Invoice Reconciliation | ✅ Complete | 28 |
 | 24 | Outcome & ROI Ledger | ✅ Complete | 20 |
+| 25 | Approvals & Policy Workflows | ✅ Complete | 19 |
 
-**Total tests shipped (Phases 0–24 + 15 + 20):** 298 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
+**Total tests shipped (Phases 0–25 + 15 + 20):** 317 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
 **Audit snapshot (2026-03-23):**
-- API suite: `298/298` passing
+- API suite: `317/317` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
@@ -2170,6 +2171,12 @@ provider_invoice_lines (
 
 **Definition of done**
 - Import invoice export → RunLedger reconciles ≥ X% and explains remainder with drilldown.
+
+---
+
+## Phase 25 — Approvals & Policy Workflows (Enterprise Stickiness) ✅ Complete
+
+Implemented: `approvals` table (migration 025), `Approval` ORM model, 7 REST endpoints (create, list, summary, get, approve, deny, cancel), `validate_approved()` helper used by `POST /prompts/{name}/promote` to enforce governance gate for production deploys. Frontend `/approvals` page with status summary cards, table with approve/deny/cancel actions, create modal. Sidebar "Governance" section. 19 tests.
 
 ---
 

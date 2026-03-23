@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.routers.approvals import validate_approved
 from runledger_api.models.events import AgentRun
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent
@@ -307,8 +308,27 @@ async def promote_version(
     body: PromoteRequest,
     workspace: WorkspaceDep,
     db: DbDep,
+    approval_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> VersionResponse:
-    """Promote the latest version from source_environment to target_environment."""
+    """
+    Promote the latest version from source_environment to target_environment.
+
+    When target_environment is 'production', an approved ``prompt_promote``
+    approval is required. Pass ``?approval_id=<uuid>`` from ``POST /approvals``.
+    """
+    # Enforce approval gate for production promotes
+    if body.target_environment == "production":
+        if approval_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Promoting to production requires an approved governance approval. "
+                    "Create one via POST /approvals with request_type='prompt_promote', "
+                    "then pass ?approval_id=<id> once approved."
+                ),
+            )
+        await validate_approved(db, workspace.id, approval_id, "prompt_promote")
+
     prompt = await _get_prompt_or_404(name, workspace.id, db)
 
     # Find latest version in source environment

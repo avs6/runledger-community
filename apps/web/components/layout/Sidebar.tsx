@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, LayoutList, MessageSquare,
   FlaskConical, Activity, Wallet, Settings,
-  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt, TrendingUp,
+  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt, TrendingUp, ShieldCheck,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -152,6 +152,10 @@ export default function Sidebar() {
             <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
           </>
         )}
+
+        {/* ── Governance ── */}
+        <SectionLabel label="Governance" />
+        <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />
       </nav>
 
       {/* Bottom section — org/user/workspace management + settings */}

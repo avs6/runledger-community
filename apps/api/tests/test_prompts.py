@@ -321,15 +321,15 @@ async def test_promote_version(
     mock_db_session: AsyncMock,
     mock_workspace: SimpleNamespace,
 ) -> None:
-    """POST /prompts/{name}/promote → 201, staging version copied to production."""
+    """POST /prompts/{name}/promote → 201, dev version copied to staging (no approval needed)."""
     prompt = _make_prompt(workspace_id=mock_workspace.id)
-    staging_v = _make_version(
-        prompt_id=prompt.id, version=1, environment="staging",
-        commit_message="Staging draft",
+    dev_v = _make_version(
+        prompt_id=prompt.id, version=1, environment="dev",
+        commit_message="Dev draft",
     )
     promoted = _make_version(
-        prompt_id=prompt.id, version=2, environment="production",
-        commit_message="Promoted from staging v1",
+        prompt_id=prompt.id, version=2, environment="staging",
+        commit_message="Promoted from dev v1",
     )
 
     async def set_promoted_attrs(obj: object) -> None:
@@ -338,20 +338,20 @@ async def test_promote_version(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _scalar_one_or_none_result(prompt),      # get prompt
-            _scalar_one_or_none_result(staging_v),   # find latest in staging
-            _scalar_result(1),                       # max version = 1 → new = 2
+            _scalar_one_or_none_result(prompt),   # get prompt
+            _scalar_one_or_none_result(dev_v),    # find latest in dev
+            _scalar_result(1),                    # max version = 1 → new = 2
         ]
     )
     mock_db_session.refresh.side_effect = set_promoted_attrs
 
     resp = await authed_client.post(
         "/prompts/support-agent/promote",
-        json={"source_environment": "staging", "target_environment": "production"},
+        json={"source_environment": "dev", "target_environment": "staging"},
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["environment"] == "production"
+    assert data["environment"] == "staging"
     assert data["version"] == 2
 
 

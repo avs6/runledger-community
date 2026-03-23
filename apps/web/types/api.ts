@@ -982,3 +982,39 @@ export interface QualityOutcomeCorrelation {
   success_rate: string
   sample_count: number
 }
+
+// ── Approvals ─────────────────────────────────────────────────────────────────
+
+export type ApprovalRequestType =
+  | 'budget_increase'
+  | 'prompt_promote'
+  | 'tool_allow'
+  | 'capture_policy_full'
+  | 'shadow_routing'
+
+export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'cancelled'
+
+export interface ApprovalResponse {
+  id: string
+  workspace_id: string
+  request_type: ApprovalRequestType
+  request: Record<string, unknown>
+  status: ApprovalStatus
+  requested_by: string | null
+  decided_by: string | null
+  decided_at: string | null
+  decision_note: string | null
+  created_at: string
+}
+
+export interface ApprovalList {
+  items: ApprovalResponse[]
+  total: number
+}
+
+export interface ApprovalSummary {
+  pending: number
+  approved: number
+  denied: number
+  cancelled: number
+}

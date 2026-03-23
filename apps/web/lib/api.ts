@@ -1270,3 +1270,69 @@ export async function listOutcomes(
     apiKey
   )
 }
+
+// ── Approvals ─────────────────────────────────────────────────────────────────
+
+export async function getApprovalSummary(
+  apiKey: string
+): Promise<import('@/types/api').ApprovalSummary> {
+  return apiFetch<import('@/types/api').ApprovalSummary>('/approvals/summary', apiKey)
+}
+
+export async function listApprovals(
+  apiKey: string,
+  params?: { status?: string; request_type?: string; limit?: number }
+): Promise<import('@/types/api').ApprovalList> {
+  const q = new URLSearchParams()
+  if (params?.status) q.set('status', params.status)
+  if (params?.request_type) q.set('request_type', params.request_type)
+  if (params?.limit) q.set('limit', String(params.limit))
+  return apiFetch<import('@/types/api').ApprovalList>(
+    `/approvals${q.toString() ? '?' + q.toString() : ''}`,
+    apiKey
+  )
+}
+
+export async function createApproval(
+  apiKey: string,
+  body: { request_type: string; request?: Record<string, unknown>; reason?: string }
+): Promise<import('@/types/api').ApprovalResponse> {
+  return apiFetch<import('@/types/api').ApprovalResponse>('/approvals', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function approveApproval(
+  apiKey: string,
+  id: string,
+  note?: string
+): Promise<import('@/types/api').ApprovalResponse> {
+  return apiFetch<import('@/types/api').ApprovalResponse>(`/approvals/${id}/approve`, apiKey, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note: note ?? null }),
+  })
+}
+
+export async function denyApproval(
+  apiKey: string,
+  id: string,
+  note?: string
+): Promise<import('@/types/api').ApprovalResponse> {
+  return apiFetch<import('@/types/api').ApprovalResponse>(`/approvals/${id}/deny`, apiKey, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note: note ?? null }),
+  })
+}
+
+export async function cancelApproval(
+  apiKey: string,
+  id: string
+): Promise<import('@/types/api').ApprovalResponse> {
+  return apiFetch<import('@/types/api').ApprovalResponse>(`/approvals/${id}`, apiKey, {
+    method: 'DELETE',
+  })
+}
