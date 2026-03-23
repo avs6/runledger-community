@@ -182,7 +182,7 @@ export default function OutcomesPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, 100]} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} />
+                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? `${v.toFixed(1)}%` : ''} />
                   <Line
                     type="monotone"
                     dataKey="success_rate"

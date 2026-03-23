@@ -79,8 +79,9 @@ async def test_emit_audit_event_swallows_exception() -> None:
 async def test_emit_audit_event_ip_hashed() -> None:
     """Client IP is SHA-256 hashed, not stored raw."""
     import hashlib
-    from runledger_api.services.audit import emit_audit_event
+
     from runledger_api.models.audit import AuditEvent
+    from runledger_api.services.audit import emit_audit_event
 
     captured: list[AuditEvent] = []
     mock_db = AsyncMock()
@@ -97,8 +98,8 @@ async def test_emit_audit_event_ip_hashed() -> None:
 @pytest.mark.asyncio
 async def test_emit_audit_event_api_key_prefix_trimmed() -> None:
     """actor_api_key is stored as first 8 characters only."""
-    from runledger_api.services.audit import emit_audit_event
     from runledger_api.models.audit import AuditEvent
+    from runledger_api.services.audit import emit_audit_event
 
     captured: list[AuditEvent] = []
     mock_db = AsyncMock()
@@ -131,8 +132,8 @@ async def test_list_audit_events_returns_paginated() -> None:
         patch("runledger_api.routers.audit.get_db", return_value=mock_db),
         patch("runledger_api.routers.audit.require_workspace_admin", return_value=(ws, None)),
     ):
-        from fastapi.testclient import TestClient
         from fastapi import FastAPI
+        from fastapi.testclient import TestClient
         from runledger_api.routers.audit import router
 
         app = FastAPI()
@@ -278,8 +279,9 @@ async def test_get_audit_event_wrong_workspace() -> None:
 
 def test_audit_event_response_from_orm() -> None:
     """AuditEventResponse.model_validate works with SimpleNamespace ORM-like objects."""
+    from datetime import UTC, datetime
+
     from runledger_api.schemas.audit import AuditEventResponse
-    from datetime import datetime, UTC
 
     ev = SimpleNamespace(
         id=uuid.uuid4(),
@@ -300,8 +302,9 @@ def test_audit_event_response_from_orm() -> None:
 
 
 def test_audit_event_list_schema() -> None:
+    from datetime import UTC, datetime
+
     from runledger_api.schemas.audit import AuditEventList, AuditEventResponse
-    from datetime import datetime, UTC
 
     ev = AuditEventResponse(
         id=uuid.uuid4(),

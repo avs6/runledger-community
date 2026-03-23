@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated
 
 import bcrypt
 import structlog
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -17,21 +16,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import _ORG_ADMIN_ROLES, require_org_admin, require_user
+from runledger_api.models.audit import AuditEvent
 from runledger_api.models.billing import BillingPeriod
 from runledger_api.models.budgets import Budget
 from runledger_api.models.events import AgentRun, ProviderCall
-from runledger_api.models.metering import UsageDaily
-from runledger_api.models.audit import AuditEvent
 from runledger_api.models.tenant import (
-    MemberStatusEnum, Tenant, TenantRoleEnum, TenantUser, User,
-    Workspace, WorkspaceRoleEnum, WorkspaceStatusEnum, WorkspaceUser,
+    MemberStatusEnum,
+    Tenant,
+    TenantRoleEnum,
+    TenantUser,
+    User,
+    Workspace,
+    WorkspaceRoleEnum,
+    WorkspaceStatusEnum,
+    WorkspaceUser,
 )
 from runledger_api.schemas.audit import AuditEventResponse as AuditEventResponse
 from runledger_api.schemas.auth import (
-    AddWorkspaceMemberRequest, InviteOrgMemberRequest,
-    MemberStatusUpdate, OrgProfileResponse, OrgProfileUpdate,
-    OrgRoleUpdateRequest, TenantMemberResponse,
-    WorkspaceCreateForOrg, WorkspaceMemberResponse, WorkspaceResponse,
+    AddWorkspaceMemberRequest,
+    InviteOrgMemberRequest,
+    MemberStatusUpdate,
+    OrgProfileResponse,
+    OrgProfileUpdate,
+    OrgRoleUpdateRequest,
+    TenantMemberResponse,
+    WorkspaceCreateForOrg,
+    WorkspaceMemberResponse,
+    WorkspaceResponse,
     WorkspaceStatusUpdate,
 )
 from runledger_api.services.tenancy import assert_not_last_admin, log_audit

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import time
 import uuid as _uuid_mod
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog

@@ -9,16 +9,14 @@ POST /webhooks/stripe  — Stripe webhook handler
 
 from __future__ import annotations
 
-import hashlib
 import re
 import secrets
-import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
 import bcrypt
 import structlog
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -228,7 +226,7 @@ async def create_checkout(body: CheckoutRequest, workspace: WorkspaceDep, db: Db
         import stripe  # noqa: PLC0415
         stripe.api_key = settings.stripe_secret_key
     except ImportError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed") from None
 
     # Get or create Stripe customer
     sub_result = await db.execute(select(Subscription).where(Subscription.tenant_id == workspace.tenant_id))
@@ -269,7 +267,7 @@ async def create_portal(body: PortalRequest, workspace: WorkspaceDep, db: DbDep)
         import stripe  # noqa: PLC0415
         stripe.api_key = settings.stripe_secret_key
     except ImportError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed") from None
 
     sub_result = await db.execute(select(Subscription).where(Subscription.tenant_id == workspace.tenant_id))
     sub = sub_result.scalar_one_or_none()
@@ -303,7 +301,7 @@ async def stripe_webhook(request: Request, db: DbDep) -> dict[str, str]:
         import stripe  # noqa: PLC0415
         stripe.api_key = settings.stripe_secret_key
     except ImportError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed") from None
 
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
@@ -311,7 +309,7 @@ async def stripe_webhook(request: Request, db: DbDep) -> dict[str, str]:
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, settings.stripe_webhook_secret)
     except stripe.error.SignatureVerificationError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid Stripe signature")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid Stripe signature") from None
 
     await _handle_stripe_event(event, db)
     return {"status": "ok"}

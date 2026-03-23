@@ -28,7 +28,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_org_admin, require_workspace_admin
+from runledger_api.core.deps import (
+    require_org_admin,
+    require_workspace_admin,
+)
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.tenant import Workspace

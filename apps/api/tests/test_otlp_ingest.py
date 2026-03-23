@@ -22,7 +22,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
 from runledger_api.services.otlp_parse import (
     _classify_span,
     _decode_id,
@@ -36,7 +35,6 @@ from runledger_api.services.otlp_parse import (
     parse_otlp_json,
     synthesize_canonical_events,
 )
-
 
 # ── Fixtures / helpers ─────────────────────────────────────────────────────────
 
@@ -418,8 +416,7 @@ async def test_receive_traces_success(
     mock_workspace: SimpleNamespace,
 ) -> None:
     """POST /v1/traces with valid OTLP JSON → 200 + OTLP success response."""
-    # Make flush() a no-op and give batch an id
-    batch_id = uuid.uuid4()
+    # Make flush() a no-op
 
     async def fake_flush() -> None:
         pass

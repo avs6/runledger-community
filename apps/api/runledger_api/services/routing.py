@@ -14,7 +14,7 @@ import logging
 import random
 from typing import Any
 
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.gateway import GatewayRoute, RoutingPolicy
@@ -203,8 +203,6 @@ async def _latency_optimized(
         str(r.route_id): float(r.p95) for r in lat_rows.all()
     }
 
-    id_to_route = {str(r.id): r for r in routes}
-
     # Filter by max_p95_ms, sort by p95 ascending
     qualified = [r for r in routes
                  if p95_map.get(str(r.id), 0) <= max_p95_ms] or routes
@@ -269,7 +267,7 @@ def _weighted(
         route = routes[0]
         return route, f"weighted:config-mismatch-fallback ({route.target_model})"
 
-    rids, weights = zip(*eligible)
+    rids, weights = zip(*eligible, strict=False)
     chosen_id = random.choices(rids, weights=weights, k=1)[0]
     route = id_to_route[chosen_id]
     w = weight_cfg[chosen_id]

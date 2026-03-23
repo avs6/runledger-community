@@ -31,14 +31,14 @@ _MIN_SAMPLE = 5           # minimum outcomes in window to alert
 
 async def _rollup() -> int:
     """Compute outcome_rollups_daily for yesterday across all workspaces."""
-    from sqlalchemy import func, select, text
+    from sqlalchemy import func, select
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.pool import NullPool
 
     from runledger_api.core.config import settings
-    from runledger_api.models.events import AgentRun, ProviderCall
+    from runledger_api.models.events import ProviderCall
     from runledger_api.models.outcomes import Outcome, OutcomeRollupDaily
 
     engine = create_async_engine(settings.database_url, poolclass=NullPool)

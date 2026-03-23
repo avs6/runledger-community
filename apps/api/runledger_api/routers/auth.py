@@ -9,6 +9,7 @@ from typing import Annotated, Any
 import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +40,6 @@ from runledger_api.schemas.auth import (
     WorkspaceCreate,
     WorkspaceResponse,
 )
-from pydantic import BaseModel
 from runledger_api.schemas.providers import (
     ProviderPricingCreate,
     ProviderPricingResponse,
@@ -248,7 +248,7 @@ class BootstrapResponse(BaseModel):
 
 
 @router.post("/bootstrap", status_code=status.HTTP_201_CREATED)
-async def bootstrap_platform_admin(body: "BootstrapRequest", db: DbDep) -> "BootstrapResponse":
+async def bootstrap_platform_admin(body: BootstrapRequest, db: DbDep) -> BootstrapResponse:
     """
     One-time bootstrap: creates the platform admin user + default org.
     Protected by X-Admin-Secret. Call once after fresh deployment.

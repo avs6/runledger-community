@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -17,7 +16,6 @@ from runledger_sdk.mistral import (
     _extract_usage,
 )
 from runledger_sdk.transport import SyncTransport
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -112,10 +110,6 @@ def test_patch_sync_via_chat_cls() -> None:
             return fake_resp
 
     # Directly call the sync-patch helper, bypassing the import guard
-    from runledger_sdk.mistral import _patch_sync  # noqa: PLC0415
-    import types  # noqa: PLC0415
-
-    fake_mistralai = types.ModuleType("mistralai")
 
     # We need to make _get_chat_cls return FakeChat; simplest is to
     # directly call _patch_sync with a fake module that has the expected path

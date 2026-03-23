@@ -9,7 +9,6 @@ Supports two evaluator types:
 from __future__ import annotations
 
 import re
-import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -96,7 +95,7 @@ def run_rule_evaluator(
         final = max(scores)
     elif aggregation == "first_fail":
         # Return score of first failing rule, or last rule if all pass
-        for r, s in zip(evidence["rules"], scores):
+        for r, s in zip(evidence["rules"], scores, strict=False):
             if not r["passed"]:
                 final = s
                 break
@@ -183,7 +182,7 @@ async def run_llm_judge(
         if match:
             parsed = json.loads(match.group())
         else:
-            raise ValueError(f"LLM judge returned non-JSON: {content[:200]}")
+            raise ValueError(f"LLM judge returned non-JSON: {content[:200]}") from None
 
     raw_score = float(parsed.get("score", 0.5))
     # Clamp to [0, 1] then scale to [min_score, max_score]

@@ -25,7 +25,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
-
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
 def _scalars_list(rows: list) -> MagicMock:

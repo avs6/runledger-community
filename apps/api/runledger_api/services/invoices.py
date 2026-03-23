@@ -264,7 +264,7 @@ async def reconcile_invoice(
     Returns a summary dict with counts and amounts.
     Mutates invoice_lines.match_status and related fields in the DB.
     """
-    from sqlalchemy import func, select, update
+    from sqlalchemy import select, update
 
     from runledger_api.models.events import ProviderCall
     from runledger_api.models.invoices import ProviderInvoice, ProviderInvoiceLine
@@ -287,7 +287,6 @@ async def reconcile_invoice(
         return {}
 
     # Load provider_calls in the period window (±1 day buffer)
-    from datetime import date
 
     period_from = datetime(invoice.period_start.year, invoice.period_start.month, invoice.period_start.day, tzinfo=UTC)
     period_to = datetime(invoice.period_end.year, invoice.period_end.month, invoice.period_end.day, 23, 59, 59, tzinfo=UTC)

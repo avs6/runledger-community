@@ -16,15 +16,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_platform_admin
 from runledger_api.models.tenant import (
-    Tenant, TenantRoleEnum, TenantUser, User,
-    Workspace, WorkspaceRoleEnum, WorkspaceUser,
+    Tenant,
+    TenantRoleEnum,
+    TenantUser,
+    User,
+    Workspace,
+    WorkspaceRoleEnum,
+    WorkspaceUser,
 )
 from runledger_api.schemas.auth import (
-    OrgAssignment, TenantCreate, TenantResponse,
-    TenantStatusUpdate, TenantUpdate,
-    UserCreate, UserOrgMembership, UserResponse, UserUpdate, UserWithOrgsResponse,
-    WorkspaceDetailResponse, WorkspaceMemberCreate, WorkspaceOrgAssign,
-    WorkspaceResponse, WorkspaceCreateForOrg, WorkspaceStatusUpdate,
+    OrgAssignment,
+    TenantCreate,
+    TenantResponse,
+    TenantStatusUpdate,
+    TenantUpdate,
+    UserCreate,
+    UserOrgMembership,
+    UserResponse,
+    UserUpdate,
+    UserWithOrgsResponse,
+    WorkspaceCreateForOrg,
+    WorkspaceDetailResponse,
+    WorkspaceMemberCreate,
+    WorkspaceOrgAssign,
+    WorkspaceResponse,
+    WorkspaceStatusUpdate,
 )
 from runledger_api.services.tenancy import log_audit
 
@@ -676,7 +692,7 @@ async def platform_update_user_org_role(
     try:
         tu.role = TenantRoleEnum(body.role)
     except ValueError:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Invalid role: {body.role}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Invalid role: {body.role}") from None
     await db.commit()
     tenant = await db.get(Tenant, org_id)
     return {"tenant_id": str(org_id), "tenant_name": tenant.name if tenant else "", "role": str(tu.role)}

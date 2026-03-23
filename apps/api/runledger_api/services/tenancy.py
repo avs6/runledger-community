@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.tenant import MemberStatusEnum, TenantRoleEnum, TenantUser
 
-
 # ── Last-admin guard ───────────────────────────────────────────────────────────
 
 async def count_active_org_admins(tenant_id: uuid.UUID, db: AsyncSession) -> int:

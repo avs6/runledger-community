@@ -204,7 +204,13 @@ export default function ApprovalsPage() {
           </div>
         ) : (
           <div className="divide-y dark:divide-gray-700">
-            {approvals.map(approval => (
+            {approvals.map(approval => {
+              const filteredEntries = Object.entries(approval.request).filter(([k]) => k !== '_reason')
+              const requestContextStr: string | null = filteredEntries.length > 0
+                ? JSON.stringify(Object.fromEntries(filteredEntries))
+                : null
+              const reasonStr = approval.request._reason != null ? String(approval.request._reason) : null
+              return (
               <div key={approval.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
@@ -237,17 +243,13 @@ export default function ApprovalsPage() {
                         <div className="italic">"{approval.decision_note}"</div>
                       )}
                       {/* Request context */}
-                      {Object.keys(approval.request).filter(k => k !== '_reason').length > 0 && (
+                      {requestContextStr !== null && (
                         <div className="font-mono text-xs bg-gray-100 dark:bg-gray-700/50 rounded px-2 py-1 mt-1 max-w-lg truncate">
-                          {JSON.stringify(
-                            Object.fromEntries(
-                              Object.entries(approval.request).filter(([k]) => k !== '_reason')
-                            )
-                          )}
+                          {requestContextStr}
                         </div>
                       )}
-                      {(approval.request as Record<string, unknown>)._reason && (
-                        <div>Reason: {String((approval.request as Record<string, unknown>)._reason)}</div>
+                      {reasonStr !== null && (
+                        <div>Reason: {reasonStr}</div>
                       )}
                     </div>
                   </div>
@@ -277,7 +279,8 @@ export default function ApprovalsPage() {
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

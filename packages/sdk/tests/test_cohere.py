@@ -17,7 +17,6 @@ from runledger_sdk.cohere import (
 )
 from runledger_sdk.transport import SyncTransport
 
-
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
@@ -171,8 +170,8 @@ def test_instrument_cohere_skips_when_package_missing() -> None:
     rl_cohere._patched = False
     transport = MagicMock(spec=SyncTransport)
 
-    import sys  # noqa: PLC0415
     import builtins  # noqa: PLC0415
+    import sys  # noqa: PLC0415
 
     real_import = builtins.__import__
 

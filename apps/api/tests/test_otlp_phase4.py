@@ -16,14 +16,12 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from runledger_api.services.otlp_parse import (
     _extract_llm_fields,
     _extract_token_details,
     _ns_to_dt,
     synthesize_canonical_events,
 )
-
 
 # ── _extract_llm_fields — provider_request_id ─────────────────────────────────
 

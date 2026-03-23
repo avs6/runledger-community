@@ -252,20 +252,19 @@ async def stream_request(
         stream=True,
     )
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        async with client.stream(
-            "POST",
-            f"{base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if line:
-                    yield (line + "\n\n").encode()
+    async with httpx.AsyncClient(timeout=300.0) as client, client.stream(
+        "POST",
+        f"{base_url}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+    ) as resp:
+        resp.raise_for_status()
+        async for line in resp.aiter_lines():
+            if line:
+                yield (line + "\n\n").encode()
 
 
 async def record_gateway_request(
@@ -337,7 +336,7 @@ async def route_and_forward(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"No active gateway routes configured for alias '{model_alias}'",
-        )
+        ) from None
 
     last_error: Exception | None = None
     for route in candidate_routes:

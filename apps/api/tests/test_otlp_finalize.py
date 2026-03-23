@@ -16,14 +16,10 @@ Covers:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from runledger_api.workers.otlp_finalize import _close_stale_runs
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

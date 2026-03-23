@@ -4,24 +4,21 @@ from __future__ import annotations
 import sys
 import types
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 import runledger_sdk.gemini as rl_gemini
+from runledger_sdk.context import RunLedgerContext, _run_id
 from runledger_sdk.gemini import (
     _build_provider_call,
     _build_provider_call_error,
     _build_run_end,
-    _build_run_start,
     _extract_text,
     _extract_usage,
 )
-from runledger_sdk.context import RunLedgerContext, _run_id
 from runledger_sdk.transport import SyncTransport
-
 
 # ── Fake google-genai module ──────────────────────────────────────────────────
 

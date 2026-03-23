@@ -8,7 +8,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 ResourceType = Literal["runs", "spans", "payloads", "provider_calls"]
 ActionType = Literal["delete", "scrub"]
 ScopeType = Literal["workspace", "end_user"]
@@ -23,7 +22,7 @@ class RetentionPolicyCreate(BaseModel):
     is_active: bool = True
 
     @model_validator(mode="after")
-    def _validate(self) -> "RetentionPolicyCreate":
+    def _validate(self) -> RetentionPolicyCreate:
         if self.scope == "end_user" and not self.scope_value:
             raise ValueError("scope_value (end_user_id) is required when scope=end_user")
         if self.scope == "workspace" and self.max_age_days is None:

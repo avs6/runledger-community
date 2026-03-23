@@ -129,7 +129,7 @@ async def gateway_chat_completions(
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"No active gateway routes for alias '{body.model}'",
-            )
+            ) from None
 
         async def _sse_gen():  # type: ignore[return]
             async for chunk in stream_request(

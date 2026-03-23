@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from runledger_sdk.context import get_context_snapshot, get_run_id
-from runledger_sdk.openai import _sync_budget_check, _safe_serialize
+from runledger_sdk.openai import _safe_serialize, _sync_budget_check
 
 if TYPE_CHECKING:
     from runledger_sdk.transport import SyncTransport

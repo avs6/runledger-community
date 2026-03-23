@@ -32,13 +32,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
-from runledger_api.services.audit import emit_audit_event
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.routers.approvals import validate_approved
 from runledger_api.models.events import AgentRun
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
+from runledger_api.routers.approvals import validate_approved
 from runledger_api.schemas.prompts import (
     PromoteRequest,
     PromptCreate,
@@ -50,6 +49,7 @@ from runledger_api.schemas.prompts import (
     VersionMetrics,
     VersionResponse,
 )
+from runledger_api.services.audit import emit_audit_event
 
 router = APIRouter(
     prefix="/prompts",

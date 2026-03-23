@@ -37,7 +37,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
-from runledger_api.services.audit import emit_audit_event
 from runledger_api.models.approvals import Approval
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.approvals import (
@@ -47,6 +46,7 @@ from runledger_api.schemas.approvals import (
     ApprovalResponse,
     ApprovalSummary,
 )
+from runledger_api.services.audit import emit_audit_event
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 log = structlog.get_logger()

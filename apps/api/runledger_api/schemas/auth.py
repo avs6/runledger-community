@@ -7,7 +7,15 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from runledger_api.models.tenant import EnvironmentEnum, MemberStatusEnum, PlanEnum, TenantRoleEnum, TenantStatusEnum, WorkspaceRoleEnum, WorkspaceStatusEnum
+from runledger_api.models.tenant import (
+    EnvironmentEnum,
+    MemberStatusEnum,
+    PlanEnum,
+    TenantRoleEnum,
+    TenantStatusEnum,
+    WorkspaceRoleEnum,
+    WorkspaceStatusEnum,
+)
 
 
 def _auto_slug(name: str) -> str:

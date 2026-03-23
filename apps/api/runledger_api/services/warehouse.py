@@ -19,7 +19,6 @@ from typing import Any
 
 import boto3  # type: ignore[import-untyped]
 import structlog
-from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

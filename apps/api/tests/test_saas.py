@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_sub(**kwargs: object) -> SimpleNamespace:

@@ -30,7 +30,6 @@ from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
 from runledger_api.services.otlp_parse import (
-    OtlpParsedSpan,
     OtlpTrace,
     parse_otlp_json,
     synthesize_canonical_events,

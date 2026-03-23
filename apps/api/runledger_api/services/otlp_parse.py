@@ -17,6 +17,7 @@ ID strategy:
 from __future__ import annotations
 
 import base64
+import contextlib
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -424,10 +425,8 @@ def _extract_retrieval_metadata(attrs: dict[str, Any]) -> dict[str, Any] | None:
         if doc_id is not None:
             doc["id"] = str(doc_id)
         if score is not None:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 doc["score"] = float(score)
-            except (ValueError, TypeError):
-                pass
         if content is not None:
             doc["content"] = str(content)
         docs.append(doc)

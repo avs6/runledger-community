@@ -19,7 +19,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ── Fixtures & helpers ─────────────────────────────────────────────────────────
 
 
@@ -151,7 +150,10 @@ def test_destination_create_empty_resources_fails() -> None:
 @pytest.mark.asyncio
 async def test_create_destination() -> None:
     from runledger_api.routers.warehouse import create_destination
-    from runledger_api.schemas.warehouse import WarehouseDestinationCreate, WarehouseDestinationResponse
+    from runledger_api.schemas.warehouse import (
+        WarehouseDestinationCreate,
+        WarehouseDestinationResponse,
+    )
 
     ws_id = uuid.uuid4()
     dest = _make_dest(workspace_id=ws_id)
@@ -248,7 +250,10 @@ async def test_get_destination_not_found() -> None:
 @pytest.mark.asyncio
 async def test_update_destination() -> None:
     from runledger_api.routers.warehouse import update_destination
-    from runledger_api.schemas.warehouse import WarehouseDestinationResponse, WarehouseDestinationUpdate
+    from runledger_api.schemas.warehouse import (
+        WarehouseDestinationResponse,
+        WarehouseDestinationUpdate,
+    )
 
     ws_id = uuid.uuid4()
     dest = _make_dest(workspace_id=ws_id)
@@ -320,7 +325,6 @@ async def test_connection_test_success() -> None:
 @pytest.mark.asyncio
 async def test_connection_test_failure() -> None:
     from runledger_api.routers.warehouse import test_destination
-    from runledger_api.schemas.warehouse import ConnectionTestResult
 
     ws_id = uuid.uuid4()
     dest = _make_dest(workspace_id=ws_id)
@@ -438,6 +442,7 @@ def test_to_jsonl_empty() -> None:
 
 def test_to_jsonl_with_rows() -> None:
     import json
+
     from runledger_api.services.warehouse import _to_jsonl
 
     # Create a minimal mock ORM row

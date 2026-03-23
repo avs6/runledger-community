@@ -23,7 +23,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _scalar_one_or_none(val) -> MagicMock:

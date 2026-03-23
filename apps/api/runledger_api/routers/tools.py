@@ -16,6 +16,7 @@ GET    /tools/security-events         List security events (limit 100)
 
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -125,14 +126,12 @@ async def check_tool(
             runtime_enforcement = entry.runtime_enforcement
 
         # Populate cache for next hit
-        try:
+        with contextlib.suppress(Exception):
             await redis.setex(
                 key,
                 _CACHE_TTL,
                 json.dumps({"policy": policy, "runtime_enforcement": runtime_enforcement}),
             )
-        except Exception:
-            pass
 
     # 3. Enforce block — write security event and return 403
     if policy == "block" and runtime_enforcement:
@@ -208,10 +207,8 @@ async def upsert_tool_registry(
         await db.commit()
         await db.refresh(existing)
         # Invalidate Redis cache
-        try:
+        with contextlib.suppress(Exception):
             await redis.delete(_cache_key(workspace.id, body.tool_name))
-        except Exception:
-            pass
         return _tool_to_response(existing)
 
     tool = ToolRegistry(
@@ -226,10 +223,8 @@ async def upsert_tool_registry(
     await db.commit()
     await db.refresh(tool)
     # Invalidate Redis cache (in case a "allow" entry was cached for an unknown tool)
-    try:
+    with contextlib.suppress(Exception):
         await redis.delete(_cache_key(workspace.id, body.tool_name))
-    except Exception:
-        pass
     return _tool_to_response(tool)
 
 
@@ -267,10 +262,8 @@ async def update_tool_registry(
     await db.refresh(tool)
 
     # Invalidate Redis cache
-    try:
+    with contextlib.suppress(Exception):
         await redis.delete(_cache_key(workspace.id, tool_name))
-    except Exception:
-        pass
 
     return _tool_to_response(tool)
 
@@ -299,10 +292,8 @@ async def delete_tool_registry(
     await db.commit()
 
     # Invalidate Redis cache
-    try:
+    with contextlib.suppress(Exception):
         await redis.delete(_cache_key(workspace.id, tool_name))
-    except Exception:
-        pass
 
     return Response(status_code=204)
 

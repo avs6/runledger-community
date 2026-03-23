@@ -31,7 +31,7 @@ from runledger_api.core.deps import get_current_workspace, require_workspace_adm
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
-from runledger_api.models.tenant import Workspace, WorkspaceUser
+from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.budgets import (
     BreachList,
     BreachResponse,

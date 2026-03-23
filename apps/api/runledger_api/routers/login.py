@@ -283,7 +283,7 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
         decoded = fb_auth.verify_id_token(body.id_token)
     except Exception as exc:
         log.warning("firebase_token_invalid", error=str(exc))
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Firebase token")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Firebase token") from exc
 
     uid: str = decoded["uid"]
     email: str = decoded.get("email", "")

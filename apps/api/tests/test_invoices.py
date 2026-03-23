@@ -14,7 +14,6 @@ Also covers unit tests for CSV/JSON parsing service functions.
 
 from __future__ import annotations
 
-import io
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -23,7 +22,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
-
 
 # ── Mock helpers ───────────────────────────────────────────────────────────────
 
@@ -324,10 +322,10 @@ def test_parse_csv_openai() -> None:
     from runledger_api.services.invoices import parse_csv
 
     csv_content = (
-        "date,model,input_tokens,output_tokens,cost\n"
-        "2026-02-15,gpt-4o,1000,200,0.012\n"
-        "2026-02-16,gpt-3.5-turbo,5000,1000,0.003\n"
-    ).encode()
+        b"date,model,input_tokens,output_tokens,cost\n"
+        b"2026-02-15,gpt-4o,1000,200,0.012\n"
+        b"2026-02-16,gpt-3.5-turbo,5000,1000,0.003\n"
+    )
 
     provider, lines = parse_csv(csv_content, "openai_usage.csv")
     assert len(lines) == 2
@@ -341,9 +339,9 @@ def test_parse_csv_anthropic_columns() -> None:
     from runledger_api.services.invoices import parse_csv
 
     csv_content = (
-        "timestamp,model_id,input_tokens,output_tokens,total_cost\n"
-        "2026-02-15T10:00:00Z,claude-3-5-sonnet,2000,500,0.025\n"
-    ).encode()
+        b"timestamp,model_id,input_tokens,output_tokens,total_cost\n"
+        b"2026-02-15T10:00:00Z,claude-3-5-sonnet,2000,500,0.025\n"
+    )
 
     provider, lines = parse_csv(csv_content, "anthropic_usage.csv")
     assert len(lines) == 1
@@ -364,9 +362,9 @@ def test_parse_csv_with_dollar_sign() -> None:
     from runledger_api.services.invoices import parse_csv
 
     csv_content = (
-        "Date,Model,Cost\n"
-        "2026-02-01,gpt-4o,$1.50\n"
-    ).encode()
+        b"Date,Model,Cost\n"
+        b"2026-02-01,gpt-4o,$1.50\n"
+    )
 
     _, lines = parse_csv(csv_content, "usage.csv")
     assert len(lines) == 1
@@ -375,6 +373,7 @@ def test_parse_csv_with_dollar_sign() -> None:
 
 def test_parse_json_openai_format() -> None:
     import json
+
     from runledger_api.services.invoices import parse_json
 
     payload = {
@@ -400,6 +399,7 @@ def test_parse_json_openai_format() -> None:
 
 def test_parse_json_array_format() -> None:
     import json
+
     from runledger_api.services.invoices import parse_json
 
     payload = [
@@ -415,9 +415,9 @@ def test_parse_csv_comma_in_tokens() -> None:
     from runledger_api.services.invoices import parse_csv
 
     csv_content = (
-        "date,model,input_tokens,output_tokens,cost\n"
-        '2026-02-01,gpt-4o,"1,234","5,678",0.05\n'
-    ).encode()
+        b"date,model,input_tokens,output_tokens,cost\n"
+        b'2026-02-01,gpt-4o,"1,234","5,678",0.05\n'
+    )
 
     _, lines = parse_csv(csv_content, "usage.csv")
     assert lines[0]["input_tokens"] == 1234

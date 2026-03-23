@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ── Fixtures & helpers ────────────────────────────────────────────────────────
 
 
@@ -225,7 +224,7 @@ async def test_get_retention_policy_not_found() -> None:
 @pytest.mark.asyncio
 async def test_update_retention_policy() -> None:
     from runledger_api.routers.retention import update_retention_policy
-    from runledger_api.schemas.retention import RetentionPolicyUpdate, RetentionPolicyResponse
+    from runledger_api.schemas.retention import RetentionPolicyResponse, RetentionPolicyUpdate
 
     ws_id = uuid.uuid4()
     policy = _make_policy(workspace_id=ws_id, max_age_days=90, is_active=True)

@@ -18,7 +18,6 @@ GET    /invoices/{id}/export         Export signed dispute package (JSON)
 
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -36,7 +35,6 @@ from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.invoices import ProviderInvoice, ProviderInvoiceLine
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.invoices import (
-    DisputeExport,
     DisputeRequest,
     InvoiceLineList,
     InvoiceLineResponse,
@@ -89,7 +87,7 @@ async def upload_invoice(
         p_start = date.fromisoformat(period_start)
         p_end = date.fromisoformat(period_end)
     except ValueError:
-        raise HTTPException(status_code=422, detail="period_start and period_end must be ISO dates (YYYY-MM-DD)")
+        raise HTTPException(status_code=422, detail="period_start and period_end must be ISO dates (YYYY-MM-DD)") from None
 
     if p_end < p_start:
         raise HTTPException(status_code=422, detail="period_end must be >= period_start")
@@ -107,7 +105,7 @@ async def upload_invoice(
         else:
             detected_provider, lines = parse_csv(content, filename)
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Failed to parse file: {exc}")
+        raise HTTPException(status_code=422, detail=f"Failed to parse file: {exc}") from exc
 
     if not lines:
         raise HTTPException(status_code=422, detail="No valid invoice lines found in file")
@@ -183,8 +181,9 @@ async def get_invoice_summary(
     db: DbDep,
 ) -> ReconciliationSummary:
     """Get reconciliation summary for an invoice."""
-    from runledger_api.models.events import ProviderCall
     from sqlalchemy import case
+
+    from runledger_api.models.events import ProviderCall
 
     result = await db.execute(
         select(ProviderInvoice).where(
@@ -258,11 +257,14 @@ async def get_invoice_summary(
         amt = Decimal(str(row.amount or 0))
         # Rough pct estimation using the token delta itself
         if td < 500:
-            b0_5.count += 1; b0_5.amount += amt
+            b0_5.count += 1
+            b0_5.amount += amt
         elif td < 2000:
-            b5_20.count += 1; b5_20.amount += amt
+            b5_20.count += 1
+            b5_20.amount += amt
         else:
-            b20p.count += 1; b20p.amount += amt
+            b20p.count += 1
+            b20p.amount += amt
 
     return ReconciliationSummary(
         invoice_id=invoice.id,
@@ -373,7 +375,7 @@ async def list_lines(
     items = result.scalars().all()
 
     return InvoiceLineList(
-        items=[InvoiceLineResponse.model_validate(l) for l in items],
+        items=[InvoiceLineResponse.model_validate(ln) for ln in items],
         total=int(total),
     )
 

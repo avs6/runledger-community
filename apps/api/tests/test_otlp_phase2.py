@@ -19,7 +19,6 @@ import base64
 import uuid
 
 import pytest
-
 from runledger_api.services.otlp_parse import (
     OtlpParsedSpan,
     OtlpTrace,
@@ -30,7 +29,6 @@ from runledger_api.services.otlp_parse import (
     parse_otlp_json,
     synthesize_canonical_events,
 )
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

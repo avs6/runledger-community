@@ -23,7 +23,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _scalars_list(rows: list) -> MagicMock:
@@ -463,7 +462,6 @@ def test_sdk_outcome_local_mode() -> None:
 
 def test_sdk_outcome_posts_to_api() -> None:
     """rl.outcome() should POST to /outcomes with correct payload."""
-    import httpx
     from runledger_sdk.client import RunLedger
 
     rl = RunLedger(api_key="rl_test_key")
