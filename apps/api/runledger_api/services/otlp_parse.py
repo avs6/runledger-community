@@ -129,9 +129,7 @@ def _make_run_id(workspace_id: uuid.UUID, trace_id_hex: str) -> uuid.UUID:
 
 
 def _make_span_uuid(workspace_id: uuid.UUID, trace_id_hex: str, span_id_hex: str) -> uuid.UUID:
-    return uuid.uuid5(
-        uuid.NAMESPACE_URL, f"otlp-span:{workspace_id}:{trace_id_hex}:{span_id_hex}"
-    )
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"otlp-span:{workspace_id}:{trace_id_hex}:{span_id_hex}")
 
 
 def _classify_span(attrs: dict[str, Any], span_name: str) -> str:
@@ -174,9 +172,8 @@ def _extract_llm_fields(attrs: dict[str, Any]) -> dict[str, Any]:
 
     # Hosting provider (if different — e.g. Azure-hosted OpenAI)
     api_type = attrs.get("gen_ai.openai.api_type") or attrs.get("llm.api_type")
-    result["model_provider"] = (
-        attrs.get("llm.hosting_provider")
-        or (str(api_type) if api_type and str(api_type).lower() != result["provider"] else None)
+    result["model_provider"] = attrs.get("llm.hosting_provider") or (
+        str(api_type) if api_type and str(api_type).lower() != result["provider"] else None
     )
 
     # Tokens (OpenInference / OTel GenAI)
@@ -197,18 +194,17 @@ def _extract_llm_fields(attrs: dict[str, Any]) -> dict[str, Any]:
 
     # Reported cost (OpenInference llm.cost.* or llm.token_count.total_cost)
     result["reported_cost_usd"] = _float_or_none(
-        attrs.get("llm.cost.total")
-        or attrs.get("llm.token_count.total_cost")
+        attrs.get("llm.cost.total") or attrs.get("llm.token_count.total_cost")
     )
 
     # Provider request ID — critical for finance-grade reconciliation
     result["provider_request_id"] = (
-        attrs.get("llm.openai.response.id")     # openinference-instrumentation-openai
-        or attrs.get("gen_ai.openai.api.id")    # OTel GenAI / Azure
-        or attrs.get("gen_ai.response.id")      # OTel GenAI generic
-        or attrs.get("llm.request_id")          # generic OpenInference
-        or attrs.get("anthropic.request_id")    # openinference-instrumentation-anthropic
-        or attrs.get("x_request_id")            # header-forwarded IDs
+        attrs.get("llm.openai.response.id")  # openinference-instrumentation-openai
+        or attrs.get("gen_ai.openai.api.id")  # OTel GenAI / Azure
+        or attrs.get("gen_ai.response.id")  # OTel GenAI generic
+        or attrs.get("llm.request_id")  # generic OpenInference
+        or attrs.get("anthropic.request_id")  # openinference-instrumentation-anthropic
+        or attrs.get("x_request_id")  # header-forwarded IDs
     )
 
     return result
@@ -440,7 +436,9 @@ def _extract_retrieval_metadata(attrs: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _extract_convention_metadata(resource_attrs: dict[str, Any], scope_name: str | None, scope_version: str | None) -> dict[str, Any] | None:
+def _extract_convention_metadata(
+    resource_attrs: dict[str, Any], scope_name: str | None, scope_version: str | None
+) -> dict[str, Any] | None:
     """
     Extract OTel SDK / convention version metadata for convention version tracking (Phase 2).
 
@@ -717,9 +715,7 @@ def synthesize_canonical_events(
             llm = _extract_llm_fields(span.attrs)
             latency_ms = None
             if span.started_at and span.ended_at:
-                latency_ms = int(
-                    (span.ended_at - span.started_at).total_seconds() * 1000
-                )
+                latency_ms = int((span.ended_at - span.started_at).total_seconds() * 1000)
             pstatus = "error" if span.status_code == "ERROR" else "success"
             pc_event: dict[str, Any] = {
                 "event_type": "provider_call",
@@ -751,9 +747,7 @@ def synthesize_canonical_events(
         if span.is_tool and span_ended:
             latency_ms = None
             if span.started_at and span.ended_at:
-                latency_ms = int(
-                    (span.ended_at - span.started_at).total_seconds() * 1000
-                )
+                latency_ms = int((span.ended_at - span.started_at).total_seconds() * 1000)
             tool_name = (
                 span.attrs.get("tool.name")
                 or span.attrs.get("openinference.tool.name")

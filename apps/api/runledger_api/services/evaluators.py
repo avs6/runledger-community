@@ -21,14 +21,14 @@ log = structlog.get_logger()
 # ── Rule evaluator ────────────────────────────────────────────────────────────
 
 _OPS = {
-    "eq":       lambda a, b: a == b,
-    "neq":      lambda a, b: a != b,
-    "gt":       lambda a, b: float(a) > float(b),
-    "gte":      lambda a, b: float(a) >= float(b),
-    "lt":       lambda a, b: float(a) < float(b),
-    "lte":      lambda a, b: float(a) <= float(b),
+    "eq": lambda a, b: a == b,
+    "neq": lambda a, b: a != b,
+    "gt": lambda a, b: float(a) > float(b),
+    "gte": lambda a, b: float(a) >= float(b),
+    "lt": lambda a, b: float(a) < float(b),
+    "lte": lambda a, b: float(a) <= float(b),
     "contains": lambda a, b: str(b).lower() in str(a).lower(),
-    "regex":    lambda a, b: bool(re.search(str(b), str(a))),
+    "regex": lambda a, b: bool(re.search(str(b), str(a))),
 }
 
 
@@ -80,11 +80,16 @@ def run_rule_evaluator(
 
         score = score_if_pass if passed else score_if_fail
         scores.append(score)
-        evidence["rules"].append({
-            "field": field, "op": op,
-            "expected": expected, "actual": actual,
-            "passed": passed, "score": score,
-        })
+        evidence["rules"].append(
+            {
+                "field": field,
+                "op": op,
+                "expected": expected,
+                "actual": actual,
+                "passed": passed,
+                "score": score,
+            }
+        )
 
     if not scores:
         return Decimal("0"), evidence
@@ -108,6 +113,7 @@ def run_rule_evaluator(
 
 
 # ── LLM judge evaluator ───────────────────────────────────────────────────────
+
 
 async def run_llm_judge(
     config: dict[str, Any],
@@ -136,15 +142,14 @@ async def run_llm_judge(
         "prompt_template",
         "Run ID: {{run_id}}\nInput: {{input}}\nOutput: {{output}}\n\n"
         "Criteria: {{criteria}}\n\n"
-        "Respond with a single JSON object: {\"score\": <float 0-1>, \"reasoning\": \"<brief explanation>\"}",
+        'Respond with a single JSON object: {"score": <float 0-1>, "reasoning": "<brief explanation>"}',
     )
 
     # Substitute template variables
     input_text = str(run.get("input_payload") or run.get("metadata") or "")[:2000]
     output_text = str(run.get("output_payload") or "")[:2000]
     prompt = (
-        prompt_template
-        .replace("{{run_id}}", str(run.get("id", "")))
+        prompt_template.replace("{{run_id}}", str(run.get("id", "")))
         .replace("{{input}}", input_text)
         .replace("{{output}}", output_text)
         .replace("{{criteria}}", criteria)
@@ -157,7 +162,10 @@ async def run_llm_judge(
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "You are an AI quality evaluator. Always respond with valid JSON only."},
+            {
+                "role": "system",
+                "content": "You are an AI quality evaluator. Always respond with valid JSON only.",
+            },
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.0,
@@ -173,6 +181,7 @@ async def run_llm_judge(
 
     # Extract JSON from the response
     import json
+
     try:
         # Try direct parse first
         parsed = json.loads(content)

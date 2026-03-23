@@ -66,9 +66,14 @@ async def list_workspace_users(
     )
     return [
         WorkspaceMemberResponse(
-            user_id=wu.user_id, workspace_id=wu.workspace_id, role=wu.role,
-            email=u.email, full_name=u.full_name, is_active=u.is_active,
-            last_login_at=u.last_login_at, joined_at=wu.created_at,
+            user_id=wu.user_id,
+            workspace_id=wu.workspace_id,
+            role=wu.role,
+            email=u.email,
+            full_name=u.full_name,
+            is_active=u.is_active,
+            last_login_at=u.last_login_at,
+            joined_at=wu.created_at,
         )
         for wu, u in result.all()
     ]
@@ -86,7 +91,9 @@ async def invite_user(
     user = result.scalar_one_or_none()
     if user is None:
         pw_hash = bcrypt.hashpw(body.temporary_password.encode(), bcrypt.gensalt()).decode()
-        user = User(email=body.email, password_hash=pw_hash, full_name=body.full_name, is_active=True)
+        user = User(
+            email=body.email, password_hash=pw_hash, full_name=body.full_name, is_active=True
+        )
         db.add(user)
         await db.flush()
 
@@ -98,14 +105,21 @@ async def invite_user(
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "User is already a member of this workspace")
 
-    wu = WorkspaceUser(workspace_id=workspace.id, user_id=user.id, role=body.role, invited_by=inviting_user.id)
+    wu = WorkspaceUser(
+        workspace_id=workspace.id, user_id=user.id, role=body.role, invited_by=inviting_user.id
+    )
     db.add(wu)
     await db.commit()
     await db.refresh(wu)
     return WorkspaceMemberResponse(
-        user_id=wu.user_id, workspace_id=wu.workspace_id, role=wu.role,
-        email=user.email, full_name=user.full_name, is_active=user.is_active,
-        last_login_at=user.last_login_at, joined_at=wu.created_at,
+        user_id=wu.user_id,
+        workspace_id=wu.workspace_id,
+        role=wu.role,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        last_login_at=user.last_login_at,
+        joined_at=wu.created_at,
     )
 
 
@@ -132,9 +146,14 @@ async def update_workspace_role(
     await db.commit()
     await db.refresh(wu)
     return WorkspaceMemberResponse(
-        user_id=wu.user_id, workspace_id=wu.workspace_id, role=wu.role,
-        email=u.email, full_name=u.full_name, is_active=u.is_active,
-        last_login_at=u.last_login_at, joined_at=wu.created_at,
+        user_id=wu.user_id,
+        workspace_id=wu.workspace_id,
+        role=wu.role,
+        email=u.email,
+        full_name=u.full_name,
+        is_active=u.is_active,
+        last_login_at=u.last_login_at,
+        joined_at=wu.created_at,
     )
 
 

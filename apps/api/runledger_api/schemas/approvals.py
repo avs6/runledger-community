@@ -62,6 +62,7 @@ class ApprovalList(BaseModel):
 
 class ApprovalSummary(BaseModel):
     """Count of approvals by status for the dashboard."""
+
     pending: int
     approved: int
     denied: int

@@ -25,6 +25,7 @@ from httpx import AsyncClient
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _scalar_one_or_none(val) -> MagicMock:
     m = MagicMock()
     m.scalar_one_or_none = MagicMock(return_value=val)
@@ -78,6 +79,7 @@ def _make_api_key(email: str | None = "alice@example.com") -> SimpleNamespace:
 
 
 # ── POST /approvals ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_create_approval_success(
@@ -155,8 +157,11 @@ async def test_create_approval_all_types(
 
     try:
         for request_type in [
-            "budget_increase", "prompt_promote", "tool_allow",
-            "capture_policy_full", "shadow_routing"
+            "budget_increase",
+            "prompt_promote",
+            "tool_allow",
+            "capture_policy_full",
+            "shadow_routing",
         ]:
             approval = _make_approval(workspace_id=mock_workspace.id, request_type=request_type)
 
@@ -182,14 +187,13 @@ async def test_create_approval_all_types(
 
 # ── GET /approvals ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_approvals_empty(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(0), _scalars_list([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(0), _scalars_list([])])
     resp = await authed_client.get("/approvals")
     assert resp.status_code == 200
     data = resp.json()
@@ -204,9 +208,7 @@ async def test_list_approvals_returns_items(
     mock_workspace: SimpleNamespace,
 ) -> None:
     approval = _make_approval(workspace_id=mock_workspace.id)
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(1), _scalars_list([approval])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(1), _scalars_list([approval])])
     resp = await authed_client.get("/approvals")
     assert resp.status_code == 200
     data = resp.json()
@@ -220,14 +222,13 @@ async def test_list_approvals_filter_by_status(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(0), _scalars_list([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(0), _scalars_list([])])
     resp = await authed_client.get("/approvals?status=approved")
     assert resp.status_code == 200
 
 
 # ── GET /approvals/summary ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_approval_summary_empty(
@@ -263,6 +264,7 @@ async def test_approval_summary_with_counts(
 
 # ── GET /approvals/{id} ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_approval_found(
     authed_client: AsyncClient,
@@ -287,6 +289,7 @@ async def test_get_approval_not_found(
 
 
 # ── PUT /approvals/{id}/approve ────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_approve_pending(
@@ -358,6 +361,7 @@ async def test_approve_already_decided_conflict(
 
 # ── PUT /approvals/{id}/deny ───────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_deny_pending(
     authed_client: AsyncClient,
@@ -421,6 +425,7 @@ async def test_deny_not_found(
 
 # ── DELETE /approvals/{id} ─────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_cancel_pending(
     authed_client: AsyncClient,
@@ -453,6 +458,7 @@ async def test_cancel_non_pending_conflict(
 
 
 # ── validate_approved helper ───────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_validate_approved_passes() -> None:

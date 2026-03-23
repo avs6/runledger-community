@@ -30,9 +30,7 @@ class GatewayRoute(Base):
     """
 
     __tablename__ = "gateway_routes"
-    __table_args__ = (
-        sa.Index("ix_gateway_routes_workspace", "workspace_id", "alias", "priority"),
-    )
+    __table_args__ = (sa.Index("ix_gateway_routes_workspace", "workspace_id", "alias", "priority"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -124,9 +122,7 @@ class RoutingPolicy(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     alias: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    policy_type: Mapped[str] = mapped_column(
-        sa.String(32), nullable=False, server_default="manual"
-    )
+    policy_type: Mapped[str] = mapped_column(sa.String(32), nullable=False, server_default="manual")
     config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )
@@ -169,6 +165,4 @@ class PromptCache(Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
-    expires_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    expires_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)

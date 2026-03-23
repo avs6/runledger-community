@@ -78,11 +78,15 @@ def uninstrument_gemini() -> None:
         _genai_models = importlib.import_module("google.genai.models")
 
         if hasattr(_genai_models.Models, "_rl_original_generate_content"):
-            _genai_models.Models.generate_content = _genai_models.Models._rl_original_generate_content  # noqa: SLF001
+            _genai_models.Models.generate_content = (
+                _genai_models.Models._rl_original_generate_content
+            )  # noqa: SLF001
             del _genai_models.Models._rl_original_generate_content  # noqa: SLF001
 
         if hasattr(_genai_models.AsyncModels, "_rl_original_generate_content"):
-            _genai_models.AsyncModels.generate_content = _genai_models.AsyncModels._rl_original_generate_content  # noqa: SLF001
+            _genai_models.AsyncModels.generate_content = (
+                _genai_models.AsyncModels._rl_original_generate_content
+            )  # noqa: SLF001
             del _genai_models.AsyncModels._rl_original_generate_content  # noqa: SLF001
 
     except ImportError:
@@ -116,13 +120,17 @@ def _patch_sync(genai_models: Any, transport: SyncTransport) -> None:
             result = original(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "succeeded", result))
-            transport.enqueue(_build_provider_call(run_id, span_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "failed", None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, model, exc, latency_ms))
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 
@@ -137,7 +145,9 @@ def _patch_async(genai_models: Any, transport: SyncTransport) -> None:
     original_async = async_cls.generate_content
     async_cls._rl_original_generate_content = original_async  # noqa: SLF001
 
-    async def patched_async_generate_content(self: Any, *args: Any, **kwargs: Any) -> Any:
+    async def patched_async_generate_content(
+        self: Any, *args: Any, **kwargs: Any
+    ) -> Any:
         run_id = get_run_id()
         ctx = get_context_snapshot()
         model = _extract_model(args, kwargs)
@@ -155,13 +165,17 @@ def _patch_async(genai_models: Any, transport: SyncTransport) -> None:
             result = await original_async(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "succeeded", result))
-            transport.enqueue(_build_provider_call(run_id, span_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "failed", None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, model, exc, latency_ms))
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 

@@ -55,7 +55,9 @@ AdminDep = Annotated[tuple, Depends(require_workspace_admin)]
 # ── POST /retention/policies ──────────────────────────────────────────────────
 
 
-@router.post("/policies", response_model=RetentionPolicyResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/policies", response_model=RetentionPolicyResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_retention_policy(
     body: RetentionPolicyCreate,
     auth: AdminDep,
@@ -86,9 +88,16 @@ async def create_retention_policy(
         action=policy.action,
     )
     await emit_audit_event(
-        db, workspace.id, "retention_policy.created",
-        target_type="retention_policy", target_id=str(policy.id),
-        after={"resource_type": policy.resource_type, "action": policy.action, "scope": policy.scope},
+        db,
+        workspace.id,
+        "retention_policy.created",
+        target_type="retention_policy",
+        target_id=str(policy.id),
+        after={
+            "resource_type": policy.resource_type,
+            "action": policy.action,
+            "scope": policy.scope,
+        },
     )
     await db.commit()
 
@@ -143,7 +152,9 @@ async def get_retention_policy(
     )
     policy = result.scalar_one_or_none()
     if policy is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found"
+        )
 
     return RetentionPolicyResponse.model_validate(policy)
 
@@ -168,7 +179,9 @@ async def update_retention_policy(
     )
     policy = result.scalar_one_or_none()
     if policy is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found"
+        )
 
     before = {"max_age_days": policy.max_age_days, "is_active": policy.is_active}
 
@@ -183,8 +196,11 @@ async def update_retention_policy(
     await db.refresh(policy)
 
     await emit_audit_event(
-        db, workspace.id, "retention_policy.updated",
-        target_type="retention_policy", target_id=str(policy_id),
+        db,
+        workspace.id,
+        "retention_policy.updated",
+        target_type="retention_policy",
+        target_id=str(policy_id),
         before=before,
         after={"max_age_days": policy.max_age_days, "is_active": policy.is_active},
     )
@@ -212,12 +228,21 @@ async def delete_retention_policy(
     )
     policy = result.scalar_one_or_none()
     if policy is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found"
+        )
 
     await emit_audit_event(
-        db, workspace.id, "retention_policy.deleted",
-        target_type="retention_policy", target_id=str(policy_id),
-        before={"resource_type": policy.resource_type, "action": policy.action, "scope": policy.scope},
+        db,
+        workspace.id,
+        "retention_policy.deleted",
+        target_type="retention_policy",
+        target_id=str(policy_id),
+        before={
+            "resource_type": policy.resource_type,
+            "action": policy.action,
+            "scope": policy.scope,
+        },
     )
     await db.delete(policy)
     await db.commit()
@@ -252,7 +277,9 @@ async def immediate_purge(
         )
         policy = pol_result.scalar_one_or_none()
         if policy is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Retention policy not found"
+            )
 
         resource_type = policy.resource_type
         action = policy.action
@@ -284,7 +311,9 @@ async def immediate_purge(
             dry_run=body.dry_run,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     # Update policy stats on live run
     if policy is not None and not body.dry_run:
@@ -294,8 +323,11 @@ async def immediate_purge(
 
     if not body.dry_run:
         await emit_audit_event(
-            db, workspace.id, "retention.purge",
-            target_type="retention_policy", target_id=str(policy.id) if policy else None,
+            db,
+            workspace.id,
+            "retention.purge",
+            target_type="retention_policy",
+            target_id=str(policy.id) if policy else None,
             after={
                 "resource_type": resource_type,
                 "action": action,

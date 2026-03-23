@@ -112,14 +112,22 @@ def _patch_sync(anthropic: Any, transport: SyncTransport) -> None:
         try:
             result = original(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_span_end(run_id, span_id, "succeeded", messages, result))
-            transport.enqueue(_build_provider_call(run_id, span_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_span_end(run_id, span_id, "succeeded", messages, result)
+            )
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_span_end(run_id, span_id, "failed", messages, None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, model, exc, latency_ms))
+            transport.enqueue(
+                _build_span_end(run_id, span_id, "failed", messages, None)
+            )
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 
@@ -152,14 +160,22 @@ def _patch_async(anthropic: Any, transport: SyncTransport) -> None:
         try:
             result = await original_async(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_span_end(run_id, span_id, "succeeded", messages, result))
-            transport.enqueue(_build_provider_call(run_id, span_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_span_end(run_id, span_id, "succeeded", messages, result)
+            )
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_span_end(run_id, span_id, "failed", messages, None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, model, exc, latency_ms))
+            transport.enqueue(
+                _build_span_end(run_id, span_id, "failed", messages, None)
+            )
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 

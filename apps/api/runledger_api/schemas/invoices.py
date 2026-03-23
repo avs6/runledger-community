@@ -62,9 +62,11 @@ class DisputeRequest(BaseModel):
 
 # ── Reconciliation summary ─────────────────────────────────────────────────────
 
+
 class TokenMismatchBucket(BaseModel):
     """Groups lines by token count divergence (0–5%, 5–20%, >20%)."""
-    bucket: str   # "0-5%", "5-20%", ">20%"
+
+    bucket: str  # "0-5%", "5-20%", ">20%"
     count: int
     amount: Decimal
 
@@ -82,8 +84,8 @@ class ReconciliationSummary(BaseModel):
     disputed: int
     matched_pct: Decimal
     unmatched_amount: Decimal
-    runledger_total: Decimal      # sum of matched provider_calls.cost_usd
-    delta_amount: Decimal         # invoice_total - runledger_total
+    runledger_total: Decimal  # sum of matched provider_calls.cost_usd
+    delta_amount: Decimal  # invoice_total - runledger_total
     delta_pct: Decimal | None
     token_mismatch_buckets: list[TokenMismatchBucket]
     status: str
@@ -91,8 +93,10 @@ class ReconciliationSummary(BaseModel):
 
 # ── Dispute export ─────────────────────────────────────────────────────────────
 
+
 class DisputeExport(BaseModel):
     """Signed JSON package for finance disputes."""
+
     invoice_id: str
     provider: str
     period_start: str
@@ -101,4 +105,4 @@ class DisputeExport(BaseModel):
     unmatched_lines: list[dict[str, Any]]
     disputed_lines: list[dict[str, Any]]
     summary: dict[str, Any]
-    signature: str   # HMAC-SHA256 of the payload
+    signature: str  # HMAC-SHA256 of the payload

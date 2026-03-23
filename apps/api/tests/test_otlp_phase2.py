@@ -283,7 +283,9 @@ def test_extract_convention_metadata_full() -> None:
         "telemetry.sdk.version": "1.25.0",
         "telemetry.sdk.language": "python",
     }
-    result = _extract_convention_metadata(resource, "openinference.instrumentation.openai", "0.1.12")
+    result = _extract_convention_metadata(
+        resource, "openinference.instrumentation.openai", "0.1.12"
+    )
     assert result is not None
     assert result["sdk_name"] == "opentelemetry"
     assert result["sdk_version"] == "1.25.0"
@@ -339,12 +341,14 @@ def test_run_start_no_convention_metadata_when_missing() -> None:
 
 
 def test_retrieval_span_end_has_document_metadata() -> None:
-    ws_id, trace = _make_retrieval_span({
-        "retrieval.documents.0.document.id": "doc-1",
-        "retrieval.documents.0.document.score": 0.88,
-        "retrieval.documents.1.document.id": "doc-2",
-        "retrieval.documents.1.document.score": 0.71,
-    })
+    ws_id, trace = _make_retrieval_span(
+        {
+            "retrieval.documents.0.document.id": "doc-1",
+            "retrieval.documents.0.document.score": 0.88,
+            "retrieval.documents.1.document.id": "doc-2",
+            "retrieval.documents.1.document.score": 0.71,
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     span_end = next(e for e in events if e["event_type"] == "span_end")
 
@@ -384,10 +388,12 @@ def test_llm_span_end_captures_genai_span_events() -> None:
 
 
 def test_tool_call_uses_gen_ai_tool_name() -> None:
-    ws_id, trace = _make_tool_span({
-        "gen_ai.tool.name": "web_search",
-        "gen_ai.tool.call.function.arguments": '{"query": "cats"}',
-    })
+    ws_id, trace = _make_tool_span(
+        {
+            "gen_ai.tool.name": "web_search",
+            "gen_ai.tool.call.function.arguments": '{"query": "cats"}',
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     tc = next(e for e in events if e["event_type"] == "tool_call")
     assert tc["tool_name"] == "web_search"
@@ -395,10 +401,12 @@ def test_tool_call_uses_gen_ai_tool_name() -> None:
 
 
 def test_tool_call_uses_tool_call_function_arguments_fallback() -> None:
-    ws_id, trace = _make_tool_span({
-        "tool.name": "calculator",
-        "tool_call.function.arguments": '{"expr": "1+1"}',
-    })
+    ws_id, trace = _make_tool_span(
+        {
+            "tool.name": "calculator",
+            "tool_call.function.arguments": '{"expr": "1+1"}',
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     tc = next(e for e in events if e["event_type"] == "tool_call")
     assert tc["tool_name"] == "calculator"
@@ -414,38 +422,50 @@ def test_parse_otlp_json_captures_span_events() -> None:
     span_id = base64.b64encode(bytes(range(8))).decode()
 
     payload = {
-        "resourceSpans": [{
-            "resource": {"attributes": []},
-            "scopeSpans": [{
-                "scope": {"name": "openai", "version": "0.1.0"},
-                "spans": [{
-                    "traceId": trace_id,
-                    "spanId": span_id,
-                    "name": "chat.completions",
-                    "kind": 3,
-                    "startTimeUnixNano": "1700000000000000000",
-                    "endTimeUnixNano": "1700000001000000000",
-                    "status": {"code": 1},
-                    "attributes": [
-                        {"key": "gen_ai.system", "value": {"stringValue": "openai"}},
-                    ],
-                    "events": [
-                        {
-                            "name": "gen_ai.user.message",
-                            "attributes": [
-                                {"key": "gen_ai.event.content", "value": {"stringValue": "Hello"}},
-                            ],
-                        },
-                        {
-                            "name": "gen_ai.assistant.message",
-                            "attributes": [
-                                {"key": "gen_ai.event.content", "value": {"stringValue": "Hi!"}},
-                            ],
-                        },
-                    ],
-                }],
-            }],
-        }],
+        "resourceSpans": [
+            {
+                "resource": {"attributes": []},
+                "scopeSpans": [
+                    {
+                        "scope": {"name": "openai", "version": "0.1.0"},
+                        "spans": [
+                            {
+                                "traceId": trace_id,
+                                "spanId": span_id,
+                                "name": "chat.completions",
+                                "kind": 3,
+                                "startTimeUnixNano": "1700000000000000000",
+                                "endTimeUnixNano": "1700000001000000000",
+                                "status": {"code": 1},
+                                "attributes": [
+                                    {"key": "gen_ai.system", "value": {"stringValue": "openai"}},
+                                ],
+                                "events": [
+                                    {
+                                        "name": "gen_ai.user.message",
+                                        "attributes": [
+                                            {
+                                                "key": "gen_ai.event.content",
+                                                "value": {"stringValue": "Hello"},
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        "name": "gen_ai.assistant.message",
+                                        "attributes": [
+                                            {
+                                                "key": "gen_ai.event.content",
+                                                "value": {"stringValue": "Hi!"},
+                                            },
+                                        ],
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
     }
 
     result = parse_otlp_json(payload)

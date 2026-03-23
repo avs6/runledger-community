@@ -1,4 +1,5 @@
 """Tests for runledger_sdk.cohere instrumentation."""
+
 from __future__ import annotations
 
 import uuid
@@ -145,12 +146,15 @@ def test_instrument_cohere_with_fake_client() -> None:
     fake_cohere_mod.AsyncClientV2 = None  # type: ignore[attr-defined]
 
     import sys  # noqa: PLC0415
+
     with pytest.MonkeyPatch().context() as mp:
         mp.setitem(sys.modules, "cohere", fake_cohere_mod)
         rl_cohere.instrument_cohere(transport)
 
         client = FakeClientV2()
-        result = client.chat(model="command-r-plus", messages=[{"role": "user", "content": "Hi"}])
+        result = client.chat(
+            model="command-r-plus", messages=[{"role": "user", "content": "Hi"}]
+        )
 
     rl_cohere._patched = False
 

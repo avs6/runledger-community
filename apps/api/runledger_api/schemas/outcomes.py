@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
+
 class OutcomeCreate(BaseModel):
     outcome_type: str = Field(..., min_length=1, max_length=128)
     success: bool
@@ -43,15 +44,16 @@ class OutcomeList(BaseModel):
 
 # ── Analytics ─────────────────────────────────────────────────────────────────
 
+
 class OutcomeSummaryItem(BaseModel):
     outcome_type: str
     count: int
     success_count: int
     success_rate: Decimal
     total_cost_usd: Decimal
-    cost_per_success_usd: Decimal | None   # None when no successes
+    cost_per_success_usd: Decimal | None  # None when no successes
     total_value_usd: Decimal | None
-    roi: Decimal | None                    # (total_value - total_cost) / total_cost * 100
+    roi: Decimal | None  # (total_value - total_cost) / total_cost * 100
 
 
 class OutcomeSummary(BaseModel):
@@ -90,6 +92,7 @@ class WorkflowROIList(BaseModel):
 
 class QualityOutcomeCorrelation(BaseModel):
     """Correlation between avg score and success rate per outcome type."""
+
     outcome_type: str
     avg_score: Decimal | None
     success_rate: Decimal

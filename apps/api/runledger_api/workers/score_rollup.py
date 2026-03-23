@@ -53,9 +53,7 @@ async def _rollup_day(session: AsyncSession, target_day: date) -> None:
     log.info("score_rollup_start", day=str(target_day))
 
     # Delete existing rollup rows for this day (idempotent)
-    await session.execute(
-        delete(ScoreRollupDaily).where(ScoreRollupDaily.day == target_day)
-    )
+    await session.execute(delete(ScoreRollupDaily).where(ScoreRollupDaily.day == target_day))
 
     # Aggregate score_events LEFT JOIN agent_runs for dimension enrichment
     # Groups by workspace_id + name + feature_tag + model + deployment_version

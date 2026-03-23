@@ -78,13 +78,17 @@ async def purge_resource(
         count = await _purge_runs(db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run)
     elif resource_type == "spans":
         if action == "scrub":
-            count = await _scrub_payloads(db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run)
+            count = await _scrub_payloads(
+                db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run
+            )
         else:
             count = await _purge_spans(db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run)
     elif resource_type == "payloads":
         count = await _scrub_payloads(db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run)
     elif resource_type == "provider_calls":
-        count = await _purge_provider_calls(db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run)
+        count = await _purge_provider_calls(
+            db, workspace_id=workspace_id, cutoff=cut, dry_run=dry_run
+        )
     else:
         raise ValueError(f"Unknown resource_type: {resource_type!r}")
 
@@ -92,6 +96,7 @@ async def purge_resource(
 
 
 # ── Workspace-scope purge helpers ─────────────────────────────────────────────
+
 
 async def _purge_runs(
     db: AsyncSession, *, workspace_id: uuid.UUID, cutoff: datetime, dry_run: bool
@@ -125,9 +130,7 @@ async def _purge_spans(
     )
 
     if dry_run:
-        result = await db.execute(
-            select(func.count(Span.id)).where(Span.run_id.in_(run_subq))
-        )
+        result = await db.execute(select(func.count(Span.id)).where(Span.run_id.in_(run_subq)))
         return result.scalar() or 0
 
     result = await db.execute(delete(Span).where(Span.run_id.in_(run_subq)))
@@ -175,7 +178,9 @@ async def _scrub_payloads(
     run_result = await db.execute(
         update(AgentRun)
         .where(AgentRun.workspace_id == workspace_id, AgentRun.started_at < cutoff)
-        .values({AgentRun.run_metadata: AgentRun.run_metadata.op("-")("messages").op("-")("response")})
+        .values(
+            {AgentRun.run_metadata: AgentRun.run_metadata.op("-")("messages").op("-")("response")}
+        )
     )
 
     return span_result.rowcount + run_result.rowcount
@@ -204,6 +209,7 @@ async def _purge_provider_calls(
 
 # ── End-user scope (GDPR erasure) ─────────────────────────────────────────────
 
+
 async def _purge_end_user(
     db: AsyncSession,
     *,
@@ -214,14 +220,22 @@ async def _purge_end_user(
     dry_run: bool,
 ) -> tuple[int, None]:
     if resource_type == "runs":
-        count = await _purge_runs_end_user(db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run)
+        count = await _purge_runs_end_user(
+            db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run
+        )
     elif resource_type in ("spans", "payloads"):
         if action == "scrub":
-            count = await _scrub_payloads_end_user(db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run)
+            count = await _scrub_payloads_end_user(
+                db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run
+            )
         else:
-            count = await _purge_spans_end_user(db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run)
+            count = await _purge_spans_end_user(
+                db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run
+            )
     elif resource_type == "provider_calls":
-        count = await _purge_provider_calls_end_user(db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run)
+        count = await _purge_provider_calls_end_user(
+            db, workspace_id=workspace_id, end_user_id=scope_value, dry_run=dry_run
+        )
     else:
         raise ValueError(f"Unknown resource_type: {resource_type!r}")
 
@@ -259,9 +273,7 @@ async def _purge_spans_end_user(
     )
 
     if dry_run:
-        result = await db.execute(
-            select(func.count(Span.id)).where(Span.run_id.in_(run_subq))
-        )
+        result = await db.execute(select(func.count(Span.id)).where(Span.run_id.in_(run_subq)))
         return result.scalar() or 0
 
     result = await db.execute(delete(Span).where(Span.run_id.in_(run_subq)))
@@ -294,7 +306,9 @@ async def _scrub_payloads_end_user(
     run_result = await db.execute(
         update(AgentRun)
         .where(AgentRun.workspace_id == workspace_id, AgentRun.end_user_id == end_user_id)
-        .values({AgentRun.run_metadata: AgentRun.run_metadata.op("-")("messages").op("-")("response")})
+        .values(
+            {AgentRun.run_metadata: AgentRun.run_metadata.op("-")("messages").op("-")("response")}
+        )
     )
     return span_result.rowcount + run_result.rowcount
 

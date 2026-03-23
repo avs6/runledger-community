@@ -87,14 +87,10 @@ async def create_prompt(
     """Create a new named prompt template."""
     # Check uniqueness within workspace
     existing = await db.execute(
-        select(Prompt).where(
-            Prompt.workspace_id == workspace.id, Prompt.name == body.name
-        )
+        select(Prompt).where(Prompt.workspace_id == workspace.id, Prompt.name == body.name)
     )
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=409, detail=f"Prompt '{body.name}' already exists"
-        )
+        raise HTTPException(status_code=409, detail=f"Prompt '{body.name}' already exists")
 
     prompt = Prompt(
         workspace_id=workspace.id,
@@ -120,9 +116,7 @@ async def list_prompts(
 ) -> PromptList:
     """List all prompts for the workspace."""
     result = await db.execute(
-        select(Prompt)
-        .where(Prompt.workspace_id == workspace.id)
-        .order_by(Prompt.created_at.desc())
+        select(Prompt).where(Prompt.workspace_id == workspace.id).order_by(Prompt.created_at.desc())
     )
     items = result.scalars().all()
     return PromptList(items=[PromptResponse.model_validate(p) for p in items])
@@ -177,9 +171,7 @@ async def create_version(
 
     # Auto-increment version number per prompt
     max_result = await db.execute(
-        select(func.max(PromptVersion.version)).where(
-            PromptVersion.prompt_id == prompt.id
-        )
+        select(func.max(PromptVersion.version)).where(PromptVersion.prompt_id == prompt.id)
     )
     max_version = max_result.scalar() or 0
     new_version_num = max_version + 1
@@ -351,9 +343,7 @@ async def promote_version(
 
     # Auto-increment version for the target
     max_result = await db.execute(
-        select(func.max(PromptVersion.version)).where(
-            PromptVersion.prompt_id == prompt.id
-        )
+        select(func.max(PromptVersion.version)).where(PromptVersion.prompt_id == prompt.id)
     )
     max_version = max_result.scalar() or 0
     new_version_num = max_version + 1
@@ -363,7 +353,8 @@ async def promote_version(
         version=new_version_num,
         content=src_version.content,
         variables=src_version.variables,
-        commit_message=body.commit_message or f"Promoted from {body.source_environment} v{src_version.version}",
+        commit_message=body.commit_message
+        or f"Promoted from {body.source_environment} v{src_version.version}",
         environment=body.target_environment,
         model_hint=src_version.model_hint,
     )
@@ -382,9 +373,16 @@ async def promote_version(
         new_version=new_version_num,
     )
     await emit_audit_event(
-        db, workspace.id, "prompt.promoted",
-        target_type="prompt", target_id=name,
-        after={"from_env": body.source_environment, "to_env": body.target_environment, "version": new_version_num},
+        db,
+        workspace.id,
+        "prompt.promoted",
+        target_type="prompt",
+        target_id=name,
+        after={
+            "from_env": body.source_environment,
+            "to_env": body.target_environment,
+            "version": new_version_num,
+        },
     )
     return VersionResponse.model_validate(promoted)
 

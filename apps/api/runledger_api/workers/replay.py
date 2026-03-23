@@ -170,7 +170,9 @@ async def _run_experiment(experiment_id: str) -> dict[str, Any]:
                 projected_cost = Decimal(0)
                 pricing_found = False
 
-            avg_cost_per_run = projected_cost / Decimal(cfg_run_count) if cfg_run_count > 0 else Decimal(0)
+            avg_cost_per_run = (
+                projected_cost / Decimal(cfg_run_count) if cfg_run_count > 0 else Decimal(0)
+            )
 
             config_results.append(
                 {

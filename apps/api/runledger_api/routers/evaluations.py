@@ -55,6 +55,7 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 # ── Scores ────────────────────────────────────────────────────────────────────
 
+
 @router.post("/scores", response_model=ScoreResponse, status_code=status.HTTP_201_CREATED)
 async def create_score(
     body: ScoreCreate,
@@ -125,6 +126,7 @@ async def list_scores(
 
 
 # ── Evaluators ────────────────────────────────────────────────────────────────
+
 
 @router.post("/evaluators", response_model=EvaluatorResponse, status_code=status.HTTP_201_CREATED)
 async def create_evaluator(

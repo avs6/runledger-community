@@ -26,6 +26,7 @@ def _auto_slug(name: str) -> str:
 
 # ── Tenant ────────────────────────────────────────────────────────────────────
 
+
 class TenantCreate(BaseModel):
     name: str
     plan: PlanEnum = PlanEnum.free
@@ -56,6 +57,7 @@ class TenantUpdate(BaseModel):
 
 # ── Workspace ─────────────────────────────────────────────────────────────────
 
+
 class WorkspaceCreate(BaseModel):
     tenant_id: uuid.UUID
     name: str
@@ -63,6 +65,7 @@ class WorkspaceCreate(BaseModel):
 
 class WorkspaceCreateForOrg(BaseModel):
     """Used by org admins — tenant_id comes from auth context."""
+
     name: str
 
 
@@ -78,6 +81,7 @@ class WorkspaceResponse(BaseModel):
 
 
 # ── Application ───────────────────────────────────────────────────────────────
+
 
 class ApplicationCreate(BaseModel):
     workspace_id: uuid.UUID
@@ -96,6 +100,7 @@ class ApplicationResponse(BaseModel):
 
 
 # ── API Key ───────────────────────────────────────────────────────────────────
+
 
 class ApiKeyCreate(BaseModel):
     name: str | None = None
@@ -119,10 +124,12 @@ class ApiKeyResponse(BaseModel):
 
 class ApiKeyCreateResponse(ApiKeyResponse):
     """Returned only on creation — contains the raw key (shown once)."""
+
     key: str
 
 
 # ── User ──────────────────────────────────────────────────────────────────────
+
 
 class OrgAssignment(BaseModel):
     tenant_id: uuid.UUID
@@ -177,6 +184,7 @@ class UserUpdate(BaseModel):
 
 # ── TenantUser / WorkspaceUser ─────────────────────────────────────────────────
 
+
 class TenantMemberResponse(BaseModel):
     user_id: uuid.UUID
     tenant_id: uuid.UUID
@@ -230,6 +238,7 @@ class OrgRoleUpdateRequest(BaseModel):
 
 # ── Org Profile ───────────────────────────────────────────────────────────────
 
+
 class OrgProfileResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -254,6 +263,7 @@ class AddWorkspaceMemberRequest(BaseModel):
 
 # ── Status updates ─────────────────────────────────────────────────────────────
 
+
 class TenantStatusUpdate(BaseModel):
     status: TenantStatusEnum
     reason: str | None = None
@@ -270,6 +280,7 @@ class MemberStatusUpdate(BaseModel):
 
 
 # ── Workspace (rich / platform) ───────────────────────────────────────────────
+
 
 class WorkspaceDetailResponse(BaseModel):
     id: uuid.UUID
@@ -289,10 +300,12 @@ class WorkspaceMemberCreate(BaseModel):
 
 class WorkspaceOrgAssign(BaseModel):
     """Move workspace to a different org (or same — idempotent)."""
+
     tenant_id: uuid.UUID
 
 
 # ── Audit log ──────────────────────────────────────────────────────────────────
+
 
 class AuditEventResponse(BaseModel):
     id: uuid.UUID

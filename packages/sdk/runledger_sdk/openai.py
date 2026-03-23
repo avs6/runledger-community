@@ -136,7 +136,9 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
                 _build_span_end(run_id, span_id, "succeeded", messages, result)
             )
             transport.enqueue(
-                _build_provider_call(run_id, span_id, model, result, latency_ms, provider=provider)
+                _build_provider_call(
+                    run_id, span_id, model, result, latency_ms, provider=provider
+                )
             )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
@@ -151,7 +153,9 @@ def _patch_sync_client(openai: Any, transport: SyncTransport) -> None:
                 _build_span_end(run_id, span_id, "failed", messages, None)
             )
             transport.enqueue(
-                _build_provider_call_error(run_id, span_id, model, exc, latency_ms, provider=provider)
+                _build_provider_call_error(
+                    run_id, span_id, model, exc, latency_ms, provider=provider
+                )
             )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
@@ -197,7 +201,9 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
                 _build_span_end(run_id, span_id, "succeeded", messages, result)
             )
             transport.enqueue(
-                _build_provider_call(run_id, span_id, model, result, latency_ms, provider=provider)
+                _build_provider_call(
+                    run_id, span_id, model, result, latency_ms, provider=provider
+                )
             )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
@@ -210,7 +216,9 @@ def _patch_async_client(openai: Any, transport: SyncTransport) -> None:
                 _build_span_end(run_id, span_id, "failed", messages, None)
             )
             transport.enqueue(
-                _build_provider_call_error(run_id, span_id, model, exc, latency_ms, provider=provider)
+                _build_provider_call_error(
+                    run_id, span_id, model, exc, latency_ms, provider=provider
+                )
             )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
@@ -348,6 +356,7 @@ def _detect_provider(base_url: str) -> str:
     # Derive from hostname for custom / self-hosted endpoints
     try:
         from urllib.parse import urlparse  # noqa: PLC0415
+
         host = urlparse(base_url).hostname or "unknown"
         parts = host.split(".")
         return parts[-2] if len(parts) >= 2 else host
@@ -384,7 +393,9 @@ def _build_provider_call(
         completion_tokens = getattr(usage, "completion_tokens", None)
         prompt_details = getattr(usage, "prompt_tokens_details", None)
         completion_details = getattr(usage, "completion_tokens_details", None)
-        cached = getattr(prompt_details, "cached_tokens", None) if prompt_details else None
+        cached = (
+            getattr(prompt_details, "cached_tokens", None) if prompt_details else None
+        )
 
         if prompt_tokens is not None:
             event["input_tokens"] = prompt_tokens
@@ -482,7 +493,9 @@ def _check_response_tool_calls(result: Any, transport: SyncTransport) -> None:
                 func = getattr(tc, "function", None)
                 tool_name = getattr(func, "name", None) if func else None
                 if tool_name:
-                    check_tool_sync(tool_name, transport)  # raises ToolBlockedError on block
+                    check_tool_sync(
+                        tool_name, transport
+                    )  # raises ToolBlockedError on block
 
 
 # ── Budget pre-call check ──────────────────────────────────────────────────────

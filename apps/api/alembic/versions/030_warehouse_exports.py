@@ -4,6 +4,7 @@ Revision ID: 030
 Revises: 029
 Create Date: 2026-03-23
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -69,7 +70,7 @@ def upgrade() -> None:
         sa.Column("export_date", sa.Date, nullable=False),
         sa.Column("status", sa.String(20), server_default="pending", nullable=False),
         sa.Column("resources", JSONB, nullable=False),
-        sa.Column("file_keys", JSONB, nullable=True),   # resource -> s3 URI
+        sa.Column("file_keys", JSONB, nullable=True),  # resource -> s3 URI
         sa.Column("row_counts", JSONB, nullable=True),  # resource -> int
         sa.Column("error", sa.Text, nullable=True),
         sa.Column("started_at", sa.TIMESTAMP(timezone=True), nullable=True),

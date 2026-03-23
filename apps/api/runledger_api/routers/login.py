@@ -61,7 +61,11 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if user is None or user.password_hash is None or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode()):
+    if (
+        user is None
+        or user.password_hash is None
+        or not bcrypt.checkpw(body.password.encode(), user.password_hash.encode())
+    ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
     if not user.is_active:
@@ -193,7 +197,9 @@ async def switch_workspace(
 
     # All workspaces this user can access
     wu_all = await db.execute(
-        select(WorkspaceUser).where(WorkspaceUser.user_id == user.id).order_by(WorkspaceUser.created_at)
+        select(WorkspaceUser)
+        .where(WorkspaceUser.user_id == user.id)
+        .order_by(WorkspaceUser.created_at)
     )
     workspace_ids = [str(wu.workspace_id) for wu in wu_all.scalars().all()]
 
@@ -249,13 +255,15 @@ def _get_firebase_app() -> object:
     try:
         _firebase_app = firebase_admin.get_app()
     except ValueError:
-        cred = credentials.Certificate({
-            "type": "service_account",
-            "project_id": settings.firebase_project_id,
-            "client_email": settings.firebase_client_email,
-            "private_key": settings.firebase_private_key.replace("\\n", "\n"),
-            "token_uri": "https://oauth2.googleapis.com/token",
-        })
+        cred = credentials.Certificate(
+            {
+                "type": "service_account",
+                "project_id": settings.firebase_project_id,
+                "client_email": settings.firebase_client_email,
+                "private_key": settings.firebase_private_key.replace("\\n", "\n"),
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        )
         _firebase_app = firebase_admin.initialize_app(cred)
 
     return _firebase_app
@@ -280,6 +288,7 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
 
     try:
         from firebase_admin import auth as fb_auth  # noqa: PLC0415
+
         decoded = fb_auth.verify_id_token(body.id_token)
     except Exception as exc:
         log.warning("firebase_token_invalid", error=str(exc))
@@ -326,22 +335,31 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
         db.add(workspace)
         await db.flush()
 
-        db.add(WorkspaceUser(workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin))
+        db.add(
+            WorkspaceUser(
+                workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin
+            )
+        )
 
         # Free-tier subscription + quota rows (mirror signup flow)
         from runledger_api.models.saas import PLAN_QUOTAS, Subscription, UsageQuota  # noqa: PLC0415
-        db.add(Subscription(
-            tenant_id=tenant.id,
-            plan="free",
-            status="active",
-            current_period_start=datetime.now(UTC),
-        ))
-        db.add(UsageQuota(
-            tenant_id=tenant.id,
-            events_limit=PLAN_QUOTAS["free"],
-            events_used=0,
-            period_start=datetime.now(UTC),
-        ))
+
+        db.add(
+            Subscription(
+                tenant_id=tenant.id,
+                plan="free",
+                status="active",
+                current_period_start=datetime.now(UTC),
+            )
+        )
+        db.add(
+            UsageQuota(
+                tenant_id=tenant.id,
+                events_limit=PLAN_QUOTAS["free"],
+                events_used=0,
+                period_start=datetime.now(UTC),
+            )
+        )
         await db.flush()
         log.info("firebase_signup", email=email, uid=uid, tenant_id=str(tenant.id))
     else:
@@ -382,16 +400,18 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
     user.last_login_at = datetime.now(UTC)
 
     raw_key, key_hash, key_prefix = generate_api_key(EnvironmentEnum.dev)
-    db.add(ApiKey(
-        workspace_id=workspace.id,
-        key_hash=key_hash,
-        key_prefix=key_prefix,
-        name="dashboard-session",
-        scopes=[],
-        expires_at=datetime.now(UTC) + _SESSION_EXPIRY,
-        is_session=True,
-        created_by=user.email,
-    ))
+    db.add(
+        ApiKey(
+            workspace_id=workspace.id,
+            key_hash=key_hash,
+            key_prefix=key_prefix,
+            name="dashboard-session",
+            scopes=[],
+            expires_at=datetime.now(UTC) + _SESSION_EXPIRY,
+            is_session=True,
+            created_by=user.email,
+        )
+    )
     await db.commit()
 
     log.info("firebase_login", user_id=str(user.id), workspace_id=str(workspace.id))

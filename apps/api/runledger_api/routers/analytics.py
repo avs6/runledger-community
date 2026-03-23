@@ -1194,9 +1194,7 @@ async def score_regressions(
     prior_result = await db.execute(_score_window_stmt(prior_from, prior_to))
     prior_rows = prior_result.all()
 
-    prior_map: dict[str, Decimal] = {
-        row.name: Decimal(str(row.avg_value)) for row in prior_rows
-    }
+    prior_map: dict[str, Decimal] = {row.name: Decimal(str(row.avg_value)) for row in prior_rows}
 
     regressions: list[ScoreRegressionItem] = []
     for row in curr_rows:
@@ -1223,6 +1221,7 @@ async def score_regressions(
 
 
 # ── Cost-quality analytics ─────────────────────────────────────────────────────
+
 
 @router.get("/scores/cost-quality", response_model=CostQualityResponse)
 async def cost_quality(
@@ -1295,7 +1294,9 @@ async def cost_quality(
         CostQualityPoint(
             model=row.model or "unknown",
             avg_cost_usd=str(round(Decimal(str(row.avg_cost_usd or 0)), 6)),
-            avg_score=str(round(Decimal(str(row.avg_score)), 4)) if row.avg_score is not None else None,
+            avg_score=str(round(Decimal(str(row.avg_score)), 4))
+            if row.avg_score is not None
+            else None,
             run_count=row.run_count,
         )
         for row in rows

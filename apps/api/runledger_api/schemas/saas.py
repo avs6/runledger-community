@@ -9,6 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 # ── Signup ────────────────────────────────────────────────────────────────────
 
+
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
@@ -26,6 +27,7 @@ class SignupResponse(BaseModel):
 
 # ── Subscription ──────────────────────────────────────────────────────────────
 
+
 class SubscriptionResponse(BaseModel):
     tenant_id: uuid.UUID
     plan: str
@@ -42,6 +44,7 @@ class SubscriptionResponse(BaseModel):
 
 
 # ── Stripe checkout ───────────────────────────────────────────────────────────
+
 
 class CheckoutRequest(BaseModel):
     plan: str  # "starter" | "growth" | "enterprise"

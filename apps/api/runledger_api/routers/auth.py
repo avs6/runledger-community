@@ -96,7 +96,11 @@ async def create_tenant(body: TenantCreate, db: DbDep) -> dict[str, Any]:
     db.add(workspace)
     await db.flush()
 
-    db.add(WorkspaceUser(workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin))
+    db.add(
+        WorkspaceUser(
+            workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin
+        )
+    )
     await db.commit()
     await db.refresh(tenant)
 
@@ -119,13 +123,26 @@ async def list_tenants(db: DbDep) -> list[dict[str, Any]]:
     tenants = list(result.scalars().all())
     out = []
     for t in tenants:
-        ws = (await db.execute(select(Workspace).where(Workspace.tenant_id == t.id))).scalars().all()
-        tu = (await db.execute(select(TenantUser).where(TenantUser.tenant_id == t.id))).scalars().all()
-        out.append({
-            "id": t.id, "name": t.name, "plan": t.plan,
-            "is_default": t.is_default, "owner_user_id": t.owner_user_id,
-            "created_at": t.created_at, "workspace_count": len(ws), "member_count": len(tu),
-        })
+        ws = (
+            (await db.execute(select(Workspace).where(Workspace.tenant_id == t.id))).scalars().all()
+        )
+        tu = (
+            (await db.execute(select(TenantUser).where(TenantUser.tenant_id == t.id)))
+            .scalars()
+            .all()
+        )
+        out.append(
+            {
+                "id": t.id,
+                "name": t.name,
+                "plan": t.plan,
+                "is_default": t.is_default,
+                "owner_user_id": t.owner_user_id,
+                "created_at": t.created_at,
+                "workspace_count": len(ws),
+                "member_count": len(tu),
+            }
+        )
     return out
 
 
@@ -167,7 +184,9 @@ async def list_workspaces(tenant_id: uuid.UUID, db: DbDep) -> list[Workspace]:
 # ── Applications ──────────────────────────────────────────────────────────────
 
 
-@router.post("/applications", status_code=status.HTTP_201_CREATED, response_model=ApplicationResponse)
+@router.post(
+    "/applications", status_code=status.HTTP_201_CREATED, response_model=ApplicationResponse
+)
 async def create_application(body: ApplicationCreate, db: DbDep) -> Application:
     workspace = await db.get(Workspace, body.workspace_id)
     if workspace is None:
@@ -183,33 +202,54 @@ async def create_application(body: ApplicationCreate, db: DbDep) -> Application:
 # ── API Keys ──────────────────────────────────────────────────────────────────
 
 
-@router.post("/workspaces/{workspace_id}/api-keys", status_code=status.HTTP_201_CREATED, response_model=ApiKeyCreateResponse)
+@router.post(
+    "/workspaces/{workspace_id}/api-keys",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ApiKeyCreateResponse,
+)
 async def create_api_key(workspace_id: uuid.UUID, body: ApiKeyCreate, db: DbDep) -> dict[str, Any]:
     workspace = await db.get(Workspace, workspace_id)
     if workspace is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
     raw_key, key_hash, key_prefix = generate_api_key(body.environment)
-    api_key = ApiKey(workspace_id=workspace_id, key_hash=key_hash, key_prefix=key_prefix,
-                     name=body.name, scopes=body.scopes)
+    api_key = ApiKey(
+        workspace_id=workspace_id,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        name=body.name,
+        scopes=body.scopes,
+    )
     db.add(api_key)
     await db.flush()
     await db.commit()
     await db.refresh(api_key)
     await emit_audit_event(
-        db, workspace_id, "api_key.created",
-        target_type="api_key", target_id=str(api_key.id),
+        db,
+        workspace_id,
+        "api_key.created",
+        target_type="api_key",
+        target_id=str(api_key.id),
         after={"name": api_key.name, "key_prefix": api_key.key_prefix},
     )
     await db.commit()
-    return {"id": api_key.id, "workspace_id": api_key.workspace_id, "key_prefix": api_key.key_prefix,
-            "name": api_key.name, "scopes": api_key.scopes, "created_at": api_key.created_at,
-            "created_by": api_key.created_by, "is_session": api_key.is_session, "key": raw_key}
+    return {
+        "id": api_key.id,
+        "workspace_id": api_key.workspace_id,
+        "key_prefix": api_key.key_prefix,
+        "name": api_key.name,
+        "scopes": api_key.scopes,
+        "created_at": api_key.created_at,
+        "created_by": api_key.created_by,
+        "is_session": api_key.is_session,
+        "key": raw_key,
+    }
 
 
 @router.get("/workspaces/{workspace_id}/api-keys", response_model=list[ApiKeyResponse])
 async def list_api_keys(workspace_id: uuid.UUID, db: DbDep) -> list[ApiKey]:
     result = await db.execute(
-        select(ApiKey).where(ApiKey.workspace_id == workspace_id, ApiKey.revoked_at.is_(None))
+        select(ApiKey)
+        .where(ApiKey.workspace_id == workspace_id, ApiKey.revoked_at.is_(None))
         .order_by(ApiKey.created_at.desc())
     )
     return list(result.scalars().all())
@@ -222,8 +262,11 @@ async def revoke_api_key(key_id: uuid.UUID, db: DbDep) -> None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
     api_key.revoked_at = datetime.now(UTC)
     await emit_audit_event(
-        db, api_key.workspace_id, "api_key.revoked",
-        target_type="api_key", target_id=str(api_key.id),
+        db,
+        api_key.workspace_id,
+        "api_key.revoked",
+        target_type="api_key",
+        target_id=str(api_key.id),
         before={"name": api_key.name, "key_prefix": api_key.key_prefix},
     )
     await db.commit()
@@ -307,17 +350,23 @@ async def bootstrap_platform_admin(body: BootstrapRequest, db: DbDep) -> Bootstr
         )
     )
     if wu_result.scalar_one_or_none() is None:
-        db.add(WorkspaceUser(workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin))
+        db.add(
+            WorkspaceUser(
+                workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin
+            )
+        )
 
     # Generate API key
     raw_key, key_hash, key_prefix = _gen_key(EnvironmentEnum.dev)
-    db.add(ApiKey(
-        workspace_id=workspace.id,
-        key_hash=key_hash,
-        key_prefix=key_prefix,
-        name="bootstrap-key",
-        scopes=[],
-    ))
+    db.add(
+        ApiKey(
+            workspace_id=workspace.id,
+            key_hash=key_hash,
+            key_prefix=key_prefix,
+            name="bootstrap-key",
+            scopes=[],
+        )
+    )
     await db.commit()
 
     log.info("bootstrap_complete", email=body.email, tenant_id=str(tenant.id))
@@ -333,13 +382,19 @@ async def bootstrap_platform_admin(body: BootstrapRequest, db: DbDep) -> Bootstr
 # ── Global Pricing ────────────────────────────────────────────────────────────
 
 
-@router.post("/global-pricing", status_code=status.HTTP_201_CREATED, response_model=ProviderPricingResponse)
+@router.post(
+    "/global-pricing", status_code=status.HTTP_201_CREATED, response_model=ProviderPricingResponse
+)
 async def create_global_pricing(body: ProviderPricingCreate, db: DbDep) -> ProviderPricing:
-    pricing = ProviderPricing(workspace_id=None, provider=body.provider, model=body.model,
-                               input_cost_per_1m=body.input_cost_per_1m,
-                               output_cost_per_1m=body.output_cost_per_1m,
-                               cached_input_cost_per_1m=body.cached_input_cost_per_1m,
-                               effective_from=body.effective_from or datetime.now(UTC))
+    pricing = ProviderPricing(
+        workspace_id=None,
+        provider=body.provider,
+        model=body.model,
+        input_cost_per_1m=body.input_cost_per_1m,
+        output_cost_per_1m=body.output_cost_per_1m,
+        cached_input_cost_per_1m=body.cached_input_cost_per_1m,
+        effective_from=body.effective_from or datetime.now(UTC),
+    )
     db.add(pricing)
     await db.flush()
     await db.commit()
@@ -348,12 +403,16 @@ async def create_global_pricing(body: ProviderPricingCreate, db: DbDep) -> Provi
 
 
 @router.put("/global-pricing/{pricing_id}", response_model=ProviderPricingResponse)
-async def update_global_pricing(pricing_id: uuid.UUID, body: ProviderPricingUpdate, db: DbDep) -> ProviderPricing:
+async def update_global_pricing(
+    pricing_id: uuid.UUID, body: ProviderPricingUpdate, db: DbDep
+) -> ProviderPricing:
     pricing = await db.get(ProviderPricing, pricing_id)
     if pricing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing profile not found")
     if pricing.workspace_id is not None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Use workspace API for workspace-scoped pricing")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Use workspace API for workspace-scoped pricing"
+        )
     if body.input_cost_per_1m is not None:
         pricing.input_cost_per_1m = body.input_cost_per_1m
     if body.output_cost_per_1m is not None:
@@ -371,6 +430,8 @@ async def delete_global_pricing(pricing_id: uuid.UUID, db: DbDep) -> None:
     if pricing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing profile not found")
     if pricing.workspace_id is not None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Use workspace API for workspace-scoped pricing")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Use workspace API for workspace-scoped pricing"
+        )
     await db.delete(pricing)
     await db.commit()

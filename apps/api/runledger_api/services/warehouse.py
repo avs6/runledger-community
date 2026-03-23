@@ -7,6 +7,7 @@ Handles:
   - Uploading to S3-compatible object storage via boto3
   - Connection testing
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +28,7 @@ log = structlog.get_logger()
 
 # ── JSON serializer ──────────────────────────────────────────────────────────
 
+
 class _Encoder(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         if isinstance(obj, uuid.UUID):
@@ -41,11 +43,13 @@ class _Encoder(json.JSONEncoder):
 def _orm_to_dict(obj: Any) -> dict[str, Any]:
     """Convert an ORM row to a plain dict using mapper attribute names."""
     from sqlalchemy import inspect as sa_inspect
+
     mapper = sa_inspect(type(obj)).mapper
     return {attr.key: getattr(obj, attr.key) for attr in mapper.column_attrs}
 
 
 # ── Serializers ───────────────────────────────────────────────────────────────
+
 
 def _to_jsonl(rows: list[Any]) -> bytes:
     if not rows:
@@ -71,15 +75,20 @@ def _to_parquet(rows: list[Any]) -> bytes:
     normalized: list[dict[str, Any]] = []
     for row in rows:
         d = _orm_to_dict(row)
-        normalized.append({
-            k: (
-                str(v) if isinstance(v, uuid.UUID)
-                else float(v) if isinstance(v, Decimal)
-                else v.isoformat() if isinstance(v, (datetime, date))
-                else v
-            )
-            for k, v in d.items()
-        })
+        normalized.append(
+            {
+                k: (
+                    str(v)
+                    if isinstance(v, uuid.UUID)
+                    else float(v)
+                    if isinstance(v, Decimal)
+                    else v.isoformat()
+                    if isinstance(v, (datetime, date))
+                    else v
+                )
+                for k, v in d.items()
+            }
+        )
 
     table = pa.Table.from_pylist(normalized)
     pq.write_table(table, buf, compression="snappy")
@@ -88,10 +97,12 @@ def _to_parquet(rows: list[Any]) -> bytes:
 
 # ── DB queries ────────────────────────────────────────────────────────────────
 
+
 async def _query_runs(
     db: AsyncSession, workspace_id: uuid.UUID, start: datetime, end: datetime
 ) -> list[Any]:
     from runledger_api.models.events import AgentRun
+
     result = await db.execute(
         select(AgentRun).where(
             AgentRun.workspace_id == workspace_id,
@@ -106,9 +117,8 @@ async def _query_spans(
     db: AsyncSession, workspace_id: uuid.UUID, start: datetime, end: datetime
 ) -> list[Any]:
     from runledger_api.models.events import AgentRun, Span
-    run_subq = (
-        select(AgentRun.id).where(AgentRun.workspace_id == workspace_id).scalar_subquery()
-    )
+
+    run_subq = select(AgentRun.id).where(AgentRun.workspace_id == workspace_id).scalar_subquery()
     result = await db.execute(
         select(Span).where(
             Span.run_id.in_(run_subq),
@@ -123,6 +133,7 @@ async def _query_provider_calls(
     db: AsyncSession, workspace_id: uuid.UUID, start: datetime, end: datetime
 ) -> list[Any]:
     from runledger_api.models.events import ProviderCall
+
     result = await db.execute(
         select(ProviderCall).where(
             ProviderCall.workspace_id == workspace_id,
@@ -134,6 +145,7 @@ async def _query_provider_calls(
 
 
 # ── S3 helpers ────────────────────────────────────────────────────────────────
+
 
 def _make_s3_client(destination: Any) -> Any:
     kwargs: dict[str, Any] = {
@@ -168,11 +180,16 @@ def _test_connection_sync(destination: Any) -> None:
 def _file_key(prefix: str, resource: str, export_date: date, fmt: str) -> str:
     """Build Hive-style S3 key: {prefix}/{resource}/date={YYYY-MM-DD}/data.{ext}"""
     ext = "parquet" if fmt == "parquet" else "jsonl"
-    parts = [p for p in [prefix.strip("/"), resource, f"date={export_date.isoformat()}", f"data.{ext}"] if p]
+    parts = [
+        p
+        for p in [prefix.strip("/"), resource, f"date={export_date.isoformat()}", f"data.{ext}"]
+        if p
+    ]
     return "/".join(parts)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 async def test_destination_connection(destination: Any) -> None:
     """
@@ -197,9 +214,7 @@ async def export_workspace_data(
     start_dt = datetime(export_date.year, export_date.month, export_date.day, tzinfo=UTC)
     end_dt = start_dt + timedelta(days=1)
     fmt = destination.format
-    content_type = (
-        "application/octet-stream" if fmt == "parquet" else "application/x-ndjson"
-    )
+    content_type = "application/octet-stream" if fmt == "parquet" else "application/x-ndjson"
 
     results: dict[str, tuple[str, int]] = {}
     ws_id = destination.workspace_id

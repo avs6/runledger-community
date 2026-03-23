@@ -47,9 +47,7 @@ class Approval(Base):
     )
     requested_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     decided_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    decided_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    decided_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     decision_note: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

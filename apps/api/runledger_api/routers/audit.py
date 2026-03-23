@@ -60,9 +60,7 @@ async def list_audit_events(
     if target_id:
         base = base.where(AuditEvent.target_id == target_id)
 
-    total_result = await db.execute(
-        select(func.count()).select_from(base.subquery())
-    )
+    total_result = await db.execute(select(func.count()).select_from(base.subquery()))
     total = total_result.scalar() or 0
 
     result = await db.execute(

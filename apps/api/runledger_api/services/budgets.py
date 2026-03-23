@@ -156,16 +156,8 @@ def _matching_budgets(
         scope_type = b["scope_type"]
         if (
             (scope_type == "workspace")
-            or (
-                scope_type == "end_user"
-                and end_user_id
-                and b["scope_id"] == end_user_id
-            )
-            or (
-                scope_type == "feature_tag"
-                and feature_tag
-                and b["scope_id"] == feature_tag
-            )
+            or (scope_type == "end_user" and end_user_id and b["scope_id"] == end_user_id)
+            or (scope_type == "feature_tag" and feature_tag and b["scope_id"] == feature_tag)
         ):
             matched.append(b)
     return matched

@@ -72,6 +72,7 @@ def _default_to() -> datetime:
 
 # ── Submit outcome ─────────────────────────────────────────────────────────────
 
+
 @router.post(
     "",
     response_model=OutcomeResponse,
@@ -108,6 +109,7 @@ async def create_outcome(
 
 
 # ── List outcomes ──────────────────────────────────────────────────────────────
+
 
 @router.get("", response_model=OutcomeList, dependencies=[Depends(analytics_rate_limit)])
 async def list_outcomes(
@@ -155,6 +157,7 @@ async def list_outcomes(
 
 # ── Summary: cost-per-outcome + ROI ───────────────────────────────────────────
 
+
 @router.get("/summary", response_model=OutcomeSummary, dependencies=[Depends(analytics_rate_limit)])
 async def outcome_summary(
     workspace: WorkspaceDep,
@@ -176,7 +179,9 @@ async def outcome_summary(
         select(
             Outcome.outcome_type,
             func.count(Outcome.id).label("count"),
-            func.sum(func.cast(Outcome.success, type_=Outcome.success.type)).label("success_count_raw"),
+            func.sum(func.cast(Outcome.success, type_=Outcome.success.type)).label(
+                "success_count_raw"
+            ),
             func.coalesce(func.sum(Outcome.value_usd), Decimal("0")).label("total_value"),
         )
         .where(
@@ -207,7 +212,9 @@ async def outcome_summary(
         )
         .group_by(Outcome.outcome_type)
     )
-    success_map: dict[str, int] = {r.outcome_type: int(r.success_count) for r in success_result.all()}
+    success_map: dict[str, int] = {
+        r.outcome_type: int(r.success_count) for r in success_result.all()
+    }
 
     # Step 3: total cost per type via run_id join
     cost_sq = (
@@ -225,7 +232,9 @@ async def outcome_summary(
         .group_by(Outcome.outcome_type)
     )
     cost_result = await db.execute(cost_sq)
-    cost_map: dict[str, Decimal] = {r.outcome_type: Decimal(str(r.total_cost)) for r in cost_result.all()}
+    cost_map: dict[str, Decimal] = {
+        r.outcome_type: Decimal(str(r.total_cost)) for r in cost_result.all()
+    }
 
     items: list[OutcomeSummaryItem] = []
     for row in agg_rows:
@@ -236,25 +245,30 @@ async def outcome_summary(
         sr = Decimal(str(round(sc / count, 4))) if count else Decimal("0")
         cps = Decimal(str(round(float(total_cost) / sc, 6))) if sc > 0 else None
         roi = (
-            Decimal(str(round((float(total_value) - float(total_cost)) / float(total_cost) * 100, 4)))
+            Decimal(
+                str(round((float(total_value) - float(total_cost)) / float(total_cost) * 100, 4))
+            )
             if total_cost > 0 and total_value > 0
             else None
         )
-        items.append(OutcomeSummaryItem(
-            outcome_type=row.outcome_type,
-            count=count,
-            success_count=sc,
-            success_rate=sr,
-            total_cost_usd=total_cost,
-            cost_per_success_usd=cps,
-            total_value_usd=total_value if total_value > 0 else None,
-            roi=roi,
-        ))
+        items.append(
+            OutcomeSummaryItem(
+                outcome_type=row.outcome_type,
+                count=count,
+                success_count=sc,
+                success_rate=sr,
+                total_cost_usd=total_cost,
+                cost_per_success_usd=cps,
+                total_value_usd=total_value if total_value > 0 else None,
+                roi=roi,
+            )
+        )
 
     return OutcomeSummary(items=items, window_days=window_days)
 
 
 # ── Trend: daily cost-per-success + success rate ──────────────────────────────
+
 
 @router.get("/trend", response_model=OutcomeTrend, dependencies=[Depends(analytics_rate_limit)])
 async def outcome_trend(
@@ -298,7 +312,10 @@ async def outcome_trend(
 
 # ── Workflow ROI ───────────────────────────────────────────────────────────────
 
-@router.get("/workflows", response_model=WorkflowROIList, dependencies=[Depends(analytics_rate_limit)])
+
+@router.get(
+    "/workflows", response_model=WorkflowROIList, dependencies=[Depends(analytics_rate_limit)]
+)
 async def workflow_roi(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -357,8 +374,7 @@ async def workflow_roi(
     )
     success_result = await db.execute(success_stmt)
     success_map: dict[tuple, int] = {
-        (r.feature_tag, r.outcome_type): int(r.success_count)
-        for r in success_result.all()
+        (r.feature_tag, r.outcome_type): int(r.success_count) for r in success_result.all()
     }
 
     # Cost per (feature_tag, outcome_type)
@@ -380,8 +396,7 @@ async def workflow_roi(
     )
     cost_result = await db.execute(cost_stmt)
     cost_map: dict[tuple, Decimal] = {
-        (r.feature_tag, r.outcome_type): Decimal(str(r.total_cost))
-        for r in cost_result.all()
+        (r.feature_tag, r.outcome_type): Decimal(str(r.total_cost)) for r in cost_result.all()
     }
 
     items: list[WorkflowROIItem] = []
@@ -397,17 +412,19 @@ async def workflow_roi(
             if tc > 0 and tv > 0
             else None
         )
-        items.append(WorkflowROIItem(
-            feature_tag=row.feature_tag,
-            outcome_type=row.outcome_type,
-            run_count=count,
-            success_count=sc,
-            success_rate=sr,
-            total_cost_usd=tc,
-            total_value_usd=tv if tv > 0 else None,
-            roi=roi,
-            cost_per_success_usd=cps,
-        ))
+        items.append(
+            WorkflowROIItem(
+                feature_tag=row.feature_tag,
+                outcome_type=row.outcome_type,
+                run_count=count,
+                success_count=sc,
+                success_rate=sr,
+                total_cost_usd=tc,
+                total_value_usd=tv if tv > 0 else None,
+                roi=roi,
+                cost_per_success_usd=cps,
+            )
+        )
 
     # Sort by ROI desc, then by run_count desc
     items.sort(key=lambda x: (float(x.roi or -9999), x.run_count), reverse=True)
@@ -415,6 +432,7 @@ async def workflow_roi(
 
 
 # ── Quality ↔ outcome correlation ─────────────────────────────────────────────
+
 
 @router.get(
     "/quality-correlation",
@@ -480,7 +498,9 @@ async def quality_outcome_correlation(
         .group_by(Outcome.outcome_type)
     )
     score_map: dict[str, Decimal | None] = {
-        r.outcome_type: Decimal(str(round(float(r.avg_score), 4))) if r.avg_score is not None else None
+        r.outcome_type: Decimal(str(round(float(r.avg_score), 4)))
+        if r.avg_score is not None
+        else None
         for r in score_result.all()
     }
 
@@ -488,12 +508,14 @@ async def quality_outcome_correlation(
     for outcome_type, total in total_map.items():
         sc = success_map.get(outcome_type, 0)
         sr = Decimal(str(round(sc / total, 4))) if total else Decimal("0")
-        correlations.append(QualityOutcomeCorrelation(
-            outcome_type=outcome_type,
-            avg_score=score_map.get(outcome_type),
-            success_rate=sr,
-            sample_count=total,
-        ))
+        correlations.append(
+            QualityOutcomeCorrelation(
+                outcome_type=outcome_type,
+                avg_score=score_map.get(outcome_type),
+                success_rate=sr,
+                sample_count=total,
+            )
+        )
 
     correlations.sort(key=lambda x: x.sample_count, reverse=True)
     return correlations

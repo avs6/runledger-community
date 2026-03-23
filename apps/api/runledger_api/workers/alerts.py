@@ -49,9 +49,7 @@ async def _run_evaluation() -> dict[str, int]:
 
     async with factory() as session:
         # Load all active rules
-        rules_result = await session.execute(
-            select(AlertRule).where(AlertRule.is_active.is_(True))
-        )
+        rules_result = await session.execute(select(AlertRule).where(AlertRule.is_active.is_(True)))
         rules: list[AlertRule] = list(rules_result.scalars().all())
 
         now = datetime.now(UTC)
@@ -77,9 +75,8 @@ async def _run_evaluation() -> dict[str, int]:
                 continue
 
             # Check threshold
-            threshold_crossed = (
-                (rule.operator == "gt" and metric_value > rule.threshold)
-                or (rule.operator == "lt" and metric_value < rule.threshold)
+            threshold_crossed = (rule.operator == "gt" and metric_value > rule.threshold) or (
+                rule.operator == "lt" and metric_value < rule.threshold
             )
             if not threshold_crossed:
                 continue
@@ -218,9 +215,7 @@ async def _send_alert_notification(
 
     operator_label = ">" if rule.operator == "gt" else "<"
     window_label = (
-        f"{rule.window_minutes}m"
-        if rule.window_minutes < 60
-        else f"{rule.window_minutes // 60}h"
+        f"{rule.window_minutes}m" if rule.window_minutes < 60 else f"{rule.window_minutes // 60}h"
     )
 
     fallback = (

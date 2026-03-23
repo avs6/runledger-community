@@ -75,6 +75,7 @@ def uninstrument_mistral() -> None:
         return
     try:
         import mistralai  # noqa: PLC0415
+
         _restore_method(mistralai, sync=True)
         _restore_method(mistralai, sync=False)
     except ImportError:
@@ -108,6 +109,7 @@ def _get_chat_cls(mistralai: Any, sync: bool) -> Any:
     ]
     candidates = candidates_sync if sync else candidates_async
     import importlib  # noqa: PLC0415
+
     for mod_path, cls_name in candidates:
         try:
             mod = importlib.import_module(mod_path)
@@ -125,7 +127,9 @@ def _get_chat_cls(mistralai: Any, sync: bool) -> Any:
 def _patch_sync(mistralai: Any, transport: SyncTransport) -> None:
     chat_cls = _get_chat_cls(mistralai, sync=True)
     if chat_cls is None:
-        log.warning("runledger_mistral_sync_patch_skipped", reason="Chat class not found")
+        log.warning(
+            "runledger_mistral_sync_patch_skipped", reason="Chat class not found"
+        )
         return
 
     original = chat_cls.complete
@@ -149,13 +153,17 @@ def _patch_sync(mistralai: Any, transport: SyncTransport) -> None:
             result = original(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "succeeded", result))
-            transport.enqueue(_build_provider_call(run_id, span_id, str(model), result, latency_ms))
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, str(model), result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "failed", None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, str(model), exc, latency_ms))
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, str(model), exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 
@@ -168,7 +176,9 @@ def _patch_sync(mistralai: Any, transport: SyncTransport) -> None:
 def _patch_async(mistralai: Any, transport: SyncTransport) -> None:
     chat_cls = _get_chat_cls(mistralai, sync=False)
     if chat_cls is None:
-        log.warning("runledger_mistral_async_patch_skipped", reason="AsyncChat class not found")
+        log.warning(
+            "runledger_mistral_async_patch_skipped", reason="AsyncChat class not found"
+        )
         return
 
     original_async = chat_cls.complete
@@ -192,13 +202,17 @@ def _patch_async(mistralai: Any, transport: SyncTransport) -> None:
             result = await original_async(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "succeeded", result))
-            transport.enqueue(_build_provider_call(run_id, span_id, str(model), result, latency_ms))
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, str(model), result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "failed", None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, str(model), exc, latency_ms))
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, str(model), exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 
@@ -226,21 +240,31 @@ def _extract_usage(result: Any) -> tuple[int | None, int | None]:
     usage = getattr(result, "usage", None)
     if usage is None:
         return None, None
-    return getattr(usage, "prompt_tokens", None), getattr(usage, "completion_tokens", None)
+    return getattr(usage, "prompt_tokens", None), getattr(
+        usage, "completion_tokens", None
+    )
 
 
 # ── Event builders ─────────────────────────────────────────────────────────────
 
 
-def _build_run_start(run_id: str, ctx: dict[str, str | None], started_at: datetime) -> dict[str, Any]:
-    event: dict[str, Any] = {"event_type": "run_start", "run_id": run_id, "started_at": started_at.isoformat()}
+def _build_run_start(
+    run_id: str, ctx: dict[str, str | None], started_at: datetime
+) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "event_type": "run_start",
+        "run_id": run_id,
+        "started_at": started_at.isoformat(),
+    }
     for key in ("end_user_id", "session_id", "feature_tag", "deployment_version"):
         if ctx.get(key):
             event[key] = ctx[key]
     return event
 
 
-def _build_span_start(run_id: str, span_id: str, model: str, started_at: datetime) -> dict[str, Any]:
+def _build_span_start(
+    run_id: str, span_id: str, model: str, started_at: datetime
+) -> dict[str, Any]:
     return {
         "event_type": "span_start",
         "run_id": run_id,
@@ -251,7 +275,9 @@ def _build_span_start(run_id: str, span_id: str, model: str, started_at: datetim
     }
 
 
-def _build_span_end(run_id: str, span_id: str, status: str, result: Any) -> dict[str, Any]:
+def _build_span_end(
+    run_id: str, span_id: str, status: str, result: Any
+) -> dict[str, Any]:
     event: dict[str, Any] = {
         "event_type": "span_end",
         "run_id": run_id,
@@ -266,7 +292,9 @@ def _build_span_end(run_id: str, span_id: str, status: str, result: Any) -> dict
     return event
 
 
-def _build_provider_call(run_id: str, span_id: str, model: str, result: Any, latency_ms: int) -> dict[str, Any]:
+def _build_provider_call(
+    run_id: str, span_id: str, model: str, result: Any, latency_ms: int
+) -> dict[str, Any]:
     event: dict[str, Any] = {
         "event_type": "provider_call",
         "run_id": run_id,
@@ -284,7 +312,9 @@ def _build_provider_call(run_id: str, span_id: str, model: str, result: Any, lat
     return event
 
 
-def _build_provider_call_error(run_id: str, span_id: str, model: str, exc: Exception, latency_ms: int) -> dict[str, Any]:
+def _build_provider_call_error(
+    run_id: str, span_id: str, model: str, exc: Exception, latency_ms: int
+) -> dict[str, Any]:
     return {
         "event_type": "provider_call",
         "run_id": run_id,

@@ -65,6 +65,7 @@ _MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
 # ── Upload ─────────────────────────────────────────────────────────────────────
 
+
 @router.post("/upload", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
 async def upload_invoice(
     workspace: WorkspaceDep,
@@ -87,7 +88,9 @@ async def upload_invoice(
         p_start = date.fromisoformat(period_start)
         p_end = date.fromisoformat(period_end)
     except ValueError:
-        raise HTTPException(status_code=422, detail="period_start and period_end must be ISO dates (YYYY-MM-DD)") from None
+        raise HTTPException(
+            status_code=422, detail="period_start and period_end must be ISO dates (YYYY-MM-DD)"
+        ) from None
 
     if p_end < p_start:
         raise HTTPException(status_code=422, detail="period_end must be >= period_start")
@@ -155,6 +158,7 @@ async def upload_invoice(
 
 # ── List / Get / Delete ────────────────────────────────────────────────────────
 
+
 @router.get("", response_model=InvoiceList)
 async def list_invoices(
     workspace: WorkspaceDep,
@@ -199,12 +203,23 @@ async def get_invoice_summary(
     agg_result = await db.execute(
         select(
             func.count(ProviderInvoiceLine.id).label("total"),
-            func.sum(case((ProviderInvoiceLine.match_status == "exact", 1), else_=0)).label("exact_count"),
-            func.sum(case((ProviderInvoiceLine.match_status == "fuzzy", 1), else_=0)).label("fuzzy_count"),
-            func.sum(case((ProviderInvoiceLine.match_status == "unmatched", 1), else_=0)).label("unmatched_count"),
-            func.sum(case((ProviderInvoiceLine.match_status == "disputed", 1), else_=0)).label("disputed_count"),
+            func.sum(case((ProviderInvoiceLine.match_status == "exact", 1), else_=0)).label(
+                "exact_count"
+            ),
+            func.sum(case((ProviderInvoiceLine.match_status == "fuzzy", 1), else_=0)).label(
+                "fuzzy_count"
+            ),
+            func.sum(case((ProviderInvoiceLine.match_status == "unmatched", 1), else_=0)).label(
+                "unmatched_count"
+            ),
+            func.sum(case((ProviderInvoiceLine.match_status == "disputed", 1), else_=0)).label(
+                "disputed_count"
+            ),
             func.sum(
-                case((ProviderInvoiceLine.match_status == "unmatched", ProviderInvoiceLine.amount), else_=Decimal("0"))
+                case(
+                    (ProviderInvoiceLine.match_status == "unmatched", ProviderInvoiceLine.amount),
+                    else_=Decimal("0"),
+                )
             ).label("unmatched_amount"),
         ).where(ProviderInvoiceLine.invoice_id == invoice_id)
     )
@@ -306,12 +321,16 @@ async def delete_invoice(
 
     # Delete lines first
     from sqlalchemy import delete
-    await db.execute(delete(ProviderInvoiceLine).where(ProviderInvoiceLine.invoice_id == invoice_id))
+
+    await db.execute(
+        delete(ProviderInvoiceLine).where(ProviderInvoiceLine.invoice_id == invoice_id)
+    )
     await db.delete(invoice)
     await db.commit()
 
 
 # ── Reconcile ─────────────────────────────────────────────────────────────────
+
 
 @router.post("/{invoice_id}/reconcile")
 async def trigger_reconcile(
@@ -341,6 +360,7 @@ async def trigger_reconcile(
 
 # ── Lines ──────────────────────────────────────────────────────────────────────
 
+
 @router.get("/{invoice_id}/lines", response_model=InvoiceLineList)
 async def list_lines(
     invoice_id: uuid.UUID,
@@ -365,12 +385,14 @@ async def list_lines(
     if match_status:
         stmt = stmt.where(ProviderInvoiceLine.match_status == match_status)
 
-    count_result = await db.execute(
-        select(func.count()).select_from(stmt.subquery())
-    )
+    count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = count_result.scalar() or 0
 
-    stmt = stmt.order_by(ProviderInvoiceLine.occurred_at.desc().nullslast()).limit(limit).offset(offset)
+    stmt = (
+        stmt.order_by(ProviderInvoiceLine.occurred_at.desc().nullslast())
+        .limit(limit)
+        .offset(offset)
+    )
     result = await db.execute(stmt)
     items = result.scalars().all()
 
@@ -418,6 +440,7 @@ async def dispute_line(
 
 # ── Export ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/{invoice_id}/export")
 async def export_dispute_package(
     invoice_id: uuid.UUID,
@@ -444,10 +467,12 @@ async def export_dispute_package(
 
     # Load unmatched + disputed lines
     lines_result = await db.execute(
-        select(ProviderInvoiceLine).where(
+        select(ProviderInvoiceLine)
+        .where(
             ProviderInvoiceLine.invoice_id == invoice_id,
             ProviderInvoiceLine.match_status.in_(["unmatched", "disputed"]),
-        ).order_by(ProviderInvoiceLine.occurred_at)
+        )
+        .order_by(ProviderInvoiceLine.occurred_at)
     )
     lines = lines_result.scalars().all()
 

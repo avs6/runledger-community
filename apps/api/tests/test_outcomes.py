@@ -25,6 +25,7 @@ from httpx import AsyncClient
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _scalars_list(rows: list) -> MagicMock:
     m = MagicMock()
     scalars = MagicMock()
@@ -130,6 +131,7 @@ def _make_corr_score_row(**kwargs) -> SimpleNamespace:
 
 # ── POST /outcomes ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_create_outcome_success(
     authed_client: AsyncClient,
@@ -201,14 +203,13 @@ async def test_create_outcome_unauthenticated(
 
 # ── GET /outcomes ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_outcomes_empty(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(0), _scalars_list([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(0), _scalars_list([])])
     resp = await authed_client.get("/outcomes")
     assert resp.status_code == 200
     data = resp.json()
@@ -223,9 +224,7 @@ async def test_list_outcomes_returns_items(
     mock_workspace: SimpleNamespace,
 ) -> None:
     outcome = _make_outcome(workspace_id=mock_workspace.id)
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(1), _scalars_list([outcome])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(1), _scalars_list([outcome])])
     resp = await authed_client.get("/outcomes")
     assert resp.status_code == 200
     data = resp.json()
@@ -238,9 +237,7 @@ async def test_list_outcomes_filter_by_type(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(0), _scalars_list([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(0), _scalars_list([])])
     resp = await authed_client.get("/outcomes?outcome_type=lead_qualified")
     assert resp.status_code == 200
 
@@ -250,14 +247,13 @@ async def test_list_outcomes_filter_by_success(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_scalar(0), _scalars_list([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_scalar(0), _scalars_list([])])
     resp = await authed_client.get("/outcomes?success=true")
     assert resp.status_code == 200
 
 
 # ── GET /outcomes/summary ──────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_outcome_summary_empty(
@@ -325,6 +321,7 @@ async def test_outcome_summary_roi_computed(
 
 # ── GET /outcomes/trend ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_outcome_trend_empty(
     authed_client: AsyncClient,
@@ -364,6 +361,7 @@ async def test_outcome_trend_filter_by_type(
 
 
 # ── GET /outcomes/workflows ────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_workflow_roi_empty(
@@ -409,14 +407,13 @@ async def test_workflow_roi_with_data(
 
 # ── GET /outcomes/quality-correlation ─────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_quality_correlation_empty(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(
-        side_effect=[_rows([]), _rows([]), _rows([])]
-    )
+    mock_db_session.execute = AsyncMock(side_effect=[_rows([]), _rows([]), _rows([])])
     resp = await authed_client.get("/outcomes/quality-correlation")
     assert resp.status_code == 200
     assert resp.json() == []
@@ -450,6 +447,7 @@ async def test_quality_correlation_with_data(
 
 
 # ── SDK rl.outcome() unit test ─────────────────────────────────────────────────
+
 
 def test_sdk_outcome_local_mode() -> None:
     """rl.outcome() in local=True mode should log and not call the network."""

@@ -96,7 +96,11 @@ def check_tool_sync(tool_name: str, transport: SyncTransport) -> str:
             return policy
 
         # Unexpected status — fail open
-        log.warning("tool_check_unexpected_status", tool_name=tool_name, status=response.status_code)
+        log.warning(
+            "tool_check_unexpected_status",
+            tool_name=tool_name,
+            status=response.status_code,
+        )
         return "allow"
 
     except ToolBlockedError:

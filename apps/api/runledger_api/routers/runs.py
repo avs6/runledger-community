@@ -98,7 +98,9 @@ async def list_runs(
     search: str | None = Query(None, description="Prefix match on run_id"),
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
-    model_filter: str | None = Query(None, alias="model", description="Substring match on model name"),
+    model_filter: str | None = Query(
+        None, alias="model", description="Substring match on model name"
+    ),
     min_cost: Decimal | None = Query(None, description="Minimum total cost (USD)"),
     max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
 ) -> RunListResponse:
@@ -232,28 +234,40 @@ async def export_runs(
     writer = csv.DictWriter(
         buf,
         fieldnames=[
-            "run_id", "status", "feature_tag", "end_user_id", "session_id",
-            "deployment_version", "model", "cost_usd", "input_tokens",
-            "output_tokens", "duration_ms", "started_at", "ended_at",
+            "run_id",
+            "status",
+            "feature_tag",
+            "end_user_id",
+            "session_id",
+            "deployment_version",
+            "model",
+            "cost_usd",
+            "input_tokens",
+            "output_tokens",
+            "duration_ms",
+            "started_at",
+            "ended_at",
         ],
     )
     writer.writeheader()
     for r in runs:
-        writer.writerow({
-            "run_id": str(r.id),
-            "status": r.status,
-            "feature_tag": r.feature_tag or "",
-            "end_user_id": r.end_user_id or "",
-            "session_id": r.session_id or "",
-            "deployment_version": r.deployment_version or "",
-            "model": primary_models.get(r.id) or "",
-            "cost_usd": str(r.total_cost_usd) if r.total_cost_usd is not None else "",
-            "input_tokens": r.total_input_tokens or "",
-            "output_tokens": r.total_output_tokens or "",
-            "duration_ms": _duration_ms(r.started_at, r.ended_at) or "",
-            "started_at": r.started_at.isoformat(),
-            "ended_at": r.ended_at.isoformat() if r.ended_at else "",
-        })
+        writer.writerow(
+            {
+                "run_id": str(r.id),
+                "status": r.status,
+                "feature_tag": r.feature_tag or "",
+                "end_user_id": r.end_user_id or "",
+                "session_id": r.session_id or "",
+                "deployment_version": r.deployment_version or "",
+                "model": primary_models.get(r.id) or "",
+                "cost_usd": str(r.total_cost_usd) if r.total_cost_usd is not None else "",
+                "input_tokens": r.total_input_tokens or "",
+                "output_tokens": r.total_output_tokens or "",
+                "duration_ms": _duration_ms(r.started_at, r.ended_at) or "",
+                "started_at": r.started_at.isoformat(),
+                "ended_at": r.ended_at.isoformat() if r.ended_at else "",
+            }
+        )
 
     buf.seek(0)
     return StreamingResponse(

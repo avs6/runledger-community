@@ -174,7 +174,9 @@ async def run_reconciliation(
         # Duplicates are a data-quality warning, not a billing failure — the
         # pipeline now uses deterministic IDs so new ingestion won't produce
         # duplicates; existing ones are pre-fix legacy rows.
-        warnings.append(f"{duplicate_calls} duplicate provider_call group(s) detected (data quality warning)")
+        warnings.append(
+            f"{duplicate_calls} duplicate provider_call group(s) detected (data quality warning)"
+        )
         if recon_status == "pass":
             recon_status = "warning"
 

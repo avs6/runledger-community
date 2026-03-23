@@ -80,8 +80,7 @@ async def _run_batch(
             stmt = stmt.where(AgentRun.id.in_(run_ids))
         else:
             stmt = (
-                stmt
-                .where(AgentRun.status == "succeeded")
+                stmt.where(AgentRun.status == "succeeded")
                 .order_by(AgentRun.started_at.desc())
                 .limit(limit)
             )
@@ -157,6 +156,7 @@ def batch_evaluate(
 
 # ── Judge drift detection ─────────────────────────────────────────────────────
 
+
 async def _detect_drift() -> list[dict[str, Any]]:
     """Compare LLM-judge scores over last 7d vs prior 7d per evaluator."""
     from sqlalchemy.pool import NullPool
@@ -214,14 +214,16 @@ async def _detect_drift() -> list[dict[str, Any]]:
             change_pct = (float(current_avg) - float(prior_avg)) / float(prior_avg) * 100.0
 
             if abs(change_pct) >= 20.0:
-                drift_items.append({
-                    "evaluator_id": str(ev.id),
-                    "evaluator_name": ev.name,
-                    "workspace_id": str(ev.workspace_id),
-                    "current_avg": float(current_avg),
-                    "prior_avg": float(prior_avg),
-                    "change_pct": change_pct,
-                })
+                drift_items.append(
+                    {
+                        "evaluator_id": str(ev.id),
+                        "evaluator_name": ev.name,
+                        "workspace_id": str(ev.workspace_id),
+                        "current_avg": float(current_avg),
+                        "prior_avg": float(prior_avg),
+                        "change_pct": change_pct,
+                    }
+                )
 
     await async_engine.dispose()
     return drift_items
@@ -264,6 +266,7 @@ def _notify_drift(item: dict[str, Any]) -> None:
     session = _get_sync_session()
     try:
         from runledger_api.models.tenant import Workspace
+
         ws = session.get(Workspace, uuid.UUID(item["workspace_id"]))
         if ws is None or not getattr(ws, "slack_webhook_url", None):
             return

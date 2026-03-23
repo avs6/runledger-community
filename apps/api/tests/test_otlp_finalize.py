@@ -46,8 +46,8 @@ async def test_close_stale_runs_closes_run_and_spans() -> None:
     mock_session.execute = AsyncMock(
         side_effect=[
             _make_select_result([stale_id]),  # SELECT stale runs
-            _make_update_result(),             # UPDATE spans
-            _make_update_result(),             # UPDATE agent_runs
+            _make_update_result(),  # UPDATE spans
+            _make_update_result(),  # UPDATE agent_runs
         ]
     )
 

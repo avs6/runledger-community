@@ -62,7 +62,9 @@ async def get_current_workspace(
             detail="This workspace is archived",
         )
     # Check parent tenant status
-    tenant = (await db.execute(select(Tenant).where(Tenant.id == workspace.tenant_id))).scalar_one_or_none()
+    tenant = (
+        await db.execute(select(Tenant).where(Tenant.id == workspace.tenant_id))
+    ).scalar_one_or_none()
     if tenant is not None and tenant.status == TenantStatusEnum.suspended:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -223,7 +225,10 @@ async def resolve_workspace_ids(
     if tenant_id is None:
         return [workspace.id]
     if user is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User session required for cross-workspace queries")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User session required for cross-workspace queries",
+        )
     if not user.is_platform_admin:
         tu = await _get_tenant_user(user.id, tenant_id, db)
         if tu is None or tu.role not in _ORG_ADMIN_ROLES:

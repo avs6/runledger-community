@@ -71,9 +71,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_gateway_requests_workspace", "gateway_requests", ["workspace_id", "created_at"]
     )
-    op.create_index(
-        "ix_gateway_requests_route", "gateway_requests", ["route_id", "created_at"]
-    )
+    op.create_index("ix_gateway_requests_route", "gateway_requests", ["route_id", "created_at"])
 
     op.create_table(
         "prompt_cache",

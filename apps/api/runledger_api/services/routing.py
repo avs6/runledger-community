@@ -65,8 +65,11 @@ async def select_route_with_policy(
         if policy_type == "complexity_based":
             return await _complexity_based(db, workspace_id, routes, config, messages)
     except Exception:
-        log.exception("routing_policy_error policy_type=%s alias=%s — falling back to manual",
-                      policy_type, alias)
+        log.exception(
+            "routing_policy_error policy_type=%s alias=%s — falling back to manual",
+            policy_type,
+            alias,
+        )
 
     # Default: manual priority order
     route = routes[0]
@@ -100,9 +103,7 @@ async def _fetch_active_routes_by_alias(
     return await _fetch_active_routes(db, workspace_id, alias)
 
 
-async def _fetch_policy(
-    db: AsyncSession, workspace_id: Any, alias: str
-) -> RoutingPolicy | None:
+async def _fetch_policy(db: AsyncSession, workspace_id: Any, alias: str) -> RoutingPolicy | None:
     stmt = select(RoutingPolicy).where(
         RoutingPolicy.workspace_id == workspace_id,
         RoutingPolicy.alias == alias,
@@ -129,7 +130,8 @@ async def _cost_optimized(
     lookback_days: int = int(config.get("lookback_days", 7))
 
     # Build model → avg_score map from score_events (via provider_calls)
-    score_rows = await db.execute(text("""
+    score_rows = await db.execute(
+        text("""
         SELECT pc.model, AVG(se.value) AS avg_score
         FROM score_events se
         JOIN agent_runs ar ON ar.id = se.run_id
@@ -138,21 +140,23 @@ async def _cost_optimized(
           AND se.name = 'quality'
           AND se.created_at >= NOW() - INTERVAL ':days days'
         GROUP BY pc.model
-    """).bindparams(ws=str(workspace_id), days=lookback_days))
+    """).bindparams(ws=str(workspace_id), days=lookback_days)
+    )
     quality_map: dict[str, float] = {r.model: float(r.avg_score) for r in score_rows.all()}
 
     # Build model → cost_per_1m map from provider_pricing (cheapest effective)
-    pricing_rows = await db.execute(text("""
+    pricing_rows = await db.execute(
+        text("""
         SELECT DISTINCT ON (provider, model)
                provider, model,
                input_cost_per_1m + output_cost_per_1m AS combined_cost
         FROM provider_pricing
         WHERE (workspace_id = :ws OR workspace_id IS NULL)
         ORDER BY provider, model, effective_from DESC
-    """).bindparams(ws=str(workspace_id)))
+    """).bindparams(ws=str(workspace_id))
+    )
     cost_map: dict[str, float] = {
-        f"{r.provider}/{r.model}": float(r.combined_cost)
-        for r in pricing_rows.all()
+        f"{r.provider}/{r.model}": float(r.combined_cost) for r in pricing_rows.all()
     }
 
     # Filter routes by quality_floor, then sort by cost
@@ -189,7 +193,8 @@ async def _latency_optimized(
     lookback_hours: int = int(config.get("lookback_hours", 24))
 
     route_ids = [str(r.id) for r in routes]
-    lat_rows = await db.execute(text("""
+    lat_rows = await db.execute(
+        text("""
         SELECT route_id,
                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95
         FROM gateway_requests
@@ -198,14 +203,12 @@ async def _latency_optimized(
           AND status = 'success'
           AND latency_ms IS NOT NULL
         GROUP BY route_id
-    """).bindparams(ids=route_ids, h=lookback_hours))
-    p95_map: dict[str, float] = {
-        str(r.route_id): float(r.p95) for r in lat_rows.all()
-    }
+    """).bindparams(ids=route_ids, h=lookback_hours)
+    )
+    p95_map: dict[str, float] = {str(r.route_id): float(r.p95) for r in lat_rows.all()}
 
     # Filter by max_p95_ms, sort by p95 ascending
-    qualified = [r for r in routes
-                 if p95_map.get(str(r.id), 0) <= max_p95_ms] or routes
+    qualified = [r for r in routes if p95_map.get(str(r.id), 0) <= max_p95_ms] or routes
     best = min(qualified, key=lambda r: p95_map.get(str(r.id), float("inf")))
     p95 = p95_map.get(str(best.id))
     p95_str = f"p95={p95:.0f}ms" if p95 is not None else "no-latency-data"
@@ -227,7 +230,8 @@ async def _quality_optimized(
     metric: str = config.get("metric", "quality")
     lookback_days: int = int(config.get("lookback_days", 7))
 
-    score_rows = await db.execute(text("""
+    score_rows = await db.execute(
+        text("""
         SELECT pc.model, AVG(se.value) AS avg_score
         FROM score_events se
         JOIN agent_runs ar ON ar.id = se.run_id
@@ -236,7 +240,8 @@ async def _quality_optimized(
           AND se.name = :metric
           AND se.created_at >= NOW() - INTERVAL ':days days'
         GROUP BY pc.model
-    """).bindparams(ws=str(workspace_id), metric=metric, days=lookback_days))
+    """).bindparams(ws=str(workspace_id), metric=metric, days=lookback_days)
+    )
     score_map: dict[str, float] = {r.model: float(r.avg_score) for r in score_rows.all()}
 
     best = max(routes, key=lambda r: score_map.get(r.target_model, -1.0))
@@ -292,18 +297,14 @@ async def _canary(
     if canary_route_id and random.random() < canary_pct:
         canary = await db.get(GatewayRoute, canary_route_id)
         if canary and canary.workspace_id == workspace_id and canary.is_active:
-            return canary, (
-                f"canary:canary-{canary_pct*100:.0f}pct ({canary.target_model})"
-            )
+            return canary, (f"canary:canary-{canary_pct * 100:.0f}pct ({canary.target_model})")
 
     # Baseline: highest priority non-canary route
     baseline = next(
         (r for r in routes if str(r.id) != canary_route_id),
         routes[0],
     )
-    return baseline, (
-        f"canary:baseline-{100-canary_pct*100:.0f}pct ({baseline.target_model})"
-    )
+    return baseline, (f"canary:baseline-{100 - canary_pct * 100:.0f}pct ({baseline.target_model})")
 
 
 # ---------------------------------------------------------------------------
@@ -326,7 +327,8 @@ async def _budget_aware(
     consumed_pct = 0.0
     if budget_id:
         try:
-            budget_row = await db.execute(text("""
+            budget_row = await db.execute(
+                text("""
                 SELECT b.amount_usd,
                        COALESCE(SUM(ud.cost_usd), 0) AS spent
                 FROM budgets b
@@ -334,7 +336,8 @@ async def _budget_aware(
                   AND ud.day >= CURRENT_DATE - INTERVAL '30 days'
                 WHERE b.id = :bid AND b.workspace_id = :ws
                 GROUP BY b.amount_usd
-            """).bindparams(bid=budget_id, ws=str(workspace_id)))
+            """).bindparams(bid=budget_id, ws=str(workspace_id))
+            )
             row = budget_row.one_or_none()
             if row and float(row.amount_usd) > 0:
                 consumed_pct = float(row.spent) / float(row.amount_usd)
@@ -346,13 +349,13 @@ async def _budget_aware(
         if fallback_routes:
             route = fallback_routes[0]
             return route, (
-                f"budget_aware:fallback-{consumed_pct*100:.0f}pct-consumed"
+                f"budget_aware:fallback-{consumed_pct * 100:.0f}pct-consumed"
                 f" → {fallback_alias} ({route.target_model})"
             )
 
     route = routes[0]
     return route, (
-        f"budget_aware:normal-{consumed_pct*100:.0f}pct-consumed ({route.target_model})"
+        f"budget_aware:normal-{consumed_pct * 100:.0f}pct-consumed ({route.target_model})"
     )
 
 

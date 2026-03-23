@@ -25,6 +25,7 @@ from httpx import AsyncClient
 
 # ── Mock helpers ───────────────────────────────────────────────────────────────
 
+
 def _scalars_list(rows: list) -> MagicMock:
     m = MagicMock()
     scalars = MagicMock()
@@ -108,6 +109,7 @@ def _make_agg_row(**kwargs) -> SimpleNamespace:
 
 # ── List invoices ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_invoices_empty(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalars_list([]))
@@ -117,7 +119,9 @@ async def test_list_invoices_empty(authed_client: AsyncClient, mock_db_session: 
 
 
 @pytest.mark.asyncio
-async def test_list_invoices(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_list_invoices(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv1 = _make_invoice(workspace_id=mock_workspace.id, provider="openai")
     inv2 = _make_invoice(workspace_id=mock_workspace.id, provider="anthropic", status="reconciled")
     mock_db_session.execute = AsyncMock(return_value=_scalars_list([inv1, inv2]))
@@ -131,7 +135,9 @@ async def test_list_invoices(authed_client: AsyncClient, mock_db_session: AsyncM
 
 
 @pytest.mark.asyncio
-async def test_list_invoices_provider_filter(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_list_invoices_provider_filter(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv = _make_invoice(workspace_id=mock_workspace.id, provider="anthropic")
     mock_db_session.execute = AsyncMock(return_value=_scalars_list([inv]))
 
@@ -142,8 +148,11 @@ async def test_list_invoices_provider_filter(authed_client: AsyncClient, mock_db
 
 # ── Get invoice summary ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_get_invoice_summary(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_get_invoice_summary(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id, total_amount=Decimal("100.00"))
     agg = _make_agg_row()
@@ -152,12 +161,14 @@ async def test_get_invoice_summary(authed_client: AsyncClient, mock_db_session: 
     bucket_m = MagicMock()
     bucket_m.all = MagicMock(return_value=[])
 
-    mock_db_session.execute = AsyncMock(side_effect=[
-        _scalar_one_or_none(inv),   # load invoice
-        _one(agg),                   # aggregate counts
-        _scalar(Decimal("70.00")),  # rl_total from matched calls
-        MagicMock(all=MagicMock(return_value=[])),  # bucket rows
-    ])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _scalar_one_or_none(inv),  # load invoice
+            _one(agg),  # aggregate counts
+            _scalar(Decimal("70.00")),  # rl_total from matched calls
+            MagicMock(all=MagicMock(return_value=[])),  # bucket rows
+        ]
+    )
 
     resp = await authed_client.get(f"/invoices/{inv_id}")
     assert resp.status_code == 200
@@ -170,7 +181,9 @@ async def test_get_invoice_summary(authed_client: AsyncClient, mock_db_session: 
 
 
 @pytest.mark.asyncio
-async def test_get_invoice_summary_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_get_invoice_summary_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.get(f"/invoices/{uuid.uuid4()}")
     assert resp.status_code == 404
@@ -178,14 +191,19 @@ async def test_get_invoice_summary_not_found(authed_client: AsyncClient, mock_db
 
 # ── Delete invoice ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_delete_invoice(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_delete_invoice(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id)
-    mock_db_session.execute = AsyncMock(side_effect=[
-        _scalar_one_or_none(inv),  # load invoice
-        AsyncMock(),               # delete lines
-    ])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _scalar_one_or_none(inv),  # load invoice
+            AsyncMock(),  # delete lines
+        ]
+    )
     mock_db_session.delete = AsyncMock()
 
     resp = await authed_client.delete(f"/invoices/{inv_id}")
@@ -194,7 +212,9 @@ async def test_delete_invoice(authed_client: AsyncClient, mock_db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_delete_invoice_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_delete_invoice_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.delete(f"/invoices/{uuid.uuid4()}")
     assert resp.status_code == 404
@@ -202,17 +222,30 @@ async def test_delete_invoice_not_found(authed_client: AsyncClient, mock_db_sess
 
 # ── Reconcile invoice ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_reconcile_invoice(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_reconcile_invoice(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id)
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(inv))
 
     from unittest.mock import patch
-    with patch("runledger_api.routers.invoices.reconcile_invoice", new=AsyncMock(return_value={
-        "matched_exact": 5, "matched_fuzzy": 3, "unmatched": 2,
-        "unmatched_amount": "20.00", "runledger_total": "80.00", "matched_pct": 80.0,
-    })):
+
+    with patch(
+        "runledger_api.routers.invoices.reconcile_invoice",
+        new=AsyncMock(
+            return_value={
+                "matched_exact": 5,
+                "matched_fuzzy": 3,
+                "unmatched": 2,
+                "unmatched_amount": "20.00",
+                "runledger_total": "80.00",
+                "matched_pct": 80.0,
+            }
+        ),
+    ):
         resp = await authed_client.post(f"/invoices/{inv_id}/reconcile")
 
     assert resp.status_code == 200
@@ -222,7 +255,9 @@ async def test_reconcile_invoice(authed_client: AsyncClient, mock_db_session: As
 
 
 @pytest.mark.asyncio
-async def test_reconcile_invoice_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_reconcile_invoice_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.post(f"/invoices/{uuid.uuid4()}/reconcile")
     assert resp.status_code == 404
@@ -230,8 +265,11 @@ async def test_reconcile_invoice_not_found(authed_client: AsyncClient, mock_db_s
 
 # ── List invoice lines ─────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_list_invoice_lines(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_list_invoice_lines(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id)
     line = _make_line(invoice_id=inv_id, match_status="unmatched")
@@ -239,11 +277,13 @@ async def test_list_invoice_lines(authed_client: AsyncClient, mock_db_session: A
     count_m = MagicMock()
     count_m.scalar = MagicMock(return_value=1)
 
-    mock_db_session.execute = AsyncMock(side_effect=[
-        _scalar_one_or_none(inv),
-        count_m,
-        _scalars_list([line]),
-    ])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _scalar_one_or_none(inv),
+            count_m,
+            _scalars_list([line]),
+        ]
+    )
 
     resp = await authed_client.get(f"/invoices/{inv_id}/lines")
     assert resp.status_code == 200
@@ -254,7 +294,9 @@ async def test_list_invoice_lines(authed_client: AsyncClient, mock_db_session: A
 
 
 @pytest.mark.asyncio
-async def test_list_invoice_lines_filter(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_list_invoice_lines_filter(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id)
     matched_line = _make_line(invoice_id=inv_id, match_status="exact")
@@ -262,11 +304,13 @@ async def test_list_invoice_lines_filter(authed_client: AsyncClient, mock_db_ses
     count_m = MagicMock()
     count_m.scalar = MagicMock(return_value=1)
 
-    mock_db_session.execute = AsyncMock(side_effect=[
-        _scalar_one_or_none(inv),
-        count_m,
-        _scalars_list([matched_line]),
-    ])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _scalar_one_or_none(inv),
+            count_m,
+            _scalars_list([matched_line]),
+        ]
+    )
 
     resp = await authed_client.get(f"/invoices/{inv_id}/lines?match_status=exact")
     assert resp.status_code == 200
@@ -275,17 +319,22 @@ async def test_list_invoice_lines_filter(authed_client: AsyncClient, mock_db_ses
 
 # ── Dispute line ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_dispute_line(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_dispute_line(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     line_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id)
     line = _make_line(id=line_id, invoice_id=inv_id)
 
-    mock_db_session.execute = AsyncMock(side_effect=[
-        _scalar_one_or_none(inv),
-        _scalar_one_or_none(line),
-    ])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _scalar_one_or_none(inv),
+            _scalar_one_or_none(line),
+        ]
+    )
 
     async def mock_refresh(obj: object) -> None:
         pass
@@ -302,13 +351,17 @@ async def test_dispute_line(authed_client: AsyncClient, mock_db_session: AsyncMo
 
 
 @pytest.mark.asyncio
-async def test_dispute_line_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_dispute_line_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     inv_id = uuid.uuid4()
     inv = _make_invoice(id=inv_id, workspace_id=mock_workspace.id)
-    mock_db_session.execute = AsyncMock(side_effect=[
-        _scalar_one_or_none(inv),
-        _scalar_one_or_none(None),  # line not found
-    ])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _scalar_one_or_none(inv),
+            _scalar_one_or_none(None),  # line not found
+        ]
+    )
     resp = await authed_client.put(
         f"/invoices/{inv_id}/lines/{uuid.uuid4()}/dispute",
         json={"note": "test"},
@@ -317,6 +370,7 @@ async def test_dispute_line_not_found(authed_client: AsyncClient, mock_db_sessio
 
 
 # ── Unit tests: CSV / JSON parsing ────────────────────────────────────────────
+
 
 def test_parse_csv_openai() -> None:
     from runledger_api.services.invoices import parse_csv
@@ -361,10 +415,7 @@ def test_parse_csv_no_data() -> None:
 def test_parse_csv_with_dollar_sign() -> None:
     from runledger_api.services.invoices import parse_csv
 
-    csv_content = (
-        b"Date,Model,Cost\n"
-        b"2026-02-01,gpt-4o,$1.50\n"
-    )
+    csv_content = b"Date,Model,Cost\n2026-02-01,gpt-4o,$1.50\n"
 
     _, lines = parse_csv(csv_content, "usage.csv")
     assert len(lines) == 1
@@ -415,8 +466,7 @@ def test_parse_csv_comma_in_tokens() -> None:
     from runledger_api.services.invoices import parse_csv
 
     csv_content = (
-        b"date,model,input_tokens,output_tokens,cost\n"
-        b'2026-02-01,gpt-4o,"1,234","5,678",0.05\n'
+        b'date,model,input_tokens,output_tokens,cost\n2026-02-01,gpt-4o,"1,234","5,678",0.05\n'
     )
 
     _, lines = parse_csv(csv_content, "usage.csv")

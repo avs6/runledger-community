@@ -63,6 +63,7 @@ class RetentionPolicyList(BaseModel):
 
 class PurgeRequest(BaseModel):
     """Immediate ad-hoc purge. Provide either policy_id OR explicit fields."""
+
     policy_id: uuid.UUID | None = None
     resource_type: ResourceType | None = None
     action: ActionType | None = None

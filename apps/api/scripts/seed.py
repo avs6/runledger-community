@@ -161,13 +161,17 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
     default_tenant = tenant_result.scalar_one_or_none()
     if default_tenant is not None:
         default_tenant.owner_user_id = user.id
-        session.add(TenantUser(tenant_id=default_tenant.id, user_id=user.id, role=TenantRoleEnum.org_admin))
+        session.add(
+            TenantUser(tenant_id=default_tenant.id, user_id=user.id, role=TenantRoleEnum.org_admin)
+        )
 
-    session.add(WorkspaceUser(
-        workspace_id=workspace.id,
-        user_id=user.id,
-        role=WorkspaceRoleEnum.workspace_admin,
-    ))
+    session.add(
+        WorkspaceUser(
+            workspace_id=workspace.id,
+            user_id=user.id,
+            role=WorkspaceRoleEnum.workspace_admin,
+        )
+    )
     await session.commit()
 
     print("\nDashboard login (Platform Admin):")

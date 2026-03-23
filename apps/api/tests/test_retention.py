@@ -8,6 +8,7 @@ Covers:
   - End-user erasure (GDPR scope)
   - purge_resource() service function
 """
+
 from __future__ import annotations
 
 import uuid
@@ -68,6 +69,7 @@ def _rowcount_result(n: int) -> MagicMock:
 
 def test_create_policy_workspace_scope_valid() -> None:
     from runledger_api.schemas.retention import RetentionPolicyCreate
+
     p = RetentionPolicyCreate(resource_type="runs", action="delete", max_age_days=90)
     assert p.scope == "workspace"
     assert p.max_age_days == 90
@@ -75,6 +77,7 @@ def test_create_policy_workspace_scope_valid() -> None:
 
 def test_create_policy_end_user_scope_valid() -> None:
     from runledger_api.schemas.retention import RetentionPolicyCreate
+
     p = RetentionPolicyCreate(
         resource_type="runs", action="delete", scope="end_user", scope_value="u123"
     )
@@ -86,6 +89,7 @@ def test_create_policy_end_user_scope_valid() -> None:
 def test_create_policy_workspace_scope_no_age_fails() -> None:
     from pydantic import ValidationError
     from runledger_api.schemas.retention import RetentionPolicyCreate
+
     with pytest.raises(ValidationError, match="max_age_days"):
         RetentionPolicyCreate(resource_type="runs", action="delete", scope="workspace")
 
@@ -93,6 +97,7 @@ def test_create_policy_workspace_scope_no_age_fails() -> None:
 def test_create_policy_end_user_no_scope_value_fails() -> None:
     from pydantic import ValidationError
     from runledger_api.schemas.retention import RetentionPolicyCreate
+
     with pytest.raises(ValidationError, match="scope_value"):
         RetentionPolicyCreate(resource_type="runs", action="delete", scope="end_user")
 
@@ -100,12 +105,14 @@ def test_create_policy_end_user_no_scope_value_fails() -> None:
 def test_create_policy_scrub_invalid_resource_fails() -> None:
     from pydantic import ValidationError
     from runledger_api.schemas.retention import RetentionPolicyCreate
+
     with pytest.raises(ValidationError, match="scrub"):
         RetentionPolicyCreate(resource_type="runs", action="scrub", max_age_days=30)
 
 
 def test_create_policy_scrub_payloads_valid() -> None:
     from runledger_api.schemas.retention import RetentionPolicyCreate
+
     p = RetentionPolicyCreate(resource_type="payloads", action="scrub", max_age_days=30)
     assert p.action == "scrub"
 
@@ -125,10 +132,14 @@ async def test_create_retention_policy() -> None:
     mock_db.add = MagicMock()
     mock_db.flush = AsyncMock()
     mock_db.commit = AsyncMock()
-    mock_db.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", policy.id) or
-                                 setattr(obj, "created_at", policy.created_at) or
-                                 setattr(obj, "last_run_at", None) or
-                                 setattr(obj, "last_purged_count", None))
+    mock_db.refresh = AsyncMock(
+        side_effect=lambda obj: (
+            setattr(obj, "id", policy.id)
+            or setattr(obj, "created_at", policy.created_at)
+            or setattr(obj, "last_run_at", None)
+            or setattr(obj, "last_purged_count", None)
+        )
+    )
 
     ws = _make_ws(ws_id)
     body = RetentionPolicyCreate(resource_type="runs", action="delete", max_age_days=90)
@@ -158,7 +169,9 @@ async def test_list_retention_policies() -> None:
     mock_db.execute = AsyncMock(return_value=items_result)
 
     ws = _make_ws(ws_id)
-    result = await list_retention_policies(auth=(ws, None), db=mock_db, resource_type=None, include_inactive=False)  # type: ignore[arg-type]
+    result = await list_retention_policies(
+        auth=(ws, None), db=mock_db, resource_type=None, include_inactive=False
+    )  # type: ignore[arg-type]
 
     assert isinstance(result, RetentionPolicyList)
     assert result.total == 1
@@ -176,7 +189,9 @@ async def test_list_retention_policies_empty() -> None:
     mock_db.execute = AsyncMock(return_value=items_result)
 
     ws = _make_ws()
-    result = await list_retention_policies(auth=(ws, None), db=mock_db, resource_type=None, include_inactive=False)  # type: ignore[arg-type]
+    result = await list_retention_policies(
+        auth=(ws, None), db=mock_db, resource_type=None, include_inactive=False
+    )  # type: ignore[arg-type]
 
     assert isinstance(result, RetentionPolicyList)
     assert result.total == 0
@@ -239,7 +254,10 @@ async def test_update_retention_policy() -> None:
 
     with patch("runledger_api.routers.retention.emit_audit_event", new_callable=AsyncMock):
         result = await update_retention_policy(
-            policy_id=policy.id, body=body, auth=(ws, None), db=mock_db  # type: ignore[arg-type]
+            policy_id=policy.id,
+            body=body,
+            auth=(ws, None),
+            db=mock_db,  # type: ignore[arg-type]
         )
 
     assert isinstance(result, RetentionPolicyResponse)

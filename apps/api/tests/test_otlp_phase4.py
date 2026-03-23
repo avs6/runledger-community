@@ -195,12 +195,14 @@ def _make_llm_trace(
 
 
 def test_provider_call_has_top_level_provider_request_id() -> None:
-    ws_id, trace = _make_llm_trace({
-        "llm.model_name": "gpt-4o",
-        "llm.openai.response.id": "chatcmpl-xyz789",
-        "llm.token_count.prompt": 100,
-        "llm.token_count.completion": 50,
-    })
+    ws_id, trace = _make_llm_trace(
+        {
+            "llm.model_name": "gpt-4o",
+            "llm.openai.response.id": "chatcmpl-xyz789",
+            "llm.token_count.prompt": 100,
+            "llm.token_count.completion": 50,
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     pc = next(e for e in events if e["event_type"] == "provider_call")
 
@@ -210,10 +212,12 @@ def test_provider_call_has_top_level_provider_request_id() -> None:
 
 
 def test_provider_call_has_top_level_reported_cost_and_cost_source() -> None:
-    ws_id, trace = _make_llm_trace({
-        "llm.model_name": "gpt-4o",
-        "llm.cost.total": 0.0045,
-    })
+    ws_id, trace = _make_llm_trace(
+        {
+            "llm.model_name": "gpt-4o",
+            "llm.cost.total": 0.0045,
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     pc = next(e for e in events if e["event_type"] == "provider_call")
 
@@ -222,11 +226,13 @@ def test_provider_call_has_top_level_reported_cost_and_cost_source() -> None:
 
 
 def test_provider_call_cost_source_pricing_engine_when_no_reported_cost() -> None:
-    ws_id, trace = _make_llm_trace({
-        "llm.model_name": "gpt-4o",
-        "llm.token_count.prompt": 200,
-        "llm.token_count.completion": 80,
-    })
+    ws_id, trace = _make_llm_trace(
+        {
+            "llm.model_name": "gpt-4o",
+            "llm.token_count.prompt": 200,
+            "llm.token_count.completion": 80,
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     pc = next(e for e in events if e["event_type"] == "provider_call")
 
@@ -235,12 +241,14 @@ def test_provider_call_cost_source_pricing_engine_when_no_reported_cost() -> Non
 
 
 def test_provider_call_has_top_level_token_details() -> None:
-    ws_id, trace = _make_llm_trace({
-        "llm.model_name": "gpt-4o",
-        "llm.token_count.prompt": 500,
-        "llm.token_count.prompt_details.cached_tokens": 200,
-        "llm.token_count.completion_details.reasoning_tokens": 64,
-    })
+    ws_id, trace = _make_llm_trace(
+        {
+            "llm.model_name": "gpt-4o",
+            "llm.token_count.prompt": 500,
+            "llm.token_count.prompt_details.cached_tokens": 200,
+            "llm.token_count.completion_details.reasoning_tokens": 64,
+        }
+    )
     events = synthesize_canonical_events(ws_id, trace)
     pc = next(e for e in events if e["event_type"] == "provider_call")
 

@@ -26,9 +26,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", PGUUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column(
-            "default_environment", sa.Text(), nullable=False, server_default="production"
-        ),
+        sa.Column("default_environment", sa.Text(), nullable=False, server_default="production"),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -53,9 +51,7 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("variables", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("commit_message", sa.Text(), nullable=True),
-        sa.Column(
-            "environment", sa.Text(), nullable=False, server_default="production"
-        ),
+        sa.Column("environment", sa.Text(), nullable=False, server_default="production"),
         sa.Column("model_hint", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
@@ -65,9 +61,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["prompt_id"], ["prompts.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "prompt_id", "version", name="ix_prompt_versions_prompt_version"
-        ),
+        sa.UniqueConstraint("prompt_id", "version", name="ix_prompt_versions_prompt_version"),
     )
     op.create_index(
         "ix_prompt_versions_prompt_env",

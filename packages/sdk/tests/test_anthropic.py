@@ -89,7 +89,12 @@ def _fake_response(
     text: str = "Paris is the capital of France.",
 ) -> MagicMock:
     resp = MagicMock()
-    resp.usage = _fake_usage(input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens)
+    resp.usage = _fake_usage(
+        input_tokens,
+        output_tokens,
+        cache_read_input_tokens,
+        cache_creation_input_tokens,
+    )
     resp.content = [_fake_text_block(text)]
     resp.stop_reason = "end_turn"
     return resp
@@ -145,7 +150,9 @@ def test_build_provider_call_with_cache_read_tokens() -> None:
     run_id = str(uuid.uuid4())
     span_id = str(uuid.uuid4())
     resp = _fake_response(200, 80, cache_read_input_tokens=40)
-    event = _build_provider_call(run_id, span_id, "claude-3-5-sonnet-20241022", resp, 300)
+    event = _build_provider_call(
+        run_id, span_id, "claude-3-5-sonnet-20241022", resp, 300
+    )
     assert event["cached_input_tokens"] == 40
 
 
@@ -157,7 +164,9 @@ def test_build_provider_call_captures_message_id() -> None:
     span_id = str(uuid.uuid4())
     resp = _fake_response(100, 50)
     resp.id = "msg_01XxYy"
-    event = _build_provider_call(run_id, span_id, "claude-3-5-sonnet-20241022", resp, 300)
+    event = _build_provider_call(
+        run_id, span_id, "claude-3-5-sonnet-20241022", resp, 300
+    )
     assert event["provider_request_id"] == "msg_01XxYy"
 
 
@@ -173,9 +182,13 @@ def test_build_provider_call_no_id_omits_field() -> None:
 def test_build_provider_call_captures_cache_write_tokens_in_details() -> None:
     run_id = str(uuid.uuid4())
     span_id = str(uuid.uuid4())
-    resp = _fake_response(200, 80, cache_read_input_tokens=40, cache_creation_input_tokens=160)
+    resp = _fake_response(
+        200, 80, cache_read_input_tokens=40, cache_creation_input_tokens=160
+    )
     resp.id = "msg_01abc"
-    event = _build_provider_call(run_id, span_id, "claude-3-5-sonnet-20241022", resp, 500)
+    event = _build_provider_call(
+        run_id, span_id, "claude-3-5-sonnet-20241022", resp, 500
+    )
     assert event["cached_input_tokens"] == 40
     assert event["input_tokens_details"] == {
         "cached_tokens": 40,
@@ -190,7 +203,9 @@ def test_build_provider_call_error() -> None:
     run_id = str(uuid.uuid4())
     span_id = str(uuid.uuid4())
     exc = ValueError("rate limited")
-    event = _build_provider_call_error(run_id, span_id, "claude-3-haiku-20240307", exc, 100)
+    event = _build_provider_call_error(
+        run_id, span_id, "claude-3-haiku-20240307", exc, 100
+    )
     assert event["status"] == "error"
     assert event["error_type"] == "ValueError"
     assert event["provider"] == "anthropic"
@@ -410,7 +425,13 @@ def test_instrument_anthropic_event_order() -> None:
     rl_anthropic._patched = False
 
     event_types = [e["event_type"] for e in captured]
-    assert event_types == ["run_start", "span_start", "span_end", "provider_call", "run_end"]
+    assert event_types == [
+        "run_start",
+        "span_start",
+        "span_end",
+        "provider_call",
+        "run_end",
+    ]
 
 
 # ── MCP tool type inference ────────────────────────────────────────────────────
@@ -450,7 +471,9 @@ async def test_instrument_mcp_session_patches_call_tool() -> None:
 
     # Build a minimal fake session
     class FakeSession:
-        async def call_tool(self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+        async def call_tool(
+            self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
+        ) -> Any:
             return {"result": "ok"}
 
     session = FakeSession()
@@ -479,7 +502,9 @@ async def test_instrument_mcp_session_captures_error() -> None:
     transport.enqueue = lambda event: captured.append(event)
 
     class FakeSession:
-        async def call_tool(self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+        async def call_tool(
+            self, name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
+        ) -> Any:
             raise RuntimeError("tool failed")
 
     session = FakeSession()

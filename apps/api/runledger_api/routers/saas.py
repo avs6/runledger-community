@@ -70,6 +70,7 @@ def _make_slug(name: str) -> str:
 
 # ── Signup ────────────────────────────────────────────────────────────────────
 
+
 @router.post("/auth/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(body: SignupRequest, db: DbDep) -> SignupResponse:
     """
@@ -112,33 +113,43 @@ async def signup(body: SignupRequest, db: DbDep) -> SignupResponse:
     await db.flush()
 
     # WorkspaceUser — workspace_admin
-    db.add(WorkspaceUser(workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin))
+    db.add(
+        WorkspaceUser(
+            workspace_id=workspace.id, user_id=user.id, role=WorkspaceRoleEnum.workspace_admin
+        )
+    )
 
     # Free-tier subscription row
-    db.add(Subscription(
-        tenant_id=tenant.id,
-        plan="free",
-        status="active",
-        current_period_start=datetime.now(UTC),
-    ))
+    db.add(
+        Subscription(
+            tenant_id=tenant.id,
+            plan="free",
+            status="active",
+            current_period_start=datetime.now(UTC),
+        )
+    )
 
     # Usage quota — free tier limit
-    db.add(UsageQuota(
-        tenant_id=tenant.id,
-        events_limit=PLAN_QUOTAS["free"],
-        events_used=0,
-        period_start=datetime.now(UTC),
-    ))
+    db.add(
+        UsageQuota(
+            tenant_id=tenant.id,
+            events_limit=PLAN_QUOTAS["free"],
+            events_used=0,
+            period_start=datetime.now(UTC),
+        )
+    )
 
     # API key
     raw_key, key_hash, key_prefix = generate_api_key(EnvironmentEnum.dev)
-    db.add(ApiKey(
-        workspace_id=workspace.id,
-        key_hash=key_hash,
-        key_prefix=key_prefix,
-        name="default",
-        scopes=[],
-    ))
+    db.add(
+        ApiKey(
+            workspace_id=workspace.id,
+            key_hash=key_hash,
+            key_prefix=key_prefix,
+            name="default",
+            scopes=[],
+        )
+    )
 
     await db.commit()
     log.info("signup_complete", email=body.email, tenant_id=str(tenant.id))
@@ -164,6 +175,7 @@ async def signup(body: SignupRequest, db: DbDep) -> SignupResponse:
 
 # ── Email verification ────────────────────────────────────────────────────────
 
+
 @router.get("/auth/verify-email")
 async def verify_email(token: str, db: DbDep) -> dict[str, str]:
     """Verify email address using the token sent on signup."""
@@ -179,6 +191,7 @@ async def verify_email(token: str, db: DbDep) -> dict[str, str]:
 
 
 # ── Subscription / quota ──────────────────────────────────────────────────────
+
 
 @router.get("/billing/subscription", response_model=SubscriptionResponse)
 async def get_subscription(workspace: WorkspaceDep, db: DbDep) -> SubscriptionResponse:
@@ -212,8 +225,11 @@ async def get_subscription(workspace: WorkspaceDep, db: DbDep) -> SubscriptionRe
 
 # ── Stripe checkout ───────────────────────────────────────────────────────────
 
+
 @router.post("/billing/checkout", response_model=CheckoutResponse)
-async def create_checkout(body: CheckoutRequest, workspace: WorkspaceDep, db: DbDep) -> CheckoutResponse:
+async def create_checkout(
+    body: CheckoutRequest, workspace: WorkspaceDep, db: DbDep
+) -> CheckoutResponse:
     """Create a Stripe checkout session for plan upgrade."""
     if not settings.stripe_secret_key:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Stripe not configured")
@@ -224,12 +240,17 @@ async def create_checkout(body: CheckoutRequest, workspace: WorkspaceDep, db: Db
 
     try:
         import stripe  # noqa: PLC0415
+
         stripe.api_key = settings.stripe_secret_key
     except ImportError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed") from None
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed"
+        ) from None
 
     # Get or create Stripe customer
-    sub_result = await db.execute(select(Subscription).where(Subscription.tenant_id == workspace.tenant_id))
+    sub_result = await db.execute(
+        select(Subscription).where(Subscription.tenant_id == workspace.tenant_id)
+    )
     sub = sub_result.scalar_one_or_none()
 
     customer_id = sub.stripe_customer_id if sub else None
@@ -265,14 +286,21 @@ async def create_portal(body: PortalRequest, workspace: WorkspaceDep, db: DbDep)
 
     try:
         import stripe  # noqa: PLC0415
+
         stripe.api_key = settings.stripe_secret_key
     except ImportError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed") from None
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed"
+        ) from None
 
-    sub_result = await db.execute(select(Subscription).where(Subscription.tenant_id == workspace.tenant_id))
+    sub_result = await db.execute(
+        select(Subscription).where(Subscription.tenant_id == workspace.tenant_id)
+    )
     sub = sub_result.scalar_one_or_none()
     if not sub or not sub.stripe_customer_id:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No Stripe subscription found. Upgrade first.")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "No Stripe subscription found. Upgrade first."
+        )
 
     portal = stripe.billing_portal.Session.create(
         customer=sub.stripe_customer_id,
@@ -299,9 +327,12 @@ async def stripe_webhook(request: Request, db: DbDep) -> dict[str, str]:
 
     try:
         import stripe  # noqa: PLC0415
+
         stripe.api_key = settings.stripe_secret_key
     except ImportError:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed") from None
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "stripe package not installed"
+        ) from None
 
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
@@ -381,11 +412,7 @@ async def _sync_subscription(stripe_sub: object, db: AsyncSession) -> None:
         )
     )
     # Update plan on tenant + bump quota limit
-    await db.execute(
-        update(Tenant)
-        .where(Tenant.id == sub.tenant_id)
-        .values(plan=plan_name)
-    )
+    await db.execute(update(Tenant).where(Tenant.id == sub.tenant_id).values(plan=plan_name))
     await db.execute(
         update(UsageQuota)
         .where(UsageQuota.tenant_id == sub.tenant_id)
@@ -410,11 +437,7 @@ async def _downgrade_to_free(stripe_sub: object, db: AsyncSession) -> None:
         .where(Subscription.id == sub.id)
         .values(plan="free", status="canceled", stripe_subscription_id=None)
     )
-    await db.execute(
-        update(Tenant)
-        .where(Tenant.id == sub.tenant_id)
-        .values(plan="free")
-    )
+    await db.execute(update(Tenant).where(Tenant.id == sub.tenant_id).values(plan="free"))
     await db.execute(
         update(UsageQuota)
         .where(UsageQuota.tenant_id == sub.tenant_id)

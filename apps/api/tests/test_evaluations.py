@@ -238,7 +238,7 @@ async def test_score_summary_returns_aggregates(
     mock_db_session.execute = AsyncMock(
         side_effect=[
             _row_result(curr_rows),  # current window
-            _row_result([]),         # prior window (no data)
+            _row_result([]),  # prior window (no data)
         ]
     )
 

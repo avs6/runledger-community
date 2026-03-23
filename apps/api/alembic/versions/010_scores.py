@@ -42,13 +42,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        "ix_score_events_workspace", "score_events", ["workspace_id", "created_at"]
-    )
+    op.create_index("ix_score_events_workspace", "score_events", ["workspace_id", "created_at"])
     op.create_index("ix_score_events_run", "score_events", ["run_id"])
-    op.create_index(
-        "ix_score_events_name", "score_events", ["workspace_id", "name"]
-    )
+    op.create_index("ix_score_events_name", "score_events", ["workspace_id", "name"])
 
     op.create_table(
         "score_rollups_daily",

@@ -123,7 +123,10 @@ async def gateway_chat_completions(
 
         try:
             route, decision_reason = await select_route_with_policy(
-                db, workspace.id, body.model, messages  # type: ignore[arg-type]
+                db,
+                workspace.id,
+                body.model,
+                messages,  # type: ignore[arg-type]
             )
         except ValueError:
             raise HTTPException(
@@ -464,7 +467,9 @@ async def gateway_stats(
         select(
             GatewayRequest.route_id,
             func.count(GatewayRequest.id).label("total"),
-            func.count(GatewayRequest.id).filter(GatewayRequest.cache_hit.is_(True)).label("cache_hits"),
+            func.count(GatewayRequest.id)
+            .filter(GatewayRequest.cache_hit.is_(True))
+            .label("cache_hits"),
             func.avg(GatewayRequest.latency_ms).label("avg_latency"),
             func.count(GatewayRequest.id).filter(GatewayRequest.status == "error").label("errors"),
         )
@@ -494,7 +499,9 @@ async def gateway_stats(
         total = int(row.total)
         cache_hits = int(row.cache_hits)
         errors = int(row.errors)
-        avg_lat = Decimal(str(row.avg_latency)).quantize(Decimal("0.01")) if row.avg_latency else None
+        avg_lat = (
+            Decimal(str(row.avg_latency)).quantize(Decimal("0.01")) if row.avg_latency else None
+        )
         alias = alias_map.get(row.route_id, "unknown") if row.route_id else "cache_only"
         hit_rate = Decimal(str(round(cache_hits / total, 4))) if total else Decimal("0")
 
@@ -516,7 +523,9 @@ async def gateway_stats(
             latency_weight += total
 
     overall_hit_rate = (
-        Decimal(str(round(total_cache_hits / total_requests, 4))) if total_requests else Decimal("0")
+        Decimal(str(round(total_cache_hits / total_requests, 4)))
+        if total_requests
+        else Decimal("0")
     )
     overall_latency = (
         (latency_weighted_sum / Decimal(latency_weight)).quantize(Decimal("0.01"))

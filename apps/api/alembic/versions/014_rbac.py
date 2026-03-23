@@ -42,9 +42,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "tenants",
-        sa.Column(
-            "is_default", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
+        sa.Column("is_default", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     )
     op.create_foreign_key(
         "fk_tenants_owner_user",

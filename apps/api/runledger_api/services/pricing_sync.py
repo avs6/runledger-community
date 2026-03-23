@@ -136,9 +136,7 @@ async def sync_pricing(
                 )
             )
             inserted += 1
-            log.debug(
-                "pricing_inserted provider=%s model=%s", entry.provider, entry.model
-            )
+            log.debug("pricing_inserted provider=%s model=%s", entry.provider, entry.model)
 
         elif (
             existing.input_cost_per_1m != entry.input_per_1m
@@ -164,8 +162,7 @@ async def sync_pricing(
             )
             updated += 1
             log.info(
-                "pricing_updated provider=%s model=%s "
-                "old_input=%s new_input=%s",
+                "pricing_updated provider=%s model=%s old_input=%s new_input=%s",
                 entry.provider,
                 entry.model,
                 existing.input_cost_per_1m,

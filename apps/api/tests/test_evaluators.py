@@ -27,6 +27,7 @@ from httpx import AsyncClient
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
+
 def _scalars_list(rows: list) -> MagicMock:
     m = MagicMock()
     scalars = MagicMock()
@@ -66,8 +67,11 @@ def _make_evaluator(**kwargs) -> SimpleNamespace:
 
 # ── Create evaluator ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_create_evaluator_rule(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_create_evaluator_rule(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev = _make_evaluator(workspace_id=mock_workspace.id)
 
     async def mock_refresh(obj: object) -> None:
@@ -78,11 +82,24 @@ async def test_create_evaluator_rule(authed_client: AsyncClient, mock_db_session
 
     mock_db_session.refresh = mock_refresh
 
-    resp = await authed_client.post("/evaluations/evaluators", json={
-        "name": "Quality Check",
-        "type": "rule",
-        "config": {"rules": [{"field": "status", "op": "eq", "value": "succeeded", "score_if_pass": 1, "score_if_fail": 0}]},
-    })
+    resp = await authed_client.post(
+        "/evaluations/evaluators",
+        json={
+            "name": "Quality Check",
+            "type": "rule",
+            "config": {
+                "rules": [
+                    {
+                        "field": "status",
+                        "op": "eq",
+                        "value": "succeeded",
+                        "score_if_pass": 1,
+                        "score_if_fail": 0,
+                    }
+                ]
+            },
+        },
+    )
     assert resp.status_code == 201
     data = resp.json()
     assert data["name"] == "Quality Check"
@@ -90,7 +107,9 @@ async def test_create_evaluator_rule(authed_client: AsyncClient, mock_db_session
 
 
 @pytest.mark.asyncio
-async def test_create_evaluator_llm_judge(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_create_evaluator_llm_judge(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev = _make_evaluator(type="llm_judge", workspace_id=mock_workspace.id)
 
     async def mock_refresh(obj: object) -> None:
@@ -101,29 +120,38 @@ async def test_create_evaluator_llm_judge(authed_client: AsyncClient, mock_db_se
 
     mock_db_session.refresh = mock_refresh
 
-    resp = await authed_client.post("/evaluations/evaluators", json={
-        "name": "LLM Judge",
-        "type": "llm_judge",
-        "config": {"model": "gpt-4o-mini", "criteria": "Rate quality 0-1"},
-    })
+    resp = await authed_client.post(
+        "/evaluations/evaluators",
+        json={
+            "name": "LLM Judge",
+            "type": "llm_judge",
+            "config": {"model": "gpt-4o-mini", "criteria": "Rate quality 0-1"},
+        },
+    )
     assert resp.status_code == 201
     assert resp.json()["type"] == "llm_judge"
 
 
 @pytest.mark.asyncio
 async def test_create_evaluator_invalid_type(authed_client: AsyncClient) -> None:
-    resp = await authed_client.post("/evaluations/evaluators", json={
-        "name": "Bad",
-        "type": "invalid_type",
-        "config": {},
-    })
+    resp = await authed_client.post(
+        "/evaluations/evaluators",
+        json={
+            "name": "Bad",
+            "type": "invalid_type",
+            "config": {},
+        },
+    )
     assert resp.status_code == 422
 
 
 # ── List evaluators ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_list_evaluators_empty(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_list_evaluators_empty(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalars_list([]))
     resp = await authed_client.get("/evaluations/evaluators")
     assert resp.status_code == 200
@@ -131,7 +159,9 @@ async def test_list_evaluators_empty(authed_client: AsyncClient, mock_db_session
 
 
 @pytest.mark.asyncio
-async def test_list_evaluators(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_list_evaluators(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev1 = _make_evaluator(workspace_id=mock_workspace.id, name="EvalA")
     ev2 = _make_evaluator(workspace_id=mock_workspace.id, name="EvalB", type="llm_judge")
     mock_db_session.execute = AsyncMock(return_value=_scalars_list([ev1, ev2]))
@@ -146,8 +176,11 @@ async def test_list_evaluators(authed_client: AsyncClient, mock_db_session: Asyn
 
 # ── Get single evaluator ───────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_get_evaluator(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_get_evaluator(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev_id = uuid.uuid4()
     ev = _make_evaluator(id=ev_id, workspace_id=mock_workspace.id)
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(ev))
@@ -158,7 +191,9 @@ async def test_get_evaluator(authed_client: AsyncClient, mock_db_session: AsyncM
 
 
 @pytest.mark.asyncio
-async def test_get_evaluator_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_get_evaluator_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.get(f"/evaluations/evaluators/{uuid.uuid4()}")
     assert resp.status_code == 404
@@ -166,8 +201,11 @@ async def test_get_evaluator_not_found(authed_client: AsyncClient, mock_db_sessi
 
 # ── Update evaluator ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_update_evaluator(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_update_evaluator(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev_id = uuid.uuid4()
     ev = _make_evaluator(id=ev_id, workspace_id=mock_workspace.id)
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(ev))
@@ -177,10 +215,13 @@ async def test_update_evaluator(authed_client: AsyncClient, mock_db_session: Asy
 
     mock_db_session.refresh = mock_refresh
 
-    resp = await authed_client.put(f"/evaluations/evaluators/{ev_id}", json={
-        "name": "Updated Name",
-        "status": "inactive",
-    })
+    resp = await authed_client.put(
+        f"/evaluations/evaluators/{ev_id}",
+        json={
+            "name": "Updated Name",
+            "status": "inactive",
+        },
+    )
     assert resp.status_code == 200
     # The name/status are set on the object directly
     assert ev.name == "Updated Name"
@@ -188,7 +229,9 @@ async def test_update_evaluator(authed_client: AsyncClient, mock_db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_update_evaluator_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_update_evaluator_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.put(f"/evaluations/evaluators/{uuid.uuid4()}", json={"name": "X"})
     assert resp.status_code == 404
@@ -196,8 +239,11 @@ async def test_update_evaluator_not_found(authed_client: AsyncClient, mock_db_se
 
 # ── Delete evaluator ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_delete_evaluator(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_delete_evaluator(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev_id = uuid.uuid4()
     ev = _make_evaluator(id=ev_id, workspace_id=mock_workspace.id)
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(ev))
@@ -209,7 +255,9 @@ async def test_delete_evaluator(authed_client: AsyncClient, mock_db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_delete_evaluator_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_delete_evaluator_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.delete(f"/evaluations/evaluators/{uuid.uuid4()}")
     assert resp.status_code == 404
@@ -217,8 +265,11 @@ async def test_delete_evaluator_not_found(authed_client: AsyncClient, mock_db_se
 
 # ── Run evaluator ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
-async def test_run_evaluator(authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace) -> None:
+async def test_run_evaluator(
+    authed_client: AsyncClient, mock_db_session: AsyncMock, mock_workspace: SimpleNamespace
+) -> None:
     ev_id = uuid.uuid4()
     ev = _make_evaluator(id=ev_id, workspace_id=mock_workspace.id)
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(ev))
@@ -230,17 +281,20 @@ async def test_run_evaluator(authed_client: AsyncClient, mock_db_session: AsyncM
     assert resp.status_code == 200
     data = resp.json()
     assert data["evaluator_id"] == str(ev_id)
-    assert data["evaluated"] == 0   # async — returns placeholder
+    assert data["evaluated"] == 0  # async — returns placeholder
 
 
 @pytest.mark.asyncio
-async def test_run_evaluator_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_run_evaluator_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(None))
     resp = await authed_client.post(f"/evaluations/evaluators/{uuid.uuid4()}/run", json={})
     assert resp.status_code == 404
 
 
 # ── Cost-quality analytics ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_cost_quality_empty(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
@@ -253,8 +307,12 @@ async def test_cost_quality_empty(authed_client: AsyncClient, mock_db_session: A
 
 
 @pytest.mark.asyncio
-async def test_cost_quality_with_data(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
-    row = SimpleNamespace(model="gpt-4o", avg_cost_usd=Decimal("0.002"), avg_score=Decimal("0.85"), run_count=10)
+async def test_cost_quality_with_data(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
+    row = SimpleNamespace(
+        model="gpt-4o", avg_cost_usd=Decimal("0.002"), avg_score=Decimal("0.85"), run_count=10
+    )
     m = MagicMock()
     m.all = MagicMock(return_value=[row])
     mock_db_session.execute = AsyncMock(return_value=m)
@@ -279,11 +337,20 @@ async def test_best_value_empty(authed_client: AsyncClient, mock_db_session: Asy
 
 # ── Unit tests: rule evaluator service ────────────────────────────────────────
 
+
 def test_rule_evaluator_eq_pass() -> None:
     from runledger_api.services.evaluators import run_rule_evaluator
 
     config = {
-        "rules": [{"field": "status", "op": "eq", "value": "succeeded", "score_if_pass": 1.0, "score_if_fail": 0.0}]
+        "rules": [
+            {
+                "field": "status",
+                "op": "eq",
+                "value": "succeeded",
+                "score_if_pass": 1.0,
+                "score_if_fail": 0.0,
+            }
+        ]
     }
     score, evidence = run_rule_evaluator(config, {"status": "succeeded"})
     assert score == Decimal("1.0")
@@ -294,7 +361,15 @@ def test_rule_evaluator_eq_fail() -> None:
     from runledger_api.services.evaluators import run_rule_evaluator
 
     config = {
-        "rules": [{"field": "status", "op": "eq", "value": "succeeded", "score_if_pass": 1.0, "score_if_fail": 0.0}]
+        "rules": [
+            {
+                "field": "status",
+                "op": "eq",
+                "value": "succeeded",
+                "score_if_pass": 1.0,
+                "score_if_fail": 0.0,
+            }
+        ]
     }
     score, evidence = run_rule_evaluator(config, {"status": "failed"})
     assert score == Decimal("0.0")
@@ -305,7 +380,15 @@ def test_rule_evaluator_gt() -> None:
     from runledger_api.services.evaluators import run_rule_evaluator
 
     config = {
-        "rules": [{"field": "duration_ms", "op": "lte", "value": 5000, "score_if_pass": 1.0, "score_if_fail": 0.0}]
+        "rules": [
+            {
+                "field": "duration_ms",
+                "op": "lte",
+                "value": 5000,
+                "score_if_pass": 1.0,
+                "score_if_fail": 0.0,
+            }
+        ]
     }
     score, _ = run_rule_evaluator(config, {"duration_ms": 3000})
     assert score == Decimal("1.0")
@@ -315,7 +398,15 @@ def test_rule_evaluator_contains() -> None:
     from runledger_api.services.evaluators import run_rule_evaluator
 
     config = {
-        "rules": [{"field": "feature_tag", "op": "contains", "value": "prod", "score_if_pass": 1.0, "score_if_fail": 0.0}]
+        "rules": [
+            {
+                "field": "feature_tag",
+                "op": "contains",
+                "value": "prod",
+                "score_if_pass": 1.0,
+                "score_if_fail": 0.0,
+            }
+        ]
     }
     score, _ = run_rule_evaluator(config, {"feature_tag": "production-v2"})
     assert score == Decimal("1.0")
@@ -327,8 +418,20 @@ def test_rule_evaluator_avg_aggregation() -> None:
     config = {
         "aggregation": "avg",
         "rules": [
-            {"field": "status", "op": "eq", "value": "succeeded", "score_if_pass": 1.0, "score_if_fail": 0.0},
-            {"field": "duration_ms", "op": "lte", "value": 1000, "score_if_pass": 1.0, "score_if_fail": 0.0},
+            {
+                "field": "status",
+                "op": "eq",
+                "value": "succeeded",
+                "score_if_pass": 1.0,
+                "score_if_fail": 0.0,
+            },
+            {
+                "field": "duration_ms",
+                "op": "lte",
+                "value": 1000,
+                "score_if_pass": 1.0,
+                "score_if_fail": 0.0,
+            },
         ],
     }
     # First rule passes (1.0), second fails (0.0) → avg = 0.5

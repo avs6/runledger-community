@@ -10,6 +10,7 @@ Covers:
   - run_single_export worker (success + failure)
   - Scheduled export worker
 """
+
 from __future__ import annotations
 
 import uuid
@@ -104,6 +105,7 @@ def _list_result(items: list) -> MagicMock:
 
 def test_destination_create_valid() -> None:
     from runledger_api.schemas.warehouse import WarehouseDestinationCreate
+
     d = WarehouseDestinationCreate(
         name="prod-s3",
         provider="s3",
@@ -119,6 +121,7 @@ def test_destination_create_valid() -> None:
 def test_destination_create_invalid_resource_fails() -> None:
     from pydantic import ValidationError
     from runledger_api.schemas.warehouse import WarehouseDestinationCreate
+
     with pytest.raises(ValidationError, match="Invalid resources"):
         WarehouseDestinationCreate(
             name="x",
@@ -133,6 +136,7 @@ def test_destination_create_invalid_resource_fails() -> None:
 def test_destination_create_empty_resources_fails() -> None:
     from pydantic import ValidationError
     from runledger_api.schemas.warehouse import WarehouseDestinationCreate
+
     with pytest.raises(ValidationError, match="At least one resource"):
         WarehouseDestinationCreate(
             name="x",
@@ -164,9 +168,9 @@ async def test_create_destination() -> None:
     mock_db.commit = AsyncMock()
     mock_db.refresh = AsyncMock(
         side_effect=lambda obj: (
-            setattr(obj, "id", dest.id) or
-            setattr(obj, "created_at", dest.created_at) or
-            setattr(obj, "last_export_at", None)
+            setattr(obj, "id", dest.id)
+            or setattr(obj, "created_at", dest.created_at)
+            or setattr(obj, "last_export_at", None)
         )
     )
 
@@ -268,7 +272,10 @@ async def test_update_destination() -> None:
 
     with patch("runledger_api.routers.warehouse.emit_audit_event", new_callable=AsyncMock):
         result = await update_destination(
-            destination_id=dest.id, body=body, auth=(ws, None), db=mock_db  # type: ignore[arg-type]
+            destination_id=dest.id,
+            body=body,
+            auth=(ws, None),
+            db=mock_db,  # type: ignore[arg-type]
         )
 
     assert isinstance(result, WarehouseDestinationResponse)
@@ -364,13 +371,13 @@ async def test_trigger_export_job() -> None:
     mock_db.commit = AsyncMock()
     mock_db.refresh = AsyncMock(
         side_effect=lambda obj: (
-            setattr(obj, "id", job.id) or
-            setattr(obj, "created_at", job.created_at) or
-            setattr(obj, "started_at", None) or
-            setattr(obj, "completed_at", None) or
-            setattr(obj, "file_keys", None) or
-            setattr(obj, "row_counts", None) or
-            setattr(obj, "error", None)
+            setattr(obj, "id", job.id)
+            or setattr(obj, "created_at", job.created_at)
+            or setattr(obj, "started_at", None)
+            or setattr(obj, "completed_at", None)
+            or setattr(obj, "file_keys", None)
+            or setattr(obj, "row_counts", None)
+            or setattr(obj, "error", None)
         )
     )
 
@@ -379,6 +386,7 @@ async def test_trigger_export_job() -> None:
 
     # Pre-import workers module so the Celery task attribute exists before patching
     import runledger_api.workers.warehouse as _wh
+
     mock_task = MagicMock()
     mock_task.delay = MagicMock()
     with patch.object(_wh, "run_single_export", mock_task):
@@ -404,7 +412,11 @@ async def test_list_export_jobs() -> None:
 
     ws = _make_ws(ws_id)
     result = await list_export_jobs(
-        auth=(ws, None), db=mock_db, destination_id=None, status_filter=None, limit=50  # type: ignore[arg-type]
+        auth=(ws, None),
+        db=mock_db,
+        destination_id=None,
+        status_filter=None,
+        limit=50,  # type: ignore[arg-type]
     )
 
     assert isinstance(result, ExportJobList)
@@ -437,6 +449,7 @@ async def test_get_export_job_found() -> None:
 
 def test_to_jsonl_empty() -> None:
     from runledger_api.services.warehouse import _to_jsonl
+
     assert _to_jsonl([]) == b""
 
 
@@ -449,7 +462,9 @@ def test_to_jsonl_with_rows() -> None:
     row = SimpleNamespace()
     row_id = uuid.uuid4()
 
-    with patch("runledger_api.services.warehouse._orm_to_dict", return_value={"id": row_id, "cost": 1.5}):
+    with patch(
+        "runledger_api.services.warehouse._orm_to_dict", return_value={"id": row_id, "cost": 1.5}
+    ):
         data = _to_jsonl([row])
 
     assert data.endswith(b"\n")
@@ -471,7 +486,9 @@ async def test_export_workspace_data_jsonl() -> None:
     mock_db = AsyncMock()
     s3_uri = "s3://my-bucket/runs/date=2026-03-22/data.jsonl"
     with (
-        patch("runledger_api.services.warehouse._query_runs", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "runledger_api.services.warehouse._query_runs", new_callable=AsyncMock, return_value=[]
+        ),
         # Patch asyncio.to_thread at service module level; it must be awaitable
         patch(
             "runledger_api.services.warehouse.asyncio.to_thread",
@@ -496,7 +513,9 @@ async def test_export_workspace_data_skips_unknown_resource() -> None:
 
     mock_db = AsyncMock()
     with (
-        patch("runledger_api.services.warehouse._query_runs", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "runledger_api.services.warehouse._query_runs", new_callable=AsyncMock, return_value=[]
+        ),
         patch("runledger_api.services.warehouse._upload_sync", return_value="s3://b/k"),
         patch("asyncio.to_thread", new=lambda fn, *args: fn(*args)),
     ):
@@ -518,9 +537,7 @@ async def test_run_single_export_success() -> None:
 
     mock_session = AsyncMock()
     # First execute → job; second → dest
-    mock_session.execute = AsyncMock(
-        side_effect=[_scalar_result(job), _scalar_result(dest)]
-    )
+    mock_session.execute = AsyncMock(side_effect=[_scalar_result(job), _scalar_result(dest)])
     mock_session.commit = AsyncMock()
 
     # Patch at the services module — workers imports lazily from there
@@ -545,9 +562,7 @@ async def test_run_single_export_failure() -> None:
     job = _make_job(workspace_id=ws_id, destination_id=dest.id)
 
     mock_session = AsyncMock()
-    mock_session.execute = AsyncMock(
-        side_effect=[_scalar_result(job), _scalar_result(dest)]
-    )
+    mock_session.execute = AsyncMock(side_effect=[_scalar_result(job), _scalar_result(dest)])
     mock_session.commit = AsyncMock()
 
     with patch(
@@ -569,9 +584,7 @@ async def test_run_single_export_missing_destination() -> None:
 
     mock_session = AsyncMock()
     # First execute → job; second → no destination
-    mock_session.execute = AsyncMock(
-        side_effect=[_scalar_result(job), _scalar_result(None)]
-    )
+    mock_session.execute = AsyncMock(side_effect=[_scalar_result(job), _scalar_result(None)])
     mock_session.commit = AsyncMock()
 
     await _execute_job(mock_session, job.id)

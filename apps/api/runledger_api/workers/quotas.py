@@ -31,9 +31,7 @@ async def _reset() -> dict[str, object]:
     now = datetime.now(UTC)
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            update(UsageQuota)
-            .values(events_used=0, period_start=now)
-            .returning(text("id"))
+            update(UsageQuota).values(events_used=0, period_start=now).returning(text("id"))
         )
         rows = result.fetchall()
         await session.commit()

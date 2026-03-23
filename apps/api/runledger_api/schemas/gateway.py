@@ -14,9 +14,7 @@ from pydantic import BaseModel, Field
 
 class GatewayRouteCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=128, description="Model alias clients use")
-    provider: str = Field(
-        ..., pattern="^(openai|anthropic|ollama|groq|mistral|custom)$"
-    )
+    provider: str = Field(..., pattern="^(openai|anthropic|ollama|groq|mistral|custom)$")
     target_model: str = Field(..., min_length=1, max_length=128)
     base_url: str | None = None
     api_key_env_var: str | None = None
@@ -147,9 +145,7 @@ class RoutingPolicyCreate(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:  # noqa: ANN401
         if self.policy_type not in VALID_POLICY_TYPES:
-            raise ValueError(
-                f"policy_type must be one of {sorted(VALID_POLICY_TYPES)}"
-            )
+            raise ValueError(f"policy_type must be one of {sorted(VALID_POLICY_TYPES)}")
 
 
 class RoutingPolicyUpdate(BaseModel):

@@ -35,16 +35,16 @@ class Settings(BaseSettings):
     # Email — Brevo SMTP (leave empty to disable email sending)
     smtp_host: str = "smtp-relay.brevo.com"
     smtp_port: int = 587
-    smtp_user: str = ""          # Brevo login email
-    smtp_password: str = ""      # Brevo SMTP key
+    smtp_user: str = ""  # Brevo login email
+    smtp_password: str = ""  # Brevo SMTP key
     smtp_from: str = "runledger@gmail.com"
     app_base_url: str = "http://localhost:3000"  # used for verification links
 
     # Stripe — leave empty for OSS / self-hosted deployments
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
-    stripe_price_starter: str = ""   # Stripe Price ID for Starter plan
-    stripe_price_growth: str = ""    # Stripe Price ID for Growth plan
+    stripe_price_starter: str = ""  # Stripe Price ID for Starter plan
+    stripe_price_growth: str = ""  # Stripe Price ID for Growth plan
     stripe_price_enterprise: str = ""  # Stripe Price ID for Enterprise plan
 
     # Firebase Admin SDK — leave empty to disable social login

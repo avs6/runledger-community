@@ -40,9 +40,7 @@ def make_cache_key(target_model: str, messages: list[dict[str, str]]) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-async def check_cache(
-    db: AsyncSession, workspace_id: Any, cache_key: str
-) -> PromptCache | None:
+async def check_cache(db: AsyncSession, workspace_id: Any, cache_key: str) -> PromptCache | None:
     """Return a live (not-expired) cache entry, or None."""
     now = datetime.now(UTC)
     stmt = select(PromptCache).where(
@@ -96,9 +94,7 @@ async def store_cache(
         await db.rollback()  # duplicate key from concurrent insert — safe to ignore
 
 
-async def select_routes(
-    db: AsyncSession, workspace_id: Any, alias: str
-) -> list[GatewayRoute]:
+async def select_routes(db: AsyncSession, workspace_id: Any, alias: str) -> list[GatewayRoute]:
     """Return active routes for alias ordered by priority ASC."""
     stmt = (
         select(GatewayRoute)
@@ -252,15 +248,18 @@ async def stream_request(
         stream=True,
     )
 
-    async with httpx.AsyncClient(timeout=300.0) as client, client.stream(
-        "POST",
-        f"{base_url}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-    ) as resp:
+    async with (
+        httpx.AsyncClient(timeout=300.0) as client,
+        client.stream(
+            "POST",
+            f"{base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        ) as resp,
+    ):
         resp.raise_for_status()
         async for line in resp.aiter_lines():
             if line:
@@ -323,7 +322,10 @@ async def route_and_forward(
 
     try:
         selected_route, decision_reason = await select_route_with_policy(
-            db, workspace_id, model_alias, messages  # type: ignore[arg-type]
+            db,
+            workspace_id,
+            model_alias,
+            messages,  # type: ignore[arg-type]
         )
         # Policy selected a single route; still fall back to priority order on failure
         candidate_routes = [selected_route]

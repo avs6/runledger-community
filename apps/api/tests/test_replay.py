@@ -302,7 +302,13 @@ async def test_get_results_completed(
                 "prompt_content_preview": "You are a concise support agent...",
             },
         ],
-        "deltas": [{"config_a": "gpt-4o / support-agent@v2", "config_b": "gpt-4o-mini / support-agent@v3", "cost_delta_pct": "-85.0"}],
+        "deltas": [
+            {
+                "config_a": "gpt-4o / support-agent@v2",
+                "config_b": "gpt-4o-mini / support-agent@v3",
+                "cost_delta_pct": "-85.0",
+            }
+        ],
         "dataset_run_count": 5,
         "completed_at": completed_at,
     }

@@ -23,9 +23,7 @@ async def check_quota(tenant_id: uuid.UUID, db: AsyncSession) -> None:
     Raise HTTP 402 if the tenant has exceeded their monthly event quota.
     Fail open — if no quota row exists, allow the request through.
     """
-    result = await db.execute(
-        select(UsageQuota).where(UsageQuota.tenant_id == tenant_id)
-    )
+    result = await db.execute(select(UsageQuota).where(UsageQuota.tenant_id == tenant_id))
     quota = result.scalar_one_or_none()
     if quota is None:
         return  # no quota row → allow (self-hosted OSS path)

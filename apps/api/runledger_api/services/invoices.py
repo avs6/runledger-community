@@ -41,6 +41,7 @@ log = structlog.get_logger()
 
 # ── Provider CSV/JSON parsers ──────────────────────────────────────────────────
 
+
 def _find_col(row: dict[str, str], *candidates: str) -> str | None:
     """Case-insensitive column lookup."""
     lower = {k.lower().strip(): k for k in row}
@@ -129,8 +130,12 @@ def parse_csv(content: bytes, filename: str) -> tuple[str, list[ParsedLine]]:
         # Model
         model = _find_col(
             row,
-            "model", "model_id", "model_slug", "sku_description",
-            "product", "service_description",
+            "model",
+            "model_id",
+            "model_slug",
+            "sku_description",
+            "product",
+            "service_description",
         )
 
         # Request ID
@@ -141,7 +146,9 @@ def parse_csv(content: bytes, filename: str) -> tuple[str, list[ParsedLine]]:
             _find_col(row, "input_tokens", "prompt_tokens", "input token count", "context_tokens")
         )
         output_tokens = _parse_tokens(
-            _find_col(row, "output_tokens", "completion_tokens", "output token count", "generated_tokens")
+            _find_col(
+                row, "output_tokens", "completion_tokens", "output token count", "generated_tokens"
+            )
         )
 
         # Amount / cost
@@ -153,23 +160,30 @@ def parse_csv(content: bytes, filename: str) -> tuple[str, list[ParsedLine]]:
         # Timestamp
         dt_raw = _find_col(
             row,
-            "timestamp", "date", "created_at", "start_time", "usage_date",
-            "invoice_date", "occurred_at",
+            "timestamp",
+            "date",
+            "created_at",
+            "start_time",
+            "usage_date",
+            "invoice_date",
+            "occurred_at",
         )
         occurred_at = _parse_dt(dt_raw)
 
         if amount == Decimal("0") and input_tokens is None and output_tokens is None:
             continue  # skip blank/header rows
 
-        lines.append({
-            "provider_request_id": req_id,
-            "model": model,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "amount": amount,
-            "occurred_at": occurred_at,
-            "raw": raw,
-        })
+        lines.append(
+            {
+                "provider_request_id": req_id,
+                "model": model,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "amount": amount,
+                "occurred_at": occurred_at,
+                "raw": raw,
+            }
+        )
 
     return provider, lines
 
@@ -196,13 +210,17 @@ def parse_json(content: bytes) -> tuple[str, list[ParsedLine]]:
         if not isinstance(record, dict):
             continue
 
-        model = (
-            record.get("snapshot_id")
-            or record.get("model")
-            or record.get("model_id")
+        model = record.get("snapshot_id") or record.get("model") or record.get("model_id")
+        input_tokens = (
+            record.get("n_context_tokens_total")
+            or record.get("prompt_tokens")
+            or record.get("input_tokens")
         )
-        input_tokens = record.get("n_context_tokens_total") or record.get("prompt_tokens") or record.get("input_tokens")
-        output_tokens = record.get("n_generated_tokens_total") or record.get("completion_tokens") or record.get("output_tokens")
+        output_tokens = (
+            record.get("n_generated_tokens_total")
+            or record.get("completion_tokens")
+            or record.get("output_tokens")
+        )
 
         # Cost: may be in dollars or in cents
         cost_raw = record.get("cost") or record.get("amount") or 0
@@ -216,15 +234,17 @@ def parse_json(content: bytes) -> tuple[str, list[ParsedLine]]:
 
         req_id = str(record.get("request_id") or record.get("message_id") or "")
 
-        lines.append({
-            "provider_request_id": req_id or None,
-            "model": str(model) if model else None,
-            "input_tokens": int(input_tokens) if input_tokens is not None else None,
-            "output_tokens": int(output_tokens) if output_tokens is not None else None,
-            "amount": amount,
-            "occurred_at": occurred_at,
-            "raw": record,
-        })
+        lines.append(
+            {
+                "provider_request_id": req_id or None,
+                "model": str(model) if model else None,
+                "input_tokens": int(input_tokens) if input_tokens is not None else None,
+                "output_tokens": int(output_tokens) if output_tokens is not None else None,
+                "amount": amount,
+                "occurred_at": occurred_at,
+                "raw": record,
+            }
+        )
 
     return provider, lines
 
@@ -232,7 +252,7 @@ def parse_json(content: bytes) -> tuple[str, list[ParsedLine]]:
 # ── Reconciliation engine ──────────────────────────────────────────────────────
 
 _FUZZY_WINDOW_MINUTES = 10
-_FUZZY_TOKEN_TOLERANCE = 0.10   # 10%
+_FUZZY_TOKEN_TOLERANCE = 0.10  # 10%
 
 
 def _normalise_model(model: str | None) -> str:
@@ -279,17 +299,25 @@ async def reconcile_invoice(
         return {"matched_exact": 0, "matched_fuzzy": 0, "unmatched": 0}
 
     # Load invoice to get period and provider
-    inv_result = await db.execute(
-        select(ProviderInvoice).where(ProviderInvoice.id == invoice_id)
-    )
+    inv_result = await db.execute(select(ProviderInvoice).where(ProviderInvoice.id == invoice_id))
     invoice = inv_result.scalar_one_or_none()
     if invoice is None:
         return {}
 
     # Load provider_calls in the period window (±1 day buffer)
 
-    period_from = datetime(invoice.period_start.year, invoice.period_start.month, invoice.period_start.day, tzinfo=UTC)
-    period_to = datetime(invoice.period_end.year, invoice.period_end.month, invoice.period_end.day, 23, 59, 59, tzinfo=UTC)
+    period_from = datetime(
+        invoice.period_start.year, invoice.period_start.month, invoice.period_start.day, tzinfo=UTC
+    )
+    period_to = datetime(
+        invoice.period_end.year,
+        invoice.period_end.month,
+        invoice.period_end.day,
+        23,
+        59,
+        59,
+        tzinfo=UTC,
+    )
     # Add 1-day buffer each side
     period_from_buf = period_from - timedelta(days=1)
     period_to_buf = period_to + timedelta(days=1)
@@ -348,9 +376,8 @@ async def reconcile_invoice(
         if best_call is not None:
             used_call_ids.add(best_call.id)
             call_cost = Decimal(str(best_call.cost_usd or 0))
-            token_delta = (
-                ((line.input_tokens or 0) + (line.output_tokens or 0))
-                - ((best_call.input_tokens or 0) + (best_call.output_tokens or 0))
+            token_delta = ((line.input_tokens or 0) + (line.output_tokens or 0)) - (
+                (best_call.input_tokens or 0) + (best_call.output_tokens or 0)
             )
             cost_delta = line.amount - call_cost
             runledger_total += call_cost
@@ -404,6 +431,7 @@ async def reconcile_invoice(
 
 
 # ── Dispute export / signing ───────────────────────────────────────────────────
+
 
 def sign_dispute_export(data: dict[str, Any], signing_key: str) -> str:
     """HMAC-SHA256 signature over sorted JSON (same algorithm as billing snapshots)."""

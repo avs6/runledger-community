@@ -16,6 +16,7 @@ GET    /warehouse/jobs                      List export jobs
 POST   /warehouse/jobs                      Trigger a manual export job
 GET    /warehouse/jobs/{id}                 Get a job
 """
+
 from __future__ import annotations
 
 import uuid
@@ -104,9 +105,7 @@ async def list_destinations(
     include_inactive: bool = Query(False),
 ) -> WarehouseDestinationList:
     workspace: Workspace = auth[0]
-    q = select(WarehouseDestination).where(
-        WarehouseDestination.workspace_id == workspace.id
-    )
+    q = select(WarehouseDestination).where(WarehouseDestination.workspace_id == workspace.id)
     if not include_inactive:
         q = q.where(WarehouseDestination.is_active.is_(True))
     q = q.order_by(WarehouseDestination.created_at.desc())
@@ -215,6 +214,7 @@ async def test_destination(
         raise HTTPException(status_code=404, detail="Destination not found")
 
     from runledger_api.services.warehouse import test_destination_connection
+
     try:
         await test_destination_connection(dest)
         return ConnectionTestResult(ok=True)
@@ -260,6 +260,7 @@ async def trigger_export_job(
 
     # Dispatch Celery task
     from runledger_api.workers.warehouse import run_single_export
+
     run_single_export.delay(str(job.id))
 
     log.info("warehouse_job_triggered", job_id=str(job.id), export_date=str(export_date))

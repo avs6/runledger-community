@@ -34,7 +34,9 @@ class ProviderInvoice(Base):
     currency: Mapped[str] = mapped_column(sa.String(8), nullable=False, server_default="USD")
     total_amount: Mapped[Decimal] = mapped_column(sa.Numeric(14, 4), nullable=False)
     line_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
-    matched_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
+    matched_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("0")
+    )
     unmatched_amount: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="imported")
     filename: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
@@ -61,9 +63,7 @@ class ProviderInvoiceLine(Base):
     input_tokens: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
     amount: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
-    occurred_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    occurred_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     # Reconciliation fields
     match_status: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, server_default="unmatched"
@@ -72,4 +72,6 @@ class ProviderInvoiceLine(Base):
     token_delta: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     cost_delta: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     dispute_note: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    raw: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa.text("'{}'"))
+    raw: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )

@@ -75,10 +75,7 @@ async def list_sessions(
     rows = result.all()
 
     # Total distinct session count
-    count_stmt = (
-        select(func.count(AgentRun.session_id.distinct()))
-        .where(*base_where)
-    )
+    count_stmt = select(func.count(AgentRun.session_id.distinct())).where(*base_where)
     total = (await db.execute(count_stmt)).scalar_one()
 
     items = [

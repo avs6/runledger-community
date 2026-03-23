@@ -116,13 +116,17 @@ def _patch_sync(cohere: Any, transport: SyncTransport) -> None:
             result = original(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "succeeded", result))
-            transport.enqueue(_build_provider_call(run_id, span_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "failed", None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, model, exc, latency_ms))
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 
@@ -135,7 +139,9 @@ def _patch_sync(cohere: Any, transport: SyncTransport) -> None:
 def _patch_async(cohere: Any, transport: SyncTransport) -> None:
     async_cls = getattr(cohere, "AsyncClientV2", None)
     if async_cls is None:
-        log.warning("runledger_cohere_async_patch_skipped", reason="AsyncClientV2 not found")
+        log.warning(
+            "runledger_cohere_async_patch_skipped", reason="AsyncClientV2 not found"
+        )
         return
 
     original_async = async_cls.chat
@@ -159,13 +165,17 @@ def _patch_async(cohere: Any, transport: SyncTransport) -> None:
             result = await original_async(self, *args, **kwargs)
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "succeeded", result))
-            transport.enqueue(_build_provider_call(run_id, span_id, model, result, latency_ms))
+            transport.enqueue(
+                _build_provider_call(run_id, span_id, model, result, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "succeeded", result))
             return result
         except Exception as exc:
             latency_ms = int((time.perf_counter() - t0) * 1000)
             transport.enqueue(_build_span_end(run_id, span_id, "failed", None))
-            transport.enqueue(_build_provider_call_error(run_id, span_id, model, exc, latency_ms))
+            transport.enqueue(
+                _build_provider_call_error(run_id, span_id, model, exc, latency_ms)
+            )
             transport.enqueue(_build_run_end(run_id, "failed", None))
             raise
 
@@ -183,7 +193,11 @@ def _extract_text(result: Any) -> str | None:
         if message is not None:
             content = getattr(message, "content", None)
             if isinstance(content, list) and content:
-                texts = [getattr(block, "text", "") for block in content if hasattr(block, "text")]
+                texts = [
+                    getattr(block, "text", "")
+                    for block in content
+                    if hasattr(block, "text")
+                ]
                 return "\n".join(t for t in texts if t) or None
     except Exception:
         pass
@@ -198,11 +212,15 @@ def _extract_usage(result: Any) -> tuple[int | None, int | None]:
             # v5: usage.tokens.input_tokens / usage.tokens.output_tokens
             tokens = getattr(usage, "tokens", None)
             if tokens is not None:
-                return getattr(tokens, "input_tokens", None), getattr(tokens, "output_tokens", None)
+                return getattr(tokens, "input_tokens", None), getattr(
+                    tokens, "output_tokens", None
+                )
             # Fallback: billed_units
             billed = getattr(usage, "billed_units", None)
             if billed is not None:
-                return getattr(billed, "input_tokens", None), getattr(billed, "output_tokens", None)
+                return getattr(billed, "input_tokens", None), getattr(
+                    billed, "output_tokens", None
+                )
     except Exception:
         pass
     return None, None
@@ -211,15 +229,23 @@ def _extract_usage(result: Any) -> tuple[int | None, int | None]:
 # ── Event builders ─────────────────────────────────────────────────────────────
 
 
-def _build_run_start(run_id: str, ctx: dict[str, str | None], started_at: datetime) -> dict[str, Any]:
-    event: dict[str, Any] = {"event_type": "run_start", "run_id": run_id, "started_at": started_at.isoformat()}
+def _build_run_start(
+    run_id: str, ctx: dict[str, str | None], started_at: datetime
+) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "event_type": "run_start",
+        "run_id": run_id,
+        "started_at": started_at.isoformat(),
+    }
     for key in ("end_user_id", "session_id", "feature_tag", "deployment_version"):
         if ctx.get(key):
             event[key] = ctx[key]
     return event
 
 
-def _build_span_start(run_id: str, span_id: str, model: str, started_at: datetime) -> dict[str, Any]:
+def _build_span_start(
+    run_id: str, span_id: str, model: str, started_at: datetime
+) -> dict[str, Any]:
     return {
         "event_type": "span_start",
         "run_id": run_id,
@@ -230,7 +256,9 @@ def _build_span_start(run_id: str, span_id: str, model: str, started_at: datetim
     }
 
 
-def _build_span_end(run_id: str, span_id: str, status: str, result: Any) -> dict[str, Any]:
+def _build_span_end(
+    run_id: str, span_id: str, status: str, result: Any
+) -> dict[str, Any]:
     event: dict[str, Any] = {
         "event_type": "span_end",
         "run_id": run_id,
@@ -245,7 +273,9 @@ def _build_span_end(run_id: str, span_id: str, status: str, result: Any) -> dict
     return event
 
 
-def _build_provider_call(run_id: str, span_id: str, model: str, result: Any, latency_ms: int) -> dict[str, Any]:
+def _build_provider_call(
+    run_id: str, span_id: str, model: str, result: Any, latency_ms: int
+) -> dict[str, Any]:
     event: dict[str, Any] = {
         "event_type": "provider_call",
         "run_id": run_id,
@@ -263,7 +293,9 @@ def _build_provider_call(run_id: str, span_id: str, model: str, result: Any, lat
     return event
 
 
-def _build_provider_call_error(run_id: str, span_id: str, model: str, exc: Exception, latency_ms: int) -> dict[str, Any]:
+def _build_provider_call_error(
+    run_id: str, span_id: str, model: str, exc: Exception, latency_ms: int
+) -> dict[str, Any]:
     return {
         "event_type": "provider_call",
         "run_id": run_id,

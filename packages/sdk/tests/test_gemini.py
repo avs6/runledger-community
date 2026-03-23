@@ -1,4 +1,5 @@
 """Tests for runledger_sdk.gemini instrumentation (google-genai v2)."""
+
 from __future__ import annotations
 
 import sys

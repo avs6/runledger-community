@@ -93,9 +93,16 @@ async def create_budget(
         limit_usd=str(budget.limit_usd),
     )
     await emit_audit_event(
-        db, workspace.id, "budget.created",
-        target_type="budget", target_id=str(budget.id),
-        after={"scope_type": budget.scope_type, "period_type": budget.period_type, "limit_usd": str(budget.limit_usd)},
+        db,
+        workspace.id,
+        "budget.created",
+        target_type="budget",
+        target_id=str(budget.id),
+        after={
+            "scope_type": budget.scope_type,
+            "period_type": budget.period_type,
+            "limit_usd": str(budget.limit_usd),
+        },
     )
 
     from decimal import Decimal  # noqa: PLC0415
@@ -335,9 +342,16 @@ async def delete_budget(
 
     await db.execute(update(Budget).where(Budget.id == budget_id).values(is_active=False))
     await emit_audit_event(
-        db, workspace.id, "budget.deleted",
-        target_type="budget", target_id=str(budget_id),
-        before={"scope_type": budget.scope_type, "period_type": budget.period_type, "limit_usd": str(budget.limit_usd)},
+        db,
+        workspace.id,
+        "budget.deleted",
+        target_type="budget",
+        target_id=str(budget_id),
+        before={
+            "scope_type": budget.scope_type,
+            "period_type": budget.period_type,
+            "limit_usd": str(budget.limit_usd),
+        },
     )
     await db.commit()
     await invalidate_workspace_budgets_cache(redis, workspace.id)

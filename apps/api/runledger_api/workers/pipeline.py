@@ -61,9 +61,7 @@ async def _process_events(workspace_id: str, events: list[dict[str, Any]]) -> No
         await engine.dispose()
 
 
-async def _get_capture_policy(
-    session: AsyncSession, workspace_id: str
-) -> tuple[str, float]:
+async def _get_capture_policy(session: AsyncSession, workspace_id: str) -> tuple[str, float]:
     """Return (privacy_mode, sampled_rate) for the workspace.
 
     Falls back to ('METADATA_ONLY', 0.0) when no policy row exists.
@@ -71,9 +69,7 @@ async def _get_capture_policy(
     """
     try:
         result = await session.execute(
-            select(CapturePolicy).where(
-                CapturePolicy.workspace_id == uuid.UUID(workspace_id)
-            )
+            select(CapturePolicy).where(CapturePolicy.workspace_id == uuid.UUID(workspace_id))
         )
         policy = result.scalar_one_or_none()
         if policy is None:

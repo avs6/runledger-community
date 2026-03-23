@@ -24,9 +24,9 @@ from runledger_api.core.celery_app import celery_app
 
 log = structlog.get_logger()
 
-_SPIKE_THRESHOLD = 0.30   # 30% increase in cost_per_success triggers alert
-_DROP_THRESHOLD = 0.20    # 20% decrease in success_rate triggers alert
-_MIN_SAMPLE = 5           # minimum outcomes in window to alert
+_SPIKE_THRESHOLD = 0.30  # 30% increase in cost_per_success triggers alert
+_DROP_THRESHOLD = 0.20  # 20% decrease in success_rate triggers alert
+_MIN_SAMPLE = 5  # minimum outcomes in window to alert
 
 
 async def _rollup() -> int:
@@ -64,7 +64,9 @@ async def _rollup() -> int:
             agg_result = await db.execute(
                 select(
                     func.count(Outcome.id).label("count"),
-                    func.sum(func.cast(Outcome.success, type_=func.Integer.__class__)).label("success_count"),
+                    func.sum(func.cast(Outcome.success, type_=func.Integer.__class__)).label(
+                        "success_count"
+                    ),
                     func.coalesce(func.sum(Outcome.value_usd), Decimal("0")).label("total_value"),
                 ).where(
                     Outcome.workspace_id == workspace_id,
@@ -119,7 +121,11 @@ async def _rollup() -> int:
             )
             total_value = Decimal(str(agg.total_value or 0))
             roi = (
-                Decimal(str(round((float(total_value) - float(total_cost)) / float(total_cost) * 100, 4)))
+                Decimal(
+                    str(
+                        round((float(total_value) - float(total_cost)) / float(total_cost) * 100, 4)
+                    )
+                )
                 if total_cost > 0 and total_value > 0
                 else None
             )
@@ -214,9 +220,7 @@ async def _check_alerts() -> list[dict]:
             )
             .group_by(OutcomeRollupDaily.workspace_id, OutcomeRollupDaily.outcome_type)
         )
-        prior_map = {
-            (str(r.workspace_id), r.outcome_type): r for r in prior_result.all()
-        }
+        prior_map = {(str(r.workspace_id), r.outcome_type): r for r in prior_result.all()}
 
         for row in curr_rows:
             total = int(row.total_count or 0)
@@ -234,24 +238,28 @@ async def _check_alerts() -> list[dict]:
             prior_cps = float(prior.avg_cps or 0)
 
             if prior_sr > 0 and (prior_sr - curr_sr) / prior_sr >= _DROP_THRESHOLD:
-                alerts.append({
-                    "workspace_id": str(row.workspace_id),
-                    "outcome_type": row.outcome_type,
-                    "alert_type": "success_rate_drop",
-                    "current": curr_sr,
-                    "prior": prior_sr,
-                    "change_pct": round((curr_sr - prior_sr) / prior_sr * 100, 2),
-                })
+                alerts.append(
+                    {
+                        "workspace_id": str(row.workspace_id),
+                        "outcome_type": row.outcome_type,
+                        "alert_type": "success_rate_drop",
+                        "current": curr_sr,
+                        "prior": prior_sr,
+                        "change_pct": round((curr_sr - prior_sr) / prior_sr * 100, 2),
+                    }
+                )
 
             if prior_cps > 0 and (curr_cps - prior_cps) / prior_cps >= _SPIKE_THRESHOLD:
-                alerts.append({
-                    "workspace_id": str(row.workspace_id),
-                    "outcome_type": row.outcome_type,
-                    "alert_type": "cost_per_success_spike",
-                    "current": curr_cps,
-                    "prior": prior_cps,
-                    "change_pct": round((curr_cps - prior_cps) / prior_cps * 100, 2),
-                })
+                alerts.append(
+                    {
+                        "workspace_id": str(row.workspace_id),
+                        "outcome_type": row.outcome_type,
+                        "alert_type": "cost_per_success_spike",
+                        "current": curr_cps,
+                        "prior": prior_cps,
+                        "change_pct": round((curr_cps - prior_cps) / prior_cps * 100, 2),
+                    }
+                )
 
     await engine.dispose()
     return alerts

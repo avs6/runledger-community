@@ -198,9 +198,7 @@ async def test_get_prompt_success(
 ) -> None:
     """GET /prompts/{name} → 200 with prompt metadata."""
     prompt = _make_prompt(workspace_id=mock_workspace.id)
-    mock_db_session.execute = AsyncMock(
-        return_value=_scalar_one_or_none_result(prompt)
-    )
+    mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none_result(prompt))
 
     resp = await authed_client.get("/prompts/support-agent")
     assert resp.status_code == 200
@@ -213,9 +211,7 @@ async def test_get_prompt_not_found(
     mock_db_session: AsyncMock,
 ) -> None:
     """GET /prompts/{name} when prompt doesn't exist → 404."""
-    mock_db_session.execute = AsyncMock(
-        return_value=_scalar_one_or_none_result(None)
-    )
+    mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none_result(None))
 
     resp = await authed_client.get("/prompts/nonexistent")
     assert resp.status_code == 404
@@ -241,7 +237,7 @@ async def test_create_version_success(
     mock_db_session.execute = AsyncMock(
         side_effect=[
             _scalar_one_or_none_result(prompt),  # get prompt
-            _scalar_result(0),                   # max version = 0 → new = 1
+            _scalar_result(0),  # max version = 0 → new = 1
         ]
     )
     mock_db_session.refresh.side_effect = set_version_attrs
@@ -276,8 +272,8 @@ async def test_get_latest_version(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _scalar_one_or_none_result(prompt),    # get prompt
-            _scalar_one_or_none_result(version),   # get latest
+            _scalar_one_or_none_result(prompt),  # get prompt
+            _scalar_one_or_none_result(version),  # get latest
         ]
     )
 
@@ -302,7 +298,7 @@ async def test_get_specific_version(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _scalar_one_or_none_result(prompt),   # get prompt
+            _scalar_one_or_none_result(prompt),  # get prompt
             _scalar_one_or_none_result(version),  # get specific version
         ]
     )
@@ -324,11 +320,15 @@ async def test_promote_version(
     """POST /prompts/{name}/promote → 201, dev version copied to staging (no approval needed)."""
     prompt = _make_prompt(workspace_id=mock_workspace.id)
     dev_v = _make_version(
-        prompt_id=prompt.id, version=1, environment="dev",
+        prompt_id=prompt.id,
+        version=1,
+        environment="dev",
         commit_message="Dev draft",
     )
     promoted = _make_version(
-        prompt_id=prompt.id, version=2, environment="staging",
+        prompt_id=prompt.id,
+        version=2,
+        environment="staging",
         commit_message="Promoted from dev v1",
     )
 
@@ -338,9 +338,9 @@ async def test_promote_version(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _scalar_one_or_none_result(prompt),   # get prompt
-            _scalar_one_or_none_result(dev_v),    # find latest in dev
-            _scalar_result(1),                    # max version = 1 → new = 2
+            _scalar_one_or_none_result(prompt),  # get prompt
+            _scalar_one_or_none_result(dev_v),  # find latest in dev
+            _scalar_result(1),  # max version = 1 → new = 2
         ]
     )
     mock_db_session.refresh.side_effect = set_promoted_attrs
@@ -371,10 +371,10 @@ async def test_prompt_metrics(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _scalar_one_or_none_result(prompt),     # get prompt
-            _scalars_all_result([version]),          # get all versions
-            _one_result(run_row),                   # run stats for v1
-            _scalar_result(0.87),                   # avg score for v1
+            _scalar_one_or_none_result(prompt),  # get prompt
+            _scalars_all_result([version]),  # get all versions
+            _one_result(run_row),  # run stats for v1
+            _scalar_result(0.87),  # avg score for v1
         ]
     )
 

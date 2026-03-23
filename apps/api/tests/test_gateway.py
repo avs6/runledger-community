@@ -321,7 +321,9 @@ async def test_completions_no_routes_returns_502(
         ),
         patch(
             "runledger_api.services.routing.select_route_with_policy",
-            new=AsyncMock(side_effect=ValueError("No active gateway routes for alias 'unknown-model'")),
+            new=AsyncMock(
+                side_effect=ValueError("No active gateway routes for alias 'unknown-model'")
+            ),
         ),
         patch(
             "runledger_api.routers.gateway.record_gateway_request",
@@ -377,7 +379,10 @@ async def test_route_and_forward_retries_once_on_transient_failure() -> None:
     mock_db.execute = AsyncMock(return_value=_scalar_one_or_none_result(None))
 
     with (
-        patch("runledger_api.services.routing._fetch_active_routes", new=AsyncMock(return_value=[route])),
+        patch(
+            "runledger_api.services.routing._fetch_active_routes",
+            new=AsyncMock(return_value=[route]),
+        ),
         patch("runledger_api.services.gateway.select_routes", new=AsyncMock(return_value=[route])),
         patch(
             "runledger_api.services.gateway.forward_request",

@@ -44,7 +44,8 @@ class EvaluatorList(BaseModel):
 
 class EvaluatorRunRequest(BaseModel):
     """Trigger a batch evaluation run for specific runs."""
-    run_ids: list[uuid.UUID] | None = None   # None = evaluate all recent runs
+
+    run_ids: list[uuid.UUID] | None = None  # None = evaluate all recent runs
     limit: int = Field(100, ge=1, le=1000)
 
 
@@ -56,6 +57,7 @@ class EvaluatorRunResult(BaseModel):
 
 
 # ── Cost-quality analytics ────────────────────────────────────────────────────
+
 
 class CostQualityPoint(BaseModel):
     model: str
@@ -72,7 +74,7 @@ class BestValueModel(BaseModel):
     model: str
     avg_cost_usd: str
     avg_score: str
-    value_score: str   # avg_score / avg_cost_usd (normalised)
+    value_score: str  # avg_score / avg_cost_usd (normalised)
     run_count: int
 
 
@@ -82,12 +84,13 @@ class BestValueResponse(BaseModel):
 
 # ── Judge drift ───────────────────────────────────────────────────────────────
 
+
 class JudgeDriftItem(BaseModel):
     evaluator_id: uuid.UUID
     evaluator_name: str
     current_avg: str
     prior_avg: str
-    change_pct: str   # positive = improved, negative = degraded
+    change_pct: str  # positive = improved, negative = degraded
 
 
 class JudgeDriftResponse(BaseModel):

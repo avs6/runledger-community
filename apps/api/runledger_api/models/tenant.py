@@ -35,7 +35,7 @@ class WorkspaceRoleEnum(StrEnum):
     workspace_admin = "workspace_admin"
     workspace_editor = "workspace_editor"
     workspace_contributor = "workspace_contributor"
-    member = "member"           # legacy alias for workspace_editor
+    member = "member"  # legacy alias for workspace_editor
     viewer = "viewer"
 
 
@@ -83,8 +83,12 @@ class Tenant(Base):
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
-    workspaces: Mapped[list["Workspace"]] = relationship(back_populates="tenant", passive_deletes=True)
-    tenant_users: Mapped[list["TenantUser"]] = relationship(back_populates="tenant", passive_deletes=True)
+    workspaces: Mapped[list["Workspace"]] = relationship(
+        back_populates="tenant", passive_deletes=True
+    )
+    tenant_users: Mapped[list["TenantUser"]] = relationship(
+        back_populates="tenant", passive_deletes=True
+    )
 
 
 class Workspace(Base):
@@ -108,8 +112,12 @@ class Workspace(Base):
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="workspaces")
-    applications: Mapped[list["Application"]] = relationship(back_populates="workspace", passive_deletes=True)
-    api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="workspace", passive_deletes=True)
+    applications: Mapped[list["Application"]] = relationship(
+        back_populates="workspace", passive_deletes=True
+    )
+    api_keys: Mapped[list["ApiKey"]] = relationship(
+        back_populates="workspace", passive_deletes=True
+    )
 
 
 class Application(Base):
@@ -186,13 +194,19 @@ class User(Base):
         sa.Boolean, server_default=sa.text("false"), nullable=False
     )
     email_verify_token: Mapped[str | None] = mapped_column(sa.String(64), nullable=True, index=True)
-    firebase_uid: Mapped[str | None] = mapped_column(sa.String(128), unique=True, nullable=True, index=True)
+    firebase_uid: Mapped[str | None] = mapped_column(
+        sa.String(128), unique=True, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
-    workspace_users: Mapped[list["WorkspaceUser"]] = relationship(back_populates="user", passive_deletes=True)
-    tenant_users: Mapped[list["TenantUser"]] = relationship(back_populates="user", passive_deletes=True)
+    workspace_users: Mapped[list["WorkspaceUser"]] = relationship(
+        back_populates="user", passive_deletes=True
+    )
+    tenant_users: Mapped[list["TenantUser"]] = relationship(
+        back_populates="user", passive_deletes=True
+    )
 
 
 class WorkspaceUser(Base):
@@ -219,9 +233,7 @@ class WorkspaceUser(Base):
     status: Mapped[MemberStatusEnum] = mapped_column(
         sa.String(16), nullable=False, server_default="active"
     )
-    invited_by: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
@@ -254,14 +266,10 @@ class TenantUser(Base):
     status: Mapped[MemberStatusEnum] = mapped_column(
         sa.String(16), nullable=False, server_default="active"
     )
-    invited_by: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
 
     user: Mapped["User"] = relationship(back_populates="tenant_users")
     tenant: Mapped["Tenant"] = relationship(back_populates="tenant_users")
-
-

@@ -13,6 +13,7 @@ from runledger_api.models.tenant import MemberStatusEnum, TenantRoleEnum, Tenant
 
 # ── Last-admin guard ───────────────────────────────────────────────────────────
 
+
 async def count_active_org_admins(tenant_id: uuid.UUID, db: AsyncSession) -> int:
     result = await db.execute(
         select(func.count())
@@ -50,6 +51,7 @@ async def assert_not_last_admin(
 
 # ── Audit logging ──────────────────────────────────────────────────────────────
 
+
 def log_audit(
     db: AsyncSession,
     *,
@@ -64,12 +66,14 @@ def log_audit(
     """Add an AuditEvent to the session. Caller must commit."""
     before = {"value": old_value} if old_value else None
     after = {"value": new_value} if new_value else None
-    db.add(AuditEvent(
-        workspace_id=scope_id,
-        actor_user_id=actor_user_id,
-        action=f"{scope_type}.{action}",
-        target_type=scope_type if target_user_id else None,
-        target_id=str(target_user_id) if target_user_id else None,
-        before=before,
-        after=after,
-    ))
+    db.add(
+        AuditEvent(
+            workspace_id=scope_id,
+            actor_user_id=actor_user_id,
+            action=f"{scope_type}.{action}",
+            target_type=scope_type if target_user_id else None,
+            target_id=str(target_user_id) if target_user_id else None,
+            before=before,
+            after=after,
+        )
+    )

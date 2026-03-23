@@ -468,7 +468,9 @@ class RunLedger:
             )
             resp.raise_for_status()
         except Exception as exc:
-            log.warning("outcome_post_failed", outcome_type=outcome_type, error=str(exc))
+            log.warning(
+                "outcome_post_failed", outcome_type=outcome_type, error=str(exc)
+            )
 
     # ── Prompt management ─────────────────────────────────────────────────────
 
@@ -558,7 +560,9 @@ class RunLedger:
         content: str = data.get("content", "")
         if variables:
             for key, value in variables.items():
-                content = re.sub(r"\{\{" + re.escape(key) + r"\}\}", str(value), content)
+                content = re.sub(
+                    r"\{\{" + re.escape(key) + r"\}\}", str(value), content
+                )
         return {
             "content": content,
             "version": data.get("version"),

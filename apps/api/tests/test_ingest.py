@@ -13,7 +13,9 @@ from runledger_api.models.events import RunStatusEnum
 
 
 @pytest.mark.asyncio
-async def test_ingest_single_event_accepted(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_ingest_single_event_accepted(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     run_id = str(uuid.uuid4())
     # quota check returns None (no quota row → fail open)
     mock_db_session.execute = AsyncMock(
@@ -38,7 +40,9 @@ async def test_ingest_single_event_accepted(authed_client: AsyncClient, mock_db_
 
 
 @pytest.mark.asyncio
-async def test_ingest_batch_accepted(authed_client: AsyncClient, mock_db_session: AsyncMock) -> None:
+async def test_ingest_batch_accepted(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
     run_id = str(uuid.uuid4())
     # quota check returns None (no quota row → fail open)
     mock_db_session.execute = AsyncMock(

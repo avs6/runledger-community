@@ -53,13 +53,17 @@ async def _read_body(request: Request) -> tuple[bytes, str, str | None]:
 
     body = await request.body()
     if len(body) > _MAX_PAYLOAD_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large"
+        )
 
     if encoding == "gzip":
         try:
             body = gzip.decompress(body)
         except Exception as exc:
-            raise HTTPException(status_code=422, detail=f"gzip decompression failed: {exc}") from exc
+            raise HTTPException(
+                status_code=422, detail=f"gzip decompression failed: {exc}"
+            ) from exc
 
     return body, content_type, encoding
 
@@ -123,7 +127,9 @@ async def _persist_raw_spans(
             scope_attributes={
                 "name": span.scope_name,
                 "version": span.scope_version,
-            } if span.scope_name else None,
+            }
+            if span.scope_name
+            else None,
             span_attributes=span.attrs,
             normalized=False,
         )
@@ -291,9 +297,7 @@ async def list_traces_batches(
     batches = rows.scalars().all()
 
     total_row = await db.execute(
-        select(func.count(OtlpIngestBatch.id)).where(
-            OtlpIngestBatch.workspace_id == workspace.id
-        )
+        select(func.count(OtlpIngestBatch.id)).where(OtlpIngestBatch.workspace_id == workspace.id)
     )
     total = total_row.scalar() or 0
 

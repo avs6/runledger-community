@@ -92,12 +92,15 @@ async def _notify_slack(workspace: Workspace, approval: Approval) -> None:
                 },
             }
         ]
-        await send_slack_message(webhook_url, blocks, f"Approval requested: {approval.request_type}")
+        await send_slack_message(
+            webhook_url, blocks, f"Approval requested: {approval.request_type}"
+        )
     except Exception:
         log.warning("approval_slack_notify_failed", approval_id=str(approval.id))
 
 
 # ── Create approval request ────────────────────────────────────────────────────
+
 
 @router.post(
     "",
@@ -141,6 +144,7 @@ async def create_approval(
 
 # ── List approvals ─────────────────────────────────────────────────────────────
 
+
 @router.get("", response_model=ApprovalList, dependencies=[Depends(analytics_rate_limit)])
 async def list_approvals(
     workspace: WorkspaceDep,
@@ -173,6 +177,7 @@ async def list_approvals(
 
 # ── Summary count by status ────────────────────────────────────────────────────
 
+
 @router.get(
     "/summary",
     response_model=ApprovalSummary,
@@ -199,7 +204,10 @@ async def approval_summary(
 
 # ── Get single approval ────────────────────────────────────────────────────────
 
-@router.get("/{approval_id}", response_model=ApprovalResponse, dependencies=[Depends(analytics_rate_limit)])
+
+@router.get(
+    "/{approval_id}", response_model=ApprovalResponse, dependencies=[Depends(analytics_rate_limit)]
+)
 async def get_approval(
     approval_id: uuid.UUID,
     workspace: WorkspaceDep,
@@ -219,6 +227,7 @@ async def get_approval(
 
 
 # ── Approve ────────────────────────────────────────────────────────────────────
+
 
 @router.put(
     "/{approval_id}/approve",
@@ -263,14 +272,18 @@ async def approve_approval(
         decided_by=approval.decided_by,
     )
     await emit_audit_event(
-        db, workspace.id, "approval.approved",
-        target_type="approval", target_id=str(approval.id),
+        db,
+        workspace.id,
+        "approval.approved",
+        target_type="approval",
+        target_id=str(approval.id),
         after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
     return ApprovalResponse.model_validate(approval)
 
 
 # ── Deny ───────────────────────────────────────────────────────────────────────
+
 
 @router.put(
     "/{approval_id}/deny",
@@ -315,14 +328,18 @@ async def deny_approval(
         decided_by=approval.decided_by,
     )
     await emit_audit_event(
-        db, workspace.id, "approval.denied",
-        target_type="approval", target_id=str(approval.id),
+        db,
+        workspace.id,
+        "approval.denied",
+        target_type="approval",
+        target_id=str(approval.id),
         after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
     return ApprovalResponse.model_validate(approval)
 
 
 # ── Cancel ─────────────────────────────────────────────────────────────────────
+
 
 @router.delete(
     "/{approval_id}",
@@ -356,14 +373,18 @@ async def cancel_approval(
 
     log.info("approval_cancelled", approval_id=str(approval.id))
     await emit_audit_event(
-        db, workspace.id, "approval.cancelled",
-        target_type="approval", target_id=str(approval.id),
+        db,
+        workspace.id,
+        "approval.cancelled",
+        target_type="approval",
+        target_id=str(approval.id),
         after={"request_type": approval.request_type},
     )
     return ApprovalResponse.model_validate(approval)
 
 
 # ── Validation helper (used by other routers) ──────────────────────────────────
+
 
 async def validate_approved(
     db: AsyncSession,

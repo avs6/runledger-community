@@ -47,7 +47,9 @@ def instrument_mcp_session(session: Any, transport: SyncTransport) -> None:
     """
     original_call_tool = session.call_tool
 
-    async def patched_call_tool(name: str, arguments: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+    async def patched_call_tool(
+        name: str, arguments: dict[str, Any] | None = None, **kwargs: Any
+    ) -> Any:
         run_id = get_run_id()
         tool_call_id = str(_uuid_mod.uuid4())
         t0 = time.perf_counter()
@@ -55,26 +57,30 @@ def instrument_mcp_session(session: Any, transport: SyncTransport) -> None:
         try:
             result = await original_call_tool(name, arguments, **kwargs)
             duration_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_tool_call_event(
-                run_id=run_id,
-                tool_call_id=tool_call_id,
-                name=name,
-                tool_type=_infer_tool_type(name),
-                duration_ms=duration_ms,
-                status="success",
-            ))
+            transport.enqueue(
+                _build_tool_call_event(
+                    run_id=run_id,
+                    tool_call_id=tool_call_id,
+                    name=name,
+                    tool_type=_infer_tool_type(name),
+                    duration_ms=duration_ms,
+                    status="success",
+                )
+            )
             return result
         except Exception as exc:
             duration_ms = int((time.perf_counter() - t0) * 1000)
-            transport.enqueue(_build_tool_call_event(
-                run_id=run_id,
-                tool_call_id=tool_call_id,
-                name=name,
-                tool_type=_infer_tool_type(name),
-                duration_ms=duration_ms,
-                status="error",
-                error_type=type(exc).__name__,
-            ))
+            transport.enqueue(
+                _build_tool_call_event(
+                    run_id=run_id,
+                    tool_call_id=tool_call_id,
+                    name=name,
+                    tool_type=_infer_tool_type(name),
+                    duration_ms=duration_ms,
+                    status="error",
+                    error_type=type(exc).__name__,
+                )
+            )
             raise
 
     session.call_tool = patched_call_tool
@@ -107,10 +113,33 @@ def _build_tool_call_event(
 # ── Heuristics ─────────────────────────────────────────────────────────────────
 
 _WRITE_KEYWORDS = frozenset(
-    ["write", "create", "update", "delete", "insert", "edit", "post", "put", "patch", "remove", "send"]
+    [
+        "write",
+        "create",
+        "update",
+        "delete",
+        "insert",
+        "edit",
+        "post",
+        "put",
+        "patch",
+        "remove",
+        "send",
+    ]
 )
 _PRIVILEGED_KEYWORDS = frozenset(
-    ["exec", "execute", "run", "shell", "bash", "eval", "admin", "sudo", "deploy", "migrate"]
+    [
+        "exec",
+        "execute",
+        "run",
+        "shell",
+        "bash",
+        "eval",
+        "admin",
+        "sudo",
+        "deploy",
+        "migrate",
+    ]
 )
 
 

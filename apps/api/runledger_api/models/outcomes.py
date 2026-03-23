@@ -48,9 +48,7 @@ class OutcomeRollupDaily(Base):
     """Daily aggregated outcome metrics per workspace and outcome type."""
 
     __tablename__ = "outcome_rollups_daily"
-    __table_args__ = (
-        sa.PrimaryKeyConstraint("workspace_id", "day", "outcome_type"),
-    )
+    __table_args__ = (sa.PrimaryKeyConstraint("workspace_id", "day", "outcome_type"),)
 
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     day: Mapped[date] = mapped_column(sa.Date, nullable=False)

@@ -266,9 +266,7 @@ def test_parse_single_span():
 
 
 def test_parse_span_classification():
-    llm_span = _minimal_span(
-        attrs=[_make_attr("openinference.span.kind", "LLM")]
-    )
+    llm_span = _minimal_span(attrs=[_make_attr("openinference.span.kind", "LLM")])
     payload = _otlp_payload([llm_span])
     result = parse_otlp_json(payload)
     assert result.traces[0].spans[0].span_type == "llm"
@@ -746,12 +744,14 @@ def test_span_end_has_payload_for_llm_span():
     events = synthesize_canonical_events(ws_id, trace)
     llm_span_uuid = str(_make_span_uuid(ws_id, trace_id_hex, llm_hex))
     span_end = next(
-        e for e in events
-        if e["event_type"] == "span_end" and e["span_id"] == llm_span_uuid
+        e for e in events if e["event_type"] == "span_end" and e["span_id"] == llm_span_uuid
     )
     assert "metadata" in span_end
     assert span_end["metadata"]["messages"] == [{"role": "user", "content": "Summarize this."}]
-    assert span_end["metadata"]["response"] == {"role": "assistant", "content": "Here is a summary."}
+    assert span_end["metadata"]["response"] == {
+        "role": "assistant",
+        "content": "Here is a summary.",
+    }
 
 
 def test_span_end_no_payload_for_non_llm_span():
@@ -809,7 +809,7 @@ async def test_get_traces_stats(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _make_stats_row(5, 10, 40),   # 24h
+            _make_stats_row(5, 10, 40),  # 24h
             _make_stats_row(30, 60, 240),  # 7d
         ]
     )

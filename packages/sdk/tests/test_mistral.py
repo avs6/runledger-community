@@ -1,4 +1,5 @@
 """Tests for runledger_sdk.mistral instrumentation."""
+
 from __future__ import annotations
 
 import uuid
@@ -27,7 +28,9 @@ def _fake_usage(prompt_tokens: int = 100, completion_tokens: int = 50) -> MagicM
     return usage
 
 
-def _fake_response(prompt_tokens: int = 100, completion_tokens: int = 50, text: str = "Bonjour") -> MagicMock:
+def _fake_response(
+    prompt_tokens: int = 100, completion_tokens: int = 50, text: str = "Bonjour"
+) -> MagicMock:
     resp = MagicMock()
     resp.usage = _fake_usage(prompt_tokens, completion_tokens)
     choice = MagicMock()
@@ -77,7 +80,9 @@ def test_build_provider_call_error() -> None:
     run_id = str(uuid.uuid4())
     span_id = str(uuid.uuid4())
     exc = ValueError("rate limit")
-    event = _build_provider_call_error(run_id, span_id, "mistral-large-latest", exc, 100)
+    event = _build_provider_call_error(
+        run_id, span_id, "mistral-large-latest", exc, 100
+    )
     assert event["status"] == "error"
     assert event["error_type"] == "ValueError"
     assert event["provider"] == "mistral"
@@ -119,7 +124,9 @@ def test_patch_sync_via_chat_cls() -> None:
     span_id = str(uuid.uuid4())
     resp = _fake_response(20, 10)
 
-    transport.enqueue(_build_provider_call(run_id, span_id, "mistral-small-latest", resp, 200))
+    transport.enqueue(
+        _build_provider_call(run_id, span_id, "mistral-small-latest", resp, 200)
+    )
     assert len(captured) == 1
     assert captured[0]["provider"] == "mistral"
     assert captured[0]["input_tokens"] == 20
@@ -132,11 +139,13 @@ def test_instrument_mistral_skips_when_package_missing() -> None:
     transport = MagicMock(spec=SyncTransport)
 
     import sys  # noqa: PLC0415
+
     with pytest.MonkeyPatch().context() as mp:
         # Remove mistralai from sys.modules to simulate missing package
         mp.delitem(sys.modules, "mistralai", raising=False)
         # Also block the import
         import builtins  # noqa: PLC0415
+
         real_import = builtins.__import__
 
         def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:

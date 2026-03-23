@@ -64,9 +64,7 @@ class PromptVersion(Base):
     content: Mapped[str] = mapped_column(sa.Text, nullable=False)
     variables: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default="[]")
     commit_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    environment: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default="production"
-    )
+    environment: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="production")
     model_hint: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

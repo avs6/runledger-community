@@ -7,6 +7,7 @@ Covers:
   - GET /audit/events/{id} — single event fetch + 404
   - Audit event emitted on budget creation (integration smoke test)
 """
+
 from __future__ import annotations
 
 import uuid
@@ -106,7 +107,9 @@ async def test_emit_audit_event_api_key_prefix_trimmed() -> None:
     mock_db.add = MagicMock(side_effect=lambda obj: captured.append(obj))
     mock_db.flush = AsyncMock()
 
-    await emit_audit_event(mock_db, uuid.uuid4(), "budget.deleted", actor_api_key="rl_live_abcdef1234567890")
+    await emit_audit_event(
+        mock_db, uuid.uuid4(), "budget.deleted", actor_api_key="rl_live_abcdef1234567890"
+    )
 
     assert captured[0].actor_api_key_prefix == "rl_live_"
 

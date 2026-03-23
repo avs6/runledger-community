@@ -18,9 +18,7 @@ class OtlpIngestBatch(Base):
     """One HTTP request to POST /v1/traces — metadata + optional raw payload."""
 
     __tablename__ = "otlp_ingest_batches"
-    __table_args__ = (
-        sa.Index("ix_otlp_batches_workspace", "workspace_id", "received_at"),
-    )
+    __table_args__ = (sa.Index("ix_otlp_batches_workspace", "workspace_id", "received_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -60,12 +58,8 @@ class OtlpSpanRaw(Base):
     external_span_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
     external_parent_span_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     span_name: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    start_time: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
-    end_time: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    start_time: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    end_time: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     status_code: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     resource_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     scope_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
