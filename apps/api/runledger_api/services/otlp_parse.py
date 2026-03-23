@@ -328,20 +328,28 @@ def _extract_run_context(
 # ── Message payload extraction ─────────────────────────────────────────────────
 
 
-def _extract_message_payloads(attrs: dict[str, Any]) -> dict[str, Any] | None:
+def _extract_message_payloads(
+    attrs: dict[str, Any],
+    span_events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
     """
-    Extract prompt/completion content from OpenInference LLM span attributes.
+    Extract prompt/completion content from OpenInference LLM span attributes
+    or OTel GenAI span events.
+
+    Priority:
+      1. OpenInference span attributes (llm.input_messages.*)
+      2. OTel GenAI span events (gen_ai.*.message event names)
+      3. Generic input.value / output.value fallback
 
     The returned dict uses the same keys the privacy pipeline expects:
       {"messages": [...], "response": {...}}
 
-    Falls back to generic `input.value` / `output.value` when OpenInference
-    message attrs are absent. Returns None when no content is found.
+    Returns None when no content is found.
     """
     messages: list[dict[str, Any]] = []
     response: dict[str, Any] | None = None
 
-    # OpenInference: llm.input_messages.N.message.{role,content}
+    # ── 1. OpenInference: llm.input_messages.N.message.{role,content} ─────────
     idx = 0
     while True:
         role = attrs.get(f"llm.input_messages.{idx}.message.role")
@@ -352,19 +360,39 @@ def _extract_message_payloads(attrs: dict[str, Any]) -> dict[str, Any] | None:
             messages.append({"role": str(role or "user"), "content": str(content)})
         idx += 1
 
-    # Generic fallback for input content
+    # OpenInference: llm.output_messages.0.message.content
+    out_content = attrs.get("llm.output_messages.0.message.content")
+    if out_content is not None:
+        response = {"role": "assistant", "content": str(out_content)}
+
+    # ── 2. OTel GenAI span events ──────────────────────────────────────────────
+    # OTel GenAI emits message content as span events named gen_ai.{role}.message
+    if not messages and response is None and span_events:
+        for ev in span_events:
+            ev_name = ev.get("name") or ""
+            ev_attrs = ev.get("attrs") or {}
+            content_val = ev_attrs.get("gen_ai.event.content") or ev_attrs.get("content")
+            if content_val is None:
+                continue
+            # Map OTel GenAI event names to roles
+            if ev_name in ("gen_ai.system.message", "gen_ai.user.message"):
+                role = "system" if "system" in ev_name else "user"
+                messages.append({"role": role, "content": str(content_val)})
+            elif ev_name == "gen_ai.assistant.message":
+                response = {"role": "assistant", "content": str(content_val)}
+            elif ev_name == "gen_ai.tool.message":
+                messages.append({"role": "tool", "content": str(content_val)})
+
+    # ── 3. Generic fallbacks ───────────────────────────────────────────────────
     if not messages:
         raw_input = attrs.get("input.value")
         if raw_input is not None:
             messages.append({"role": "user", "content": str(raw_input)})
 
-    # OpenInference: llm.output_messages.0.message.content
-    out_content = attrs.get("llm.output_messages.0.message.content")
-    # Generic fallback
-    if out_content is None:
-        out_content = attrs.get("output.value")
-    if out_content is not None:
-        response = {"role": "assistant", "content": str(out_content)}
+    if response is None:
+        raw_output = attrs.get("output.value")
+        if raw_output is not None:
+            response = {"role": "assistant", "content": str(raw_output)}
 
     if not messages and response is None:
         return None
@@ -375,6 +403,65 @@ def _extract_message_payloads(attrs: dict[str, Any]) -> dict[str, Any] | None:
     if response is not None:
         result["response"] = response
     return result
+
+
+def _extract_retrieval_metadata(attrs: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Extract retrieval result summary from OpenInference RETRIEVER span attributes.
+
+    OpenInference: retrieval.documents.N.document.{id, content, score, metadata}
+    Returns a dict with document_count and top scores, or None if absent.
+    """
+    docs: list[dict[str, Any]] = []
+    idx = 0
+    while True:
+        doc_id = attrs.get(f"retrieval.documents.{idx}.document.id")
+        score = attrs.get(f"retrieval.documents.{idx}.document.score")
+        content = attrs.get(f"retrieval.documents.{idx}.document.content")
+        if doc_id is None and score is None and content is None:
+            break
+        doc: dict[str, Any] = {}
+        if doc_id is not None:
+            doc["id"] = str(doc_id)
+        if score is not None:
+            try:
+                doc["score"] = float(score)
+            except (ValueError, TypeError):
+                pass
+        if content is not None:
+            doc["content"] = str(content)
+        docs.append(doc)
+        idx += 1
+
+    if not docs:
+        return None
+    return {
+        "document_count": len(docs),
+        "documents": docs,
+    }
+
+
+def _extract_convention_metadata(resource_attrs: dict[str, Any], scope_name: str | None, scope_version: str | None) -> dict[str, Any] | None:
+    """
+    Extract OTel SDK / convention version metadata for convention version tracking (Phase 2).
+
+    Stored in run_start.metadata.instrumentation so analytics can filter by convention.
+    """
+    info: dict[str, Any] = {}
+    sdk_name = resource_attrs.get("telemetry.sdk.name")
+    sdk_version = resource_attrs.get("telemetry.sdk.version")
+    sdk_language = resource_attrs.get("telemetry.sdk.language")
+    if sdk_name:
+        info["sdk_name"] = str(sdk_name)
+    if sdk_version:
+        info["sdk_version"] = str(sdk_version)
+    if sdk_language:
+        info["sdk_language"] = str(sdk_language)
+    if scope_name:
+        info["instrumentation_scope"] = str(scope_name)
+    if scope_version:
+        info["instrumentation_scope_version"] = str(scope_version)
+    return info if info else None
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -415,6 +502,7 @@ class OtlpParsedSpan:
         scope_name: str | None,
         scope_version: str | None,
         otel_kind: int,
+        span_events: list[dict[str, Any]] | None = None,
     ) -> None:
         self.trace_id_hex = trace_id_hex
         self.span_id_hex = span_id_hex
@@ -428,6 +516,8 @@ class OtlpParsedSpan:
         self.scope_name = scope_name
         self.scope_version = scope_version
         self.otel_kind = otel_kind
+        # OTel span events (gen_ai.*.message events for GenAI payload capture)
+        self.span_events: list[dict[str, Any]] = span_events or []
 
     @property
     def is_root(self) -> bool:
@@ -495,6 +585,16 @@ def parse_otlp_json(payload: dict[str, Any]) -> OtlpParseResult:
                     raw_span.get("endTimeUnixNano") or raw_span.get("end_time_unix_nano")
                 )
 
+                # Parse OTel span events (used for OTel GenAI message content)
+                raw_events = raw_span.get("events") or []
+                span_events: list[dict[str, Any]] = [
+                    {
+                        "name": ev.get("name") or "",
+                        "attrs": _flatten_attrs(ev.get("attributes") or []),
+                    }
+                    for ev in raw_events
+                ]
+
                 parsed = OtlpParsedSpan(
                     trace_id_hex=trace_id_hex,
                     span_id_hex=span_id_hex,
@@ -508,6 +608,7 @@ def parse_otlp_json(payload: dict[str, Any]) -> OtlpParseResult:
                     scope_name=scope_name,
                     scope_version=scope_version,
                     otel_kind=otel_kind,
+                    span_events=span_events,
                 )
                 traces_map.setdefault(trace_id_hex, []).append(parsed)
                 result.total_spans += 1
@@ -557,6 +658,15 @@ def synthesize_canonical_events(
     run_ctx = _extract_run_context(resource, root.attrs)
 
     # ── run_start ─────────────────────────────────────────────────────────────
+    run_metadata: dict[str, Any] = {
+        "service_name": svc_name,
+        "resource_attributes": resource,
+    }
+    # Convention / SDK version tracking (Phase 2) — derive from root span's scope
+    convention_meta = _extract_convention_metadata(resource, root.scope_name, root.scope_version)
+    if convention_meta:
+        run_metadata["instrumentation"] = convention_meta
+
     run_start_event: dict[str, Any] = {
         "event_type": "run_start",
         "run_id": str(run_id),
@@ -565,10 +675,7 @@ def synthesize_canonical_events(
         # Top-level source fields — pipeline reads these into ORM columns
         "source_type": "otlp",
         "external_trace_id": trace.trace_id_hex,
-        "metadata": {
-            "service_name": svc_name,
-            "resource_attributes": resource,
-        },
+        "metadata": run_metadata,
     }
     # Spread run-context fields as top-level keys (pipeline reads them directly)
     run_start_event.update(run_ctx)
@@ -651,24 +758,29 @@ def synthesize_canonical_events(
             tool_name = (
                 span.attrs.get("tool.name")
                 or span.attrs.get("openinference.tool.name")
+                or span.attrs.get("gen_ai.tool.name")
                 or span.name
             )
-            pstatus = "error" if span.status_code == "ERROR" else "success"
-            events.append(
-                {
-                    "event_type": "tool_call",
-                    "run_id": str(run_id),
-                    "span_id": str(span_uuid),
-                    "tool_name": tool_name,
-                    "tool_type": "read",
-                    "duration_ms": latency_ms,
-                    "status": pstatus,
-                    "metadata": {
-                        "external_span_id": span.span_id_hex,
-                        "tool_arguments": span.attrs.get("tool.parameters"),
-                    },
-                }
+            tool_args = (
+                span.attrs.get("tool.parameters")
+                or span.attrs.get("gen_ai.tool.call.function.arguments")
+                or span.attrs.get("tool_call.function.arguments")
             )
+            pstatus = "error" if span.status_code == "ERROR" else "success"
+            tool_event: dict[str, Any] = {
+                "event_type": "tool_call",
+                "run_id": str(run_id),
+                "span_id": str(span_uuid),
+                "tool_name": tool_name,
+                "tool_type": "read",
+                "duration_ms": latency_ms,
+                "status": pstatus,
+            }
+            tool_meta: dict[str, Any] = {"external_span_id": span.span_id_hex}
+            if tool_args is not None:
+                tool_meta["tool_arguments"] = tool_args
+            tool_event["metadata"] = tool_meta
+            events.append(tool_event)
 
         # span_end
         if span_ended:
@@ -680,12 +792,17 @@ def synthesize_canonical_events(
                 "ended_at": span_ended.isoformat(),
                 "status": rl_status,
             }
-            # Attach message payloads for LLM spans — privacy pipeline will
-            # apply capture policy (METADATA_ONLY / ERRORS_ONLY / SAMPLED / FULL)
+            # LLM spans: attach message payloads (OpenInference + OTel GenAI span events)
+            # Privacy pipeline applies capture policy (METADATA_ONLY / ERRORS_ONLY / SAMPLED / FULL)
             if span.is_llm:
-                payloads = _extract_message_payloads(span.attrs)
+                payloads = _extract_message_payloads(span.attrs, span.span_events)
                 if payloads:
                     span_end_event["metadata"] = payloads
+            # Retrieval spans: extract document metadata (Phase 2)
+            elif span.span_type == "retrieval":
+                retrieval_meta = _extract_retrieval_metadata(span.attrs)
+                if retrieval_meta:
+                    span_end_event["metadata"] = retrieval_meta
             events.append(span_end_event)
 
     # ── run_end ───────────────────────────────────────────────────────────────

@@ -272,8 +272,32 @@ function _providerCall(
   }
   if (result.usage?.prompt_tokens) event.input_tokens = result.usage.prompt_tokens
   if (result.usage?.completion_tokens) event.output_tokens = result.usage.completion_tokens
-  const cached = result.usage?.prompt_tokens_details?.cached_tokens
-  if (cached) event.cached_input_tokens = cached
+
+  // Provider request ID for invoice reconciliation
+  if ((result as any).id) event.provider_request_id = (result as any).id
+
+  // Prompt token details (cached, audio, text)
+  const ptd = result.usage?.prompt_tokens_details as any
+  if (ptd) {
+    const cached = ptd.cached_tokens
+    if (cached) event.cached_input_tokens = cached
+    const inDet: Record<string, number> = {}
+    if (ptd.cached_tokens) inDet.cached_tokens = ptd.cached_tokens
+    if (ptd.audio_tokens) inDet.audio_tokens = ptd.audio_tokens
+    if (ptd.text_tokens) inDet.text_tokens = ptd.text_tokens
+    if (Object.keys(inDet).length > 0) event.input_tokens_details = inDet
+  }
+
+  // Completion token details (reasoning, audio, text)
+  const ctd = (result.usage as any)?.completion_tokens_details
+  if (ctd) {
+    const outDet: Record<string, number> = {}
+    if (ctd.reasoning_tokens) outDet.reasoning_tokens = ctd.reasoning_tokens
+    if (ctd.audio_tokens) outDet.audio_tokens = ctd.audio_tokens
+    if (ctd.text_tokens) outDet.text_tokens = ctd.text_tokens
+    if (Object.keys(outDet).length > 0) event.output_tokens_details = outDet
+  }
+
   return event
 }
 

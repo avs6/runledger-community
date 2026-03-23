@@ -149,6 +149,74 @@ describe('instrumentOpenAI', () => {
     const ss = events.find(e => e.event_type === 'span_start')!
     expect((ss as { name: string }).name).toContain('gpt-4o-mini')
   })
+
+  it('provider_call captures provider_request_id from result.id', async () => {
+    const { transport, events } = makeTransport()
+    const client = makeFakeOpenAI({
+      id: 'chatcmpl-abc123',
+      choices: [{ message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    })
+    instrumentOpenAI(client, transport)
+
+    await client.chat.completions.create({ model: 'gpt-4o', messages: [] })
+
+    const pc = events.find(e => e.event_type === 'provider_call') as ProviderCallEvent
+    expect(pc.provider_request_id).toBe('chatcmpl-abc123')
+  })
+
+  it('provider_call omits provider_request_id when result.id is absent', async () => {
+    const { transport, events } = makeTransport()
+    const client = makeFakeOpenAI({
+      choices: [{ message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    })
+    instrumentOpenAI(client, transport)
+
+    await client.chat.completions.create({ model: 'gpt-4o', messages: [] })
+
+    const pc = events.find(e => e.event_type === 'provider_call') as ProviderCallEvent
+    expect(pc.provider_request_id).toBeUndefined()
+  })
+
+  it('provider_call captures input_tokens_details from prompt_tokens_details', async () => {
+    const { transport, events } = makeTransport()
+    const client = makeFakeOpenAI({
+      id: 'chatcmpl-det1',
+      choices: [{ message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }],
+      usage: {
+        prompt_tokens: 200,
+        completion_tokens: 80,
+        prompt_tokens_details: { cached_tokens: 150 },
+      },
+    })
+    instrumentOpenAI(client, transport)
+
+    await client.chat.completions.create({ model: 'gpt-4o', messages: [] })
+
+    const pc = events.find(e => e.event_type === 'provider_call') as ProviderCallEvent
+    expect(pc.input_tokens_details).toEqual({ cached_tokens: 150 })
+    expect(pc.cached_input_tokens).toBe(150)
+  })
+
+  it('provider_call captures output_tokens_details from completion_tokens_details', async () => {
+    const { transport, events } = makeTransport()
+    const client = makeFakeOpenAI({
+      id: 'chatcmpl-det2',
+      choices: [{ message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 500,
+        completion_tokens_details: { reasoning_tokens: 420 },
+      },
+    })
+    instrumentOpenAI(client, transport)
+
+    await client.chat.completions.create({ model: 'o1-preview', messages: [] })
+
+    const pc = events.find(e => e.event_type === 'provider_call') as ProviderCallEvent
+    expect(pc.output_tokens_details).toEqual({ reasoning_tokens: 420 })
+  })
 })
 
 describe('Transport (local mode)', () => {

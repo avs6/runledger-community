@@ -39,6 +39,13 @@ export interface SpanEndEvent {
   metadata?: Record<string, unknown>
 }
 
+export interface TokenDetails {
+  cached_tokens?: number
+  reasoning_tokens?: number
+  audio_tokens?: number
+  text_tokens?: number
+}
+
 export interface ProviderCallEvent {
   event_type: 'provider_call'
   run_id: string
@@ -50,6 +57,12 @@ export interface ProviderCallEvent {
   input_tokens?: number
   output_tokens?: number
   cached_input_tokens?: number
+  /** Provider-assigned request ID (e.g. chatcmpl-xxx, msg_01xxx) for invoice reconciliation */
+  provider_request_id?: string
+  /** Sub-token breakdowns for prompt tokens (cached, audio, text) */
+  input_tokens_details?: TokenDetails
+  /** Sub-token breakdowns for completion tokens (reasoning, audio, text) */
+  output_tokens_details?: TokenDetails
   error_type?: string
 }
 
