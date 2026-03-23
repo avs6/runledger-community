@@ -43,11 +43,13 @@
 | 21C | Runs enhancements — model/cost filters · CSV export · Ollama cost fix · API key UX | ✅ Complete | — |
 | 21D | Unified policy checks — budgets + tools + gateway + eval gate | ✅ Complete | 6 |
 | 22 | SaaS Foundation | ✅ Complete | — |
+| 17B | Evaluator Framework — LLM judge, rule-based, batch eval, drift detection | ✅ Complete | 17 |
+| 23 | Provider Invoice Reconciliation | ✅ Complete | 28 |
 
-**Total tests shipped (Phases 0–21D + 15 + 20):** 233 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
+**Total tests shipped (Phases 0–23 + 15 + 20):** 278 API tests + 61 Python SDK tests + 9 TypeScript SDK tests
 
-**Audit snapshot (2026-03-21):**
-- API suite: `233/233` passing
+**Audit snapshot (2026-03-22):**
+- API suite: `278/278` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
