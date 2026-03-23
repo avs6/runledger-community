@@ -138,6 +138,55 @@ def test_build_provider_call_with_cached_tokens() -> None:
     assert event["cached_input_tokens"] == 50
 
 
+# ── _build_provider_call — Phase 4: request ID + token details ───────────────
+
+
+def test_build_provider_call_captures_request_id() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(100, 50)
+    resp.id = "chatcmpl-abc123"
+    event = _build_provider_call(run_id, span_id, "gpt-4o", resp, 250)
+    assert event["provider_request_id"] == "chatcmpl-abc123"
+
+
+def test_build_provider_call_no_id_omits_field() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(100, 50)
+    resp.id = None
+    event = _build_provider_call(run_id, span_id, "gpt-4o", resp, 250)
+    assert "provider_request_id" not in event
+
+
+def test_build_provider_call_captures_reasoning_tokens() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(200, 100)
+    resp.id = "chatcmpl-xyz"
+    comp_details = MagicMock()
+    comp_details.reasoning_tokens = 40
+    comp_details.audio_tokens = None
+    comp_details.text_tokens = None
+    resp.usage.completion_tokens_details = comp_details
+    resp.usage.prompt_tokens_details = None
+    event = _build_provider_call(run_id, span_id, "o1-preview", resp, 3000)
+    assert event["output_tokens_details"] == {"reasoning_tokens": 40}
+    assert "input_tokens_details" not in event
+
+
+def test_build_provider_call_captures_input_token_details() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(500, 200, cached_tokens=300)
+    resp.id = "chatcmpl-def"
+    resp.usage.prompt_tokens_details.audio_tokens = None
+    resp.usage.prompt_tokens_details.text_tokens = None
+    resp.usage.completion_tokens_details = None
+    event = _build_provider_call(run_id, span_id, "gpt-4o", resp, 1500)
+    assert event["input_tokens_details"] == {"cached_tokens": 300}
+
+
 # ── _build_provider_call_error ────────────────────────────────────────────────
 
 

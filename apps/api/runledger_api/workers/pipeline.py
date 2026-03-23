@@ -260,6 +260,13 @@ async def _handle_provider_call(
             cost_usd=_dec(e.get("cost_usd")),
             status=e["status"],
             error_type=e.get("error_type"),
+            # Reconciliation-grade fields (populated for OTLP + future SDK enrichment)
+            provider_request_id=e.get("provider_request_id"),
+            reported_cost_usd=_dec(e.get("reported_cost_usd")),
+            cost_source=e.get("cost_source"),
+            model_provider=e.get("model_provider"),
+            input_tokens_details=e.get("input_tokens_details"),
+            output_tokens_details=e.get("output_tokens_details"),
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )

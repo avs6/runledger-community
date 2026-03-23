@@ -373,12 +373,18 @@ def _build_provider_call(
         "status": "success",
     }
 
+    # Provider request ID — e.g. "chatcmpl-abc123"; critical for invoice reconciliation
+    req_id = getattr(result, "id", None)
+    if req_id:
+        event["provider_request_id"] = req_id
+
     usage = getattr(result, "usage", None)
     if usage:
         prompt_tokens = getattr(usage, "prompt_tokens", None)
         completion_tokens = getattr(usage, "completion_tokens", None)
-        details = getattr(usage, "prompt_tokens_details", None)
-        cached = getattr(details, "cached_tokens", None) if details else None
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        completion_details = getattr(usage, "completion_tokens_details", None)
+        cached = getattr(prompt_details, "cached_tokens", None) if prompt_details else None
 
         if prompt_tokens is not None:
             event["input_tokens"] = prompt_tokens
@@ -386,6 +392,26 @@ def _build_provider_call(
             event["output_tokens"] = completion_tokens
         if cached is not None:
             event["cached_input_tokens"] = cached
+
+        # Token detail breakdowns (reasoning, audio tokens for billing transparency)
+        if prompt_details:
+            in_det: dict[str, int] = {}
+            for f in ("cached_tokens", "audio_tokens", "text_tokens"):
+                v = getattr(prompt_details, f, None)
+                if v is not None:
+                    in_det[f] = v
+            if in_det:
+                event["input_tokens_details"] = in_det
+
+        if completion_details:
+            out_det: dict[str, int] = {}
+            for f in ("reasoning_tokens", "audio_tokens", "text_tokens"):
+                v = getattr(completion_details, f, None)
+                if v is not None:
+                    out_det[f] = v
+            if out_det:
+                event["output_tokens_details"] = out_det
+
     return event
 
 

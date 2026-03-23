@@ -58,11 +58,13 @@ def _fake_usage(
     input_tokens: int = 100,
     output_tokens: int = 50,
     cache_read_input_tokens: int | None = None,
+    cache_creation_input_tokens: int | None = None,
 ) -> MagicMock:
     usage = MagicMock()
     usage.input_tokens = input_tokens
     usage.output_tokens = output_tokens
     usage.cache_read_input_tokens = cache_read_input_tokens
+    usage.cache_creation_input_tokens = cache_creation_input_tokens
     return usage
 
 
@@ -84,10 +86,11 @@ def _fake_response(
     input_tokens: int = 100,
     output_tokens: int = 50,
     cache_read_input_tokens: int | None = None,
+    cache_creation_input_tokens: int | None = None,
     text: str = "Paris is the capital of France.",
 ) -> MagicMock:
     resp = MagicMock()
-    resp.usage = _fake_usage(input_tokens, output_tokens, cache_read_input_tokens)
+    resp.usage = _fake_usage(input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens)
     resp.content = [_fake_text_block(text)]
     resp.stop_reason = "end_turn"
     return resp
@@ -145,6 +148,40 @@ def test_build_provider_call_with_cache_read_tokens() -> None:
     resp = _fake_response(200, 80, cache_read_input_tokens=40)
     event = _build_provider_call(run_id, span_id, "claude-3-5-sonnet-20241022", resp, 300)
     assert event["cached_input_tokens"] == 40
+
+
+# ── _build_provider_call — Phase 4: request ID + token details ────────────────
+
+
+def test_build_provider_call_captures_message_id() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(100, 50)
+    resp.id = "msg_01XxYy"
+    event = _build_provider_call(run_id, span_id, "claude-3-5-sonnet-20241022", resp, 300)
+    assert event["provider_request_id"] == "msg_01XxYy"
+
+
+def test_build_provider_call_no_id_omits_field() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(100, 50)
+    resp.id = None
+    event = _build_provider_call(run_id, span_id, "claude-3-haiku-20240307", resp, 250)
+    assert "provider_request_id" not in event
+
+
+def test_build_provider_call_captures_cache_write_tokens_in_details() -> None:
+    run_id = str(uuid.uuid4())
+    span_id = str(uuid.uuid4())
+    resp = _fake_response(200, 80, cache_read_input_tokens=40, cache_creation_input_tokens=160)
+    resp.id = "msg_01abc"
+    event = _build_provider_call(run_id, span_id, "claude-3-5-sonnet-20241022", resp, 500)
+    assert event["cached_input_tokens"] == 40
+    assert event["input_tokens_details"] == {
+        "cached_tokens": 40,
+        "cache_creation_tokens": 160,
+    }
 
 
 # ── _build_provider_call_error ────────────────────────────────────────────────

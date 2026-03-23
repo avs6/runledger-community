@@ -301,17 +301,33 @@ def _build_provider_call(
         "latency_ms": latency_ms,
         "status": "success",
     }
+    # Provider request ID — e.g. "msg_01XxYy..."; critical for invoice reconciliation
+    req_id = getattr(result, "id", None)
+    if req_id:
+        event["provider_request_id"] = req_id
+
     usage = getattr(result, "usage", None)
     if usage:
         in_tok = getattr(usage, "input_tokens", None)
         out_tok = getattr(usage, "output_tokens", None)
         cache_read = getattr(usage, "cache_read_input_tokens", None)
+        cache_write = getattr(usage, "cache_creation_input_tokens", None)
         if in_tok is not None:
             event["input_tokens"] = in_tok
         if out_tok is not None:
             event["output_tokens"] = out_tok
         if cache_read is not None:
             event["cached_input_tokens"] = cache_read
+
+        # Token detail breakdowns
+        in_det: dict[str, int] = {}
+        if cache_read is not None:
+            in_det["cached_tokens"] = cache_read
+        if cache_write is not None:
+            in_det["cache_creation_tokens"] = cache_write
+        if in_det:
+            event["input_tokens_details"] = in_det
+
     return event
 
 

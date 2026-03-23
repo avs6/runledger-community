@@ -153,7 +153,7 @@ def _classify_span(attrs: dict[str, Any], span_name: str) -> str:
 
 
 def _extract_llm_fields(attrs: dict[str, Any]) -> dict[str, Any]:
-    """Pull token counts, model, provider from OI or OTel GenAI attributes."""
+    """Pull token counts, model, provider, and cost/request ID from OI or OTel GenAI attributes."""
     result: dict[str, Any] = {}
 
     # Model
@@ -171,7 +171,14 @@ def _extract_llm_fields(attrs: dict[str, Any]) -> dict[str, Any]:
         or _infer_provider(str(result["model"]))
     )
 
-    # Tokens (OpenInference)
+    # Hosting provider (if different — e.g. Azure-hosted OpenAI)
+    api_type = attrs.get("gen_ai.openai.api_type") or attrs.get("llm.api_type")
+    result["model_provider"] = (
+        attrs.get("llm.hosting_provider")
+        or (str(api_type) if api_type and str(api_type).lower() != result["provider"] else None)
+    )
+
+    # Tokens (OpenInference / OTel GenAI)
     result["input_tokens"] = _int_or_none(
         attrs.get("llm.token_count.prompt") or attrs.get("gen_ai.usage.input_tokens")
     )
@@ -179,10 +186,57 @@ def _extract_llm_fields(attrs: dict[str, Any]) -> dict[str, Any]:
         attrs.get("llm.token_count.completion") or attrs.get("gen_ai.usage.output_tokens")
     )
 
-    # Reported cost (if any)
-    result["reported_cost_usd"] = _float_or_none(attrs.get("llm.token_count.total_cost"))
+    # Token detail breakdowns (reasoning, cached, audio tokens)
+    result["input_tokens_details"] = _extract_token_details(
+        attrs, prefix="llm.token_count.prompt_details", genai_prefix="gen_ai.usage.prompt"
+    )
+    result["output_tokens_details"] = _extract_token_details(
+        attrs, prefix="llm.token_count.completion_details", genai_prefix="gen_ai.usage.completion"
+    )
+
+    # Reported cost (OpenInference llm.cost.* or llm.token_count.total_cost)
+    result["reported_cost_usd"] = _float_or_none(
+        attrs.get("llm.cost.total")
+        or attrs.get("llm.token_count.total_cost")
+    )
+
+    # Provider request ID — critical for finance-grade reconciliation
+    result["provider_request_id"] = (
+        attrs.get("llm.openai.response.id")     # openinference-instrumentation-openai
+        or attrs.get("gen_ai.openai.api.id")    # OTel GenAI / Azure
+        or attrs.get("gen_ai.response.id")      # OTel GenAI generic
+        or attrs.get("llm.request_id")          # generic OpenInference
+        or attrs.get("anthropic.request_id")    # openinference-instrumentation-anthropic
+        or attrs.get("x_request_id")            # header-forwarded IDs
+    )
 
     return result
+
+
+def _extract_token_details(
+    attrs: dict[str, Any],
+    prefix: str,
+    genai_prefix: str,
+) -> dict[str, int] | None:
+    """
+    Extract token count breakdown details from OpenInference or OTel GenAI span attrs.
+
+    OpenInference: ``{prefix}.cached_tokens``, ``{prefix}.reasoning_tokens``, etc.
+    OTel GenAI:    ``{genai_prefix}_tokens.cached``, etc.
+
+    Returns a dict of non-None values, or None if nothing was found.
+    """
+    details: dict[str, int] = {}
+    for subkey in ("cached_tokens", "reasoning_tokens", "audio_tokens", "text_tokens"):
+        # OpenInference: llm.token_count.prompt_details.cached_tokens
+        val = _int_or_none(attrs.get(f"{prefix}.{subkey}"))
+        if val is None:
+            # OTel GenAI: gen_ai.usage.prompt_tokens.cached
+            short = subkey.replace("_tokens", "")
+            val = _int_or_none(attrs.get(f"{genai_prefix}_tokens.{short}"))
+        if val is not None:
+            details[subkey] = val
+    return details if details else None
 
 
 def _infer_provider(model: str) -> str:
@@ -561,25 +615,31 @@ def synthesize_canonical_events(
                     (span.ended_at - span.started_at).total_seconds() * 1000
                 )
             pstatus = "error" if span.status_code == "ERROR" else "success"
-            events.append(
-                {
-                    "event_type": "provider_call",
-                    "run_id": str(run_id),
-                    "span_id": str(span_uuid),
-                    "provider": llm["provider"],
-                    "model": llm["model"],
-                    "input_tokens": llm["input_tokens"],
-                    "output_tokens": llm["output_tokens"],
-                    "latency_ms": latency_ms,
-                    "status": pstatus,
-                    "metadata": {
-                        "reported_cost_usd": llm["reported_cost_usd"],
-                        "cost_source": "reported" if llm["reported_cost_usd"] else "pricing_engine",
-                        "external_span_id": span.span_id_hex,
-                        "source_attributes": span.attrs,
-                    },
-                }
-            )
+            pc_event: dict[str, Any] = {
+                "event_type": "provider_call",
+                "run_id": str(run_id),
+                "span_id": str(span_uuid),
+                "provider": llm["provider"],
+                "model": llm["model"],
+                "input_tokens": llm["input_tokens"],
+                "output_tokens": llm["output_tokens"],
+                "latency_ms": latency_ms,
+                "status": pstatus,
+                # Finance-grade fields — top-level so pipeline persists to ORM columns
+                "cost_source": "reported" if llm["reported_cost_usd"] else "pricing_engine",
+            }
+            # Only set when values are present — avoids overwriting with None
+            if llm["reported_cost_usd"] is not None:
+                pc_event["reported_cost_usd"] = llm["reported_cost_usd"]
+            if llm["provider_request_id"] is not None:
+                pc_event["provider_request_id"] = llm["provider_request_id"]
+            if llm["model_provider"] is not None:
+                pc_event["model_provider"] = llm["model_provider"]
+            if llm["input_tokens_details"] is not None:
+                pc_event["input_tokens_details"] = llm["input_tokens_details"]
+            if llm["output_tokens_details"] is not None:
+                pc_event["output_tokens_details"] = llm["output_tokens_details"]
+            events.append(pc_event)
 
         # tool_call for TOOL spans
         if span.is_tool and span_ended:
