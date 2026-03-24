@@ -334,9 +334,13 @@ async def reconcile_invoice(
     # Index calls by model for fast lookup
     # Key: normalised_model → list of calls
     calls_by_model: dict[str, list[Any]] = {}
+    # Index calls by provider_request_id for exact matching
+    calls_by_request_id: dict[str, Any] = {}
     for call in calls:
         key = _normalise_model(call.model)
         calls_by_model.setdefault(key, []).append(call)
+        if call.provider_request_id:
+            calls_by_request_id[call.provider_request_id] = call
 
     matched_exact = 0
     matched_fuzzy = 0
@@ -350,28 +354,35 @@ async def reconcile_invoice(
         if line.match_status == "disputed":
             continue  # don't overwrite manual disputes
 
-        model_key = _normalise_model(line.model)
-        candidates = calls_by_model.get(model_key, [])
-
         best_call = None
         best_match = "unmatched"
 
-        for call in candidates:
-            if call.id in used_call_ids:
-                continue
+        # Strategy 1: exact match on provider_request_id
+        if line.provider_request_id:
+            exact = calls_by_request_id.get(line.provider_request_id)
+            if exact is not None and exact.id not in used_call_ids:
+                best_call = exact
+                best_match = "exact"
 
-            # Fuzzy: timestamp within window + tokens within tolerance
-            if line.occurred_at is not None and call.created_at is not None:
-                dt_diff = abs((line.occurred_at - call.created_at).total_seconds())
-                if dt_diff > _FUZZY_WINDOW_MINUTES * 60:
+        # Strategy 2: fuzzy match — same normalised model + timestamp + token counts
+        if best_call is None:
+            model_key = _normalise_model(line.model)
+            candidates = calls_by_model.get(model_key, [])
+            for call in candidates:
+                if call.id in used_call_ids:
                     continue
 
-            in_ok = _tokens_close(line.input_tokens, call.input_tokens, _FUZZY_TOKEN_TOLERANCE)
-            out_ok = _tokens_close(line.output_tokens, call.output_tokens, _FUZZY_TOKEN_TOLERANCE)
-            if in_ok and out_ok:
-                best_call = call
-                best_match = "fuzzy"
-                break
+                if line.occurred_at is not None and call.created_at is not None:
+                    dt_diff = abs((line.occurred_at - call.created_at).total_seconds())
+                    if dt_diff > _FUZZY_WINDOW_MINUTES * 60:
+                        continue
+
+                in_ok = _tokens_close(line.input_tokens, call.input_tokens, _FUZZY_TOKEN_TOLERANCE)
+                out_ok = _tokens_close(line.output_tokens, call.output_tokens, _FUZZY_TOKEN_TOLERANCE)
+                if in_ok and out_ok:
+                    best_call = call
+                    best_match = "fuzzy"
+                    break
 
         if best_call is not None:
             used_call_ids.add(best_call.id)

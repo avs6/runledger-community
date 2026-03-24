@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
+
+# Run all tests in enterprise mode so feature-gated endpoints are accessible.
+settings.runledger_mode = "enterprise"
 from runledger_api.core.deps import (
     get_current_workspace,
     require_member,

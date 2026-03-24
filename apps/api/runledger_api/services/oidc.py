@@ -23,46 +23,11 @@ import httpx
 import structlog
 
 from runledger_api.core.config import settings
+from runledger_api.services.crypto import decrypt_secret, encrypt_secret
 
 log = structlog.get_logger()
 
-# ── Fernet-style symmetric encryption for client_secret ──────────────────────
-# We use a simple AES-128-CBC via Python's cryptography library if available,
-# falling back to a reversible XOR+base64 for environments without cryptography.
-# In production, install `cryptography` in the API container (already a dep via
-# jose / passlib).
-
-
-def _fernet_key() -> bytes:
-    """Derive a URL-safe base64-encoded 32-byte key from SECRET_KEY."""
-    raw = hashlib.sha256(settings.secret_key.encode()).digest()
-    return base64.urlsafe_b64encode(raw)
-
-
-def encrypt_secret(plaintext: str) -> str:
-    """Encrypt a client_secret for storage."""
-    try:
-        from cryptography.fernet import Fernet  # noqa: PLC0415
-
-        f = Fernet(_fernet_key())
-        return f.encrypt(plaintext.encode()).decode()
-    except ImportError:
-        # Simple reversible encoding — not secure, but graceful degradation
-        encoded = base64.b64encode(plaintext.encode()).decode()
-        return f"b64:{encoded}"
-
-
-def decrypt_secret(ciphertext: str) -> str:
-    """Decrypt a stored client_secret."""
-    if ciphertext.startswith("b64:"):
-        return base64.b64decode(ciphertext[4:]).decode()
-    try:
-        from cryptography.fernet import Fernet  # noqa: PLC0415
-
-        f = Fernet(_fernet_key())
-        return f.decrypt(ciphertext.encode()).decode()
-    except Exception:
-        raise ValueError("Failed to decrypt client_secret") from None
+__all__ = ["encrypt_secret", "decrypt_secret"]
 
 
 # ── HMAC state parameter ──────────────────────────────────────────────────────

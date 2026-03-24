@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_workspace_admin
+from runledger_api.core.feature_gate import require_enterprise
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.tenant import Workspace
 from runledger_api.models.warehouse import ExportJob, WarehouseDestination
@@ -44,6 +45,7 @@ from runledger_api.schemas.warehouse import (
     WarehouseDestinationUpdate,
 )
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.crypto import encrypt_secret
 
 router = APIRouter(
     prefix="/warehouse",
@@ -69,6 +71,7 @@ async def create_destination(
     auth: AdminDep,
     db: DbDep,
 ) -> WarehouseDestinationResponse:
+    require_enterprise("Warehouse export destinations")
     workspace: Workspace = auth[0]
     dest = WarehouseDestination(
         workspace_id=workspace.id,
@@ -78,8 +81,8 @@ async def create_destination(
         prefix=body.prefix,
         region=body.region,
         endpoint_url=body.endpoint_url,
-        access_key_id=body.access_key_id,
-        secret_access_key=body.secret_access_key,
+        access_key_id=encrypt_secret(body.access_key_id),
+        secret_access_key=encrypt_secret(body.secret_access_key),
         format=body.format,
         resources=body.resources,
         is_active=body.is_active,
@@ -154,8 +157,9 @@ async def update_destination(
     if not dest:
         raise HTTPException(status_code=404, detail="Destination not found")
 
+    _secret_fields = {"access_key_id", "secret_access_key"}
     for field, value in body.model_dump(exclude_none=True).items():
-        setattr(dest, field, value)
+        setattr(dest, field, encrypt_secret(value) if field in _secret_fields else value)
 
     await db.commit()
     await db.refresh(dest)

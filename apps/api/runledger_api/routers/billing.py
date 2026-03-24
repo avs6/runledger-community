@@ -71,6 +71,7 @@ from runledger_api.services.billing_webhooks import (
     export_netsuite_csv,
     export_quickbooks_csv,
 )
+from runledger_api.services.crypto import encrypt_secret
 from runledger_api.services.email import send_billing_period_closed_email
 from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 
@@ -492,7 +493,7 @@ async def create_billing_webhook(
     cfg = BillingWebhookConfig(
         workspace_id=workspace.id,
         url=body.url,
-        secret=body.secret,
+        secret=encrypt_secret(body.secret),
         label=body.label,
     )
     db.add(cfg)

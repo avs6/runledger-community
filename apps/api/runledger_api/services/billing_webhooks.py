@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.billing_webhooks import BillingWebhookConfig, BillingWebhookDelivery
+from runledger_api.services.crypto import decrypt_secret
 
 log = structlog.get_logger()
 
@@ -134,7 +135,7 @@ async def dispatch_billing_webhook(
         success = False
         for attempt, delay in enumerate(_RETRY_DELAYS, start=1):
             http_status, response_body, success = await _attempt_delivery(
-                cfg.url, cfg.secret, body, attempt
+                cfg.url, decrypt_secret(cfg.secret), body, attempt
             )
             now = datetime.now(UTC)
             delivery = BillingWebhookDelivery(

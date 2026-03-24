@@ -21,24 +21,68 @@ from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 
 log = structlog.get_logger()
 
-# Costs stored as cost_usd on ProviderCall; for gateway we approximate from
-# token counts using a default rate (or read from route config).
-# For cost-cap checks we query gateway_requests and use token counts * rate.
-# Since gateway_requests don't carry cost directly we estimate from input/output
-# tokens stored on the request log rows.
-
-_DEFAULT_COST_PER_1M_INPUT = Decimal("0.50")   # conservative floor; overridden by route.config
-_DEFAULT_COST_PER_1M_OUTPUT = Decimal("1.50")
+# Fallback prices used only when no pricing row is found for the route's model.
+# Real per-model rates are fetched from provider_pricing at check time.
+_FALLBACK_COST_PER_1M_INPUT = Decimal("0.50")
+_FALLBACK_COST_PER_1M_OUTPUT = Decimal("1.50")
 
 
-def _estimate_cost(row: Any) -> Decimal:
-    """Estimate USD cost from token counts in a gateway_requests aggregate row."""
+def _estimate_cost(
+    row: Any,
+    input_rate: Decimal,
+    output_rate: Decimal,
+) -> Decimal:
+    """Estimate USD cost from token counts using per-model pricing rates."""
     input_t = Decimal(str(row.total_input or 0))
     output_t = Decimal(str(row.total_output or 0))
     return (
-        input_t / Decimal("1000000") * _DEFAULT_COST_PER_1M_INPUT
-        + output_t / Decimal("1000000") * _DEFAULT_COST_PER_1M_OUTPUT
+        input_t / Decimal("1000000") * input_rate
+        + output_t / Decimal("1000000") * output_rate
     )
+
+
+async def _lookup_model_rates(
+    db: AsyncSession,
+    model: str | None,
+    provider: str | None,
+) -> tuple[Decimal, Decimal]:
+    """
+    Return (input_cost_per_1m, output_cost_per_1m) for the given model.
+    Falls back to generic defaults if no pricing row is found.
+    Prefers workspace-specific rows over global rows, and the most-recently
+    effective row when multiple match.
+    """
+    if not model:
+        return _FALLBACK_COST_PER_1M_INPUT, _FALLBACK_COST_PER_1M_OUTPUT
+
+    from datetime import date  # noqa: PLC0415
+
+    from sqlalchemy import and_, or_  # noqa: PLC0415
+
+    from runledger_api.models.metering import ProviderPricing  # noqa: PLC0415
+
+    today = date.today()
+    stmt = (
+        select(ProviderPricing)
+        .where(
+            and_(
+                ProviderPricing.model == model,
+                or_(ProviderPricing.effective_from.is_(None), ProviderPricing.effective_from <= today),
+            )
+        )
+        .order_by(
+            # Workspace-specific rows first (workspace_id IS NOT NULL), then by
+            # most-recent effective date
+            ProviderPricing.workspace_id.is_(None).asc(),
+            ProviderPricing.effective_from.desc().nulls_last(),
+        )
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    pricing = result.scalar_one_or_none()
+    if pricing is None:
+        return _FALLBACK_COST_PER_1M_INPUT, _FALLBACK_COST_PER_1M_OUTPUT
+    return pricing.input_cost_per_1m, pricing.output_cost_per_1m
 
 
 async def check_cost_cap(
@@ -56,6 +100,10 @@ async def check_cost_cap(
         return
 
     from datetime import UTC, datetime  # noqa: PLC0415
+
+    input_rate, output_rate = await _lookup_model_rates(
+        db, getattr(route, "target_model", None), getattr(route, "provider", None)
+    )
 
     now = datetime.now(UTC)
     today_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
@@ -95,7 +143,7 @@ async def check_cost_cap(
     daily_row = day_result.one()
 
     if has_daily:
-        daily_cost = _estimate_cost(daily_row)
+        daily_cost = _estimate_cost(daily_row, input_rate, output_rate)
         if daily_cost >= route.daily_cost_limit_usd:  # type: ignore[operator]
             log.warning(
                 "gateway_cost_cap_daily_exceeded",
@@ -110,7 +158,7 @@ async def check_cost_cap(
             )
 
     if has_monthly:
-        monthly_cost = _estimate_cost(monthly_row)
+        monthly_cost = _estimate_cost(monthly_row, input_rate, output_rate)
         if monthly_cost >= route.monthly_cost_limit_usd:  # type: ignore[operator]
             log.warning(
                 "gateway_cost_cap_monthly_exceeded",

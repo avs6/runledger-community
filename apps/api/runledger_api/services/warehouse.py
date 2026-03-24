@@ -23,6 +23,8 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.services.crypto import decrypt_secret
+
 log = structlog.get_logger()
 
 
@@ -149,8 +151,8 @@ async def _query_provider_calls(
 
 def _make_s3_client(destination: Any) -> Any:
     kwargs: dict[str, Any] = {
-        "aws_access_key_id": destination.access_key_id,
-        "aws_secret_access_key": destination.secret_access_key,
+        "aws_access_key_id": decrypt_secret(destination.access_key_id),
+        "aws_secret_access_key": decrypt_secret(destination.secret_access_key),
     }
     if destination.region:
         kwargs["region_name"] = destination.region
