@@ -60,11 +60,14 @@
 | OTEL-4 | OTLP — Reconciliation-grade Enrichment (provider_request_id, reported_cost_usd, token details) | ✅ Complete | 23 |
 | 29 | SSO / OIDC + SCIM — Google Workspace, Okta, Azure AD login + automated user provisioning | ✅ Complete | 26 |
 | 30 | Gateway Runtime Controls — cost caps, PII redaction, per-user rate limits, health auto-disable | ✅ Complete | 17 |
+| 31 | Finance System Integrations — billing webhooks, QuickBooks + NetSuite CSV export | ✅ Complete | 13 |
+| 32 | Developer Experience + Public API — Scalar UI, OTel exporter, CLI init/doctor, examples | ✅ Complete | 9 |
+| 33 | Chargeback v2 — cost center hierarchies, billing adjustments, multi-currency periods | ✅ Complete | 16 |
 
-**Total tests shipped:** 563 API tests · 61 Python SDK tests · 9 TypeScript SDK tests
+**Total tests shipped:** 601 API tests · 61 Python SDK tests · 9 TypeScript SDK tests
 
 **Audit snapshot (2026-03-24):**
-- API suite: `563/563` passing
+- API suite: `601/601` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)

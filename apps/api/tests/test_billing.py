@@ -428,6 +428,7 @@ async def test_apply_chargeback_rules() -> None:
         id=period_id,
         workspace_id=workspace_id,
         total_cost_usd=Decimal("100.00"),
+        net_cost_usd=None,
     )
     rules = [
         SimpleNamespace(

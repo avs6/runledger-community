@@ -6,19 +6,28 @@ Auth: Bearer API key (workspace-scoped)
 
 Endpoints
 ---------
-POST   /billing/periods                    Create a billing period
-GET    /billing/periods                    List periods (optional ?status=)
-GET    /billing/periods/{id}               Single period
-POST   /billing/periods/{id}/close         Close + sign + dispatch webhook
-GET    /billing/periods/{id}/reconciliation Run reconciliation check
-GET    /billing/periods/{id}/breakdown     Hierarchical breakdown by app/user
-GET    /billing/periods/{id}/export        Export CSV / signed JSON / QB / NetSuite
-POST   /billing/chargeback-rules           Create a chargeback rule
-GET    /billing/chargeback-rules           List chargeback rules
-POST   /billing/webhooks                   Create a billing webhook config
-GET    /billing/webhooks                   List billing webhook configs
-DELETE /billing/webhooks/{id}              Delete a billing webhook config
-GET    /billing/webhooks/{id}/deliveries   List delivery attempts for a webhook
+POST   /billing/periods                          Create a billing period
+GET    /billing/periods                          List periods (optional ?status=)
+GET    /billing/periods/{id}                     Single period
+POST   /billing/periods/{id}/close               Close + sign + dispatch webhook
+GET    /billing/periods/{id}/reconciliation      Run reconciliation check
+GET    /billing/periods/{id}/breakdown           Hierarchical breakdown by app/user
+GET    /billing/periods/{id}/export              Export CSV / signed JSON / QB / NetSuite
+POST   /billing/periods/{id}/adjustments         Add a credit/refund/surcharge line
+GET    /billing/periods/{id}/adjustments         List adjustments for a period
+DELETE /billing/periods/{id}/adjustments/{adj}   Remove an adjustment
+POST   /billing/chargeback-rules                 Create a chargeback rule
+GET    /billing/chargeback-rules                 List chargeback rules
+POST   /billing/cost-centers                     Create a cost center
+GET    /billing/cost-centers                     List cost centers
+GET    /billing/cost-centers/tree                Cost center hierarchy tree
+GET    /billing/cost-centers/{id}                Get a cost center
+PUT    /billing/cost-centers/{id}                Update a cost center
+DELETE /billing/cost-centers/{id}                Delete a cost center
+POST   /billing/webhooks                         Create a billing webhook config
+GET    /billing/webhooks                         List billing webhook configs
+DELETE /billing/webhooks/{id}                    Delete a billing webhook config
+GET    /billing/webhooks/{id}/deliveries         List delivery attempts for a webhook
 """
 
 from __future__ import annotations
@@ -37,17 +46,31 @@ from runledger_api.core.deps import (
     require_org_admin,
     require_workspace_admin,
 )
+from runledger_api.core.feature_gate import require_cloud
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.billing import BillingPeriod, ChargebackRule
+from runledger_api.models.billing import (
+    BillingAdjustment,
+    BillingPeriod,
+    ChargebackRule,
+    CostCenter,
+)
 from runledger_api.models.billing_webhooks import BillingWebhookConfig, BillingWebhookDelivery
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.billing import (
+    BillingAdjustmentCreate,
+    BillingAdjustmentList,
+    BillingAdjustmentResponse,
     BillingPeriodCreate,
     BillingPeriodList,
     BillingPeriodResponse,
     ChargebackRuleCreate,
     ChargebackRuleList,
     ChargebackRuleResponse,
+    CostCenterCreate,
+    CostCenterList,
+    CostCenterNode,
+    CostCenterResponse,
+    CostCenterUpdate,
     PeriodBreakdown,
     ReconciliationResult,
     UsageSnapshotResponse,
@@ -60,9 +83,12 @@ from runledger_api.schemas.billing_webhooks import (
     BillingWebhookDeliveryResponse,
 )
 from runledger_api.services.billing import (
+    add_adjustment,
     close_billing_period,
     export_csv,
     export_signed_json,
+    get_cost_center_tree,
+    get_period_adjustments,
     get_period_breakdown,
     run_reconciliation,
 )
@@ -101,6 +127,8 @@ async def create_billing_period(
         period_start=body.period_start,
         period_end=body.period_end,
         status="open",
+        currency=body.currency,
+        exchange_rate_to_usd=body.exchange_rate_to_usd,
     )
     db.add(period)
     await db.commit()
@@ -112,18 +140,10 @@ async def create_billing_period(
         workspace_id=str(workspace.id),
         period_start=str(period.period_start),
         period_end=str(period.period_end),
+        currency=period.currency,
     )
 
-    return BillingPeriodResponse(
-        id=str(period.id),
-        period_start=period.period_start,
-        period_end=period.period_end,
-        status=period.status,
-        total_cost_usd=period.total_cost_usd,
-        snapshot_hash=period.snapshot_hash,
-        closed_at=period.closed_at,
-        created_at=period.created_at,
-    )
+    return BillingPeriodResponse.model_validate(period)
 
 
 # ── GET /billing/periods ──────────────────────────────────────────────────────
@@ -146,19 +166,7 @@ async def list_billing_periods(
     periods: list[BillingPeriod] = list(result.scalars())
 
     return BillingPeriodList(
-        items=[
-            BillingPeriodResponse(
-                id=str(p.id),
-                period_start=p.period_start,
-                period_end=p.period_end,
-                status=p.status,
-                total_cost_usd=p.total_cost_usd,
-                snapshot_hash=p.snapshot_hash,
-                closed_at=p.closed_at,
-                created_at=p.created_at,
-            )
-            for p in periods
-        ]
+        items=[BillingPeriodResponse.model_validate(p) for p in periods]
     )
 
 
@@ -185,16 +193,7 @@ async def get_billing_period(
             status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
         )
 
-    return BillingPeriodResponse(
-        id=str(period.id),
-        period_start=period.period_start,
-        period_end=period.period_end,
-        status=period.status,
-        total_cost_usd=period.total_cost_usd,
-        snapshot_hash=period.snapshot_hash,
-        closed_at=period.closed_at,
-        created_at=period.created_at,
-    )
+    return BillingPeriodResponse.model_validate(period)
 
 
 # ── POST /billing/periods/{id}/close ─────────────────────────────────────────
@@ -293,6 +292,7 @@ async def get_reconciliation(
 ) -> ReconciliationResult:
     workspace: Workspace = auth[0]
     """Run a reconciliation check for the billing period."""
+    require_cloud("Invoice reconciliation")
     # Verify ownership
     result = await db.execute(
         select(BillingPeriod).where(
@@ -421,8 +421,30 @@ async def create_chargeback_rule(
         allocation_type=body.allocation_type,
         dimension=body.dimension,
         weight=body.weight,
+        cost_center_id=body.cost_center_id,
     )
     db.add(rule)
+    await db.flush()
+
+    # Optionally gate through the approvals system
+    if body.require_approval:
+        from runledger_api.models.approvals import Approval  # noqa: PLC0415
+
+        approval = Approval(
+            workspace_id=workspace.id,
+            request_type="chargeback_rule",
+            request={
+                "rule_id": str(rule.id),
+                "allocation_type": body.allocation_type,
+                "dimension": body.dimension,
+                "weight": str(body.weight),
+                "cost_center_id": str(body.cost_center_id) if body.cost_center_id else None,
+            },
+            status="pending",
+            requested_by=str(workspace.id),
+        )
+        db.add(approval)
+
     await db.commit()
     await db.refresh(rule)
 
@@ -433,15 +455,10 @@ async def create_chargeback_rule(
         allocation_type=rule.allocation_type,
         dimension=rule.dimension,
         weight=str(rule.weight),
+        cost_center_id=str(rule.cost_center_id) if rule.cost_center_id else None,
     )
 
-    return ChargebackRuleResponse(
-        id=str(rule.id),
-        allocation_type=rule.allocation_type,
-        dimension=rule.dimension,
-        weight=rule.weight,
-        created_at=rule.created_at,
-    )
+    return ChargebackRuleResponse.model_validate(rule)
 
 
 # ── GET /billing/chargeback-rules ─────────────────────────────────────────────
@@ -462,17 +479,230 @@ async def list_chargeback_rules(
     rules: list[ChargebackRule] = list(result.scalars())
 
     return ChargebackRuleList(
-        items=[
-            ChargebackRuleResponse(
-                id=str(r.id),
-                allocation_type=r.allocation_type,
-                dimension=r.dimension,
-                weight=r.weight,
-                created_at=r.created_at,
-            )
-            for r in rules
-        ]
+        items=[ChargebackRuleResponse.model_validate(r) for r in rules]
     )
+
+
+# ── Billing Adjustments ───────────────────────────────────────────────────────
+
+
+@router.post(
+    "/periods/{period_id}/adjustments",
+    response_model=BillingAdjustmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_adjustment(
+    period_id: uuid.UUID,
+    body: BillingAdjustmentCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BillingAdjustmentResponse:
+    workspace: Workspace = auth[0]
+    """Add a credit, refund, prepaid deduction, or surcharge to a billing period."""
+    try:
+        adj = await add_adjustment(
+            db,
+            workspace_id=workspace.id,
+            billing_period_id=period_id,
+            adjustment_type=body.adjustment_type,
+            amount_usd=body.amount_usd,
+            description=body.description,
+            reference_id=body.reference_id,
+            created_by=str(workspace.id),
+        )
+    except ValueError as exc:
+        if "not found" in str(exc).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return BillingAdjustmentResponse.model_validate(adj)
+
+
+@router.get("/periods/{period_id}/adjustments", response_model=BillingAdjustmentList)
+async def list_adjustments(
+    period_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BillingAdjustmentList:
+    workspace: Workspace = auth[0]
+    """List all billing adjustments for a period."""
+    # Verify ownership
+    result = await db.execute(
+        select(BillingPeriod).where(
+            BillingPeriod.id == period_id,
+            BillingPeriod.workspace_id == workspace.id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
+
+    from decimal import Decimal as _Decimal  # noqa: PLC0415
+
+    _credit_types = ("credit", "refund", "prepaid_deduction")
+    items = await get_period_adjustments(db, workspace.id, period_id)
+    resp_items = [BillingAdjustmentResponse.model_validate(a) for a in items]
+
+    total_credits = sum(
+        (a.amount_usd for a in items if a.adjustment_type in _credit_types),
+        _Decimal(0),
+    )
+    total_surcharges = sum(
+        (a.amount_usd for a in items if a.adjustment_type == "surcharge"),
+        _Decimal(0),
+    )
+    net_adj = total_surcharges - total_credits
+
+    return BillingAdjustmentList(
+        items=resp_items,
+        total_credits_usd=total_credits,
+        total_surcharges_usd=total_surcharges,
+        net_adjustment_usd=net_adj,
+    )
+
+
+@router.delete(
+    "/periods/{period_id}/adjustments/{adjustment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_adjustment(
+    period_id: uuid.UUID,
+    adjustment_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(BillingAdjustment).where(
+            BillingAdjustment.id == adjustment_id,
+            BillingAdjustment.billing_period_id == period_id,
+            BillingAdjustment.workspace_id == workspace.id,
+        )
+    )
+    adj = result.scalar_one_or_none()
+    if adj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Adjustment not found")
+    await db.delete(adj)
+    await db.commit()
+
+
+# ── Cost Centers ──────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/cost-centers",
+    response_model=CostCenterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_cost_center(
+    body: CostCenterCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CostCenterResponse:
+    workspace: Workspace = auth[0]
+    """Create a cost center (optionally nested under a parent)."""
+    cc = CostCenter(
+        workspace_id=workspace.id,
+        name=body.name,
+        code=body.code,
+        parent_id=body.parent_id,
+        description=body.description,
+    )
+    db.add(cc)
+    await db.commit()
+    await db.refresh(cc)
+    return CostCenterResponse.model_validate(cc)
+
+
+@router.get("/cost-centers", response_model=CostCenterList)
+async def list_cost_centers(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CostCenterList:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(CostCenter)
+        .where(CostCenter.workspace_id == workspace.id)
+        .order_by(CostCenter.name)
+    )
+    items = list(result.scalars())
+    return CostCenterList(
+        items=[CostCenterResponse.model_validate(c) for c in items],
+        total=len(items),
+    )
+
+
+@router.get("/cost-centers/tree", response_model=list[CostCenterNode])
+async def get_cost_center_tree_endpoint(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[CostCenterNode]:
+    workspace: Workspace = auth[0]
+    """Return cost center hierarchy as a nested tree."""
+    return await get_cost_center_tree(db, workspace.id)
+
+
+@router.get("/cost-centers/{cost_center_id}", response_model=CostCenterResponse)
+async def get_cost_center(
+    cost_center_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CostCenterResponse:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(CostCenter).where(
+            CostCenter.id == cost_center_id,
+            CostCenter.workspace_id == workspace.id,
+        )
+    )
+    cc = result.scalar_one_or_none()
+    if cc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cost center not found")
+    return CostCenterResponse.model_validate(cc)
+
+
+@router.put("/cost-centers/{cost_center_id}", response_model=CostCenterResponse)
+async def update_cost_center(
+    cost_center_id: uuid.UUID,
+    body: CostCenterUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CostCenterResponse:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(CostCenter).where(
+            CostCenter.id == cost_center_id,
+            CostCenter.workspace_id == workspace.id,
+        )
+    )
+    cc = result.scalar_one_or_none()
+    if cc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cost center not found")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(cc, field, value)
+    await db.commit()
+    await db.refresh(cc)
+    return CostCenterResponse.model_validate(cc)
+
+
+@router.delete("/cost-centers/{cost_center_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_cost_center(
+    cost_center_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(CostCenter).where(
+            CostCenter.id == cost_center_id,
+            CostCenter.workspace_id == workspace.id,
+        )
+    )
+    cc = result.scalar_one_or_none()
+    if cc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cost center not found")
+    await db.delete(cc)
+    await db.commit()
 
 
 # ── POST /billing/webhooks ────────────────────────────────────────────────────

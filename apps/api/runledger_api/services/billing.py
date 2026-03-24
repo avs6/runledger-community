@@ -22,12 +22,20 @@ from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
-from runledger_api.models.billing import BillingPeriod, ChargebackRule, UsageSnapshot
+from runledger_api.models.billing import (
+    BillingAdjustment,
+    BillingPeriod,
+    ChargebackRule,
+    CostCenter,
+    UsageSnapshot,
+)
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import UsageDaily
 from runledger_api.schemas.billing import (
+    BillingAdjustmentResponse,
     BreakdownApp,
     BreakdownUser,
+    CostCenterNode,
     PeriodBreakdown,
     ReconciliationResult,
 )
@@ -262,6 +270,28 @@ async def close_billing_period(
     )
     model_rows = model_rows_result.all()
 
+    # Sum adjustments (credits/refunds reduce cost; surcharges add to it)
+    adj_result = await db.execute(
+        select(
+            BillingAdjustment.adjustment_type,
+            func.coalesce(func.sum(BillingAdjustment.amount_usd), Decimal(0)).label(
+                "total_amount"
+            ),
+        )
+        .where(BillingAdjustment.billing_period_id == billing_period_id)
+        .group_by(BillingAdjustment.adjustment_type)
+    )
+    adj_rows = adj_result.all()
+
+    total_deductions = Decimal(0)
+    total_surcharges = Decimal(0)
+    for adj_row in adj_rows:
+        if adj_row.adjustment_type in ("credit", "refund", "prepaid_deduction"):
+            total_deductions += adj_row.total_amount
+        else:
+            total_surcharges += adj_row.total_amount
+    net_cost = max(total_cost - total_deductions + total_surcharges, Decimal(0))
+
     now = datetime.now(UTC)
     snapshot_data: dict[str, Any] = {
         "period_id": str(billing_period_id),
@@ -269,6 +299,11 @@ async def close_billing_period(
         "period_start": str(period_start),
         "period_end": str(period_end),
         "total_cost_usd": str(total_cost),
+        "net_cost_usd": str(net_cost),
+        "total_deductions_usd": str(total_deductions),
+        "total_surcharges_usd": str(total_surcharges),
+        "currency": period.currency,
+        "exchange_rate_to_usd": str(period.exchange_rate_to_usd),
         "closed_at": now.isoformat(),
         "by_model": [
             {
@@ -301,6 +336,7 @@ async def close_billing_period(
         .values(
             status="closed",
             total_cost_usd=total_cost,
+            net_cost_usd=net_cost,
             snapshot_hash=sig[:16],
             closed_at=now,
         )
@@ -385,10 +421,34 @@ async def get_period_breakdown(
         for app_id, app_data in apps.items()
     ]
 
+    # Fetch adjustments for this period
+    adj_list_result = await db.execute(
+        select(BillingAdjustment)
+        .where(BillingAdjustment.billing_period_id == billing_period_id)
+        .order_by(BillingAdjustment.created_at)
+    )
+    adj_items = list(adj_list_result.scalars())
+    adj_responses = [BillingAdjustmentResponse.model_validate(a) for a in adj_items]
+
+    _credit_types = ("credit", "refund", "prepaid_deduction")
+    total_deductions = sum(
+        (a.amount_usd for a in adj_items if a.adjustment_type in _credit_types),
+        Decimal(0),
+    )
+    total_surcharges = sum(
+        (a.amount_usd for a in adj_items if a.adjustment_type == "surcharge"),
+        Decimal(0),
+    )
+    total_adjustments = total_surcharges - total_deductions
+    net_cost = max(total_cost + total_adjustments, Decimal(0))
+
     return PeriodBreakdown(
         period_id=str(billing_period_id),
-        total_cost_usd=total_cost,
+        gross_cost_usd=total_cost,
+        net_cost_usd=net_cost,
+        total_adjustments_usd=total_adjustments,
         by_application=by_application,
+        adjustments=adj_responses,
     )
 
 
@@ -525,8 +585,9 @@ async def apply_chargeback_rules(
     billing_period_id: uuid.UUID,
 ) -> dict[str, Decimal]:
     """
-    Fetch chargeback_rules for workspace. Multiply period total by each weight.
+    Fetch chargeback_rules for workspace. Multiply net period cost by each weight.
     Returns {dimension: allocated_cost_usd} mapping.
+    Uses net_cost_usd (after adjustments) when available; falls back to total_cost_usd.
     """
     period_result = await db.execute(
         select(BillingPeriod).where(BillingPeriod.id == billing_period_id)
@@ -535,11 +596,117 @@ async def apply_chargeback_rules(
     if period is None:
         raise ValueError(f"BillingPeriod {billing_period_id} not found")
 
-    total_cost = period.total_cost_usd or Decimal(0)
+    base_cost = period.net_cost_usd or period.total_cost_usd or Decimal(0)
 
     rules_result = await db.execute(
         select(ChargebackRule).where(ChargebackRule.workspace_id == period.workspace_id)
     )
     rules: list[ChargebackRule] = list(rules_result.scalars())
 
-    return {rule.dimension: total_cost * rule.weight for rule in rules}
+    return {rule.dimension: base_cost * rule.weight for rule in rules}
+
+
+# ── Cost Centers ──────────────────────────────────────────────────────────────
+
+
+async def get_cost_center_tree(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+) -> list[CostCenterNode]:
+    """
+    Return the cost center hierarchy as a forest of CostCenterNode trees.
+    Builds the tree in Python from a flat SELECT (avoids recursive CTE complexity).
+    """
+    result = await db.execute(
+        select(CostCenter)
+        .where(CostCenter.workspace_id == workspace_id)
+        .order_by(CostCenter.name)
+    )
+    all_centers = list(result.scalars())
+
+    nodes: dict[uuid.UUID, CostCenterNode] = {
+        c.id: CostCenterNode(
+            id=c.id,
+            name=c.name,
+            code=c.code,
+            parent_id=c.parent_id,
+            description=c.description,
+            children=[],
+        )
+        for c in all_centers
+    }
+
+    roots: list[CostCenterNode] = []
+    for c in all_centers:
+        node = nodes[c.id]
+        if c.parent_id and c.parent_id in nodes:
+            nodes[c.parent_id].children.append(node)
+        else:
+            roots.append(node)
+
+    return roots
+
+
+# ── Billing Adjustments ───────────────────────────────────────────────────────
+
+
+async def add_adjustment(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    billing_period_id: uuid.UUID,
+    adjustment_type: str,
+    amount_usd: Decimal,
+    description: str | None,
+    reference_id: str | None,
+    created_by: str | None,
+) -> BillingAdjustment:
+    """Create a billing adjustment on an open (or closing) period."""
+    period_result = await db.execute(
+        select(BillingPeriod).where(
+            BillingPeriod.id == billing_period_id,
+            BillingPeriod.workspace_id == workspace_id,
+        )
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise ValueError("BillingPeriod not found")
+    if period.status == "closed":
+        raise ValueError("Cannot add adjustments to a closed billing period")
+
+    adj = BillingAdjustment(
+        workspace_id=workspace_id,
+        billing_period_id=billing_period_id,
+        adjustment_type=adjustment_type,
+        amount_usd=amount_usd,
+        description=description,
+        reference_id=reference_id,
+        created_by=created_by,
+    )
+    db.add(adj)
+    await db.flush()
+    await db.commit()
+    await db.refresh(adj)
+    log.info(
+        "billing_adjustment_added",
+        period_id=str(billing_period_id),
+        adjustment_type=adjustment_type,
+        amount_usd=str(amount_usd),
+    )
+    return adj
+
+
+async def get_period_adjustments(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    billing_period_id: uuid.UUID,
+) -> list[BillingAdjustment]:
+    """List all adjustments for a period."""
+    result = await db.execute(
+        select(BillingAdjustment)
+        .where(
+            BillingAdjustment.billing_period_id == billing_period_id,
+            BillingAdjustment.workspace_id == workspace_id,
+        )
+        .order_by(BillingAdjustment.created_at)
+    )
+    return list(result.scalars())
