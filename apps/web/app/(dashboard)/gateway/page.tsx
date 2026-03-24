@@ -37,6 +37,10 @@ export default function GatewayPage() {
   const [newRoutePriority, setNewRoutePriority] = useState('10')
   const [newRouteConfigStr, setNewRouteConfigStr] = useState('')
   const [newRouteConfigError, setNewRouteConfigError] = useState('')
+  const [newRouteDailyCap, setNewRouteDailyCap] = useState('')
+  const [newRouteMonthlyCap, setNewRouteMonthlyCap] = useState('')
+  const [newRoutePiiRedaction, setNewRoutePiiRedaction] = useState(false)
+  const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
 
@@ -100,6 +104,10 @@ export default function GatewayPage() {
         api_key_env_var: newRouteApiKeyEnvVar.trim() || null,
         priority: parseInt(newRoutePriority, 10) || 10,
         config,
+        daily_cost_limit_usd: newRouteDailyCap ? parseFloat(newRouteDailyCap) : null,
+        monthly_cost_limit_usd: newRouteMonthlyCap ? parseFloat(newRouteMonthlyCap) : null,
+        pii_redaction_enabled: newRoutePiiRedaction,
+        per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
       })
       setGatewayRoutes((prev) => [...prev, route])
       setNewRouteAlias('')
@@ -108,6 +116,10 @@ export default function GatewayPage() {
       setNewRouteApiKeyEnvVar('OPENAI_API_KEY')
       setNewRoutePriority('10')
       setNewRouteConfigStr('')
+      setNewRouteDailyCap('')
+      setNewRouteMonthlyCap('')
+      setNewRoutePiiRedaction(false)
+      setNewRoutePerUserRpm('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
     } catch {
@@ -341,7 +353,37 @@ export default function GatewayPage() {
               </div>
               <div className="flex items-center gap-2">
                 <input type="number" placeholder="Priority" value={newRoutePriority} onChange={(e) => setNewRoutePriority(e.target.value)} className={`w-24 ${inputCls}`} min={1} max={100} />
-                <button type="submit" disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel} className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              </div>
+              {/* Runtime controls row */}
+              <div className="sm:col-span-2 lg:col-span-3 border-t border-indigo-100 dark:border-indigo-900 pt-3 mt-1">
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Runtime Controls</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Daily Cost Cap (USD)</label>
+                    <input type="number" placeholder="e.g. 10.00" step="0.01" min="0" value={newRouteDailyCap} onChange={(e) => setNewRouteDailyCap(e.target.value)} className={inputCls} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Monthly Cost Cap (USD)</label>
+                    <input type="number" placeholder="e.g. 100.00" step="0.01" min="0" value={newRouteMonthlyCap} onChange={(e) => setNewRouteMonthlyCap(e.target.value)} className={inputCls} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Per-User RPM Limit</label>
+                    <input type="number" placeholder="e.g. 60" min="1" value={newRoutePerUserRpm} onChange={(e) => setNewRoutePerUserRpm(e.target.value)} className={inputCls} />
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <input
+                      id="pii-redact"
+                      type="checkbox"
+                      checked={newRoutePiiRedaction}
+                      onChange={(e) => setNewRoutePiiRedaction(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="pii-redact" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer">PII Redaction</label>
+                  </div>
+                </div>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <button type="submit" disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                   {creatingRoute ? 'Adding…' : 'Add Route'}
                 </button>
               </div>
@@ -375,13 +417,24 @@ export default function GatewayPage() {
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{route.target_model}</td>
                     <td className="px-4 py-2.5 text-center text-xs text-slate-500 dark:text-slate-400">{route.priority}</td>
                     <td className="px-4 py-2.5 text-center">
-                      <button
-                        onClick={() => canManage && handleToggleRoute(route)}
-                        disabled={!canManage}
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${route.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                      >
-                        {route.is_active ? 'Active' : 'Disabled'}
-                      </button>
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          onClick={() => canManage && handleToggleRoute(route)}
+                          disabled={!canManage}
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${route.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                          title={route.disabled_reason ?? undefined}
+                        >
+                          {route.is_active ? 'Active' : 'Disabled'}
+                        </button>
+                        {route.disabled_reason && (
+                          <span className="text-xs text-red-500 dark:text-red-400 max-w-[120px] truncate" title={route.disabled_reason}>
+                            {route.disabled_reason}
+                          </span>
+                        )}
+                        {route.pii_redaction_enabled && (
+                          <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">PII</span>
+                        )}
+                      </div>
                     </td>
                     {canManage && (
                       <td className="px-4 py-2.5 text-right">

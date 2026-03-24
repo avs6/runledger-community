@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 import sqlalchemy as sa
@@ -46,6 +47,27 @@ class GatewayRoute(Base):
     is_active: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")
     )
+    # ── Phase 30: Runtime controls ─────────────────────────────────────────────
+    daily_cost_limit_usd: Mapped[Decimal | None] = mapped_column(
+        sa.NUMERIC(12, 4), nullable=True
+    )
+    monthly_cost_limit_usd: Mapped[Decimal | None] = mapped_column(
+        sa.NUMERIC(12, 4), nullable=True
+    )
+    pii_redaction_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    per_user_rpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    health_auto_disable: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    last_health_check_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    consecutive_health_failures: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default="0"
+    )
+    disabled_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

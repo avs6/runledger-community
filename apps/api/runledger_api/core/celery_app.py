@@ -20,6 +20,7 @@ celery_app = Celery(
         "runledger_api.workers.retention",
         "runledger_api.workers.warehouse",
         "runledger_api.workers.email_reports",
+        "runledger_api.workers.gateway_health",
     ],
 )
 
@@ -132,6 +133,11 @@ celery_app.conf.update(
         "email-report-weekly": {
             "task": "email_reports.send_weekly_analytics",
             "schedule": 604800.0,  # 7 days
+        },
+        # Gateway route health monitoring: every 5 minutes
+        "gateway-health-check-5m": {
+            "task": "gateway.health_check",
+            "schedule": 300.0,
         },
     },
 )

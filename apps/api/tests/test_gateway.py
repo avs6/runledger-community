@@ -83,6 +83,11 @@ async def test_create_gateway_route_success(
         obj.priority = 10
         obj.base_url = None
         obj.api_key_env_var = "OPENAI_API_KEY"
+        obj.consecutive_health_failures = 0
+        obj.disabled_reason = None
+        obj.pii_redaction_enabled = False
+        obj.health_auto_disable = True
+        obj.per_user_rpm_limit = None
 
     mock_db_session.refresh.side_effect = set_attrs
 

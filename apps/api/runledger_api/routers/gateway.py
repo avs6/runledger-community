@@ -28,7 +28,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +62,8 @@ from runledger_api.services.gateway import (
     store_cache,
     stream_request,
 )
+from runledger_api.services.gateway_controls import check_cost_cap, check_per_user_rpm
+from runledger_api.services.gateway_redact import redact_messages
 
 router = APIRouter(
     prefix="/gateway",
@@ -81,6 +83,7 @@ async def gateway_chat_completions(
     body: GatewayCompletionRequest,
     workspace: WorkspaceDep,
     db: DbDep,
+    x_runledger_end_user_id: str | None = Header(default=None, alias="X-RunLedger-End-User-Id"),
 ) -> Any:
     """
     OpenAI-compatible chat completions proxy.
@@ -89,9 +92,11 @@ async def gateway_chat_completions(
       1. Check prompt cache (if body.cache=True)
       2. If cache hit: record + return cached response
       3. Apply routing policy to select target route
-      4. Forward to provider (with retry + fallback)
-      5. Store result in cache + record GatewayRequest with decision_reason
-      6. If body.stream=True: return SSE StreamingResponse
+      4. Check runtime controls: cost cap + per-user rate limit
+      5. Apply PII redaction (if enabled on route)
+      6. Forward to provider (with retry + fallback)
+      7. Store result in cache + record GatewayRequest with decision_reason
+      8. If body.stream=True: return SSE StreamingResponse
     """
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
@@ -135,10 +140,22 @@ async def gateway_chat_completions(
                 detail=f"No active gateway routes for alias '{body.model}'",
             ) from None
 
+        # Runtime controls
+        await check_cost_cap(db, route, workspace.id)
+        if x_runledger_end_user_id and route.per_user_rpm_limit:
+            from runledger_api.core.redis import get_redis  # noqa: PLC0415
+
+            redis = await get_redis()
+            await check_per_user_rpm(
+                redis, workspace.id, x_runledger_end_user_id, route.id, route.per_user_rpm_limit
+            )
+
+        fwd_messages = redact_messages(messages) if route.pii_redaction_enabled else messages
+
         async def _sse_gen() -> AsyncGenerator[bytes]:
             async for chunk in stream_request(
                 route=route,
-                messages=messages,
+                messages=fwd_messages,
                 temperature=body.temperature,
                 max_tokens=body.max_tokens,
                 top_p=body.top_p,
@@ -207,6 +224,20 @@ async def gateway_chat_completions(
         )
         raise
 
+    # Runtime controls on the winning route
+    await check_cost_cap(db, winning_route, workspace.id)
+    if x_runledger_end_user_id and winning_route.per_user_rpm_limit:
+        from runledger_api.core.redis import get_redis  # noqa: PLC0415
+
+        redis = await get_redis()
+        await check_per_user_rpm(
+            redis,
+            workspace.id,
+            x_runledger_end_user_id,
+            winning_route.id,
+            winning_route.per_user_rpm_limit,
+        )
+
     usage = response_json.get("usage") or {}
     input_tokens = usage.get("prompt_tokens")
     output_tokens = usage.get("completion_tokens")
@@ -260,6 +291,11 @@ async def create_gateway_route(
         api_key_env_var=body.api_key_env_var,
         priority=body.priority,
         config=body.config,
+        daily_cost_limit_usd=body.daily_cost_limit_usd,
+        monthly_cost_limit_usd=body.monthly_cost_limit_usd,
+        pii_redaction_enabled=body.pii_redaction_enabled,
+        per_user_rpm_limit=body.per_user_rpm_limit,
+        health_auto_disable=body.health_auto_disable,
     )
     db.add(route)
     await db.flush()
@@ -308,6 +344,16 @@ async def update_gateway_route(
         route.api_key_env_var = body.api_key_env_var
     if body.config is not None:
         route.config = body.config
+    if "daily_cost_limit_usd" in body.model_fields_set:
+        route.daily_cost_limit_usd = body.daily_cost_limit_usd
+    if "monthly_cost_limit_usd" in body.model_fields_set:
+        route.monthly_cost_limit_usd = body.monthly_cost_limit_usd
+    if body.pii_redaction_enabled is not None:
+        route.pii_redaction_enabled = body.pii_redaction_enabled
+    if "per_user_rpm_limit" in body.model_fields_set:
+        route.per_user_rpm_limit = body.per_user_rpm_limit
+    if body.health_auto_disable is not None:
+        route.health_auto_disable = body.health_auto_disable
 
     await db.commit()
     await db.refresh(route)

@@ -567,6 +567,11 @@ async def test_gateway_route_create_with_config(
         obj.base_url = "https://myresource.openai.azure.com"
         obj.api_key_env_var = "AZURE_OPENAI_API_KEY"
         obj.config = {"deployment_name": "my-gpt4o", "api_version": "2024-02-01"}
+        obj.consecutive_health_failures = 0
+        obj.disabled_reason = None
+        obj.pii_redaction_enabled = False
+        obj.health_auto_disable = True
+        obj.per_user_rpm_limit = None
 
     mock_db_session.refresh.side_effect = set_attrs
 
@@ -605,6 +610,11 @@ async def test_gateway_route_create_bedrock_provider(
         obj.base_url = None
         obj.api_key_env_var = "BEDROCK"
         obj.config = {"region": "us-east-1"}
+        obj.consecutive_health_failures = 0
+        obj.disabled_reason = None
+        obj.pii_redaction_enabled = False
+        obj.health_auto_disable = True
+        obj.per_user_rpm_limit = None
 
     mock_db_session.refresh.side_effect = set_attrs
 
@@ -642,6 +652,11 @@ async def test_gateway_route_create_vertex_provider(
         obj.base_url = None
         obj.api_key_env_var = "VERTEX_SERVICE_ACCOUNT_JSON"
         obj.config = {"project": "my-gcp-project", "location": "us-central1"}
+        obj.consecutive_health_failures = 0
+        obj.disabled_reason = None
+        obj.pii_redaction_enabled = False
+        obj.health_auto_disable = True
+        obj.per_user_rpm_limit = None
 
     mock_db_session.refresh.side_effect = set_attrs
 
