@@ -55,33 +55,56 @@ Every team shipping AI agents in production hits the same wall:
 ## Architecture
 
 ```
-Application / Agent
-  ├── RunLedger SDK (Python or TypeScript) → /ingest/v1/events (richest path)
-  ├── OTel SDK + OpenInference → OTel Collector → /v1/traces
-  └── OTel SDK + OpenInference → /v1/traces directly
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        Instrumented Application                         │
+│                                                                         │
+│   RunLedger SDK (Python / TypeScript)    OTel SDK + OpenInference       │
+│   rl.instrument() / rl.instrument_otel() TracerProvider                 │
+└────────────────┬─────────────────────────────────┬───────────────────── ┘
+                 │ POST /ingest/v1/events           │ OTLP/HTTP or gRPC
+                 │ (budget check, context, scores)  ▼
+                 │                      ┌───────────────────────┐
+                 │                      │   OTel Collector      │
+                 │                      │   ports 4317 / 4318   │
+                 │                      └───────────┬───────────┘
+                 │                                  │ POST /v1/traces
+                 ▼                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      RunLedger API  (FastAPI async)                     │
+│                                                                         │
+│  /ingest   /v1/traces   /gateway   /billing   /budgets   /mcp          │
+│  /analytics  /outcomes  /approvals  /retention  /warehouse  /reference  │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   │
+            ┌──────────────────────┼────────────────────────┐
+            ▼                      ▼                        ▼
+  ┌─────────────────┐   ┌──────────────────────┐  ┌──────────────────────┐
+  │  Redis 7        │   │  PostgreSQL 16        │  │  Celery Workers      │
+  │  ─ Streams      │   │  ─ agent_runs/spans   │  │  ─ cost_enrichment   │
+  │    (event buf)  │   │  ─ provider_calls     │  │  ─ rollup_hourly/    │
+  │  ─ Cache        │   │  ─ metering / pricing │  │    rollup_daily      │
+  │    (budgets     │   │  ─ billing / invoices │  │  ─ alert_evaluation  │
+  │    <5ms p99)    │   │  ─ cost_centers       │  │  ─ otlp_finalize     │
+  │  ─ RPM limits   │   │  ─ warehouse exports  │  │  ─ warehouse export  │
+  └─────────────────┘   └──────────────────────┘  └──────────────────────┘
 
-RunLedger Platform
-  ├── Collector API (FastAPI)          ← receives events + OTLP traces
-  ├── Redis Streams                    ← event buffer
-  ├── Celery Workers                   ← cost enrichment, rollups, finalization
-  ├── PostgreSQL 16                    ← events, spans, metering, pricing, invoices
-  └── Redis Cache                      ← budget hot path (<5ms p99)
-
-RunLedger Dashboard (Next.js 14)
-  └── Run Explorer / Analytics / Budgets / Billing / Gateway / Outcomes / Approvals
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   RunLedger Dashboard  (Next.js 14)                     │
+│                                                                         │
+│  Runs · Analytics · Budgets · Billing · Invoices · Gateway · Outcomes  │
+│  Evaluations · Prompts · Approvals · Replay · Ledger · Settings · Admin │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+**Ingestion paths:**
 
-## Adoption Modes
+| Path | When to use |
+|------|-------------|
+| **RunLedger SDK** | Best path — budget enforcement, `rl.score()`, prompt fetch, propagation headers |
+| **OTLP direct** | Already emit OTel / OpenInference; zero instrumentation change |
+| **OTLP via Collector** | Production deployments — batching, retry, attribute enrichment |
 
-| Mode | How | When to use |
-|------|-----|-------------|
-| **RunLedger SDK** | Wrap your OpenAI / Anthropic / LangChain client with 2 lines | Best finance-native path: budget enforcement, MCP hooks, request ID capture, `rl.score()` |
-| **OTLP direct** | Send traces to `POST /v1/traces` | Already emit OTel or OpenInference; want zero instrumentation change |
-| **OTLP via Collector** | App → OTel Collector → RunLedger | Production deployments; Collector handles batching, retry, attribute tagging |
-
-All three modes normalize into the same RunLedger domain model. OTLP traces become agent runs with provider calls and tool calls. All privacy modes apply equally.
+All three paths normalise into the same domain model: `AgentRun → Span → ProviderCall / ToolCall`.
 
 ---
 
@@ -108,46 +131,62 @@ git clone https://github.com/avs6/runledger
 cd runledger
 ```
 
-**2. Start all services**
+**2. Copy the env template and set your secrets**
+
+```bash
+cp infra/.env.example infra/.env
+# edit infra/.env — at minimum set SECRET_KEY to something random
+```
+
+**3. Start all services**
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d
 ```
 
 This starts:
-- `postgres` — PostgreSQL 16 on port 5432
-- `redis` — Redis 7 on port 6379
-- `api` — FastAPI on port 8000 (runs migrations + seed automatically on startup)
-- `worker` — Celery worker
-- `web` — Next.js dashboard on port 3000
 
-To also start the optional **OTel Collector** (OTLP receiver on ports 4317/4318 → RunLedger):
-```bash
-docker compose -f infra/docker-compose.yml --profile otel up -d
-```
+| Service | Port | Description |
+|---------|------|-------------|
+| `postgres` | 5432 | PostgreSQL 16 |
+| `redis` | 6379 | Redis 7 |
+| `api` | 8000 | FastAPI — collector + management API |
+| `worker` | — | Celery worker (cost enrichment, rollups) |
+| `beat` | — | Celery beat scheduler |
+| `web` | 3000 | Next.js 14 dashboard |
+| `otel-collector` | 4317 / 4318 / 13133 | OTLP receiver → RunLedger |
 
-On first start the API container prints:
+The OTel Collector starts automatically — no extra flags needed. Apps can send OTLP traces to `localhost:4318` (HTTP) or `localhost:4317` (gRPC) immediately.
 
-```
-→ Running database migrations...
-→ Seeding database (idempotent — safe to run on every start)...
-Tenant:    default  (a1b2c3d4-...)
-Workspace: default  (e5f6g7h8-...)
-API Key:   rl_dev_xxxxxxxxxxxxxxxxxxxx
-
-Save the API key — it won't be shown again.
-
-Dashboard login:
-  Email:    admin@runledger.local
-  Password: runledger
-  URL:      http://localhost:3000
-→ Starting API...
-```
-
-Save the API key — it is shown once and stored hashed. View the logs with:
+**4. Bootstrap the platform admin (one-time)**
 
 ```bash
-docker compose -f infra/docker-compose.yml logs api
+curl -s -X POST http://localhost:8000/admin/bootstrap \
+  -H "X-Admin-Secret: runledger-admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "Admin123!",
+    "full_name": "Platform Admin",
+    "org_name": "Acme"
+  }'
+```
+
+Response:
+
+```json
+{
+  "api_key": "rl_xxxxxxxxxxxxxxxxxxxx",
+  "tenant_id": "...",
+  "workspace_id": "...",
+  "message": "Platform admin 'admin@example.com' ready."
+}
+```
+
+Save the `api_key` — it is stored hashed and shown only once. Add it to `infra/.env` as `RUNLEDGER_API_KEY` so the OTel Collector can authenticate. Then rebuild:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
 ```
 
 **3. Verify**
@@ -350,6 +389,16 @@ rl.shutdown()  # flush before process exits
 
 Every call inside the `with` block is tracked: model, tokens, latency, and cost in USD.
 
+`rl.context()` supports both `with` and `async with`. Contexts nest — inner blocks inherit and can override:
+
+```python
+with rl.context(end_user_id="u_123"):
+    with rl.context(feature_tag="checkout"):
+        ...  # tagged: u_123 + checkout
+    with rl.context(feature_tag="search"):
+        ...  # tagged: u_123 + search
+```
+
 ### LangChain
 
 ```python
@@ -492,13 +541,12 @@ curl -X POST http://localhost:8000/v1/traces \
 **Mode 2 — Via OTel Collector** (app → Collector → RunLedger):
 
 ```bash
-# Start the optional OTel Collector sidecar
-docker compose --profile otel -f infra/docker-compose.yml up otel-collector
-
-# Point your OTel SDK at the Collector:
+# The Collector starts automatically with docker compose up — no extra flags.
+# Point your OTel SDK at:
 #   OTLP/HTTP → http://localhost:4318
 #   OTLP/gRPC → http://localhost:4317
 # The Collector batches and forwards to RunLedger automatically.
+# Health probe: http://localhost:13133/
 ```
 
 **Attribute priority** — RunLedger normalises in this order:
@@ -857,11 +905,8 @@ cd apps/web && npm run dev
 # Run database migrations
 cd apps/api && uv run alembic upgrade head
 
-# Full local stack
+# Full local stack (OTel Collector included automatically)
 docker compose -f infra/docker-compose.yml up
-
-# Full local stack + OTel Collector
-docker compose -f infra/docker-compose.yml --profile otel up
 
 # Run tests
 cd apps/api && uv run pytest

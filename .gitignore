@@ -27,12 +27,20 @@ yarn-error.log*
 apps/web/.env.local
 apps/web/.env*.local
 
-# IDE / Claude Code local state
+# IDE / AI assistant local state
 .vscode/
 .idea/
 *.swp
 *.swo
-.claude/settings.local.json
+.claude/
+
+# Private planning docs — not for public repo
+AGENTS.md
+CLAUDE.md
+about.md
+pitch.md
+tenancy_spec.md
+vc_feedback*.md
 
 # TypeScript incremental build info
 apps/web/tsconfig.tsbuildinfo
