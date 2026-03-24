@@ -20,7 +20,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ── Helper factories ──────────────────────────────────────────────────────────
 
 
@@ -77,9 +76,11 @@ async def test_openai_adapter_forward() -> None:
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client):
-        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}):
-            result = await adapter.forward(route, messages)
+    with (
+        patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client),
+        patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}),
+    ):
+        result = await adapter.forward(route, messages)
 
     assert result == expected_response
     call_kwargs = mock_client.post.call_args
@@ -117,10 +118,12 @@ async def test_openai_adapter_stream() -> None:
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
     chunks: list[bytes] = []
-    with patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client):
-        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}):
-            async for chunk in adapter.stream(route, messages):
-                chunks.append(chunk)
+    with (
+        patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client),
+        patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}),
+    ):
+        async for chunk in adapter.stream(route, messages):
+            chunks.append(chunk)
 
     # Both non-empty lines should have been yielded with \n\n appended
     assert len(chunks) == 2
@@ -156,9 +159,11 @@ async def test_azure_adapter_url_construction() -> None:
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client):
-        with patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "azure-key-123"}):
-            result = await adapter.forward(route, messages)
+    with (
+        patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client),
+        patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "azure-key-123"}),
+    ):
+        result = await adapter.forward(route, messages)
 
     assert result == expected_response
     call_kwargs = mock_client.post.call_args
@@ -199,9 +204,11 @@ async def test_azure_adapter_custom_api_version() -> None:
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client):
-        with patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "key"}):
-            await adapter.forward(route, messages)
+    with (
+        patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client),
+        patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "key"}),
+    ):
+        await adapter.forward(route, messages)
 
     call_kwargs = mock_client.post.call_args
     url = call_kwargs.args[0]
@@ -240,10 +247,12 @@ async def test_azure_adapter_stream() -> None:
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
     chunks: list[bytes] = []
-    with patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client):
-        with patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "azure-key"}):
-            async for chunk in adapter.stream(route, messages):
-                chunks.append(chunk)
+    with (
+        patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client),
+        patch.dict("os.environ", {"AZURE_OPENAI_API_KEY": "azure-key"}),
+    ):
+        async for chunk in adapter.stream(route, messages):
+            chunks.append(chunk)
 
     assert len(chunks) == 1
     assert chunks[0].endswith(b"\n\n")
@@ -330,12 +339,11 @@ async def test_bedrock_adapter_forward() -> None:
         "runledger_api.services.gateway_providers.asyncio.to_thread",
         new_callable=AsyncMock,
         return_value=fake_raw,
-    ):
-        with patch.dict("os.environ", {
-            "BEDROCK_AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7",
-            "BEDROCK_AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI",
-        }):
-            result = await adapter.forward(route, messages, temperature=0.7)
+    ), patch.dict("os.environ", {
+        "BEDROCK_AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7",
+        "BEDROCK_AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI",
+    }):
+        result = await adapter.forward(route, messages, temperature=0.7)
 
     assert result["object"] == "chat.completion"
     assert result["choices"][0]["message"]["content"] == "Bedrock response"
@@ -363,14 +371,13 @@ async def test_bedrock_adapter_stream() -> None:
         "runledger_api.services.gateway_providers.asyncio.to_thread",
         new_callable=AsyncMock,
         return_value=fake_chunks,
-    ):
-        with patch.dict("os.environ", {
-            "BEDROCK_AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7",
-            "BEDROCK_AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI",
-        }):
-            chunks: list[bytes] = []
-            async for chunk in adapter.stream(route, messages):
-                chunks.append(chunk)
+    ), patch.dict("os.environ", {
+        "BEDROCK_AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7",
+        "BEDROCK_AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI",
+    }):
+        chunks: list[bytes] = []
+        async for chunk in adapter.stream(route, messages):
+            chunks.append(chunk)
 
     # 3 text chunks + 1 finish chunk + 1 [DONE] chunk
     assert len(chunks) == 5
@@ -470,13 +477,15 @@ async def test_vertex_adapter_forward() -> None:
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "runledger_api.services.gateway_providers.asyncio.to_thread",
-        new_callable=AsyncMock,
-        return_value=(fake_url, fake_token),
+    with (
+        patch(
+            "runledger_api.services.gateway_providers.asyncio.to_thread",
+            new_callable=AsyncMock,
+            return_value=(fake_url, fake_token),
+        ),
+        patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client),
     ):
-        with patch("runledger_api.services.gateway_providers.httpx.AsyncClient", return_value=mock_client):
-            result = await adapter.forward(route, messages)
+        result = await adapter.forward(route, messages)
 
     assert result["object"] == "chat.completion"
     assert result["choices"][0]["message"]["content"] == "Hello from Gemini!"

@@ -57,7 +57,9 @@ async def _run_evaluation() -> dict[str, int]:
 
         now = datetime.now(UTC)
         # Cache email preferences per workspace to avoid repeated DB lookups
-        from runledger_api.models.email_prefs import EmailPreference as _EmailPreference  # noqa: F401
+        from runledger_api.models.email_prefs import (
+            EmailPreference as _EmailPreference,  # noqa: F401
+        )
         prefs_cache: dict[Any, Any] = {}
 
         for rule in rules:

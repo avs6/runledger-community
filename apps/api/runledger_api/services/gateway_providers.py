@@ -117,7 +117,7 @@ class OpenAIAdapter:
             resp.raise_for_status()
             return resp.json()  # type: ignore[no-any-return]
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes, None]:
+    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
         base_url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
@@ -194,7 +194,7 @@ class AzureAdapter:
             resp.raise_for_status()
             return resp.json()  # type: ignore[no-any-return]
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes, None]:
+    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
         url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
@@ -360,7 +360,7 @@ class BedrockAdapter:
         )
         return _normalize_bedrock_response(raw, route.target_model)
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes, None]:
+    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
         region, access_key, secret_key = self._resolve(route)
         converse_messages, system = _messages_to_bedrock(messages)
         inference_config: dict[str, Any] = {
@@ -521,7 +521,7 @@ class VertexAdapter:
             raw = resp.json()
         return _normalize_gemini_response(raw, route.target_model)
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes, None]:
+    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
         """Vertex streaming via streamGenerateContent SSE endpoint."""
         contents, system_text = _messages_to_gemini(messages)
         url_base, token = await asyncio.to_thread(self._resolve, route)

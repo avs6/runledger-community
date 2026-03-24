@@ -19,12 +19,11 @@ Covers:
 from __future__ import annotations
 
 import uuid
+from datetime import UTC
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
-
 
 # ── Shared fixtures ────────────────────────────────────────────────────────────
 
@@ -88,9 +87,6 @@ def make_api_key(created_by: str = "admin@example.com") -> SimpleNamespace:
 @pytest.mark.asyncio
 async def test_get_email_preferences_creates_default() -> None:
     from runledger_api.routers.settings import get_email_preferences
-    from runledger_api.models.email_prefs import EmailPreference
-
-    prefs_obj = EmailPreference(workspace_id=WORKSPACE_ID)
 
     mock_db = AsyncMock()
     # First query returns None (no existing prefs)
@@ -108,7 +104,7 @@ async def test_get_email_preferences_creates_default() -> None:
     mock_db.refresh = AsyncMock(side_effect=mock_refresh)
 
     workspace = make_workspace()
-    result = await get_email_preferences(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
+    await get_email_preferences(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
 
     mock_db.add.assert_called_once()
     mock_db.commit.assert_awaited_once()
@@ -321,8 +317,9 @@ async def test_alert_worker_respects_prefs_disabled() -> None:
 
 @pytest.mark.asyncio
 async def test_alert_emails_uses_workspace_name() -> None:
-    from runledger_api.workers.alerts import _send_alert_emails
     from decimal import Decimal
+
+    from runledger_api.workers.alerts import _send_alert_emails
 
     rule = SimpleNamespace(
         id=uuid.uuid4(),
@@ -429,8 +426,9 @@ async def test_budget_runaway_emails_admins() -> None:
 
 @pytest.mark.asyncio
 async def test_billing_close_fires_email() -> None:
+    from datetime import date, datetime
+
     from runledger_api.routers.billing import close_period
-    from datetime import date, datetime, timezone
 
     period_id = uuid.uuid4()
     signing_key_id = uuid.uuid4()
@@ -447,7 +445,7 @@ async def test_billing_close_fires_email() -> None:
         billing_period_id=str(period_id),
         signature="abcdef1234567890abcdef1234567890",
         signing_key_id=str(signing_key_id),
-        created_at=datetime(2026, 2, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 2, 1, tzinfo=UTC),
     )
     workspace = make_workspace()
     auth = (workspace,)
@@ -490,10 +488,11 @@ async def test_billing_close_fires_email() -> None:
 
 @pytest.mark.asyncio
 async def test_dispute_line_fires_email() -> None:
+    from datetime import date, datetime
+    from decimal import Decimal
+
     from runledger_api.routers.invoices import dispute_line
     from runledger_api.schemas.invoices import DisputeRequest
-    from decimal import Decimal
-    from datetime import date, datetime, timezone
 
     invoice_id = uuid.uuid4()
     line_id = uuid.uuid4()
@@ -510,7 +509,7 @@ async def test_dispute_line_fires_email() -> None:
         unmatched_amount=Decimal("5.00"),
         status="reconciled",
         filename="openai.csv",
-        created_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 15, tzinfo=UTC),
     )
     line = SimpleNamespace(
         id=line_id,
@@ -520,7 +519,7 @@ async def test_dispute_line_fires_email() -> None:
         input_tokens=None,
         output_tokens=None,
         amount=Decimal("2.50"),
-        occurred_at=datetime(2026, 1, 10, tzinfo=timezone.utc),
+        occurred_at=datetime(2026, 1, 10, tzinfo=UTC),
         match_status="unmatched",
         matched_call_id=None,
         token_delta=None,

@@ -30,7 +30,7 @@ async def get_workspace_admin_users(db: AsyncSession, workspace_id: uuid.UUID) -
 
 async def get_email_preference(
     db: AsyncSession, workspace_id: uuid.UUID
-) -> "EmailPreference | None":  # noqa: F821
+) -> EmailPreference | None:  # noqa: F821
     """Return workspace email preferences, or None if not yet configured."""
     from runledger_api.models.email_prefs import EmailPreference
 

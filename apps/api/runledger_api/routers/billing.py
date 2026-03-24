@@ -36,8 +36,6 @@ from runledger_api.core.deps import (
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.tenant import Workspace
-from runledger_api.services.email import send_billing_period_closed_email
-from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 from runledger_api.schemas.billing import (
     BillingPeriodCreate,
     BillingPeriodList,
@@ -56,6 +54,8 @@ from runledger_api.services.billing import (
     get_period_breakdown,
     run_reconciliation,
 )
+from runledger_api.services.email import send_billing_period_closed_email
+from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 
 router = APIRouter(
     prefix="/billing", tags=["billing"], dependencies=[Depends(management_rate_limit)]

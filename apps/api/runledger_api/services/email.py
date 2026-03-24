@@ -54,9 +54,10 @@ async def _log_email(
     error_message: str | None = None,
 ) -> None:
     """Write email delivery record to email_log table."""
-    from runledger_api.core.config import settings as _settings
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
     from sqlalchemy.pool import NullPool
+
+    from runledger_api.core.config import settings as _settings
     from runledger_api.models.email_prefs import EmailLog
 
     try:
