@@ -520,7 +520,7 @@ class VertexAdapter:
             import json as _json  # noqa: PLC0415
 
             info = _json.loads(sa_json)
-            creds = google.oauth2.service_account.Credentials.from_service_account_info(
+            creds = google.oauth2.service_account.Credentials.from_service_account_info(  # type: ignore[no-untyped-call]
                 info, scopes=[self._SCOPE]
             )
         else:

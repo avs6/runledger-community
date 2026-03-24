@@ -1126,7 +1126,7 @@ async def email_analytics_report(
         for row in rows_orm
     ]
 
-    total_cost = str(round(sum(float(r["cost_usd"]) for r in items), 6))
+    total_cost = str(round(sum((float(str(r["cost_usd"])) for r in items), 0.0), 6))
     period_label = f"Last {window_days} days"
     ws_name = getattr(workspace, "name", str(workspace.id))
 
@@ -1136,7 +1136,7 @@ async def email_analytics_report(
             to_email=u.email,
             full_name=u.full_name,
             period_label=period_label,
-            rows=items,  # type: ignore[arg-type]
+            rows=items,
             total_cost=total_cost,
             workspace_name=ws_name,
         )

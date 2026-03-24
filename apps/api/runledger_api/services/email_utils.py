@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.tenant import User, WorkspaceRoleEnum, WorkspaceUser
+
+if TYPE_CHECKING:
+    from runledger_api.models.email_prefs import EmailPreference
 
 # Roles that should receive admin-level email notifications
 _ADMIN_ROLES = {WorkspaceRoleEnum.workspace_admin, WorkspaceRoleEnum.workspace_editor}
@@ -28,7 +32,7 @@ async def get_workspace_admin_users(db: AsyncSession, workspace_id: uuid.UUID) -
     return list(result.scalars().all())
 
 
-async def get_email_preference(db: AsyncSession, workspace_id: uuid.UUID) -> EmailPreference | None:  # noqa: F821
+async def get_email_preference(db: AsyncSession, workspace_id: uuid.UUID) -> EmailPreference | None:
     """Return workspace email preferences, or None if not yet configured."""
     from runledger_api.models.email_prefs import EmailPreference
 
