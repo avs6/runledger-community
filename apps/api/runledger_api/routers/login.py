@@ -438,9 +438,7 @@ async def firebase_login(body: FirebaseLoginRequest, db: DbDep) -> LoginResponse
 @router.get("/auth/unsubscribe")
 async def unsubscribe_email(token: str, db: DbDep) -> dict[str, Any]:
     """Unsubscribe a user from email notifications using their unsubscribe token."""
-    result = await db.execute(
-        select(User).where(User.email_unsubscribe_token == token)
-    )
+    result = await db.execute(select(User).where(User.email_unsubscribe_token == token))
     user = result.scalar_one_or_none()
     if user is None:
         return {"ok": False, "message": "Invalid or expired token"}

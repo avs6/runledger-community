@@ -14,7 +14,9 @@ from pydantic import BaseModel, Field
 
 class GatewayRouteCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=128, description="Model alias clients use")
-    provider: str = Field(..., pattern="^(openai|anthropic|ollama|groq|mistral|azure|bedrock|vertex|custom)$")
+    provider: str = Field(
+        ..., pattern="^(openai|anthropic|ollama|groq|mistral|azure|bedrock|vertex|custom)$"
+    )
     target_model: str = Field(..., min_length=1, max_length=128)
     base_url: str | None = None
     api_key_env_var: str | None = None

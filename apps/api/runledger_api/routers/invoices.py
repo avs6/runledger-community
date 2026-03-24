@@ -458,9 +458,7 @@ async def dispute_line(
         raise HTTPException(status_code=404, detail="Invoice line not found")
 
     # Need invoice for provider info — re-load it (ownership already checked above)
-    inv_result2 = await db.execute(
-        select(ProviderInvoice).where(ProviderInvoice.id == invoice_id)
-    )
+    inv_result2 = await db.execute(select(ProviderInvoice).where(ProviderInvoice.id == invoice_id))
     invoice = inv_result2.scalar_one_or_none()
 
     line.match_status = "disputed"

@@ -88,12 +88,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(sa.text("DROP TABLE IF EXISTS email_log"))
     op.execute(sa.text("DROP TABLE IF EXISTS email_preferences"))
-    op.execute(
-        sa.text("ALTER TABLE budget_notifications DROP COLUMN IF EXISTS email_enabled")
-    )
-    op.execute(
-        sa.text("ALTER TABLE users DROP COLUMN IF EXISTS email_unsubscribe_token")
-    )
-    op.execute(
-        sa.text("ALTER TABLE users DROP COLUMN IF EXISTS email_notifications_enabled")
-    )
+    op.execute(sa.text("ALTER TABLE budget_notifications DROP COLUMN IF EXISTS email_enabled"))
+    op.execute(sa.text("ALTER TABLE users DROP COLUMN IF EXISTS email_unsubscribe_token"))
+    op.execute(sa.text("ALTER TABLE users DROP COLUMN IF EXISTS email_notifications_enabled"))

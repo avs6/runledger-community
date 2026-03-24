@@ -150,9 +150,7 @@ async def get_email_log(workspace: WorkspaceDep, db: DbDep) -> EmailLogList:
     )
     items = list(result.scalars().all())
 
-    count_result = await db.execute(
-        select(EmailLog).where(EmailLog.workspace_id == workspace.id)
-    )
+    count_result = await db.execute(select(EmailLog).where(EmailLog.workspace_id == workspace.id))
     total = len(list(count_result.scalars().all()))
 
     return EmailLogList(items=items, total=total)  # type: ignore[arg-type]

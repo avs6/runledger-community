@@ -60,6 +60,7 @@ async def _run_evaluation() -> dict[str, int]:
         from runledger_api.models.email_prefs import (
             EmailPreference as _EmailPreference,  # noqa: F401
         )
+
         prefs_cache: dict[Any, Any] = {}
 
         for rule in rules:

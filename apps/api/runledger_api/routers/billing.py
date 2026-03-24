@@ -221,7 +221,7 @@ async def close_period(
                 return
             admins = await get_workspace_admin_users(db, workspace.id)
             total_cost = str(period.total_cost_usd) if period.total_cost_usd is not None else "N/A"
-            snap_hash = (snapshot.signature[:16] if snapshot.signature else "")
+            snap_hash = snapshot.signature[:16] if snapshot.signature else ""
             await _asyncio.gather(
                 *[
                     send_billing_period_closed_email(

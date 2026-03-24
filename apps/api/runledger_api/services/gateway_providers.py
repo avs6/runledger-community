@@ -14,6 +14,7 @@ Usage:
     async for chunk in adapter.stream(route, messages, temperature, ...):
         yield chunk
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -94,10 +95,22 @@ class OpenAIAdapter:
         base_url = (route.base_url or "https://api.openai.com/v1").rstrip("/")
         return base_url, api_key
 
-    def build_payload(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    def build_payload(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {"model": route.target_model, "messages": messages}
-        for k in ("temperature", "max_tokens", "top_p", "frequency_penalty",
-                  "presence_penalty", "seed", "stop", "response_format", "tools", "tool_choice"):
+        for k in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "stop",
+            "response_format",
+            "tools",
+            "tool_choice",
+        ):
             v = kwargs.get(k)
             if v is not None:
                 payload[k] = v
@@ -105,7 +118,9 @@ class OpenAIAdapter:
             payload["stream"] = True
         return payload
 
-    async def forward(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    async def forward(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
         base_url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, **kwargs)
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -117,7 +132,9 @@ class OpenAIAdapter:
             resp.raise_for_status()
             return resp.json()  # type: ignore[no-any-return]
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
+    async def stream(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> AsyncGenerator[bytes]:
         base_url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
@@ -170,11 +187,23 @@ class AzureAdapter:
         url = f"{resource_endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
         return url, api_key
 
-    def build_payload(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    def build_payload(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
         # Azure: do NOT include "model" in payload — deployment is in URL
         payload: dict[str, Any] = {"messages": messages}
-        for k in ("temperature", "max_tokens", "top_p", "frequency_penalty",
-                  "presence_penalty", "seed", "stop", "response_format", "tools", "tool_choice"):
+        for k in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "seed",
+            "stop",
+            "response_format",
+            "tools",
+            "tool_choice",
+        ):
             v = kwargs.get(k)
             if v is not None:
                 payload[k] = v
@@ -182,7 +211,9 @@ class AzureAdapter:
             payload["stream"] = True
         return payload
 
-    async def forward(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    async def forward(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
         url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, **kwargs)
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -194,7 +225,9 @@ class AzureAdapter:
             resp.raise_for_status()
             return resp.json()  # type: ignore[no-any-return]
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
+    async def stream(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> AsyncGenerator[bytes]:
         url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
@@ -215,7 +248,9 @@ class AzureAdapter:
 # ── AWS Bedrock adapter ────────────────────────────────────────────────────────
 
 
-def _messages_to_bedrock(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _messages_to_bedrock(
+    messages: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split system messages out; convert rest to Bedrock Converse format."""
     system: list[dict[str, Any]] = []
     converse: list[dict[str, Any]] = []
@@ -241,7 +276,13 @@ def _normalize_bedrock_response(raw: dict[str, Any], model: str) -> dict[str, An
     text = " ".join(b.get("text", "") for b in content_blocks if isinstance(b, dict))
     usage = raw.get("usage", {})
     stop_reason = raw.get("stopReason", "end_turn")
-    finish = "stop" if stop_reason in ("end_turn", "stop_sequence") else "length" if stop_reason == "max_tokens" else stop_reason
+    finish = (
+        "stop"
+        if stop_reason in ("end_turn", "stop_sequence")
+        else "length"
+        if stop_reason == "max_tokens"
+        else stop_reason
+    )
     return _openai_response(
         model=model,
         content=text,
@@ -339,13 +380,21 @@ class BedrockAdapter:
     def _resolve(self, route: GatewayRoute) -> tuple[str, str, str]:
         """Return (region, access_key, secret_key)."""
         cfg = route.config or {}
-        region = cfg.get("region") or os.getenv("BEDROCK_AWS_REGION") or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = (
+            cfg.get("region")
+            or os.getenv("BEDROCK_AWS_REGION")
+            or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        )
         prefix = (route.api_key_env_var or "").rstrip("_") or "BEDROCK"
         access_key = os.getenv(f"{prefix}_AWS_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID", "")
-        secret_key = os.getenv(f"{prefix}_AWS_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY", "")
+        secret_key = os.getenv(f"{prefix}_AWS_SECRET_ACCESS_KEY") or os.getenv(
+            "AWS_SECRET_ACCESS_KEY", ""
+        )
         return region, access_key, secret_key  # type: ignore[return-value]
 
-    async def forward(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    async def forward(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
         region, access_key, secret_key = self._resolve(route)
         converse_messages, system = _messages_to_bedrock(messages)
         inference_config: dict[str, Any] = {
@@ -355,12 +404,19 @@ class BedrockAdapter:
         }
         raw = await asyncio.to_thread(
             _bedrock_sync_call,
-            region, access_key, secret_key,
-            route.target_model, converse_messages, system, inference_config,
+            region,
+            access_key,
+            secret_key,
+            route.target_model,
+            converse_messages,
+            system,
+            inference_config,
         )
         return _normalize_bedrock_response(raw, route.target_model)
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
+    async def stream(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> AsyncGenerator[bytes]:
         region, access_key, secret_key = self._resolve(route)
         converse_messages, system = _messages_to_bedrock(messages)
         inference_config: dict[str, Any] = {
@@ -370,8 +426,13 @@ class BedrockAdapter:
         }
         chunks = await asyncio.to_thread(
             _bedrock_sync_stream,
-            region, access_key, secret_key,
-            route.target_model, converse_messages, system, inference_config,
+            region,
+            access_key,
+            secret_key,
+            route.target_model,
+            converse_messages,
+            system,
+            inference_config,
         )
         model = route.target_model
         for chunk_text in chunks:
@@ -457,6 +518,7 @@ class VertexAdapter:
         sa_json = os.getenv(sa_json_var, "")
         if sa_json:
             import json as _json  # noqa: PLC0415
+
             info = _json.loads(sa_json)
             creds = google.oauth2.service_account.Credentials.from_service_account_info(
                 info, scopes=[self._SCOPE]
@@ -507,7 +569,9 @@ class VertexAdapter:
             payload["generationConfig"] = gen_cfg
         return payload
 
-    async def forward(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
+    async def forward(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> dict[str, Any]:
         contents, system_text = _messages_to_gemini(messages)
         url, token = await asyncio.to_thread(self._resolve, route)
         payload = self._build_gemini_payload(contents, system_text, **kwargs)
@@ -521,7 +585,9 @@ class VertexAdapter:
             raw = resp.json()
         return _normalize_gemini_response(raw, route.target_model)
 
-    async def stream(self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any) -> AsyncGenerator[bytes]:
+    async def stream(
+        self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> AsyncGenerator[bytes]:
         """Vertex streaming via streamGenerateContent SSE endpoint."""
         contents, system_text = _messages_to_gemini(messages)
         url_base, token = await asyncio.to_thread(self._resolve, route)

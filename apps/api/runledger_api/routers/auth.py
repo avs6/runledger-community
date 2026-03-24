@@ -172,7 +172,10 @@ async def create_workspace(body: WorkspaceCreate, db: DbDep) -> Workspace:
         )
     )
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "A workspace with that name already exists in this organization")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A workspace with that name already exists in this organization",
+        )
     workspace = Workspace(tenant_id=body.tenant_id, name=body.name)
     db.add(workspace)
     await db.flush()

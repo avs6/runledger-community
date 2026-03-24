@@ -152,9 +152,7 @@ async def test_email_test_endpoint_ok() -> None:
 
     workspace = make_workspace()
 
-    with patch(
-        "runledger_api.routers.settings.send_email", new_callable=AsyncMock
-    ) as mock_send:
+    with patch("runledger_api.routers.settings.send_email", new_callable=AsyncMock) as mock_send:
         result = await test_email_send(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
 
     assert result["ok"] is True
@@ -303,8 +301,14 @@ async def test_alert_worker_respects_prefs_disabled() -> None:
 
     with (
         patch("runledger_api.workers.alerts._make_session_factory", return_value=mock_factory),
-        patch("runledger_api.workers.alerts.get_email_preference", new_callable=AsyncMock, return_value=prefs),
-        patch("runledger_api.workers.alerts._send_alert_emails", new_callable=AsyncMock) as mock_emails,
+        patch(
+            "runledger_api.workers.alerts.get_email_preference",
+            new_callable=AsyncMock,
+            return_value=prefs,
+        ),
+        patch(
+            "runledger_api.workers.alerts._send_alert_emails", new_callable=AsyncMock
+        ) as mock_emails,
     ):
         await _run_evaluation()
 
@@ -411,9 +415,19 @@ async def test_budget_runaway_emails_admins() -> None:
     with (
         patch("runledger_api.workers.budgets._make_session_factory", return_value=mock_factory),
         patch("runledger_api.workers.budgets._make_redis", return_value=mock_redis),
-        patch("runledger_api.workers.budgets.get_email_preference", new_callable=AsyncMock, return_value=prefs),
-        patch("runledger_api.workers.budgets.get_workspace_admin_users", new_callable=AsyncMock, return_value=[user]),
-        patch("runledger_api.workers.budgets.send_budget_breach_email", new_callable=AsyncMock) as mock_email,
+        patch(
+            "runledger_api.workers.budgets.get_email_preference",
+            new_callable=AsyncMock,
+            return_value=prefs,
+        ),
+        patch(
+            "runledger_api.workers.budgets.get_workspace_admin_users",
+            new_callable=AsyncMock,
+            return_value=[user],
+        ),
+        patch(
+            "runledger_api.workers.budgets.send_budget_breach_email", new_callable=AsyncMock
+        ) as mock_email,
         patch("runledger_api.workers.budgets.send_notification", new_callable=AsyncMock),
     ):
         await _run_runaway_protection()
@@ -555,8 +569,16 @@ async def test_dispute_line_fires_email() -> None:
     body = DisputeRequest(note="Mismatch in token count")
 
     with (
-        patch("runledger_api.routers.invoices.get_email_preference", new_callable=AsyncMock, return_value=None),
-        patch("runledger_api.routers.invoices.get_workspace_admin_users", new_callable=AsyncMock, return_value=[make_user()]),
+        patch(
+            "runledger_api.routers.invoices.get_email_preference",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "runledger_api.routers.invoices.get_workspace_admin_users",
+            new_callable=AsyncMock,
+            return_value=[make_user()],
+        ),
         patch("runledger_api.routers.invoices.send_dispute_flagged_email", new_callable=AsyncMock),
         patch("runledger_api.routers.invoices._asyncio.create_task") as mock_task,
     ):
@@ -617,10 +639,23 @@ async def test_weekly_report_skips_never_frequency() -> None:
     mock_factory = MagicMock(return_value=mock_session)
 
     with (
-        patch("runledger_api.workers.email_reports._make_session_factory", return_value=mock_factory),
-        patch("runledger_api.workers.email_reports.get_email_preference", new_callable=AsyncMock, return_value=prefs),
-        patch("runledger_api.workers.email_reports.get_workspace_admin_users", new_callable=AsyncMock, return_value=[make_user()]),
-        patch("runledger_api.workers.email_reports.send_analytics_report_email", new_callable=AsyncMock) as mock_email,
+        patch(
+            "runledger_api.workers.email_reports._make_session_factory", return_value=mock_factory
+        ),
+        patch(
+            "runledger_api.workers.email_reports.get_email_preference",
+            new_callable=AsyncMock,
+            return_value=prefs,
+        ),
+        patch(
+            "runledger_api.workers.email_reports.get_workspace_admin_users",
+            new_callable=AsyncMock,
+            return_value=[make_user()],
+        ),
+        patch(
+            "runledger_api.workers.email_reports.send_analytics_report_email",
+            new_callable=AsyncMock,
+        ) as mock_email,
     ):
         result = await _run_weekly_reports()
 

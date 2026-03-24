@@ -453,7 +453,9 @@ async def send_reconciliation_email(
 ) -> None:
     """Notify workspace admins after invoice reconciliation completes."""
     name = full_name or to_email
-    matched_color = "#4ade80" if matched_pct >= 90 else "#f59e0b" if matched_pct >= 70 else "#f87171"
+    matched_color = (
+        "#4ade80" if matched_pct >= 90 else "#f59e0b" if matched_pct >= 70 else "#f87171"
+    )
     subject = f"RunLedger: Invoice reconciliation complete — {provider}"
 
     text = textwrap.dedent(f"""\
@@ -539,9 +541,9 @@ async def send_analytics_report_email(
     lines.append("-" * 80)
     for r in rows[:50]:  # cap at 50 rows in email
         lines.append(
-            f"{str(r.get('date','')):<12} {str(r.get('provider','')):<16} "
-            f"{str(r.get('model','')):<28} {str(r.get('cost_usd','0')):>12} "
-            f"{str(r.get('call_count','0')):>8}"
+            f"{str(r.get('date', '')):<12} {str(r.get('provider', '')):<16} "
+            f"{str(r.get('model', '')):<28} {str(r.get('cost_usd', '0')):>12} "
+            f"{str(r.get('call_count', '0')):>8}"
         )
     if len(rows) > 50:
         lines.append(f"  … and {len(rows) - 50} more rows — log in to export all data.")
@@ -565,11 +567,11 @@ async def send_analytics_report_email(
         bg = "#0f172a" if i % 2 == 0 else "#111827"
         html_rows += (
             f'<tr style="background:{bg};">'
-            f'<td style="padding:8px 12px;color:#e2e8f0;font-size:12px;">{r.get("date","")}</td>'
-            f'<td style="padding:8px 12px;color:#e2e8f0;font-size:12px;">{r.get("provider","")}</td>'
-            f'<td style="padding:8px 12px;color:#94a3b8;font-size:12px;font-family:monospace;">{r.get("model","")}</td>'
-            f'<td style="padding:8px 12px;color:#2dd4bf;font-size:12px;text-align:right;">${r.get("cost_usd","0")}</td>'
-            f'<td style="padding:8px 12px;color:#e2e8f0;font-size:12px;text-align:right;">{r.get("call_count","0")}</td>'
+            f'<td style="padding:8px 12px;color:#e2e8f0;font-size:12px;">{r.get("date", "")}</td>'
+            f'<td style="padding:8px 12px;color:#e2e8f0;font-size:12px;">{r.get("provider", "")}</td>'
+            f'<td style="padding:8px 12px;color:#94a3b8;font-size:12px;font-family:monospace;">{r.get("model", "")}</td>'
+            f'<td style="padding:8px 12px;color:#2dd4bf;font-size:12px;text-align:right;">${r.get("cost_usd", "0")}</td>'
+            f'<td style="padding:8px 12px;color:#e2e8f0;font-size:12px;text-align:right;">{r.get("call_count", "0")}</td>'
             f"</tr>"
         )
     truncation_note = (
