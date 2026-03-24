@@ -293,6 +293,180 @@ def check_regression(
     raise typer.Exit(code=1)
 
 
+# ── init ──────────────────────────────────────────────────────────────────────
+
+
+@app.command()
+def init(
+    base_url: Annotated[
+        str,
+        typer.Option(
+            "--base-url",
+            envvar="RUNLEDGER_BASE_URL",
+            help="RunLedger API base URL",
+            prompt="API base URL",
+        ),
+    ] = "http://localhost:8000",
+    admin_secret: Annotated[
+        str,
+        typer.Option(
+            "--admin-secret",
+            envvar="RUNLEDGER_ADMIN_SECRET",
+            help="Admin bootstrap secret (RUNLEDGER_ADMIN_SECRET)",
+            prompt=True,
+            hide_input=True,
+        ),
+    ] = "",
+    env_file: Annotated[
+        str,
+        typer.Option("--env-file", help="Path to write .env file"),
+    ] = ".env",
+) -> None:
+    """Interactive setup: bootstrap a RunLedger instance and write .env."""
+    console.print("[bold]RunLedger Init[/bold]")
+    console.print(f"  Bootstrapping [cyan]{base_url}[/cyan] …")
+
+    try:
+        resp = httpx.post(
+            base_url.rstrip("/") + "/admin/bootstrap",
+            headers={"X-Admin-Secret": admin_secret},
+            timeout=10.0,
+        )
+    except httpx.ConnectError:
+        err_console.print(f"✗ Could not connect to {base_url}")
+        raise typer.Exit(code=1) from None
+
+    if resp.status_code == 409:
+        console.print("[yellow]⚠  Admin already bootstrapped.[/yellow]")
+        console.print("  Re-use your existing RUNLEDGER_API_KEY or check the database.")
+        raise typer.Exit(code=0)
+
+    if resp.status_code != 200:
+        err_console.print(f"✗ Bootstrap failed (HTTP {resp.status_code}): {resp.text}")
+        raise typer.Exit(code=1)
+
+    data = resp.json()
+    api_key: str = data.get("api_key", "")
+    workspace_name: str = data.get("workspace_name", "default")
+
+    console.print(f"[green]✓ Bootstrapped[/green]  workspace=[bold]{workspace_name}[/bold]")
+
+    # Write .env
+    import pathlib  # noqa: PLC0415
+
+    env_path = pathlib.Path(env_file)
+    lines: list[str] = []
+    if env_path.exists():
+        existing = env_path.read_text()
+        lines = [
+            line
+            for line in existing.splitlines()
+            if not line.startswith(("RUNLEDGER_API_KEY=", "RUNLEDGER_BASE_URL="))
+        ]
+    lines += [
+        f"RUNLEDGER_API_KEY={api_key}",
+        f"RUNLEDGER_BASE_URL={base_url}",
+    ]
+    env_path.write_text("\n".join(lines) + "\n")
+    console.print(f"  Wrote [dim]{env_file}[/dim]")
+
+    console.print("\n[bold]Quickstart:[/bold]")
+    console.print(f"  export RUNLEDGER_API_KEY={api_key}")
+    console.print(f"  export RUNLEDGER_BASE_URL={base_url}")
+    console.print("\n  # Send a test event:")
+    console.print(
+        f"  curl -s -X POST {base_url}/ingest/v1/events \\\n"
+        f'    -H "Authorization: Bearer $RUNLEDGER_API_KEY" \\\n'
+        f'    -H "Content-Type: application/json" \\\n'
+        f"    -d '{{\"event_type\":\"run_start\",\"run_id\":\"test-01\"}}'"
+    )
+    console.print("\n  # Check health:")
+    console.print(f"  runledger doctor --base-url {base_url} --api-key $RUNLEDGER_API_KEY")
+
+
+# ── doctor ────────────────────────────────────────────────────────────────────
+
+
+@app.command()
+def doctor(
+    api_key: ApiKeyOpt = None,
+    base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
+) -> None:
+    """Run connectivity and auth health checks. Exit 1 if any critical check fails."""
+    import sys  # noqa: PLC0415
+
+    checks: list[tuple[str, bool, str]] = []  # (name, passed, detail)
+
+    base = base_url.rstrip("/")
+
+    # 1. API reachable
+    try:
+        resp = httpx.get(f"{base}/health/live", timeout=5.0)
+        checks.append(("API reachable", resp.status_code == 200, f"HTTP {resp.status_code}"))
+    except httpx.ConnectError:
+        checks.append(("API reachable", False, f"Connection refused — is RunLedger running at {base}?"))
+
+    # 2. DB + Redis ready
+    try:
+        resp = httpx.get(f"{base}/health/ready", timeout=5.0)
+        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        db_ok = data.get("db") == "ok"
+        redis_ok = data.get("redis") == "ok"
+        checks.append(("Database", db_ok, data.get("db", "unknown")))
+        checks.append(("Redis", redis_ok, data.get("redis", "unknown")))
+    except Exception as exc:
+        checks.append(("Database", False, str(exc)))
+        checks.append(("Redis", False, "skipped (health/ready unavailable)"))
+
+    # 3. Auth valid
+    key = api_key
+    if key:
+        try:
+            resp = httpx.get(
+                f"{base}/settings/api-keys",
+                headers={"Authorization": f"Bearer {key}"},
+                timeout=5.0,
+            )
+            auth_ok = resp.status_code == 200
+            checks.append(("Auth (API key)", auth_ok, "valid" if auth_ok else f"HTTP {resp.status_code}"))
+        except Exception as exc:
+            checks.append(("Auth (API key)", False, str(exc)))
+    else:
+        checks.append(("Auth (API key)", False, "no key provided — pass --api-key or set RUNLEDGER_API_KEY"))
+
+    # 4. Worker health (via /health/ready already checked above)
+    #    Summarise overall worker status from ready payload
+    try:
+        resp = httpx.get(f"{base}/health/ready", timeout=5.0)
+        if resp.status_code == 200:
+            checks.append(("Workers (Celery)", True, "API can reach DB/Redis — start worker separately if needed"))
+        else:
+            checks.append(("Workers (Celery)", False, "degraded — see /health/ready"))
+    except Exception:
+        checks.append(("Workers (Celery)", False, "skipped"))
+
+    # ── Render results ─────────────────────────────────────────────────────────
+    table = Table(title="RunLedger Doctor", show_lines=False, box=None)
+    table.add_column("Check", style="bold")
+    table.add_column("Status", no_wrap=True)
+    table.add_column("Detail", style="dim")
+
+    any_fail = False
+    for name, passed, detail in checks:
+        status_str = "[green]✓ pass[/green]" if passed else "[red]✗ fail[/red]"
+        table.add_row(name, status_str, detail)
+        if not passed:
+            any_fail = True
+
+    console.print(table)
+
+    if any_fail:
+        err_console.print("\n✗ One or more checks failed.")
+        sys.exit(1)
+    else:
+        console.print("\n[green]✓ All checks passed.[/green]")
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

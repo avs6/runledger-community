@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from fastapi import FastAPI
@@ -43,6 +44,8 @@ from runledger_api.routers import saas as saas_router
 from runledger_api.routers import sessions as sessions_router
 from runledger_api.routers import settings as settings_router
 from runledger_api.routers import users as users_router
+from runledger_api.routers import scim as scim_router
+from runledger_api.routers import sso as sso_router
 from runledger_api.routers import warehouse as warehouse_router
 from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
 
@@ -117,6 +120,8 @@ app.include_router(audit_router.router)
 app.include_router(retention_router.router)
 app.include_router(otlp_router.router)
 app.include_router(warehouse_router.router)
+app.include_router(sso_router.router)
+app.include_router(scim_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:
@@ -124,3 +129,29 @@ app.include_router(warehouse_router.router)
 # Or in claude_desktop_config.json:
 #   { "mcpServers": { "runledger": { "url": "http://localhost:8000/mcp" } } }
 app.mount("/mcp", _mcp_server.streamable_http_app())
+
+# ── API Reference UI — Scalar (richer DX than Swagger UI) ────────────────────
+
+
+@app.get("/reference", include_in_schema=False)
+async def scalar_reference() -> Any:
+    from fastapi.responses import HTMLResponse  # noqa: PLC0415
+
+    return HTMLResponse(
+        """<!DOCTYPE html>
+<html>
+<head>
+  <title>RunLedger API Reference</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <script
+    id="api-reference"
+    data-url="/openapi.json"
+    data-configuration='{"theme":"purple","layout":"modern","defaultHttpClient":{"targetKey":"python","clientKey":"requests"}}'
+  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+</html>"""
+    )

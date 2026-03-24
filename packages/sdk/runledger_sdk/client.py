@@ -205,6 +205,48 @@ class RunLedger:
 
         instrument_mcp_session(session, self._get_sync_transport())
 
+    def instrument_otel(self, tracer_provider: object) -> None:
+        """
+        Attach a :class:`~runledger_sdk.otel_exporter.RunLedgerOTLPExporter` to
+        an existing ``opentelemetry.sdk.trace.TracerProvider``.
+
+        This is the recommended integration for codebases already using
+        ``openinference-instrumentation-*`` or other OTel instrumentors —
+        add RunLedger as an additional export destination without changing
+        anything else.
+
+        Parameters
+        ----------
+        tracer_provider:
+            An initialised ``opentelemetry.sdk.trace.TracerProvider``.
+
+        Example::
+
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from openinference.instrumentation.openai import OpenAIInstrumentor
+
+            provider = TracerProvider()
+            OpenAIInstrumentor().instrument(tracer_provider=provider)
+
+            rl = RunLedger(api_key="rl_live_...")
+            rl.instrument_otel(provider)   # RunLedger now receives all OTel spans
+        """
+        from runledger_sdk.otel_exporter import RunLedgerOTLPExporter  # noqa: PLC0415
+
+        try:
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: PLC0415
+        except ImportError as exc:
+            raise ImportError(
+                "opentelemetry-sdk is required. Install with: pip install opentelemetry-sdk"
+            ) from exc
+
+        exporter = RunLedgerOTLPExporter(
+            api_key=self.api_key,
+            base_url=self.base_url,
+        )
+        tracer_provider.add_span_processor(BatchSpanProcessor(exporter))  # type: ignore[union-attr]
+
     def callback_handler(self, *, track_llm_cost: bool = True) -> object:
         """
         Return a ``RunLedgerCallbackHandler`` for use with LangChain chains

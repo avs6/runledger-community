@@ -58,11 +58,13 @@
 | OTEL-2 | OTLP — OTel GenAI Support + Retrieval Metadata + Convention Tracking | ✅ Complete | — |
 | OTEL-3 | OTLP — Trace Finalization + Source-Provenance Propagation | ✅ Complete | 8 |
 | OTEL-4 | OTLP — Reconciliation-grade Enrichment (provider_request_id, reported_cost_usd, token details) | ✅ Complete | 23 |
+| 29 | SSO / OIDC + SCIM — Google Workspace, Okta, Azure AD login + automated user provisioning | ✅ Complete | 26 |
+| 30 | Gateway Runtime Controls — cost caps, PII redaction, per-user rate limits, health auto-disable | ✅ Complete | 17 |
 
-**Total tests shipped:** 520 API tests · 61 Python SDK tests · 9 TypeScript SDK tests
+**Total tests shipped:** 563 API tests · 61 Python SDK tests · 9 TypeScript SDK tests
 
-**Audit snapshot (2026-03-23):**
-- API suite: `520/520` passing
+**Audit snapshot (2026-03-24):**
+- API suite: `563/563` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
@@ -108,7 +110,7 @@ runledger/
 │   │   │   ├── services/       # Business logic (metering, pricing, chargeback, guardrails, OTLP)
 │   │   │   ├── workers/        # Celery tasks (pipeline, rollups, reconciliation, OTLP finalize)
 │   │   │   └── main.py         # FastAPI app entrypoint
-│   │   ├── alembic/            # Alembic migrations (001 – 027)
+│   │   ├── alembic/            # Alembic migrations (001 – 035)
 │   │   ├── pyproject.toml
 │   │   └── Dockerfile
 │   └── web/                    # Next.js 14 frontend
@@ -419,6 +421,32 @@ approvals        (id UUID, workspace_id UUID, requested_by UUID NULL,
                   status TEXT DEFAULT 'pending',  -- 'pending' | 'approved' | 'denied' | 'cancelled'
                   approver_id UUID NULL, decided_at TIMESTAMPTZ NULL,
                   notes TEXT NULL, created_at TIMESTAMPTZ)
+```
+
+### SSO / SCIM (Phase 29)
+
+```sql
+sso_configs      (id UUID, tenant_id UUID, provider VARCHAR(32),
+                  issuer_url VARCHAR(512), client_id VARCHAR(256),
+                  client_secret_enc TEXT,  -- Fernet encrypted
+                  scopes VARCHAR(512) DEFAULT 'openid email profile',
+                  default_role VARCHAR(32) DEFAULT 'member',
+                  enabled BOOL DEFAULT TRUE,
+                  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ,
+                  UNIQUE(tenant_id, provider))
+
+sso_identities   (id UUID, user_id UUID, sso_config_id UUID,
+                  external_sub VARCHAR(512),  -- OIDC 'sub' claim
+                  external_email VARCHAR(256), last_login_at TIMESTAMPTZ,
+                  created_at TIMESTAMPTZ,
+                  UNIQUE(sso_config_id, external_sub))
+
+scim_tokens      (id UUID, tenant_id UUID,
+                  token_hash VARCHAR(64) UNIQUE,  -- SHA256
+                  token_prefix VARCHAR(16), label VARCHAR(128),
+                  enabled BOOL DEFAULT TRUE,
+                  last_used_at TIMESTAMPTZ, expires_at TIMESTAMPTZ,
+                  created_at TIMESTAMPTZ)
 ```
 
 ### OTLP Staging (OTEL-0)
@@ -1101,6 +1129,39 @@ The collector listens on 4317 (gRPC) and 4318 (HTTP), batches spans, and forward
 
 ---
 
+### Phase 29 — SSO / OIDC + SCIM ✅
+
+**Goal:** Enterprise sales blocker cleared. Any org using Google Workspace, Okta, or Azure AD can log in on day one without manual user provisioning.
+
+- Migration `034_sso.py` — `sso_configs`, `sso_identities`, `scim_tokens` tables
+- `models/sso.py` — `SsoConfig`, `SsoIdentity`, `ScimToken` ORM models
+- `schemas/sso.py` — full Pydantic schemas including SCIM 2.0 protocol schemas (`ScimUserRequest`, `ScimListResponse`, `ScimPatchRequest`)
+- `services/oidc.py` — Fernet client_secret encryption (AES-128 derived from `SECRET_KEY`); HMAC-signed state parameter (CSRF); OIDC discovery + authorization URL builder; authorization code exchange; userinfo fetch; JIT user provisioning; SCIM token generation
+- `routers/sso.py` — 9 endpoints:
+  - `GET /auth/sso/authorize/{config_id}` — returns IdP authorization URL
+  - `GET /auth/sso/callback/{config_id}` — OIDC callback: exchanges code, JIT-provisions user, stores `LoginResponse` in Redis (5-min TTL), redirects to `{frontend}/sso?token=…`
+  - `POST /auth/sso/exchange` — frontend exchanges short-lived token for full `LoginResponse`
+  - `GET/POST /sso/configs` — list / create SSO configs (org-admin)
+  - `GET/PUT/DELETE /sso/configs/{id}` — get / update / delete config (org-admin)
+  - `GET/POST /sso/tokens` — list / create SCIM tokens (org-admin)
+  - `DELETE /sso/tokens/{id}` — revoke SCIM token
+- `routers/scim.py` — SCIM 2.0 server at `/scim/v2/Users`:
+  - Bearer token auth via SHA256 hash (separate from API keys)
+  - `GET /scim/v2/Users` — list with basic `userName eq` filter
+  - `POST /scim/v2/Users` — provision new user (JIT creates `User` + `TenantUser` + `WorkspaceUser`)
+  - `GET /scim/v2/Users/{id}` — get by RunLedger user ID
+  - `PUT /scim/v2/Users/{id}` — full replace
+  - `PATCH /scim/v2/Users/{id}` — partial update (activate/deactivate)
+  - `DELETE /scim/v2/Users/{id}` — soft-deactivate + remove `TenantUser`
+- `lib/auth.ts` — `sso` NextAuth `CredentialsProvider` accepts pre-resolved session fields; no re-fetch needed
+- `app/sso/page.tsx` — exchange page: reads `?token=`, calls `POST /auth/sso/exchange`, signs in via NextAuth `sso` provider, redirects to `/runs`; full error message map for IdP errors
+- `components/settings/SsoTab.tsx` — SSO provider management (create/enable/disable/delete) + SCIM token management (generate/copy-once display/revoke) in Settings; SSO tab visible to org-admins
+- `settings/page.tsx` — "SSO / SCIM" tab added (org-admin gated)
+- **Security properties:** client secrets Fernet-encrypted at rest; CSRF state HMAC-signed; SCIM tokens SHA256-hashed; JIT users default to `org_member`/`member` roles; configurable `default_role` per SSO config
+- **26 tests** — SSO CRUD, OIDC authorize, callback error paths, token exchange, SCIM list/provision/get/patch/delete/no-auth/invalid-userName
+
+---
+
 ### Phase 28 — Warehouse Export — S3/GCS/R2 ✅
 
 **Goal:** Daily automated exports to object storage in analyst-ready formats for Snowflake, BigQuery, and Athena.
@@ -1307,9 +1368,9 @@ The external positioning statement at launch should be:
 
 ## Forward Roadmap
 
-The core finance and control plane is complete. The existing build covers instrumentation, metering, chargeback, gateway, alerting, outcomes, approvals, OTLP ingestion, email notifications, data retention, and warehouse export. The next strategic layer concentrates on **enterprise readiness** (SSO, SCIM, audit), **gateway runtime controls** (cost caps, PII redaction), and **finance system integration** (billing webhooks, accounting exports).
+The core finance and control plane is complete. The existing build covers instrumentation, metering, chargeback, gateway (with runtime controls), alerting, outcomes, approvals, OTLP ingestion, email notifications, data retention, warehouse export, and SSO/SCIM. The remaining work concentrates on **finance system integration** (billing webhooks, accounting exports) and **developer experience** (public API, improved CLI, examples).
 
-### Current Status vs. Six Original Workstreams
+### Current Status vs. All Workstreams
 
 | Workstream | Status |
 |-----------|--------|
@@ -1317,43 +1378,16 @@ The core finance and control plane is complete. The existing build covers instru
 | Outcome & ROI Ledger | ✅ Complete (Phase 24) |
 | Packaging and Editions (SaaS foundation) | ✅ Complete (Phase 22) |
 | Enterprise Controls — Data Retention | ✅ Complete (Phase 27) |
-| Enterprise Controls — SSO / SCIM | 🔲 Next |
+| Enterprise Controls — SSO / OIDC + SCIM | ✅ Complete (Phase 29) |
 | Gateway Expansion (Azure/Bedrock/Vertex) | ✅ Complete (Phase 21E) |
 | Warehouse Export (S3/GCS/R2) | ✅ Complete (Phase 28) |
-| Gateway Runtime Controls (cost caps, PII) | 🔲 Next |
-| Finance System Integrations (webhooks, accounting) | 🔲 Next |
+| Email Notification System | ✅ Complete (Phase 26) |
+| Approvals & Policy Workflows | ✅ Complete (Phase 25) |
+| Gateway Runtime Controls (cost caps, PII, per-user limits) | ✅ Complete (Phase 30) |
+| Finance System Integrations (billing webhooks, GL export) | ✅ Complete (Phase 31) |
+| Developer Experience + Public API | ✅ Complete (Phase 32) |
 
 ### Next Phases
-
----
-
-#### Phase 29 — SSO / OIDC + SCIM
-
-**Goal:** Enterprise sales blocker cleared. Any org using Google Workspace, Okta, or Azure AD can log in on day one without manual user provisioning.
-
-**Scope:**
-- OIDC SSO via `authlib` — Google Workspace, Okta, Azure AD; JIT user creation on first login mapped to existing `users` table
-- Workspace-level IdP configuration (issuer URL, client ID/secret, attribute mapping) stored in a new `sso_configs` table
-- `POST /auth/oidc/callback` — token exchange + session creation; maps OIDC `sub` → user; creates `TenantUser` if first login for that tenant
-- SCIM 2.0 server at `/scim/v2/Users` + `/scim/v2/Groups` — create/update/deactivate users; group → workspace mapping; bearer token auth per tenant
-- Migration `034_sso.py` — `sso_configs(id, tenant_id, provider, issuer_url, client_id, client_secret_enc, attribute_mapping JSONB, is_active)`
-- Frontend: SSO Configuration tab in Org settings; SCIM token display; login page shows "Sign in with SSO" button when SSO is configured for the domain
-- Dependencies: `authlib`, `cryptography` (for client secret encryption at rest)
-
----
-
-#### Phase 30 — Gateway Runtime Controls
-
-**Goal:** The gateway enforces spend boundaries and privacy at the request level — not just routing decisions.
-
-**Scope:**
-- **Per-route cost caps** — `daily_cost_limit_usd` and `monthly_cost_limit_usd` on `gateway_routes`; checked against `gateway_requests` aggregate before forwarding; returns 429 with `X-Cost-Cap-Reason` header on breach; automatic failover to next-priority route
-- **Route health monitoring** — Celery beat (every 5 min): disables routes with >5% error rate over a 10-min window; re-enables when error rate drops; emits `alert_firing` for visibility
-- **Gateway-level PII redaction** — `services/gateway_redact.py`: regex-based redaction (email, phone, SSN, credit card) applied to request messages before forwarding; configurable per route (off by default); redaction log stored on `gateway_requests` JSONB field
-- **Per-end-user rate limiting** — `X-RunLedger-End-User-Id` header on gateway requests; Redis sliding window per `(workspace_id, end_user_id, route_id)`; 429 with `Retry-After` on breach
-- Migration `035_gateway_runtime.py` — adds `daily_cost_limit_usd`, `monthly_cost_limit_usd`, `pii_redaction_enabled`, `per_user_rpm_limit` to `gateway_routes`
-- Frontend: extended route edit form with cost cap + PII toggle + per-user rate limit fields; cost cap usage bar shown per route in gateway stats strip
-- **~15 tests**
 
 ---
 

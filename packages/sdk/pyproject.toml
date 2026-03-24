@@ -1,6 +1,6 @@
 [project]
 name = "runledger-sdk"
-version = "0.5.0"
+version = "0.7.0"
 description = "RunLedger SDK — instrument LangChain, LangGraph, OpenAI, and Anthropic agents"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -22,7 +22,8 @@ gemini = ["google-genai>=0.8.0"]
 mistral = ["mistralai>=1.0.0"]
 cohere = ["cohere>=5.0.0"]
 mcp = ["mcp>=1.9.0"]
-all = ["runledger-sdk[openai,langchain,langgraph,cli,anthropic,gemini,mistral,cohere,mcp]"]
+otel = ["opentelemetry-sdk>=1.20.0"]
+all = ["runledger-sdk[openai,langchain,langgraph,cli,anthropic,gemini,mistral,cohere,mcp,otel]"]
 
 [project.scripts]
 runledger = "runledger_sdk.cli:app"

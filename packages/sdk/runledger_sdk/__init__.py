@@ -1,4 +1,5 @@
 from runledger_sdk.client import PrivacyMode, RunLedger
+from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
 from runledger_sdk.context import (
     RunLedgerContext,
     get_context_snapshot,
@@ -35,5 +36,7 @@ __all__ = [
     "instrument_graph",
     # MCP
     "instrument_mcp_session",
+    # OTel
+    "RunLedgerOTLPExporter",
 ]
 __version__ = "0.6.0"
