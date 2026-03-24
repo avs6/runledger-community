@@ -493,8 +493,8 @@ async def test_billing_close_fires_email() -> None:
     ):
         await close_period(period_id=period_id, auth=auth, db=mock_db)  # type: ignore[arg-type]
 
-    # create_task was called (fire-and-forget pattern)
-    mock_task.assert_called_once()
+    # create_task was called (fire-and-forget: email + webhook dispatch)
+    assert mock_task.call_count >= 1
 
 
 # ── Test 11: Invoice dispute_line fires email ──────────────────────────────────

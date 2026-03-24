@@ -9,12 +9,16 @@ Endpoints
 POST   /billing/periods                    Create a billing period
 GET    /billing/periods                    List periods (optional ?status=)
 GET    /billing/periods/{id}               Single period
-POST   /billing/periods/{id}/close         Close + sign
+POST   /billing/periods/{id}/close         Close + sign + dispatch webhook
 GET    /billing/periods/{id}/reconciliation Run reconciliation check
 GET    /billing/periods/{id}/breakdown     Hierarchical breakdown by app/user
-GET    /billing/periods/{id}/export        Export CSV or signed JSON
+GET    /billing/periods/{id}/export        Export CSV / signed JSON / QB / NetSuite
 POST   /billing/chargeback-rules           Create a chargeback rule
 GET    /billing/chargeback-rules           List chargeback rules
+POST   /billing/webhooks                   Create a billing webhook config
+GET    /billing/webhooks                   List billing webhook configs
+DELETE /billing/webhooks/{id}              Delete a billing webhook config
+GET    /billing/webhooks/{id}/deliveries   List delivery attempts for a webhook
 """
 
 from __future__ import annotations
@@ -35,6 +39,7 @@ from runledger_api.core.deps import (
 )
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
+from runledger_api.models.billing_webhooks import BillingWebhookConfig, BillingWebhookDelivery
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.billing import (
     BillingPeriodCreate,
@@ -47,12 +52,24 @@ from runledger_api.schemas.billing import (
     ReconciliationResult,
     UsageSnapshotResponse,
 )
+from runledger_api.schemas.billing_webhooks import (
+    BillingWebhookConfigCreate,
+    BillingWebhookConfigList,
+    BillingWebhookConfigResponse,
+    BillingWebhookDeliveryList,
+    BillingWebhookDeliveryResponse,
+)
 from runledger_api.services.billing import (
     close_billing_period,
     export_csv,
     export_signed_json,
     get_period_breakdown,
     run_reconciliation,
+)
+from runledger_api.services.billing_webhooks import (
+    dispatch_billing_webhook,
+    export_netsuite_csv,
+    export_quickbooks_csv,
 )
 from runledger_api.services.email import send_billing_period_closed_email
 from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
@@ -242,6 +259,19 @@ async def close_period(
 
     _asyncio.create_task(_notify_billing_closed())
 
+    # Fire-and-forget: HMAC-signed billing webhook dispatch
+    async def _dispatch_webhooks() -> None:
+        try:
+            # Reload period inside new task context to get updated total
+            result2 = await db.execute(select(BillingPeriod).where(BillingPeriod.id == period_id))
+            p2 = result2.scalar_one_or_none()
+            if p2:
+                await dispatch_billing_webhook(db, p2)
+        except Exception:
+            pass  # never break the response
+
+    _asyncio.create_task(_dispatch_webhooks())
+
     return UsageSnapshotResponse(
         id=str(snapshot.id),
         billing_period_id=str(snapshot.billing_period_id),
@@ -316,10 +346,10 @@ async def export_period(
     period_id: uuid.UUID,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    format: Annotated[str, Query(pattern="^(csv|signed_json)$")] = "csv",
+    format: Annotated[str, Query(pattern="^(csv|signed_json|quickbooks|netsuite)$")] = "csv",
 ) -> Response:
     workspace: Workspace = auth[0]
-    """Export billing period data as CSV or signed JSON."""
+    """Export billing period data — csv, signed_json, quickbooks, or netsuite."""
     result = await db.execute(
         select(BillingPeriod).where(
             BillingPeriod.id == period_id,
@@ -338,6 +368,24 @@ async def export_period(
                 content=csv_content,
                 media_type="text/csv",
                 headers={"Content-Disposition": f"attachment; filename=period_{period_id}.csv"},
+            )
+        elif format == "quickbooks":
+            qb_csv = await export_quickbooks_csv(db, period_id)
+            return Response(
+                content=qb_csv,
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=period_{period_id}_quickbooks.csv"
+                },
+            )
+        elif format == "netsuite":
+            ns_csv = await export_netsuite_csv(db, period_id)
+            return Response(
+                content=ns_csv,
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f"attachment; filename=period_{period_id}_netsuite.csv"
+                },
             )
         else:
             import json  # noqa: PLC0415
@@ -423,4 +471,108 @@ async def list_chargeback_rules(
             )
             for r in rules
         ]
+    )
+
+
+# ── POST /billing/webhooks ────────────────────────────────────────────────────
+
+
+@router.post(
+    "/webhooks",
+    response_model=BillingWebhookConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_billing_webhook(
+    body: BillingWebhookConfigCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BillingWebhookConfigResponse:
+    workspace: Workspace = auth[0]
+    """Register a webhook endpoint to receive billing.period.closed events."""
+    cfg = BillingWebhookConfig(
+        workspace_id=workspace.id,
+        url=body.url,
+        secret=body.secret,
+        label=body.label,
+    )
+    db.add(cfg)
+    await db.flush()
+    await db.refresh(cfg)
+    await db.commit()
+    return BillingWebhookConfigResponse.model_validate(cfg)
+
+
+# ── GET /billing/webhooks ─────────────────────────────────────────────────────
+
+
+@router.get("/webhooks", response_model=BillingWebhookConfigList)
+async def list_billing_webhooks(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BillingWebhookConfigList:
+    workspace: Workspace = auth[0]
+    """List billing webhook configurations for this workspace."""
+    result = await db.execute(
+        select(BillingWebhookConfig)
+        .where(BillingWebhookConfig.workspace_id == workspace.id)
+        .order_by(BillingWebhookConfig.created_at.desc())
+    )
+    cfgs = list(result.scalars().all())
+    return BillingWebhookConfigList(
+        items=[BillingWebhookConfigResponse.model_validate(c) for c in cfgs]
+    )
+
+
+# ── DELETE /billing/webhooks/{id} ─────────────────────────────────────────────
+
+
+@router.delete("/webhooks/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_billing_webhook(
+    webhook_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(BillingWebhookConfig).where(
+            BillingWebhookConfig.id == webhook_id,
+            BillingWebhookConfig.workspace_id == workspace.id,
+        )
+    )
+    cfg = result.scalar_one_or_none()
+    if cfg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found")
+    await db.delete(cfg)
+    await db.commit()
+
+
+# ── GET /billing/webhooks/{id}/deliveries ─────────────────────────────────────
+
+
+@router.get("/webhooks/{webhook_id}/deliveries", response_model=BillingWebhookDeliveryList)
+async def list_webhook_deliveries(
+    webhook_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> BillingWebhookDeliveryList:
+    workspace: Workspace = auth[0]
+    # Verify webhook belongs to workspace
+    cfg_result = await db.execute(
+        select(BillingWebhookConfig).where(
+            BillingWebhookConfig.id == webhook_id,
+            BillingWebhookConfig.workspace_id == workspace.id,
+        )
+    )
+    if cfg_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook not found")
+    result = await db.execute(
+        select(BillingWebhookDelivery)
+        .where(BillingWebhookDelivery.webhook_config_id == webhook_id)
+        .order_by(BillingWebhookDelivery.created_at.desc())
+        .limit(limit)
+    )
+    deliveries = list(result.scalars().all())
+    return BillingWebhookDeliveryList(
+        items=[BillingWebhookDeliveryResponse.model_validate(d) for d in deliveries]
     )

@@ -5,11 +5,11 @@ import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Plus, Bell, Scale, DollarSign, TrendingDown, FileText,
-  RefreshCw, Wallet, Building2, AlertTriangle,
+  RefreshCw, Wallet, Building2, AlertTriangle, Webhook, Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
-import type { Budget, NotificationResponse, BillingPeriod, ChargebackRuleResponse } from '@/types/api'
+import type { Budget, NotificationResponse, BillingPeriod, ChargebackRuleResponse, BillingWebhookConfig } from '@/types/api'
 import {
   getBudgets,
   listBudgetNotifications,
@@ -17,6 +17,9 @@ import {
   getBillingPeriods,
   listChargebackRules,
   createChargebackRule,
+  listBillingWebhooks,
+  createBillingWebhook,
+  deleteBillingWebhook,
 } from '@/lib/api'
 import BudgetList from '@/components/budgets/BudgetList'
 import CreateBudgetModal from '@/components/budgets/CreateBudgetModal'
@@ -504,17 +507,26 @@ function BillingTab({
   const [ruleWeight, setRuleWeight] = useState('')
   const [addingRule, setAddingRule] = useState(false)
   const [showRuleForm, setShowRuleForm] = useState(false)
+  // Webhook state
+  const [webhooks, setWebhooks] = useState<BillingWebhookConfig[]>([])
+  const [showWebhookForm, setShowWebhookForm] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
+  const [webhookLabel, setWebhookLabel] = useState('')
+  const [addingWebhook, setAddingWebhook] = useState(false)
 
   const load = useCallback(async () => {
     if (!apiKey) return
     setBillingLoading(true)
     try {
-      const [periodData, ruleData] = await Promise.all([
+      const [periodData, ruleData, webhookData] = await Promise.all([
         getBillingPeriods(apiKey),
         listChargebackRules(apiKey),
+        listBillingWebhooks(apiKey),
       ])
       setPeriods(periodData.items)
       setRules(ruleData.items)
+      setWebhooks(webhookData.items)
     } catch {
       toast.error('Failed to load billing data')
     } finally {
@@ -541,6 +553,36 @@ function BillingTab({
       toast.error('Failed to add chargeback rule')
     } finally {
       setAddingRule(false)
+    }
+  }
+
+  async function handleAddWebhook(e: React.FormEvent) {
+    e.preventDefault()
+    if (!webhookUrl.trim() || !webhookSecret.trim()) return
+    setAddingWebhook(true)
+    try {
+      const created = await createBillingWebhook(apiKey, {
+        url: webhookUrl.trim(),
+        secret: webhookSecret.trim(),
+        label: webhookLabel.trim() || 'billing webhook',
+      })
+      setWebhooks((prev) => [created, ...prev])
+      setWebhookUrl(''); setWebhookSecret(''); setWebhookLabel(''); setShowWebhookForm(false)
+      toast.success('Billing webhook registered')
+    } catch {
+      toast.error('Failed to register webhook')
+    } finally {
+      setAddingWebhook(false)
+    }
+  }
+
+  async function handleDeleteWebhook(id: string) {
+    try {
+      await deleteBillingWebhook(apiKey, id)
+      setWebhooks((prev) => prev.filter((w) => w.id !== id))
+      toast.success('Webhook deleted')
+    } catch {
+      toast.error('Failed to delete webhook')
     }
   }
 
@@ -695,6 +737,100 @@ function BillingTab({
                       {(parseFloat(r.weight) * 100).toFixed(1)}%
                     </td>
                     <td className="px-4 py-2 text-xs text-slate-500">{new Date(r.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Billing Webhooks */}
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Webhook className="h-4 w-4 text-indigo-500" />
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Billing Webhooks</h3>
+          </div>
+          {!showWebhookForm && (
+            <button
+              onClick={() => setShowWebhookForm(true)}
+              className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Webhook
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Receive HMAC-signed <code className="font-mono">billing.period.closed</code> events when a period is closed. Verify with <code className="font-mono">X-RunLedger-Signature</code>.
+        </p>
+
+        {showWebhookForm && (
+          <form onSubmit={handleAddWebhook} className="space-y-3 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 p-4">
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Endpoint URL</label>
+                <input type="url" required value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://your-app.example.com/hooks/billing"
+                  className={inputCls + ' w-full'} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Signing Secret</label>
+                <input type="password" required value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)}
+                  placeholder="Shared secret (min 8 chars)"
+                  className={inputCls + ' w-full'} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Label (optional)</label>
+                <input type="text" value={webhookLabel} onChange={(e) => setWebhookLabel(e.target.value)}
+                  placeholder="e.g. Finance ERP"
+                  className={inputCls + ' w-full'} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button type="submit" disabled={addingWebhook}
+                className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                {addingWebhook ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setShowWebhookForm(false)}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {!billingLoading && webhooks.length === 0 && !showWebhookForm && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">No webhooks configured.</p>
+        )}
+
+        {webhooks.length > 0 && (
+          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-2.5 text-left">Label</th>
+                  <th className="px-4 py-2.5 text-left">URL</th>
+                  <th className="px-4 py-2.5 text-center">Status</th>
+                  <th className="px-4 py-2.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {webhooks.map((w) => (
+                  <tr key={w.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="px-4 py-2 font-medium text-slate-900 dark:text-white">{w.label}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">{w.url}</td>
+                    <td className="px-4 py-2 text-center">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${w.enabled ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                        {w.enabled ? 'enabled' : 'disabled'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => handleDeleteWebhook(w.id)}
+                        className="text-red-500 hover:text-red-700 dark:hover:text-red-400">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

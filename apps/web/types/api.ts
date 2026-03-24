@@ -669,6 +669,15 @@ export interface GatewayRoute {
   priority: number
   is_active: boolean
   config: Record<string, string> | null
+  // Phase 30 runtime controls
+  daily_cost_limit_usd: string | null
+  monthly_cost_limit_usd: string | null
+  pii_redaction_enabled: boolean
+  per_user_rpm_limit: number | null
+  health_auto_disable: boolean
+  last_health_check_at: string | null
+  consecutive_health_failures: number
+  disabled_reason: string | null
   created_at: string
 }
 
@@ -1217,4 +1226,33 @@ export interface EmailLogItem {
 export interface EmailLogList {
   items: EmailLogItem[]
   total: number
+}
+
+
+export interface BillingWebhookConfig {
+  id: string
+  workspace_id: string
+  url: string
+  label: string
+  enabled: boolean
+  created_at: string
+}
+
+export interface BillingWebhookConfigList {
+  items: BillingWebhookConfig[]
+}
+
+export interface BillingWebhookDelivery {
+  id: string
+  webhook_config_id: string
+  billing_period_id: string
+  attempt: number
+  status: 'pending' | 'success' | 'failed'
+  response_status: number | null
+  delivered_at: string | null
+  created_at: string
+}
+
+export interface BillingWebhookDeliveryList {
+  items: BillingWebhookDelivery[]
 }

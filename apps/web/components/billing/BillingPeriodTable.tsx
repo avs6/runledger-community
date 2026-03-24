@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import type { BillingPeriod } from '@/types/api'
-import { closeBillingPeriod, exportPeriodCsv, exportPeriodSignedJson } from '@/lib/api'
+import { closeBillingPeriod, exportPeriodCsv, exportPeriodSignedJson, exportPeriodQuickbooks, exportPeriodNetsuite } from '@/lib/api'
 
 interface Props {
   items: BillingPeriod[]
@@ -78,6 +78,32 @@ export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
     }
   }
 
+  async function handleExportQb(id: string) {
+    setLoading(`qb-${id}`)
+    try {
+      const csv = await exportPeriodQuickbooks(apiKey, id)
+      downloadBlob(csv, `period_${id}_quickbooks.csv`, 'text/csv')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export QuickBooks CSV')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleExportNetsuite(id: string) {
+    setLoading(`ns-${id}`)
+    try {
+      const csv = await exportPeriodNetsuite(apiKey, id)
+      downloadBlob(csv, `period_${id}_netsuite.csv`, 'text/csv')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to export NetSuite CSV')
+    } finally {
+      setLoading(null)
+    }
+  }
+
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-gray-200 dark:border-gray-700 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -138,6 +164,20 @@ export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
                     className="rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                   >
                     JSON
+                  </button>
+                  <button
+                    onClick={() => handleExportQb(p.id)}
+                    disabled={loading === `qb-${p.id}`}
+                    className="rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                  >
+                    QB
+                  </button>
+                  <button
+                    onClick={() => handleExportNetsuite(p.id)}
+                    disabled={loading === `ns-${p.id}`}
+                    className="rounded border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                  >
+                    NS
                   </button>
                 </div>
               </td>

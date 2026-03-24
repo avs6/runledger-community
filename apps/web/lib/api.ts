@@ -351,6 +351,53 @@ export async function exportPeriodSignedJson(apiKey: string, id: string): Promis
   return apiFetch<object>(`/billing/periods/${id}/export?format=signed_json`, apiKey)
 }
 
+async function _exportPeriodCsvFormat(apiKey: string, id: string, format: string): Promise<string> {
+  const res = await fetch(`${API_URL}/billing/periods/${id}/export?format=${format}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  return res.text()
+}
+
+export async function exportPeriodQuickbooks(apiKey: string, id: string): Promise<string> {
+  return _exportPeriodCsvFormat(apiKey, id, 'quickbooks')
+}
+
+export async function exportPeriodNetsuite(apiKey: string, id: string): Promise<string> {
+  return _exportPeriodCsvFormat(apiKey, id, 'netsuite')
+}
+
+export async function listBillingWebhooks(
+  apiKey: string
+): Promise<import('@/types/api').BillingWebhookConfigList> {
+  return apiFetch('/billing/webhooks', apiKey)
+}
+
+export async function createBillingWebhook(
+  apiKey: string,
+  body: { url: string; secret: string; label?: string }
+): Promise<import('@/types/api').BillingWebhookConfig> {
+  return apiFetch('/billing/webhooks', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteBillingWebhook(apiKey: string, id: string): Promise<void> {
+  await apiFetch(`/billing/webhooks/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listWebhookDeliveries(
+  apiKey: string,
+  webhookId: string
+): Promise<import('@/types/api').BillingWebhookDeliveryList> {
+  return apiFetch(`/billing/webhooks/${webhookId}/deliveries`, apiKey)
+}
+
 export async function listChargebackRules(apiKey: string): Promise<ChargebackRuleList> {
   return apiFetch<ChargebackRuleList>('/billing/chargeback-rules', apiKey)
 }
