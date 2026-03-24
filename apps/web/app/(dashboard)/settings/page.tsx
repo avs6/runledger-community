@@ -21,6 +21,7 @@ import {
 import { useRole } from '@/components/rbac/useRole'
 import OrgTab from '@/components/settings/OrgTab'
 import RetentionTab from '@/components/settings/RetentionTab'
+import SsoTab from '@/components/settings/SsoTab'
 import WarehouseTab from '@/components/settings/WarehouseTab'
 import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, EmailPreference, EmailLogItem } from '@/types/api'
 import {
@@ -75,6 +76,7 @@ const TABS = [
   { id: 'retention', label: 'Data Retention', icon: Trash2, adminOnly: true },
   { id: 'warehouse', label: 'Warehouse Export', icon: HardDrive, adminOnly: true },
   { id: 'email', label: 'Email', icon: Mail, adminOnly: false },
+  { id: 'sso', label: 'SSO / SCIM', icon: Shield, adminOnly: true },
 ]
 
 export default function SettingsPage() {
@@ -1491,6 +1493,11 @@ curl -X POST https://YOUR_API/v1/traces \\
         {/* ── Organization (Admin only) ─────────────────────────────────────────── */}
         {activeTab === 'org' && isOrgAdmin && (
           <OrgTab apiKey={apiKey ?? ''} apiBase={apiBase} />
+        )}
+
+        {/* ── SSO / SCIM (Org admin only) ────────────────────────────────────────── */}
+        {activeTab === 'sso' && isOrgAdmin && (
+          <SsoTab apiKey={apiKey ?? ''} apiBase={apiBase} />
         )}
 
         {/* ── Email Notifications ──────────────────────────────────────────────── */}
