@@ -1,13 +1,23 @@
 # OpenTelemetry Collector configuration for RunLedger
 #
-# Forwards OTLP traces to the RunLedger API.
-# Used with: docker compose --profile otel up
+# Receives OTLP traces from any instrumented application and forwards them
+# to the RunLedger API's /v1/traces endpoint.
 #
 # Applications send traces to:
 #   OTLP/HTTP: http://localhost:4318
 #   OTLP/gRPC: http://localhost:4317
 #
 # The Collector authenticates to RunLedger using the RUNLEDGER_API_KEY env var.
+# Health probe:  GET http://localhost:13133/
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /
+    check_collector_pipeline:
+      enabled: true
+      interval: 5s
+      exporter_failure_threshold: 5
 
 receivers:
   otlp:
@@ -21,16 +31,19 @@ receivers:
           allowed_origins:
             - "http://localhost:3000"
             - "http://localhost:*"
+            - "http://*"
 
 processors:
   batch:
-    # Send at most every 5 seconds or when batch reaches 512 spans
+    # Flush every 5 seconds or when the batch reaches 512 spans
     timeout: 5s
     send_batch_size: 512
+    send_batch_max_size: 1024
 
   memory_limiter:
     check_interval: 1s
     limit_mib: 256
+    spike_limit_mib: 64
 
 exporters:
   otlphttp/runledger:
@@ -49,13 +62,14 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 120s
 
-  # Debug logging — remove in production
+  # Structured logs to stdout — useful for debugging; safe to keep in prod
   debug:
     verbosity: basic
 
 service:
+  extensions: [health_check]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/runledger]
+      exporters: [otlphttp/runledger, debug]
