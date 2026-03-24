@@ -45,25 +45,29 @@
 | 21B | Model Gateway | ✅ Complete | 14 |
 | 21C | Runs Enhancements (model/cost filters, CSV export, Ollama fix, API key UX) | ✅ Complete | — |
 | 21D | Unified Policy Checks (budgets + tools + gateway + eval gate) | ✅ Complete | 6 |
+| 21E | Gateway Provider Expansion — Azure OpenAI, AWS Bedrock, Vertex AI | ✅ Complete | 17 |
 | 22 | SaaS Foundation (signup, Stripe billing, quota enforcement, RBAC) | ✅ Complete | — |
 | 23 | Provider Invoice Reconciliation | ✅ Complete | 28 |
 | 24 | Outcome & ROI Ledger | ✅ Complete | 20 |
 | 25 | Approvals & Policy Workflows | ✅ Complete | 19 |
+| 26 | Email Notification System (alerts, budget breach, billing close, dispute, weekly report) | ✅ Complete | 13 |
+| 27 | Data Retention & Deletion Policy APIs | ✅ Complete | 21 |
+| 28 | Warehouse Export — S3/GCS/R2 daily exports (JSONL + Parquet) | ✅ Complete | 22 |
 | OTEL-0 | OTLP Ingestion — Schema Foundation + Receiver | ✅ Complete | 37 |
 | OTEL-1 | OTLP — Run-context Extraction + Payload Capture + Management API + Settings UI | ✅ Complete | 13 |
 | OTEL-2 | OTLP — OTel GenAI Support + Retrieval Metadata + Convention Tracking | ✅ Complete | — |
 | OTEL-3 | OTLP — Trace Finalization + Source-Provenance Propagation | ✅ Complete | 8 |
 | OTEL-4 | OTLP — Reconciliation-grade Enrichment (provider_request_id, reported_cost_usd, token details) | ✅ Complete | 23 |
 
-**Total tests shipped:** 374 API tests · 61 Python SDK tests · 9 TypeScript SDK tests
+**Total tests shipped:** 520 API tests · 61 Python SDK tests · 9 TypeScript SDK tests
 
-**Audit snapshot (2026-03-22):**
-- API suite: `374/374` passing
+**Audit snapshot (2026-03-23):**
+- API suite: `520/520` passing
 - Python SDK suite: `61/61` passing
 - TypeScript SDK suite: `9/9` passing (vitest)
 - Web lint: clean (`next lint`)
-- Repo lint: clean (`ruff check .`)
-- Core API typing: clean (`mypy apps/api/runledger_api`)
+- Repo lint: clean (`ruff check .` + `ruff format --check .`)
+- Core API typing: clean (`mypy apps/api/runledger_api packages/sdk/runledger_sdk`)
 
 ---
 
@@ -1047,6 +1051,72 @@ The collector listens on 4317 (gRPC) and 4318 (HTTP), batches spans, and forward
 
 ---
 
+### Phase 21E — Gateway Provider Expansion ✅
+
+**Goal:** Extend the Model Gateway to support Azure OpenAI, AWS Bedrock, and Google Vertex AI in addition to OpenAI-compatible endpoints.
+
+- `services/gateway_providers.py` — abstract `BaseAdapter` + `OpenAIAdapter`, `AzureAdapter`, `BedrockAdapter`, `VertexAdapter`
+- `AzureAdapter` — deployment-based URL construction (`/openai/deployments/{model}/chat/completions`), `api-key` header, configurable `api_version`, removes `model` from payload
+- `BedrockAdapter` — boto3 `bedrock-runtime` client; `_messages_to_bedrock()` format conversion; `_normalize_bedrock_response()` to OpenAI-compatible output; streaming via `converse_stream` → SSE chunks; `asyncio.to_thread` for sync boto3 calls
+- `VertexAdapter` — Google auth via `google-auth` (`service_account.Credentials.from_service_account_info()` or ADC); token refresh via `asyncio.to_thread`; Gemini content format conversion; `_normalize_vertex_response()` to OpenAI-compatible output
+- `get_adapter(provider)` registry function — routes to correct adapter by provider string
+- Migration `033_gateway_config.py` — adds `config JSONB` column to `gateway_routes` for provider-specific options (deployment_name, api_version, region, project_id, location)
+- `schemas/gateway.py` extended — `GatewayRouteCreate` / `GatewayRouteResponse` include `config` field; provider enum extended to `azure | bedrock | vertex`
+- Frontend Settings page — route create form shows Azure/Bedrock/Vertex options in provider dropdown; `config` rendered as JSON textarea
+- **17 tests** (OpenAI adapter forward+stream, Azure URL construction+custom version+stream, Bedrock format conversion+forward+stream, Vertex format conversion+forward, adapter registry, route CRUD with config)
+
+---
+
+### Phase 26 — Email Notification System ✅
+
+**Goal:** Automated email delivery for all finance-critical events — alerts, budget breaches, billing closures, dispute flags, and weekly analytics reports.
+
+- Migration `031_email_prefs.py` — `email_preferences` table (workspace-scoped): `alerts_enabled`, `budget_enabled`, `billing_enabled`, `report_frequency ENUM[daily|weekly|monthly|never]`; `email_log` table for delivery audit trail
+- Migration `032_email_system.py` — adds `email_notifications_enabled` to `users`; `unsubscribe_tokens` table for one-click unsubscribe
+- `models/email_prefs.py` — `EmailPreference` + `EmailLog` + `UnsubscribeToken` ORM models
+- `services/email.py` — `send_email()` via SMTP (Brevo/SendGrid/SES); `send_alert_fired_email()`, `send_budget_breach_email()`, `send_billing_closed_email()`, `send_dispute_flagged_email()`, `send_analytics_report_email()`; HTML templates with unsubscribe footer
+- `services/email_utils.py` — `get_workspace_admin_users()` queries `WorkspaceUser` join; `get_email_preference()` lazy-loads `EmailPreference`
+- `routers/settings.py` extended — `GET/PUT /settings/email/preferences`, `POST /settings/email/test`, `GET /settings/email/log`; `GET /settings/email/unsubscribe?token=…` one-click unsubscribe (unauthenticated)
+- `workers/alerts.py` updated — `evaluate_alert_rules` dispatches `send_alert_fired_email()` when `email_enabled=True` on rule
+- `workers/budgets.py` updated — `runaway_protection` dispatches `send_budget_breach_email()` to workspace admins
+- `routers/billing.py` updated — `close_period` fires `send_billing_closed_email()` as background task
+- `routers/invoices.py` updated — `dispute_line` fires `send_dispute_flagged_email()` as background task
+- `workers/email_reports.py` — `send_weekly_analytics_reports` Celery beat task (Monday 08:00 UTC): queries `UsageDaily`, respects `report_frequency` preference, delivers formatted HTML to all workspace admins
+- **13 tests** covering: preferences CRUD, test endpoint, email log, unsubscribe token validation, alert worker email dispatch, budget breach email, billing close email, dispute email, weekly report scheduling
+
+---
+
+### Phase 27 — Data Retention & Deletion Policy APIs ✅
+
+**Goal:** GDPR/CCPA-ready data lifecycle management — configurable retention policies, right-to-erasure, scrub-not-delete.
+
+- Migration `029_retention_policies.py` — `retention_policies` table with workspace/end_user scope
+- `models/retention.py` — `RetentionPolicy` ORM model
+- `schemas/retention.py` — Pydantic schemas with `@model_validator` enforcing scope+action constraints
+- `services/retention.py` — `purge_resource()`: delete/scrub per resource type; dry-run COUNT mode; JSONB payload scrub via `-` operator; Span workspace join via run_id subquery
+- `routers/retention.py` — CRUD + `POST /retention/purge` (policy_id or inline params) + audit events emitted on every purge
+- `workers/retention.py` — nightly Celery beat (86400s): runs all active policies automatically
+- `RetentionTab.tsx` — policy table with toggle/dry-run/purge/delete + create form in Settings
+- **21 tests**
+
+---
+
+### Phase 28 — Warehouse Export — S3/GCS/R2 ✅
+
+**Goal:** Daily automated exports to object storage in analyst-ready formats for Snowflake, BigQuery, and Athena.
+
+- Migration `030_warehouse_exports.py` — `warehouse_destinations` + `warehouse_export_jobs` tables
+- Dependencies: `boto3`, `pyarrow`
+- `services/warehouse.py` — `export_workspace_data()` for JSONL/Parquet; `test_destination_connection()` validates credentials before save
+- `routers/warehouse.py` — destination CRUD + `/test` + job trigger/list/get
+- `workers/warehouse.py` — `warehouse.run_scheduled_exports` daily beat + `warehouse.run_single_export` per-job task
+- `WarehouseTab.tsx` — collapsible destination cards + job history in Settings
+- File paths: `{prefix}/{resource}/date={YYYY-MM-DD}/data.{ext}` — Hive-style partition layout for Snowflake external stages and BigQuery external tables
+- Supported resources: `agent_runs`, `provider_calls`, `usage_daily`, `score_events`, `outcomes`
+- **22 tests**
+
+---
+
 ### Phase 22 — SaaS Foundation ✅
 
 **Goal:** Self-service signup, Stripe subscription management, usage quota enforcement, and full RBAC.
@@ -1237,54 +1307,86 @@ The external positioning statement at launch should be:
 
 ## Forward Roadmap
 
-The existing build covers the full instrumentation and metering foundation. The next strategic layer concentrates on deepening the **finance and control moat** rather than adding surface area.
+The core finance and control plane is complete. The existing build covers instrumentation, metering, chargeback, gateway, alerting, outcomes, approvals, OTLP ingestion, email notifications, data retention, and warehouse export. The next strategic layer concentrates on **enterprise readiness** (SSO, SCIM, audit), **gateway runtime controls** (cost caps, PII redaction), and **finance system integration** (billing webhooks, accounting exports).
 
-### Strategic Thesis
+### Current Status vs. Six Original Workstreams
 
-The central risk for a product at this stage is not lack of features — it is lack of moat concentration. Traces and dashboards are useful but not defensible. The following six workstreams are explicitly chosen because they are hard to replicate and directly address enterprise buying criteria.
+| Workstream | Status |
+|-----------|--------|
+| Provider Invoice Reconciliation | ✅ Complete (Phase 23) |
+| Outcome & ROI Ledger | ✅ Complete (Phase 24) |
+| Packaging and Editions (SaaS foundation) | ✅ Complete (Phase 22) |
+| Enterprise Controls — Data Retention | ✅ Complete (Phase 27) |
+| Enterprise Controls — SSO / SCIM | 🔲 Next |
+| Gateway Expansion (Azure/Bedrock/Vertex) | ✅ Complete (Phase 21E) |
+| Warehouse Export (S3/GCS/R2) | ✅ Complete (Phase 28) |
+| Gateway Runtime Controls (cost caps, PII) | 🔲 Next |
+| Finance System Integrations (webhooks, accounting) | 🔲 Next |
 
-### Six Workstreams
+### Next Phases
 
-**1. Provider Invoice Reconciliation (deepening)**
-- Multi-provider import: Azure OpenAI, AWS Bedrock, Vertex AI, OpenRouter
-- Confidence scoring for fuzzy matches; explicit unmatched / ambiguous buckets
-- Signed dispute package export (HMAC-stamped evidence pack)
-- Reconciliation SLA: invoice import to report in < 60 seconds for standard sizes
+---
 
-**2. Outcome & ROI Ledger (deepening)**
-- Alerting on cost-per-success spikes and success rate drops
-- Prompt version → outcome rate join
-- Route choice → outcome quality join
-- Budget action → outcome impact attribution
+#### Phase 29 — SSO / OIDC + SCIM
 
-**3. Packaging and Editions**
-- Server-side feature gating: OSS / SaaS / Enterprise Self-Hosted
-- OSS scope: SDKs, ingestion, traces, basic analytics, dev gateway
-- SaaS scope: full finance moat, alerting, gateway, RBAC, billing
-- Enterprise scope: SSO/SCIM, advanced audit, warehouse export, BYOC
-- Edition-aware UI (feature gates surface as upgrade prompts, not broken pages)
+**Goal:** Enterprise sales blocker cleared. Any org using Google Workspace, Okta, or Azure AD can log in on day one without manual user provisioning.
 
-**4. Enterprise Controls and Governance**
-- OIDC SSO + SAML for major IdPs; JIT provisioning
-- SCIM user and group sync
-- Audit coverage for every sensitive action (invoice import, payload export, approval bypass, retention change)
-- Data retention and deletion policy APIs
+**Scope:**
+- OIDC SSO via `authlib` — Google Workspace, Okta, Azure AD; JIT user creation on first login mapped to existing `users` table
+- Workspace-level IdP configuration (issuer URL, client ID/secret, attribute mapping) stored in a new `sso_configs` table
+- `POST /auth/oidc/callback` — token exchange + session creation; maps OIDC `sub` → user; creates `TenantUser` if first login for that tenant
+- SCIM 2.0 server at `/scim/v2/Users` + `/scim/v2/Groups` — create/update/deactivate users; group → workspace mapping; bearer token auth per tenant
+- Migration `034_sso.py` — `sso_configs(id, tenant_id, provider, issuer_url, client_id, client_secret_enc, attribute_mapping JSONB, is_active)`
+- Frontend: SSO Configuration tab in Org settings; SCIM token display; login page shows "Sign in with SSO" button when SSO is configured for the domain
+- Dependencies: `authlib`, `cryptography` (for client secret encryption at rest)
 
-**5. Gateway Expansion and Runtime Control**
-- Azure OpenAI, AWS Bedrock, Vertex AI provider support in the gateway
-- Per-route cost caps and automatic failover
-- Gateway-level PII redaction processor
-- Signed billing-close webhook for finance system integration
+---
 
-**6. Warehouse and Finance Integrations**
-- Daily export to object storage (S3/GCS-compatible)
-- Snowflake-ready and BigQuery-ready export formats
-- QuickBooks / NetSuite starter export
-- Signed billing-close webhook
+#### Phase 30 — Gateway Runtime Controls
 
-### Non-Goals for the Forward Phase
+**Goal:** The gateway enforces spend boundaries and privacy at the request level — not just routing decisions.
 
-These are explicitly deprioritized to keep moat concentration:
+**Scope:**
+- **Per-route cost caps** — `daily_cost_limit_usd` and `monthly_cost_limit_usd` on `gateway_routes`; checked against `gateway_requests` aggregate before forwarding; returns 429 with `X-Cost-Cap-Reason` header on breach; automatic failover to next-priority route
+- **Route health monitoring** — Celery beat (every 5 min): disables routes with >5% error rate over a 10-min window; re-enables when error rate drops; emits `alert_firing` for visibility
+- **Gateway-level PII redaction** — `services/gateway_redact.py`: regex-based redaction (email, phone, SSN, credit card) applied to request messages before forwarding; configurable per route (off by default); redaction log stored on `gateway_requests` JSONB field
+- **Per-end-user rate limiting** — `X-RunLedger-End-User-Id` header on gateway requests; Redis sliding window per `(workspace_id, end_user_id, route_id)`; 429 with `Retry-After` on breach
+- Migration `035_gateway_runtime.py` — adds `daily_cost_limit_usd`, `monthly_cost_limit_usd`, `pii_redaction_enabled`, `per_user_rpm_limit` to `gateway_routes`
+- Frontend: extended route edit form with cost cap + PII toggle + per-user rate limit fields; cost cap usage bar shown per route in gateway stats strip
+- **~15 tests**
+
+---
+
+#### Phase 31 — Finance System Integrations
+
+**Goal:** Close-period events automatically flow into finance systems. Cost data lands in accounting tools with zero manual export steps.
+
+**Scope:**
+- **Signed billing-close webhook** — `POST /billing/periods/{id}/close` triggers an HMAC-signed webhook to a configured endpoint; payload includes `period_start`, `period_end`, `total_cost_usd`, `chargeback_breakdown[]`, `snapshot_signature`; finance teams can verify the signature and auto-import into GL
+- **Webhook config** — `billing_webhook_configs` table; workspace-scoped; `POST/GET/DELETE /billing/webhooks`; stored with secret; delivery log with retry (3 attempts, exponential backoff)
+- **QuickBooks CSV export** — `GET /billing/periods/{id}/export?format=quickbooks` — maps chargeback rules to QB chart of accounts; generates double-entry journal lines: debit cost center, credit AI spend clearing account
+- **NetSuite CSV export** — `GET /billing/periods/{id}/export?format=netsuite` — journal entry format with subsidiary + department dimensions
+- Migration `036_billing_webhooks.py` — `billing_webhook_configs` + `billing_webhook_deliveries`
+- Frontend: Billing page "Close Period" modal adds webhook destination field; export dropdown gains QuickBooks/NetSuite options
+- **~12 tests**
+
+---
+
+#### Phase 32 — Developer Experience + Public API
+
+**Goal:** Any engineer can evaluate RunLedger in < 30 minutes and integrate it in < 2 hours.
+
+**Scope:**
+- **Published OpenAPI spec** — `GET /openapi.json` versioned; served at `api.runledger.io/openapi.json`; Redoc UI at `/docs`; Scalar UI at `/reference` (richer DX than Swagger)
+- **`runledger init` CLI command** — interactive: asks for API URL + admin secret; calls `POST /admin/bootstrap`; writes `.env` with `RUNLEDGER_API_KEY`; creates default workspace + prints quickstart curl commands
+- **SDK changelog** — `CHANGELOG.md` in `packages/sdk/` and `packages/ts-sdk/`; semantic versioning; breaking changes annotated
+- **`runledger doctor` CLI** — checks connectivity, auth, Redis, worker health (`/health/ready`); prints pass/fail for each; exit 1 if any critical check fails
+- **Examples refresh** — expand to 30 examples covering gateway, OTLP, outcomes, sessions, approvals, evaluators, warehouse; each with inline cost annotation showing expected spend
+- **No new migrations required**
+
+---
+
+### Non-Goals (unchanged)
 
 - Competing with LangSmith on generic prompt/eval workflow depth
 - Competing with Langfuse on broad OSS observability mindshare
@@ -1297,9 +1399,10 @@ These are explicitly deprioritized to keep moat concentration:
 1. System of record for AI spend across providers — with external invoice reconciliation
 2. Internal chargeback with trace-linked evidence
 3. Cost tied to business outcomes and ROI
-4. Runtime behavior controlled through budgets, routing, and policy enforcement
+4. Runtime behavior controlled through budgets, routing, gateway cost caps, and PII redaction
 5. Enterprise buyer onboarding via SSO, SCIM, approvals, and warehouse exports
-6. Clear OSS / SaaS / Enterprise packaging boundaries enforced in product behavior
+6. Finance system integration via signed webhooks and accounting-format exports
+7. Clear OSS / SaaS / Enterprise packaging boundaries enforced in product behavior
 
 ---
 
