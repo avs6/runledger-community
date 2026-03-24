@@ -148,3 +148,117 @@ models:
   #   model: meta-llama/Meta-Llama-3.1-8B-Instruct
   #   input_per_1m: 0.10   # e.g. cloud GPU cost per 1M tokens
   #   output_per_1m: 0.15
+
+  # ── Azure OpenAI ─────────────────────────────────────────────────────────────
+  # Same models as OpenAI but billed through Azure. Rates match OpenAI list price.
+  # Override with workspace-specific pricing if you have a negotiated rate.
+
+  - provider: azure
+    model: gpt-4o
+    input_per_1m: 2.50
+    output_per_1m: 10.00
+    cached_input_per_1m: 1.25
+
+  - provider: azure
+    model: gpt-4o-mini
+    input_per_1m: 0.15
+    output_per_1m: 0.60
+    cached_input_per_1m: 0.075
+
+  - provider: azure
+    model: gpt-4-turbo
+    input_per_1m: 10.00
+    output_per_1m: 30.00
+    cached_input_per_1m: 5.00
+
+  - provider: azure
+    model: o1
+    input_per_1m: 15.00
+    output_per_1m: 60.00
+    cached_input_per_1m: 7.50
+
+  - provider: azure
+    model: o3-mini
+    input_per_1m: 1.10
+    output_per_1m: 4.40
+    cached_input_per_1m: 0.55
+
+  # ── AWS Bedrock ───────────────────────────────────────────────────────────────
+  # On-demand rates (us-east-1). Rates vary by region; update as needed.
+  # model values must match Bedrock model IDs exactly.
+
+  - provider: bedrock
+    model: anthropic.claude-3-5-sonnet-20241022-v2:0
+    input_per_1m: 3.00
+    output_per_1m: 15.00
+    cached_input_per_1m: 1.50
+
+  - provider: bedrock
+    model: anthropic.claude-3-5-haiku-20241022-v1:0
+    input_per_1m: 0.80
+    output_per_1m: 4.00
+
+  - provider: bedrock
+    model: anthropic.claude-3-opus-20240229-v1:0
+    input_per_1m: 15.00
+    output_per_1m: 75.00
+
+  - provider: bedrock
+    model: amazon.nova-pro-v1:0
+    input_per_1m: 0.80
+    output_per_1m: 3.20
+
+  - provider: bedrock
+    model: amazon.nova-lite-v1:0
+    input_per_1m: 0.06
+    output_per_1m: 0.24
+
+  - provider: bedrock
+    model: amazon.titan-text-express-v1
+    input_per_1m: 0.20
+    output_per_1m: 0.60
+
+  - provider: bedrock
+    model: meta.llama3-2-90b-instruct-v1:0
+    input_per_1m: 2.00
+    output_per_1m: 2.00
+
+  - provider: bedrock
+    model: meta.llama3-2-11b-instruct-v1:0
+    input_per_1m: 0.35
+    output_per_1m: 0.35
+
+  - provider: bedrock
+    model: mistral.mistral-large-2402-v1:0
+    input_per_1m: 4.00
+    output_per_1m: 12.00
+
+  # ── Google Vertex AI ──────────────────────────────────────────────────────────
+  # Gemini on Vertex AI (us-central1 rates, ≤128K context window).
+
+  - provider: vertex
+    model: gemini-2.0-flash
+    input_per_1m: 0.10
+    output_per_1m: 0.40
+
+  - provider: vertex
+    model: gemini-2.0-pro
+    input_per_1m: 1.25
+    output_per_1m: 5.00
+
+  - provider: vertex
+    model: gemini-1.5-pro
+    input_per_1m: 1.25
+    output_per_1m: 5.00
+    cached_input_per_1m: 0.3125
+
+  - provider: vertex
+    model: gemini-1.5-flash
+    input_per_1m: 0.075
+    output_per_1m: 0.30
+    cached_input_per_1m: 0.01875
+
+  - provider: vertex
+    model: gemini-1.0-pro
+    input_per_1m: 0.50
+    output_per_1m: 1.50

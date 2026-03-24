@@ -14,11 +14,12 @@ from pydantic import BaseModel, Field
 
 class GatewayRouteCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=128, description="Model alias clients use")
-    provider: str = Field(..., pattern="^(openai|anthropic|ollama|groq|mistral|custom)$")
+    provider: str = Field(..., pattern="^(openai|anthropic|ollama|groq|mistral|azure|bedrock|vertex|custom)$")
     target_model: str = Field(..., min_length=1, max_length=128)
     base_url: str | None = None
     api_key_env_var: str | None = None
     priority: int = Field(10, ge=1, le=100)
+    config: dict[str, Any] | None = None
 
 
 class GatewayRouteUpdate(BaseModel):
@@ -28,6 +29,7 @@ class GatewayRouteUpdate(BaseModel):
     api_key_env_var: str | None = None
     priority: int | None = Field(None, ge=1, le=100)
     is_active: bool | None = None
+    config: dict[str, Any] | None = None
 
 
 class GatewayRouteResponse(BaseModel):
@@ -40,6 +42,7 @@ class GatewayRouteResponse(BaseModel):
     api_key_env_var: str | None
     priority: int
     is_active: bool
+    config: dict[str, Any] | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

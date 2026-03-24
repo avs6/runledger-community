@@ -118,10 +118,10 @@ async def test_create_gateway_route_requires_auth(
 async def test_create_gateway_route_invalid_provider(
     authed_client: AsyncClient,
 ) -> None:
-    """Unknown provider → 422."""
+    """Completely unknown provider slug → 422."""
     resp = await authed_client.post(
         "/gateway/routes",
-        json={"alias": "x", "provider": "azure", "target_model": "gpt-4"},
+        json={"alias": "x", "provider": "unknown-provider-xyz", "target_model": "gpt-4"},
     )
     assert resp.status_code == 422
 

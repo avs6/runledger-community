@@ -42,6 +42,7 @@ class GatewayRoute(Base):
     base_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     api_key_env_var: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="10")
+    config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")
     )

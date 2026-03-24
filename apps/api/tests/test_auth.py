@@ -71,7 +71,16 @@ async def test_create_tenant_wrong_secret(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_create_tenant_success(client: AsyncClient, mock_db_session: AsyncMock) -> None:
     mock_db_session.execute = AsyncMock(return_value=_scalar_result(None))
-    mock_db_session.refresh = AsyncMock(side_effect=_refresh_side_effect())
+
+    async def _tenant_refresh(obj: object) -> None:
+        if not getattr(obj, "id", None):
+            obj.id = uuid.uuid4()  # type: ignore[union-attr]
+        if not getattr(obj, "created_at", None):
+            obj.created_at = datetime.now(UTC)  # type: ignore[union-attr]
+        if getattr(obj, "is_default", None) is None:
+            obj.is_default = False  # type: ignore[union-attr]
+
+    mock_db_session.refresh = AsyncMock(side_effect=_tenant_refresh)
 
     response = await client.post(
         "/admin/tenants",
@@ -201,7 +210,7 @@ async def test_create_api_key_success(client: AsyncClient, mock_db_session: Asyn
             obj.scopes = []  # type: ignore[union-attr]
         if not hasattr(obj, "created_by"):
             obj.created_by = None  # type: ignore[union-attr]
-        if not hasattr(obj, "is_session"):
+        if getattr(obj, "is_session", None) is None:
             obj.is_session = False  # type: ignore[union-attr]
 
     mock_db_session.refresh = AsyncMock(side_effect=mock_refresh)

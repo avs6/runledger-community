@@ -259,6 +259,7 @@ async def create_gateway_route(
         base_url=body.base_url,
         api_key_env_var=body.api_key_env_var,
         priority=body.priority,
+        config=body.config,
     )
     db.add(route)
     await db.flush()
@@ -305,6 +306,8 @@ async def update_gateway_route(
         route.base_url = body.base_url
     if "api_key_env_var" in body.model_fields_set:
         route.api_key_env_var = body.api_key_env_var
+    if body.config is not None:
+        route.config = body.config
 
     await db.commit()
     await db.refresh(route)

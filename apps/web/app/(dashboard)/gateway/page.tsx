@@ -35,6 +35,8 @@ export default function GatewayPage() {
   const [newRouteBaseUrl, setNewRouteBaseUrl] = useState('')
   const [newRouteApiKeyEnvVar, setNewRouteApiKeyEnvVar] = useState('OPENAI_API_KEY')
   const [newRoutePriority, setNewRoutePriority] = useState('10')
+  const [newRouteConfigStr, setNewRouteConfigStr] = useState('')
+  const [newRouteConfigError, setNewRouteConfigError] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
 
@@ -78,6 +80,16 @@ export default function GatewayPage() {
   async function handleCreateRoute(e: React.FormEvent) {
     e.preventDefault()
     if (!apiKey || !newRouteAlias || !newRouteTargetModel) return
+    setNewRouteConfigError('')
+    let config: Record<string, string> | null = null
+    if (newRouteConfigStr.trim()) {
+      try {
+        config = JSON.parse(newRouteConfigStr.trim())
+      } catch {
+        setNewRouteConfigError('Config must be valid JSON')
+        return
+      }
+    }
     setCreatingRoute(true)
     try {
       const route = await createGatewayRoute(apiKey, {
@@ -87,6 +99,7 @@ export default function GatewayPage() {
         base_url: newRouteBaseUrl.trim() || null,
         api_key_env_var: newRouteApiKeyEnvVar.trim() || null,
         priority: parseInt(newRoutePriority, 10) || 10,
+        config,
       })
       setGatewayRoutes((prev) => [...prev, route])
       setNewRouteAlias('')
@@ -94,6 +107,7 @@ export default function GatewayPage() {
       setNewRouteBaseUrl('')
       setNewRouteApiKeyEnvVar('OPENAI_API_KEY')
       setNewRoutePriority('10')
+      setNewRouteConfigStr('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
     } catch {
@@ -293,12 +307,38 @@ export default function GatewayPage() {
                       <optgroup label="anthropic">
                         <option value="anthropic::claude-sonnet-4-6">claude-sonnet-4-6</option>
                       </optgroup>
+                      <optgroup label="azure">
+                        <option value="azure::gpt-4o">gpt-4o (Azure)</option>
+                        <option value="azure::gpt-4o-mini">gpt-4o-mini (Azure)</option>
+                      </optgroup>
+                      <optgroup label="bedrock">
+                        <option value="bedrock::anthropic.claude-3-5-sonnet-20241022-v2:0">claude-3-5-sonnet (Bedrock)</option>
+                        <option value="bedrock::amazon.nova-pro-v1:0">nova-pro (Bedrock)</option>
+                        <option value="bedrock::meta.llama3-2-90b-instruct-v1:0">llama3-2-90b (Bedrock)</option>
+                      </optgroup>
+                      <optgroup label="vertex">
+                        <option value="vertex::gemini-2.0-flash">gemini-2.0-flash (Vertex)</option>
+                        <option value="vertex::gemini-1.5-pro">gemini-1.5-pro (Vertex)</option>
+                      </optgroup>
                     </>
                   )}
                 </select>
               </div>
               <input type="text" placeholder="Base URL (optional)" value={newRouteBaseUrl} onChange={(e) => setNewRouteBaseUrl(e.target.value)} className={inputCls} />
               <input type="text" placeholder="API key env var (e.g. OPENAI_API_KEY)" value={newRouteApiKeyEnvVar} onChange={(e) => setNewRouteApiKeyEnvVar(e.target.value)} className={inputCls} />
+              <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
+                <label className="text-xs text-gray-500 dark:text-gray-400">
+                  Provider Config JSON <span className="text-gray-400">(optional — Azure: deployment_name/api_version; Bedrock: region; Vertex: project/location)</span>
+                </label>
+                <textarea
+                  placeholder='e.g. {"deployment_name": "my-gpt4o", "api_version": "2024-02-01"}'
+                  value={newRouteConfigStr}
+                  onChange={(e) => { setNewRouteConfigStr(e.target.value); setNewRouteConfigError('') }}
+                  className={`${inputCls} min-h-[60px] resize-y font-mono text-xs`}
+                  rows={2}
+                />
+                {newRouteConfigError && <p className="text-xs text-red-500">{newRouteConfigError}</p>}
+              </div>
               <div className="flex items-center gap-2">
                 <input type="number" placeholder="Priority" value={newRoutePriority} onChange={(e) => setNewRoutePriority(e.target.value)} className={`w-24 ${inputCls}`} min={1} max={100} />
                 <button type="submit" disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel} className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">

@@ -169,19 +169,14 @@ async def forward_request(
 
     Returns the raw provider JSON response dict.
     Raises httpx.HTTPStatusError on 4xx/5xx from the provider.
+    Dispatches to the appropriate provider adapter based on route.provider.
     """
-    # Resolve API key: env var lookup → fallback OPENAI_API_KEY → placeholder
-    # A placeholder ("none") is used for local providers (Ollama) that don't
-    # validate the key but still require a non-empty Authorization header.
-    if route.api_key_env_var:
-        api_key = os.getenv(route.api_key_env_var, "none")
-    else:
-        api_key = os.getenv("OPENAI_API_KEY", "none") or "none"
-    base_url = (route.base_url or "https://api.openai.com/v1").rstrip("/")
+    from runledger_api.services.gateway_providers import get_adapter  # noqa: PLC0415
 
-    payload = _build_payload(
-        route=route,
-        messages=messages,
+    adapter = get_adapter(route.provider)
+    return await adapter.forward(
+        route,
+        messages,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
@@ -193,18 +188,6 @@ async def forward_request(
         tools=tools,
         tool_choice=tool_choice,
     )
-
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        resp = await client.post(
-            f"{base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-        resp.raise_for_status()
-        return resp.json()  # type: ignore[no-any-return]
 
 
 async def stream_request(
@@ -226,16 +209,14 @@ async def stream_request(
 
     Yields each b"data: ..." line verbatim so the caller can stream them
     directly to the client as a Server-Sent Events response.
+    Dispatches to the appropriate provider adapter based on route.provider.
     """
-    if route.api_key_env_var:
-        api_key = os.getenv(route.api_key_env_var, "none")
-    else:
-        api_key = os.getenv("OPENAI_API_KEY", "none") or "none"
-    base_url = (route.base_url or "https://api.openai.com/v1").rstrip("/")
+    from runledger_api.services.gateway_providers import get_adapter  # noqa: PLC0415
 
-    payload = _build_payload(
-        route=route,
-        messages=messages,
+    adapter = get_adapter(route.provider)
+    async for chunk in adapter.stream(
+        route,
+        messages,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
@@ -246,25 +227,8 @@ async def stream_request(
         response_format=response_format,
         tools=tools,
         tool_choice=tool_choice,
-        stream=True,
-    )
-
-    async with (
-        httpx.AsyncClient(timeout=300.0) as client,
-        client.stream(
-            "POST",
-            f"{base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        ) as resp,
     ):
-        resp.raise_for_status()
-        async for line in resp.aiter_lines():
-            if line:
-                yield (line + "\n\n").encode()
+        yield chunk
 
 
 async def record_gateway_request(

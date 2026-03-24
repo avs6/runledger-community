@@ -51,6 +51,7 @@ def _make_rule(**kwargs: object) -> SimpleNamespace:
         window_minutes=60,
         action="notify",
         channel_id=None,
+        email_enabled=False,
         is_active=True,
         created_at=datetime.now(UTC),
     )

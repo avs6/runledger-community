@@ -1004,6 +1004,7 @@ export async function createGatewayRoute(
     base_url?: string | null
     api_key_env_var?: string | null
     priority?: number
+    config?: Record<string, string> | null
   }
 ): Promise<GatewayRoute> {
   return apiFetch<GatewayRoute>('/gateway/routes', apiKey, {

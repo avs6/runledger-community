@@ -668,6 +668,7 @@ export interface GatewayRoute {
   api_key_env_var: string | null
   priority: number
   is_active: boolean
+  config: Record<string, string> | null
   created_at: string
 }
 

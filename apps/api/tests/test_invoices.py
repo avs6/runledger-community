@@ -333,6 +333,7 @@ async def test_dispute_line(
         side_effect=[
             _scalar_one_or_none(inv),
             _scalar_one_or_none(line),
+            _scalars_list([]),  # get_workspace_admin_users for dispute email notification
         ]
     )
 
