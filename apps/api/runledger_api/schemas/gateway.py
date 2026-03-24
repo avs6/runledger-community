@@ -22,6 +22,12 @@ class GatewayRouteCreate(BaseModel):
     api_key_env_var: str | None = None
     priority: int = Field(10, ge=1, le=100)
     config: dict[str, Any] | None = None
+    # Phase 30 runtime controls
+    daily_cost_limit_usd: Decimal | None = None
+    monthly_cost_limit_usd: Decimal | None = None
+    pii_redaction_enabled: bool = False
+    per_user_rpm_limit: int | None = Field(None, ge=1)
+    health_auto_disable: bool = True
 
 
 class GatewayRouteUpdate(BaseModel):
@@ -32,6 +38,12 @@ class GatewayRouteUpdate(BaseModel):
     priority: int | None = Field(None, ge=1, le=100)
     is_active: bool | None = None
     config: dict[str, Any] | None = None
+    # Phase 30 runtime controls
+    daily_cost_limit_usd: Decimal | None = None
+    monthly_cost_limit_usd: Decimal | None = None
+    pii_redaction_enabled: bool | None = None
+    per_user_rpm_limit: int | None = Field(None, ge=1)
+    health_auto_disable: bool | None = None
 
 
 class GatewayRouteResponse(BaseModel):
@@ -45,6 +57,15 @@ class GatewayRouteResponse(BaseModel):
     priority: int
     is_active: bool
     config: dict[str, Any] | None = None
+    # Phase 30 runtime controls
+    daily_cost_limit_usd: Decimal | None = None
+    monthly_cost_limit_usd: Decimal | None = None
+    pii_redaction_enabled: bool = False
+    per_user_rpm_limit: int | None = None
+    health_auto_disable: bool = True
+    last_health_check_at: datetime | None = None
+    consecutive_health_failures: int = 0
+    disabled_reason: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
