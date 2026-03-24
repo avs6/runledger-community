@@ -30,8 +30,11 @@ jobs:
       - name: Type check
         run: uv run mypy apps/api/runledger_api packages/sdk/runledger_sdk
 
-      - name: Test
+      - name: API tests
         run: uv run pytest apps/api/tests -v
+
+      - name: SDK tests
+        run: uv run pytest packages/sdk/tests -v
 
   web:
     name: Web (Next.js)
@@ -56,3 +59,27 @@ jobs:
         run: cd apps/web && npm run build
         env:
           API_URL: http://localhost:8000
+          NEXTAUTH_URL: http://localhost:3000
+          NEXTAUTH_SECRET: ci-secret-32-chars-placeholder!!
+
+  ts-sdk:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/ts-sdk/package-lock.json
+
+      - name: Install dependencies
+        run: cd packages/ts-sdk && npm ci
+
+      - name: Type check
+        run: cd packages/ts-sdk && npm run typecheck
+
+      - name: Test
+        run: cd packages/ts-sdk && npm test

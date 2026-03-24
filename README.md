@@ -1,5 +1,10 @@
 # RunLedger
 
+[![CI](https://github.com/avs6/runledger/actions/workflows/ci.yml/badge.svg)](https://github.com/avs6/runledger/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+
 **AI spend system of record and runtime control plane.**
 
 RunLedger is an open-source Agent FinOps Control Plane. It turns LangChain, LangGraph, OpenAI, Anthropic, and any OpenTelemetry-instrumented agent into trace-linked usage accounting, provider invoice reconciliation, internal chargeback, budget enforcement, economics-aware routing, and outcome-to-cost visibility — with payload logging optional by default.
@@ -255,10 +260,11 @@ pip install "runledger-sdk[all] @ git+https://github.com/avs6/runledger.git#subd
 | Extra | What it adds |
 |-------|-------------|
 | `openai` | `openai>=1.0.0` |
-| `anthropic` | `anthropic>=0.25.0` |
+| `anthropic` | `anthropic>=0.40.0` |
 | `langchain` | `langchain-core>=0.3.0` |
 | `langgraph` | `langchain-core>=0.3.0` + `langgraph>=0.2.0` |
-| `all` | everything above + CLI |
+| `otel` | `opentelemetry-sdk>=1.20.0` (for `RunLedgerOTLPExporter`) |
+| `all` | everything above + CLI + otel |
 
 ### TypeScript / Node.js SDK (`@runledger/sdk`)
 
@@ -308,6 +314,12 @@ python 01_openai_basic.py
 | 21 | `21_mcp_example.py` | MCP tool hooks |
 | 22 | `22_otlp_ingest.py` | OTLP/HTTP trace ingestion — no SDK required (comprehensive) |
 | — | `otlp_basic.py` | Minimal OTLP quickstart — single LLM span, annotated |
+| 23 | `23_gateway_routing.py` | Intelligent routing policies (cost/latency/canary/budget-aware) |
+| 24 | `24_openinference_otel.py` | OpenInference + OTel → RunLedgerOTLPExporter |
+| 25 | `25_outcomes_roi.py` | Outcome recording, ROI summary, workflow cost-per-success |
+| 26 | `26_warehouse_export.py` | S3/GCS/R2 warehouse export destination setup |
+| 27 | `27_approvals_workflow.py` | Approval queue: create, approve, deny, cancel |
+| 28 | `28_billing_webhook_server.py` | Billing webhook receiver with HMAC-SHA256 verification |
 | — | `ts/01_openai_basic.ts` | TypeScript: OpenAI instrumentation with `@runledger/sdk` |
 | — | `ts/02_multi_turn.ts` | TypeScript: multi-turn chat with `withContext` |
 | — | `ts/03_vercel_ai.ts` | TypeScript: Vercel AI SDK integration |
@@ -517,7 +529,24 @@ Each OTLP trace becomes one RunLedger agent run. LLM spans generate `provider_ca
 
 Monitor ingest health via **Settings → OTLP** or the management API (`GET /v1/traces/stats`, `GET /v1/traces/batches`).
 
-See `examples/22_otlp_ingest.py` for a full Python demo.
+**Python SDK OTel exporter** — ship traces from any `openinference-instrumentation-*` or OTel `TracerProvider` directly to RunLedger with zero code change:
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
+
+exporter = RunLedgerOTLPExporter(api_key="rl_dev_...", base_url="http://localhost:8000")
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(exporter))
+
+# Or attach to an existing provider via the client:
+# rl.instrument_otel(provider)
+```
+
+Requires `pip install "runledger-sdk[otel]"`.
+
+See `examples/22_otlp_ingest.py` for a full Python demo and `examples/24_openinference_otel.py` for an OpenInference integration walkthrough.
 
 **OTLP documentation:**
 - `docs/otlp.md` — integration guide + API reference
@@ -780,11 +809,19 @@ All endpoints accept `from` and `to` query params (ISO-8601).
 ```bash
 export RUNLEDGER_API_KEY=rl_dev_...
 
+# First-time setup — creates admin user, writes .env, prints quickstart curl commands
+runledger init
+
+# Health check — DB, Redis, auth, worker status (exits 1 on failure; useful in CI)
+runledger doctor
+
 runledger validate                        # sends a test event to verify connectivity
 runledger status                          # checks API + DB + Redis health
 runledger runs --limit 5                  # lists your 5 most recent agent runs
 runledger check-regression --threshold 20 # exits 1 if cost regressions found (CI gate)
 ```
+
+**Interactive API Reference** is available at `http://localhost:8000/reference` — a Scalar UI powered by your live OpenAPI spec.
 
 ---
 
@@ -835,6 +872,12 @@ uv run ruff check . && uv run mypy apps/api/runledger_api
 
 ---
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and the PR process.
+
+---
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
