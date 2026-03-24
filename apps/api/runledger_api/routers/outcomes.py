@@ -235,7 +235,7 @@ async def outcome_summary(
 
     items: list[OutcomeSummaryItem] = []
     for row in agg_rows:
-        count = int(row._mapping["count"])
+        count = int(getattr(row, "count"))
         sc = success_map.get(row.outcome_type, 0)
         total_cost = cost_map.get(row.outcome_type, Decimal("0"))
         total_value = Decimal(str(row.total_value or 0))
