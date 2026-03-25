@@ -191,6 +191,28 @@ class RunLedger:
 
         instrument_cohere(self._get_sync_transport())
 
+    def instrument_litellm(self) -> None:
+        """
+        Monkey-patches ``litellm.completion`` and ``litellm.acompletion`` so
+        every provider call — OpenAI, Anthropic, Gemini, Mistral, Bedrock,
+        Groq, Ollama, Azure, Vertex AI, Together AI, and 100+ more — is
+        automatically captured with the correct provider for cost attribution.
+
+        Requires ``litellm`` package installed (``pip install litellm``).
+        Safe to call multiple times (idempotent).
+
+        LiteLLM Proxy coexistence
+        --------------------------
+        If you run a LiteLLM Proxy, you can also point an OpenAI client at
+        the proxy URL and call ``rl.instrument()`` instead — the SDK
+        intercepts all ``openai.chat.completions.create`` calls regardless
+        of which backend the proxy routes them to.  See
+        ``examples/32_litellm_proxy.py`` for a complete walkthrough.
+        """
+        from runledger_sdk.litellm import instrument_litellm  # noqa: PLC0415
+
+        instrument_litellm(self._get_sync_transport())
+
     def instrument_mcp(self, session: object) -> None:
         """
         Patch an ``mcp.ClientSession`` so every ``call_tool`` invocation is
