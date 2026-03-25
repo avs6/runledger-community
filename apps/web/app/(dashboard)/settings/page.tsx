@@ -7,7 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Key, Bell, Shield, Settings2, Users, Building2, Plug, Terminal, CheckCheck, Lock,
-  Search, X, SlidersHorizontal, Radio, Trash2, HardDrive, Mail,
+  Search, X, SlidersHorizontal, Radio, Trash2, HardDrive, Mail, Github,
 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
@@ -23,6 +23,7 @@ import OrgTab from '@/components/settings/OrgTab'
 import RetentionTab from '@/components/settings/RetentionTab'
 import SsoTab from '@/components/settings/SsoTab'
 import WarehouseTab from '@/components/settings/WarehouseTab'
+import GitTab from '@/components/settings/GitTab'
 import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, EmailPreference, EmailLogItem, KafkaExportConfig, KafkaExportDelivery } from '@/types/api'
 import {
   listApiKeys,
@@ -76,6 +77,7 @@ const TABS = [
   { id: 'mcp', label: 'MCP', icon: Plug, adminOnly: false },
   { id: 'alerts', label: 'Alert Rules', icon: Bell, adminOnly: false },
   { id: 'integrations', label: 'Integrations', icon: Settings2, adminOnly: false },
+  { id: 'git', label: 'Git Sync', icon: Github, adminOnly: false },
   { id: 'privacy', label: 'Data Capture', icon: Shield, adminOnly: false },
   { id: 'otlp', label: 'OTLP', icon: Radio, adminOnly: false },
   { id: 'compliance', label: 'Compliance', icon: Lock, adminOnly: false },
@@ -1845,6 +1847,9 @@ curl -X POST https://YOUR_API/v1/traces \\
         {activeTab === 'sso' && isOrgAdmin && (
           <SsoTab apiKey={apiKey ?? ''} apiBase={apiBase} />
         )}
+
+        {/* ── Git Sync ─────────────────────────────────────────────────────────── */}
+        {activeTab === 'git' && apiKey && <GitTab apiKey={apiKey} />}
 
         {/* ── Email Notifications ──────────────────────────────────────────────── */}
         {activeTab === 'email' && (

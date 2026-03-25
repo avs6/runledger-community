@@ -142,8 +142,15 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
     _DEFAULT_PASSWORD = "runledger"
 
     existing = await session.execute(select(User).where(User.email == _DEFAULT_EMAIL))
-    if existing.scalar_one_or_none() is not None:
-        print("Default user already exists — skipping.")
+    existing_user = existing.scalar_one_or_none()
+    if existing_user is not None:
+        # Ensure the seed user is always verified — no email confirmation needed
+        if not existing_user.email_verified:
+            existing_user.email_verified = True
+            await session.commit()
+            print("Seed user email_verified fixed.")
+        else:
+            print("Default user already exists — skipping.")
         return
 
     user = User(
@@ -152,6 +159,7 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
         full_name="Platform Admin",
         is_active=True,
         is_platform_admin=True,
+        email_verified=True,
     )
     session.add(user)
     await session.flush()

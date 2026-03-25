@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Database, Plus, Pencil, Trash2, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Database, Plus, Pencil, Trash2, RefreshCw, Search, SlidersHorizontal, X, CloudDownload } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
   listProviderPricing,
@@ -11,6 +11,7 @@ import {
   updateProviderPricing,
   deleteProviderPricing,
   repriceProvider,
+  triggerPricingSync,
 } from '@/lib/api'
 import type { ProviderPricingResponse } from '@/types/api'
 
@@ -46,6 +47,7 @@ export default function ProviderProfilesPage() {
   // Edit
   const [editState, setEditState] = useState<EditState | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // Filters
   const [pricingSearch, setPricingSearch] = useState('')
@@ -124,6 +126,20 @@ export default function ProviderProfilesPage() {
     }
   }
 
+  async function handlePullPricing() {
+    if (!apiKey) return
+    setSyncing(true)
+    try {
+      const result = await triggerPricingSync(apiKey, { force: true })
+      toast.success(`Pricing updated: ${result.inserted} added, ${result.updated} updated, ${result.skipped} skipped`)
+      await load()
+    } catch (err: unknown) {
+      toast.error(`Sync failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   async function handleReprice(provider: string, model: string) {
     if (!apiKey) return
     if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich? This may take a minute.`)) return
@@ -184,6 +200,15 @@ export default function ProviderProfilesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handlePullPricing}
+            disabled={syncing}
+            className="shrink-0 flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors disabled:opacity-50"
+            title="Pull latest pricing from the internet"
+          >
+            <CloudDownload className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse' : ''}`} />
+            {syncing ? 'Syncing…' : 'Pull from Internet'}
+          </button>
           <button
             onClick={load}
             className="shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"

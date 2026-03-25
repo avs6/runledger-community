@@ -3,23 +3,20 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   FlaskConical, Database, BookText, Plus, Trash2, Play,
   CheckCircle, Clock, XCircle, Loader2,
 } from 'lucide-react'
 import {
-  createDataset, listDatasets, createExperiment, listExperiments, runExperiment,
-  listPrompts, createPrompt, deletePrompt, listVersions,
-  listGatewayRoutes, listProviderPricing,
+  listEvalDatasets, createEvalDataset, listEvalExperiments, createEvalExperiment, runEvalExperiment,
+  listPrompts, createPrompt, deletePrompt,
   listEvaluators, createEvaluator, deleteEvaluator, runEvaluator,
   getCostQuality, getBestValueModels,
 } from '@/lib/api'
 import type {
-  DatasetResponse, ExperimentResponse, PromptResponse, GatewayRoute,
-  ProviderPricingResponse, PromptVersion, EvaluatorResponse,
-  CostQualityPoint, BestValueModel,
+  EvalDataset, EvalExperiment, DatasetItem, PromptResponse,
+  EvaluatorResponse, CostQualityPoint, BestValueModel,
 } from '@/types/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -61,131 +58,42 @@ const inputCls =
 
 const labelCls = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1'
 
-// ── Model selector — pulls from gateway route aliases + provider pricing ──────
-
-function ModelSelect({
-  value, onChange, placeholder, routes, pricing,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-  routes: GatewayRoute[]
-  pricing: ProviderPricingResponse[]
-}) {
-  const aliases = Array.from(new Set(routes.map((r) => r.alias)))
-  const models = Array.from(new Set(pricing.map((p) => `${p.provider}/${p.model}`)))
-
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-      <option value="">{placeholder}</option>
-      {aliases.length > 0 && (
-        <optgroup label="Gateway Aliases">
-          {aliases.map((a) => (
-            <option key={`alias:${a}`} value={a}>{a} (alias)</option>
-          ))}
-        </optgroup>
-      )}
-      {models.length > 0 && (
-        <optgroup label="Provider Models">
-          {models.map((m) => (
-            <option key={`model:${m}`} value={m.split('/')[1]}>{m}</option>
-          ))}
-        </optgroup>
-      )}
-    </select>
-  )
-}
-
-// ── Prompt version selector ────────────────────────────────────────────────────
-
-function PromptVersionSelect({
-  apiKey, prompts, promptName, onPromptChange,
-  versionId, onVersionChange,
-}: {
-  apiKey: string
-  prompts: PromptResponse[]
-  promptName: string
-  onPromptChange: (name: string) => void
-  versionId: string
-  onVersionChange: (v: string) => void
-}) {
-  const [versions, setVersions] = useState<PromptVersion[]>([])
-
-  useEffect(() => {
-    if (!promptName || !apiKey) { setVersions([]); onVersionChange(''); return }
-    listVersions(apiKey, promptName)
-      .then((r) => setVersions(r.items))
-      .catch(() => setVersions([]))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promptName, apiKey])
-
-  return (
-    <div className="flex gap-2">
-      <select value={promptName} onChange={(e) => { onPromptChange(e.target.value); onVersionChange('') }} className={inputCls}>
-        <option value="">No prompt (use all runs)</option>
-        {prompts.map((p) => (
-          <option key={p.id} value={p.name}>{p.name}</option>
-        ))}
-      </select>
-      {promptName && (
-        <select value={versionId} onChange={(e) => onVersionChange(e.target.value)} className={`${inputCls} w-36 shrink-0`}>
-          <option value="">Latest</option>
-          {versions.map((v) => (
-            <option key={v.id} value={String(v.version)}>v{v.version}{v.commit_message ? ` — ${v.commit_message.slice(0, 20)}` : ''}</option>
-          ))}
-        </select>
-      )}
-    </div>
-  )
-}
-
 // ── Experiments tab ───────────────────────────────────────────────────────────
 
 function ExperimentsTab({
-  experiments, datasets, prompts, routes, pricing, loading,
+  experiments, datasets, prompts, loading,
   onCreate, onRun,
 }: {
-  experiments: ExperimentResponse[]
-  datasets: DatasetResponse[]
+  experiments: EvalExperiment[]
+  datasets: EvalDataset[]
   prompts: PromptResponse[]
-  routes: GatewayRoute[]
-  pricing: ProviderPricingResponse[]
   loading: boolean
-  onCreate: (data: { name: string; dataset_id: string; configs: Array<{ model: string; prompt_name?: string; prompt_version?: number }> }) => Promise<void>
+  onCreate: (data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) => Promise<void>
   onRun: (id: string) => Promise<void>
 }) {
-  const { data: session } = useSession()
-  const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
-
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [datasetId, setDatasetId] = useState('')
-  const [modelA, setModelA] = useState('')
-  const [modelB, setModelB] = useState('')
-  const [promptA, setPromptA] = useState('')
-  const [promptVersionA, setPromptVersionA] = useState('')
-  const [promptB, setPromptB] = useState('')
-  const [promptVersionB, setPromptVersionB] = useState('')
+  const [promptName, setPromptName] = useState('')
+  const [promptVersion, setPromptVersion] = useState('')
+  const [modelStr, setModelStr] = useState('gpt-4o')
+  const [provider, setProvider] = useState('openai')
   const [creating, setCreating] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
-  function buildConfigs() {
-    const cfgA: { model: string; prompt_name?: string; prompt_version?: number } = { model: modelA }
-    if (promptA) { cfgA.prompt_name = promptA; if (promptVersionA) cfgA.prompt_version = parseInt(promptVersionA) }
-    const configs = [cfgA]
-    if (modelB) {
-      const cfgB: { model: string; prompt_name?: string; prompt_version?: number } = { model: modelB }
-      if (promptB) { cfgB.prompt_name = promptB; if (promptVersionB) cfgB.prompt_version = parseInt(promptVersionB) }
-      configs.push(cfgB)
-    }
-    return configs
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!name.trim()) return
     setCreating(true)
-    await onCreate({ name, dataset_id: datasetId, configs: buildConfigs() })
-    setName(''); setDatasetId(''); setModelA(''); setModelB('')
-    setPromptA(''); setPromptVersionA(''); setPromptB(''); setPromptVersionB('')
+    await onCreate({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      dataset_id: datasetId || undefined,
+      prompt_name: promptName || undefined,
+      prompt_version: promptVersion ? parseInt(promptVersion) : undefined,
+      models: modelStr ? [{ model: modelStr, provider, label: null }] : [],
+    })
+    setName(''); setDescription(''); setDatasetId(''); setPromptName(''); setPromptVersion(''); setModelStr('gpt-4o')
     setShowForm(false)
     setCreating(false)
   }
@@ -193,11 +101,9 @@ function ExperimentsTab({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Run A/B experiments to compare model cost, latency, and quality across your datasets. Optionally scope each config to a specific prompt version.
-          </p>
-        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Run prompts against datasets and evaluate model performance. Uses the datasets and prompts you have already created.
+        </p>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700"
@@ -213,47 +119,53 @@ function ExperimentsTab({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Experiment Name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="gpt-4o vs mistral" className={inputCls} />
+                <label className={labelCls}>Experiment Name *</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. GPT-4o vs Claude" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Description</label>
+                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} />
               </div>
               <div>
                 <label className={labelCls}>Dataset</label>
-                <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} required className={inputCls}>
-                  <option value="">Select dataset…</option>
+                <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} className={inputCls}>
+                  <option value="">— None —</option>
                   {datasets.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.run_count} runs)</option>
+                    <option key={d.id} value={d.id}>{d.name} ({d.item_count} items)</option>
                   ))}
                 </select>
               </div>
-            </div>
-            {/* Config A */}
-            <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3 space-y-3">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Config A — Baseline</p>
               <div>
-                <label className={labelCls}>Model</label>
-                <ModelSelect value={modelA} onChange={setModelA} placeholder="Select model A…" routes={routes} pricing={pricing} />
+                <label className={labelCls}>Prompt</label>
+                <select value={promptName} onChange={(e) => { setPromptName(e.target.value); setPromptVersion('') }} className={inputCls}>
+                  <option value="">— None —</option>
+                  {prompts.map((p) => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
               </div>
-              <div>
-                <label className={labelCls}>Prompt (optional — scope tokens to runs using this prompt version)</label>
-                <PromptVersionSelect apiKey={apiKey} prompts={prompts} promptName={promptA} onPromptChange={setPromptA} versionId={promptVersionA} onVersionChange={setPromptVersionA} />
-              </div>
-            </div>
-            {/* Config B */}
-            <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3 space-y-3">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Config B — Challenger (optional)</p>
-              <div>
-                <label className={labelCls}>Model</label>
-                <ModelSelect value={modelB} onChange={setModelB} placeholder="Select model B…" routes={routes} pricing={pricing} />
-              </div>
-              {modelB && (
+              {promptName && (
                 <div>
-                  <label className={labelCls}>Prompt (optional)</label>
-                  <PromptVersionSelect apiKey={apiKey} prompts={prompts} promptName={promptB} onPromptChange={setPromptB} versionId={promptVersionB} onVersionChange={setPromptVersionB} />
+                  <label className={labelCls}>Prompt Version (blank = latest)</label>
+                  <input value={promptVersion} onChange={(e) => setPromptVersion(e.target.value)} type="number" min="1" placeholder="e.g. 3" className={inputCls} />
                 </div>
               )}
+              <div>
+                <label className={labelCls}>Model</label>
+                <input value={modelStr} onChange={(e) => setModelStr(e.target.value)} placeholder="gpt-4o" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Provider</label>
+                <select value={provider} onChange={(e) => setProvider(e.target.value)} className={inputCls}>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="google">Google</option>
+                  <option value="mistral">Mistral</option>
+                </select>
+              </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={creating || !name || !datasetId || !modelA}
+              <button type="submit" disabled={creating || !name}
                 className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create Experiment'}
               </button>
@@ -271,7 +183,7 @@ function ExperimentsTab({
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Models</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Prompt / Models</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Actions</th>
             </tr>
@@ -282,7 +194,7 @@ function ExperimentsTab({
               <tr>
                 <td colSpan={4} className="px-4 py-12 text-center">
                   <FlaskConical className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No experiments yet. Create one to start comparing models.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No experiments yet. Create one above.</p>
                 </td>
               </tr>
             ) : experiments.map((exp) => (
@@ -290,14 +202,14 @@ function ExperimentsTab({
                 <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{exp.name}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
-                    {exp.configs.map((c, i) => (
-                      <span key={i} className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-mono text-slate-600 dark:text-slate-300">
-                        {c.model}
-                        {c.prompt_name && (
-                          <span className="ml-1 rounded-full bg-teal-100 dark:bg-teal-900/50 px-1.5 py-0 text-[10px] text-teal-700 dark:text-teal-300">
-                            {c.prompt_name}{c.prompt_version != null ? `@v${c.prompt_version}` : ''}
-                          </span>
-                        )}
+                    {exp.prompt_name && (
+                      <span className="rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-xs text-teal-700 dark:text-teal-300">
+                        {exp.prompt_name}{exp.prompt_version ? ` v${exp.prompt_version}` : ''}
+                      </span>
+                    )}
+                    {exp.models.map((m, i) => (
+                      <span key={i} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-mono text-slate-600 dark:text-slate-300">
+                        {m.model}
                       </span>
                     ))}
                   </div>
@@ -309,20 +221,11 @@ function ExperimentsTab({
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    {exp.status === 'pending' && (
-                      <button onClick={() => onRun(exp.id)}
-                        className="flex items-center gap-1 rounded-lg bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700">
-                        <Play className="h-3 w-3" /> Run
-                      </button>
-                    )}
-                    {exp.status === 'completed' && (
-                      <Link href={`/replay/${exp.id}`}
-                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700">
-                        <CheckCircle className="h-3 w-3" /> Results
-                      </Link>
-                    )}
-                  </div>
+                  <button onClick={() => onRun(exp.id)}
+                    disabled={exp.status === 'running'}
+                    className="flex items-center gap-1 rounded-lg bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-40">
+                    <Play className="h-3 w-3" /> Run
+                  </button>
                 </td>
               </tr>
             ))}
@@ -338,31 +241,67 @@ function ExperimentsTab({
 function DatasetsTab({
   datasets, loading, onCreate,
 }: {
-  datasets: DatasetResponse[]
+  datasets: EvalDataset[]
   loading: boolean
-  onCreate: (data: { name: string; run_ids: string[]; source: string }) => Promise<void>
+  onCreate: (data: { name: string; description?: string; items: DatasetItem[] }) => Promise<void>
 }) {
   const [name, setName] = useState('')
-  const [runIds, setRunIds] = useState('')
-  const [source, setSource] = useState('live_runs')
+  const [description, setDescription] = useState('')
+  const [itemsText, setItemsText] = useState('')
+  const [inputMode, setInputMode] = useState<'paste' | 'upload' | 'url'>('paste')
+  const [urlInput, setUrlInput] = useState('')
   const [creating, setCreating] = useState(false)
+  const [fetching, setFetching] = useState(false)
   const [showForm, setShowForm] = useState(false)
+
+  function parseItems(text: string): DatasetItem[] {
+    const trimmed = text.trim()
+    if (trimmed.startsWith('[')) return JSON.parse(trimmed) as DatasetItem[]
+    return trimmed.split('\n').filter(Boolean).map(line => {
+      const parts = line.split(',')
+      return { input: parts[0]?.trim() ?? '', expected_output: parts[1]?.trim() || null, metadata: {} }
+    })
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const text = await file.text()
+    setItemsText(text)
+    setInputMode('paste')
+  }
+
+  async function handleFetchUrl() {
+    if (!urlInput.trim()) return
+    setFetching(true)
+    try {
+      const res = await fetch(urlInput.trim())
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setItemsText(await res.text())
+      setInputMode('paste')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Fetch failed')
+    } finally { setFetching(false) }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setCreating(true)
-    const ids = runIds.split('\n').map((s) => s.trim()).filter(Boolean)
-    await onCreate({ name, run_ids: ids, source })
-    setName(''); setRunIds(''); setSource('live_runs')
-    setShowForm(false)
-    setCreating(false)
+    try {
+      const items = itemsText.trim() ? parseItems(itemsText) : []
+      await onCreate({ name: name.trim(), description: description.trim() || undefined, items })
+      setName(''); setDescription(''); setItemsText(''); setUrlInput('')
+      setShowForm(false)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Parse failed — check CSV/JSON format')
+    } finally { setCreating(false) }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Capture sets of production runs to use as ground truth for experiments.
+          Test case collections (input / expected output pairs) shared with Experiments.
         </p>
         <button onClick={() => setShowForm(true)}
           className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700">
@@ -376,21 +315,52 @@ function DatasetsTab({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="customer-support-q4" className={inputCls} />
+                <label className={labelCls}>Name *</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Customer Q&A" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>Source type</label>
-                <select value={source} onChange={(e) => setSource(e.target.value)} className={inputCls}>
-                  <option value="live_runs">live_runs</option>
-                  <option value="manual">manual</option>
-                </select>
+                <label className={labelCls}>Description</label>
+                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>Run IDs (one per line)</label>
-              <textarea value={runIds} onChange={(e) => setRunIds(e.target.value)} rows={4}
-                className={`${inputCls} font-mono`} placeholder="paste run UUIDs here…" />
+              <div className="flex gap-1 mb-3">
+                {(['paste', 'upload', 'url'] as const).map(mode => (
+                  <button key={mode} type="button" onClick={() => setInputMode(mode)}
+                    className={`rounded px-3 py-1 text-xs font-medium capitalize ${inputMode === mode ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                    {mode === 'paste' ? 'Paste' : mode === 'upload' ? 'Upload File' : 'From URL'}
+                  </button>
+                ))}
+              </div>
+              {inputMode === 'paste' && (
+                <div>
+                  <label className={labelCls}>Items (CSV: input,expected_output — or JSON array)</label>
+                  <textarea value={itemsText} onChange={(e) => setItemsText(e.target.value)}
+                    rows={5} className={`${inputCls} font-mono`} placeholder={'What is 2+2?,4\nCapital of France?,Paris'} />
+                </div>
+              )}
+              {inputMode === 'upload' && (
+                <div>
+                  <label className={labelCls}>Upload CSV or JSON file</label>
+                  <input type="file" accept=".csv,.json,.txt" onChange={handleFileUpload}
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:bg-teal-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal-700 hover:file:bg-teal-100 dark:file:bg-teal-900/30 dark:file:text-teal-400" />
+                  {itemsText && <p className="mt-1 text-xs text-green-600">✓ File loaded — switch to Paste to review</p>}
+                </div>
+              )}
+              {inputMode === 'url' && (
+                <div>
+                  <label className={labelCls}>File URL (HTTP/HTTPS or GitHub raw)</label>
+                  <div className="flex gap-2">
+                    <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
+                      className={inputCls} placeholder="https://raw.githubusercontent.com/..." />
+                    <button type="button" onClick={handleFetchUrl} disabled={fetching}
+                      className="shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 disabled:opacity-50">
+                      {fetching ? 'Fetching…' : 'Fetch'}
+                    </button>
+                  </div>
+                  {itemsText && <p className="mt-1 text-xs text-green-600">✓ Content loaded — switch to Paste to review</p>}
+                </div>
+              )}
             </div>
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={creating || !name}
@@ -411,8 +381,8 @@ function DatasetsTab({
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Source</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Runs</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Items</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
             </tr>
           </thead>
@@ -422,16 +392,14 @@ function DatasetsTab({
               <tr>
                 <td colSpan={4} className="px-4 py-12 text-center">
                   <Database className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No datasets yet. Capture production runs to build one.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No datasets yet. Create one above or visit the Datasets page.</p>
                 </td>
               </tr>
             ) : datasets.map((d) => (
               <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                 <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{d.name}</td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">{d.source}</span>
-                </td>
-                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{d.run_count}</td>
+                <td className="px-4 py-3 max-w-xs truncate text-slate-500 dark:text-slate-400">{d.description ?? '—'}</td>
+                <td className="px-4 py-3 tabular-nums text-slate-600 dark:text-slate-300">{d.item_count}</td>
                 <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{new Date(d.created_at).toLocaleDateString()}</td>
               </tr>
             ))}
@@ -614,12 +582,21 @@ function EvaluatorsTab({
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Evaluators</h2>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />{showForm ? 'Cancel' : 'New Evaluator'}
-          </button>
+          {showForm ? (
+            <button
+              onClick={() => setShowForm(false)}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />New Evaluator
+            </button>
+          )}
         </div>
 
         {showForm && (
@@ -801,11 +778,9 @@ export default function EvaluationPage() {
   const [tab, setTab] = useState<Tab>('experiments')
   const [loading, setLoading] = useState(true)
 
-  const [experiments, setExperiments] = useState<ExperimentResponse[]>([])
-  const [datasets, setDatasets] = useState<DatasetResponse[]>([])
+  const [experiments, setExperiments] = useState<EvalExperiment[]>([])
+  const [datasets, setDatasets] = useState<EvalDataset[]>([])
   const [prompts, setPrompts] = useState<PromptResponse[]>([])
-  const [routes, setRoutes] = useState<GatewayRoute[]>([])
-  const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
   const [evaluators, setEvaluators] = useState<EvaluatorResponse[]>([])
   const [costQuality, setCostQuality] = useState<CostQualityPoint[]>([])
   const [bestValue, setBestValue] = useState<BestValueModel[]>([])
@@ -814,12 +789,10 @@ export default function EvaluationPage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [exp, ds, pr, rt, prc, evs, cq, bv] = await Promise.all([
-        listExperiments(apiKey),
-        listDatasets(apiKey),
+      const [exp, ds, pr, evs, cq, bv] = await Promise.all([
+        listEvalExperiments(apiKey),
+        listEvalDatasets(apiKey),
         listPrompts(apiKey),
-        listGatewayRoutes(apiKey, true),
-        listProviderPricing(apiKey),
         listEvaluators(apiKey),
         getCostQuality(apiKey).catch(() => ({ items: [] })),
         getBestValueModels(apiKey).catch(() => ({ items: [] })),
@@ -827,11 +800,9 @@ export default function EvaluationPage() {
       setExperiments(exp.items)
       setDatasets(ds.items)
       setPrompts(pr.items)
-      setRoutes(rt.items)
       setEvaluators(evs.items)
       setCostQuality(cq.items)
       setBestValue(bv.items)
-      setPricing(prc.items)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load evaluation data')
@@ -842,9 +813,9 @@ export default function EvaluationPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
-  async function handleCreateExperiment({ name, dataset_id, configs }: { name: string; dataset_id: string; configs: Array<{ model: string; prompt_name?: string; prompt_version?: number }> }) {
+  async function handleCreateExperiment(data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) {
     try {
-      await createExperiment(apiKey, { name, dataset_id, configs })
+      await createEvalExperiment(apiKey, data)
       toast.success('Experiment created')
       await refresh()
     } catch { toast.error('Failed to create experiment') }
@@ -852,15 +823,15 @@ export default function EvaluationPage() {
 
   async function handleRunExperiment(id: string) {
     try {
-      await runExperiment(apiKey, id)
-      setExperiments((prev) => prev.map((e) => (e.id === id ? { ...e, status: 'running' } : e)))
-      toast.success('Experiment queued')
+      const updated = await runEvalExperiment(apiKey, id)
+      setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e)))
+      toast.success('Experiment completed')
     } catch { toast.error('Failed to run experiment') }
   }
 
-  async function handleCreateDataset(data: { name: string; run_ids: string[]; source: string }) {
+  async function handleCreateDataset(data: { name: string; description?: string; items: DatasetItem[] }) {
     try {
-      await createDataset(apiKey, data)
+      await createEvalDataset(apiKey, data)
       toast.success('Dataset created')
       await refresh()
     } catch { toast.error('Failed to create dataset') }
@@ -936,8 +907,6 @@ export default function EvaluationPage() {
           experiments={experiments}
           datasets={datasets}
           prompts={prompts}
-          routes={routes}
-          pricing={pricing}
           loading={loading}
           onCreate={handleCreateExperiment}
           onRun={handleRunExperiment}

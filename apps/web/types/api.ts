@@ -1330,3 +1330,80 @@ export interface KafkaTestResult {
   error: string | null
   topic: string | null
 }
+
+// ── Eval Experiments & Datasets ────────────────────────────────────────────────
+
+export interface DatasetItem {
+  input: string
+  expected_output: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface EvalDataset {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  source: string
+  item_count: number
+  items: DatasetItem[]
+  created_at: string
+  updated_at: string
+}
+
+export interface EvalDatasetList {
+  items: EvalDataset[]
+}
+
+export interface ExperimentModelConfig {
+  model: string
+  provider: string
+  label: string | null
+}
+
+export interface EvalExperiment {
+  id: string
+  workspace_id: string
+  dataset_id: string | null
+  name: string
+  description: string | null
+  prompt_name: string | null
+  prompt_version: number | null
+  evaluator_ids: string[]
+  models: ExperimentModelConfig[]
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  results: Record<string, unknown> | null
+  run_count: number
+  scores_created: number
+  started_at: string | null
+  completed_at: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface EvalExperimentList {
+  items: EvalExperiment[]
+}
+
+// ── GitHub Sync ────────────────────────────────────────────────────────────────
+
+export interface GithubConfig {
+  id: string
+  workspace_id: string
+  repo: string
+  branch: string
+  path_prefix: string
+  auto_sync: boolean
+  last_sync_at: string | null
+  last_sync_status: string | null
+  last_sync_message: string | null
+  created_at: string
+}
+
+export interface GithubSyncResult {
+  pushed: number
+  pulled: number
+  skipped: number
+  errors: string[]
+  synced_at: string
+}

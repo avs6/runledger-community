@@ -45,6 +45,7 @@ from runledger_api.models.tenant import (
 )
 from runledger_api.models.billing import SharedCostPolicy
 from runledger_api.models.billing_webhooks import BillingWebhookConfig, BillingWebhookDelivery
+from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment, PromptGithubConfig
 from runledger_api.models.kafka_export import KafkaExportConfig, KafkaExportDelivery
 from runledger_api.models.sso import ScimToken, SsoConfig, SsoIdentity
 from runledger_api.models.warehouse import ExportJob, WarehouseDestination
@@ -105,4 +106,7 @@ __all__ = [
     "PricingContract",
     "PricingCredit",
     "PricingSyncConfig",
+    "EvalDataset",
+    "EvalExperiment",
+    "PromptGithubConfig",
 ]

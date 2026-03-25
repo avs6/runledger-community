@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, LayoutList, MessageSquare,
   FlaskConical, Activity, Wallet, Settings,
-  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt, TrendingUp, ShieldCheck, ScrollText,
+  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt, TrendingUp, ShieldCheck, ScrollText, Beaker, TableProperties,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -132,6 +132,8 @@ export default function Sidebar() {
         <SectionLabel label="Intelligence" />
         <NavLink href="/analytics" label="Analytics" icon={BarChart2} />
         <NavLink href="/evaluation" label="Evaluation" icon={FlaskConical} />
+        <NavLink href="/experiments" label="Experiments" icon={Beaker} />
+        <NavLink href="/datasets" label="Datasets" icon={TableProperties} />
         <NavLink href="/monitoring" label="Monitoring" icon={Activity} />
         <NavLink href="/prompts" label="Prompts" icon={FileText} />
 

@@ -20,6 +20,8 @@ GET    /prompts/{name}/metrics         Per-version cost + avg score + run count
 
 from __future__ import annotations
 
+import base64
+import os
 import re
 import uuid
 from datetime import UTC, datetime
@@ -38,6 +40,13 @@ from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
 from runledger_api.routers.approvals import validate_approved
+from runledger_api.models.eval_experiments import PromptGithubConfig
+from runledger_api.schemas.eval_experiments import (
+    GithubConfigCreate,
+    GithubConfigResponse,
+    GithubConfigUpdate,
+    GithubSyncResult,
+)
 from runledger_api.schemas.prompts import (
     PromoteRequest,
     PromptCreate,
@@ -50,6 +59,7 @@ from runledger_api.schemas.prompts import (
     VersionResponse,
 )
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.github_sync import pull_prompts_from_github, push_prompts_to_github
 
 router = APIRouter(
     prefix="/prompts",
@@ -120,6 +130,172 @@ async def list_prompts(
     )
     items = result.scalars().all()
     return PromptList(items=[PromptResponse.model_validate(p) for p in items])
+
+
+# ── GitHub sync endpoints (must come before /{name} to avoid route capture) ───
+
+
+def _decrypt_token(token_enc: str | None) -> str | None:
+    """Decrypt stored token or fall back to env var."""
+    if token_enc:
+        if token_enc.startswith("b64:"):
+            return base64.b64decode(token_enc[4:]).decode()
+        return token_enc
+    return os.environ.get("GITHUB_TOKEN")
+
+
+@router.get("/github-config", response_model=GithubConfigResponse | None)
+async def get_github_config(workspace: WorkspaceDep, db: DbDep) -> PromptGithubConfig | None:
+    """Get GitHub sync config for this workspace."""
+    result = await db.execute(
+        select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
+    )
+    return result.scalar_one_or_none()
+
+
+@router.post("/github-config", response_model=GithubConfigResponse, status_code=status.HTTP_201_CREATED)
+async def create_github_config(body: GithubConfigCreate, workspace: WorkspaceDep, db: DbDep) -> PromptGithubConfig:
+    """Create GitHub sync config for this workspace."""
+    existing = await db.execute(
+        select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="GitHub config already exists — use PUT to update")
+
+    token_enc: str | None = None
+    if body.token:
+        token_enc = "b64:" + base64.b64encode(body.token.encode()).decode()
+
+    cfg = PromptGithubConfig(
+        workspace_id=workspace.id,
+        repo=body.repo,
+        branch=body.branch,
+        path_prefix=body.path_prefix,
+        token_enc=token_enc,
+        auto_sync=body.auto_sync,
+    )
+    db.add(cfg)
+    await db.commit()
+    await db.refresh(cfg)
+    return cfg
+
+
+@router.put("/github-config", response_model=GithubConfigResponse)
+async def update_github_config(body: GithubConfigUpdate, workspace: WorkspaceDep, db: DbDep) -> PromptGithubConfig:
+    """Update GitHub sync config."""
+    result = await db.execute(
+        select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        raise HTTPException(status_code=404, detail="No GitHub config — use POST to create")
+
+    if body.repo is not None:
+        cfg.repo = body.repo
+    if body.branch is not None:
+        cfg.branch = body.branch
+    if body.path_prefix is not None:
+        cfg.path_prefix = body.path_prefix
+    if body.token is not None:
+        cfg.token_enc = "b64:" + base64.b64encode(body.token.encode()).decode()
+    if body.auto_sync is not None:
+        cfg.auto_sync = body.auto_sync
+    cfg.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(cfg)
+    return cfg
+
+
+@router.post("/sync/push", response_model=GithubSyncResult)
+async def push_to_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult:
+    """Push all workspace prompts to GitHub."""
+    result = await db.execute(
+        select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        raise HTTPException(status_code=404, detail="No GitHub config found. Create one first.")
+
+    token = _decrypt_token(cfg.token_enc)
+    if not token:
+        raise HTTPException(status_code=400, detail="No GitHub token configured")
+
+    prompts_result = await db.execute(select(Prompt).where(Prompt.workspace_id == workspace.id))
+    prompts = list(prompts_result.scalars().all())
+
+    prompt_dicts = []
+    for p in prompts:
+        versions_result = await db.execute(
+            select(PromptVersion).where(PromptVersion.prompt_id == p.id).order_by(PromptVersion.version.asc())
+        )
+        versions = list(versions_result.scalars().all())
+        prompt_dicts.append({
+            "name": p.name, "description": p.description or "", "variables": [],
+            "versions": [{"version": v.version, "content": v.content, "environment": v.environment,
+                          "model_hint": v.model_hint, "commit_message": v.commit_message or ""} for v in versions],
+        })
+
+    sync_result = await push_prompts_to_github(token, cfg.repo, cfg.branch, cfg.path_prefix, prompt_dicts)
+    cfg.last_sync_at = datetime.now(UTC)
+    cfg.last_sync_status = "success" if not sync_result["errors"] else "partial"
+    cfg.last_sync_message = f"Pushed {sync_result['pushed']} prompts" + (
+        f"; errors: {'; '.join(sync_result['errors'][:3])}" if sync_result["errors"] else ""
+    )
+    await db.commit()
+    log.info("github_sync_push", workspace_id=str(workspace.id), **sync_result)
+    return GithubSyncResult(
+        pushed=sync_result["pushed"], pulled=0, skipped=sync_result["skipped"],
+        errors=sync_result["errors"], synced_at=cfg.last_sync_at,
+    )
+
+
+@router.post("/sync/pull", response_model=GithubSyncResult)
+async def pull_from_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult:
+    """Pull prompts from GitHub and upsert into workspace."""
+    result = await db.execute(
+        select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
+    )
+    cfg = result.scalar_one_or_none()
+    if not cfg:
+        raise HTTPException(status_code=404, detail="No GitHub config found. Create one first.")
+
+    token = _decrypt_token(cfg.token_enc)
+    if not token:
+        raise HTTPException(status_code=400, detail="No GitHub token configured")
+
+    pulled_prompts, errors = await pull_prompts_from_github(token, cfg.repo, cfg.branch, cfg.path_prefix)
+    pulled = 0
+    for pd in pulled_prompts:
+        pr_result = await db.execute(
+            select(Prompt).where(Prompt.workspace_id == workspace.id, Prompt.name == pd["name"])
+        )
+        prompt = pr_result.scalar_one_or_none()
+        if not prompt:
+            prompt = Prompt(workspace_id=workspace.id, name=pd["name"], description=pd.get("description"))
+            db.add(prompt)
+            await db.flush()
+        max_r = await db.execute(
+            select(func.max(PromptVersion.version)).where(PromptVersion.prompt_id == prompt.id)
+        )
+        current_max = max_r.scalar() or 0
+        for pv in (pd.get("versions") or []):
+            db.add(PromptVersion(
+                prompt_id=prompt.id, version=current_max + 1, content=pv.get("content", ""),
+                variables=[], commit_message=pv.get("commit_message") or "Pulled from GitHub",
+                environment=pv.get("environment", "production"), model_hint=pv.get("model_hint"),
+            ))
+            current_max += 1
+        pulled += 1
+
+    await db.commit()
+    cfg.last_sync_at = datetime.now(UTC)
+    cfg.last_sync_status = "success" if not errors else "partial"
+    cfg.last_sync_message = f"Pulled {pulled} prompts" + (
+        f"; errors: {'; '.join(errors[:3])}" if errors else ""
+    )
+    await db.commit()
+    log.info("github_sync_pull", workspace_id=str(workspace.id), pulled=pulled, errors=len(errors))
+    return GithubSyncResult(pushed=0, pulled=pulled, skipped=0, errors=errors, synced_at=cfg.last_sync_at)
 
 
 # ── GET /prompts/{name} ────────────────────────────────────────────────────────
@@ -454,3 +630,54 @@ async def get_prompt_metrics(
         )
 
     return PromptMetrics(items=items)
+
+
+# ── PUT /prompts/{name}/versions/{v} — edit content (auto-bumps version) ───────
+
+
+@router.put("/{name}/versions/{v}", response_model=VersionResponse, status_code=status.HTTP_201_CREATED)
+async def edit_version(
+    name: str,
+    v: int,
+    body: VersionCreate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> VersionResponse:
+    """
+    Edit a version's content. Creates a new version (auto-bump) — versions are immutable.
+    The new version inherits environment/model_hint from the source unless overridden in body.
+    """
+    prompt = await _get_prompt_or_404(name, workspace.id, db)
+
+    # Load source version to inherit defaults
+    src_result = await db.execute(
+        select(PromptVersion).where(
+            PromptVersion.prompt_id == prompt.id,
+            PromptVersion.version == v,
+        )
+    )
+    src = src_result.scalar_one_or_none()
+    if src is None:
+        raise HTTPException(status_code=404, detail=f"Version {v} not found for prompt '{name}'")
+
+    max_result = await db.execute(
+        select(func.max(PromptVersion.version)).where(PromptVersion.prompt_id == prompt.id)
+    )
+    new_version_num = (max_result.scalar() or 0) + 1
+
+    new_v = PromptVersion(
+        prompt_id=prompt.id,
+        version=new_version_num,
+        content=body.content,
+        variables=body.variables if body.variables else src.variables,
+        commit_message=body.commit_message or f"Edit of v{v}",
+        environment=body.environment if body.environment != "production" or src.environment == "production" else src.environment,
+        model_hint=body.model_hint if body.model_hint is not None else src.model_hint,
+    )
+    db.add(new_v)
+    prompt.updated_at = datetime.now(UTC)
+    await db.flush()
+    await db.commit()
+    await db.refresh(new_v)
+    log.info("prompt_version_edited", workspace_id=str(workspace.id), name=name, source_version=v, new_version=new_version_num)
+    return VersionResponse.model_validate(new_v)

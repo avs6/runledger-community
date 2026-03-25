@@ -44,6 +44,7 @@ from runledger_api.routers import saas as saas_router
 from runledger_api.routers import sessions as sessions_router
 from runledger_api.routers import settings as settings_router
 from runledger_api.routers import users as users_router
+from runledger_api.routers import eval_experiments as eval_experiments_router
 from runledger_api.routers import scim as scim_router
 from runledger_api.routers import sso as sso_router
 from runledger_api.routers import warehouse as warehouse_router
@@ -127,6 +128,7 @@ app.include_router(sso_router.router)
 app.include_router(scim_router.router)
 app.include_router(kafka_export_router.router)
 app.include_router(ops_router.router)
+app.include_router(eval_experiments_router.router)
 app.include_router(pricing_intelligence_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────

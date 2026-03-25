@@ -65,6 +65,9 @@ services:
       STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
       STRIPE_PRICE_GROWTH: ${STRIPE_PRICE_GROWTH:-}
       STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+      RUNLEDGER_MODE: enterprise
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_PROMPTS_REPO: ${GITHUB_PROMPTS_REPO:-}
     volumes:
       - ../logs:/app/logs
       # Provider pricing — edit config/pricing.yml then restart api + beat to apply
@@ -92,6 +95,7 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+      RUNLEDGER_MODE: enterprise
     volumes:
       - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
@@ -114,6 +118,7 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
+      RUNLEDGER_MODE: enterprise
     volumes:
       - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:

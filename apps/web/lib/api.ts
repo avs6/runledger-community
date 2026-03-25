@@ -81,6 +81,14 @@ import type {
   PurgeResult,
   EmailPreference,
   EmailLogList,
+  EvalDataset,
+  EvalDatasetList,
+  EvalExperiment,
+  EvalExperimentList,
+  ExperimentModelConfig,
+  GithubConfig,
+  GithubSyncResult,
+  DatasetItem,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -1691,6 +1699,16 @@ export async function testKafkaExportConfig(
   })
 }
 
+export async function triggerPricingSync(
+  apiKey: string,
+  options?: { force?: boolean; dry_run?: boolean; providers?: string[] }
+): Promise<{ inserted: number; updated: number; skipped: number; errors: string[] }> {
+  return apiFetch('/pricing/sync', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(options ?? { force: true }),
+  })
+}
+
 export async function listKafkaExportDeliveries(
   apiKey: string,
   configId: string,
@@ -1700,4 +1718,95 @@ export async function listKafkaExportDeliveries(
     `/integrations/kafka/configs/${configId}/deliveries?limit=${limit}`,
     apiKey
   )
+}
+
+// ── Eval Datasets ──────────────────────────────────────────────────────────────
+
+export async function listEvalDatasets(apiKey: string, limit = 50): Promise<EvalDatasetList> {
+  return apiFetch<EvalDatasetList>(`/datasets?limit=${limit}`, apiKey)
+}
+
+export async function createEvalDataset(
+  apiKey: string,
+  data: { name: string; description?: string; source?: string; items?: DatasetItem[] }
+): Promise<EvalDataset> {
+  return apiFetch<EvalDataset>('/datasets', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function getEvalDataset(apiKey: string, id: string): Promise<EvalDataset> {
+  return apiFetch<EvalDataset>(`/datasets/${id}`, apiKey)
+}
+
+export async function updateEvalDataset(
+  apiKey: string,
+  id: string,
+  data: { name?: string; description?: string; items?: DatasetItem[] }
+): Promise<EvalDataset> {
+  return apiFetch<EvalDataset>(`/datasets/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export async function deleteEvalDataset(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/datasets/${id}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Eval Experiments ───────────────────────────────────────────────────────────
+
+export async function listEvalExperiments(apiKey: string, limit = 50): Promise<EvalExperimentList> {
+  return apiFetch<EvalExperimentList>(`/experiments?limit=${limit}`, apiKey)
+}
+
+export async function createEvalExperiment(
+  apiKey: string,
+  data: {
+    name: string
+    description?: string
+    dataset_id?: string
+    prompt_name?: string
+    prompt_version?: number
+    evaluator_ids?: string[]
+    models?: ExperimentModelConfig[]
+  }
+): Promise<EvalExperiment> {
+  return apiFetch<EvalExperiment>('/experiments', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function getEvalExperiment(apiKey: string, id: string): Promise<EvalExperiment> {
+  return apiFetch<EvalExperiment>(`/experiments/${id}`, apiKey)
+}
+
+export async function deleteEvalExperiment(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/experiments/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function runEvalExperiment(apiKey: string, id: string): Promise<EvalExperiment> {
+  return apiFetch<EvalExperiment>(`/experiments/${id}/run`, apiKey, { method: 'POST' })
+}
+
+// ── GitHub Sync ────────────────────────────────────────────────────────────────
+
+export async function getGithubConfig(apiKey: string): Promise<GithubConfig | null> {
+  try {
+    return await apiFetch<GithubConfig>('/prompts/github-config', apiKey)
+  } catch {
+    return null
+  }
+}
+
+export async function saveGithubConfig(
+  apiKey: string,
+  data: { repo: string; branch: string; path_prefix: string; token?: string; auto_sync?: boolean },
+  exists: boolean
+): Promise<GithubConfig> {
+  return apiFetch<GithubConfig>('/prompts/github-config', apiKey, {
+    method: exists ? 'PUT' : 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function pushToGithub(apiKey: string): Promise<GithubSyncResult> {
+  return apiFetch<GithubSyncResult>('/prompts/sync/push', apiKey, { method: 'POST' })
+}
+
+export async function pullFromGithub(apiKey: string): Promise<GithubSyncResult> {
+  return apiFetch<GithubSyncResult>('/prompts/sync/pull', apiKey, { method: 'POST' })
 }

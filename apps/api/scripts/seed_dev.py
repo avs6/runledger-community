@@ -59,11 +59,22 @@ async def seed() -> None:
         user = result.scalar_one_or_none()
         if user is None:
             pw_hash = bcrypt.hashpw(DEFAULT_PASSWORD.encode(), bcrypt.gensalt()).decode()
-            user = User(id=uuid.uuid4(), email=DEFAULT_EMAIL, password_hash=pw_hash)
+            user = User(
+                id=uuid.uuid4(),
+                email=DEFAULT_EMAIL,
+                password_hash=pw_hash,
+                is_active=True,
+                is_platform_admin=True,
+                email_verified=True,  # seed user never needs email verification
+            )
             session.add(user)
             await session.flush()
             print(f"Created user: {user.email} ({user.id})")
         else:
+            # Ensure existing seed user is always verified and active
+            if not user.email_verified:
+                user.email_verified = True
+                print(f"Fixed email_verified for existing user: {user.email}")
             print(f"User already exists: {user.email} ({user.id})")
 
         # ── WorkspaceUser ─────────────────────────────────────────────────────
