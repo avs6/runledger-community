@@ -13,14 +13,14 @@ from runledger_api.core.db import get_db
 
 # Run all tests in enterprise mode so feature-gated endpoints are accessible.
 settings.runledger_mode = "enterprise"
-from runledger_api.core.deps import (
+from runledger_api.core.deps import (  # noqa: E402
     get_current_workspace,
     require_member,
     require_org_admin,
     require_workspace_admin,
 )
-from runledger_api.core.redis import get_redis
-from runledger_api.main import app
+from runledger_api.core.redis import get_redis  # noqa: E402
+from runledger_api.main import app  # noqa: E402
 
 
 @pytest.fixture

@@ -25,7 +25,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -132,15 +131,18 @@ async def test_create_sso_config(authed_client: AsyncClient, mock_db_session: As
 
     mock_db_session.refresh = AsyncMock(side_effect=_mock_refresh)
 
-    resp = await authed_client.post("/sso/configs", json={
-        "provider": "google",
-        "issuer_url": "https://accounts.google.com",
-        "client_id": "client_abc",
-        "client_secret": "secret_xyz",
-        "scopes": "openid email profile",
-        "default_role": "member",
-        "enabled": True,
-    })
+    resp = await authed_client.post(
+        "/sso/configs",
+        json={
+            "provider": "google",
+            "issuer_url": "https://accounts.google.com",
+            "client_id": "client_abc",
+            "client_secret": "secret_xyz",
+            "scopes": "openid email profile",
+            "default_role": "member",
+            "enabled": True,
+        },
+    )
     assert resp.status_code == 201
     data = resp.json()
     assert data["provider"] == "google"
@@ -151,12 +153,15 @@ async def test_create_sso_config(authed_client: AsyncClient, mock_db_session: As
 async def test_create_sso_config_duplicate(authed_client: AsyncClient, mock_db_session: AsyncMock):
     existing = _make_sso_config()
     mock_db_session.execute = AsyncMock(return_value=_scalar_one_or_none(existing))
-    resp = await authed_client.post("/sso/configs", json={
-        "provider": "google",
-        "issuer_url": "https://accounts.google.com",
-        "client_id": "c",
-        "client_secret": "s",
-    })
+    resp = await authed_client.post(
+        "/sso/configs",
+        json={
+            "provider": "google",
+            "issuer_url": "https://accounts.google.com",
+            "client_id": "c",
+            "client_secret": "s",
+        },
+    )
     assert resp.status_code == 409
 
 
@@ -261,7 +266,11 @@ async def test_sso_authorize(authed_client: AsyncClient, mock_db_session: AsyncM
         "token_endpoint": "https://oauth2.googleapis.com/token",
     }
 
-    with patch("runledger_api.routers.sso.discover_oidc", new_callable=AsyncMock, return_value=discovery_doc):
+    with patch(
+        "runledger_api.routers.sso.discover_oidc",
+        new_callable=AsyncMock,
+        return_value=discovery_doc,
+    ):
         resp = await authed_client.get(f"/auth/sso/authorize/{CONFIG_ID}")
 
     assert resp.status_code == 200
@@ -284,7 +293,9 @@ async def test_sso_authorize_not_found(authed_client: AsyncClient, mock_db_sessi
 
 @pytest.mark.asyncio
 async def test_sso_callback_error_param(client: AsyncClient):
-    resp = await client.get(f"/auth/sso/callback/{CONFIG_ID}?error=access_denied", follow_redirects=False)
+    resp = await client.get(
+        f"/auth/sso/callback/{CONFIG_ID}?error=access_denied", follow_redirects=False
+    )
     assert resp.status_code in (302, 307)
     assert "error=access_denied" in resp.headers["location"]
 
@@ -301,7 +312,9 @@ async def test_sso_callback_missing_params(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_sso_exchange_invalid_token(client: AsyncClient):
-    with patch("runledger_api.routers.sso._pop_sso_token", new_callable=AsyncMock, return_value=None):
+    with patch(
+        "runledger_api.routers.sso._pop_sso_token", new_callable=AsyncMock, return_value=None
+    ):
         resp = await client.post("/auth/sso/exchange", json={"token": "bad_token"})
     assert resp.status_code == 401
 
@@ -324,7 +337,9 @@ async def test_sso_exchange_valid(client: AsyncClient):
         workspace_ids=[],
     )
 
-    with patch("runledger_api.routers.sso._pop_sso_token", new_callable=AsyncMock, return_value=fake_resp):
+    with patch(
+        "runledger_api.routers.sso._pop_sso_token", new_callable=AsyncMock, return_value=fake_resp
+    ):
         resp = await client.post("/auth/sso/exchange", json={"token": "sso_goodtoken"})
 
     assert resp.status_code == 200

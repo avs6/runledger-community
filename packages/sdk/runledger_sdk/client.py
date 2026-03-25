@@ -235,7 +235,9 @@ class RunLedger:
         from runledger_sdk.otel_exporter import RunLedgerOTLPExporter  # noqa: PLC0415
 
         try:
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: PLC0415
+            from opentelemetry.sdk.trace.export import (
+                BatchSpanProcessor,  # noqa: PLC0415
+            )
         except ImportError as exc:
             raise ImportError(
                 "opentelemetry-sdk is required. Install with: pip install opentelemetry-sdk"

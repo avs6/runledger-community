@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.feature_gate import require_cloud
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute, RoutingPolicy
 from runledger_api.models.tenant import Workspace
@@ -55,7 +56,6 @@ from runledger_api.schemas.gateway import (
     RoutingRecommendationModel,
     RoutingRecommendationResponse,
 )
-from runledger_api.core.feature_gate import require_cloud
 from runledger_api.services.gateway import (
     check_cache,
     increment_hit_count,
@@ -637,7 +637,9 @@ async def get_routing_recommendation(
                 )
                 .order_by(GatewayRoute.priority.asc())
             )
-        ).scalars().all()
+        )
+        .scalars()
+        .all()
     )
     if not routes:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No active routes for alias '{alias}'")
@@ -670,9 +672,7 @@ async def get_routing_recommendation(
         )
 
     # Sort by cost_per_success ascending (None = worst)
-    items.sort(
-        key=lambda x: (x.cost_per_success is None, x.cost_per_success or float("inf"))
-    )
+    items.sort(key=lambda x: (x.cost_per_success is None, x.cost_per_success or float("inf")))
 
     # Compute improvement_vs_current: % cheaper than the current top-priority route
     # "current" = highest-priority route (routes[0] before sort, = routes[0] by priority)

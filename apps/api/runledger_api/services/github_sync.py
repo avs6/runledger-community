@@ -12,9 +12,6 @@ Falls back to raw REST if PyGithub is not installed.
 from __future__ import annotations
 
 import base64
-import json
-import os
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -134,10 +131,10 @@ def _prompt_to_yaml(prompt: dict[str, Any]) -> str:
         f"description: {_yaml_str(prompt.get('description') or '')}",
         "variables:",
     ]
-    for v in (prompt.get("variables") or []):
+    for v in prompt.get("variables") or []:
         lines.append(f"  - {v}")
     lines.append("versions:")
-    for pv in (prompt.get("versions") or []):
+    for pv in prompt.get("versions") or []:
         lines += [
             f"  - version: {pv.get('version', 1)}",
             f"    environment: {pv.get('environment', 'production')}",

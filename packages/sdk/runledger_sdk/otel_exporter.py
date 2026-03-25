@@ -55,6 +55,7 @@ def _attr_value(v: Any) -> dict[str, Any]:
         return {"doubleValue": v}
     if isinstance(v, bytes):
         import base64  # noqa: PLC0415
+
         return {"bytesValue": base64.b64encode(v).decode()}
     if isinstance(v, (list, tuple)):
         values = [_attr_value(i) for i in v]
@@ -82,6 +83,7 @@ def _span_kind(kind: Any) -> int:
     """Map OTel SpanKind enum to OTLP integer."""
     try:
         from opentelemetry.trace import SpanKind  # noqa: PLC0415
+
         mapping = {
             SpanKind.INTERNAL: 1,
             SpanKind.SERVER: 2,
@@ -98,6 +100,7 @@ def _status_code(status: Any) -> int:
     """Map OTel StatusCode to OTLP integer."""
     try:
         from opentelemetry.trace import StatusCode  # noqa: PLC0415
+
         if status.status_code == StatusCode.OK:
             return 1
         if status.status_code == StatusCode.ERROR:
@@ -159,26 +162,28 @@ def spans_to_otlp_json(spans: Sequence[Any]) -> dict[str, Any]:
         }
 
         if parent_ctx is not None:
-            otlp_span["parentSpanId"] = _hex_id(
-                getattr(parent_ctx, "span_id", 0), 16
-            )
+            otlp_span["parentSpanId"] = _hex_id(getattr(parent_ctx, "span_id", 0), 16)
 
         # Span events
         for event in getattr(span, "events", []):
-            otlp_span["events"].append({
-                "timeUnixNano": _ns(getattr(event, "timestamp", None)),
-                "name": event.name,
-                "attributes": _attrs(dict(event.attributes or {})),
-            })
+            otlp_span["events"].append(
+                {
+                    "timeUnixNano": _ns(getattr(event, "timestamp", None)),
+                    "name": event.name,
+                    "attributes": _attrs(dict(event.attributes or {})),
+                }
+            )
 
         by_resource[resource_key]["scopeSpans"][scope_key]["spans"].append(otlp_span)
 
     resource_spans = []
     for rs in by_resource.values():
-        resource_spans.append({
-            "resource": rs["resource"],
-            "scopeSpans": list(rs["scopeSpans"].values()),
-        })
+        resource_spans.append(
+            {
+                "resource": rs["resource"],
+                "scopeSpans": list(rs["scopeSpans"].values()),
+            }
+        )
 
     return {"resourceSpans": resource_spans}
 

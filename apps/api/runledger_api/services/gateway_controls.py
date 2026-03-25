@@ -35,10 +35,7 @@ def _estimate_cost(
     """Estimate USD cost from token counts using per-model pricing rates."""
     input_t = Decimal(str(row.total_input or 0))
     output_t = Decimal(str(row.total_output or 0))
-    return (
-        input_t / Decimal("1000000") * input_rate
-        + output_t / Decimal("1000000") * output_rate
-    )
+    return input_t / Decimal("1000000") * input_rate + output_t / Decimal("1000000") * output_rate
 
 
 async def _lookup_model_rates(
@@ -67,7 +64,10 @@ async def _lookup_model_rates(
         .where(
             and_(
                 ProviderPricing.model == model,
-                or_(ProviderPricing.effective_from.is_(None), ProviderPricing.effective_from <= today),
+                or_(
+                    ProviderPricing.effective_from.is_(None),
+                    ProviderPricing.effective_from <= today,
+                ),
             )
         )
         .order_by(
@@ -110,34 +110,28 @@ async def check_cost_cap(
     month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
 
     # Single query covering both windows
-    stmt = (
-        select(
-            func.sum(GatewayRequest.input_tokens).label("total_input"),
-            func.sum(GatewayRequest.output_tokens).label("total_output"),
-            func.min(GatewayRequest.created_at).label("oldest"),
-        )
-        .where(
-            GatewayRequest.route_id == route.id,
-            GatewayRequest.workspace_id == workspace_id,
-            GatewayRequest.created_at >= month_start,
-            GatewayRequest.status != "cache_hit",
-        )
+    stmt = select(
+        func.sum(GatewayRequest.input_tokens).label("total_input"),
+        func.sum(GatewayRequest.output_tokens).label("total_output"),
+        func.min(GatewayRequest.created_at).label("oldest"),
+    ).where(
+        GatewayRequest.route_id == route.id,
+        GatewayRequest.workspace_id == workspace_id,
+        GatewayRequest.created_at >= month_start,
+        GatewayRequest.status != "cache_hit",
     )
     result = await db.execute(stmt)
     monthly_row = result.one()
 
     # Daily subset
-    day_stmt = (
-        select(
-            func.sum(GatewayRequest.input_tokens).label("total_input"),
-            func.sum(GatewayRequest.output_tokens).label("total_output"),
-        )
-        .where(
-            GatewayRequest.route_id == route.id,
-            GatewayRequest.workspace_id == workspace_id,
-            GatewayRequest.created_at >= today_start,
-            GatewayRequest.status != "cache_hit",
-        )
+    day_stmt = select(
+        func.sum(GatewayRequest.input_tokens).label("total_input"),
+        func.sum(GatewayRequest.output_tokens).label("total_output"),
+    ).where(
+        GatewayRequest.route_id == route.id,
+        GatewayRequest.workspace_id == workspace_id,
+        GatewayRequest.created_at >= today_start,
+        GatewayRequest.status != "cache_hit",
     )
     day_result = await db.execute(day_stmt)
     daily_row = day_result.one()

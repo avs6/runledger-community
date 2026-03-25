@@ -8,6 +8,7 @@ get_effective_contract(db, workspace_id, provider, model, at)
 apply_contract_rate(contract, input_per_1m, output_per_1m)
   → Returns (effective_input, effective_output) after applying discount/override.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -79,7 +80,8 @@ def apply_contract_rate(
 
     if contract.discount_pct is not None and contract.discount_pct > 0:
         factor = Decimal(1) - (contract.discount_pct / Decimal(100))
-        return (base_input_per_1m * factor).quantize(Decimal("0.00000001")), \
-               (base_output_per_1m * factor).quantize(Decimal("0.00000001"))
+        return (base_input_per_1m * factor).quantize(Decimal("0.00000001")), (
+            base_output_per_1m * factor
+        ).quantize(Decimal("0.00000001"))
 
     return base_input_per_1m, base_output_per_1m

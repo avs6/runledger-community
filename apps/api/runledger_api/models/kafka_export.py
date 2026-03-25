@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
@@ -64,9 +64,7 @@ class KafkaExportDelivery(Base):
     """Log entry for each Kafka publish attempt. status: pending | success | failed"""
 
     __tablename__ = "kafka_export_deliveries"
-    __table_args__ = (
-        sa.Index("ix_kafka_export_deliveries_config", "config_id", "created_at"),
-    )
+    __table_args__ = (sa.Index("ix_kafka_export_deliveries_config", "config_id", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -78,9 +76,7 @@ class KafkaExportDelivery(Base):
     )
     event_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     topic: Mapped[str] = mapped_column(sa.String(256), nullable=False)
-    status: Mapped[str] = mapped_column(
-        sa.String(16), nullable=False, server_default="'pending'"
-    )
+    status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="'pending'")
     error_detail: Mapped[str | None] = mapped_column(sa.String(512), nullable=True)
     attempt: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
     delivered_at: Mapped[datetime | None] = mapped_column(

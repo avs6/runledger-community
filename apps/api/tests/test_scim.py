@@ -21,7 +21,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
-
 from runledger_api.core.db import get_db
 from runledger_api.core.redis import get_redis
 from runledger_api.main import app
@@ -82,9 +81,11 @@ def _make_user(**kwargs) -> SimpleNamespace:
 
 # ── SCIM auth fixture ─────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 async def scim_client(mock_db_session: AsyncMock, mock_redis_client: AsyncMock):
     """Client that sends valid SCIM Bearer token; mocks out token + tenant lookup."""
+
     async def override_get_db():
         yield mock_db_session
 
@@ -94,7 +95,9 @@ async def scim_client(mock_db_session: AsyncMock, mock_redis_client: AsyncMock):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = override_get_redis
 
-    from httpx import ASGITransport, AsyncClient as HClient  # noqa: PLC0415
+    from httpx import ASGITransport  # noqa: PLC0415
+    from httpx import AsyncClient as HClient
+
     async with HClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -160,15 +163,25 @@ async def test_scim_provision_new_user(scim_client: AsyncClient, mock_db_session
 
     mock_db_session.execute = AsyncMock(side_effect=_side)
     mock_db_session.flush = AsyncMock()
-    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, 'id', new_user.id) or setattr(obj, 'full_name', new_user.full_name) or setattr(obj, 'email', new_user.email) or setattr(obj, 'is_active', new_user.is_active))
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: (
+            setattr(obj, "id", new_user.id)
+            or setattr(obj, "full_name", new_user.full_name)
+            or setattr(obj, "email", new_user.email)
+            or setattr(obj, "is_active", new_user.is_active)
+        )
+    )
 
-    resp = await scim_client.post("/scim/v2/Users", json={
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "bob@example.com",
-        "name": {"givenName": "Bob", "familyName": "Builder"},
-        "emails": [{"value": "bob@example.com", "type": "work", "primary": True}],
-        "active": True,
-    })
+    resp = await scim_client.post(
+        "/scim/v2/Users",
+        json={
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "bob@example.com",
+            "name": {"givenName": "Bob", "familyName": "Builder"},
+            "emails": [{"value": "bob@example.com", "type": "work", "primary": True}],
+            "active": True,
+        },
+    )
     assert resp.status_code == 201
     data = resp.json()
     assert data["userName"] == "bob@example.com"
@@ -243,10 +256,13 @@ async def test_scim_patch_deactivate(scim_client: AsyncClient, mock_db_session: 
     mock_db_session.flush = AsyncMock()
     mock_db_session.refresh = AsyncMock()
 
-    resp = await scim_client.patch(f"/scim/v2/Users/{USER_ID}", json={
-        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-        "Operations": [{"op": "replace", "value": {"active": False}}],
-    })
+    resp = await scim_client.patch(
+        f"/scim/v2/Users/{USER_ID}",
+        json={
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+            "Operations": [{"op": "replace", "value": {"active": False}}],
+        },
+    )
     assert resp.status_code == 200
     assert user.is_active is False
 
@@ -303,8 +319,11 @@ async def test_scim_invalid_username(scim_client: AsyncClient, mock_db_session: 
     mock_db_session.execute = AsyncMock(side_effect=_side)
     mock_db_session.flush = AsyncMock()
 
-    resp = await scim_client.post("/scim/v2/Users", json={
-        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName": "notanemail",
-    })
+    resp = await scim_client.post(
+        "/scim/v2/Users",
+        json={
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            "userName": "notanemail",
+        },
+    )
     assert resp.status_code == 422

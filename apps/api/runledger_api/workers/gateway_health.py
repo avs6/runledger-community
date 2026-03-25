@@ -25,10 +25,10 @@ from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 
 log = structlog.get_logger()
 
-_ERROR_RATE_THRESHOLD = 0.05   # 5 %
+_ERROR_RATE_THRESHOLD = 0.05  # 5 %
 _WINDOW_MINUTES = 10
-_FAILURE_THRESHOLD = 3         # consecutive bad windows before auto-disable
-_MIN_REQUESTS = 5              # ignore routes with fewer requests in window
+_FAILURE_THRESHOLD = 3  # consecutive bad windows before auto-disable
+_MIN_REQUESTS = 5  # ignore routes with fewer requests in window
 
 
 def _make_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -60,17 +60,14 @@ async def _run_health_check() -> dict[str, int]:
             now = datetime.now(UTC)
 
             # Query request counts in the health window
-            stats_stmt = (
-                select(
-                    func.count(GatewayRequest.id).label("total"),
-                    func.count(GatewayRequest.id)
-                    .filter(GatewayRequest.status == "error")
-                    .label("errors"),
-                )
-                .where(
-                    GatewayRequest.route_id == route.id,
-                    GatewayRequest.created_at >= cutoff,
-                )
+            stats_stmt = select(
+                func.count(GatewayRequest.id).label("total"),
+                func.count(GatewayRequest.id)
+                .filter(GatewayRequest.status == "error")
+                .label("errors"),
+            ).where(
+                GatewayRequest.route_id == route.id,
+                GatewayRequest.created_at >= cutoff,
             )
             result = await db.execute(stats_stmt)
             row = result.one()
@@ -100,7 +97,11 @@ async def _run_health_check() -> dict[str, int]:
                 new_failures = route.consecutive_health_failures + 1
                 updates: dict = {"consecutive_health_failures": new_failures}
 
-                if route.is_active and route.health_auto_disable and new_failures >= _FAILURE_THRESHOLD:
+                if (
+                    route.is_active
+                    and route.health_auto_disable
+                    and new_failures >= _FAILURE_THRESHOLD
+                ):
                     reason = (
                         f"Auto-disabled: {errors}/{total} errors "
                         f"({error_rate:.1%}) in last {_WINDOW_MINUTES}m"
@@ -120,7 +121,11 @@ async def _run_health_check() -> dict[str, int]:
                 )
             else:
                 # Healthy window
-                if not route.is_active and route.disabled_reason and route.disabled_reason.startswith("Auto-disabled"):
+                if (
+                    not route.is_active
+                    and route.disabled_reason
+                    and route.disabled_reason.startswith("Auto-disabled")
+                ):
                     # Re-enable auto-disabled routes that have recovered
                     await db.execute(
                         update(GatewayRoute)

@@ -471,7 +471,9 @@ async def get_outcome_stats_by_model(
         r.model: {
             "sample_count": int(r.sample_count),
             "success_rate": float(r.success_rate),
-            "cost_per_success": float(r.cost_per_success) if r.cost_per_success is not None else None,
+            "cost_per_success": float(r.cost_per_success)
+            if r.cost_per_success is not None
+            else None,
         }
         for r in rows.all()
     }

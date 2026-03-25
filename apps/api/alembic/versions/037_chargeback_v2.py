@@ -40,9 +40,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_cost_centers_workspace", "cost_centers", ["workspace_id"])
-    op.create_index(
-        "ix_cost_centers_parent", "cost_centers", ["workspace_id", "parent_id"]
-    )
+    op.create_index("ix_cost_centers_parent", "cost_centers", ["workspace_id", "parent_id"])
 
     # ── billing_adjustments ───────────────────────────────────────────────────
     op.create_table(
@@ -71,12 +69,8 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index(
-        "ix_billing_adjustments_period", "billing_adjustments", ["billing_period_id"]
-    )
-    op.create_index(
-        "ix_billing_adjustments_workspace", "billing_adjustments", ["workspace_id"]
-    )
+    op.create_index("ix_billing_adjustments_period", "billing_adjustments", ["billing_period_id"])
+    op.create_index("ix_billing_adjustments_workspace", "billing_adjustments", ["workspace_id"])
 
     # ── chargeback_rules — add cost_center_id FK ──────────────────────────────
     op.add_column(
@@ -92,9 +86,7 @@ def upgrade() -> None:
     # ── billing_periods — add multi-currency fields ───────────────────────────
     op.add_column(
         "billing_periods",
-        sa.Column(
-            "currency", sa.String(3), nullable=False, server_default=sa.text("'USD'")
-        ),
+        sa.Column("currency", sa.String(3), nullable=False, server_default=sa.text("'USD'")),
     )
     op.add_column(
         "billing_periods",

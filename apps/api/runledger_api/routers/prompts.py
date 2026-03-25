@@ -35,12 +35,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.models.eval_experiments import PromptGithubConfig
 from runledger_api.models.events import AgentRun
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
 from runledger_api.routers.approvals import validate_approved
-from runledger_api.models.eval_experiments import PromptGithubConfig
 from runledger_api.schemas.eval_experiments import (
     GithubConfigCreate,
     GithubConfigResponse,
@@ -153,14 +153,20 @@ async def get_github_config(workspace: WorkspaceDep, db: DbDep) -> PromptGithubC
     return result.scalar_one_or_none()
 
 
-@router.post("/github-config", response_model=GithubConfigResponse, status_code=status.HTTP_201_CREATED)
-async def create_github_config(body: GithubConfigCreate, workspace: WorkspaceDep, db: DbDep) -> PromptGithubConfig:
+@router.post(
+    "/github-config", response_model=GithubConfigResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_github_config(
+    body: GithubConfigCreate, workspace: WorkspaceDep, db: DbDep
+) -> PromptGithubConfig:
     """Create GitHub sync config for this workspace."""
     existing = await db.execute(
         select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="GitHub config already exists — use PUT to update")
+        raise HTTPException(
+            status_code=409, detail="GitHub config already exists — use PUT to update"
+        )
 
     token_enc: str | None = None
     if body.token:
@@ -181,7 +187,9 @@ async def create_github_config(body: GithubConfigCreate, workspace: WorkspaceDep
 
 
 @router.put("/github-config", response_model=GithubConfigResponse)
-async def update_github_config(body: GithubConfigUpdate, workspace: WorkspaceDep, db: DbDep) -> PromptGithubConfig:
+async def update_github_config(
+    body: GithubConfigUpdate, workspace: WorkspaceDep, db: DbDep
+) -> PromptGithubConfig:
     """Update GitHub sync config."""
     result = await db.execute(
         select(PromptGithubConfig).where(PromptGithubConfig.workspace_id == workspace.id)
@@ -226,16 +234,32 @@ async def push_to_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult
     prompt_dicts = []
     for p in prompts:
         versions_result = await db.execute(
-            select(PromptVersion).where(PromptVersion.prompt_id == p.id).order_by(PromptVersion.version.asc())
+            select(PromptVersion)
+            .where(PromptVersion.prompt_id == p.id)
+            .order_by(PromptVersion.version.asc())
         )
         versions = list(versions_result.scalars().all())
-        prompt_dicts.append({
-            "name": p.name, "description": p.description or "", "variables": [],
-            "versions": [{"version": v.version, "content": v.content, "environment": v.environment,
-                          "model_hint": v.model_hint, "commit_message": v.commit_message or ""} for v in versions],
-        })
+        prompt_dicts.append(
+            {
+                "name": p.name,
+                "description": p.description or "",
+                "variables": [],
+                "versions": [
+                    {
+                        "version": v.version,
+                        "content": v.content,
+                        "environment": v.environment,
+                        "model_hint": v.model_hint,
+                        "commit_message": v.commit_message or "",
+                    }
+                    for v in versions
+                ],
+            }
+        )
 
-    sync_result = await push_prompts_to_github(token, cfg.repo, cfg.branch, cfg.path_prefix, prompt_dicts)
+    sync_result = await push_prompts_to_github(
+        token, cfg.repo, cfg.branch, cfg.path_prefix, prompt_dicts
+    )
     cfg.last_sync_at = datetime.now(UTC)
     cfg.last_sync_status = "success" if not sync_result["errors"] else "partial"
     cfg.last_sync_message = f"Pushed {sync_result['pushed']} prompts" + (
@@ -244,8 +268,11 @@ async def push_to_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult
     await db.commit()
     log.info("github_sync_push", workspace_id=str(workspace.id), **sync_result)
     return GithubSyncResult(
-        pushed=sync_result["pushed"], pulled=0, skipped=sync_result["skipped"],
-        errors=sync_result["errors"], synced_at=cfg.last_sync_at,
+        pushed=sync_result["pushed"],
+        pulled=0,
+        skipped=sync_result["skipped"],
+        errors=sync_result["errors"],
+        synced_at=cfg.last_sync_at,
     )
 
 
@@ -263,7 +290,9 @@ async def pull_from_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResu
     if not token:
         raise HTTPException(status_code=400, detail="No GitHub token configured")
 
-    pulled_prompts, errors = await pull_prompts_from_github(token, cfg.repo, cfg.branch, cfg.path_prefix)
+    pulled_prompts, errors = await pull_prompts_from_github(
+        token, cfg.repo, cfg.branch, cfg.path_prefix
+    )
     pulled = 0
     for pd in pulled_prompts:
         pr_result = await db.execute(
@@ -271,19 +300,27 @@ async def pull_from_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResu
         )
         prompt = pr_result.scalar_one_or_none()
         if not prompt:
-            prompt = Prompt(workspace_id=workspace.id, name=pd["name"], description=pd.get("description"))
+            prompt = Prompt(
+                workspace_id=workspace.id, name=pd["name"], description=pd.get("description")
+            )
             db.add(prompt)
             await db.flush()
         max_r = await db.execute(
             select(func.max(PromptVersion.version)).where(PromptVersion.prompt_id == prompt.id)
         )
         current_max = max_r.scalar() or 0
-        for pv in (pd.get("versions") or []):
-            db.add(PromptVersion(
-                prompt_id=prompt.id, version=current_max + 1, content=pv.get("content", ""),
-                variables=[], commit_message=pv.get("commit_message") or "Pulled from GitHub",
-                environment=pv.get("environment", "production"), model_hint=pv.get("model_hint"),
-            ))
+        for pv in pd.get("versions") or []:
+            db.add(
+                PromptVersion(
+                    prompt_id=prompt.id,
+                    version=current_max + 1,
+                    content=pv.get("content", ""),
+                    variables=[],
+                    commit_message=pv.get("commit_message") or "Pulled from GitHub",
+                    environment=pv.get("environment", "production"),
+                    model_hint=pv.get("model_hint"),
+                )
+            )
             current_max += 1
         pulled += 1
 
@@ -295,7 +332,9 @@ async def pull_from_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResu
     )
     await db.commit()
     log.info("github_sync_pull", workspace_id=str(workspace.id), pulled=pulled, errors=len(errors))
-    return GithubSyncResult(pushed=0, pulled=pulled, skipped=0, errors=errors, synced_at=cfg.last_sync_at)
+    return GithubSyncResult(
+        pushed=0, pulled=pulled, skipped=0, errors=errors, synced_at=cfg.last_sync_at
+    )
 
 
 # ── GET /prompts/{name} ────────────────────────────────────────────────────────
@@ -635,7 +674,9 @@ async def get_prompt_metrics(
 # ── PUT /prompts/{name}/versions/{v} — edit content (auto-bumps version) ───────
 
 
-@router.put("/{name}/versions/{v}", response_model=VersionResponse, status_code=status.HTTP_201_CREATED)
+@router.put(
+    "/{name}/versions/{v}", response_model=VersionResponse, status_code=status.HTTP_201_CREATED
+)
 async def edit_version(
     name: str,
     v: int,
@@ -671,7 +712,9 @@ async def edit_version(
         content=body.content,
         variables=body.variables if body.variables else src.variables,
         commit_message=body.commit_message or f"Edit of v{v}",
-        environment=body.environment if body.environment != "production" or src.environment == "production" else src.environment,
+        environment=body.environment
+        if body.environment != "production" or src.environment == "production"
+        else src.environment,
         model_hint=body.model_hint if body.model_hint is not None else src.model_hint,
     )
     db.add(new_v)
@@ -679,5 +722,11 @@ async def edit_version(
     await db.flush()
     await db.commit()
     await db.refresh(new_v)
-    log.info("prompt_version_edited", workspace_id=str(workspace.id), name=name, source_version=v, new_version=new_version_num)
+    log.info(
+        "prompt_version_edited",
+        workspace_id=str(workspace.id),
+        name=name,
+        source_version=v,
+        new_version=new_version_num,
+    )
     return VersionResponse.model_validate(new_v)

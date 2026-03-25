@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
@@ -308,7 +307,9 @@ async def test_get_recommendation_with_data(authed_client, mock_db_session, mock
 
 
 @pytest.mark.asyncio
-async def test_get_recommendation_message_mentions_models(authed_client, mock_db_session, mock_workspace):
+async def test_get_recommendation_message_mentions_models(
+    authed_client, mock_db_session, mock_workspace
+):
     route_a = _make_route(alias="chat", model="gpt-4o", priority=10)
     route_b = _make_route(alias="chat", model="claude-sonnet-4-6", priority=20)
     route_a.workspace_id = mock_workspace.id
@@ -339,7 +340,9 @@ async def test_get_recommendation_message_mentions_models(authed_client, mock_db
 
 
 @pytest.mark.asyncio
-async def test_get_recommendation_workflow_type_param(authed_client, mock_db_session, mock_workspace):
+async def test_get_recommendation_workflow_type_param(
+    authed_client, mock_db_session, mock_workspace
+):
     """workflow_type query param is forwarded to get_outcome_stats_by_model."""
     route = _make_route(alias="llm", model="gpt-4o")
     route.workspace_id = mock_workspace.id

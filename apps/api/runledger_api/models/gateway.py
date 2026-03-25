@@ -48,12 +48,8 @@ class GatewayRoute(Base):
         sa.Boolean, nullable=False, server_default=sa.text("true")
     )
     # ── Phase 30: Runtime controls ─────────────────────────────────────────────
-    daily_cost_limit_usd: Mapped[Decimal | None] = mapped_column(
-        sa.NUMERIC(12, 4), nullable=True
-    )
-    monthly_cost_limit_usd: Mapped[Decimal | None] = mapped_column(
-        sa.NUMERIC(12, 4), nullable=True
-    )
+    daily_cost_limit_usd: Mapped[Decimal | None] = mapped_column(sa.NUMERIC(12, 4), nullable=True)
+    monthly_cost_limit_usd: Mapped[Decimal | None] = mapped_column(sa.NUMERIC(12, 4), nullable=True)
     pii_redaction_enabled: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )

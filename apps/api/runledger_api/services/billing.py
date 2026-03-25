@@ -275,9 +275,7 @@ async def close_billing_period(
     adj_result = await db.execute(
         select(
             BillingAdjustment.adjustment_type,
-            func.coalesce(func.sum(BillingAdjustment.amount_usd), Decimal(0)).label(
-                "total_amount"
-            ),
+            func.coalesce(func.sum(BillingAdjustment.amount_usd), Decimal(0)).label("total_amount"),
         )
         .where(BillingAdjustment.billing_period_id == billing_period_id)
         .group_by(BillingAdjustment.adjustment_type)
@@ -622,9 +620,7 @@ async def get_cost_center_tree(
     Builds the tree in Python from a flat SELECT (avoids recursive CTE complexity).
     """
     result = await db.execute(
-        select(CostCenter)
-        .where(CostCenter.workspace_id == workspace_id)
-        .order_by(CostCenter.name)
+        select(CostCenter).where(CostCenter.workspace_id == workspace_id).order_by(CostCenter.name)
     )
     all_centers = list(result.scalars())
 
@@ -737,9 +733,7 @@ async def compute_shared_cost_allocation(
     """
     from runledger_api.schemas.billing import SharedCostAllocationResult  # noqa: PLC0415
 
-    result = await db.execute(
-        select(SharedCostPolicy).where(SharedCostPolicy.id == policy_id)
-    )
+    result = await db.execute(select(SharedCostPolicy).where(SharedCostPolicy.id == policy_id))
     policy = result.scalar_one_or_none()
     if policy is None:
         raise ValueError(f"SharedCostPolicy {policy_id} not found")
@@ -781,9 +775,7 @@ async def compute_shared_cost_allocation(
             )
 
     elif formula == "proportional":
-        total_denom = sum(
-            Decimal(str(a.get("denominator_value") or 0)) for a in allocations
-        )
+        total_denom = sum(Decimal(str(a.get("denominator_value") or 0)) for a in allocations)
         for alloc in allocations:
             denom = Decimal(str(alloc.get("denominator_value") or 0))
             share = (

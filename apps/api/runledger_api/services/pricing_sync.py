@@ -36,9 +36,9 @@ from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.metering import (
-    ProviderPricing,
-    PricingSyncConfig,
     _SYNC_CONFIG_SINGLETON_ID,
+    PricingSyncConfig,
+    ProviderPricing,
 )
 
 log = logging.getLogger(__name__)
@@ -50,47 +50,47 @@ catalog_log = structlog.get_logger()
 # Last reviewed: 2026-01-01. Update when providers publish new pricing.
 PRICING_CATALOG: list[tuple[str, str, str, str, str | None]] = [
     # ── Anthropic ────────────────────────────────────────────────────────────
-    ("anthropic", "claude-3-5-haiku-20241022",   "0.80",  "4.00",  "0.08"),
-    ("anthropic", "claude-3-5-haiku-latest",      "0.80",  "4.00",  "0.08"),
-    ("anthropic", "claude-3-5-sonnet-20241022",   "3.00",  "15.00", "0.30"),
-    ("anthropic", "claude-3-5-sonnet-latest",     "3.00",  "15.00", "0.30"),
-    ("anthropic", "claude-3-haiku-20240307",      "0.25",  "1.25",  "0.03"),
-    ("anthropic", "claude-3-opus-20240229",       "15.00", "75.00", "1.50"),
-    ("anthropic", "claude-3-opus-latest",         "15.00", "75.00", "1.50"),
-    ("anthropic", "claude-3-sonnet-20240229",     "3.00",  "15.00", "0.30"),
-    ("anthropic", "claude-opus-4",                "15.00", "75.00", "1.50"),
-    ("anthropic", "claude-sonnet-4",              "3.00",  "15.00", "0.30"),
-    ("anthropic", "claude-haiku-4",               "0.80",  "4.00",  "0.08"),
+    ("anthropic", "claude-3-5-haiku-20241022", "0.80", "4.00", "0.08"),
+    ("anthropic", "claude-3-5-haiku-latest", "0.80", "4.00", "0.08"),
+    ("anthropic", "claude-3-5-sonnet-20241022", "3.00", "15.00", "0.30"),
+    ("anthropic", "claude-3-5-sonnet-latest", "3.00", "15.00", "0.30"),
+    ("anthropic", "claude-3-haiku-20240307", "0.25", "1.25", "0.03"),
+    ("anthropic", "claude-3-opus-20240229", "15.00", "75.00", "1.50"),
+    ("anthropic", "claude-3-opus-latest", "15.00", "75.00", "1.50"),
+    ("anthropic", "claude-3-sonnet-20240229", "3.00", "15.00", "0.30"),
+    ("anthropic", "claude-opus-4", "15.00", "75.00", "1.50"),
+    ("anthropic", "claude-sonnet-4", "3.00", "15.00", "0.30"),
+    ("anthropic", "claude-haiku-4", "0.80", "4.00", "0.08"),
     # ── Google ────────────────────────────────────────────────────────────────
-    ("google",    "gemini-1.5-flash",             "0.075", "0.30",  "0.01875"),
-    ("google",    "gemini-1.5-flash-8b",          "0.0375","0.15",  "0.01"),
-    ("google",    "gemini-1.5-pro",               "1.25",  "5.00",  "0.3125"),
-    ("google",    "gemini-2.0-flash",             "0.10",  "0.40",  "0.025"),
-    ("google",    "gemini-2.0-flash-lite",        "0.075", "0.30",  "0.01875"),
-    ("google",    "gemini-2.5-pro",               "1.25",  "10.00", None),
+    ("google", "gemini-1.5-flash", "0.075", "0.30", "0.01875"),
+    ("google", "gemini-1.5-flash-8b", "0.0375", "0.15", "0.01"),
+    ("google", "gemini-1.5-pro", "1.25", "5.00", "0.3125"),
+    ("google", "gemini-2.0-flash", "0.10", "0.40", "0.025"),
+    ("google", "gemini-2.0-flash-lite", "0.075", "0.30", "0.01875"),
+    ("google", "gemini-2.5-pro", "1.25", "10.00", None),
     # ── Mistral ───────────────────────────────────────────────────────────────
-    ("mistral",   "codestral-2501",               "0.30",  "0.90",  None),
-    ("mistral",   "ministral-3b-2410",            "0.04",  "0.04",  None),
-    ("mistral",   "ministral-8b-2410",            "0.10",  "0.10",  None),
-    ("mistral",   "mistral-large-2411",           "2.00",  "6.00",  None),
-    ("mistral",   "mistral-medium-2312",          "2.75",  "8.10",  None),
-    ("mistral",   "mistral-small-2409",           "0.20",  "0.60",  None),
-    ("mistral",   "pixtral-12b-2409",             "0.15",  "0.15",  None),
-    ("mistral",   "pixtral-large-2411",           "2.00",  "6.00",  None),
+    ("mistral", "codestral-2501", "0.30", "0.90", None),
+    ("mistral", "ministral-3b-2410", "0.04", "0.04", None),
+    ("mistral", "ministral-8b-2410", "0.10", "0.10", None),
+    ("mistral", "mistral-large-2411", "2.00", "6.00", None),
+    ("mistral", "mistral-medium-2312", "2.75", "8.10", None),
+    ("mistral", "mistral-small-2409", "0.20", "0.60", None),
+    ("mistral", "pixtral-12b-2409", "0.15", "0.15", None),
+    ("mistral", "pixtral-large-2411", "2.00", "6.00", None),
     # ── OpenAI ────────────────────────────────────────────────────────────────
-    ("openai",    "gpt-3.5-turbo",                "0.50",  "1.50",  None),
-    ("openai",    "gpt-4",                        "30.00", "60.00", None),
-    ("openai",    "gpt-4-turbo",                  "10.00", "30.00", None),
-    ("openai",    "gpt-4o",                       "2.50",  "10.00", "1.25"),
-    ("openai",    "gpt-4o-audio-preview",         "2.50",  "10.00", None),
-    ("openai",    "gpt-4o-mini",                  "0.15",  "0.60",  "0.075"),
-    ("openai",    "gpt-4o-mini-audio-preview",    "0.15",  "0.60",  None),
-    ("openai",    "o1",                           "15.00", "60.00", "7.50"),
-    ("openai",    "o1-mini",                      "3.00",  "12.00", "1.50"),
-    ("openai",    "o1-preview",                   "15.00", "60.00", None),
-    ("openai",    "o3",                           "10.00", "40.00", "2.50"),
-    ("openai",    "o3-mini",                      "1.10",  "4.40",  "0.55"),
-    ("openai",    "o4-mini",                      "1.10",  "4.40",  "0.275"),
+    ("openai", "gpt-3.5-turbo", "0.50", "1.50", None),
+    ("openai", "gpt-4", "30.00", "60.00", None),
+    ("openai", "gpt-4-turbo", "10.00", "30.00", None),
+    ("openai", "gpt-4o", "2.50", "10.00", "1.25"),
+    ("openai", "gpt-4o-audio-preview", "2.50", "10.00", None),
+    ("openai", "gpt-4o-mini", "0.15", "0.60", "0.075"),
+    ("openai", "gpt-4o-mini-audio-preview", "0.15", "0.60", None),
+    ("openai", "o1", "15.00", "60.00", "7.50"),
+    ("openai", "o1-mini", "3.00", "12.00", "1.50"),
+    ("openai", "o1-preview", "15.00", "60.00", None),
+    ("openai", "o3", "10.00", "40.00", "2.50"),
+    ("openai", "o3-mini", "1.10", "4.40", "0.55"),
+    ("openai", "o4-mini", "1.10", "4.40", "0.275"),
 ]
 
 # Pinned effective_from for catalog rows — bump this date when you update rates above
@@ -221,10 +221,14 @@ async def sync_catalog_to_db(
         # Update last_sync_at on config row
         if config:
             config.last_sync_at = datetime.now(UTC)
-            config.last_sync_result = {k: v for k, v in result.items() if isinstance(v, (int, bool))}
+            config.last_sync_result = {
+                k: v for k, v in result.items() if isinstance(v, (int, bool))
+            }
             await db.commit()
 
-    catalog_log.info("pricing_catalog_synced", **{k: v for k, v in result.items() if not isinstance(v, list)})
+    catalog_log.info(
+        "pricing_catalog_synced", **{k: v for k, v in result.items() if not isinstance(v, list)}
+    )
     return result
 
 
@@ -245,13 +249,13 @@ async def get_pricing_timeline(
         ProviderPricing.model == model,
         or_(
             ProviderPricing.workspace_id.is_(None),
-            ProviderPricing.workspace_id == workspace_id if workspace_id else ProviderPricing.workspace_id.is_(None),
+            ProviderPricing.workspace_id == workspace_id
+            if workspace_id
+            else ProviderPricing.workspace_id.is_(None),
         ),
     ]
     result = await db.execute(
-        select(ProviderPricing)
-        .where(*filters)
-        .order_by(ProviderPricing.effective_from.desc())
+        select(ProviderPricing).where(*filters).order_by(ProviderPricing.effective_from.desc())
     )
     return list(result.scalars().all())
 

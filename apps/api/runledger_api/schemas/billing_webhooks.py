@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field
 
 class BillingWebhookConfigCreate(BaseModel):
     url: str = Field(..., min_length=8, max_length=2048, description="HTTPS endpoint URL")
-    secret: str = Field(..., min_length=8, max_length=256, description="Shared secret for HMAC-SHA256 signing")
+    secret: str = Field(
+        ..., min_length=8, max_length=256, description="Shared secret for HMAC-SHA256 signing"
+    )
     label: str = Field("billing webhook", max_length=128)
 
 

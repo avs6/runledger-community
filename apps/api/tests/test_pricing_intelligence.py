@@ -24,8 +24,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ── Service unit tests (no HTTP) ──────────────────────────────────────────────
-
-
 from runledger_api.services.pricing_contracts import apply_contract_rate
 
 
@@ -613,9 +611,7 @@ async def test_update_sync_config_disable(authed_client, mock_db_session, mock_w
     """PUT /pricing/sync/config can disable the sync."""
     cfg = _sync_config()
     mock_db_session.get = AsyncMock(return_value=cfg)
-    mock_db_session.refresh = AsyncMock(
-        side_effect=lambda obj: setattr(obj, "sync_enabled", False)
-    )
+    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "sync_enabled", False))
 
     resp = await authed_client.put(
         "/pricing/sync/config",
@@ -647,9 +643,7 @@ async def test_update_sync_config_force_update(authed_client, mock_db_session, m
     """PUT /pricing/sync/config can enable force_update."""
     cfg = _sync_config()
     mock_db_session.get = AsyncMock(return_value=cfg)
-    mock_db_session.refresh = AsyncMock(
-        side_effect=lambda obj: setattr(obj, "force_update", True)
-    )
+    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "force_update", True))
 
     resp = await authed_client.put(
         "/pricing/sync/config",
@@ -666,7 +660,7 @@ async def test_trigger_sync_with_options(authed_client, mock_db_session):
     # get_sync_config uses db.get; sync uses db.execute
     mock_db_session.get = AsyncMock(return_value=cfg)
     execute_result = MagicMock()
-    execute_result.all.return_value = []      # no existing rows
+    execute_result.all.return_value = []  # no existing rows
     execute_result.scalars.return_value.__iter__ = lambda s: iter([])
     mock_db_session.execute = AsyncMock(return_value=execute_result)
 

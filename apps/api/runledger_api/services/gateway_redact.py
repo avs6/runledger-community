@@ -18,9 +18,7 @@ from typing import Any
 
 # ── PII patterns ──────────────────────────────────────────────────────────────
 
-_EMAIL_RE = re.compile(
-    r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"
-)
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
 
 _PHONE_RE = re.compile(
     r"(?<!\d)"
@@ -30,9 +28,7 @@ _PHONE_RE = re.compile(
     r"(?!\d)"
 )
 
-_SSN_RE = re.compile(
-    r"\b\d{3}[\-\s]\d{2}[\-\s]\d{4}\b"
-)
+_SSN_RE = re.compile(r"\b\d{3}[\-\s]\d{2}[\-\s]\d{4}\b")
 
 _CARD_RE = re.compile(
     r"\b(?:4\d{3}|5[1-5]\d{2}|6011|3[47]\d{2})[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{0,4}\b"

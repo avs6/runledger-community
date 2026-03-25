@@ -178,9 +178,7 @@ async def list_billing_periods(
     result = await db.execute(stmt)
     periods: list[BillingPeriod] = list(result.scalars())
 
-    return BillingPeriodList(
-        items=[BillingPeriodResponse.model_validate(p) for p in periods]
-    )
+    return BillingPeriodList(items=[BillingPeriodResponse.model_validate(p) for p in periods])
 
 
 # ── GET /billing/periods/{id} ─────────────────────────────────────────────────
@@ -505,9 +503,7 @@ async def list_chargeback_rules(
     )
     rules: list[ChargebackRule] = list(result.scalars())
 
-    return ChargebackRuleList(
-        items=[ChargebackRuleResponse.model_validate(r) for r in rules]
-    )
+    return ChargebackRuleList(items=[ChargebackRuleResponse.model_validate(r) for r in rules])
 
 
 # ── Billing Adjustments ───────────────────────────────────────────────────────
@@ -649,9 +645,7 @@ async def list_cost_centers(
 ) -> CostCenterList:
     workspace: Workspace = auth[0]
     result = await db.execute(
-        select(CostCenter)
-        .where(CostCenter.workspace_id == workspace.id)
-        .order_by(CostCenter.name)
+        select(CostCenter).where(CostCenter.workspace_id == workspace.id).order_by(CostCenter.name)
     )
     items = list(result.scalars())
     return CostCenterList(

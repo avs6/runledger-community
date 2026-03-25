@@ -23,7 +23,9 @@ class EvalDataset(Base):
     __tablename__ = "eval_datasets"
     __table_args__ = (sa.Index("ix_eval_datasets_workspace", "workspace_id", "created_at"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
@@ -47,7 +49,9 @@ class EvalExperiment(Base):
     __tablename__ = "eval_experiments"
     __table_args__ = (sa.Index("ix_eval_experiments_workspace", "workspace_id", "created_at"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     dataset_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -68,7 +72,9 @@ class EvalExperiment(Base):
     run_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
     scores_created: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
     started_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
@@ -80,7 +86,9 @@ class PromptGithubConfig(Base):
 
     __tablename__ = "prompt_github_configs"
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -92,7 +100,9 @@ class PromptGithubConfig(Base):
     path_prefix: Mapped[str] = mapped_column(sa.String(256), nullable=False, default="prompts/")
     token_enc: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     auto_sync: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
-    last_sync_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    last_sync_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     last_sync_status: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
     last_sync_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

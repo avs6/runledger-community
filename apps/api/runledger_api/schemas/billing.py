@@ -44,9 +44,7 @@ class CostCenterUpdate(BaseModel):
 
 
 class BillingAdjustmentCreate(BaseModel):
-    adjustment_type: str = Field(
-        ..., pattern="^(credit|refund|prepaid_deduction|surcharge)$"
-    )
+    adjustment_type: str = Field(..., pattern="^(credit|refund|prepaid_deduction|surcharge)$")
     amount_usd: Decimal = Field(..., gt=0)
     description: str | None = None
     reference_id: str | None = None
@@ -201,7 +199,7 @@ class SharedCostAllocation(BaseModel):
 
     label: str
     cost_center_id: uuid.UUID | None = None
-    weight: Decimal | None = None          # required for fixed_weight
+    weight: Decimal | None = None  # required for fixed_weight
     denominator_value: Decimal | None = None  # used for proportional
 
 

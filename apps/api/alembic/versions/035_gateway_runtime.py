@@ -42,8 +42,7 @@ def upgrade() -> None:
     # ── Per-end-user rate limit ────────────────────────────────────────────────
     op.execute(
         sa.text(
-            "ALTER TABLE gateway_routes ADD COLUMN IF NOT EXISTS "
-            "per_user_rpm_limit INTEGER NULL"
+            "ALTER TABLE gateway_routes ADD COLUMN IF NOT EXISTS per_user_rpm_limit INTEGER NULL"
         )
     )
 
@@ -67,10 +66,7 @@ def upgrade() -> None:
         )
     )
     op.execute(
-        sa.text(
-            "ALTER TABLE gateway_routes ADD COLUMN IF NOT EXISTS "
-            "disabled_reason TEXT NULL"
-        )
+        sa.text("ALTER TABLE gateway_routes ADD COLUMN IF NOT EXISTS disabled_reason TEXT NULL")
     )
 
 

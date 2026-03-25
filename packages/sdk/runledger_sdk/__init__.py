@@ -1,5 +1,4 @@
 from runledger_sdk.client import PrivacyMode, RunLedger
-from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
 from runledger_sdk.context import (
     RunLedgerContext,
     get_context_snapshot,
@@ -13,6 +12,7 @@ from runledger_sdk.exceptions import RunLedgerBudgetExceededError, ToolBlockedEr
 from runledger_sdk.langchain import RunLedgerCallbackHandler
 from runledger_sdk.langgraph import RunLedgerNodeWrapper, instrument_graph
 from runledger_sdk.mcp import instrument_mcp_session
+from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
 
 __all__ = [
     # Client

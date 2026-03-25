@@ -1,4 +1,5 @@
 """Pydantic schemas for pricing intelligence: contracts and credits."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,8 +8,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-
 # ── Pricing contracts ──────────────────────────────────────────────────────────
+
 
 class PricingContractCreate(BaseModel):
     provider: str
@@ -54,6 +55,7 @@ class PricingContractList(BaseModel):
 
 
 # ── Pricing credits ────────────────────────────────────────────────────────────
+
 
 class PricingCreditCreate(BaseModel):
     name: str

@@ -39,9 +39,7 @@ def upgrade() -> None:
         )
     )
     op.execute(
-        sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_sso_configs_tenant ON sso_configs(tenant_id)"
-        )
+        sa.text("CREATE INDEX IF NOT EXISTS ix_sso_configs_tenant ON sso_configs(tenant_id)")
     )
 
     # ── sso_identities ────────────────────────────────────────────────────────
@@ -62,9 +60,7 @@ def upgrade() -> None:
         )
     )
     op.execute(
-        sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_sso_identities_user ON sso_identities(user_id)"
-        )
+        sa.text("CREATE INDEX IF NOT EXISTS ix_sso_identities_user ON sso_identities(user_id)")
     )
 
     # ── scim_tokens ───────────────────────────────────────────────────────────
@@ -86,9 +82,7 @@ def upgrade() -> None:
         )
     )
     op.execute(
-        sa.text(
-            "CREATE INDEX IF NOT EXISTS ix_scim_tokens_tenant ON scim_tokens(tenant_id)"
-        )
+        sa.text("CREATE INDEX IF NOT EXISTS ix_scim_tokens_tenant ON scim_tokens(tenant_id)")
     )
 
 

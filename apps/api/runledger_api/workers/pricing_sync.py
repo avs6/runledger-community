@@ -1,6 +1,7 @@
 """
 Pricing sync Celery worker — syncs the embedded catalog to provider_pricing.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,7 +28,10 @@ def sync_pricing_catalog() -> dict:
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: PLC0415
 
     from runledger_api.core.config import settings  # noqa: PLC0415
-    from runledger_api.services.pricing_sync import get_sync_config, sync_catalog_to_db  # noqa: PLC0415
+    from runledger_api.services.pricing_sync import (  # noqa: PLC0415
+        get_sync_config,
+        sync_catalog_to_db,
+    )
 
     async def _run() -> dict:
         engine = create_async_engine(settings.database_url, poolclass=NullPool)

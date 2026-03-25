@@ -12,10 +12,11 @@ Topic routing:
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import ssl
 import tempfile
-import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -107,10 +108,8 @@ async def test_connection(config: KafkaExportConfig) -> tuple[bool, str | None]:
         return False, str(exc)[:256]
     finally:
         if producer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await producer.stop()
-            except Exception:
-                pass
 
 
 async def dispatch_to_kafka(
@@ -167,10 +166,8 @@ async def dispatch_to_kafka(
             )
         finally:
             if producer is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await producer.stop()
-                except Exception:
-                    pass
 
         now = datetime.now(UTC)
         delivery = KafkaExportDelivery(

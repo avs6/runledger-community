@@ -1,13 +1,13 @@
 """Tests for eval experiments, datasets, and GitHub prompt sync."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ def _ds(workspace_id: uuid.UUID | None = None, **kw) -> SimpleNamespace:
         id=uuid.uuid4(),
         workspace_id=workspace_id or uuid.uuid4(),
         name=kw.get("name", "Test Dataset"),
-        description=kw.get("description", None),
+        description=kw.get("description"),
         source="manual",
         items=kw.get("items", []),
         item_count=kw.get("item_count", 0),
@@ -30,15 +30,15 @@ def _exp(workspace_id: uuid.UUID | None = None, **kw) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
         workspace_id=workspace_id or uuid.uuid4(),
-        dataset_id=kw.get("dataset_id", None),
+        dataset_id=kw.get("dataset_id"),
         name=kw.get("name", "Test Experiment"),
-        description=kw.get("description", None),
-        prompt_name=kw.get("prompt_name", None),
-        prompt_version=kw.get("prompt_version", None),
+        description=kw.get("description"),
+        prompt_name=kw.get("prompt_name"),
+        prompt_version=kw.get("prompt_version"),
         evaluator_ids=[],
         models=[],
         status=kw.get("status", "pending"),
-        results=kw.get("results", None),
+        results=kw.get("results"),
         run_count=0,
         scores_created=0,
         started_at=None,

@@ -234,9 +234,7 @@ def get_kms_provider() -> KmsProvider:
 
     elif provider == "vault":
         if not settings.vault_addr or not settings.vault_token:
-            raise RuntimeError(
-                "KMS_PROVIDER=vault requires VAULT_ADDR and VAULT_TOKEN to be set"
-            )
+            raise RuntimeError("KMS_PROVIDER=vault requires VAULT_ADDR and VAULT_TOKEN to be set")
         log.info(
             "kms_provider_init",
             provider="vault",

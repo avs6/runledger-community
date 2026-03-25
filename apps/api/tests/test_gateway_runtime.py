@@ -19,13 +19,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ── PII Redaction ─────────────────────────────────────────────────────────────
-
-
 from runledger_api.services.gateway_redact import redact_messages, redact_text
 
 
 def test_redact_email():
-    assert redact_text("Contact us at user@example.com for help") == "Contact us at [EMAIL] for help"
+    assert (
+        redact_text("Contact us at user@example.com for help") == "Contact us at [EMAIL] for help"
+    )
 
 
 def test_redact_phone_us():

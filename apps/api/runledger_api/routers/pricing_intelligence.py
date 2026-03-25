@@ -46,11 +46,13 @@ from runledger_api.core.deps import (
     require_org_admin,
     require_workspace_admin,
 )
-from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.core.feature_gate import require_cloud
-from runledger_api.models.metering import PricingContract, PricingCredit
+from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
+from runledger_api.models.metering import (
+    PricingContract,
+    PricingCredit,
+)
 from runledger_api.models.tenant import Workspace
-from runledger_api.models.metering import PricingSyncConfig, _SYNC_CONFIG_SINGLETON_ID
 from runledger_api.schemas.pricing_intelligence import (
     CreditApplicationResult,
     PricingContractCreate,
@@ -507,6 +509,7 @@ async def apply_credits_endpoint(
         ) from exc
 
     from runledger_api.services.pricing_credits import apply_credits  # noqa: PLC0415
+
     result = await apply_credits(db, workspace.id, cost_usd)
     return CreditApplicationResult(**result)
 

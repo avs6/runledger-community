@@ -8,8 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ── Dataset ───────────────────────────────────────────────────────────────────
+
 
 class DatasetItem(BaseModel):
     input: str
@@ -49,6 +49,7 @@ class EvalDatasetList(BaseModel):
 
 
 # ── Experiment ────────────────────────────────────────────────────────────────
+
 
 class ExperimentModelConfig(BaseModel):
     model: str
@@ -112,6 +113,7 @@ class EvalExperimentList(BaseModel):
 
 
 # ── GitHub sync ───────────────────────────────────────────────────────────────
+
 
 class GithubConfigCreate(BaseModel):
     repo: str = Field(..., description="owner/repo")

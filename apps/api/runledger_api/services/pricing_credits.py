@@ -6,6 +6,7 @@ apply_credits(db, workspace_id, cost_usd)
   → Returns {"applied": Decimal, "remaining_cost": Decimal, "credits_used": [...]}
   → Modifies credits in-place (decrements remaining_usd).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -72,11 +73,13 @@ async def apply_credits(
             credit.is_active = False
         remaining -= deduct
         applied += deduct
-        used.append({
-            "credit_id": str(credit.id),
-            "name": credit.name,
-            "deducted_usd": str(deduct),
-        })
+        used.append(
+            {
+                "credit_id": str(credit.id),
+                "name": credit.name,
+                "deducted_usd": str(deduct),
+            }
+        )
 
     if applied > 0:
         await db.commit()

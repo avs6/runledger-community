@@ -75,7 +75,8 @@ def _make_readable_span(
         kind=None,
         start_time=1_700_000_000_000_000_000,
         end_time=1_700_000_001_000_000_000,
-        attributes=attributes or {
+        attributes=attributes
+        or {
             "openinference.span.kind": "LLM",
             "llm.model_name": "gpt-4o-mini",
             "llm.token_count.prompt": 42,
@@ -134,7 +135,9 @@ def test_spans_to_otlp_json_parent_span_id():
 def test_spans_to_otlp_json_attributes():
     from runledger_sdk.otel_exporter import spans_to_otlp_json
 
-    span = _make_readable_span(attributes={"llm.model_name": "gpt-4o", "llm.token_count.prompt": 100})
+    span = _make_readable_span(
+        attributes={"llm.model_name": "gpt-4o", "llm.token_count.prompt": 100}
+    )
     payload = spans_to_otlp_json([span])
     attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
     keys = {a["key"] for a in attrs}

@@ -7,12 +7,10 @@ Tests for enterprise hardening features:
 from __future__ import annotations
 
 import base64
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
 from runledger_api.main import app
 from runledger_api.services.kms import (
     AwsKmsProvider,
@@ -67,7 +65,6 @@ class TestAwsKmsProvider:
         reset_kms_provider_cache()
 
     def test_encrypt_produces_awskms_prefix(self) -> None:
-        from cryptography.fernet import Fernet
 
         dk_plain = b"\x00" * 32
         dk_enc = b"\x01" * 32
@@ -222,9 +219,7 @@ def mock_collect():
 def patch_metrics_token(monkeypatch):
     monkeypatch.setenv("METRICS_TOKEN", METRICS_TOKEN)
     # Also patch settings directly to avoid env var parsing complexity
-    with patch(
-        "runledger_api.routers.ops.settings"
-    ) as mock_settings:
+    with patch("runledger_api.routers.ops.settings") as mock_settings:
         mock_settings.effective_metrics_token = METRICS_TOKEN
         yield mock_settings
 
@@ -247,7 +242,7 @@ class TestPrometheusMetrics:
         assert "runledger_pipeline_lag_seconds" in body
         assert "runledger_ingest_rate_per_minute" in body
         assert "runledger_celery_queue_depth" in body
-        assert '# TYPE runledger_active_runs gauge' in body
+        assert "# TYPE runledger_active_runs gauge" in body
 
     def test_metrics_includes_queue_labels(self, mock_collect) -> None:
         resp = client.get("/metrics", headers={"X-Metrics-Token": METRICS_TOKEN})
@@ -257,9 +252,7 @@ class TestPrometheusMetrics:
         assert 'queue="low"' in body
 
     def test_metrics_bearer_prefix_stripped(self, mock_collect) -> None:
-        resp = client.get(
-            "/metrics", headers={"X-Metrics-Token": f"Bearer {METRICS_TOKEN}"}
-        )
+        resp = client.get("/metrics", headers={"X-Metrics-Token": f"Bearer {METRICS_TOKEN}"})
         assert resp.status_code == 200
 
 

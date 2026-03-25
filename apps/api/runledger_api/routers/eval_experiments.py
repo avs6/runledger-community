@@ -36,7 +36,6 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment
-from runledger_api.models.evaluators import Evaluator
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
@@ -63,8 +62,11 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 # ── Datasets ──────────────────────────────────────────────────────────────────
 
+
 @router.post("/datasets", response_model=EvalDatasetResponse, status_code=status.HTTP_201_CREATED)
-async def create_dataset(body: EvalDatasetCreate, workspace: WorkspaceDep, db: DbDep) -> EvalDataset:
+async def create_dataset(
+    body: EvalDatasetCreate, workspace: WorkspaceDep, db: DbDep
+) -> EvalDataset:
     items_raw = [i.model_dump() for i in body.items]
     ds = EvalDataset(
         workspace_id=workspace.id,
@@ -139,7 +141,10 @@ async def delete_dataset(dataset_id: uuid.UUID, workspace: WorkspaceDep, db: DbD
 
 # ── Experiments ───────────────────────────────────────────────────────────────
 
-@router.post("/experiments", response_model=EvalExperimentResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/experiments", response_model=EvalExperimentResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_experiment(
     body: EvalExperimentCreate, workspace: WorkspaceDep, db: DbDep
 ) -> EvalExperiment:
@@ -152,7 +157,9 @@ async def create_experiment(
     # Validate prompt if provided
     if body.prompt_name:
         pr = await db.execute(
-            select(Prompt).where(Prompt.workspace_id == workspace.id, Prompt.name == body.prompt_name)
+            select(Prompt).where(
+                Prompt.workspace_id == workspace.id, Prompt.name == body.prompt_name
+            )
         )
         if not pr.scalar_one_or_none():
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"Prompt '{body.prompt_name}' not found")
@@ -195,7 +202,9 @@ async def list_experiments(
 
 
 @router.get("/experiments/{experiment_id}", response_model=EvalExperimentResponse)
-async def get_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) -> EvalExperiment:
+async def get_experiment(
+    experiment_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep
+) -> EvalExperiment:
     exp = await db.get(EvalExperiment, experiment_id)
     if not exp or exp.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Experiment not found")
@@ -240,7 +249,9 @@ async def delete_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, d
 
 
 @router.post("/experiments/{experiment_id}/run", response_model=EvalExperimentResponse)
-async def run_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) -> EvalExperiment:
+async def run_experiment(
+    experiment_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep
+) -> EvalExperiment:
     """
     Trigger the experiment: resolve prompt content, attach scores from existing
     runs that match the prompt version, compute per-model results.
@@ -261,7 +272,6 @@ async def run_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, db: 
         scores_created = 0
 
         # Resolve prompt content
-        prompt_content = None
         if exp.prompt_name:
             q = select(PromptVersion).where(
                 PromptVersion.prompt_id.in_(
@@ -278,22 +288,17 @@ async def run_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, db: 
             pv_res = await db.execute(q.limit(1))
             pv = pv_res.scalar_one_or_none()
             if pv:
-                prompt_content = pv.content
                 results["prompt_name"] = exp.prompt_name
                 results["prompt_version"] = pv.version
                 results["prompt_preview"] = pv.content[:200]
 
-        # Score existing runs that match the deployment_version pattern for this prompt
-        deployment_tag = (
-            f"{exp.prompt_name}:{exp.prompt_version}" if exp.prompt_name and exp.prompt_version
-            else exp.prompt_name or ""
-        )
-
         # Collect scores from existing evaluations for runs in this workspace
         scores_result = await db.execute(
-            select(ScoreEvent).where(
+            select(ScoreEvent)
+            .where(
                 ScoreEvent.workspace_id == workspace.id,
-            ).limit(500)
+            )
+            .limit(500)
         )
         scores = list(scores_result.scalars().all())
 
@@ -302,18 +307,24 @@ async def run_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, db: 
         for sc in scores:
             model_scores.setdefault("all", []).append(float(sc.value))
 
-        for model_cfg in (exp.models or []):
-            model_name = model_cfg.get("model", "unknown") if isinstance(model_cfg, dict) else model_cfg
+        for model_cfg in exp.models or []:
+            model_name = (
+                model_cfg.get("model", "unknown") if isinstance(model_cfg, dict) else model_cfg
+            )
             vals = model_scores.get(model_name, model_scores.get("all", []))
             avg = sum(vals) / len(vals) if vals else None
-            results.setdefault("models", []).append({
-                "model": model_name,
-                "provider": model_cfg.get("provider", "openai") if isinstance(model_cfg, dict) else "openai",
-                "label": model_cfg.get("label") if isinstance(model_cfg, dict) else None,
-                "items_run": len(vals),
-                "avg_score": round(avg, 4) if avg else None,
-                "score_breakdown": {},
-            })
+            results.setdefault("models", []).append(
+                {
+                    "model": model_name,
+                    "provider": model_cfg.get("provider", "openai")
+                    if isinstance(model_cfg, dict)
+                    else "openai",
+                    "label": model_cfg.get("label") if isinstance(model_cfg, dict) else None,
+                    "items_run": len(vals),
+                    "avg_score": round(avg, 4) if avg else None,
+                    "score_breakdown": {},
+                }
+            )
 
         exp.status = "completed"
         exp.completed_at = datetime.now(UTC)

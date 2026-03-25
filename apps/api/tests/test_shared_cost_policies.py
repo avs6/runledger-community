@@ -22,7 +22,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 
@@ -154,9 +153,7 @@ async def test_update_shared_cost_policy(authed_client, mock_db_session, mock_wo
     policy = _make_policy(workspace_id=mock_workspace.id, name="Old Name")
 
     mock_db_session.execute = AsyncMock(return_value=_result_with_scalar(policy))
-    mock_db_session.refresh = AsyncMock(
-        side_effect=lambda obj: setattr(obj, "name", "New Name")
-    )
+    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "name", "New Name"))
 
     resp = await authed_client.put(
         f"/billing/shared-cost-policies/{policy.id}",
@@ -313,8 +310,8 @@ async def test_compute_proportional():
         name="Prop",
         formula_type="proportional",
         allocations=[
-            {"label": "x", "denominator_value": "3"},   # 3/5 * 1000 = 600
-            {"label": "y", "denominator_value": "2"},   # 2/5 * 1000 = 400
+            {"label": "x", "denominator_value": "3"},  # 3/5 * 1000 = 600
+            {"label": "y", "denominator_value": "2"},  # 2/5 * 1000 = 400
         ],
     )
 

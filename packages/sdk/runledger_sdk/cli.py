@@ -349,7 +349,9 @@ def init(
     api_key: str = data.get("api_key", "")
     workspace_name: str = data.get("workspace_name", "default")
 
-    console.print(f"[green]✓ Bootstrapped[/green]  workspace=[bold]{workspace_name}[/bold]")
+    console.print(
+        f"[green]✓ Bootstrapped[/green]  workspace=[bold]{workspace_name}[/bold]"
+    )
 
     # Write .env
     import pathlib  # noqa: PLC0415
@@ -378,10 +380,12 @@ def init(
         f"  curl -s -X POST {base_url}/ingest/v1/events \\\n"
         f'    -H "Authorization: Bearer $RUNLEDGER_API_KEY" \\\n'
         f'    -H "Content-Type: application/json" \\\n'
-        f"    -d '{{\"event_type\":\"run_start\",\"run_id\":\"test-01\"}}'"
+        f'    -d \'{{"event_type":"run_start","run_id":"test-01"}}\''
     )
     console.print("\n  # Check health:")
-    console.print(f"  runledger doctor --base-url {base_url} --api-key $RUNLEDGER_API_KEY")
+    console.print(
+        f"  runledger doctor --base-url {base_url} --api-key $RUNLEDGER_API_KEY"
+    )
 
 
 # ── doctor ────────────────────────────────────────────────────────────────────
@@ -402,14 +406,26 @@ def doctor(
     # 1. API reachable
     try:
         resp = httpx.get(f"{base}/health/live", timeout=5.0)
-        checks.append(("API reachable", resp.status_code == 200, f"HTTP {resp.status_code}"))
+        checks.append(
+            ("API reachable", resp.status_code == 200, f"HTTP {resp.status_code}")
+        )
     except httpx.ConnectError:
-        checks.append(("API reachable", False, f"Connection refused — is RunLedger running at {base}?"))
+        checks.append(
+            (
+                "API reachable",
+                False,
+                f"Connection refused — is RunLedger running at {base}?",
+            )
+        )
 
     # 2. DB + Redis ready
     try:
         resp = httpx.get(f"{base}/health/ready", timeout=5.0)
-        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        data = (
+            resp.json()
+            if resp.headers.get("content-type", "").startswith("application/json")
+            else {}
+        )
         db_ok = data.get("db") == "ok"
         redis_ok = data.get("redis") == "ok"
         checks.append(("Database", db_ok, data.get("db", "unknown")))
@@ -428,18 +444,36 @@ def doctor(
                 timeout=5.0,
             )
             auth_ok = resp.status_code == 200
-            checks.append(("Auth (API key)", auth_ok, "valid" if auth_ok else f"HTTP {resp.status_code}"))
+            checks.append(
+                (
+                    "Auth (API key)",
+                    auth_ok,
+                    "valid" if auth_ok else f"HTTP {resp.status_code}",
+                )
+            )
         except Exception as exc:
             checks.append(("Auth (API key)", False, str(exc)))
     else:
-        checks.append(("Auth (API key)", False, "no key provided — pass --api-key or set RUNLEDGER_API_KEY"))
+        checks.append(
+            (
+                "Auth (API key)",
+                False,
+                "no key provided — pass --api-key or set RUNLEDGER_API_KEY",
+            )
+        )
 
     # 4. Worker health (via /health/ready already checked above)
     #    Summarise overall worker status from ready payload
     try:
         resp = httpx.get(f"{base}/health/ready", timeout=5.0)
         if resp.status_code == 200:
-            checks.append(("Workers (Celery)", True, "API can reach DB/Redis — start worker separately if needed"))
+            checks.append(
+                (
+                    "Workers (Celery)",
+                    True,
+                    "API can reach DB/Redis — start worker separately if needed",
+                )
+            )
         else:
             checks.append(("Workers (Celery)", False, "degraded — see /health/ready"))
     except Exception:
@@ -494,12 +528,14 @@ def pricing_timeline(
         resp.raise_for_status()
     except httpx.HTTPError as exc:
         err_console.print(f"HTTP error: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     data = resp.json()
     rows = data.get("items", [])
     if not rows:
-        console.print(f"[yellow]No pricing history found for {provider}/{model}[/yellow]")
+        console.print(
+            f"[yellow]No pricing history found for {provider}/{model}[/yellow]"
+        )
         return
 
     table = Table(title=f"Pricing timeline: {provider} / {model}", show_header=True)

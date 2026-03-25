@@ -4,7 +4,6 @@ Tests for Kafka export configs, delivery log, and dispatch service.
 
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -13,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-
 from runledger_api.routers.kafka_export import router
 
 # ── App fixture ───────────────────────────────────────────────────────────────
@@ -51,6 +49,7 @@ def authed_client(mock_db):
 
 # ── Helper: make a mock KafkaExportConfig ─────────────────────────────────────
 
+
 def _cfg(workspace_id=None, **kwargs):
     return SimpleNamespace(
         id=uuid.uuid4(),
@@ -86,6 +85,7 @@ def _delivery(config_id):
 
 
 # ── POST /integrations/kafka/configs ─────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_create_kafka_config(authed_client):
@@ -157,6 +157,7 @@ async def test_create_kafka_config_with_sasl(authed_client):
 
 # ── GET /integrations/kafka/configs ──────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_kafka_configs(authed_client):
     client, db, ws = authed_client
@@ -187,6 +188,7 @@ async def test_list_kafka_configs_empty(authed_client):
 
 
 # ── PUT /integrations/kafka/configs/{id} ──────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_update_kafka_config(authed_client):
@@ -229,6 +231,7 @@ async def test_update_kafka_config_not_found(authed_client):
 
 # ── DELETE /integrations/kafka/configs/{id} ───────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_delete_kafka_config(authed_client):
     client, db, ws = authed_client
@@ -256,6 +259,7 @@ async def test_delete_kafka_config_not_found(authed_client):
 
 
 # ── POST /integrations/kafka/configs/{id}/test ────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_test_kafka_config_ok(authed_client):
@@ -301,6 +305,7 @@ async def test_test_kafka_config_fail(authed_client):
 
 # ── GET /integrations/kafka/configs/{id}/deliveries ───────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_kafka_deliveries(authed_client):
     client, db, ws = authed_client
@@ -322,6 +327,7 @@ async def test_list_kafka_deliveries(authed_client):
 
 
 # ── Service: dispatch_to_kafka ────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_dispatch_skips_unsubscribed_event():
@@ -390,6 +396,7 @@ async def test_dispatch_records_failed_delivery():
 
 
 # ── Topic routing ─────────────────────────────────────────────────────────────
+
 
 def test_topic_routing():
     from runledger_api.services.kafka_export import _topic_for

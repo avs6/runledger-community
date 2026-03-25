@@ -222,8 +222,19 @@ async def export_quickbooks_csv(
     else:
         # No rules — single full-period entry
         description = f"AI spend {period.period_start} – {period.period_end}"
-        writer.writerow([date_str, "AI Spend", description, str(total.quantize(Decimal("0.01"))), "", ref])
-        writer.writerow([date_str, "AI Spend Clearing", description, "", str(total.quantize(Decimal("0.01"))), ref])
+        writer.writerow(
+            [date_str, "AI Spend", description, str(total.quantize(Decimal("0.01"))), "", ref]
+        )
+        writer.writerow(
+            [
+                date_str,
+                "AI Spend Clearing",
+                description,
+                "",
+                str(total.quantize(Decimal("0.01"))),
+                ref,
+            ]
+        )
 
     return buf.getvalue()
 
@@ -261,7 +272,9 @@ async def export_netsuite_csv(
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["ExternalId", "Date", "Account", "Subsidiary", "Department", "Memo", "Debit", "Credit"])
+    writer.writerow(
+        ["ExternalId", "Date", "Account", "Subsidiary", "Department", "Memo", "Debit", "Credit"]
+    )
 
     memo = f"AI spend {period.period_start} – {period.period_end}"
 
@@ -272,12 +285,27 @@ async def export_netsuite_csv(
             department = rule.dimension if rule.allocation_type in ("cost_center", "team") else ""
             ext_id = f"{external_id_base}-{i + 1}"
             # Debit
-            writer.writerow([ext_id, date_str, "AI Spend", subsidiary, department, memo, str(allocated), ""])
+            writer.writerow(
+                [ext_id, date_str, "AI Spend", subsidiary, department, memo, str(allocated), ""]
+            )
             # Credit
-            writer.writerow([ext_id, date_str, "AI Spend Clearing", subsidiary, department, memo, "", str(allocated)])
+            writer.writerow(
+                [
+                    ext_id,
+                    date_str,
+                    "AI Spend Clearing",
+                    subsidiary,
+                    department,
+                    memo,
+                    "",
+                    str(allocated),
+                ]
+            )
     else:
         total_str = str(total.quantize(Decimal("0.01")))
         writer.writerow([external_id_base, date_str, "AI Spend", "", "", memo, total_str, ""])
-        writer.writerow([external_id_base, date_str, "AI Spend Clearing", "", "", memo, "", total_str])
+        writer.writerow(
+            [external_id_base, date_str, "AI Spend Clearing", "", "", memo, "", total_str]
+        )
 
     return buf.getvalue()

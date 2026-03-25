@@ -16,7 +16,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -93,7 +93,11 @@ async def test_create_cost_center(authed_client, mock_db_session, mock_workspace
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = cc
     mock_db_session.execute = AsyncMock(return_value=mock_result)
-    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "id", cc.id) or setattr(obj, "created_at", cc.created_at))
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: (
+            setattr(obj, "id", cc.id) or setattr(obj, "created_at", cc.created_at)
+        )
+    )
 
     resp = await authed_client.post(
         "/billing/cost-centers",
@@ -141,7 +145,9 @@ async def test_update_cost_center(authed_client, mock_db_session, mock_workspace
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = cc
     mock_db_session.execute = AsyncMock(return_value=mock_result)
-    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "name", "Platform Engineering"))
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: setattr(obj, "name", "Platform Engineering")
+    )
 
     resp = await authed_client.put(
         f"/billing/cost-centers/{cc.id}",
@@ -211,9 +217,11 @@ async def test_create_adjustment_credit(authed_client, mock_db_session, mock_wor
     period = _make_period(workspace_id=mock_workspace.id)
     period.id = period_id
 
-    mock_results = iter([
-        _result_with_scalar(period),   # period lookup in add_adjustment
-    ])
+    mock_results = iter(
+        [
+            _result_with_scalar(period),  # period lookup in add_adjustment
+        ]
+    )
 
     def _execute_side_effect(stmt):
         try:
@@ -278,7 +286,7 @@ async def test_list_adjustments(authed_client, mock_db_session, mock_workspace):
     )
 
     results = [
-        _result_with_scalar(period),       # period ownership check
+        _result_with_scalar(period),  # period ownership check
         _result_with_scalars([credit, surcharge]),  # adjustments list
     ]
     mock_db_session.execute = AsyncMock(side_effect=lambda _: results.pop(0))
@@ -313,9 +321,7 @@ async def test_delete_adjustment_404(authed_client, mock_db_session):
     mock_result.scalar_one_or_none.return_value = None
     mock_db_session.execute = AsyncMock(return_value=mock_result)
 
-    resp = await authed_client.delete(
-        f"/billing/periods/{uuid.uuid4()}/adjustments/{uuid.uuid4()}"
-    )
+    resp = await authed_client.delete(f"/billing/periods/{uuid.uuid4()}/adjustments/{uuid.uuid4()}")
     assert resp.status_code == 404
 
 
@@ -366,7 +372,9 @@ async def test_create_period_with_currency(authed_client, mock_db_session, mock_
 
 
 @pytest.mark.anyio
-async def test_create_chargeback_rule_with_cost_center(authed_client, mock_db_session, mock_workspace):
+async def test_create_chargeback_rule_with_cost_center(
+    authed_client, mock_db_session, mock_workspace
+):
     """POST /billing/chargeback-rules accepts optional cost_center_id."""
     cost_center_id = uuid.uuid4()
     rule = SimpleNamespace(
@@ -417,7 +425,12 @@ async def test_get_cost_center_tree_service():
         id=parent_id, workspace_id=ws_id, name="Root", code="R", parent_id=None, description=None
     )
     child = SimpleNamespace(
-        id=child_id, workspace_id=ws_id, name="Child", code="C", parent_id=parent_id, description=None
+        id=child_id,
+        workspace_id=ws_id,
+        name="Child",
+        code="C",
+        parent_id=parent_id,
+        description=None,
     )
 
     mock_db = AsyncMock()
@@ -503,9 +516,7 @@ async def test_create_chargeback_rule_require_approval(
 
 
 @pytest.mark.anyio
-async def test_create_chargeback_rule_no_approval(
-    authed_client, mock_db_session, mock_workspace
-):
+async def test_create_chargeback_rule_no_approval(authed_client, mock_db_session, mock_workspace):
     """POST /billing/chargeback-rules without require_approval → active, no approval_id."""
     created_at = datetime.now(UTC)
 
@@ -595,12 +606,10 @@ async def test_approve_activates_chargeback_rule(authed_client, mock_db_session,
     # execute calls: (1) select Approval, (2) update ChargebackRule
     exec_results = [
         _result_with_scalar(approval),  # select approval
-        MagicMock(),                    # update chargeback_rule (sa_update)
+        MagicMock(),  # update chargeback_rule (sa_update)
     ]
     mock_db_session.execute = AsyncMock(side_effect=lambda _: exec_results.pop(0))
-    mock_db_session.refresh = AsyncMock(
-        side_effect=lambda obj: setattr(obj, "status", "approved")
-    )
+    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "status", "approved"))
 
     app.dependency_overrides[get_current_api_key] = _override_api_key
     try:
@@ -645,12 +654,10 @@ async def test_deny_sets_chargeback_rule_denied(authed_client, mock_db_session, 
 
     exec_results = [
         _result_with_scalar(approval),  # select approval
-        MagicMock(),                    # update chargeback_rule (sa_update)
+        MagicMock(),  # update chargeback_rule (sa_update)
     ]
     mock_db_session.execute = AsyncMock(side_effect=lambda _: exec_results.pop(0))
-    mock_db_session.refresh = AsyncMock(
-        side_effect=lambda obj: setattr(obj, "status", "denied")
-    )
+    mock_db_session.refresh = AsyncMock(side_effect=lambda obj: setattr(obj, "status", "denied"))
 
     app.dependency_overrides[get_current_api_key] = _override_api_key
     try:

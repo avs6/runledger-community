@@ -29,7 +29,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -84,9 +84,7 @@ async def _collect_metrics() -> dict[str, Any]:
     async with AsyncSession(engine) as session:
         # ── Active agent runs ──────────────────────────────────────────────
         try:
-            result = await session.execute(
-                select(func.count()).where(AgentRun.status == "running")
-            )
+            result = await session.execute(select(func.count()).where(AgentRun.status == "running"))
             metrics["active_runs"] = result.scalar() or 0
         except Exception:
             metrics["active_runs"] = -1
@@ -120,9 +118,7 @@ async def _collect_metrics() -> dict[str, Any]:
         try:
             cutoff_1h = datetime.now(UTC) - timedelta(hours=1)
             result = await session.execute(
-                select(func.count(ProviderCall.id)).where(
-                    ProviderCall.created_at >= cutoff_1h
-                )
+                select(func.count(ProviderCall.id)).where(ProviderCall.created_at >= cutoff_1h)
             )
             metrics["provider_calls_last_hour"] = result.scalar() or 0
         except Exception:

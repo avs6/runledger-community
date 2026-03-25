@@ -86,8 +86,9 @@ Every team shipping AI agents in production hits the same wall:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                   RunLedger Dashboard  (Next.js 14)                     │
 │                                                                         │
-│  Runs · Analytics · Budgets · Billing · Invoices · Gateway · Outcomes  │
-│  Evaluations · Prompts · Approvals · Replay · Ledger · Settings · Admin │
+│  Runs · Analytics · Budgets · Billing · Invoices · Gateway · Outcomes   │
+│  Datasets · Experiments · Evaluations · Prompts · Approvals · Replay    │
+│  Ledger · Settings (SSO/SCIM · Git sync · Alerts · Warehouse) · Admin   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -223,8 +224,10 @@ Routes support priority fallback, canary splits, cost-optimized selection, and *
 | Invoices | `/invoices` | Provider invoice import, reconciliation, dispute trail |
 | Outcomes & ROI | `/outcomes` | Cost-per-outcome, workflow ROI, success rate trends |
 | Sessions | `/sessions` | Multi-turn conversations; cost-over-turns chart |
+| Datasets | `/datasets` | Test case collections (CSV/JSON/URL import) for eval experiments |
+| Experiments | `/experiments` | Run prompt × model × dataset evaluations; compare model scores |
 | Evaluations | `/evaluations` | Submit + view quality scores, regressions |
-| Prompts | `/prompts` | Version-controlled prompt registry, diff viewer, promote |
+| Prompts | `/prompts` | Version-controlled prompt registry, diff viewer, promote, GitHub sync |
 | Approvals | `/approvals` | Governance queue for sensitive actions |
 | Replay | `/replay` | Cost-projection experiments across model configs |
 | Ledger | `/ledger` | HMAC-signed snapshots, tool registry, privacy policy |
@@ -258,6 +261,11 @@ The key difference: the other tools focus on trace visibility and evals. RunLedg
 | [OpenInference mapping](docs/openinference.md) | Full attribute mapping tables |
 | [OTel Collector config](docs/collector.md) | Reference configs, processor examples |
 | [Railway deployment](docs/deployment.md) | Full production deployment guide |
+| [Helm chart](docs/helm.md) | Kubernetes deployment with Helm, values reference |
+| [High availability](docs/ha.md) | Multi-replica setup, Redis Sentinel, read replicas |
+| [Backup & restore](docs/backup-restore.md) | Postgres dump/restore, snapshot strategy |
+| [Upgrades](docs/upgrade.md) | Zero-downtime upgrade procedure, migration notes |
+| [BYOK / KMS](docs/byok.md) | Bring-your-own-key encryption with AWS KMS or Vault |
 | [Migration from LangSmith](docs/migration/from-langsmith.mdx) | Add RunLedger alongside or replace LangSmith |
 | [Migration from Langfuse](docs/migration/from-langfuse.mdx) | Callback swap or wrapper replacement |
 | [Migration from Helicone](docs/migration/from-helicone.mdx) | One `base_url` change |

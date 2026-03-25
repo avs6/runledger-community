@@ -292,7 +292,9 @@ async def test_delete_billing_webhook(authed_client: AsyncClient, mock_db_sessio
 
 
 @pytest.mark.anyio
-async def test_delete_billing_webhook_not_found(authed_client: AsyncClient, mock_db_session: AsyncMock):
+async def test_delete_billing_webhook_not_found(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+):
     result = MagicMock()
     result.scalar_one_or_none.return_value = None
     mock_db_session.execute = AsyncMock(return_value=result)
@@ -305,7 +307,9 @@ async def test_delete_billing_webhook_not_found(authed_client: AsyncClient, mock
 
 
 @pytest.mark.anyio
-async def test_export_period_quickbooks_format(authed_client: AsyncClient, mock_db_session: AsyncMock):
+async def test_export_period_quickbooks_format(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+):
     period_id = uuid.uuid4()
     period = SimpleNamespace(
         id=period_id,
@@ -331,7 +335,9 @@ async def test_export_period_quickbooks_format(authed_client: AsyncClient, mock_
 
 
 @pytest.mark.anyio
-async def test_export_period_netsuite_format(authed_client: AsyncClient, mock_db_session: AsyncMock):
+async def test_export_period_netsuite_format(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+):
     period_id = uuid.uuid4()
     period = SimpleNamespace(
         id=period_id,
@@ -346,7 +352,9 @@ async def test_export_period_netsuite_format(authed_client: AsyncClient, mock_db
 
     with patch(
         "runledger_api.services.billing_webhooks.export_netsuite_csv",
-        new=AsyncMock(return_value="ExternalId,Date,Account,Subsidiary,Department,Memo,Debit,Credit\n"),
+        new=AsyncMock(
+            return_value="ExternalId,Date,Account,Subsidiary,Department,Memo,Debit,Credit\n"
+        ),
     ):
         mock_db_session.execute = AsyncMock(return_value=period_check)
         resp = await authed_client.get(f"/billing/periods/{period_id}/export?format=netsuite")

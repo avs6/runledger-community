@@ -27,8 +27,12 @@ class BillingWebhookConfig(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     url: Mapped[str] = mapped_column(sa.Text, nullable=False)
     secret: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    label: Mapped[str] = mapped_column(sa.String(128), nullable=False, server_default="'billing webhook'")
-    enabled: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    label: Mapped[str] = mapped_column(
+        sa.String(128), nullable=False, server_default="'billing webhook'"
+    )
+    enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
@@ -59,7 +63,9 @@ class BillingWebhookDelivery(Base):
     status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="'pending'")
     response_status: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     response_body: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    delivered_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

@@ -378,7 +378,9 @@ async def reconcile_invoice(
                         continue
 
                 in_ok = _tokens_close(line.input_tokens, call.input_tokens, _FUZZY_TOKEN_TOLERANCE)
-                out_ok = _tokens_close(line.output_tokens, call.output_tokens, _FUZZY_TOKEN_TOLERANCE)
+                out_ok = _tokens_close(
+                    line.output_tokens, call.output_tokens, _FUZZY_TOKEN_TOLERANCE
+                )
                 if in_ok and out_ok:
                     best_call = call
                     best_match = "fuzzy"

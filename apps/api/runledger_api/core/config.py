@@ -58,12 +58,12 @@ class Settings(BaseSettings):
     kms_provider: str = "local"
 
     # AWS KMS — requires boto3 and IAM permissions for kms:GenerateDataKey + kms:Decrypt
-    aws_kms_key_id: str = ""       # e.g. arn:aws:kms:us-east-1:123456:key/abc-def
+    aws_kms_key_id: str = ""  # e.g. arn:aws:kms:us-east-1:123456:key/abc-def
     aws_kms_region: str = "us-east-1"
 
     # HashiCorp Vault Transit secrets engine
-    vault_addr: str = ""           # e.g. https://vault.example.com
-    vault_token: str = ""          # Vault token with transit encrypt/decrypt policy
+    vault_addr: str = ""  # e.g. https://vault.example.com
+    vault_token: str = ""  # Vault token with transit encrypt/decrypt policy
     vault_transit_key: str = "runledger"  # Transit key name
 
     # ── Operational metrics ───────────────────────────────────────────────────

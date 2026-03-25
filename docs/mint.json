@@ -25,12 +25,6 @@
     "name": "Get started",
     "url": "https://github.com/avs6/runledger"
   },
-  "tabs": [
-    {
-      "name": "API Reference",
-      "url": "api-reference"
-    }
-  ],
   "anchors": [
     {
       "name": "GitHub",
@@ -48,16 +42,7 @@
       "group": "Getting Started",
       "pages": [
         "introduction",
-        "quickstart",
-        "docker-compose"
-      ]
-    },
-    {
-      "group": "SDK",
-      "pages": [
-        "sdk/python",
-        "sdk/typescript",
-        "sdk/opentelemetry"
+        "quickstart"
       ]
     },
     {
@@ -66,16 +51,6 @@
         "migration/from-langsmith",
         "migration/from-langfuse",
         "migration/from-helicone"
-      ]
-    },
-    {
-      "group": "Features",
-      "pages": [
-        "features/metering",
-        "features/gateway",
-        "features/budgets",
-        "features/outcomes",
-        "features/billing"
       ]
     },
     {
@@ -95,12 +70,6 @@
         "backup-restore",
         "upgrade",
         "byok"
-      ]
-    },
-    {
-      "group": "API Reference",
-      "pages": [
-        "api-reference/introduction"
       ]
     }
   ],

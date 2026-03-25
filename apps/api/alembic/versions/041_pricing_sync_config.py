@@ -7,8 +7,6 @@ Create Date: 2026-03-24
 
 from __future__ import annotations
 
-import uuid
-
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
@@ -67,9 +65,7 @@ def upgrade() -> None:
         ),
     )
     # Seed the singleton row
-    op.execute(
-        f"INSERT INTO pricing_sync_config (id) VALUES ('{_SINGLETON_ID}')"
-    )
+    op.execute(f"INSERT INTO pricing_sync_config (id) VALUES ('{_SINGLETON_ID}')")
 
 
 def downgrade() -> None:

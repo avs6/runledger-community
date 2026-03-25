@@ -97,7 +97,9 @@ class PricingContract(Base):
         sa.Index("ix_pricing_contracts_workspace", "workspace_id", "provider", "is_active"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     provider: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     model: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
@@ -105,10 +107,14 @@ class PricingContract(Base):
     fixed_input_per_1m: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
     fixed_output_per_1m: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
     effective_from: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
-    effective_until: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    effective_until: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     notes: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
@@ -120,17 +126,25 @@ class PricingCredit(Base):
         sa.Index("ix_pricing_credits_workspace", "workspace_id", "is_active", "priority"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     credit_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
     amount_usd: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
     remaining_usd: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
-    source: Mapped[str] = mapped_column(sa.String(32), nullable=False, server_default=sa.text("'manual'"))
+    source: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'manual'")
+    )
     effective_from: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
-    effective_until: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    effective_until: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("100"))
-    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
     created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
