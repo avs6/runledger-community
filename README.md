@@ -46,51 +46,9 @@ Every team shipping AI agents in production hits the same wall:
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Instrumented Application                         │
-│                                                                         │
-│   RunLedger SDK (Python / TypeScript)    OTel SDK + OpenInference       │
-│   rl.instrument() / rl.instrument_otel() TracerProvider                 │
-└────────────────┬─────────────────────────────────┬─────────────────────┘
-                 │ POST /ingest/v1/events           │ OTLP/HTTP or gRPC
-                 │ (budget check, context, scores)  ▼
-                 │                      ┌───────────────────────┐
-                 │                      │   OTel Collector      │
-                 │                      │   ports 4317 / 4318   │
-                 │                      └───────────┬───────────┘
-                 │                                  │ POST /v1/traces
-                 ▼                                  ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      RunLedger API  (FastAPI async)                     │
-│                                                                         │
-│  /ingest  /v1/traces  /gateway  /billing  /budgets  /auth/sso           │
-│  /analytics  /outcomes  /approvals  /retention  /warehouse  /reference  │
-└────────────────────────┬────────────────────────────────────────────────┘
-                         │
-          ┌──────────────┼──────────────────────┐
-          ▼              ▼                       ▼
-┌──────────────┐ ┌───────────────────┐  ┌──────────────────────┐
-│  Redis 7     │ │  PostgreSQL 16    │  │  Celery Workers      │
-│  ─ Streams   │ │  ─ agent_runs     │  │  ─ cost_enrichment   │
-│    (events)  │ │  ─ provider_calls │  │  ─ rollup_hourly/    │
-│  ─ budget    │ │  ─ billing /      │  │    rollup_daily      │
-│    hot path  │ │    invoices       │  │  ─ alert_evaluation  │
-│    (<5ms)    │ │  ─ outcomes       │  │  ─ otlp_finalize     │
-│  ─ RPM limts │ │  ─ warehouse      │  │  ─ warehouse_export  │
-└──────────────┘ └───────────────────┘  └──────────────────────┘
+<img width="1408" height="768" alt="image" src="https://github.com/user-attachments/assets/f57882fb-c531-4e02-80d4-6c6e9b512a76" />
 
-                    ▲ outcome data feeds back into routing engine
-                    │ (cost_per_success → outcome-optimized route selection)
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   RunLedger Dashboard  (Next.js 14)                     │
-│                                                                         │
-│  Runs · Analytics · Budgets · Billing · Invoices · Gateway · Outcomes   │
-│  Datasets · Experiments · Evaluations · Prompts · Approvals · Replay    │
-│  Ledger · Settings (SSO/SCIM · Git sync · Alerts · Warehouse) · Admin   │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+---
 
 **Ingestion paths:**
 

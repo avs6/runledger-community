@@ -1559,6 +1559,166 @@ async def seed_workspace(ctx: dict) -> None:
         await c.get("/warehouse/destinations", skip_errors=True)
         await c.get("/warehouse/jobs", skip_errors=True)
 
+        # ── SCIM tokens (enterprise — skips on 402) ────────────────────────────
+        print("    → SCIM tokens")
+        scim_token = await c.post(
+            "/sso/tokens",
+            json={"label": "Okta SCIM provisioner"},
+            skip_errors=True,
+        )
+        scim_token_id = scim_token.get("id") if isinstance(scim_token, dict) else None
+        await c.get("/sso/tokens", skip_errors=True)
+        if scim_token_id:
+            await c.delete(f"/sso/tokens/{scim_token_id}", skip_errors=True)
+            # Re-create so a live token stays available for UI inspection
+            await c.post(
+                "/sso/tokens",
+                json={"label": "Okta SCIM provisioner"},
+                skip_errors=True,
+            )
+
+        # ── Replay datasets + experiments ──────────────────────────────────────
+        print("    → Replay datasets & experiments")
+        runs_resp = await c.get("/runs", params={"limit": 10}, skip_errors=True)
+        run_ids: list[str] = []
+        if isinstance(runs_resp, dict):
+            run_ids = [r.get("id", "") for r in runs_resp.get("items", []) if r.get("id")]
+        if run_ids:
+            replay_ds = await c.post(
+                "/replay/datasets",
+                json={"name": "Top-10 live runs", "run_ids": run_ids[:10]},
+                skip_errors=True,
+            )
+            replay_ds_id = replay_ds.get("id") if isinstance(replay_ds, dict) else None
+            if replay_ds_id:
+                await c.post(
+                    "/replay/experiments",
+                    json={
+                        "dataset_id": replay_ds_id,
+                        "name": "GPT-4o vs Claude comparison",
+                        "configs": [
+                            {"model": "gpt-4o", "label": "GPT-4o"},
+                            {"model": "claude-sonnet-4-6", "label": "Claude Sonnet"},
+                        ],
+                    },
+                    skip_errors=True,
+                )
+        await c.get("/replay/datasets", skip_errors=True)
+        await c.get("/replay/experiments", skip_errors=True)
+
+        # ── Kafka export config (enterprise — skips on 402) ────────────────────
+        print("    → Kafka export")
+        kafka_cfg = await c.post(
+            "/integrations/kafka/configs",
+            json={
+                "label": "Internal Kafka — analytics bus",
+                "bootstrap_servers": "kafka.internal:9092",
+                "topic_prefix": "runledger",
+                "security_protocol": "PLAINTEXT",
+                "event_types": [
+                    "run.completed",
+                    "run.failed",
+                    "alert.fired",
+                    "budget.breached",
+                    "score.submitted",
+                ],
+            },
+            skip_errors=True,
+        )
+        await c.get("/integrations/kafka/configs", skip_errors=True)
+        kafka_cfg_id = kafka_cfg.get("id") if isinstance(kafka_cfg, dict) else None
+        if kafka_cfg_id:
+            # Test connectivity (will fail against demo server — that's fine)
+            await c.post(
+                f"/integrations/kafka/configs/{kafka_cfg_id}/test",
+                json={},
+                skip_errors=True,
+            )
+
+        # ── OTLP trace ingestion (OpenInference format) ────────────────────────
+        print("    → OTLP trace sample")
+        import time  # noqa: PLC0415
+
+        _now_ns = int(time.time() * 1e9)
+        _trace_id = "0af7651916cd43dd8448eb211c80319c"
+        _span_id = "b9c7c989f97918e1"
+        await c.post(
+            "/v1/traces",
+            json={
+                "resourceSpans": [
+                    {
+                        "resource": {
+                            "attributes": [
+                                {"key": "service.name", "value": {"stringValue": "demo-agent"}},
+                                {
+                                    "key": "telemetry.sdk.name",
+                                    "value": {"stringValue": "openinference-instrumentation-openai"},
+                                },
+                            ]
+                        },
+                        "scopeSpans": [
+                            {
+                                "scope": {"name": "openinference.instrumentation.openai"},
+                                "spans": [
+                                    {
+                                        "traceId": _trace_id,
+                                        "spanId": _span_id,
+                                        "name": "ChatCompletion",
+                                        "kind": 3,
+                                        "startTimeUnixNano": str(_now_ns - 1_500_000_000),
+                                        "endTimeUnixNano": str(_now_ns),
+                                        "status": {"code": 1},
+                                        "attributes": [
+                                            {
+                                                "key": "llm.model_name",
+                                                "value": {"stringValue": "gpt-4o-mini"},
+                                            },
+                                            {
+                                                "key": "llm.token_count.prompt",
+                                                "value": {"intValue": 320},
+                                            },
+                                            {
+                                                "key": "llm.token_count.completion",
+                                                "value": {"intValue": 128},
+                                            },
+                                            {
+                                                "key": "openinference.span.kind",
+                                                "value": {"stringValue": "LLM"},
+                                            },
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
+            skip_errors=True,
+        )
+
+        # ── Gateway traffic simulation ─────────────────────────────────────────
+        print("    → Gateway traffic simulation")
+        # Verify at least one route exists before sending test traffic
+        routes_resp = await c.get("/gateway/routes", skip_errors=True)
+        if isinstance(routes_resp, dict) and routes_resp.get("items"):
+            # POST a handful of completions through the gateway so request logs
+            # and cost-cap counters have data to display in the UI.
+            for _prompt in [
+                "What is prompt caching and how does it reduce costs?",
+                "Summarise the key metrics in a FinOps control plane.",
+                "What is prompt caching and how does it reduce costs?",  # cache hit
+            ]:
+                await c.post(
+                    "/gateway/chat/completions",
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [{"role": "user", "content": _prompt}],
+                    },
+                    skip_errors=True,
+                )
+            await c.get("/gateway/requests", skip_errors=True)
+            await c.get("/gateway/stats", skip_errors=True)
+
         # ── Ops / metrics ──────────────────────────────────────────────────────
         await c.get("/ops/status", skip_errors=True)
         await c.get("/metrics", skip_errors=True)
