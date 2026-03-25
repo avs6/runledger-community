@@ -63,6 +63,98 @@ All paths normalise into the same domain model: `AgentRun → Span → ProviderC
 
 ---
 
+### SDK instrumentation flow
+
+```
+Your code                RunLedger SDK              RunLedger API          PostgreSQL
+─────────────────────────────────────────────────────────────────────────────────────
+rl = RunLedger()
+rl.instrument()          # patches openai.OpenAI
+
+with rl.context(         # sets AsyncLocal run context
+  end_user_id="u_123",
+  feature_tag="chat"):
+
+  client.chat.completions  ──pre-call──▶  budget check  ──Redis──▶  429 if over limit
+  .create(model, msgs)                    (< 5 ms p99)
+
+                           ──async──▶  POST /ingest/batch
+                                       [run_start, span_start,
+                                        provider_call, span_end,
+                                        run_end events]
+                                              │
+                                       Redis Stream ──▶ Celery worker
+                                                        │  cost enrichment
+                                                        │  PII scrub
+                                                        │  privacy policy
+                                                        ▼
+                                                   agent_runs
+                                                   spans
+                                                   provider_calls  ──▶  usage rollups
+                                                   score_events         analytics
+```
+
+### OTLP ingestion flow
+
+```
+Your app (LangChain / LangGraph / any OTel)
+────────────────────────────────────────────────────────────────────────────────────
+openinference-instrumentation-openai   ──▶   TracerProvider
+                                              │
+                              ┌───────────────┴──────────────────┐
+                              │ OTel Collector (optional)         │
+                              │  processors: batch, enrichment    │
+                              │  exporter: otlphttp               │
+                              └───────────────┬──────────────────┘
+                                              │
+                              RunLedgerOTLPExporter (SDK)  OR  direct HTTP POST
+                                              │
+                                    POST /v1/traces
+                                    Content-Type: application/json
+                                    Authorization: Bearer rl_...
+                                              │
+                                    otlp_parse.py
+                                    ├─ OpenInference priority
+                                    ├─ OTel GenAI Semantic Conventions
+                                    └─ heuristic fallback
+                                              │
+                                    Celery pipeline (same as SDK path)
+                                              │
+                                    agent_runs / spans / provider_calls
+```
+
+### Model Gateway interception flow
+
+```
+Your client code                     RunLedger Gateway            Provider API
+────────────────────────────────────────────────────────────────────────────────
+client = openai.OpenAI(
+  api_key="rl_...",
+  base_url="http://localhost:8000/gateway",
+)
+client.chat.completions.create(...)
+        │
+        ▼
+  POST /gateway/chat/completions
+        │
+        ├─ 1. Auth: verify API key
+        ├─ 2. Route selection: alias / routing policy
+        │     (cost-optimised / quality / canary / weighted / budget-aware)
+        ├─ 3. Cost cap check: daily + monthly limits → 429 if exceeded
+        ├─ 4. Per-user RPM: Redis sliding window → 429 + Retry-After
+        ├─ 5. PII redaction: email / phone / SSN / card scrubbed from messages
+        ├─ 6. Prompt cache: SHA-256(model+messages) → Redis hit → return <5 ms
+        │
+        ├─ cache MISS ──▶  forward to provider (OpenAI / Anthropic / Google / …)
+        │                   streaming: SSE pass-through with X-Decision-Reason header
+        │
+        ├─ 7. Record: gateway_requests (tokens, latency, cache_hit, decision_reason)
+        ├─ 8. Health: track error rate → auto-disable route after 3 bad windows
+        └─ 9. Ingest: provider_call event → metering pipeline
+```
+
+---
+
 ## Quickstart
 
 **Docker Compose (recommended):**
@@ -86,8 +178,7 @@ curl -s -X POST http://localhost:8000/admin/bootstrap \
 | URL | What it is |
 |-----|------------|
 | `http://localhost:3000` | Dashboard |
-| `http://localhost:8000/docs` | Swagger UI |
-| `http://localhost:8000/reference` | Scalar API reference |
+| `http://localhost:8000/reference` | Interactive API reference (Scalar) |
 | `http://localhost:4318` | OTLP/HTTP receiver (via OTel Collector) |
 
 → **Full setup guide, Codespaces, Railway deploy, pip install:** [docs/quickstart.mdx](docs/quickstart.mdx)

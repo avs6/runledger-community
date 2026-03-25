@@ -409,8 +409,8 @@ async def seed_workspace(ctx: dict) -> None:
                 skip_errors=True,
             )
         await asyncio.sleep(_THROTTLE)
-        await c.get("/tools/registry")
-        await c.get("/tools/security-events")
+        await c.get("/tools/registry", skip_errors=True)
+        await c.get("/tools/security-events", skip_errors=True)
 
         # ── Gateway Routes ─────────────────────────────────────────────────────
         print("    → Gateway routes & policies")
@@ -511,8 +511,8 @@ async def seed_workspace(ctx: dict) -> None:
             await c.post("/gateway/policies", json=pd, skip_errors=True)
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/gateway/routes")
-        await c.get("/gateway/stats")
+        await c.get("/gateway/routes", skip_errors=True)
+        await c.get("/gateway/stats", skip_errors=True)
 
         # ── Runs via ingest batch API ──────────────────────────────────────────
         print("    → Ingesting agent runs (30 days of traffic)")
@@ -691,8 +691,8 @@ async def seed_workspace(ctx: dict) -> None:
                 eval_ids.append(r["id"])
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/evaluations/scores")
-        await c.get("/evaluations/evaluators")
+        await c.get("/evaluations/scores", skip_errors=True)
+        await c.get("/evaluations/evaluators", skip_errors=True)
 
         # ── Prompts & Versions ────────────────────────────────────────────────
         print("    → Prompts & versions")
@@ -741,10 +741,10 @@ async def seed_workspace(ctx: dict) -> None:
                 )
 
             prompt_names.append(name)
-            await c.get(f"/prompts/{name}/latest")
-            await c.get(f"/prompts/{name}/metrics")
+            await c.get(f"/prompts/{name}/latest", skip_errors=True)
+            await c.get(f"/prompts/{name}/metrics", skip_errors=True)
 
-        await c.get("/prompts")
+        await c.get("/prompts", skip_errors=True)
 
         # ── Eval Datasets ─────────────────────────────────────────────────────
         print("    → Eval datasets")
@@ -842,7 +842,7 @@ async def seed_workspace(ctx: dict) -> None:
             )
             if "id" in r:
                 datasets_created.append(r)
-        await c.get("/datasets")
+        await c.get("/datasets", skip_errors=True)
 
         # ── Eval Experiments ──────────────────────────────────────────────────
         print("    → Eval experiments")
@@ -885,7 +885,7 @@ async def seed_workspace(ctx: dict) -> None:
                 await c.post(f"/experiments/{r['id']}/run", skip_errors=True)
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/experiments")
+        await c.get("/experiments", skip_errors=True)
 
         # ── Approvals ─────────────────────────────────────────────────────────
         print("    → Approvals")
@@ -964,8 +964,8 @@ async def seed_workspace(ctx: dict) -> None:
             )
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/approvals")
-        await c.get("/approvals/summary")
+        await c.get("/approvals", skip_errors=True)
+        await c.get("/approvals/summary", skip_errors=True)
 
         # ── Budgets ────────────────────────────────────────────────────────────
         print("    → Budgets")
@@ -1043,7 +1043,7 @@ async def seed_workspace(ctx: dict) -> None:
             )
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/budgets")
+        await c.get("/budgets", skip_errors=True)
         await c.get(
             "/budgets/check",
             params={"scope_type": "workspace", "period_type": "daily"},
@@ -1102,8 +1102,8 @@ async def seed_workspace(ctx: dict) -> None:
                 alert_ids.append(r["id"])
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/alerts/rules")
-        await c.get("/alerts/history")
+        await c.get("/alerts/rules", skip_errors=True)
+        await c.get("/alerts/history", skip_errors=True)
 
         # ── Billing Periods & Chargeback ──────────────────────────────────────
         print("    → Billing, chargeback, cost centres")
@@ -1143,8 +1143,8 @@ async def seed_workspace(ctx: dict) -> None:
         )
         cc_cx_id = cc_cx.get("id")
 
-        await c.get("/billing/cost-centers")
-        await c.get("/billing/cost-centers/tree")
+        await c.get("/billing/cost-centers", skip_errors=True)
+        await c.get("/billing/cost-centers/tree", skip_errors=True)
 
         # Chargeback rules
         for rule in [
@@ -1169,7 +1169,7 @@ async def seed_workspace(ctx: dict) -> None:
         ]:
             await c.post("/billing/chargeback-rules", json=rule, skip_errors=True)
 
-        await c.get("/billing/chargeback-rules")
+        await c.get("/billing/chargeback-rules", skip_errors=True)
 
         # Shared cost policy
         await c.post(
@@ -1188,7 +1188,7 @@ async def seed_workspace(ctx: dict) -> None:
             skip_errors=True,
         )
 
-        await c.get("/billing/shared-cost-policies")
+        await c.get("/billing/shared-cost-policies", skip_errors=True)
 
         # Billing periods — 3 closed months + current open
         period_ids: list[str] = []
@@ -1246,9 +1246,9 @@ async def seed_workspace(ctx: dict) -> None:
             period_ids.append(open_period["id"])
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/billing/cost-centers")
-        await c.get("/billing/chargeback-rules")
-        await c.get("/billing/periods")
+        await c.get("/billing/cost-centers", skip_errors=True)
+        await c.get("/billing/chargeback-rules", skip_errors=True)
+        await c.get("/billing/periods", skip_errors=True)
 
         # Billing webhooks (enterprise feature — skip gracefully)
         await c.post(
@@ -1327,7 +1327,7 @@ async def seed_workspace(ctx: dict) -> None:
                     )
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/invoices")
+        await c.get("/invoices", skip_errors=True)
 
         # ── Outcomes & ROI ─────────────────────────────────────────────────────
         print("    → Outcomes & ROI")
@@ -1356,26 +1356,26 @@ async def seed_workspace(ctx: dict) -> None:
             )
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/outcomes")
-        await c.get("/outcomes/summary")
-        await c.get("/outcomes/trend")
-        await c.get("/outcomes/workflows")
-        await c.get("/outcomes/quality-correlation")
+        await c.get("/outcomes", skip_errors=True)
+        await c.get("/outcomes/summary", skip_errors=True)
+        await c.get("/outcomes/trend", skip_errors=True)
+        await c.get("/outcomes/workflows", skip_errors=True)
+        await c.get("/outcomes/quality-correlation", skip_errors=True)
 
         # ── Analytics queries ──────────────────────────────────────────────────
         print("    → Analytics")
         await asyncio.sleep(_THROTTLE)
-        await c.get("/analytics/summary")
+        await c.get("/analytics/summary", skip_errors=True)
         await asyncio.sleep(_THROTTLE)
-        await c.get("/analytics/spend-by-user")
-        await c.get("/analytics/spend-by-model")
-        await c.get("/analytics/spend-by-feature")
-        await c.get("/analytics/spend-over-time")
+        await c.get("/analytics/spend-by-user", skip_errors=True)
+        await c.get("/analytics/spend-by-model", skip_errors=True)
+        await c.get("/analytics/spend-by-feature", skip_errors=True)
+        await c.get("/analytics/spend-over-time", skip_errors=True)
         await asyncio.sleep(_THROTTLE)
-        await c.get("/analytics/workflows/top")
-        await c.get("/analytics/regressions")
-        await c.get("/analytics/scores/summary")
-        await c.get("/analytics/scores/regressions")
+        await c.get("/analytics/workflows/top", skip_errors=True)
+        await c.get("/analytics/regressions", skip_errors=True)
+        await c.get("/analytics/scores/summary", skip_errors=True)
+        await c.get("/analytics/scores/regressions", skip_errors=True)
         await c.get("/analytics/anomalies", skip_errors=True)
         await c.get("/analytics/cohorts", skip_errors=True)
 
@@ -1398,20 +1398,20 @@ async def seed_workspace(ctx: dict) -> None:
             },
             skip_errors=True,
         )
-        await c.get("/analytics/annotations")
+        await c.get("/analytics/annotations", skip_errors=True)
 
         # ── Sessions ───────────────────────────────────────────────────────────
-        await c.get("/sessions")
+        await c.get("/sessions", skip_errors=True)
 
         # ── Runs explorer ─────────────────────────────────────────────────────
-        await c.get("/runs")
-        await c.get("/runs", params={"status": "succeeded", "limit": 20})
-        await c.get("/runs", params={"feature_tag": "customer-support"})
+        await c.get("/runs", skip_errors=True)
+        await c.get("/runs", params={"status": "succeeded", "limit": 20}, skip_errors=True)
+        await c.get("/runs", params={"feature_tag": "customer-support"}, skip_errors=True)
 
         # ── Ledger snapshots ───────────────────────────────────────────────────
         print("    → Ledger snapshots")
         await c.post("/ledger/snapshots/generate", json={}, skip_errors=True)
-        await c.get("/ledger/snapshots")
+        await c.get("/ledger/snapshots", skip_errors=True)
 
         # ── Retention policies ─────────────────────────────────────────────────
         print("    → Retention policies")
@@ -1440,7 +1440,7 @@ async def seed_workspace(ctx: dict) -> None:
             await c.post("/retention/policies", json=rd, skip_errors=True)
 
         await asyncio.sleep(_THROTTLE)
-        ret_list = await c.get("/retention/policies")
+        ret_list = await c.get("/retention/policies", skip_errors=True)
         ret_items = ret_list.get("items", ret_list) if isinstance(ret_list, dict) else ret_list
         if isinstance(ret_items, list) and ret_items:
             # Dry-run purge on first policy
@@ -1454,7 +1454,9 @@ async def seed_workspace(ctx: dict) -> None:
 
         # ── Pricing Intelligence ───────────────────────────────────────────────
         print("    → Pricing contracts & credits")
-        await c.get("/pricing/timeline", params={"provider": "openai", "model": "gpt-4o"})
+        await c.get(
+            "/pricing/timeline", params={"provider": "openai", "model": "gpt-4o"}, skip_errors=True
+        )
 
         await c.post(
             "/pricing/contracts",
@@ -1481,7 +1483,7 @@ async def seed_workspace(ctx: dict) -> None:
             skip_errors=True,
         )
 
-        await c.get("/pricing/contracts")
+        await c.get("/pricing/contracts", skip_errors=True)
 
         await c.post(
             "/pricing/credits",
@@ -1509,8 +1511,8 @@ async def seed_workspace(ctx: dict) -> None:
         )
 
         await asyncio.sleep(_THROTTLE)
-        await c.get("/pricing/contracts")
-        await c.get("/pricing/credits")
+        await c.get("/pricing/contracts", skip_errors=True)
+        await c.get("/pricing/credits", skip_errors=True)
 
         # ── API key management ─────────────────────────────────────────────────
         print("    → Settings / API keys")
@@ -1521,7 +1523,7 @@ async def seed_workspace(ctx: dict) -> None:
             },
             skip_errors=True,
         )
-        await c.get("/settings/api-keys")
+        await c.get("/settings/api-keys", skip_errors=True)
 
         # ── SSO config (enterprise feature — skips on 402) ────────────────────
         await c.post(
@@ -1652,7 +1654,9 @@ async def seed_workspace(ctx: dict) -> None:
                                 {"key": "service.name", "value": {"stringValue": "demo-agent"}},
                                 {
                                     "key": "telemetry.sdk.name",
-                                    "value": {"stringValue": "openinference-instrumentation-openai"},
+                                    "value": {
+                                        "stringValue": "openinference-instrumentation-openai"
+                                    },
                                 },
                             ]
                         },
