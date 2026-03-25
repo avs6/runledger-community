@@ -37,10 +37,22 @@ _THROTTLE = 0.25  # seconds
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = "http://localhost:8000"
-ADMIN_EMAIL = "admin@runledger.local"
-ADMIN_PASSWORD = "runledger"
+import os
+
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@runledger.local")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "runledger")
 DEMO_PASSWORD = "demo1234"
+
+# Set SEED_EXTERNAL=true to also seed Kafka export configs and attempt live
+# gateway completions (requires real provider API keys in the gateway routes).
+# Default false so the seed works on any machine with no external credentials.
+SEED_EXTERNAL = os.getenv("SEED_EXTERNAL", "false").lower() == "true"
+
+# Provider API keys — used only for live gateway traffic simulation.
+# If unset the gateway traffic section is skipped silently.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 random.seed(42)
 NOW = datetime.now(UTC)
@@ -461,21 +473,21 @@ async def seed_workspace(ctx: dict) -> None:
                 "health_auto_disable": True,
             },
         ]
+        # Map providers to their API key env var name and the actual key value
+        # (so the gateway can forward live traffic when keys are present)
+        _provider_key_env = {
+            "openai": ("OPENAI_API_KEY", OPENAI_API_KEY),
+            "anthropic": ("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
+            "google": ("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "")),
+        }
         for rd in gateway_routes:
-            r = await c.post(
-                "/gateway/routes",
-                json={
-                    **rd,
-                    "api_key_env_var": (
-                        "OPENAI_API_KEY"
-                        if rd["provider"] == "openai"
-                        else "ANTHROPIC_API_KEY"
-                        if rd["provider"] == "anthropic"
-                        else "GEMINI_API_KEY"
-                    ),
-                },
-                skip_errors=True,
-            )
+            env_var, _key_val = _provider_key_env.get(rd["provider"], ("", ""))
+            route_payload: dict = {**rd, "api_key_env_var": env_var}
+            # Embed the actual key directly so the gateway can forward without
+            # requiring the env var to be set inside the API container.
+            if _key_val:
+                route_payload["api_key"] = _key_val
+            r = await c.post("/gateway/routes", json=route_payload, skip_errors=True)
             if "id" in r:
                 routes_created.append(r)
 
@@ -1608,34 +1620,36 @@ async def seed_workspace(ctx: dict) -> None:
         await c.get("/replay/datasets", skip_errors=True)
         await c.get("/replay/experiments", skip_errors=True)
 
-        # ── Kafka export config (enterprise — skips on 402) ────────────────────
-        print("    → Kafka export")
-        kafka_cfg = await c.post(
-            "/integrations/kafka/configs",
-            json={
-                "label": "Internal Kafka — analytics bus",
-                "bootstrap_servers": "kafka.internal:9092",
-                "topic_prefix": "runledger",
-                "security_protocol": "PLAINTEXT",
-                "event_types": [
-                    "run.completed",
-                    "run.failed",
-                    "alert.fired",
-                    "budget.breached",
-                    "score.submitted",
-                ],
-            },
-            skip_errors=True,
-        )
-        await c.get("/integrations/kafka/configs", skip_errors=True)
-        kafka_cfg_id = kafka_cfg.get("id") if isinstance(kafka_cfg, dict) else None
-        if kafka_cfg_id:
-            # Test connectivity (will fail against demo server — that's fine)
-            await c.post(
-                f"/integrations/kafka/configs/{kafka_cfg_id}/test",
-                json={},
+        # ── Kafka export config — external integration, opt-in only ──────────
+        # Requires a real Kafka broker. Skipped by default so the seed works
+        # on any machine. Enable with SEED_EXTERNAL=true.
+        if SEED_EXTERNAL:
+            print("    → Kafka export (external)")
+            kafka_cfg = await c.post(
+                "/integrations/kafka/configs",
+                json={
+                    "label": "Internal Kafka — analytics bus",
+                    "bootstrap_servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka.internal:9092"),
+                    "topic_prefix": "runledger",
+                    "security_protocol": "PLAINTEXT",
+                    "event_types": [
+                        "run.completed",
+                        "run.failed",
+                        "alert.fired",
+                        "budget.breached",
+                        "score.submitted",
+                    ],
+                },
                 skip_errors=True,
             )
+            await c.get("/integrations/kafka/configs", skip_errors=True)
+            kafka_cfg_id = kafka_cfg.get("id") if isinstance(kafka_cfg, dict) else None
+            if kafka_cfg_id:
+                await c.post(
+                    f"/integrations/kafka/configs/{kafka_cfg_id}/test",
+                    json={},
+                    skip_errors=True,
+                )
 
         # ── OTLP trace ingestion (OpenInference format) ────────────────────────
         print("    → OTLP trace sample")
@@ -1701,27 +1715,35 @@ async def seed_workspace(ctx: dict) -> None:
         )
 
         # ── Gateway traffic simulation ─────────────────────────────────────────
-        print("    → Gateway traffic simulation")
-        # Verify at least one route exists before sending test traffic
+        # Runs live completions only when a provider API key is available.
+        # Without a key the routes are still created; the gateway log will
+        # populate once a real agent sends traffic.
         routes_resp = await c.get("/gateway/routes", skip_errors=True)
-        if isinstance(routes_resp, dict) and routes_resp.get("items"):
-            # POST a handful of completions through the gateway so request logs
-            # and cost-cap counters have data to display in the UI.
+        _has_routes = isinstance(routes_resp, dict) and bool(routes_resp.get("items"))
+        _has_key = bool(OPENAI_API_KEY or ANTHROPIC_API_KEY)
+        if _has_routes and _has_key:
+            print("    → Gateway traffic simulation (live)")
+            _gw_model = "gpt-4o-mini" if OPENAI_API_KEY else "claude-haiku-4-5"
             for _prompt in [
-                "What is prompt caching and how does it reduce costs?",
+                "What is prompt caching and how does it reduce AI costs?",
                 "Summarise the key metrics in a FinOps control plane.",
-                "What is prompt caching and how does it reduce costs?",  # cache hit
+                "What is prompt caching and how does it reduce AI costs?",  # cache hit
+                "Explain budget-aware routing for LLM agents.",
+                "How does chargeback work in a multi-team AI platform?",
             ]:
                 await c.post(
                     "/gateway/chat/completions",
                     json={
-                        "model": "gpt-4o-mini",
+                        "model": _gw_model,
                         "messages": [{"role": "user", "content": _prompt}],
                     },
                     skip_errors=True,
                 )
-            await c.get("/gateway/requests", skip_errors=True)
-            await c.get("/gateway/stats", skip_errors=True)
+                await asyncio.sleep(0.1)
+        else:
+            print("    → Gateway traffic simulation (skipped — set OPENAI_API_KEY to enable)")
+        await c.get("/gateway/requests", skip_errors=True)
+        await c.get("/gateway/stats", skip_errors=True)
 
         # ── Ops / metrics ──────────────────────────────────────────────────────
         await c.get("/ops/status", skip_errors=True)
@@ -1749,6 +1771,10 @@ async def seed_platform(admin: Client) -> None:
 
 async def main() -> None:
     print("\nRunLedger Demo Seed — full API surface\n" + "━" * 50)
+    print(f"  Target:           {BASE_URL}")
+    print(f"  External integrations (Kafka etc.): {'on' if SEED_EXTERNAL else 'off  (set SEED_EXTERNAL=true to enable)'}")
+    print(f"  Gateway live traffic: {'on (OPENAI_API_KEY)' if OPENAI_API_KEY else 'on (ANTHROPIC_API_KEY)' if ANTHROPIC_API_KEY else 'off (set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable)'}")
+    print()
 
     async with Client(BASE_URL) as root:
         # Health check
@@ -1819,9 +1845,14 @@ async def main() -> None:
     print()
     print("Platform admin: admin@runledger.local / runledger")
     print()
-    print("Dashboard → http://localhost:3000")
-    print("API docs  → http://localhost:8000/reference")
+    print(f"Dashboard → {BASE_URL.replace(':8000', ':3000').replace('8000', '3000')}")
+    print(f"API docs  → {BASE_URL}/reference")
     print()
+    if not OPENAI_API_KEY and not ANTHROPIC_API_KEY:
+        print("Tip: re-run with OPENAI_API_KEY=sk-... to populate gateway request logs.")
+        print("     docker exec runledger-api-1 sh -c \\")
+        print(f'       "RUNLEDGER_API_KEY=<key> OPENAI_API_KEY=sk-... python scripts/seed_demo.py"')
+        print()
 
 
 if __name__ == "__main__":
