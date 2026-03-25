@@ -195,7 +195,7 @@ async def trigger_pricing_sync(
     body: SyncTriggerRequest,
     auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     """
     Manually trigger a pricing catalog sync with fine-grained control.
 

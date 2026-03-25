@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Awaitable, cast
 
 import structlog
 from fastapi import APIRouter, Header, HTTPException, status
@@ -75,7 +75,7 @@ async def _collect_metrics() -> dict[str, Any]:
     queue_depths: dict[str, int] = {}
     for q in celery_queues:
         try:
-            depth = await redis_client.llen(q)
+            depth = await cast(Awaitable[int], redis_client.llen(q))
             queue_depths[q] = int(depth or 0)
         except Exception:
             queue_depths[q] = -1
@@ -94,7 +94,7 @@ async def _collect_metrics() -> dict[str, Any]:
             result = await session.execute(
                 select(func.max(AgentRun.started_at)).where(AgentRun.source_type != "otlp")
             )
-            last_run_at = result.scalar()
+            last_run_at = cast(datetime | None, result.scalar())
             if last_run_at:
                 lag = (datetime.now(UTC) - last_run_at.replace(tzinfo=UTC)).total_seconds()
                 metrics["pipeline_lag_seconds"] = round(lag, 1)

@@ -12,6 +12,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -50,7 +51,7 @@ async def apply_credits(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     cost_usd: Decimal,
-) -> dict:
+) -> dict[str, Any]:
     """
     Deduct cost_usd from active credits, lowest-priority first.
 
@@ -62,7 +63,7 @@ async def apply_credits(
     credits = await get_active_credits(db, workspace_id)
     remaining = cost_usd
     applied = Decimal(0)
-    used: list[dict] = []
+    used: list[dict[str, Any]] = []
 
     for credit in credits:
         if remaining <= 0:

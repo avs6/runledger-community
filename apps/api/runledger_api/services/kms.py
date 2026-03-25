@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from typing import Protocol
+from typing import Any, Protocol
 
 import structlog
 
@@ -45,7 +45,7 @@ class LocalKmsProvider:
     Backward-compatible with all legacy formats (b64:, plaintext, Fernet token).
     """
 
-    def _fernet(self):  # type: ignore[return]
+    def _fernet(self) -> Any:
         from cryptography.fernet import Fernet  # noqa: PLC0415
 
         from runledger_api.core.config import settings  # noqa: PLC0415
@@ -106,7 +106,7 @@ class AwsKmsProvider:
         self._key_id = key_id
         self._region = region
 
-    def _client(self):  # type: ignore[return]
+    def _client(self) -> Any:
         import boto3  # noqa: PLC0415
 
         return boto3.client("kms", region_name=self._region)

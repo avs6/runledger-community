@@ -5,6 +5,7 @@ Pricing sync Celery worker — syncs the embedded catalog to provider_pricing.
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import structlog
 from sqlalchemy.pool import NullPool
@@ -15,7 +16,7 @@ log = structlog.get_logger()
 
 
 @celery_app.task(name="pricing.sync_catalog")  # type: ignore[untyped-decorator]
-def sync_pricing_catalog() -> dict:
+def sync_pricing_catalog() -> dict[str, Any]:
     """
     Sync the embedded pricing catalog to provider_pricing (Celery beat, 6h).
 
@@ -33,7 +34,7 @@ def sync_pricing_catalog() -> dict:
         sync_catalog_to_db,
     )
 
-    async def _run() -> dict:
+    async def _run() -> dict[str, Any]:
         engine = create_async_engine(settings.database_url, poolclass=NullPool)
         async with AsyncSession(engine) as db:
             config = await get_sync_config(db)

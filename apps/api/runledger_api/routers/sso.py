@@ -232,7 +232,7 @@ async def _jit_provision(
                 t_role = TenantRoleEnum.org_admin
                 w_role = WorkspaceRoleEnum.workspace_admin
             elif sso_config.default_role == "editor":
-                w_role = WorkspaceRoleEnum.editor
+                w_role = WorkspaceRoleEnum.workspace_editor
 
             db.add(TenantUser(tenant_id=tenant.id, user_id=user.id, role=t_role))
 

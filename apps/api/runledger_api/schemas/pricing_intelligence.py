@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 # ── Pricing contracts ──────────────────────────────────────────────────────────
@@ -102,7 +104,7 @@ class PricingCreditList(BaseModel):
 class CreditApplicationResult(BaseModel):
     applied: Decimal
     remaining_cost: Decimal
-    credits_used: list[dict]
+    credits_used: list[dict[str, Any]]
 
 
 # ── Sync config ────────────────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ class PricingSyncConfigResponse(BaseModel):
     excluded_models: list[str]
     force_update: bool
     last_sync_at: datetime | None
-    last_sync_result: dict | None
+    last_sync_result: dict[str, Any] | None
     updated_by: str | None
     updated_at: datetime
 

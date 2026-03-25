@@ -50,7 +50,8 @@ def verify_state(state: str) -> dict[str, str]:
     expected = hmac.new(settings.secret_key.encode(), body.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected):
         raise ValueError("State signature mismatch")
-    return json.loads(base64.urlsafe_b64decode(body + "==").decode())
+    result: dict[str, str] = json.loads(base64.urlsafe_b64decode(body + "==").decode())
+    return result
 
 
 # ── OIDC discovery + authorization URL ───────────────────────────────────────

@@ -247,7 +247,7 @@ class RunLedger:
             api_key=self.api_key,
             base_url=self.base_url,
         )
-        tracer_provider.add_span_processor(BatchSpanProcessor(exporter))  # type: ignore[union-attr]
+        tracer_provider.add_span_processor(BatchSpanProcessor(exporter))  # type: ignore[attr-defined]
 
     def callback_handler(self, *, track_llm_cost: bool = True) -> object:
         """

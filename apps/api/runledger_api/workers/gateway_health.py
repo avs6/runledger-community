@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 from sqlalchemy import func, select, update
@@ -95,7 +96,7 @@ async def _run_health_check() -> dict[str, int]:
 
             if error_rate > _ERROR_RATE_THRESHOLD:
                 new_failures = route.consecutive_health_failures + 1
-                updates: dict = {"consecutive_health_failures": new_failures}
+                updates: dict[str, Any] = {"consecutive_health_failures": new_failures}
 
                 if (
                     route.is_active
