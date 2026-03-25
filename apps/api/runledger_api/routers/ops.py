@@ -23,8 +23,8 @@ Grafana dashboard: import the JSON at docs/grafana-dashboard.json
 from __future__ import annotations
 
 import time
-from datetime import UTC, datetime, timedelta
 from collections.abc import Awaitable
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import structlog
