@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import structlog
 
@@ -55,7 +55,7 @@ class LocalKmsProvider:
 
     def encrypt(self, plaintext: str) -> str:
         try:
-            return self._fernet().encrypt(plaintext.encode()).decode()
+            return cast(str, self._fernet().encrypt(plaintext.encode()).decode())
         except ImportError:
             encoded = base64.b64encode(plaintext.encode()).decode()
             return f"b64:{encoded}"
@@ -70,7 +70,7 @@ class LocalKmsProvider:
                 "Set KMS_PROVIDER to match the provider used when encrypting."
             )
         try:
-            return self._fernet().decrypt(ciphertext.encode()).decode()
+            return cast(str, self._fernet().decrypt(ciphertext.encode()).decode())
         except ImportError:
             try:
                 return base64.b64decode(ciphertext).decode()
