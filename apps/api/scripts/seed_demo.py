@@ -1629,7 +1629,9 @@ async def seed_workspace(ctx: dict) -> None:
                 "/integrations/kafka/configs",
                 json={
                     "label": "Internal Kafka — analytics bus",
-                    "bootstrap_servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka.internal:9092"),
+                    "bootstrap_servers": os.getenv(
+                        "KAFKA_BOOTSTRAP_SERVERS", "kafka.internal:9092"
+                    ),
                     "topic_prefix": "runledger",
                     "security_protocol": "PLAINTEXT",
                     "event_types": [
@@ -1772,8 +1774,12 @@ async def seed_platform(admin: Client) -> None:
 async def main() -> None:
     print("\nRunLedger Demo Seed — full API surface\n" + "━" * 50)
     print(f"  Target:           {BASE_URL}")
-    print(f"  External integrations (Kafka etc.): {'on' if SEED_EXTERNAL else 'off  (set SEED_EXTERNAL=true to enable)'}")
-    print(f"  Gateway live traffic: {'on (OPENAI_API_KEY)' if OPENAI_API_KEY else 'on (ANTHROPIC_API_KEY)' if ANTHROPIC_API_KEY else 'off (set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable)'}")
+    print(
+        f"  External integrations (Kafka etc.): {'on' if SEED_EXTERNAL else 'off  (set SEED_EXTERNAL=true to enable)'}"
+    )
+    print(
+        f"  Gateway live traffic: {'on (OPENAI_API_KEY)' if OPENAI_API_KEY else 'on (ANTHROPIC_API_KEY)' if ANTHROPIC_API_KEY else 'off (set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable)'}"
+    )
     print()
 
     async with Client(BASE_URL) as root:
