@@ -309,7 +309,9 @@ async def test_alert_worker_respects_prefs_disabled() -> None:
         patch(
             "runledger_api.workers.alerts._send_alert_emails", new_callable=AsyncMock
         ) as mock_emails,
+        patch("runledger_api.workers.kafka_export.dispatch_kafka_event") as mock_kafka,
     ):
+        mock_kafka.delay = MagicMock()
         await _run_evaluation()
 
     # email should NOT be called because alerts_enabled=False
