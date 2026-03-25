@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, Awaitable, cast
+from collections.abc import Awaitable
+from typing import Any, cast
 
 import structlog
 from fastapi import APIRouter, Header, HTTPException, status

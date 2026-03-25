@@ -37,7 +37,7 @@ _THROTTLE = 0.25  # seconds
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-import os
+import os  # noqa: E402
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@runledger.local")
@@ -1851,7 +1851,7 @@ async def main() -> None:
     if not OPENAI_API_KEY and not ANTHROPIC_API_KEY:
         print("Tip: re-run with OPENAI_API_KEY=sk-... to populate gateway request logs.")
         print("     docker exec runledger-api-1 sh -c \\")
-        print(f'       "RUNLEDGER_API_KEY=<key> OPENAI_API_KEY=sk-... python scripts/seed_demo.py"')
+        print('       "RUNLEDGER_API_KEY=<key> OPENAI_API_KEY=sk-... python scripts/seed_demo.py"')
         print()
 
 
