@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
-from runledger_api.core.feature_gate import require_cloud
+from runledger_api.core.feature_gate import require_feature
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.invoices import ProviderInvoice, ProviderInvoiceLine
 from runledger_api.models.tenant import Workspace
@@ -348,7 +348,7 @@ async def trigger_reconcile(
     Exact match on provider_request_id where available; fuzzy fallback on
     same model + timestamp within ±10 min + tokens within 10%.
     """
-    require_cloud("Invoice reconciliation")
+    require_feature("invoice_reconciliation", "Invoice reconciliation")
     result = await db.execute(
         select(ProviderInvoice).where(
             ProviderInvoice.id == invoice_id,

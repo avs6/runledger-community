@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin
-from runledger_api.core.feature_gate import require_enterprise
+from runledger_api.core.feature_gate import require_feature
 from runledger_api.models.sso import ScimToken, SsoConfig, SsoIdentity
 from runledger_api.models.tenant import (
     ApiKey,
@@ -293,7 +293,7 @@ async def _jit_provision(
 )
 async def sso_authorize(config_id: uuid.UUID, db: DbDep) -> SsoAuthorizeResponse:
     """Return the IdP authorization URL. The frontend redirects the user there."""
-    require_enterprise("SSO / OIDC")
+    require_feature("sso", "SSO / OIDC")
     config_result = await db.execute(
         select(SsoConfig).where(SsoConfig.id == config_id, SsoConfig.enabled == True)  # noqa: E712
     )
@@ -437,7 +437,7 @@ async def sso_exchange(body: SsoExchangeRequest) -> LoginResponse:
 
 @router.get("/sso/configs", response_model=SsoConfigList, summary="List SSO configs")
 async def list_sso_configs(auth: OrgAdminDep, db: DbDep) -> SsoConfigList:
-    require_enterprise("SSO configuration")
+    require_feature("sso_config", "SSO configuration")
     workspace, user, _ = auth
     result = await db.execute(
         select(SsoConfig)

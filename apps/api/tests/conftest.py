@@ -8,11 +8,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from runledger_api.core.config import settings
+
+# Run all tests with a synthetic unlimited enterprise license so feature-gated
+# endpoints are accessible.  We inject directly into the module-level cache
+# rather than relying on RUNLEDGER_MODE so the license system is exercised.
+from runledger_api.core import license as _license_module  # noqa: E402
 from runledger_api.core.db import get_db
 
-# Run all tests in enterprise mode so feature-gated endpoints are accessible.
-settings.runledger_mode = "enterprise"
+_license_module._license_cache = _license_module._legacy_enterprise_license()
 from runledger_api.core.deps import (  # noqa: E402
     get_current_workspace,
     require_member,
@@ -21,6 +24,35 @@ from runledger_api.core.deps import (  # noqa: E402
 )
 from runledger_api.core.redis import get_redis  # noqa: E402
 from runledger_api.main import app  # noqa: E402
+
+# ── License fixtures for feature-gate tests ────────────────────────────────────
+
+
+@pytest.fixture
+def oss_license(monkeypatch: pytest.MonkeyPatch) -> _license_module.ParsedLicense:
+    """Override the license cache with a community (OSS) license for gate tests."""
+    community = _license_module._community_license()
+    monkeypatch.setattr(_license_module, "_license_cache", community)
+    return community
+
+
+@pytest.fixture
+def expired_license(monkeypatch: pytest.MonkeyPatch) -> _license_module.ParsedLicense:
+    """Override the license cache with a hard-expired enterprise license (20 days past)."""
+    expired = _license_module._make_test_license(edition="enterprise", expires_offset_days=-20)
+    monkeypatch.setattr(_license_module, "_license_cache", expired)
+    return expired
+
+
+@pytest.fixture
+def grace_period_license(monkeypatch: pytest.MonkeyPatch) -> _license_module.ParsedLicense:
+    """Override the license cache with a license 7 days past expiry (within grace period)."""
+    grace = _license_module._make_test_license(edition="enterprise", expires_offset_days=-7)
+    monkeypatch.setattr(_license_module, "_license_cache", grace)
+    return grace
+
+
+# ── DB / Redis mocks ───────────────────────────────────────────────────────────
 
 
 @pytest.fixture

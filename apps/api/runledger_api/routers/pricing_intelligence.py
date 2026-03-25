@@ -46,7 +46,7 @@ from runledger_api.core.deps import (
     require_org_admin,
     require_workspace_admin,
 )
-from runledger_api.core.feature_gate import require_cloud
+from runledger_api.core.feature_gate import require_feature
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.metering import (
     PricingContract,
@@ -280,7 +280,7 @@ async def create_contract(
     db: DbDep,
 ) -> PricingContractResponse:
     """Create a negotiated rate contract for this workspace."""
-    require_cloud("Pricing contracts and negotiated rates")
+    require_feature("pricing_contracts", "Pricing contracts")
     workspace: Workspace = auth[0]
     contract = PricingContract(
         id=uuid.uuid4(),
@@ -429,7 +429,7 @@ async def create_credit(
     auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
 ) -> PricingCreditResponse:
-    require_cloud("Pricing credits and prepaid bundles")
+    require_feature("pricing_credits", "Pricing credits")
     workspace: Workspace = auth[0]
     credit = PricingCredit(
         id=uuid.uuid4(),

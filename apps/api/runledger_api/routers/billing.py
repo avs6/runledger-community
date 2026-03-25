@@ -52,7 +52,7 @@ from runledger_api.core.deps import (
     require_org_admin,
     require_workspace_admin,
 )
-from runledger_api.core.feature_gate import require_cloud
+from runledger_api.core.feature_gate import require_feature
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import (
     BillingAdjustment,
@@ -303,7 +303,7 @@ async def get_reconciliation(
 ) -> ReconciliationResult:
     workspace: Workspace = auth[0]
     """Run a reconciliation check for the billing period."""
-    require_cloud("Invoice reconciliation")
+    require_feature("invoice_reconciliation", "Invoice reconciliation")
     # Verify ownership
     result = await db.execute(
         select(BillingPeriod).where(
@@ -426,7 +426,7 @@ async def create_chargeback_rule(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleResponse:
     workspace: Workspace = auth[0]
-    require_cloud("Chargeback rules")
+    require_feature("chargeback_rules", "Chargeback rules")
     """Create a chargeback allocation rule for this workspace."""
     _rule_uuid = uuid.uuid4()
     rule = ChargebackRule(
@@ -623,7 +623,7 @@ async def create_cost_center(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CostCenterResponse:
     workspace: Workspace = auth[0]
-    require_cloud("Cost centers")
+    require_feature("cost_centers", "Cost centers")
     """Create a cost center (optionally nested under a parent)."""
     cc = CostCenter(
         workspace_id=workspace.id,

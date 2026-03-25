@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_workspace_admin
-from runledger_api.core.feature_gate import require_enterprise
+from runledger_api.core.feature_gate import require_feature
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.tenant import Workspace
 from runledger_api.models.warehouse import ExportJob, WarehouseDestination
@@ -71,7 +71,7 @@ async def create_destination(
     auth: AdminDep,
     db: DbDep,
 ) -> WarehouseDestinationResponse:
-    require_enterprise("Warehouse export destinations")
+    require_feature("warehouse", "Warehouse export")
     workspace: Workspace = auth[0]
     dest = WarehouseDestination(
         workspace_id=workspace.id,

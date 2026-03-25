@@ -103,6 +103,8 @@ async def test_health_ready_ok(
     assert data["status"] == "ok"
     assert data["db"] == "ok"
     assert data["redis"] == "ok"
+    assert "license" in data
+    assert data["license"]["status"] in ("valid", "grace_period", "community")
 
 
 @pytest.mark.asyncio

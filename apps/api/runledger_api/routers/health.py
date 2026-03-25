@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
+from runledger_api.core.feature_gate import get_license_info
 from runledger_api.core.redis import get_redis
 
 try:
@@ -56,7 +57,7 @@ async def liveness() -> dict[str, str]:
 async def readiness(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Returns 200 if both DB and Redis are reachable, else HTTP 503."""
     db_ok = True
     redis_ok = True
@@ -73,14 +74,18 @@ async def readiness(
         log.warning("readiness_redis_failed", error=str(exc))
         redis_ok = False
 
-    if not db_ok or not redis_ok:
+    license_info = get_license_info()
+    license_hard_expired = license_info.get("status") == "expired"
+
+    if not db_ok or not redis_ok or license_hard_expired:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "status": "degraded",
                 "db": "ok" if db_ok else "error",
                 "redis": "ok" if redis_ok else "error",
+                "license": license_info,
             },
         )
 
-    return {"status": "ok", "db": "ok", "redis": "ok"}
+    return {"status": "ok", "db": "ok", "redis": "ok", "license": license_info}

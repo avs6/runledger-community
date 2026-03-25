@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
-from runledger_api.core.feature_gate import require_cloud
+from runledger_api.core.feature_gate import require_feature
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute, RoutingPolicy
 from runledger_api.models.tenant import Workspace
@@ -393,7 +393,7 @@ async def create_routing_policy(
     Create or replace a routing policy for the given alias.
     Only one active policy per alias is allowed (unique constraint on workspace+alias).
     """
-    require_cloud("Advanced routing policies")
+    require_feature("routing_policies", "Advanced routing policies")
     # Check for existing policy on this alias
     existing_stmt = select(RoutingPolicy).where(
         RoutingPolicy.workspace_id == workspace.id,
@@ -426,7 +426,7 @@ async def list_routing_policies(
     db: DbDep,
     include_inactive: bool = Query(False),
 ) -> RoutingPolicyList:
-    require_cloud("Advanced routing policies")
+    require_feature("routing_policies", "Advanced routing policies")
     stmt = select(RoutingPolicy).where(RoutingPolicy.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(RoutingPolicy.is_active.is_(True))
@@ -443,7 +443,7 @@ async def update_routing_policy(
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> RoutingPolicyResponse:
-    require_cloud("Advanced routing policies")
+    require_feature("routing_policies", "Advanced routing policies")
     policy = await db.get(RoutingPolicy, policy_id)
     if policy is None or policy.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
@@ -467,7 +467,7 @@ async def delete_routing_policy(
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> None:
-    require_cloud("Advanced routing policies")
+    require_feature("routing_policies", "Advanced routing policies")
     policy = await db.get(RoutingPolicy, policy_id)
     if policy is None or policy.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")

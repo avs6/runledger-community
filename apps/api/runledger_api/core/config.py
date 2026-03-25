@@ -22,7 +22,15 @@ class Settings(BaseSettings):
     # App
     environment: str = "development"
     log_level: str = "INFO"
-    runledger_mode: str = "oss"  # "oss" | "cloud"
+    runledger_mode: str = "oss"  # "oss" | "saas" | "enterprise" (legacy)
+
+    # ── License — enterprise self-hosted ──────────────────────────────────────
+    # Customers set this in their .env to unlock enterprise features.
+    # Format: rl_lic_<base64url_payload>.<base64url_hmac_sha256_sig>
+    runledger_license_key: str = ""
+    # Signing key — held ONLY by the RunLedger vendor to issue keys.
+    # Never ship this to customers.  Leave empty in customer deployments.
+    runledger_license_signing_key: str = ""
 
     # CORS — comma-separated list of allowed origins.
     # In production set CORS_ORIGINS=https://your-frontend.railway.app
