@@ -1052,6 +1052,11 @@ export async function createGatewayRoute(
     api_key_env_var?: string | null
     priority?: number
     config?: Record<string, string> | null
+    daily_cost_limit_usd?: number | null
+    monthly_cost_limit_usd?: number | null
+    pii_redaction_enabled?: boolean
+    per_user_rpm_limit?: number | null
+    health_auto_disable?: boolean
   }
 ): Promise<GatewayRoute> {
   return apiFetch<GatewayRoute>('/gateway/routes', apiKey, {
