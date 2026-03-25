@@ -28,6 +28,12 @@ POST   /billing/webhooks                         Create a billing webhook config
 GET    /billing/webhooks                         List billing webhook configs
 DELETE /billing/webhooks/{id}                    Delete a billing webhook config
 GET    /billing/webhooks/{id}/deliveries         List delivery attempts for a webhook
+POST   /billing/shared-cost-policies             Create a shared-cost policy
+GET    /billing/shared-cost-policies             List shared-cost policies
+GET    /billing/shared-cost-policies/{id}        Get a shared-cost policy
+PUT    /billing/shared-cost-policies/{id}        Update a shared-cost policy
+DELETE /billing/shared-cost-policies/{id}        Delete a shared-cost policy
+POST   /billing/shared-cost-policies/{id}/allocate  Compute cost allocation for a pool
 """
 
 from __future__ import annotations
@@ -53,6 +59,7 @@ from runledger_api.models.billing import (
     BillingPeriod,
     ChargebackRule,
     CostCenter,
+    SharedCostPolicy,
 )
 from runledger_api.models.billing_webhooks import BillingWebhookConfig, BillingWebhookDelivery
 from runledger_api.models.tenant import Workspace
@@ -73,6 +80,11 @@ from runledger_api.schemas.billing import (
     CostCenterUpdate,
     PeriodBreakdown,
     ReconciliationResult,
+    SharedCostAllocationResult,
+    SharedCostPolicyCreate,
+    SharedCostPolicyList,
+    SharedCostPolicyResponse,
+    SharedCostPolicyUpdate,
     UsageSnapshotResponse,
 )
 from runledger_api.schemas.billing_webhooks import (
@@ -85,6 +97,7 @@ from runledger_api.schemas.billing_webhooks import (
 from runledger_api.services.billing import (
     add_adjustment,
     close_billing_period,
+    compute_shared_cost_allocation,
     export_csv,
     export_signed_json,
     get_cost_center_tree,
@@ -415,26 +428,34 @@ async def create_chargeback_rule(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleResponse:
     workspace: Workspace = auth[0]
+    require_cloud("Chargeback rules")
     """Create a chargeback allocation rule for this workspace."""
+    _rule_uuid = uuid.uuid4()
     rule = ChargebackRule(
+        id=_rule_uuid,
         workspace_id=workspace.id,
         allocation_type=body.allocation_type,
         dimension=body.dimension,
         weight=body.weight,
         cost_center_id=body.cost_center_id,
+        status="active",
     )
     db.add(rule)
     await db.flush()
 
-    # Optionally gate through the approvals system
+    approval_id: uuid.UUID | None = None
+
+    # Gate through the approvals system — rule stays inactive until approved
     if body.require_approval:
         from runledger_api.models.approvals import Approval  # noqa: PLC0415
 
+        _approval_uuid = uuid.uuid4()
         approval = Approval(
+            id=_approval_uuid,
             workspace_id=workspace.id,
             request_type="chargeback_rule",
             request={
-                "rule_id": str(rule.id),
+                "rule_id": str(_rule_uuid),
                 "allocation_type": body.allocation_type,
                 "dimension": body.dimension,
                 "weight": str(body.weight),
@@ -444,6 +465,9 @@ async def create_chargeback_rule(
             requested_by=str(workspace.id),
         )
         db.add(approval)
+        await db.flush()
+        rule.status = "pending_approval"
+        approval_id = _approval_uuid
 
     await db.commit()
     await db.refresh(rule)
@@ -456,9 +480,12 @@ async def create_chargeback_rule(
         dimension=rule.dimension,
         weight=str(rule.weight),
         cost_center_id=str(rule.cost_center_id) if rule.cost_center_id else None,
+        status=rule.status,
     )
 
-    return ChargebackRuleResponse.model_validate(rule)
+    resp = ChargebackRuleResponse.model_validate(rule)
+    resp.approval_id = approval_id
+    return resp
 
 
 # ── GET /billing/chargeback-rules ─────────────────────────────────────────────
@@ -600,6 +627,7 @@ async def create_cost_center(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CostCenterResponse:
     workspace: Workspace = auth[0]
+    require_cloud("Cost centers")
     """Create a cost center (optionally nested under a parent)."""
     cc = CostCenter(
         workspace_id=workspace.id,
@@ -807,3 +835,177 @@ async def list_webhook_deliveries(
     return BillingWebhookDeliveryList(
         items=[BillingWebhookDeliveryResponse.model_validate(d) for d in deliveries]
     )
+
+
+# ── Shared-cost policies ───────────────────────────────────────────────────────
+
+
+@router.post(
+    "/shared-cost-policies",
+    response_model=SharedCostPolicyResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_shared_cost_policy(
+    body: SharedCostPolicyCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SharedCostPolicyResponse:
+    workspace: Workspace = auth[0]
+    _id = uuid.uuid4()
+    policy = SharedCostPolicy(
+        id=_id,
+        workspace_id=workspace.id,
+        name=body.name,
+        description=body.description,
+        formula_type=body.formula_type,
+        allocations=[a.model_dump(mode="json") for a in body.allocations],
+        is_active=body.is_active,
+    )
+    db.add(policy)
+    await db.commit()
+    await db.refresh(policy)
+    log.info(
+        "shared_cost_policy_created",
+        policy_id=str(policy.id),
+        workspace_id=str(workspace.id),
+        formula_type=policy.formula_type,
+    )
+    return SharedCostPolicyResponse.model_validate(policy)
+
+
+@router.get("/shared-cost-policies", response_model=SharedCostPolicyList)
+async def list_shared_cost_policies(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    active_only: Annotated[bool, Query()] = False,
+) -> SharedCostPolicyList:
+    workspace: Workspace = auth[0]
+    stmt = select(SharedCostPolicy).where(SharedCostPolicy.workspace_id == workspace.id)
+    if active_only:
+        stmt = stmt.where(SharedCostPolicy.is_active.is_(True))
+    stmt = stmt.order_by(SharedCostPolicy.created_at.desc())
+    result = await db.execute(stmt)
+    policies = list(result.scalars().all())
+    return SharedCostPolicyList(
+        items=[SharedCostPolicyResponse.model_validate(p) for p in policies],
+        total=len(policies),
+    )
+
+
+@router.get("/shared-cost-policies/{policy_id}", response_model=SharedCostPolicyResponse)
+async def get_shared_cost_policy(
+    policy_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SharedCostPolicyResponse:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(SharedCostPolicy).where(
+            SharedCostPolicy.id == policy_id,
+            SharedCostPolicy.workspace_id == workspace.id,
+        )
+    )
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    return SharedCostPolicyResponse.model_validate(policy)
+
+
+@router.put("/shared-cost-policies/{policy_id}", response_model=SharedCostPolicyResponse)
+async def update_shared_cost_policy(
+    policy_id: uuid.UUID,
+    body: SharedCostPolicyUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SharedCostPolicyResponse:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(SharedCostPolicy).where(
+            SharedCostPolicy.id == policy_id,
+            SharedCostPolicy.workspace_id == workspace.id,
+        )
+    )
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+
+    if body.name is not None:
+        policy.name = body.name
+    if body.description is not None:
+        policy.description = body.description
+    if body.formula_type is not None:
+        policy.formula_type = body.formula_type
+    if body.allocations is not None:
+        policy.allocations = [a.model_dump(mode="json") for a in body.allocations]
+    if body.is_active is not None:
+        policy.is_active = body.is_active
+
+    await db.commit()
+    await db.refresh(policy)
+    return SharedCostPolicyResponse.model_validate(policy)
+
+
+@router.delete("/shared-cost-policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_shared_cost_policy(
+    policy_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(SharedCostPolicy).where(
+            SharedCostPolicy.id == policy_id,
+            SharedCostPolicy.workspace_id == workspace.id,
+        )
+    )
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+    await db.delete(policy)
+    await db.commit()
+
+
+@router.post(
+    "/shared-cost-policies/{policy_id}/allocate",
+    response_model=SharedCostAllocationResult,
+)
+async def allocate_shared_cost(
+    policy_id: uuid.UUID,
+    body: dict[str, Any],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SharedCostAllocationResult:
+    """Compute how pool_usd distributes across allocations for this policy."""
+    workspace: Workspace = auth[0]
+    # Verify ownership
+    check = await db.execute(
+        select(SharedCostPolicy).where(
+            SharedCostPolicy.id == policy_id,
+            SharedCostPolicy.workspace_id == workspace.id,
+        )
+    )
+    if check.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
+
+    pool_str = body.get("pool_usd")
+    if pool_str is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="pool_usd is required",
+        )
+    try:
+        from decimal import Decimal as _Decimal  # noqa: PLC0415
+
+        pool_usd = _Decimal(str(pool_str))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="pool_usd must be a valid decimal number",
+        ) from exc
+
+    try:
+        result = await compute_shared_cost_allocation(db, policy_id, pool_usd)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return SharedCostAllocationResult(**result)

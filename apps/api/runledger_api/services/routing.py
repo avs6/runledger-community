@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import random
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, text
@@ -64,6 +65,8 @@ async def select_route_with_policy(
             return await _budget_aware(db, workspace_id, routes, config)
         if policy_type == "complexity_based":
             return await _complexity_based(db, workspace_id, routes, config, messages)
+        if policy_type == "outcome_optimized":
+            return await _outcome_optimized(db, workspace_id, routes, config)
     except Exception:
         log.exception(
             "routing_policy_error policy_type=%s alias=%s — falling back to manual",
@@ -400,4 +403,152 @@ async def _complexity_based(
     return route, (
         f"complexity_based:{tier}-~{estimated_tokens}-tokens-no-alias-fallback"
         f" ({route.target_model})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Outcome stats helper (shared with recommendation endpoint)
+# ---------------------------------------------------------------------------
+
+
+async def get_outcome_stats_by_model(
+    db: AsyncSession,
+    workspace_id: Any,
+    models: list[str],
+    *,
+    lookback_days: int = 30,
+    workflow_type: str | None = None,
+    min_sample_size: int = 1,
+) -> dict[str, dict[str, Any]]:
+    """
+    Return per-model outcome statistics over the lookback window.
+
+    Result shape:
+        {model_name: {sample_count, success_rate, cost_per_success}}
+
+    Only models with >= min_sample_size linked outcomes are included.
+    The model for each run is determined by the first provider_call created for that run.
+    """
+    if not models:
+        return {}
+
+    cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
+    type_clause = "AND o.outcome_type = :wf_type" if workflow_type else ""
+
+    stmt = text(f"""
+        SELECT
+            pc_first.model,
+            COUNT(DISTINCT o.id)                                              AS sample_count,
+            AVG(CASE WHEN o.success THEN 1.0 ELSE 0.0 END)                   AS success_rate,
+            SUM(ar.cost_usd) /
+                NULLIF(COUNT(CASE WHEN o.success THEN 1 END)::float, 0)      AS cost_per_success
+        FROM outcomes o
+        JOIN agent_runs ar ON ar.id = o.run_id
+        JOIN (
+            SELECT DISTINCT ON (run_id) run_id, model
+            FROM provider_calls
+            ORDER BY run_id, created_at ASC
+        ) pc_first ON pc_first.run_id = o.run_id
+        WHERE o.workspace_id = :ws
+          AND o.created_at >= :cutoff
+          AND pc_first.model = ANY(:models)
+          {type_clause}
+        GROUP BY pc_first.model
+        HAVING COUNT(DISTINCT o.id) >= :min_n
+    """)
+
+    bind: dict[str, Any] = {
+        "ws": str(workspace_id),
+        "cutoff": cutoff,
+        "models": models,
+        "min_n": min_sample_size,
+    }
+    if workflow_type:
+        bind["wf_type"] = workflow_type
+
+    rows = await db.execute(stmt.bindparams(**bind))
+    return {
+        r.model: {
+            "sample_count": int(r.sample_count),
+            "success_rate": float(r.success_rate),
+            "cost_per_success": float(r.cost_per_success) if r.cost_per_success is not None else None,
+        }
+        for r in rows.all()
+    }
+
+
+# ---------------------------------------------------------------------------
+# Strategy: outcome_optimized
+# config: {"workflow_type": "conversion", "lookback_days": 30,
+#          "min_sample_size": 10, "sla_latency_ms": 5000}
+# Selects the route whose model has the lowest cost-per-success over recent
+# outcomes. Falls back to priority order when data is insufficient.
+# ---------------------------------------------------------------------------
+
+
+async def _outcome_optimized(
+    db: AsyncSession,
+    workspace_id: Any,
+    routes: list[GatewayRoute],
+    config: dict[str, Any],
+) -> tuple[GatewayRoute, str]:
+    lookback_days: int = int(config.get("lookback_days", 30))
+    min_sample_size: int = int(config.get("min_sample_size", 10))
+    workflow_type: str | None = config.get("workflow_type")
+    sla_latency_ms: int | None = config.get("sla_latency_ms")
+
+    models = [r.target_model for r in routes]
+    stats = await get_outcome_stats_by_model(
+        db,
+        workspace_id,
+        models,
+        lookback_days=lookback_days,
+        workflow_type=workflow_type,
+        min_sample_size=min_sample_size,
+    )
+
+    if not stats:
+        # No outcome data yet — fall back to priority order
+        route = routes[0]
+        return route, f"outcome_optimized:no-data-fallback ({route.target_model})"
+
+    # Optionally filter by p95 SLA
+    if sla_latency_ms is not None:
+        route_ids = [str(r.id) for r in routes]
+        cutoff = datetime.now(UTC) - timedelta(hours=24)
+        lat_rows = await db.execute(
+            text("""
+            SELECT route_id,
+                   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95
+            FROM gateway_requests
+            WHERE route_id = ANY(:ids)
+              AND created_at >= :cutoff
+              AND status = 'success'
+              AND latency_ms IS NOT NULL
+            GROUP BY route_id
+            """).bindparams(ids=route_ids, cutoff=cutoff)
+        )
+        p95_map: dict[str, float] = {str(r.route_id): float(r.p95) for r in lat_rows.all()}
+        routes = [r for r in routes if p95_map.get(str(r.id), 0) <= sla_latency_ms] or routes
+
+    # Pick route with data; prefer lowest cost_per_success (prefer success_rate if tied)
+    def _score(r: GatewayRoute) -> tuple[int, float, float]:
+        s = stats.get(r.target_model)
+        if s is None:
+            return (1, float("inf"), 0.0)  # no data → deprioritize
+        cps = s["cost_per_success"] if s["cost_per_success"] is not None else float("inf")
+        return (0, cps, -s["success_rate"])
+
+    best = min(routes, key=_score)
+    s = stats.get(best.target_model)
+    if s is None:
+        return best, f"outcome_optimized:no-data-fallback ({best.target_model})"
+
+    cps = s["cost_per_success"]
+    cps_str = f"${cps:.4f}/success" if cps is not None else "∞"
+    return best, (
+        f"outcome_optimized:cost-per-success={cps_str}"
+        f" success_rate={s['success_rate']:.1%}"
+        f" n={s['sample_count']}"
+        f" ({best.target_model})"
     )

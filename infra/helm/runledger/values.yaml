@@ -1,0 +1,211 @@
+# RunLedger Helm Chart — default values
+# Override with: helm install runledger ./runledger -f my-values.yaml
+
+# ── Image ─────────────────────────────────────────────────────────────────────
+image:
+  repository: ghcr.io/avs6/runledger-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+webImage:
+  repository: ghcr.io/avs6/runledger-web
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# ── Replica counts ────────────────────────────────────────────────────────────
+api:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+worker:
+  replicaCount: 2        # Scale out for higher ingest throughput
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+beat:
+  replicaCount: 1        # Always exactly 1 — multiple beats cause duplicate tasks
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+web:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ── Horizontal Pod Autoscaler ─────────────────────────────────────────────────
+autoscaling:
+  api:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  worker:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+# ── Service ───────────────────────────────────────────────────────────────────
+service:
+  api:
+    type: ClusterIP
+    port: 8000
+  web:
+    type: ClusterIP
+    port: 3000
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/proxy-body-size: 50m
+  hosts:
+    api:
+      host: api.runledger.example.com
+      tls: true
+      secretName: runledger-api-tls
+    web:
+      host: app.runledger.example.com
+      tls: true
+      secretName: runledger-web-tls
+
+# ── External dependencies ─────────────────────────────────────────────────────
+# Set these to point at your managed Postgres + Redis.
+# Never run Postgres/Redis as in-cluster pods for production.
+externalDatabase:
+  url: ""   # postgresql+asyncpg://user:pass@host:5432/runledger
+
+externalRedis:
+  url: ""   # redis://host:6379/0  or  rediss://host:6380/0 for TLS
+
+# ── Application secrets ───────────────────────────────────────────────────────
+# Use an existing Secret or provide values directly (not recommended for production).
+# Preferred: set existingSecret and store values in a pre-created Secret.
+secrets:
+  existingSecret: ""        # Name of an existing Secret; all keys below are read from it
+  secretKey: ""             # SECRET_KEY — required, min 32 chars
+  adminSecret: ""           # ADMIN_SECRET — optional, falls back to secretKey
+  metricsToken: ""          # METRICS_TOKEN — protects /metrics endpoint
+
+  # KMS / BYOK (optional — leave kmsProvider=local for default Fernet)
+  kmsProvider: local        # local | aws_kms | vault
+  awsKmsKeyId: ""           # ARN of CMK for KMS_PROVIDER=aws_kms
+  awsKmsRegion: us-east-1
+  vaultAddr: ""             # https://vault.example.com for KMS_PROVIDER=vault
+  vaultToken: ""
+  vaultTransitKey: runledger
+
+  # Stripe (cloud mode only)
+  stripeSecretKey: ""
+  stripeWebhookSecret: ""
+
+  # NextAuth
+  nextauthSecret: ""        # Required for web; min 32 chars
+
+# ── Email (Brevo SMTP) ────────────────────────────────────────────────────────
+email:
+  smtpHost: smtp-relay.brevo.com
+  smtpPort: 587
+  smtpUser: ""
+  smtpPassword: ""
+  smtpFrom: runledger@example.com
+  appBaseUrl: https://app.runledger.example.com
+
+# ── CORS ─────────────────────────────────────────────────────────────────────
+corsOrigins: "https://app.runledger.example.com"
+
+# ── Pricing file ──────────────────────────────────────────────────────────────
+# Mount a custom pricing YAML via a ConfigMap.
+pricingConfig:
+  enabled: false
+  # If enabled, create a ConfigMap with key "pricing.yml" containing your pricing YAML.
+  configMapName: runledger-pricing
+
+# ── ServiceAccount ───────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+    # For AWS IRSA (required when KMS_PROVIDER=aws_kms):
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123456:role/runledger-kms
+
+# ── Pod annotations / labels ─────────────────────────────────────────────────
+podAnnotations: {}
+  # prometheus.io/scrape: "true"
+  # prometheus.io/path: /metrics
+  # prometheus.io/port: "8000"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# ── Node affinity / tolerations ───────────────────────────────────────────────
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── Probes ────────────────────────────────────────────────────────────────────
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 30
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 3
+
+# ── Migrations job ────────────────────────────────────────────────────────────
+migrations:
+  # Run `alembic upgrade head` as a pre-install/pre-upgrade Job.
+  enabled: true
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+
+# ── Backup CronJob ────────────────────────────────────────────────────────────
+backup:
+  enabled: false
+  schedule: "0 2 * * *"   # 02:00 UTC daily
+  image: postgres:16-alpine
+  s3Bucket: ""             # s3://my-bucket/runledger-backups
+  awsRegion: us-east-1
+  retainDays: 30

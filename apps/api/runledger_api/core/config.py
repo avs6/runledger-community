@@ -53,6 +53,24 @@ class Settings(BaseSettings):
     firebase_client_email: str = ""
     firebase_private_key: str = ""  # PEM key; \n in value is auto-converted
 
+    # ── BYOK / KMS (enterprise) ───────────────────────────────────────────────
+    # KMS_PROVIDER=local (default) | aws_kms | vault
+    kms_provider: str = "local"
+
+    # AWS KMS — requires boto3 and IAM permissions for kms:GenerateDataKey + kms:Decrypt
+    aws_kms_key_id: str = ""       # e.g. arn:aws:kms:us-east-1:123456:key/abc-def
+    aws_kms_region: str = "us-east-1"
+
+    # HashiCorp Vault Transit secrets engine
+    vault_addr: str = ""           # e.g. https://vault.example.com
+    vault_token: str = ""          # Vault token with transit encrypt/decrypt policy
+    vault_transit_key: str = "runledger"  # Transit key name
+
+    # ── Operational metrics ───────────────────────────────────────────────────
+    # Token required to scrape /metrics and /ops/status.
+    # If empty, falls back to effective_admin_secret.
+    metrics_token: str = ""
+
     @property
     def is_development(self) -> bool:
         return self.environment == "development"
@@ -61,6 +79,11 @@ class Settings(BaseSettings):
     def effective_admin_secret(self) -> str:
         """Returns ADMIN_SECRET if set, otherwise falls back to SECRET_KEY."""
         return self.admin_secret or self.secret_key
+
+    @property
+    def effective_metrics_token(self) -> str:
+        """Returns METRICS_TOKEN if set, otherwise falls back to effective_admin_secret."""
+        return self.metrics_token or self.effective_admin_secret
 
 
 settings = Settings()

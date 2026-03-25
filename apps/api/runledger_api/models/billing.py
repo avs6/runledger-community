@@ -140,7 +140,54 @@ class ChargebackRule(Base):
         sa.ForeignKey("cost_centers.id", ondelete="SET NULL"),
         nullable=True,
     )
+    status: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'active'")
+    )
     created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+
+class SharedCostPolicyFormulaEnum(enum.StrEnum):
+    equal_split = "equal_split"
+    proportional = "proportional"
+    fixed_weight = "fixed_weight"
+
+
+class SharedCostPolicy(Base):
+    """
+    Shared-cost policy: defines how a cost pool is split across cost centers.
+
+    formula_type:
+      equal_split   — pool / N (equal share for each allocation)
+      fixed_weight  — pool * allocation.weight (weights must sum to 1.0)
+      proportional  — pool * (allocation.denominator_value / sum_of_all)
+
+    allocations JSONB structure (list):
+      [{"cost_center_id": "<uuid>", "label": "...", "weight": 0.4,
+        "denominator_value": 1200.0}]
+    """
+
+    __tablename__ = "shared_cost_policies"
+    __table_args__ = (sa.Index("ix_shared_cost_policies_workspace", "workspace_id", "is_active"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    name: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    formula_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    allocations: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
 

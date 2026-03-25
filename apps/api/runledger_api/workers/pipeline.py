@@ -149,17 +149,40 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
 
 
 async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
+    status = e["status"]
     await session.execute(
         update(AgentRun)
         .where(AgentRun.id == uuid.UUID(e["run_id"]))
         .values(
-            status=RunStatusEnum(e["status"]),
+            status=RunStatusEnum(status),
             ended_at=_dt(e["ended_at"]),
             total_cost_usd=_dec(e.get("total_cost_usd")),
             total_input_tokens=e.get("total_input_tokens"),
             total_output_tokens=e.get("total_output_tokens"),
         )
     )
+
+    # Publish run completion to Kafka (fire-and-forget)
+    event_type = "run.completed" if status == "completed" else "run.failed"
+    workspace_id = e.get("workspace_id")
+    if workspace_id:
+        from runledger_api.workers.kafka_export import dispatch_kafka_event  # noqa: PLC0415
+
+        dispatch_kafka_event.delay(
+            workspace_id,
+            event_type,
+            {
+                "event": event_type,
+                "run_id": e["run_id"],
+                "status": status,
+                "ended_at": e["ended_at"],
+                "total_cost_usd": str(e.get("total_cost_usd") or "0"),
+                "total_input_tokens": e.get("total_input_tokens"),
+                "total_output_tokens": e.get("total_output_tokens"),
+                "feature_tag": e.get("feature_tag"),
+                "end_user_id": e.get("end_user_id"),
+            },
+        )
 
 
 async def _handle_span_start(session: AsyncSession, e: dict[str, Any]) -> None:

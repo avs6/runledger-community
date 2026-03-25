@@ -21,6 +21,8 @@ celery_app = Celery(
         "runledger_api.workers.warehouse",
         "runledger_api.workers.email_reports",
         "runledger_api.workers.gateway_health",
+        "runledger_api.workers.pricing_sync",
+        "runledger_api.workers.kafka_export",
     ],
 )
 
@@ -138,6 +140,11 @@ celery_app.conf.update(
         "gateway-health-check-5m": {
             "task": "gateway.health_check",
             "schedule": 300.0,
+        },
+        # Pricing catalog sync: every 6 hours
+        "pricing-catalog-sync-6h": {
+            "task": "pricing.sync_catalog",
+            "schedule": 21600.0,
         },
     },
 )

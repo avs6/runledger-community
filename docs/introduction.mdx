@@ -1,0 +1,105 @@
+---
+title: "Introduction"
+description: "Finance-grade cost accounting, budget enforcement, and invoice reconciliation for AI agents."
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.png"
+  alt="RunLedger Dashboard"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.png"
+  alt="RunLedger Dashboard"
+/>
+
+**RunLedger is an open-source Agent FinOps Control Plane.**
+
+It turns LangChain, LangGraph, OpenAI, Anthropic, and any OpenTelemetry-instrumented agent into trace-linked usage accounting, provider invoice reconciliation, internal chargeback, budget enforcement, economics-aware routing, and outcome-to-cost visibility.
+
+Tracing tools tell you *what happened*. RunLedger tells you *what it cost, who pays, whether you're over budget, how it reconciles against the provider invoice, and what the ROI was.*
+
+---
+
+## The problem it solves
+
+Every team shipping AI agents in production hits the same wall:
+
+<CardGroup cols={2}>
+  <Card title="Spend explodes" icon="fire">
+    A retry loop or runaway agent silently burns through API budget overnight.
+  </Card>
+  <Card title="Chargeback is guesswork" icon="circle-question">
+    You can't attribute cost to a tenant, user, or feature without custom instrumentation.
+  </Card>
+  <Card title="Routing isn't tied to economics" icon="route">
+    Model selection is based on capability, not cost-per-outcome.
+  </Card>
+  <Card title="Finance can't trust the numbers" icon="file-invoice">
+    No audit trail linking an invoice line to the exact agent run.
+  </Card>
+</CardGroup>
+
+---
+
+## What's built
+
+<CardGroup cols={2}>
+  <Card title="Provider metering" icon="gauge-high">
+    Input vs output tokens (plus cached input) mapped to provider pricing so your internal numbers match the invoice.
+  </Card>
+  <Card title="Budget enforcement" icon="shield-check">
+    Set spend limits per workspace/user/feature. Block or throttle automatically.
+  </Card>
+  <Card title="Invoice reconciliation" icon="receipt">
+    Import billing exports from OpenAI, Anthropic, Google. Match against internal calls by request ID. Export signed dispute packages.
+  </Card>
+  <Card title="Chargeback" icon="building">
+    Attribute cost to tenants, features, or teams with shared-cost policies and approval workflow.
+  </Card>
+  <Card title="Model gateway" icon="network-wired">
+    OpenAI-compatible proxy with prompt caching, provider fallback, and outcome-aware routing policies.
+  </Card>
+  <Card title="Outcome & ROI ledger" icon="chart-line">
+    Tie spend to business outcomes: cost-per-success, ROI by workflow, success rate trends.
+  </Card>
+</CardGroup>
+
+---
+
+## Ingestion paths
+
+| Path | When to use |
+|------|-------------|
+| **RunLedger SDK** | Best path — budget enforcement, `rl.score()`, prompt fetch, propagation headers |
+| **OTLP direct** | Already emit OTel / OpenInference; zero instrumentation change |
+| **OTLP via Collector** | Production — batching, retry, attribute enrichment |
+| **Model Gateway** | OpenAI base_url swap — works for any OpenAI-compatible client |
+
+All paths normalise into the same domain model: `AgentRun → Span → ProviderCall / ToolCall`.
+
+---
+
+## Quick navigation
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Up and running in 5 minutes with Docker Compose.
+  </Card>
+  <Card title="Python SDK" icon="python" href="/sdk/python">
+    Instrument OpenAI, Anthropic, LangChain, LangGraph.
+  </Card>
+  <Card title="Migrate from LangSmith" icon="exchange" href="/migration/from-langsmith">
+    Add RunLedger accounting alongside your existing LangSmith traces.
+  </Card>
+  <Card title="Migrate from Langfuse" icon="exchange" href="/migration/from-langfuse">
+    Swap or supplement Langfuse with a finance-grade layer.
+  </Card>
+  <Card title="Migrate from Helicone" icon="exchange" href="/migration/from-helicone">
+    One base_url change — RunLedger Gateway is OpenAI-compatible.
+  </Card>
+  <Card title="OTLP / OpenTelemetry" icon="bolt" href="/otlp">
+    Send traces from any OTel-instrumented app. No SDK required.
+  </Card>
+</CardGroup>

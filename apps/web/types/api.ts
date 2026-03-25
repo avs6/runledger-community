@@ -732,6 +732,7 @@ export type RoutingPolicyType =
   | 'canary'
   | 'budget_aware'
   | 'complexity_based'
+  | 'outcome_optimized'
 
 export interface RoutingPolicy {
   id: string
@@ -746,6 +747,26 @@ export interface RoutingPolicy {
 
 export interface RoutingPolicyList {
   items: RoutingPolicy[]
+}
+
+export interface RoutingRecommendationModel {
+  model: string
+  route_id: string | null
+  sample_count: number
+  success_rate: number
+  cost_per_success: number | null
+  improvement_vs_current: number | null
+}
+
+export interface RoutingRecommendationResponse {
+  alias: string
+  window_days: number
+  workflow_type: string | null
+  total_outcomes_sampled: number
+  models: RoutingRecommendationModel[]
+  best_model: string | null
+  recommended_route_id: string | null
+  message: string
 }
 
 // ── Org Dashboard ──────────────────────────────────────────────────────────────
@@ -1255,4 +1276,57 @@ export interface BillingWebhookDelivery {
 
 export interface BillingWebhookDeliveryList {
   items: BillingWebhookDelivery[]
+}
+
+// ── Kafka Export ───────────────────────────────────────────────────────────────
+
+export type KafkaSecurityProtocol = 'PLAINTEXT' | 'SSL' | 'SASL_PLAINTEXT' | 'SASL_SSL'
+export type KafkaSaslMechanism = 'PLAIN' | 'SCRAM-SHA-256' | 'SCRAM-SHA-512'
+export type KafkaEventType =
+  | 'run.completed'
+  | 'run.failed'
+  | 'alert.fired'
+  | 'budget.breached'
+  | 'score.submitted'
+
+export interface KafkaExportConfig {
+  id: string
+  workspace_id: string
+  label: string
+  bootstrap_servers: string
+  topic_prefix: string
+  security_protocol: KafkaSecurityProtocol
+  sasl_mechanism: KafkaSaslMechanism | null
+  sasl_username: string | null
+  ssl_ca_cert: string | null
+  event_types: KafkaEventType[]
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface KafkaExportConfigList {
+  items: KafkaExportConfig[]
+}
+
+export interface KafkaExportDelivery {
+  id: string
+  config_id: string
+  event_type: string
+  topic: string
+  status: 'pending' | 'success' | 'failed'
+  error_detail: string | null
+  attempt: number
+  delivered_at: string | null
+  created_at: string
+}
+
+export interface KafkaExportDeliveryList {
+  items: KafkaExportDelivery[]
+}
+
+export interface KafkaTestResult {
+  ok: boolean
+  error: string | null
+  topic: string | null
 }

@@ -47,6 +47,9 @@ from runledger_api.routers import users as users_router
 from runledger_api.routers import scim as scim_router
 from runledger_api.routers import sso as sso_router
 from runledger_api.routers import warehouse as warehouse_router
+from runledger_api.routers import kafka_export as kafka_export_router
+from runledger_api.routers import ops as ops_router
+from runledger_api.routers import pricing_intelligence as pricing_intelligence_router
 from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
 
 configure_logging()
@@ -122,6 +125,9 @@ app.include_router(otlp_router.router)
 app.include_router(warehouse_router.router)
 app.include_router(sso_router.router)
 app.include_router(scim_router.router)
+app.include_router(kafka_export_router.router)
+app.include_router(ops_router.router)
+app.include_router(pricing_intelligence_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

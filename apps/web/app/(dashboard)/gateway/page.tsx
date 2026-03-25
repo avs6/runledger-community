@@ -5,17 +5,18 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
   Network, RefreshCw, Plus, Trash2, Activity,
-  ChevronDown, ChevronUp, BarChart2,
+  ChevronDown, ChevronUp, BarChart2, TrendingDown, Sparkles,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
   listGatewayRoutes, createGatewayRoute, updateGatewayRoute, deleteGatewayRoute,
   getGatewayStats, listRoutingPolicies, createRoutingPolicy, updateRoutingPolicy,
-  deleteRoutingPolicy, listGatewayRequests, listProviderPricing,
+  deleteRoutingPolicy, listGatewayRequests, listProviderPricing, getRoutingRecommendation,
 } from '@/lib/api'
 import type {
   GatewayRoute, GatewayStats, GatewayRequestLog,
   RoutingPolicy, RoutingPolicyType, ProviderPricingResponse,
+  RoutingRecommendationResponse,
 } from '@/types/api'
 
 const inputCls =
@@ -54,6 +55,11 @@ export default function GatewayPage() {
 
   const [routingLog, setRoutingLog] = useState<GatewayRequestLog[]>([])
   const [loadingLog, setLoadingLog] = useState(false)
+
+  // Outcome-based routing recommendations
+  const [recommendations, setRecommendations] = useState<Record<string, RoutingRecommendationResponse>>({})
+  const [loadingRec, setLoadingRec] = useState<Record<string, boolean>>({})
+  const [expandedRec, setExpandedRec] = useState<string | null>(null)
 
   const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -196,6 +202,26 @@ export default function GatewayPage() {
       toast.success('Policy deleted')
     } catch {
       toast.error('Failed to delete policy')
+    }
+  }
+
+  async function handleLoadRecommendation(alias: string) {
+    if (!apiKey) return
+    if (expandedRec === alias) {
+      setExpandedRec(null)
+      return
+    }
+    setExpandedRec(alias)
+    if (recommendations[alias]) return  // already loaded
+    setLoadingRec((prev) => ({ ...prev, [alias]: true }))
+    try {
+      const rec = await getRoutingRecommendation(apiKey, alias, { window_days: 30, min_sample_size: 1 })
+      setRecommendations((prev) => ({ ...prev, [alias]: rec }))
+    } catch {
+      toast.error(`Failed to load recommendation for '${alias}'`)
+      setExpandedRec(null)
+    } finally {
+      setLoadingRec((prev) => ({ ...prev, [alias]: false }))
     }
   }
 
@@ -482,6 +508,7 @@ export default function GatewayPage() {
                 <option value="canary">canary — % to canary route</option>
                 <option value="budget_aware">budget_aware — fallback when budget % hit</option>
                 <option value="complexity_based">complexity_based — branch on token count</option>
+                <option value="outcome_optimized">outcome_optimized — lowest cost-per-success</option>
               </select>
               <div>
                 <input
@@ -514,34 +541,55 @@ export default function GatewayPage() {
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Strategy</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Config</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Insights</th>
                   {canManage && <th className="px-4 py-2.5" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                 {routingPolicies.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-4 py-2.5 font-mono text-sm font-semibold dark:text-slate-200">{p.alias}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300">{p.policy_type}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-400 max-w-[200px] truncate" title={JSON.stringify(p.config)}>
-                      {Object.keys(p.config).length ? JSON.stringify(p.config) : '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <button
-                        onClick={() => canManage && handleTogglePolicy(p)}
-                        disabled={!canManage}
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${p.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                      >
-                        {p.is_active ? 'Active' : 'Disabled'}
-                      </button>
-                    </td>
-                    {canManage && (
-                      <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => handleDeletePolicy(p.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
+                  <>
+                    <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-sm font-semibold dark:text-slate-200">{p.alias}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300">{p.policy_type}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-400 max-w-[200px] truncate" title={JSON.stringify(p.config)}>
+                        {Object.keys(p.config).length ? JSON.stringify(p.config) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          onClick={() => canManage && handleTogglePolicy(p)}
+                          disabled={!canManage}
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${p.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                        >
+                          {p.is_active ? 'Active' : 'Disabled'}
                         </button>
                       </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          onClick={() => handleLoadRecommendation(p.alias)}
+                          disabled={loadingRec[p.alias]}
+                          title="View outcome-based routing recommendation"
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${expandedRec === p.alias ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-900/20 dark:hover:text-violet-300'}`}
+                        >
+                          <Sparkles className="h-3 w-3" />
+                          {loadingRec[p.alias] ? '…' : expandedRec === p.alias ? 'Hide' : 'Analyze'}
+                        </button>
+                      </td>
+                      {canManage && (
+                        <td className="px-4 py-2.5 text-right">
+                          <button onClick={() => handleDeletePolicy(p.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                    {expandedRec === p.alias && recommendations[p.alias] && (
+                      <tr key={`${p.id}-rec`}>
+                        <td colSpan={canManage ? 6 : 5} className="px-4 py-0 bg-violet-50/50 dark:bg-violet-900/10">
+                          <RecommendationPanel rec={recommendations[p.alias]} />
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </>
                 ))}
               </tbody>
             </table>
@@ -610,6 +658,72 @@ export default function GatewayPage() {
           </div>
         )}
       </section>
+    </div>
+  )
+}
+
+// ── Recommendation panel ──────────────────────────────────────────────────────
+
+function RecommendationPanel({ rec }: { rec: RoutingRecommendationResponse }) {
+  const hasData = rec.total_outcomes_sampled > 0 && rec.models.some((m) => m.cost_per_success !== null)
+
+  return (
+    <div className="py-3 space-y-2">
+      {/* Summary message */}
+      <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${hasData ? 'bg-violet-100 dark:bg-violet-900/20 text-violet-800 dark:text-violet-200' : 'bg-slate-100 dark:bg-slate-700/40 text-slate-500 dark:text-slate-400'}`}>
+        <TrendingDown className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{rec.message}</span>
+      </div>
+
+      {/* Per-model table */}
+      {hasData && (
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="text-left text-slate-400 dark:text-slate-500 border-b border-slate-200 dark:border-slate-700">
+              <th className="py-1.5 pr-4 font-medium">Model</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Outcomes</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Success rate</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Cost / success</th>
+              <th className="py-1.5 font-medium text-right">vs current</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rec.models.map((m, i) => {
+              const isBest = m.model === rec.best_model
+              const imp = m.improvement_vs_current
+              return (
+                <tr key={m.model} className={isBest ? 'font-semibold' : ''}>
+                  <td className="py-1.5 pr-4 dark:text-slate-200 font-mono">
+                    {m.model}
+                    {isBest && i === 0 && (
+                      <span className="ml-1.5 rounded-full bg-violet-100 dark:bg-violet-900/30 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">best</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 pr-4 text-right text-slate-500 dark:text-slate-400">{m.sample_count}</td>
+                  <td className="py-1.5 pr-4 text-right text-slate-600 dark:text-slate-300">
+                    {m.success_rate > 0 ? `${(m.success_rate * 100).toFixed(1)}%` : '—'}
+                  </td>
+                  <td className="py-1.5 pr-4 text-right dark:text-slate-200">
+                    {m.cost_per_success != null ? `$${m.cost_per_success.toFixed(4)}` : '—'}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    {imp != null ? (
+                      <span className={`${imp > 0 ? 'text-emerald-600 dark:text-emerald-400' : imp < 0 ? 'text-red-500 dark:text-red-400' : 'text-slate-400'}`}>
+                        {imp > 0 ? `↓${(imp * 100).toFixed(1)}%` : imp < 0 ? `↑${(Math.abs(imp) * 100).toFixed(1)}%` : '—'}
+                      </span>
+                    ) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <p className="text-[11px] text-slate-400 dark:text-slate-500">
+        Last {rec.window_days} days · {rec.total_outcomes_sampled} outcomes sampled
+        {rec.workflow_type ? ` · type: ${rec.workflow_type}` : ''}
+      </p>
     </div>
   )
 }

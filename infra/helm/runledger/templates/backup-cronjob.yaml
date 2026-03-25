@@ -1,0 +1,97 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "runledger.fullname" . }}-backup
+  labels:
+    {{- include "runledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            {{- include "runledger.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "runledger.serviceAccountName" . }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999    # postgres user in postgres:16-alpine
+            fsGroup: 999
+          containers:
+            - name: backup
+              image: {{ .Values.backup.image }}
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: DATABASE_URL
+                  {{ include "runledger.databaseUrl" . }}
+                - name: S3_BUCKET
+                  value: {{ .Values.backup.s3Bucket | quote }}
+                - name: AWS_DEFAULT_REGION
+                  value: {{ .Values.backup.awsRegion | quote }}
+                - name: RETAIN_DAYS
+                  value: {{ .Values.backup.retainDays | quote }}
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  TIMESTAMP=$(date +%Y%m%dT%H%M%SZ)
+                  FILENAME="runledger-${TIMESTAMP}.dump"
+
+                  # Extract connection components from DATABASE_URL
+                  # Supports: postgresql+asyncpg://user:pass@host:port/db
+                  DB_URL="${DATABASE_URL}"
+                  DB_URL="${DB_URL#postgresql+asyncpg://}"
+                  DB_URL="${DB_URL#postgresql://}"
+                  DB_URL="${DB_URL#postgres://}"
+
+                  pg_dump "${DATABASE_URL/postgresql+asyncpg:/postgresql:}" \
+                    --format=custom \
+                    --no-acl \
+                    --no-owner \
+                    --file="/tmp/${FILENAME}"
+
+                  # Upload to S3
+                  aws s3 cp "/tmp/${FILENAME}" "${S3_BUCKET}/${FILENAME}" \
+                    --storage-class STANDARD_IA
+
+                  echo "Backup complete: ${S3_BUCKET}/${FILENAME}"
+
+                  # Prune backups older than RETAIN_DAYS
+                  CUTOFF=$(date -d "${RETAIN_DAYS} days ago" +%Y-%m-%d 2>/dev/null || \
+                           date -v-${RETAIN_DAYS}d +%Y-%m-%d)
+                  aws s3 ls "${S3_BUCKET}/" | awk '{print $4}' | while read f; do
+                    fdate=$(echo "$f" | grep -oP '\d{8}')
+                    if [ -n "$fdate" ] && [ "$fdate" \< "${CUTOFF//-/}" ]; then
+                      aws s3 rm "${S3_BUCKET}/${f}"
+                      echo "Pruned: ${f}"
+                    fi
+                  done
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

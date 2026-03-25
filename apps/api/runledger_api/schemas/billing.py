@@ -81,6 +81,8 @@ class ChargebackRuleResponse(BaseModel):
     dimension: str
     weight: Decimal
     cost_center_id: uuid.UUID | None = None
+    status: str = "active"
+    approval_id: uuid.UUID | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -187,3 +189,64 @@ class UsageSnapshotResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── Shared-cost policies ───────────────────────────────────────────────────────
+
+_VALID_FORMULA_TYPES = {"equal_split", "proportional", "fixed_weight"}
+
+
+class SharedCostAllocation(BaseModel):
+    """One allocation target within a shared-cost policy."""
+
+    label: str
+    cost_center_id: uuid.UUID | None = None
+    weight: Decimal | None = None          # required for fixed_weight
+    denominator_value: Decimal | None = None  # used for proportional
+
+
+class SharedCostPolicyCreate(BaseModel):
+    name: str
+    description: str | None = None
+    formula_type: str = Field(..., pattern="^(equal_split|proportional|fixed_weight)$")
+    allocations: list[SharedCostAllocation] = []
+    is_active: bool = True
+
+
+class SharedCostPolicyUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    formula_type: str | None = Field(
+        default=None, pattern="^(equal_split|proportional|fixed_weight)$"
+    )
+    allocations: list[SharedCostAllocation] | None = None
+    is_active: bool | None = None
+
+
+class SharedCostPolicyResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    name: str
+    description: str | None
+    formula_type: str
+    allocations: list[Any]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SharedCostPolicyList(BaseModel):
+    items: list[SharedCostPolicyResponse]
+    total: int
+
+
+class SharedCostAllocationResult(BaseModel):
+    """Result of running compute_shared_cost_allocation()."""
+
+    policy_id: uuid.UUID
+    policy_name: str
+    pool_usd: Decimal
+    formula_type: str
+    allocations: list[dict[str, Any]]  # [{label, cost_center_id, allocated_usd}]

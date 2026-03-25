@@ -1,0 +1,5 @@
+{{- if .Values.pricingConfig.enabled }}
+# pricing.yml is mounted from an existing ConfigMap created by the operator.
+# Set pricingConfig.configMapName to the name of that ConfigMap.
+# The ConfigMap must have a key named "pricing.yml" with the YAML content.
+{{- end }}

@@ -161,6 +161,7 @@ VALID_POLICY_TYPES = {
     "canary",
     "budget_aware",
     "complexity_based",
+    "outcome_optimized",
 }
 
 
@@ -195,3 +196,38 @@ class RoutingPolicyResponse(BaseModel):
 
 class RoutingPolicyList(BaseModel):
     items: list[RoutingPolicyResponse]
+
+
+# ── Routing recommendation schemas ─────────────────────────────────────────────
+
+
+class RoutingRecommendationModel(BaseModel):
+    """Per-model outcome stats for the recommendation response."""
+
+    model: str
+    route_id: uuid.UUID | None
+    sample_count: int
+    success_rate: float
+    cost_per_success: float | None
+    # Relative improvement vs the current top-priority route (positive = cheaper per success)
+    improvement_vs_current: float | None
+
+
+class RoutingRecommendationResponse(BaseModel):
+    """
+    Outcome-based routing recommendation for an alias.
+
+    Aggregates outcome success/cost data per model over the last ``window_days``
+    and surfaces which route delivers the best cost-per-success.
+    """
+
+    alias: str
+    window_days: int
+    workflow_type: str | None
+    total_outcomes_sampled: int
+    models: list[RoutingRecommendationModel]
+    # Model name + route_id for the recommended (lowest cost-per-success) option
+    best_model: str | None
+    recommended_route_id: uuid.UUID | None
+    # Human-readable summary, e.g. "gpt-4o-mini has a 12% better cost-per-success than gpt-4o"
+    message: str

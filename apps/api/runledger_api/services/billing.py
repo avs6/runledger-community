@@ -27,6 +27,7 @@ from runledger_api.models.billing import (
     BillingPeriod,
     ChargebackRule,
     CostCenter,
+    SharedCostPolicy,
     UsageSnapshot,
 )
 from runledger_api.models.events import AgentRun, ProviderCall
@@ -599,7 +600,10 @@ async def apply_chargeback_rules(
     base_cost = period.net_cost_usd or period.total_cost_usd or Decimal(0)
 
     rules_result = await db.execute(
-        select(ChargebackRule).where(ChargebackRule.workspace_id == period.workspace_id)
+        select(ChargebackRule).where(
+            ChargebackRule.workspace_id == period.workspace_id,
+            ChargebackRule.status == "active",
+        )
     )
     rules: list[ChargebackRule] = list(rules_result.scalars())
 
@@ -710,3 +714,95 @@ async def get_period_adjustments(
         .order_by(BillingAdjustment.created_at)
     )
     return list(result.scalars())
+
+
+# ── Shared-cost policies ───────────────────────────────────────────────────────
+
+
+async def compute_shared_cost_allocation(
+    db: AsyncSession,
+    policy_id: uuid.UUID,
+    pool_usd: Decimal,
+) -> dict[str, Any]:
+    """
+    Distribute pool_usd across cost centers according to policy formula.
+
+    Returns dict with keys: policy_id, policy_name, pool_usd, formula_type,
+    allocations: [{label, cost_center_id, allocated_usd}]
+
+    formula_type:
+      equal_split   — pool / N for each allocation
+      fixed_weight  — pool * allocation["weight"]
+      proportional  — pool * allocation["denominator_value"] / sum(denominator_values)
+    """
+    from runledger_api.schemas.billing import SharedCostAllocationResult  # noqa: PLC0415
+
+    result = await db.execute(
+        select(SharedCostPolicy).where(SharedCostPolicy.id == policy_id)
+    )
+    policy = result.scalar_one_or_none()
+    if policy is None:
+        raise ValueError(f"SharedCostPolicy {policy_id} not found")
+
+    allocations: list[dict[str, Any]] = policy.allocations or []
+    n = len(allocations)
+    formula = policy.formula_type
+    computed: list[dict[str, Any]] = []
+
+    if n == 0:
+        return SharedCostAllocationResult(
+            policy_id=policy.id,
+            policy_name=policy.name,
+            pool_usd=pool_usd,
+            formula_type=formula,
+            allocations=[],
+        ).model_dump()
+
+    if formula == "equal_split":
+        share = (pool_usd / n).quantize(Decimal("0.000001"))
+        for alloc in allocations:
+            computed.append(
+                {
+                    "label": alloc.get("label", ""),
+                    "cost_center_id": alloc.get("cost_center_id"),
+                    "allocated_usd": share,
+                }
+            )
+
+    elif formula == "fixed_weight":
+        for alloc in allocations:
+            w = Decimal(str(alloc.get("weight", 0)))
+            computed.append(
+                {
+                    "label": alloc.get("label", ""),
+                    "cost_center_id": alloc.get("cost_center_id"),
+                    "allocated_usd": (pool_usd * w).quantize(Decimal("0.000001")),
+                }
+            )
+
+    elif formula == "proportional":
+        total_denom = sum(
+            Decimal(str(a.get("denominator_value") or 0)) for a in allocations
+        )
+        for alloc in allocations:
+            denom = Decimal(str(alloc.get("denominator_value") or 0))
+            share = (
+                (pool_usd * denom / total_denom).quantize(Decimal("0.000001"))
+                if total_denom > 0
+                else Decimal(0)
+            )
+            computed.append(
+                {
+                    "label": alloc.get("label", ""),
+                    "cost_center_id": alloc.get("cost_center_id"),
+                    "allocated_usd": share,
+                }
+            )
+
+    return SharedCostAllocationResult(
+        policy_id=policy.id,
+        policy_name=policy.name,
+        pool_usd=pool_usd,
+        formula_type=formula,
+        allocations=computed,
+    ).model_dump()

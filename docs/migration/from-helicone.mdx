@@ -1,0 +1,246 @@
+---
+title: "Migrate from Helicone"
+description: "Add RunLedger finance-grade accounting alongside or instead of Helicone in 10 minutes."
+---
+
+Helicone routes OpenAI calls through a proxy and adds observability. RunLedger's **Model Gateway** is an OpenAI-compatible proxy too — plus it adds budget enforcement, invoice reconciliation, chargeback, and outcome tracking.
+
+The migration is a base URL change. Your application code doesn't need to change.
+
+---
+
+## The 1-line migration
+
+Helicone works by changing your OpenAI client's `base_url`:
+
+```python
+# Before (Helicone)
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-...",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={"Helicone-Auth": f"Bearer {helicone_api_key}"},
+)
+```
+
+```python
+# After (RunLedger Gateway)
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-...",
+    base_url="https://your-runledger.railway.app/gateway",
+    default_headers={"Authorization": f"Bearer {runledger_api_key}"},
+)
+```
+
+**That's the entire migration.** Every `client.chat.completions.create()` call now flows through RunLedger's gateway instead of Helicone.
+
+---
+
+## Running both (zero-risk migration)
+
+If you want to keep Helicone during the transition, run two clients:
+
+```python
+from openai import OpenAI
+
+# Existing client through Helicone
+helicone_client = OpenAI(
+    api_key="sk-...",
+    base_url="https://oai.helicone.ai/v1",
+    default_headers={"Helicone-Auth": f"Bearer {helicone_key}"},
+)
+
+# New client through RunLedger
+rl_client = OpenAI(
+    api_key="sk-...",
+    base_url="https://your-runledger.railway.app/gateway",
+    default_headers={"Authorization": f"Bearer {rl_key}"},
+)
+
+# Shadow: send to RunLedger in parallel (fire-and-forget)
+import threading
+
+def shadow_to_rl(messages, model):
+    try:
+        rl_client.chat.completions.create(model=model, messages=messages)
+    except Exception:
+        pass
+
+# Primary request via Helicone
+resp = helicone_client.chat.completions.create(...)
+
+# Shadow to RunLedger (doesn't block)
+threading.Thread(
+    target=shadow_to_rl,
+    args=(messages, "gpt-4o-mini"),
+    daemon=True,
+).start()
+```
+
+---
+
+## TypeScript / Node.js
+
+```typescript
+// Before (Helicone)
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "https://oai.helicone.ai/v1",
+  defaultHeaders: {
+    "Helicone-Auth": `Bearer ${process.env.HELICONE_API_KEY}`,
+  },
+});
+```
+
+```typescript
+// After (RunLedger Gateway)
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: `${process.env.RUNLEDGER_BASE_URL}/gateway`,
+  defaultHeaders: {
+    Authorization: `Bearer ${process.env.RUNLEDGER_API_KEY}`,
+  },
+});
+```
+
+---
+
+## Configure the RunLedger Gateway
+
+Before switching `base_url`, create a gateway route that points to OpenAI:
+
+```bash
+# Create a route for the "gpt-4o-mini" alias
+curl -X POST https://your-runledger.railway.app/gateway/routes \
+  -H "Authorization: Bearer $RUNLEDGER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alias": "gpt-4o-mini",
+    "provider": "openai",
+    "target_model": "gpt-4o-mini",
+    "api_key_env_var": "OPENAI_API_KEY",
+    "priority": 10
+  }'
+```
+
+Then your application uses the alias as the model name:
+
+```python
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",   # matches the gateway alias
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+---
+
+## Helicone custom properties → RunLedger metadata
+
+Helicone lets you attach custom properties via headers:
+
+```python
+# Helicone
+default_headers={
+    "Helicone-Auth": f"Bearer {key}",
+    "Helicone-Property-userId": "u_123",
+    "Helicone-Property-feature": "support-chat",
+}
+```
+
+In RunLedger, pass these as a header for end-user tracking:
+
+```python
+# RunLedger Gateway
+default_headers={
+    "Authorization": f"Bearer {rl_key}",
+    "X-RunLedger-End-User-Id": "u_123",  # per-user rate limit + analytics
+}
+```
+
+For richer metadata, use the Python SDK alongside the gateway:
+
+```python
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+
+with rl.context(
+    end_user_id="u_123",
+    feature_tag="support-chat",
+    session_id="sess_abc",
+    labels={"tenant": "acme", "environment": "production"},
+) as run_id:
+    resp = client.chat.completions.create(...)
+```
+
+---
+
+## Helicone rate limits → RunLedger budgets + per-user RPM
+
+Helicone offers rate limits as a proxy feature. RunLedger has two equivalent mechanisms:
+
+**Per-user RPM** (request rate, enforced by the gateway):
+```bash
+# Set on the route
+curl -X PUT .../gateway/routes/{id} \
+  -d '{"per_user_rpm_limit": 60}'
+```
+
+**Spend budgets** (cost-based, enforced pre-call):
+```bash
+# Create a workspace budget
+curl -X POST .../budgets \
+  -d '{"name": "Monthly limit", "amount_usd": 500, "period": "monthly"}'
+```
+
+When a budget is exceeded, the SDK raises `RunLedgerBudgetExceededError` and the gateway returns `429`.
+
+---
+
+## Feature mapping
+
+| Helicone | RunLedger equivalent | Notes |
+|----------|---------------------|-------|
+| Proxy / base_url swap | Model Gateway | OpenAI-compatible, same base_url pattern |
+| Request log | `GatewayRequest` table + routing log | Per-request log with latency, tokens, cache hit |
+| Cost tracking | **Automated** — metering + provider pricing catalog | Broken down by input/output/cached tokens |
+| Custom properties | `labels`, `feature_tag`, `end_user_id` | Indexed for analytics |
+| User tracking | `end_user_id` | Per-user cost dashboard + anomaly detection |
+| Rate limits | Per-user RPM on gateway route | Redis sliding window, `Retry-After` header on 429 |
+| Spend limits | Budget rules with block/throttle/downgrade | Per workspace, user, or feature |
+| Prompt caching | `PromptCache` table | Cache key = SHA-256(model + messages) |
+| Provider fallback | Routing policies (priority, canary, cost-optimized) | Automatic failover to next-priority route |
+| Custom models / providers | Gateway routes with `base_url` override | Works with Ollama, Groq, Azure, Bedrock, Vertex |
+| Evals | `ScoreEvent` via `rl.score()` or `POST /evaluations/scores` | Per-run quality metrics with rollups |
+| Analytics | Dashboard — analytics page, economics graph | Cohorts, regressions, cost-per-outcome |
+
+---
+
+## What RunLedger adds beyond Helicone
+
+- **Invoice reconciliation** — match every gateway request to your actual OpenAI invoice by `provider_request_id`
+- **Chargeback** — allocate cost to tenants or teams with shared-cost policies
+- **Outcome & ROI** — tie gateway requests to business outcomes (cost-per-conversion, ROI by workflow)
+- **Tamper-evident ledger** — HMAC-signed billing snapshots for finance audit
+- **Approvals workflow** — require approval before promoting prompt versions or increasing budgets
+- **Warehouse export** — S3/GCS/R2 daily exports in Parquet or JSONL for BI/data warehouse
+
+---
+
+## Environment variables
+
+```bash
+# RunLedger
+RUNLEDGER_API_KEY=rl_...
+RUNLEDGER_BASE_URL=https://your-runledger.railway.app
+
+# Keep Helicone during parallel run
+HELICONE_API_KEY=sk-helicone-...
+```

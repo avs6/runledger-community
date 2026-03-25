@@ -466,6 +466,205 @@ async def test_apply_chargeback_rules_uses_net_cost():
     assert result["engineering"] == Decimal("75.00")  # 150 * 0.5
 
 
+# ── Approval enforcement: create with require_approval=True ───────────────────
+
+
+@pytest.mark.anyio
+async def test_create_chargeback_rule_require_approval(
+    authed_client, mock_db_session, mock_workspace
+):
+    """POST /billing/chargeback-rules with require_approval=True → pending_approval + approval_id."""
+    rule_id = uuid.uuid4()
+    created_at = datetime.now(UTC)
+
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: (
+            setattr(obj, "id", rule_id)
+            or setattr(obj, "created_at", created_at)
+            or setattr(obj, "cost_center_id", None)
+        )
+    )
+
+    resp = await authed_client.post(
+        "/billing/chargeback-rules",
+        json={
+            "allocation_type": "team",
+            "dimension": "ml-team",
+            "weight": "0.4",
+            "require_approval": True,
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "pending_approval"
+    assert data["approval_id"] is not None
+    # approval_id must be a valid UUID string
+    uuid.UUID(data["approval_id"])
+
+
+@pytest.mark.anyio
+async def test_create_chargeback_rule_no_approval(
+    authed_client, mock_db_session, mock_workspace
+):
+    """POST /billing/chargeback-rules without require_approval → active, no approval_id."""
+    created_at = datetime.now(UTC)
+
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: (
+            setattr(obj, "id", uuid.uuid4())
+            or setattr(obj, "created_at", created_at)
+            or setattr(obj, "cost_center_id", None)
+        )
+    )
+
+    resp = await authed_client.post(
+        "/billing/chargeback-rules",
+        json={"allocation_type": "team", "dimension": "ops-team", "weight": "0.3"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "active"
+    assert data["approval_id"] is None
+
+
+# ── Service layer: apply_chargeback_rules skips pending rules ─────────────────
+
+
+@pytest.mark.anyio
+async def test_apply_chargeback_rules_skips_pending_rule():
+    """apply_chargeback_rules() should only use active rules; pending ones excluded by query."""
+    from runledger_api.services.billing import apply_chargeback_rules
+
+    ws_id = uuid.uuid4()
+    period_id = uuid.uuid4()
+    period = SimpleNamespace(
+        id=period_id,
+        workspace_id=ws_id,
+        total_cost_usd=Decimal("100.00"),
+        net_cost_usd=None,
+    )
+    # Only one active rule (pending rule would be filtered out by the DB query)
+    active_rule = SimpleNamespace(
+        id=uuid.uuid4(), dimension="engineering", weight=Decimal("0.5"), status="active"
+    )
+
+    mock_db = AsyncMock()
+    period_result = MagicMock()
+    period_result.scalar_one_or_none.return_value = period
+    rules_result = MagicMock()
+    rules_result.scalars.return_value.__iter__ = lambda self: iter([active_rule])
+
+    mock_db.execute = AsyncMock(side_effect=[period_result, rules_result])
+
+    result = await apply_chargeback_rules(mock_db, period_id)
+    # Only active rule is in result
+    assert "engineering" in result
+    assert result["engineering"] == Decimal("50.00")
+
+
+# ── Approvals router: approve side-effect activates chargeback rule ───────────
+
+
+@pytest.mark.anyio
+async def test_approve_activates_chargeback_rule(authed_client, mock_db_session, mock_workspace):
+    """PUT /approvals/{id}/approve → sets chargeback rule status to 'active'."""
+    from runledger_api.core.deps import get_current_api_key
+    from runledger_api.main import app
+
+    rule_id = uuid.uuid4()
+    approval_id = uuid.uuid4()
+    api_key = SimpleNamespace(id=uuid.uuid4(), created_by="admin@example.com")
+
+    async def _override_api_key() -> SimpleNamespace:
+        return api_key
+
+    approval = SimpleNamespace(
+        id=approval_id,
+        workspace_id=mock_workspace.id,
+        request_type="chargeback_rule",
+        request={"rule_id": str(rule_id)},
+        status="pending",
+        requested_by=None,
+        decided_by=None,
+        decided_at=None,
+        decision_note=None,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+    )
+
+    # execute calls: (1) select Approval, (2) update ChargebackRule
+    exec_results = [
+        _result_with_scalar(approval),  # select approval
+        MagicMock(),                    # update chargeback_rule (sa_update)
+    ]
+    mock_db_session.execute = AsyncMock(side_effect=lambda _: exec_results.pop(0))
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: setattr(obj, "status", "approved")
+    )
+
+    app.dependency_overrides[get_current_api_key] = _override_api_key
+    try:
+        resp = await authed_client.put(
+            f"/approvals/{approval_id}/approve",
+            json={"note": "looks good"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_api_key, None)
+
+    assert resp.status_code == 200
+    # Both execute calls consumed: select + update
+    assert len(exec_results) == 0
+
+
+@pytest.mark.anyio
+async def test_deny_sets_chargeback_rule_denied(authed_client, mock_db_session, mock_workspace):
+    """PUT /approvals/{id}/deny → sets chargeback rule status to 'denied'."""
+    from runledger_api.core.deps import get_current_api_key
+    from runledger_api.main import app
+
+    rule_id = uuid.uuid4()
+    approval_id = uuid.uuid4()
+    api_key = SimpleNamespace(id=uuid.uuid4(), created_by="admin@example.com")
+
+    async def _override_api_key() -> SimpleNamespace:
+        return api_key
+
+    approval = SimpleNamespace(
+        id=approval_id,
+        workspace_id=mock_workspace.id,
+        request_type="chargeback_rule",
+        request={"rule_id": str(rule_id)},
+        status="pending",
+        requested_by=None,
+        decided_by=None,
+        decided_at=None,
+        decision_note=None,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+    )
+
+    exec_results = [
+        _result_with_scalar(approval),  # select approval
+        MagicMock(),                    # update chargeback_rule (sa_update)
+    ]
+    mock_db_session.execute = AsyncMock(side_effect=lambda _: exec_results.pop(0))
+    mock_db_session.refresh = AsyncMock(
+        side_effect=lambda obj: setattr(obj, "status", "denied")
+    )
+
+    app.dependency_overrides[get_current_api_key] = _override_api_key
+    try:
+        resp = await authed_client.put(
+            f"/approvals/{approval_id}/deny",
+            json={"note": "not approved"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_api_key, None)
+
+    assert resp.status_code == 200
+    assert len(exec_results) == 0
+
+
 # ── Helper functions ──────────────────────────────────────────────────────────
 
 

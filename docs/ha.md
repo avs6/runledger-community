@@ -1,0 +1,251 @@
+# High-Availability Deployment Guide
+
+This guide covers running RunLedger in a production-grade HA configuration — multiple API replicas behind a load balancer, autoscaling workers, and Redis/Postgres failover.
+
+## Architecture overview
+
+```
+                  ┌─────────────────────────────┐
+                  │     Load Balancer / Ingress   │
+                  └──────────────┬───────────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              │                  │                  │
+         ┌────▼────┐        ┌────▼────┐        ┌────▼────┐
+         │  API #1  │        │  API #2  │        │  API #3  │
+         │  :8000   │        │  :8000   │        │  :8000   │
+         └────┬────┘        └────┬────┘        └────┬────┘
+              │                  │                  │
+              └──────────────────┼──────────────────┘
+                                 │
+          ┌──────────────────────┼──────────────────────┐
+          │                      │                      │
+   ┌──────▼──────┐      ┌────────▼────────┐     ┌──────▼──────┐
+   │   Redis      │      │   PostgreSQL    │     │   Celery     │
+   │ (Sentinel /  │      │  (Primary +     │     │  Workers    │
+   │  Cluster)    │      │   Replica)      │     │  (N pods)   │
+   └─────────────┘      └────────────────┘     └─────────────┘
+                                                       │
+                                               ┌───────▼───────┐
+                                               │  Celery Beat  │
+                                               │   (1 pod)     │
+                                               └───────────────┘
+```
+
+## API replicas
+
+The FastAPI app is fully stateless — all state lives in PostgreSQL and Redis. You can run as many replicas as needed.
+
+### Kubernetes (Helm)
+
+```yaml
+api:
+  replicaCount: 3
+
+autoscaling:
+  api:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+```
+
+### Docker Compose (manual scale)
+
+```bash
+docker compose up --scale api=3
+```
+
+### Session stickiness
+
+RunLedger does **not** require sticky sessions. All auth state is in JWT tokens validated per-request. Load balancers can use round-robin.
+
+## Celery workers
+
+Workers are also stateless and scale horizontally. They use `NullPool` for database connections (one connection per task), so more workers = more DB connections.
+
+```yaml
+worker:
+  replicaCount: 4
+
+autoscaling:
+  worker:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+```
+
+**Queue routing:** Tasks land in three queues: `celery` (default), `priority` (budget checks, gateway health), `low` (rollups, exports). Workers consume all three queues by default.
+
+To dedicate workers to high-priority tasks:
+
+```yaml
+# values.yaml — two worker deployments with different queue assignments
+# (requires separate Deployment templates or a Helm subchart)
+worker:
+  command:
+    - celery
+    - -A
+    - runledger_api.core.celery_app
+    - worker
+    - -Q
+    - priority,celery
+    - --concurrency=8
+```
+
+**Beat scheduler:** Always run exactly **one** beat replica. The `beat-deployment.yaml` uses `strategy: Recreate` to enforce this during rolling updates.
+
+```yaml
+beat:
+  replicaCount: 1   # Do not change — duplicate beat = duplicate scheduled tasks
+```
+
+## Redis HA
+
+### Redis Sentinel (recommended for self-hosted)
+
+Redis Sentinel provides automatic failover with 3 Sentinel nodes monitoring a primary + replica pair.
+
+```yaml
+# redis-sentinel.yaml (example using Bitnami chart)
+helm install redis bitnami/redis \
+  --set architecture=replication \
+  --set sentinel.enabled=true \
+  --set sentinel.quorum=2
+```
+
+Set the Sentinel URL in RunLedger:
+
+```
+REDIS_URL=redis+sentinel://sentinel1:26379,sentinel2:26379,sentinel3:26379/mymaster/0
+```
+
+### Redis Cluster
+
+For horizontal scaling of Redis itself (>10k events/second), use Redis Cluster. The `redis-py` client used by RunLedger supports cluster mode transparently.
+
+### Managed Redis (recommended)
+
+- **AWS ElastiCache** (Redis 7, Multi-AZ with automatic failover)
+- **Upstash** (serverless, good for Railway/Fly.io)
+- **Redis Cloud** (Enterprise, supports Sentinel + Cluster)
+
+For ElastiCache with TLS:
+```
+REDIS_URL=rediss://your-cluster.abc123.cache.amazonaws.com:6380/0
+```
+
+## PostgreSQL HA
+
+### Patroni + etcd (self-hosted)
+
+Patroni manages leader election and automatic failover for a Postgres primary/replica pair.
+
+```bash
+# Example Patroni config snippet
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576   # 1 MB
+```
+
+Point `DATABASE_URL` at a VIP or HAProxy fronting the primary. RunLedger uses async SQLAlchemy — connection errors cause retries at the application level.
+
+### Managed Postgres (recommended)
+
+- **AWS RDS Multi-AZ** — synchronous standby, automatic failover in ~60s
+- **Google Cloud SQL HA** — automatic failover
+- **Neon** (serverless, branching for dev/staging, good for Railway)
+- **Supabase** — Postgres with built-in connection pooling (PgBouncer)
+
+### Connection pooling
+
+For high concurrency, place PgBouncer in front of Postgres. RunLedger uses SQLAlchemy `asyncpg` with a connection pool:
+
+```
+DATABASE_URL=postgresql+asyncpg://user:pass@pgbouncer-host:5432/runledger
+```
+
+Recommended PgBouncer settings:
+```ini
+pool_mode = transaction
+max_client_conn = 1000
+default_pool_size = 20
+```
+
+## Health checks
+
+RunLedger exposes two health endpoints used by Kubernetes probes:
+
+- `GET /health/live` — always 200 while the process is running (liveness)
+- `GET /health/ready` — 200 when DB + Redis are reachable; 503 when degraded (readiness)
+
+The readiness probe prevents traffic from being routed to a pod while its DB/Redis connections are warming up or failing.
+
+## Prometheus / Grafana monitoring
+
+Enable the metrics endpoint and protect it with a token:
+
+```yaml
+secrets:
+  metricsToken: "your-scrape-token"
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/path: /metrics
+  prometheus.io/port: "8000"
+```
+
+Available metrics:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `runledger_uptime_seconds` | gauge | Seconds since API process started |
+| `runledger_active_runs` | gauge | Agent runs in `running` state |
+| `runledger_pipeline_lag_seconds` | gauge | Seconds since last ingest event |
+| `runledger_ingest_rate_per_minute` | gauge | Runs/minute (5-min window) |
+| `runledger_provider_calls_last_hour` | gauge | Provider calls in last hour |
+| `runledger_gateway_requests_last_hour` | gauge | Gateway forwards in last hour |
+| `runledger_gateway_cache_hit_rate` | gauge | Prompt cache hit fraction (0–1) |
+| `runledger_uncosted_provider_calls` | gauge | Cost enrichment backlog |
+| `runledger_celery_queue_depth{queue}` | gauge | Tasks waiting per queue |
+
+Prometheus scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: runledger
+    static_configs:
+      - targets: ["api.runledger.svc.cluster.local:8000"]
+    authorization:
+      type: Bearer
+      credentials: <METRICS_TOKEN>
+```
+
+### Recommended alert rules
+
+```yaml
+groups:
+  - name: runledger
+    rules:
+      - alert: RunLedgerPipelineLag
+        expr: runledger_pipeline_lag_seconds > 300
+        for: 5m
+        annotations:
+          summary: "Pipeline lag > 5 minutes — workers may be stuck"
+
+      - alert: RunLedgerQueueDepth
+        expr: runledger_celery_queue_depth > 1000
+        for: 2m
+        annotations:
+          summary: "Celery queue {{ $labels.queue }} depth > 1000"
+
+      - alert: RunLedgerCostingBacklog
+        expr: runledger_uncosted_provider_calls > 500
+        for: 10m
+        annotations:
+          summary: "Cost enrichment backlog > 500 — check cost-enrichment worker"
+```

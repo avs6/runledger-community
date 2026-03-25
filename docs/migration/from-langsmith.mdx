@@ -1,0 +1,180 @@
+---
+title: "Migrate from LangSmith"
+description: "Add RunLedger finance-grade accounting alongside or instead of LangSmith in 10 minutes."
+---
+
+LangSmith and RunLedger solve adjacent problems. LangSmith focuses on **trace visibility and evaluation datasets**. RunLedger focuses on **finance-grade cost accounting, invoice reconciliation, budget enforcement, and chargeback** — the layer that turns traces into money.
+
+This guide shows three migration paths:
+
+| Path | When to use |
+|------|-------------|
+| **Run both** | You want LangSmith traces *and* RunLedger accounting. Zero feature loss. |
+| **LangChain drop-in** | You use LangChain/LangGraph and want a callback swap. |
+| **Full cutover** | You want a single observability platform with built-in finance. |
+
+---
+
+## Option A — Run both (recommended first step)
+
+RunLedger's `RunLedgerCallbackHandler` implements the same `BaseCallbackHandler` interface as LangSmith's. You can pass both handlers in the same `callbacks` list.
+
+```python
+# Before (LangSmith only)
+from langsmith.wrappers import wrap_openai
+from langsmith import traceable
+
+client = wrap_openai(openai.OpenAI())
+```
+
+```python
+# After (LangSmith + RunLedger side-by-side)
+from langsmith.wrappers import wrap_openai
+from langsmith import traceable
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+rl.instrument()  # wraps the same openai.OpenAI client
+
+# Both receive every call. LangSmith keeps tracing; RunLedger adds cost accounting.
+client = wrap_openai(openai.OpenAI())
+```
+
+For **LangChain chains**:
+
+```python
+# Before
+from langsmith.callbacks import LangSmithCallbackHandler
+
+chain.invoke(input, config={"callbacks": [LangSmithCallbackHandler()]})
+```
+
+```python
+# After — both handlers, zero code duplication
+from langsmith.callbacks import LangSmithCallbackHandler
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+rl_handler = rl.callback_handler()
+
+chain.invoke(
+    input,
+    config={"callbacks": [LangSmithCallbackHandler(), rl_handler]},
+)
+```
+
+---
+
+## Option B — LangChain/LangGraph callback swap
+
+If you want RunLedger only, replace `LangSmithCallbackHandler` with `rl.callback_handler()`.
+
+```python
+# Before
+from langsmith.callbacks import LangSmithCallbackHandler
+handler = LangSmithCallbackHandler()
+
+chain.invoke(input, config={"callbacks": [handler]})
+```
+
+```python
+# After
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+handler = rl.callback_handler()
+
+chain.invoke(input, config={"callbacks": [handler]})
+```
+
+**LangGraph** — same pattern using `instrument_graph`:
+
+```python
+# Before (LangSmith)
+from langsmith import traceable
+
+@traceable
+def call_model(state):
+    ...
+```
+
+```python
+# After (RunLedger)
+from runledger_sdk import RunLedger
+from runledger_sdk.langgraph import instrument_graph
+
+rl = RunLedger(api_key="rl_...")
+
+graph = builder.compile()
+graph = instrument_graph(graph, rl._get_sync_transport())
+
+with rl.context(end_user_id="u_123", feature_tag="my-agent") as run_id:
+    result = graph.invoke(initial_state)
+```
+
+---
+
+## Option C — OTLP without touching application code
+
+If you already emit OTLP traces to LangSmith (via `LANGCHAIN_TRACING_V2=true`), you can send the same traces to RunLedger with zero code changes by routing through the OTel Collector:
+
+```yaml
+# otel-collector-config.yaml
+exporters:
+  # Keep LangSmith
+  otlphttp/langsmith:
+    endpoint: https://api.smith.langchain.com
+    headers:
+      x-api-key: ${LANGCHAIN_API_KEY}
+  # Add RunLedger
+  otlphttp/runledger:
+    endpoint: http://your-runledger-api:8000
+    headers:
+      authorization: "Bearer ${RUNLEDGER_API_KEY}"
+
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp/langsmith, otlphttp/runledger]
+```
+
+---
+
+## Feature mapping
+
+| LangSmith | RunLedger equivalent | Notes |
+|-----------|---------------------|-------|
+| Project / run | `AgentRun` | Same concept — wraps a full agent invocation |
+| Trace tree | Run → Span → ProviderCall DAG | Same hierarchy |
+| Feedback / scores | `POST /evaluations/scores` via `rl.score()` | Per-run quality scores |
+| Dataset / evaluation | Replay harness — `ReplayDataset` + `ReplayExperiment` | Run prompts against datasets with cost projection |
+| Tags / metadata | `feature_tag`, `end_user_id`, `labels` | Propagated to every span in context |
+| LLM usage | `ProviderCall.input_tokens` / `output_tokens` | Same — plus cached tokens and cost_usd |
+| Cost | **Automated** — priced against embedded catalog | No manual setup needed |
+| Billing / invoice | Provider invoice reconciliation | Import OpenAI/Anthropic/Google CSVs, match by request ID |
+| Chargeback | Cost centers + chargeback rules | Finance-grade allocation with audit trail |
+
+---
+
+## What RunLedger adds beyond LangSmith
+
+- **Invoice reconciliation** — import your actual OpenAI invoice, match line items to runs, export signed dispute packages
+- **Budget enforcement** — set spend limits per workspace/feature/user; block or throttle when exceeded
+- **Chargeback** — attribute cost to tenants, features, or teams with approval workflow
+- **Model gateway** — OpenAI-compatible proxy with cost-aware routing, prompt cache, fallback
+- **Outcome & ROI** — link runs to business outcomes (conversions, resolutions) to compute cost-per-success
+- **Tamper-evident ledger** — HMAC-signed daily snapshots for finance audit trail
+
+---
+
+## Environment variables to set
+
+```bash
+# RunLedger
+RUNLEDGER_API_KEY=rl_...
+RUNLEDGER_BASE_URL=https://your-runledger-instance.railway.app
+
+# Keep your existing LangSmith vars if running both
+LANGCHAIN_API_KEY=ls__...
+LANGCHAIN_TRACING_V2=true
+```

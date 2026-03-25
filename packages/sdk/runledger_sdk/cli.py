@@ -467,6 +467,64 @@ def doctor(
         console.print("\n[green]✓ All checks passed.[/green]")
 
 
+# ── pricing-timeline ──────────────────────────────────────────────────────────
+
+
+@app.command(name="pricing-timeline")
+def pricing_timeline(
+    provider: Annotated[str, typer.Argument(help="Provider name, e.g. openai")],
+    model: Annotated[str, typer.Argument(help="Model name, e.g. gpt-4o")],
+    api_key: ApiKeyOpt = None,
+    base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
+) -> None:
+    """Show the full pricing history for a provider + model."""
+    key = api_key or ""
+    if not key:
+        err_console.print("No API key — set RUNLEDGER_API_KEY or pass --api-key")
+        raise typer.Exit(1)
+
+    url = f"{base_url.rstrip('/')}/pricing/timeline"
+    try:
+        resp = httpx.get(
+            url,
+            params={"provider": provider, "model": model},
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        err_console.print(f"HTTP error: {exc}")
+        raise typer.Exit(1)
+
+    data = resp.json()
+    rows = data.get("items", [])
+    if not rows:
+        console.print(f"[yellow]No pricing history found for {provider}/{model}[/yellow]")
+        return
+
+    table = Table(title=f"Pricing timeline: {provider} / {model}", show_header=True)
+    table.add_column("Effective From", style="cyan")
+    table.add_column("Effective To", style="dim")
+    table.add_column("Input $/1M", justify="right")
+    table.add_column("Output $/1M", justify="right")
+    table.add_column("Cached $/1M", justify="right")
+    table.add_column("Source", style="magenta")
+    table.add_column("Workspace", style="dim")
+
+    for row in rows:
+        table.add_row(
+            row.get("effective_from", "")[:19],
+            (row.get("effective_to") or "—")[:19],
+            f"${row.get('input_cost_per_1m', '?')}",
+            f"${row.get('output_cost_per_1m', '?')}",
+            f"${row.get('cached_input_cost_per_1m', '—')}",
+            row.get("source", "manual"),
+            "global" if row.get("workspace_id") is None else "workspace",
+        )
+
+    console.print(table)
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ProviderPricingCreate(BaseModel):
@@ -32,9 +32,15 @@ class ProviderPricingResponse(BaseModel):
     effective_from: datetime
     effective_to: datetime | None
     workspace_id: uuid.UUID | None  # None means global
+    source: str | None = "manual"
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def default_source(cls, v: str | None) -> str:
+        return v if v is not None else "manual"
 
 
 class ProviderPricingList(BaseModel):

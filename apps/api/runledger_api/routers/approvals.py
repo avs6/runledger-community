@@ -65,6 +65,7 @@ _VALID_TYPES = {
     "tool_allow",
     "capture_policy_full",
     "shadow_routing",
+    "chargeback_rule",
 }
 
 
@@ -310,6 +311,10 @@ async def approve_approval(
     approval.decided_at = datetime.now(UTC)
     approval.decision_note = body.note
 
+    # Side-effects on the referenced resource
+    if approval.request_type == "chargeback_rule":
+        await _activate_chargeback_rule(db, approval)
+
     await db.commit()
     await db.refresh(approval)
 
@@ -366,6 +371,10 @@ async def deny_approval(
     approval.decided_by = _requester_label(api_key)
     approval.decided_at = datetime.now(UTC)
     approval.decision_note = body.note
+
+    # Side-effects on the referenced resource
+    if approval.request_type == "chargeback_rule":
+        await _deny_chargeback_rule(db, approval)
 
     await db.commit()
     await db.refresh(approval)
@@ -431,6 +440,57 @@ async def cancel_approval(
         after={"request_type": approval.request_type},
     )
     return ApprovalResponse.model_validate(approval)
+
+
+# ── Chargeback rule side-effects ───────────────────────────────────────────────
+
+
+async def _activate_chargeback_rule(db: AsyncSession, approval: Approval) -> None:
+    """Set chargeback rule status → 'active' when its approval is approved."""
+    rule_id_str = approval.request.get("rule_id") if approval.request else None
+    if not rule_id_str:
+        return
+    try:
+        rule_id = uuid.UUID(rule_id_str)
+    except ValueError:
+        return
+    from sqlalchemy import update as sa_update  # noqa: PLC0415
+
+    from runledger_api.models.billing import ChargebackRule  # noqa: PLC0415
+
+    await db.execute(
+        sa_update(ChargebackRule)
+        .where(
+            ChargebackRule.id == rule_id,
+            ChargebackRule.workspace_id == approval.workspace_id,
+        )
+        .values(status="active")
+    )
+    log.info("chargeback_rule_activated", rule_id=rule_id_str, approval_id=str(approval.id))
+
+
+async def _deny_chargeback_rule(db: AsyncSession, approval: Approval) -> None:
+    """Set chargeback rule status → 'denied' when its approval is denied."""
+    rule_id_str = approval.request.get("rule_id") if approval.request else None
+    if not rule_id_str:
+        return
+    try:
+        rule_id = uuid.UUID(rule_id_str)
+    except ValueError:
+        return
+    from sqlalchemy import update as sa_update  # noqa: PLC0415
+
+    from runledger_api.models.billing import ChargebackRule  # noqa: PLC0415
+
+    await db.execute(
+        sa_update(ChargebackRule)
+        .where(
+            ChargebackRule.id == rule_id,
+            ChargebackRule.workspace_id == approval.workspace_id,
+        )
+        .values(status="denied")
+    )
+    log.info("chargeback_rule_denied", rule_id=rule_id_str, approval_id=str(approval.id))
 
 
 # ── Validation helper (used by other routers) ──────────────────────────────────

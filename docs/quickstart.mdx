@@ -1,0 +1,528 @@
+---
+title: "Quickstart"
+description: "Up and running in 5 minutes. Full SDK reference and troubleshooting below."
+---
+
+<Tabs>
+  <Tab title="Docker Compose (recommended)">
+
+## Prerequisites
+
+- Docker + Docker Compose
+- Git
+
+## 1. Clone and configure
+
+```bash
+git clone https://github.com/avs6/runledger
+cd runledger
+cp infra/.env.example infra/.env
+```
+
+Edit `infra/.env` and set `SECRET_KEY`:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+## 2. Start all services
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+```
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Dashboard | 3000 | Next.js UI |
+| API + Swagger | 8000 | FastAPI |
+| API Reference | 8000/reference | Scalar UI |
+| PostgreSQL | 5432 | — |
+| Redis | 6379 | — |
+| OTel Collector | 4317 / 4318 | OTLP/gRPC + HTTP |
+
+## 3. Bootstrap the platform admin
+
+```bash
+curl -s -X POST http://localhost:8000/admin/bootstrap \
+  -H "X-Admin-Secret: runledger-admin" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "Admin123!",
+    "full_name": "Platform Admin",
+    "org_name": "My Org"
+  }'
+```
+
+Response:
+
+```json
+{
+  "api_key": "rl_xxxxxxxxxxxxxxxxxxxx",
+  "tenant_id": "...",
+  "workspace_id": "...",
+  "message": "Platform admin 'admin@example.com' ready."
+}
+```
+
+Save the `api_key` — it is stored hashed and shown only once.
+
+## 4. Verify with the CLI
+
+```bash
+export RUNLEDGER_API_KEY=rl_...
+
+runledger doctor      # checks API + DB + Redis health
+runledger runs --limit 5
+```
+
+  </Tab>
+  <Tab title="GitHub Codespaces (zero-install)">
+
+## Try it in the browser
+
+Click the button to open a pre-configured Codespace with the full stack running:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger)
+
+The setup script automatically starts all services, runs migrations, and bootstraps the admin user.
+
+- Dashboard: **http://localhost:3000**
+- Login: `admin@example.com` / `Admin123!`
+
+  </Tab>
+  <Tab title="Railway (cloud)">
+
+## One-click cloud deploy
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/avs6/runledger)
+
+After deploying, add Postgres and Redis services, then set:
+
+```
+DATABASE_URL=postgresql+asyncpg://...
+REDIS_URL=redis://...
+SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_hex(32))">
+ADMIN_SECRET=<your-chosen-secret>
+```
+
+Alembic migrations run automatically on startup. Bootstrap via `POST /admin/bootstrap`.
+
+  </Tab>
+  <Tab title="pip + local Postgres">
+
+```bash
+git clone https://github.com/avs6/runledger && cd runledger
+uv sync --all-packages
+cp apps/api/.env.example apps/api/.env   # edit DATABASE_URL, REDIS_URL, SECRET_KEY
+
+cd apps/api && uv run alembic upgrade head
+uv run fastapi dev runledger_api/main.py
+
+# Separate terminals:
+uv run celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
+uv run celery -A runledger_api.core.celery_app beat --loglevel=info
+
+cd apps/web && npm install && npm run dev
+```
+
+  </Tab>
+</Tabs>
+
+---
+
+## What RunLedger captures automatically
+
+| Data point | Source |
+|------------|--------|
+| `model` | API response |
+| `input_tokens` / `output_tokens` | API response |
+| `cached_input_tokens` | OpenAI Prompt Caching header |
+| `latency_ms` | Wall-clock around the API call |
+| `cost_usd` | Priced server-side against the embedded catalog |
+| `end_user_id` | Set in `rl.context()` |
+| `session_id` | Set in `rl.context()` |
+| `feature_tag` | Set in `rl.context()` |
+| `run_id` | Auto-generated UUID |
+| Span DAG | Full parent-child tree via LangChain/LangGraph callbacks |
+
+No prompts or completions are captured unless you opt in to `PrivacyMode.SAMPLED` or `FULL`.
+
+---
+
+## Install the SDK
+
+```bash
+pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+# or: pip install "runledger-sdk[all]"   # openai + anthropic + langchain + langgraph + otel + cli
+```
+
+---
+
+## Instrument your first call
+
+### OpenAI (2 lines)
+
+```python
+from runledger_sdk import RunLedger
+import openai
+
+rl = RunLedger(api_key="rl_...")   # or set RUNLEDGER_API_KEY env var
+rl.instrument()                     # wraps openai.OpenAI + AsyncOpenAI
+
+client = openai.OpenAI()
+
+with rl.context(end_user_id="u_123", feature_tag="support-chat") as run_id:
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Hello!"}],
+    )
+
+rl.shutdown()  # flush before process exits
+```
+
+### Anthropic Claude (2 lines)
+
+```python
+from runledger_sdk import RunLedger
+import anthropic
+
+rl = RunLedger(api_key="rl_...")
+rl.instrument_anthropic()   # patches anthropic.Anthropic + AsyncAnthropic
+
+client = anthropic.Anthropic()
+
+with rl.context(end_user_id="u_123") as run_id:
+    msg = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=256,
+        messages=[{"role": "user", "content": "Hello!"}],
+    )
+```
+
+### LangChain
+
+```python
+from runledger_sdk import RunLedger
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+rl = RunLedger(api_key="rl_...")
+chain = (
+    ChatPromptTemplate.from_template("Explain {topic} in one sentence.")
+    | ChatOpenAI(model="gpt-4o-mini")
+    | StrOutputParser()
+)
+
+handler = rl.callback_handler()
+
+with rl.context(end_user_id="u_456", feature_tag="explainer"):
+    result = chain.invoke({"topic": "gradient descent"}, config={"callbacks": [handler]})
+
+rl.shutdown()
+```
+
+<Note>
+If you also call `rl.instrument()`, pass `track_llm_cost=False` to the handler to avoid double-counting:
+`handler = rl.callback_handler(track_llm_cost=False)`
+</Note>
+
+### LangGraph
+
+```python
+from runledger_sdk import RunLedger
+from runledger_sdk.langgraph import instrument_graph
+
+rl = RunLedger(api_key="rl_...")
+
+graph = builder.compile()
+graph = instrument_graph(graph, rl._get_sync_transport())
+
+with rl.context(end_user_id="u_789", feature_tag="qa-agent"):
+    result = graph.invoke(initial_state)
+
+rl.shutdown()
+```
+
+### Async
+
+```python
+async def main():
+    async with rl.context(end_user_id="u_async"):
+        resp = await async_client.chat.completions.create(...)
+    await rl.aflush()
+```
+
+### FastAPI service pattern
+
+```python
+from fastapi import FastAPI, Header
+from runledger_sdk import RunLedger
+
+app = FastAPI()
+rl = RunLedger(api_key="rl_...")
+rl.instrument()
+
+@app.post("/chat")
+async def chat(body: ChatRequest, x_user_id: str | None = Header(default=None)):
+    async with rl.context(end_user_id=x_user_id or "anonymous", feature_tag="chat"):
+        # all LLM calls here are attributed to x_user_id
+        ...
+
+@app.on_event("shutdown")
+async def shutdown():
+    await rl.aflush()
+```
+
+### Cross-service context propagation
+
+```python
+# Service A (caller)
+with rl.context(end_user_id="u_123", feature_tag="pipeline"):
+    headers = rl.propagation_headers()
+    # {'X-RunLedger-Run-Id': '...', 'X-RunLedger-End-User-Id': 'u_123', ...}
+    response = httpx.post("http://service-b/process", headers=headers)
+
+# Service B (receiver)
+@app.post("/process")
+async def process(request: Request):
+    async with RunLedger.from_headers(dict(request.headers)) as run_id:
+        ...  # run_id, end_user_id, feature_tag are all restored
+```
+
+All spans from both services share the same `run_id` and appear together in the Run Explorer.
+
+### Local mode (zero setup)
+
+```python
+rl = RunLedger(local=True)  # no API key, no server — events printed to stdout
+```
+
+---
+
+## Context manager reference
+
+```python
+with rl.context(
+    run_id=None,               # auto-generated UUID if omitted
+    end_user_id=None,          # who triggered this run
+    session_id=None,           # groups multiple runs into a conversation
+    feature_tag=None,          # which product feature
+    deployment_version=None,   # e.g. "support-agent:v3"
+) as run_id: ...
+```
+
+Contexts nest — inner blocks inherit outer values and can selectively override:
+
+```python
+with rl.context(end_user_id="u_123"):
+    with rl.context(feature_tag="checkout"):  # u_123 + checkout
+        ...
+    with rl.context(feature_tag="search"):    # u_123 + search
+        ...
+```
+
+---
+
+## Quality scores
+
+```python
+with rl.context(feature_tag="support-chat") as run_id:
+    resp = client.chat.completions.create(...)
+    rl.score("helpfulness", 0.9, label="good", source="human")
+    rl.score("relevance", 0.75, confidence=0.9)
+```
+
+`rl.score()` is synchronous and fails silently — it will never raise or interrupt your agent.
+
+```bash
+# Average score per name + period-over-period delta
+curl "$BASE/analytics/scores/summary" -H "Authorization: Bearer $KEY"
+
+# Names where avg dropped >20% vs prior week
+curl "$BASE/analytics/scores/regressions" -H "Authorization: Bearer $KEY"
+```
+
+---
+
+## Prompt management
+
+```python
+rendered = rl.get_prompt(
+    "support-agent",
+    environment="production",
+    variables={"user_name": "Alice", "company": "Acme"},
+)
+# rendered["content"]    → rendered template string
+# rendered["version"]    → 3
+# rendered["model_hint"] → "gpt-4o-mini"
+
+with rl.context(deployment_version=f"support-agent:{rendered['version']}"):
+    resp = client.chat.completions.create(
+        model=rendered["model_hint"] or "gpt-4o-mini",
+        messages=[{"role": "system", "content": rendered["content"]}],
+    )
+```
+
+Prompts are cached for 60 seconds per process.
+
+```bash
+# Create prompt, commit version, promote to production
+curl -X POST "$BASE/prompts" -H "Authorization: Bearer $KEY" \
+     -d '{"name":"support-agent","default_environment":"production"}'
+
+curl -X POST "$BASE/prompts/support-agent/versions" -H "Authorization: Bearer $KEY" \
+     -d '{"content":"Hello {{user_name}}!","environment":"staging","commit_message":"v1"}'
+
+curl -X POST "$BASE/prompts/support-agent/promote" -H "Authorization: Bearer $KEY" \
+     -d '{"source_environment":"staging","target_environment":"production"}'
+```
+
+---
+
+## Model gateway
+
+Point any OpenAI client at RunLedger's proxy — change only `base_url`:
+
+```python
+import openai
+
+client = openai.OpenAI(
+    api_key="rl_...",
+    base_url="http://localhost:8000/gateway",
+)
+
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",   # alias defined in a gateway route
+    messages=[{"role": "user", "content": "Hello"}],
+)
+# First call → forwarded to OpenAI, cached.
+# Identical second call → served from cache in <5ms.
+```
+
+```bash
+# Create a route
+curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
+     -d '{"alias":"gpt-4o-mini","provider":"openai","target_model":"gpt-4o-mini","api_key_env_var":"OPENAI_API_KEY","priority":10}'
+
+# Check stats
+curl "$BASE/gateway/stats" -H "Authorization: Bearer $KEY"
+```
+
+---
+
+## Analytics API
+
+```bash
+# Total cost + tokens, last 7 days
+curl "$BASE/analytics/summary" -H "Authorization: Bearer $KEY"
+
+# Daily spend time-series
+curl "$BASE/analytics/spend-over-time?granularity=daily" -H "Authorization: Bearer $KEY"
+
+# Cost breakdown by model / feature / user
+curl "$BASE/analytics/spend-by-model" -H "Authorization: Bearer $KEY"
+curl "$BASE/analytics/spend-by-feature" -H "Authorization: Bearer $KEY"
+curl "$BASE/analytics/spend-by-user?limit=10" -H "Authorization: Bearer $KEY"
+
+# Export runs as CSV (up to 5,000 rows)
+curl "$BASE/runs/export?model=gpt-4o&from=2026-01-01T00:00:00Z" \
+     -H "Authorization: Bearer $KEY" -o runs.csv
+```
+
+All endpoints accept `from` / `to` ISO-8601 query params.
+
+---
+
+## Alert rules
+
+```bash
+# Error rate > 5% in 60-minute window → Slack alert
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -d '{"name":"High error rate","metric":"error_rate","operator":"gt","threshold":0.05,"window_minutes":60}'
+
+# p95 latency > 5 000 ms
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -d '{"name":"Slow responses","metric":"p95_latency","operator":"gt","threshold":5000,"window_minutes":30}'
+
+# Hourly spend > $5
+curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
+     -d '{"name":"Spend spike","metric":"spend_velocity","operator":"gt","threshold":5.0,"window_minutes":60}'
+```
+
+| Metric | Description |
+|--------|-------------|
+| `error_rate` | Fraction of failed runs (0–1) |
+| `p95_latency` | 95th-percentile duration in ms |
+| `avg_score` | Average evaluation score |
+| `spend_velocity` | Total `cost_usd` in the window |
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Events not appearing in the dashboard">
+    1. Check your key: `runledger doctor`
+    2. Confirm `rl.shutdown()` (sync) or `await rl.aflush()` (async) is called before the process exits — unflushed events in the buffer are lost.
+    3. Check `docker compose logs worker` — cost enrichment errors appear here.
+  </Accordion>
+  <Accordion title="cost_usd is NULL on all runs">
+    Cost enrichment runs every 60 seconds via Celery Beat. Check that the `worker` and `beat` containers are running:
+    ```bash
+    docker compose ps
+    docker compose logs beat
+    ```
+  </Accordion>
+  <Accordion title="Duplicate provider_call events">
+    If you use both `rl.instrument()` and `rl.callback_handler()`, pass `track_llm_cost=False` to the handler:
+    ```python
+    handler = rl.callback_handler(track_llm_cost=False)
+    ```
+  </Accordion>
+  <Accordion title="Ollama / local provider shows $0 cost">
+    Correct — Ollama has no API cost. Runs appear in analytics with `cost_usd = 0.00`. To assign an internal transfer price, add a pricing row via **Settings → Provider Profiles** or `POST /providers/pricing` for `provider = ollama`.
+  </Accordion>
+  <Accordion title="OTel Collector not forwarding traces">
+    Set `RUNLEDGER_API_KEY` in `infra/.env`. Without it, the Collector starts but gets 401s from the API. Restart after setting:
+    ```bash
+    docker compose restart otel-collector
+    docker compose logs otel-collector
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## SDK configuration reference
+
+```python
+from runledger_sdk import RunLedger, PrivacyMode
+
+rl = RunLedger(
+    api_key="rl_...",                          # reads RUNLEDGER_API_KEY if omitted
+    base_url="http://localhost:8000",           # default
+    privacy_mode=PrivacyMode.METADATA_ONLY,    # default — no payloads captured
+    local=False,                               # True → stdout, no HTTP
+    budget_check=False,                        # True → pre-call budget enforcement
+)
+```
+
+| Parameter | Env var | Default |
+|-----------|---------|---------|
+| `api_key` | `RUNLEDGER_API_KEY` | required |
+| `base_url` | `RUNLEDGER_BASE_URL` | `http://localhost:8000` |
+| `local` | `RUNLEDGER_LOCAL` | `False` |
+| `budget_check` | — | `False` |
+| `privacy_mode` | — | `metadata_only` |
+
+Privacy modes: `metadata_only` (default) · `errors_only` · `sampled` · `full`
+
+### Transport flush
+
+```python
+rl.flush()          # sync — blocks until all queued events are sent
+await rl.aflush()   # async variant
+rl.shutdown()       # flush + stop background thread
+```

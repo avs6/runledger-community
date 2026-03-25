@@ -1129,6 +1129,22 @@ export async function deleteRoutingPolicy(apiKey: string, policyId: string): Pro
   await apiFetch<void>(`/gateway/policies/${policyId}`, apiKey, { method: 'DELETE' })
 }
 
+export async function getRoutingRecommendation(
+  apiKey: string,
+  alias: string,
+  opts?: { window_days?: number; workflow_type?: string; min_sample_size?: number }
+): Promise<import('@/types/api').RoutingRecommendationResponse> {
+  const params = new URLSearchParams()
+  if (opts?.window_days) params.set('window_days', String(opts.window_days))
+  if (opts?.workflow_type) params.set('workflow_type', opts.workflow_type)
+  if (opts?.min_sample_size) params.set('min_sample_size', String(opts.min_sample_size))
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  return apiFetch<import('@/types/api').RoutingRecommendationResponse>(
+    `/gateway/recommendations/${encodeURIComponent(alias)}${qs}`,
+    apiKey,
+  )
+}
+
 // ── Org Dashboard ─────────────────────────────────────────────────────────────
 
 export async function getOrgDashboard(apiKey: string): Promise<import('@/types/api').OrgDashboard> {
@@ -1600,4 +1616,83 @@ export async function testEmailSend(
 
 export async function getEmailLog(apiKey: string): Promise<EmailLogList> {
   return apiFetch<EmailLogList>('/settings/email/log', apiKey)
+}
+
+// ── Kafka Export ───────────────────────────────────────────────────────────────
+
+import type {
+  KafkaExportConfig,
+  KafkaExportConfigList,
+  KafkaExportDeliveryList,
+  KafkaTestResult,
+} from '@/types/api'
+
+export async function listKafkaExportConfigs(apiKey: string): Promise<KafkaExportConfigList> {
+  return apiFetch<KafkaExportConfigList>('/integrations/kafka/configs', apiKey)
+}
+
+export async function createKafkaExportConfig(
+  apiKey: string,
+  data: {
+    label: string
+    bootstrap_servers: string
+    topic_prefix: string
+    security_protocol: string
+    sasl_mechanism?: string | null
+    sasl_username?: string | null
+    sasl_password?: string | null
+    ssl_ca_cert?: string | null
+    event_types: string[]
+  }
+): Promise<KafkaExportConfig> {
+  return apiFetch<KafkaExportConfig>('/integrations/kafka/configs', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateKafkaExportConfig(
+  apiKey: string,
+  configId: string,
+  data: Partial<{
+    label: string
+    bootstrap_servers: string
+    topic_prefix: string
+    security_protocol: string
+    sasl_mechanism: string | null
+    sasl_username: string | null
+    sasl_password: string | null
+    ssl_ca_cert: string | null
+    event_types: string[]
+    enabled: boolean
+  }>
+): Promise<KafkaExportConfig> {
+  return apiFetch<KafkaExportConfig>(`/integrations/kafka/configs/${configId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteKafkaExportConfig(apiKey: string, configId: string): Promise<void> {
+  return apiFetch<void>(`/integrations/kafka/configs/${configId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function testKafkaExportConfig(
+  apiKey: string,
+  configId: string
+): Promise<KafkaTestResult> {
+  return apiFetch<KafkaTestResult>(`/integrations/kafka/configs/${configId}/test`, apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function listKafkaExportDeliveries(
+  apiKey: string,
+  configId: string,
+  limit = 20
+): Promise<KafkaExportDeliveryList> {
+  return apiFetch<KafkaExportDeliveryList>(
+    `/integrations/kafka/configs/${configId}/deliveries?limit=${limit}`,
+    apiKey
+  )
 }

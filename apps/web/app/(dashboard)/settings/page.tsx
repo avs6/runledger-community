@@ -23,7 +23,7 @@ import OrgTab from '@/components/settings/OrgTab'
 import RetentionTab from '@/components/settings/RetentionTab'
 import SsoTab from '@/components/settings/SsoTab'
 import WarehouseTab from '@/components/settings/WarehouseTab'
-import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, EmailPreference, EmailLogItem } from '@/types/api'
+import type { AlertRule, AlertFiring, ApiKeyResponse, TenantResponse, AdminWorkspaceResponse, CapturePolicyResponse, EmailPreference, EmailLogItem, KafkaExportConfig, KafkaExportDelivery } from '@/types/api'
 import {
   listApiKeys,
   createApiKey,
@@ -47,6 +47,12 @@ import {
   updateEmailPreferences,
   testEmailSend,
   getEmailLog,
+  listKafkaExportConfigs,
+  createKafkaExportConfig,
+  updateKafkaExportConfig,
+  deleteKafkaExportConfig,
+  testKafkaExportConfig,
+  listKafkaExportDeliveries,
 } from '@/lib/api'
 import type { OtlpStats, OtlpBatchList } from '@/types/api'
 
@@ -107,6 +113,27 @@ export default function SettingsPage() {
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('')
   const [slackTestResult, setSlackTestResult] = useState<{ ok: boolean; error: string | null } | null>(null)
   const [testingSlack, setTestingSlack] = useState(false)
+
+  // Kafka Export
+  const [kafkaConfigs, setKafkaConfigs] = useState<KafkaExportConfig[]>([])
+  const [kafkaLoaded, setKafkaLoaded] = useState(false)
+  const [showKafkaForm, setShowKafkaForm] = useState(false)
+  const [kafkaForm, setKafkaForm] = useState({
+    label: 'kafka export',
+    bootstrap_servers: '',
+    topic_prefix: 'runledger',
+    security_protocol: 'PLAINTEXT',
+    sasl_mechanism: '',
+    sasl_username: '',
+    sasl_password: '',
+    ssl_ca_cert: '',
+    event_types: ['run.completed', 'run.failed', 'alert.fired', 'budget.breached', 'score.submitted'] as string[],
+  })
+  const [savingKafka, setSavingKafka] = useState(false)
+  const [kafkaTestResults, setKafkaTestResults] = useState<Record<string, { ok: boolean; error: string | null; topic: string | null }>>({})
+  const [testingKafkaId, setTestingKafkaId] = useState<string | null>(null)
+  const [kafkaDeliveries, setKafkaDeliveries] = useState<Record<string, KafkaExportDelivery[]>>({})
+  const [expandedKafkaId, setExpandedKafkaId] = useState<string | null>(null)
 
   // ── Privacy capture policy ──────────────────────────────────────────────────
   const [capturePolicy, setCapturePolicy] = useState<CapturePolicyResponse | null>(null)
@@ -349,6 +376,110 @@ export default function SettingsPage() {
       toast.error(`Slack test failed: ${msg}`)
     } finally {
       setTestingSlack(false)
+    }
+  }
+
+  // ── Kafka handlers ──────────────────────────────────────────────────────────
+
+  const loadKafkaConfigs = useCallback(async () => {
+    if (!apiKey || kafkaLoaded) return
+    try {
+      const data = await listKafkaExportConfigs(apiKey)
+      setKafkaConfigs(data.items)
+      setKafkaLoaded(true)
+    } catch {
+      toast.error('Failed to load Kafka configs')
+    }
+  }, [apiKey, kafkaLoaded])
+
+  useEffect(() => {
+    if (activeTab === 'integrations') loadKafkaConfigs()
+  }, [activeTab, loadKafkaConfigs])
+
+  async function handleCreateKafka(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey) return
+    setSavingKafka(true)
+    try {
+      const cfg = await createKafkaExportConfig(apiKey, {
+        label: kafkaForm.label,
+        bootstrap_servers: kafkaForm.bootstrap_servers,
+        topic_prefix: kafkaForm.topic_prefix,
+        security_protocol: kafkaForm.security_protocol,
+        sasl_mechanism: kafkaForm.sasl_mechanism || null,
+        sasl_username: kafkaForm.sasl_username || null,
+        sasl_password: kafkaForm.sasl_password || null,
+        ssl_ca_cert: kafkaForm.ssl_ca_cert || null,
+        event_types: kafkaForm.event_types,
+      })
+      setKafkaConfigs(prev => [cfg, ...prev])
+      setShowKafkaForm(false)
+      setKafkaForm({
+        label: 'kafka export', bootstrap_servers: '', topic_prefix: 'runledger',
+        security_protocol: 'PLAINTEXT', sasl_mechanism: '', sasl_username: '',
+        sasl_password: '', ssl_ca_cert: '', event_types: ['run.completed','run.failed','alert.fired','budget.breached','score.submitted'],
+      })
+      toast.success('Kafka export config created')
+    } catch (err) {
+      toast.error(`Failed to create Kafka config: ${err}`)
+    } finally {
+      setSavingKafka(false)
+    }
+  }
+
+  async function handleToggleKafka(cfg: KafkaExportConfig) {
+    if (!apiKey) return
+    try {
+      const updated = await updateKafkaExportConfig(apiKey, cfg.id, { enabled: !cfg.enabled })
+      setKafkaConfigs(prev => prev.map(c => c.id === cfg.id ? updated : c))
+      toast.success(updated.enabled ? 'Kafka export enabled' : 'Kafka export disabled')
+    } catch {
+      toast.error('Failed to update Kafka config')
+    }
+  }
+
+  async function handleDeleteKafka(id: string) {
+    if (!apiKey) return
+    try {
+      await deleteKafkaExportConfig(apiKey, id)
+      setKafkaConfigs(prev => prev.filter(c => c.id !== id))
+      toast.success('Kafka export config deleted')
+    } catch {
+      toast.error('Failed to delete Kafka config')
+    }
+  }
+
+  async function handleTestKafka(id: string) {
+    if (!apiKey) return
+    setTestingKafkaId(id)
+    try {
+      const result = await testKafkaExportConfig(apiKey, id)
+      setKafkaTestResults(prev => ({ ...prev, [id]: result }))
+      if (result.ok) {
+        toast.success(`Test event published to ${result.topic}`)
+      } else {
+        toast.error(`Kafka test failed: ${result.error}`)
+      }
+    } catch (err) {
+      toast.error(`Kafka test error: ${err}`)
+    } finally {
+      setTestingKafkaId(null)
+    }
+  }
+
+  async function handleExpandKafka(id: string) {
+    if (expandedKafkaId === id) {
+      setExpandedKafkaId(null)
+      return
+    }
+    setExpandedKafkaId(id)
+    if (!kafkaDeliveries[id] && apiKey) {
+      try {
+        const data = await listKafkaExportDeliveries(apiKey, id)
+        setKafkaDeliveries(prev => ({ ...prev, [id]: data.items }))
+      } catch {
+        setKafkaDeliveries(prev => ({ ...prev, [id]: [] }))
+      }
     }
   }
 
@@ -1179,22 +1310,18 @@ export default function SettingsPage() {
         )}
         {/* ── Integrations ──────────────────────────────────────────────────────── */}
         {activeTab === 'integrations' && (
-          <div className="space-y-6 max-w-2xl">
+          <div className="space-y-8 max-w-2xl">
             <div>
               <h2 className="text-xl font-semibold dark:text-white">Integrations</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect external services for notifications and alerts.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect external services for notifications and event streaming.</p>
             </div>
 
-            <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
-              Configure budget notifications via{' '}
-              <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">POST /budgets/{'{id}'}/notifications</code>{' '}
-              with <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">channel: &quot;slack&quot;</code>.
-            </div>
-
-            <div>
-              <div className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Slack Webhook</div>
-              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-                Paste an incoming webhook URL to test connectivity before configuring budget notifications.
+            {/* ── Slack ──────────────────────────────────────────────────────── */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+              <div className="font-medium text-gray-800 dark:text-gray-200">Slack Webhook</div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Paste an incoming webhook URL to test connectivity before configuring budget notifications
+                via <code className="rounded bg-gray-100 px-1 font-mono dark:bg-gray-800">POST /budgets/{'{id}'}/notifications</code>.
               </p>
               <form onSubmit={handleTestSlack} className="flex flex-wrap gap-2">
                 <input type="url" placeholder="https://hooks.slack.com/services/..." value={slackWebhookUrl} onChange={(e) => setSlackWebhookUrl(e.target.value)} className={`flex-1 ${inputCls}`} required />
@@ -1203,8 +1330,227 @@ export default function SettingsPage() {
                 </button>
               </form>
               {slackTestResult && (
-                <div className={`mt-3 rounded border px-3 py-2 text-sm ${slackTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'}`}>
+                <div className={`rounded border px-3 py-2 text-sm ${slackTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'}`}>
                   {slackTestResult.ok ? '✓ Test message sent successfully.' : <>✗ Failed: {slackTestResult.error}</>}
+                </div>
+              )}
+            </div>
+
+            {/* ── Kafka Export ───────────────────────────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-800 dark:text-gray-200">Kafka Export</div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Stream run completions, alert firings, budget breaches, and scores to your Kafka cluster.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowKafkaForm(v => !v)}
+                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700"
+                >
+                  {showKafkaForm ? 'Cancel' : '+ Add Config'}
+                </button>
+              </div>
+
+              {/* Topic routing reference */}
+              <div className="rounded border border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 p-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">Topic routing</div>
+                {[
+                  ['run.completed / run.failed', '{prefix}.runs'],
+                  ['alert.fired', '{prefix}.alerts'],
+                  ['budget.breached', '{prefix}.budgets'],
+                  ['score.submitted', '{prefix}.scores'],
+                ].map(([ev, topic]) => (
+                  <div key={ev} className="flex gap-2">
+                    <code className="font-mono">{ev}</code>
+                    <span className="text-gray-400">→</span>
+                    <code className="font-mono text-indigo-600 dark:text-indigo-400">{topic}</code>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add form */}
+              {showKafkaForm && (
+                <form onSubmit={handleCreateKafka} className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 p-4 space-y-3">
+                  <div className="text-sm font-medium text-indigo-800 dark:text-indigo-200">New Kafka Export Config</div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Label</label>
+                      <input className={inputCls} value={kafkaForm.label} onChange={e => setKafkaForm(f => ({...f, label: e.target.value}))} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Topic Prefix</label>
+                      <input className={inputCls} value={kafkaForm.topic_prefix} onChange={e => setKafkaForm(f => ({...f, topic_prefix: e.target.value}))} required />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Bootstrap Servers</label>
+                    <input className={`w-full ${inputCls}`} placeholder="broker1:9092,broker2:9092" value={kafkaForm.bootstrap_servers} onChange={e => setKafkaForm(f => ({...f, bootstrap_servers: e.target.value}))} required />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Security Protocol</label>
+                      <select className={`w-full ${inputCls}`} value={kafkaForm.security_protocol} onChange={e => setKafkaForm(f => ({...f, security_protocol: e.target.value}))}>
+                        {['PLAINTEXT','SSL','SASL_PLAINTEXT','SASL_SSL'].map(p => <option key={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SASL Mechanism</label>
+                      <select className={`w-full ${inputCls}`} value={kafkaForm.sasl_mechanism} onChange={e => setKafkaForm(f => ({...f, sasl_mechanism: e.target.value}))}>
+                        <option value="">— none —</option>
+                        {['PLAIN','SCRAM-SHA-256','SCRAM-SHA-512'].map(m => <option key={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {(kafkaForm.security_protocol.includes('SASL') || kafkaForm.sasl_mechanism) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SASL Username</label>
+                        <input className={`w-full ${inputCls}`} value={kafkaForm.sasl_username} onChange={e => setKafkaForm(f => ({...f, sasl_username: e.target.value}))} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SASL Password</label>
+                        <input type="password" className={`w-full ${inputCls}`} value={kafkaForm.sasl_password} onChange={e => setKafkaForm(f => ({...f, sasl_password: e.target.value}))} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Event Types</label>
+                    <div className="flex flex-wrap gap-2">
+                      {(['run.completed','run.failed','alert.fired','budget.breached','score.submitted'] as const).map(et => (
+                        <label key={et} className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={kafkaForm.event_types.includes(et)}
+                            onChange={e => setKafkaForm(f => ({
+                              ...f,
+                              event_types: e.target.checked ? [...f.event_types, et] : f.event_types.filter(x => x !== et)
+                            }))}
+                          />
+                          {et}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={() => setShowKafkaForm(false)} className="rounded border px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">Cancel</button>
+                    <button type="submit" disabled={savingKafka || !kafkaForm.bootstrap_servers.trim()} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                      {savingKafka ? 'Saving…' : 'Save Config'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Config list */}
+              {kafkaConfigs.length === 0 && !showKafkaForm ? (
+                <div className="rounded border border-dashed border-gray-200 dark:border-gray-700 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                  No Kafka export configs yet. Add one to start streaming events.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {kafkaConfigs.map(cfg => (
+                    <div key={cfg.id} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      {/* Header */}
+                      <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-900">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-800 dark:text-gray-200 text-sm truncate">{cfg.label}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">{cfg.bootstrap_servers}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 text-xs text-gray-600 dark:text-gray-400">{cfg.security_protocol}</span>
+                            <span className="inline-block rounded bg-indigo-50 dark:bg-indigo-950 px-1.5 py-0.5 text-xs text-indigo-600 dark:text-indigo-400">prefix: {cfg.topic_prefix}</span>
+                            {cfg.event_types.map(et => (
+                              <span key={et} className="inline-block rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs text-slate-600 dark:text-slate-400">{et}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {/* Enable toggle */}
+                          <button
+                            onClick={() => handleToggleKafka(cfg)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${cfg.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            title={cfg.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                          >
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${cfg.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                          </button>
+                          {/* Test */}
+                          <button
+                            onClick={() => handleTestKafka(cfg.id)}
+                            disabled={testingKafkaId === cfg.id}
+                            className="rounded border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+                          >
+                            {testingKafkaId === cfg.id ? 'Testing…' : 'Test'}
+                          </button>
+                          {/* Deliveries */}
+                          <button
+                            onClick={() => handleExpandKafka(cfg.id)}
+                            className="rounded border border-gray-200 dark:border-gray-600 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          >
+                            {expandedKafkaId === cfg.id ? 'Hide log' : 'Log'}
+                          </button>
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDeleteKafka(cfg.id)}
+                            className="rounded border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Test result */}
+                      {kafkaTestResults[cfg.id] && (
+                        <div className={`px-4 py-2 text-xs border-t ${kafkaTestResults[cfg.id].ok ? 'bg-green-50 dark:bg-green-950 border-green-100 dark:border-green-900 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-950 border-red-100 dark:border-red-900 text-red-700 dark:text-red-300'}`}>
+                          {kafkaTestResults[cfg.id].ok
+                            ? <>✓ Test event published to <code className="font-mono">{kafkaTestResults[cfg.id].topic}</code></>
+                            : <>✗ {kafkaTestResults[cfg.id].error}</>
+                          }
+                        </div>
+                      )}
+
+                      {/* Delivery log */}
+                      {expandedKafkaId === cfg.id && (
+                        <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3">
+                          <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Recent deliveries</div>
+                          {(kafkaDeliveries[cfg.id] ?? []).length === 0 ? (
+                            <div className="text-xs text-gray-400 dark:text-gray-500">No deliveries yet.</div>
+                          ) : (
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-gray-500 dark:text-gray-400">
+                                  <th className="text-left font-medium pb-1">Event</th>
+                                  <th className="text-left font-medium pb-1">Topic</th>
+                                  <th className="text-left font-medium pb-1">Status</th>
+                                  <th className="text-left font-medium pb-1">When</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(kafkaDeliveries[cfg.id] ?? []).map(d => (
+                                  <tr key={d.id} className="border-t border-gray-100 dark:border-gray-800">
+                                    <td className="py-1 font-mono text-gray-700 dark:text-gray-300">{d.event_type}</td>
+                                    <td className="py-1 font-mono text-indigo-600 dark:text-indigo-400">{d.topic}</td>
+                                    <td className="py-1">
+                                      <span className={`inline-block rounded px-1.5 py-0.5 ${d.status === 'success' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : d.status === 'failed' ? 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
+                                        {d.status}
+                                      </span>
+                                      {d.error_detail && <span className="ml-1 text-red-500 dark:text-red-400 truncate max-w-[12rem] inline-block align-middle">{d.error_detail}</span>}
+                                    </td>
+                                    <td className="py-1 text-gray-400 dark:text-gray-500">{new Date(d.created_at).toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

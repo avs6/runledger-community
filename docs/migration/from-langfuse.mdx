@@ -1,0 +1,245 @@
+---
+title: "Migrate from Langfuse"
+description: "Add RunLedger finance-grade accounting alongside or instead of Langfuse in 10 minutes."
+---
+
+Langfuse focuses on **LLM observability, evals, and prompt management**. RunLedger adds **finance-grade cost accounting, invoice reconciliation, budget enforcement, and chargeback** on top of the same instrumentation.
+
+Both tools can run simultaneously — RunLedger's SDK uses the same OpenAI wrapper and LangChain callback patterns as Langfuse.
+
+---
+
+## Option A — OpenAI wrapper swap (side-by-side)
+
+Langfuse wraps the OpenAI client. RunLedger does too, via `rl.instrument()`. You can run both.
+
+```python
+# Before (Langfuse only)
+from langfuse.openai import openai
+
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+```python
+# After (Langfuse + RunLedger side-by-side)
+from langfuse.openai import openai   # Langfuse patches first
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+rl.instrument()   # RunLedger patches on top — both receive every call
+
+client = openai.OpenAI()
+
+with rl.context(end_user_id="u_123", feature_tag="support-chat") as run_id:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Hello"}],
+    )
+```
+
+**Both SDKs see every call.** Langfuse keeps its traces and evals; RunLedger adds cost accounting.
+
+---
+
+## Option B — Full swap (OpenAI wrapper)
+
+```python
+# Before
+from langfuse.openai import openai
+
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello"}],
+    name="my-generation",   # Langfuse generation name
+)
+```
+
+```python
+# After
+import openai
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+rl.instrument()
+
+client = openai.OpenAI()
+
+with rl.context(
+    end_user_id="u_123",
+    feature_tag="my-generation",   # maps to Langfuse "name"
+    session_id="sess_abc",
+) as run_id:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": "Hello"}],
+    )
+```
+
+---
+
+## Option C — LangChain callback swap
+
+```python
+# Before
+from langfuse.callback import CallbackHandler as LangfuseCallbackHandler
+handler = LangfuseCallbackHandler()
+
+chain.invoke(input, config={"callbacks": [handler]})
+```
+
+```python
+# After — RunLedger only
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+handler = rl.callback_handler()
+
+chain.invoke(input, config={"callbacks": [handler]})
+```
+
+Or both handlers in parallel:
+
+```python
+from langfuse.callback import CallbackHandler as LangfuseCallbackHandler
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+
+chain.invoke(
+    input,
+    config={"callbacks": [LangfuseCallbackHandler(), rl.callback_handler()]},
+)
+```
+
+---
+
+## Option D — Decorator pattern migration
+
+Langfuse's `@observe` decorator is used to trace arbitrary functions. RunLedger's equivalent is `rl.context()`:
+
+```python
+# Before (Langfuse)
+from langfuse.decorators import observe, langfuse_context
+
+@observe()
+def process_user_request(user_id: str, message: str) -> str:
+    langfuse_context.update_current_trace(user_id=user_id)
+    response = client.chat.completions.create(...)
+    return response.choices[0].message.content
+```
+
+```python
+# After (RunLedger)
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_...")
+rl.instrument()
+
+def process_user_request(user_id: str, message: str) -> str:
+    with rl.context(end_user_id=user_id, feature_tag="process-request") as run_id:
+        response = client.chat.completions.create(...)
+        return response.choices[0].message.content
+```
+
+---
+
+## Score / evaluation mapping
+
+Langfuse scores map directly to `rl.score()`:
+
+```python
+# Before (Langfuse)
+from langfuse import Langfuse
+
+lf = Langfuse()
+lf.score(
+    trace_id=trace_id,
+    name="helpfulness",
+    value=0.9,
+    comment="Very helpful",
+)
+```
+
+```python
+# After (RunLedger — called inside the run context)
+with rl.context(end_user_id="u_123") as run_id:
+    response = client.chat.completions.create(...)
+    rl.score("helpfulness", 0.9, label="very-helpful")
+    rl.score("relevance", 0.85)
+```
+
+---
+
+## Prompt management migration
+
+Langfuse has a prompt registry. RunLedger's equivalent is `rl.get_prompt()`:
+
+```python
+# Before (Langfuse)
+from langfuse import Langfuse
+
+lf = Langfuse()
+prompt = lf.get_prompt("support-agent")
+compiled = prompt.compile(user_name="Alice", company="Acme")
+```
+
+```python
+# After (RunLedger)
+rendered = rl.get_prompt(
+    "support-agent",
+    environment="production",
+    variables={"user_name": "Alice", "company": "Acme"},
+)
+# rendered["content"]      → compiled template
+# rendered["version"]      → version number (links runs to prompt versions)
+# rendered["model_hint"]   → suggested model from the registry
+```
+
+Prompts are cached for 60 seconds per process. Versions are committed via the dashboard or `POST /prompts/{name}/versions`.
+
+---
+
+## Feature mapping
+
+| Langfuse | RunLedger equivalent | Notes |
+|----------|---------------------|-------|
+| Trace | `AgentRun` | Full run container |
+| Span / Generation / Event | `Span` / `ProviderCall` / `ToolCall` | Same hierarchy |
+| Score | `ScoreEvent` via `rl.score()` | Per-run quality metric |
+| Prompt | `Prompt` + `PromptVersion` | Version history + production promotion with approval gate |
+| Dataset / experiment | `ReplayDataset` + `ReplayExperiment` | Cost projection + replay |
+| Tags | `labels`, `feature_tag`, `end_user_id` | Propagate to all nested calls |
+| Users | `end_user_id` on `AgentRun` | Per-user analytics + anomaly detection |
+| Org / project | `Tenant` → `Workspace` | RBAC-governed multi-tenancy |
+| Cost (manual) | **Automated** — priced against embedded catalog | No manual per-model pricing config |
+
+---
+
+## What RunLedger adds beyond Langfuse
+
+- **Invoice reconciliation** — import actual provider bills, match to internal calls
+- **Budget enforcement** — per-workspace/user spend limits with automatic block/throttle
+- **Chargeback** — cost allocation to tenants or teams, with audit trail
+- **Model gateway** — OpenAI-compatible proxy with cost-aware routing and prompt caching
+- **Finance-grade ledger** — HMAC-signed snapshots for accounting audit
+- **Outcome & ROI** — cost-per-success, ROI by workflow
+
+---
+
+## Environment variables
+
+```bash
+# RunLedger
+RUNLEDGER_API_KEY=rl_...
+RUNLEDGER_BASE_URL=https://your-runledger.railway.app
+
+# Keep Langfuse vars if running both
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
