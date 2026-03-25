@@ -35,14 +35,15 @@ import base64
 import hashlib
 import hmac
 import json
-import logging
 import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any, Literal
 
-log = logging.getLogger(__name__)
+import structlog
+
+log = structlog.get_logger()
 
 _GRACE_DAYS = 14
 _PREFIX = "rl_lic_"

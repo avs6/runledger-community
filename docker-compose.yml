@@ -1,0 +1,250 @@
+# RunLedger — portable production-ready stack
+#
+# Pull and run anywhere:
+#   curl -O https://raw.githubusercontent.com/avs6/runledger/master/docker-compose.yml
+#   curl -O https://raw.githubusercontent.com/avs6/runledger/master/.env.example
+#   cp .env.example .env          # fill in SECRET_KEY + RUNLEDGER_LICENSE_KEY
+#   docker compose up -d
+#
+# First-time setup (after `up`):
+#   curl -X POST http://localhost:8000/admin/bootstrap \
+#     -H "X-Admin-Secret: $ADMIN_SECRET" \
+#     -H "Content-Type: application/json" \
+#     -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
+#
+# Dashboard: http://localhost:3000
+# API docs:  http://localhost:8000/reference
+# OTLP HTTP: http://localhost:4318   (send traces from your agents here)
+# OTLP gRPC: http://localhost:4317
+
+name: runledger
+
+services:
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: runledger
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-runledger}
+      POSTGRES_DB: runledger
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U runledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── RunLedger API ──────────────────────────────────────────────────────────
+
+  api:
+    image: abijith13/runledger-api:latest
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@postgres:5432/runledger
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
+      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      RUNLEDGER_BASE_URL: ${RUNLEDGER_BASE_URL:-http://localhost:8000}
+      RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
+      # License key — required for enterprise features (SSO, warehouse, etc.)
+      RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
+      RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
+      RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+      # Optional: transactional email via Brevo
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      # Optional: Firebase social login
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      # Optional: Stripe payments
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
+      STRIPE_PRICE_GROWTH: ${STRIPE_PRICE_GROWTH:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+      # Optional: GitHub-backed prompt storage
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_PROMPTS_REPO: ${GITHUB_PROMPTS_REPO:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Celery Worker (event pipeline, metering, rollups) ─────────────────────
+
+  worker:
+    image: abijith13/runledger-worker:latest
+    restart: unless-stopped
+    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
+    environment:
+      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@postgres:5432/runledger
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
+      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
+      RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
+      RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Celery Beat (periodic tasks: rollups, alerts, health checks) ───────────
+
+  beat:
+    image: abijith13/runledger-beat:latest
+    restart: unless-stopped
+    command: celery -A runledger_api.core.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@postgres:5432/runledger
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
+      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
+      RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
+      RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Dashboard (Next.js) ───────────────────────────────────────────────────
+
+  web:
+    image: abijith13/runledger-web:latest
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${SECRET_KEY:-change-me-in-production-32chars}
+      # Internal Docker network URL — never seen by the browser
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ── OTel Collector (OTLP receiver → RunLedger) ────────────────────────────
+  #
+  # Send traces from any instrumented agent to:
+  #   OTLP/HTTP  http://localhost:4318
+  #   OTLP/gRPC  http://localhost:4317
+  #
+  # Python:  RunLedgerOTLPExporter(api_key=..., base_url="http://localhost:8000")
+  # LangGraph/LangChain: use openinference-instrumentation-langchain + RunLedgerOTLPExporter
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    configs:
+      - source: otel_config
+        target: /etc/otel/config.yaml
+    ports:
+      - "4317:4317"    # OTLP/gRPC
+      - "4318:4318"    # OTLP/HTTP
+      - "13133:13133"  # Health probe
+    environment:
+      RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+
+configs:
+  otel_config:
+    content: |
+      extensions:
+        health_check:
+          endpoint: 0.0.0.0:13133
+          path: /
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+              cors:
+                allowed_origins:
+                  - "http://*"
+                  - "https://*"
+      processors:
+        batch:
+          timeout: 5s
+          send_batch_size: 512
+        memory_limiter:
+          check_interval: 1s
+          limit_mib: 256
+          spike_limit_mib: 64
+      exporters:
+        otlphttp/runledger:
+          endpoint: http://api:8000
+          headers:
+            Authorization: "Bearer $${env:RUNLEDGER_API_KEY}"
+          tls:
+            insecure: true
+          retry_on_failure:
+            enabled: true
+            initial_interval: 5s
+            max_interval: 30s
+            max_elapsed_time: 120s
+        debug:
+          verbosity: basic
+      service:
+        extensions: [health_check]
+        pipelines:
+          traces:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [otlphttp/runledger, debug]
