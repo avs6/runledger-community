@@ -286,6 +286,138 @@ Routes support priority fallback, canary splits, cost-optimized selection, and *
 
 ---
 
+## LangGraph / LangChain → RunLedger via OTLP
+
+If you are already using `openinference-instrumentation-langchain` (or any OTel-based tracer) to send traces to LangSmith, switching to RunLedger is one import swap. No changes to your agent code.
+
+### Option A — replace LangSmith's OTLP exporter
+
+```python
+# Before (LangSmith)
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+exporter = OTLPSpanExporter(
+    endpoint="https://api.smith.langchain.com/otel/v1/traces",
+    headers={"x-api-key": os.environ["LANGSMITH_API_KEY"]},
+)
+
+# After (RunLedger) — one line change
+from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
+
+exporter = RunLedgerOTLPExporter(
+    api_key=os.environ["RUNLEDGER_API_KEY"],   # rl_live_...
+    base_url="http://localhost:8000",           # or your deployed instance
+)
+```
+
+Wire it into a `TracerProvider` and instrument LangChain — everything else stays the same:
+
+```python
+import os
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from openinference.instrumentation.langchain import LangChainInstrumentor
+from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
+
+# 1. Build a TracerProvider with RunLedger as the export destination
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(
+        RunLedgerOTLPExporter(
+            api_key=os.environ["RUNLEDGER_API_KEY"],
+            base_url=os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000"),
+        )
+    )
+)
+
+# 2. Instrument LangChain (covers LangGraph too — it builds on LangChain)
+LangChainInstrumentor().instrument(tracer_provider=provider)
+
+# 3. Your agent code is unchanged
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+from langchain_core.messages import HumanMessage
+
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# ... build your graph normally ...
+result = graph.invoke({"messages": [HumanMessage(content="Summarise today's AI news")]})
+
+# 4. Flush before process exits
+provider.force_flush(timeout_millis=10_000)
+```
+
+Install dependencies:
+
+```bash
+pip install "runledger-sdk[otel] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+pip install opentelemetry-sdk openinference-instrumentation-langchain langchain-openai langgraph
+```
+
+---
+
+### Option B — send to RunLedger and LangSmith simultaneously
+
+Add both exporters to the same `TracerProvider`. Every span ships to both destinations:
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from openinference.instrumentation.langchain import LangChainInstrumentor
+from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
+
+provider = TracerProvider()
+
+# LangSmith
+provider.add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(
+            endpoint="https://api.smith.langchain.com/otel/v1/traces",
+            headers={"x-api-key": os.environ["LANGSMITH_API_KEY"]},
+        )
+    )
+)
+
+# RunLedger — finance-grade cost accounting on top of LangSmith observability
+provider.add_span_processor(
+    BatchSpanProcessor(
+        RunLedgerOTLPExporter(api_key=os.environ["RUNLEDGER_API_KEY"])
+    )
+)
+
+LangChainInstrumentor().instrument(tracer_provider=provider)
+```
+
+---
+
+### Option C — RunLedger native SDK (no OTel required)
+
+If you are not already using OTel, the RunLedger SDK has a first-class LangChain callback and LangGraph `instrument_graph()` helper that require zero boilerplate:
+
+```python
+from runledger_sdk import RunLedger
+from runledger_sdk.langgraph import instrument_graph
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+
+rl = RunLedger()  # reads RUNLEDGER_API_KEY from env
+
+# Instrument the compiled graph — every node becomes a span automatically
+instrumented = instrument_graph(graph, rl._get_sync_transport())
+
+with rl.context(end_user_id="u_123", feature_tag="research-agent") as run_id:
+    result = instrumented.invoke({"messages": [HumanMessage(content="...")]})
+
+rl.shutdown()
+```
+
+This path also enables budget enforcement (pre-call spend checks), `rl.score()` outcome recording, and `rl.get_prompt()` prompt registry — features not available through the OTLP path.
+
+See [`examples/04_langgraph_agent.py`](examples/04_langgraph_agent.py) and [`examples/03_langchain_chain.py`](examples/03_langchain_chain.py) for full working examples.
+
+---
+
 ## Coming from LangSmith / Langfuse / Helicone?
 
 RunLedger can run **alongside** your existing observability tool — or replace it. The migration is typically 1–3 lines.
