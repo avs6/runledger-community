@@ -9,6 +9,7 @@ wheels/
 .env
 *.env.local
 infra/.env
+SETUP.md
 
 # uv — lock file must be committed for reproducible CI builds
 # uv.lock
