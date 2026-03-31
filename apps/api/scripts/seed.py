@@ -202,7 +202,7 @@ async def _seed_pricing(session: object) -> None:
             ProviderPricing.workspace_id.is_(None),
         )
     )
-    if existing.scalar_one_or_none() is not None:
+    if existing.first() is not None:
         print("Provider pricing already seeded — skipping.")
         return
 
