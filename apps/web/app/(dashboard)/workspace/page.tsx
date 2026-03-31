@@ -38,11 +38,11 @@ interface WorkspaceMember {
 type WsRole = 'workspace_admin' | 'workspace_editor' | 'workspace_contributor' | 'member' | 'viewer'
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 const WS_ROLE_COLORS: Record<string, string> = {
   workspace_admin: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
-  workspace_editor: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300',
+  workspace_editor: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
   workspace_contributor: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300',
   member: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   viewer: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
@@ -51,7 +51,7 @@ const WS_ROLE_COLORS: Record<string, string> = {
 function Avatar({ name, email }: { name: string | null; email: string }) {
   const ch = ((name ?? email)[0] ?? '?').toUpperCase()
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-sm font-bold uppercase shadow-sm">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 text-white text-sm font-bold uppercase shadow-sm">
       {ch}
     </div>
   )
@@ -133,24 +133,24 @@ function AssignMembersPanel({
   const eligible = orgMembers.filter((m) => !alreadyInWs.has(m.user_id))
 
   return (
-    <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 p-5 space-y-4">
+    <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-teal-800 dark:text-teal-200">
+          <h2 className="text-sm font-semibold text-violet-800 dark:text-violet-200">
             Assign members to &ldquo;{workspace.name}&rdquo;
           </h2>
-          <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">
+          <p className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">
             Add org members to this workspace. You can skip this and manage members later from the Organization page.
           </p>
         </div>
         <button onClick={onDone}
-          className="rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-1.5 text-sm font-medium text-white transition-colors">
+          className="rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-1.5 text-sm font-medium text-white transition-colors">
           Done
         </button>
       </div>
 
       {loading ? (
-        <p className="text-sm text-teal-600 dark:text-teal-400 animate-pulse">Loading org members…</p>
+        <p className="text-sm text-violet-600 dark:text-violet-400 animate-pulse">Loading org members…</p>
       ) : eligible.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {orgMembers.length === 0
@@ -173,7 +173,7 @@ function AssignMembersPanel({
               <select
                 value={selectedRole[m.user_id] ?? 'member'}
                 onChange={(e) => setSelectedRole((prev) => ({ ...prev, [m.user_id]: e.target.value as WsRole }))}
-                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500"
               >
                 <option value="workspace_admin">Admin</option>
                 <option value="workspace_editor">Editor</option>
@@ -184,7 +184,7 @@ function AssignMembersPanel({
               <button
                 onClick={() => handleAdd(m)}
                 disabled={adding[m.user_id]}
-                className="flex items-center gap-1 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50 px-2.5 py-1 text-xs font-medium text-white transition-colors"
+                className="flex items-center gap-1 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-2.5 py-1 text-xs font-medium text-white transition-colors"
               >
                 <UserPlus className="h-3 w-3" />
                 {adding[m.user_id] ? 'Adding…' : 'Add'}
@@ -195,8 +195,8 @@ function AssignMembersPanel({
       )}
 
       {wsMembers.length > 0 && (
-        <div className="pt-2 border-t border-teal-200 dark:border-teal-800">
-          <p className="text-xs font-medium text-teal-700 dark:text-teal-300 mb-1.5">
+        <div className="pt-2 border-t border-violet-200 dark:border-violet-800">
+          <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-1.5">
             {wsMembers.length} member{wsMembers.length !== 1 ? 's' : ''} in this workspace
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -268,7 +268,7 @@ function WorkspaceMembers({
       <button
         onClick={load}
         disabled={loading}
-        className="flex items-center gap-1 text-xs text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors mt-2"
+        className="flex items-center gap-1 text-xs text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors mt-2"
       >
         <Users className="h-3 w-3" />
         {loading ? 'Loading…' : loaded ? `${members.length} member${members.length !== 1 ? 's' : ''}` : 'View members'}
@@ -281,7 +281,7 @@ function WorkspaceMembers({
           ) : (
             members.map((m) => (
               <div key={m.user_id} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 px-2.5 py-1.5">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-[10px] font-bold uppercase">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white text-[10px] font-bold uppercase">
                   {((m.full_name ?? m.email)[0] ?? '?').toUpperCase()}
                 </div>
                 <span className="flex-1 text-xs text-slate-700 dark:text-slate-300 truncate">
@@ -448,7 +448,7 @@ export default function WorkspacePage() {
               setNewWsName('')
               setNewlyCreatedWs(null)
             }}
-            className="ml-auto flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white transition-colors shrink-0"
+            className="ml-auto flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors shrink-0"
           >
             <Plus className="h-4 w-4" />
             New Workspace
@@ -479,7 +479,7 @@ export default function WorkspacePage() {
             <button
               type="submit"
               disabled={creating || !newWsName.trim()}
-              className="rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
               {creating ? 'Creating…' : 'Create'}
             </button>
@@ -517,7 +517,7 @@ export default function WorkspacePage() {
           {!search && canManage && (
             <button
               onClick={() => setShowForm(true)}
-              className="mt-3 flex items-center gap-1.5 text-sm text-teal-600 dark:text-teal-400 hover:underline"
+              className="mt-3 flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:underline"
             >
               <Plus className="h-4 w-4" /> Create your first workspace
             </button>
@@ -564,7 +564,7 @@ export default function WorkspacePage() {
                           setManagingMembersWs(managingMembersWs?.id === ws.id ? null : ws)
                           setNewlyCreatedWs(null)
                         }}
-                        className="mt-2 flex items-center gap-1 text-xs text-teal-600 dark:text-teal-400 hover:underline"
+                        className="mt-2 flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
                       >
                         <UserPlus className="h-3 w-3" />
                         {managingMembersWs?.id === ws.id ? 'Close' : 'Add Members'}

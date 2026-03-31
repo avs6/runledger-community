@@ -30,7 +30,7 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const ALL_EVENTS = ['budget.breach', 'runaway.detected']
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ function OrgOverviewTab({ apiKey }: { apiKey: string }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-            <DollarSign className="h-3.5 w-3.5 text-teal-500" />
+            <DollarSign className="h-3.5 w-3.5 text-violet-500" />
             Org Spend (30d)
           </div>
           <p className="text-2xl font-semibold text-slate-900 dark:text-white">
@@ -160,7 +160,7 @@ function OrgOverviewTab({ apiKey }: { apiKey: string }) {
                   <tr key={ws.workspace_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-xs font-bold uppercase">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 text-white text-xs font-bold uppercase">
                           {ws.workspace_name[0]}
                         </div>
                         <span className="font-medium text-slate-900 dark:text-white">{ws.workspace_name}</span>
@@ -184,7 +184,7 @@ function OrgOverviewTab({ apiKey }: { apiKey: string }) {
                         <div className="flex items-center gap-2 justify-center">
                           <div className="w-20 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700">
                             <div
-                              className={`h-full rounded-full ${overBudget ? 'bg-red-500' : util > 80 ? 'bg-amber-500' : 'bg-teal-500'}`}
+                              className={`h-full rounded-full ${overBudget ? 'bg-red-500' : util > 80 ? 'bg-amber-500' : 'bg-violet-500'}`}
                               style={{ width: `${Math.min(util, 100)}%` }}
                             />
                           </div>
@@ -300,9 +300,9 @@ function BudgetsTab({
   return (
     <div className="space-y-6">
       {/* Workspace context */}
-      <div className="flex items-center gap-2 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-4 py-2.5">
-        <div className="h-2 w-2 rounded-full bg-teal-500" />
-        <span className="text-sm text-teal-800 dark:text-teal-200">
+      <div className="flex items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 px-4 py-2.5">
+        <div className="h-2 w-2 rounded-full bg-violet-500" />
+        <span className="text-sm text-violet-800 dark:text-violet-200">
           Showing budgets for workspace: <span className="font-semibold">{workspaceName}</span>
         </span>
       </div>
@@ -311,7 +311,7 @@ function BudgetsTab({
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <DollarSign className="h-3.5 w-3.5 text-teal-500" />
+            <DollarSign className="h-3.5 w-3.5 text-violet-500" />
             Active Budgets
           </div>
           <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{activeBudgets}</p>
@@ -343,7 +343,7 @@ function BudgetsTab({
           <h2 className="text-base font-semibold text-slate-900 dark:text-white">Spend Limits</h2>
           <button
             onClick={() => setShowBudgetModal(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700"
           >
             <Plus className="h-4 w-4" />
             New Budget
@@ -359,7 +359,7 @@ function BudgetsTab({
           <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center">
             <DollarSign className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-600" />
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">No budgets for this workspace yet.</p>
-            <button onClick={() => setShowBudgetModal(true)} className="mt-3 text-sm text-teal-600 hover:underline dark:text-teal-400">
+            <button onClick={() => setShowBudgetModal(true)} className="mt-3 text-sm text-violet-600 hover:underline dark:text-violet-400">
               Create your first budget
             </button>
           </div>
@@ -418,7 +418,7 @@ function BudgetsTab({
                 {ALL_EVENTS.map((ev) => (
                   <label key={ev} className="flex cursor-pointer items-center gap-1.5 text-sm dark:text-slate-300">
                     <input type="checkbox" checked={notifEvents.includes(ev)} onChange={() => toggleEvent(ev)}
-                      className="rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                      className="rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
                     <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs dark:bg-slate-700 dark:text-slate-300">{ev}</code>
                   </label>
                 ))}
@@ -426,7 +426,7 @@ function BudgetsTab({
             </div>
             <div className="flex gap-2">
               <button type="submit" disabled={addingNotif || notifEvents.length === 0}
-                className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700 disabled:opacity-50">
+                className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50">
                 {addingNotif ? 'Adding…' : 'Add Channel'}
               </button>
               <button type="button" onClick={() => setShowNotifForm(false)}
@@ -456,7 +456,7 @@ function BudgetsTab({
                 {notifications.map((n) => (
                   <tr key={n.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">{n.channel}</span>
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">{n.channel}</span>
                     </td>
                     <td className="max-w-xs truncate px-4 py-2 font-mono text-xs text-slate-500 dark:text-slate-400">{n.destination_url}</td>
                     <td className="px-4 py-2">
@@ -591,9 +591,9 @@ function BillingTab({
   return (
     <div className="space-y-6">
       {/* Workspace context */}
-      <div className="flex items-center gap-2 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-4 py-2.5">
-        <div className="h-2 w-2 rounded-full bg-teal-500" />
-        <span className="text-sm text-teal-800 dark:text-teal-200">
+      <div className="flex items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 px-4 py-2.5">
+        <div className="h-2 w-2 rounded-full bg-violet-500" />
+        <span className="text-sm text-violet-800 dark:text-violet-200">
           Showing billing for workspace: <span className="font-semibold">{workspaceName}</span>
         </span>
       </div>
@@ -627,7 +627,7 @@ function BillingTab({
               Refresh
             </button>
             <button onClick={() => setShowPeriodModal(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700">
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700">
               <Plus className="h-4 w-4" />
               New Period
             </button>
@@ -696,7 +696,7 @@ function BillingTab({
             </div>
             <div className="mt-3 flex gap-2">
               <button type="submit" disabled={addingRule}
-                className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700 disabled:opacity-50">
+                className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50">
                 {addingRule ? 'Adding…' : 'Add Rule'}
               </button>
               <button type="button" onClick={() => setShowRuleForm(false)}
@@ -916,7 +916,7 @@ export default function FinancePage() {
             onClick={() => handleTabChange(id)}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === id
-                ? 'border-teal-500 text-teal-700 dark:text-teal-400'
+                ? 'border-violet-500 text-violet-700 dark:text-violet-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >

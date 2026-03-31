@@ -9,7 +9,7 @@ const TYPE_COLORS: Record<string, string> = {
   tool: 'border-amber-300 bg-amber-50',
   chain: 'border-slate-300 bg-slate-50',
   agent: 'border-violet-300 bg-violet-50',
-  retrieval: 'border-teal-300 bg-teal-50',
+  retrieval: 'border-violet-300 bg-violet-50',
   run: 'border-gray-300 bg-gray-100',
 }
 
@@ -18,7 +18,7 @@ const TYPE_BADGE: Record<string, string> = {
   tool: 'bg-amber-100 text-amber-700',
   chain: 'bg-slate-100 text-slate-700',
   agent: 'bg-violet-100 text-violet-700',
-  retrieval: 'bg-teal-100 text-teal-700',
+  retrieval: 'bg-violet-100 text-violet-700',
   run: 'bg-gray-100 text-gray-600',
 }
 

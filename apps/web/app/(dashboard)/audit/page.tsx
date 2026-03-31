@@ -83,7 +83,7 @@ export default function AuditPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <ScrollText className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+          <ScrollText className="h-6 w-6 text-violet-600 dark:text-violet-400" />
           <div>
             <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Audit Log</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -121,7 +121,7 @@ export default function AuditPage() {
         />
         <button
           onClick={handleFilterChange}
-          className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+          className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700"
         >
           Apply
         </button>

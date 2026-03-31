@@ -95,7 +95,7 @@ export default function SignupPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
         <div className="w-full max-w-md space-y-6 text-center">
-          <MailCheck className="mx-auto h-14 w-14 text-teal-400" />
+          <MailCheck className="mx-auto h-14 w-14 text-violet-400" />
           <div>
             <h1 className="text-2xl font-bold text-white">Check your email</h1>
             <p className="mt-2 text-slate-400 text-sm leading-relaxed">
@@ -106,7 +106,7 @@ export default function SignupPage() {
 
           <div className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-left space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Your API Key (also in the email)</p>
-            <div className="rounded-lg bg-slate-950 border border-slate-800 p-3 font-mono text-sm break-all text-teal-300 select-all">
+            <div className="rounded-lg bg-slate-950 border border-slate-800 p-3 font-mono text-sm break-all text-violet-300 select-all">
               {apiKey}
             </div>
             <Button
@@ -123,7 +123,7 @@ export default function SignupPage() {
 
           <Button
             type="button"
-            className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 text-white hover:from-teal-500 hover:to-cyan-500"
+            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500"
             onClick={() => router.push('/login')}
           >
             Go to Sign In
@@ -141,7 +141,7 @@ export default function SignupPage() {
           <RunLedgerLogo size={36} />
           <div>
             <div className="text-sm font-semibold text-white leading-none">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-teal-400 leading-none">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-400 leading-none">
               Control Plane
             </div>
           </div>
@@ -149,9 +149,9 @@ export default function SignupPage() {
 
         <div className="space-y-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full bg-teal-900/40 border border-teal-700/40 px-3 py-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-teal-400" />
-              <span className="text-xs font-medium text-teal-300">Free plan · 10,000 events/month</span>
+            <div className="inline-flex items-center gap-2 rounded-full bg-violet-900/40 border border-violet-700/40 px-3 py-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+              <span className="text-xs font-medium text-violet-300">Free plan · 10,000 events/month</span>
             </div>
             <p className="text-2xl font-semibold text-white leading-snug">
               Start tracking AI costs<br />in minutes.
@@ -169,7 +169,7 @@ export default function SignupPage() {
               'Upgrade to paid plan anytime',
             ].map(f => (
               <div key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                <div className="h-1.5 w-1.5 rounded-full bg-teal-400 shrink-0" />
+                <div className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
                 {f}
               </div>
             ))}
@@ -186,7 +186,7 @@ export default function SignupPage() {
           <RunLedgerLogo size={48} />
           <div className="text-center">
             <div className="text-xl font-bold text-white">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-teal-400">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-violet-400">
               FinOps Control Plane
             </div>
           </div>
@@ -210,7 +210,7 @@ export default function SignupPage() {
                 placeholder="Alice Smith"
                 autoComplete="name"
                 autoFocus
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
               />
             </div>
             <div className="space-y-1.5">
@@ -222,7 +222,7 @@ export default function SignupPage() {
                 value={form.org_name}
                 onChange={set('org_name')}
                 placeholder="Acme Corp"
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
               />
             </div>
             <div className="space-y-1.5">
@@ -235,7 +235,7 @@ export default function SignupPage() {
                 onChange={set('email')}
                 placeholder="alice@example.com"
                 autoComplete="email"
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
               />
             </div>
             <div className="space-y-1.5">
@@ -249,7 +249,7 @@ export default function SignupPage() {
                 onChange={set('password')}
                 placeholder="8+ characters"
                 autoComplete="new-password"
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
               />
             </div>
 
@@ -262,7 +262,7 @@ export default function SignupPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 text-white hover:from-teal-500 hover:to-cyan-500"
+              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500"
             >
               {loading ? 'Creating account…' : 'Create account'}
             </Button>
@@ -303,7 +303,7 @@ export default function SignupPage() {
 
           <p className="text-center text-sm text-slate-500">
             Already have an account?{' '}
-            <Link href="/login" className="font-medium text-teal-400 hover:text-teal-300">
+            <Link href="/login" className="font-medium text-violet-400 hover:text-violet-300">
               Sign in
             </Link>
           </p>

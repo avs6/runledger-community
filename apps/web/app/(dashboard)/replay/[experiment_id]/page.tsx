@@ -165,7 +165,7 @@ export default function ExperimentResultsPage() {
                   <td className="py-2 pr-3">
                     {c.prompt_name ? (
                       <div>
-                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-700 font-mono">
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 font-mono">
                           {c.prompt_name}{c.prompt_version != null ? `@v${c.prompt_version}` : ''}
                         </span>
                         {c.prompt_content_preview && (

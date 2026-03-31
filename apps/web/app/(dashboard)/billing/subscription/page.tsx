@@ -57,7 +57,7 @@ const PLAN_ICON: Record<string, React.ElementType> = {
 }
 
 function UsageMeter({ used, limit, pct }: { used: number; limit: number; pct: number }) {
-  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-teal-500'
+  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-violet-500'
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
@@ -138,9 +138,9 @@ export default function SubscriptionPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            {(() => { const Icon = PLAN_ICON[currentPlan] ?? Zap; return <Icon className="h-4 w-4 text-teal-600" /> })()}
+            {(() => { const Icon = PLAN_ICON[currentPlan] ?? Zap; return <Icon className="h-4 w-4 text-violet-600" /> })()}
             Current plan:{' '}
-            <span className="capitalize font-bold text-teal-700 dark:text-teal-400">{currentPlan}</span>
+            <span className="capitalize font-bold text-violet-700 dark:text-violet-400">{currentPlan}</span>
             <Badge variant={sub?.status === 'active' ? 'default' : 'secondary'} className="ml-2 capitalize">
               {sub?.status ?? 'active'}
             </Badge>
@@ -168,10 +168,10 @@ export default function SubscriptionPage() {
           return (
             <Card
               key={plan.key}
-              className={`relative flex flex-col ${plan.highlight ? 'border-teal-500 ring-1 ring-teal-500' : ''}`}
+              className={`relative flex flex-col ${plan.highlight ? 'border-violet-500 ring-1 ring-violet-500' : ''}`}
             >
               {plan.highlight && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-teal-600 px-3 py-0.5 text-xs font-semibold text-white">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-violet-600 px-3 py-0.5 text-xs font-semibold text-white">
                   Most popular
                 </div>
               )}
@@ -181,13 +181,13 @@ export default function SubscriptionPage() {
                   <span className="text-2xl font-bold text-slate-900 dark:text-white">{plan.price}</span>
                   <span className="text-sm text-slate-500">{plan.period}</span>
                 </CardDescription>
-                <p className="text-xs text-teal-700 dark:text-teal-400 font-medium">{plan.events}</p>
+                <p className="text-xs text-violet-700 dark:text-violet-400 font-medium">{plan.events}</p>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col justify-between gap-4">
                 <ul className="space-y-1.5">
                   {plan.features.map(f => (
                     <li key={f} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-teal-500" />
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-violet-500" />
                       {f}
                     </li>
                   ))}
@@ -200,7 +200,7 @@ export default function SubscriptionPage() {
                   </Button>
                 ) : isPaid ? (
                   <Button
-                    className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                     disabled={upgrading === plan.key}
                     onClick={() => handleUpgrade(plan.key)}
                   >

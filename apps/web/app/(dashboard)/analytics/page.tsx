@@ -204,7 +204,7 @@ function UserTable({ data }: { data: SpendByUser }) {
         {data.items.map((u, i) => (
           <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
             <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{u.end_user_id}</td>
-            <td className="px-4 py-2.5 text-right font-mono font-semibold text-teal-700 dark:text-teal-400">{fmt$(u.cost_usd)}</td>
+            <td className="px-4 py-2.5 text-right font-mono font-semibold text-violet-700 dark:text-violet-400">{fmt$(u.cost_usd)}</td>
             <td className="px-4 py-2.5 text-right text-slate-500">{u.run_count}</td>
             <td className="px-4 py-2.5 text-right text-slate-500">{fmt$(u.avg_cost_per_run)}</td>
             <td className="px-4 py-2.5 text-right text-slate-500">{u.call_count}</td>
@@ -312,7 +312,7 @@ export default function AnalyticsPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <BarChart2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <BarChart2 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             <h1 className="text-2xl font-bold tracking-tight dark:text-white">Analytics</h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -349,7 +349,7 @@ export default function AnalyticsPage() {
               onClick={() => setPreset(v)}
               className={`px-3 py-1.5 transition-colors ${
                 preset === v
-                  ? 'bg-teal-600 text-white font-medium'
+                  ? 'bg-violet-600 text-white font-medium'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
@@ -415,7 +415,7 @@ export default function AnalyticsPage() {
                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                   <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{m.provider}</td>
                   <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{m.model}</td>
-                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-teal-700 dark:text-teal-400">{fmt$(m.cost_usd)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-violet-700 dark:text-violet-400">{fmt$(m.cost_usd)}</td>
                   <td className="px-4 py-2.5 text-right text-slate-500">{m.input_tokens.toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-right text-slate-500">{m.output_tokens.toLocaleString()}</td>
                   <td className="px-4 py-2.5 text-right text-slate-500">{m.call_count}</td>

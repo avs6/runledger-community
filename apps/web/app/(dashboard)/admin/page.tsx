@@ -30,7 +30,7 @@ export default function AdminDashboardPage() {
   }, [apiKey, apiBase])
 
   const cards = [
-    { label: 'Total Organizations', value: stats?.tenant_count ?? '—', icon: Building2, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/30' },
+    { label: 'Total Organizations', value: stats?.tenant_count ?? '—', icon: Building2, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/30' },
     { label: 'Total Users', value: stats?.user_count ?? '—', icon: Users, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/30' },
     { label: 'Total Workspaces', value: stats?.workspace_count ?? '—', icon: LayoutGrid, color: 'text-violet-600 bg-violet-50 dark:bg-violet-900/30' },
   ]
@@ -62,7 +62,7 @@ export default function AdminDashboardPage() {
         <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <a href="/admin/tenants" className="flex items-center gap-3 rounded-lg border border-slate-200 p-4 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800 transition-colors">
-            <Building2 className="h-5 w-5 text-teal-600" />
+            <Building2 className="h-5 w-5 text-violet-600" />
             <div>
               <p className="text-sm font-medium text-slate-900 dark:text-white">Manage Organizations</p>
               <p className="text-xs text-slate-500">Create, view and delete tenants</p>

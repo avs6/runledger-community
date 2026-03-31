@@ -60,7 +60,7 @@ const WS_ROLES = [
 
 const ROLE_COLORS: Record<string, string> = {
   workspace_admin: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  workspace_editor: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  workspace_editor: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
   workspace_contributor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   member: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   viewer: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
@@ -75,7 +75,7 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 function inp(extra?: string) {
-  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 ${extra ?? ''}`
+  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${extra ?? ''}`
 }
 
 type Tab = 'overview' | 'members'
@@ -285,7 +285,7 @@ export default function WorkspaceDetailPage() {
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <LayoutGrid className="h-12 w-12 text-slate-300" />
         <p className="text-slate-500">{error || 'Workspace not found'}</p>
-        <button onClick={() => router.push('/admin/workspaces')} className="text-teal-600 text-sm hover:underline">
+        <button onClick={() => router.push('/admin/workspaces')} className="text-violet-600 text-sm hover:underline">
           Back to Workspaces
         </button>
       </div>
@@ -305,7 +305,7 @@ export default function WorkspaceDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Workspaces
         </button>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400">
             <LayoutGrid className="h-5 w-5" />
           </div>
           <div>
@@ -320,7 +320,7 @@ export default function WorkspaceDetailPage() {
             </div>
             <button
               onClick={() => router.push(`/admin/tenants/${workspace.tenant_id}`)}
-              className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors mt-0.5"
+              className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors mt-0.5"
             >
               <Building2 className="h-3.5 w-3.5" /> {workspace.tenant_name}
             </button>
@@ -339,7 +339,7 @@ export default function WorkspaceDetailPage() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
               tab === t
-                ? 'border-teal-600 text-teal-700 dark:text-teal-400'
+                ? 'border-violet-600 text-violet-700 dark:text-violet-400'
                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
@@ -362,7 +362,7 @@ export default function WorkspaceDetailPage() {
               <button
                 onClick={handleSaveName}
                 disabled={saving}
-                className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-4 w-4" />
                 {saving ? 'Saving...' : 'Save Changes'}
@@ -378,7 +378,7 @@ export default function WorkspaceDetailPage() {
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 space-y-4">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Organization Assignment</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Currently in <button onClick={() => router.push(`/admin/tenants/${workspace.tenant_id}`)} className="text-teal-600 hover:underline font-medium">{workspace.tenant_name}</button>.
+              Currently in <button onClick={() => router.push(`/admin/tenants/${workspace.tenant_id}`)} className="text-violet-600 hover:underline font-medium">{workspace.tenant_name}</button>.
               Move this workspace to a different organization.
             </p>
             <div>
@@ -463,19 +463,19 @@ export default function WorkspaceDetailPage() {
                 value={memberSearch}
                 onChange={e => setMemberSearch(e.target.value)}
                 placeholder="Search members by name or email..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             <button
               onClick={() => { setShowAddMember(true); loadAllUsers(); setMemberError('') }}
-              className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors whitespace-nowrap"
             >
               <Plus className="h-4 w-4" /> Add Member
             </button>
           </div>
 
           {showAddMember && (
-            <div className="rounded-xl border border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-900/10 p-4">
+            <div className="rounded-xl border border-violet-200 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-900/10 p-4">
               <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Add Member to Workspace</p>
               {memberError && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{memberError}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -499,7 +499,7 @@ export default function WorkspaceDetailPage() {
                 <button
                   onClick={handleAddMember}
                   disabled={addingMember || !addUserId}
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >
                   {addingMember ? 'Adding…' : 'Add Member'}
                 </button>
@@ -545,7 +545,7 @@ export default function WorkspaceDetailPage() {
                             </div>
                             <button
                               onClick={() => router.push(`/admin/users/${m.user_id}`)}
-                              className="font-medium text-slate-900 dark:text-white hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                              className="font-medium text-slate-900 dark:text-white hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                             >
                               {m.full_name || '—'}
                             </button>
@@ -569,7 +569,7 @@ export default function WorkspaceDetailPage() {
                                     <button
                                       key={r.value}
                                       onClick={() => handleChangeRole(m, r.value)}
-                                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${m.role === r.value ? 'text-teal-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
+                                      className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${m.role === r.value ? 'text-violet-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
                                     >
                                       {r.label}
                                     </button>

@@ -93,7 +93,7 @@ export default function ToolRegistryPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Wrench className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <Wrench className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             <h1 className="text-2xl font-bold tracking-tight dark:text-white">Tool Registry</h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -109,7 +109,7 @@ export default function ToolRegistryPage() {
           </button>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             {showForm ? 'Cancel' : 'Register Tool'}
@@ -119,8 +119,8 @@ export default function ToolRegistryPage() {
 
       {/* Add form */}
       {showForm && (
-        <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/50 dark:bg-teal-900/10 p-5">
-          <h3 className="text-sm font-semibold text-teal-800 dark:text-teal-300 mb-3">Register a tool</h3>
+        <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/10 p-5">
+          <h3 className="text-sm font-semibold text-violet-800 dark:text-violet-300 mb-3">Register a tool</h3>
           <form onSubmit={handleRegisterTool} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-gray-500 dark:text-gray-400">Tool name *</label>
@@ -156,7 +156,7 @@ export default function ToolRegistryPage() {
               <button
                 type="submit"
                 disabled={registeringTool || !newToolName.trim()}
-                className="w-full rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                className="w-full rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
               >
                 {registeringTool ? 'Registering…' : 'Register Tool'}
               </button>
@@ -220,7 +220,7 @@ export default function ToolRegistryPage() {
       {/* Info box */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
         <div className="flex items-start gap-2">
-          <ShieldCheck className="h-4 w-4 text-teal-600 dark:text-teal-400 mt-0.5 shrink-0" />
+          <ShieldCheck className="h-4 w-4 text-violet-600 dark:text-violet-400 mt-0.5 shrink-0" />
           <div className="text-sm text-slate-600 dark:text-slate-300">
             <p className="font-medium mb-1">Policy enforcement</p>
             <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-400 list-disc list-inside">

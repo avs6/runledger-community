@@ -24,7 +24,7 @@ import type {
 } from '@/types/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400'
+  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400'
 
 const PROVIDERS: { value: WarehouseProvider; label: string; note: string }[] = [
   { value: 's3', label: 'AWS S3', note: 'Standard AWS S3' },
@@ -204,7 +204,7 @@ export default function WarehouseTab({ apiKey }: { apiKey: string }) {
         </div>
         <button
           onClick={() => setShowForm(v => !v)}
-          className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700"
+          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700"
         >
           <Plus className="h-3.5 w-3.5" />
           New Destination
@@ -361,7 +361,7 @@ export default function WarehouseTab({ apiKey }: { apiKey: string }) {
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+              className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
             >
               {creating ? 'Creating…' : 'Create Destination'}
             </button>
@@ -428,7 +428,7 @@ export default function WarehouseTab({ apiKey }: { apiKey: string }) {
                     title={dest.is_active ? 'Click to disable' : 'Click to enable'}
                   >
                     {dest.is_active ? (
-                      <><ToggleRight className="h-4 w-4 text-teal-600" /><span className="text-teal-700 dark:text-teal-400">Active</span></>
+                      <><ToggleRight className="h-4 w-4 text-violet-600" /><span className="text-violet-700 dark:text-violet-400">Active</span></>
                     ) : (
                       <><ToggleLeft className="h-4 w-4 text-gray-400" /><span className="text-gray-500">Inactive</span></>
                     )}

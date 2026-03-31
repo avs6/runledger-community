@@ -16,7 +16,7 @@ type TimePreset = 'all' | '1d' | '7d' | '30d'
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 function cutoff(preset: TimePreset): Date | null {
   if (preset === 'all') return null
@@ -118,7 +118,7 @@ function SkeletonRows({ cols, rows = 5 }: { cols: number; rows?: number }) {
 
 function ResultCount({ filtered, total }: { filtered: number; total: number }) {
   if (filtered === total) return <span className="text-xs text-slate-400">{total} items</span>
-  return <span className="text-xs font-medium text-teal-600 dark:text-teal-400">{filtered} of {total} shown</span>
+  return <span className="text-xs font-medium text-violet-600 dark:text-violet-400">{filtered} of {total} shown</span>
 }
 
 const TABLE_HEAD = 'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'

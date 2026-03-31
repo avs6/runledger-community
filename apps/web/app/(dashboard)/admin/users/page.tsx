@@ -48,7 +48,7 @@ const ORG_ROLES = [
 ]
 
 function inp(extra?: string) {
-  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 ${extra ?? ''}`
+  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${extra ?? ''}`
 }
 
 export default function AdminUsersPage() {
@@ -157,7 +157,7 @@ export default function AdminUsersPage() {
         </div>
         <button
           onClick={() => { setShowForm(true); loadTenants() }}
-          className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
         >
           <Plus className="h-4 w-4" /> New User
         </button>
@@ -172,7 +172,7 @@ export default function AdminUsersPage() {
 
       {/* Create form */}
       {showForm && (
-        <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5 dark:border-teal-800 dark:bg-teal-900/10">
+        <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-5 dark:border-violet-800 dark:bg-violet-900/10">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Create New User</h3>
           {createError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{createError}</p>}
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -209,7 +209,7 @@ export default function AdminUsersPage() {
             )}
             <div className="sm:col-span-2 flex gap-2 pt-1">
               <button type="submit" disabled={creating}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors">
                 {creating ? 'Creating...' : 'Create User'}
               </button>
               <button type="button" onClick={() => { setShowForm(false); setCreateError('') }}
@@ -228,7 +228,7 @@ export default function AdminUsersPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name, email, or username..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
         />
       </div>
 
@@ -309,7 +309,7 @@ export default function AdminUsersPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => router.push(`/admin/users/${u.id}`)}
-                          className="rounded-lg px-2.5 py-1.5 text-xs text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 font-medium transition-colors flex items-center gap-1"
+                          className="rounded-lg px-2.5 py-1.5 text-xs text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-medium transition-colors flex items-center gap-1"
                         >
                           Manage <ChevronRight className="h-3.5 w-3.5" />
                         </button>

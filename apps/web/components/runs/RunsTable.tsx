@@ -89,7 +89,7 @@ export default function RunsTable({ items }: { items: RunListItem[] }) {
                 {i < HEADERS.length - 1 && (
                   <span
                     onMouseDown={e => onMouseDown(i, e)}
-                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-teal-400/40 dark:hover:bg-teal-500/30"
+                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-violet-400/40 dark:hover:bg-violet-500/30"
                   />
                 )}
               </th>

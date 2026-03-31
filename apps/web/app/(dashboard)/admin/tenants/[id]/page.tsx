@@ -58,7 +58,7 @@ const STATUS_COLORS: Record<string, string> = {
 const PLAN_COLORS: Record<string, string> = {
   free: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   starter: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  growth: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  growth: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   enterprise: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
 }
 
@@ -82,14 +82,14 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, string> = {
   org_admin: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  org_manager: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  org_manager: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
   org_member: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   org_billing_admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   org_auditor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
 }
 
 function inp(extra?: string) {
-  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 ${extra ?? ''}`
+  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${extra ?? ''}`
 }
 
 type Tab = 'overview' | 'workspaces' | 'members'
@@ -308,7 +308,7 @@ export default function TenantDetailPage() {
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Building2 className="h-12 w-12 text-slate-300" />
         <p className="text-slate-500">{error || 'Organization not found'}</p>
-        <button onClick={() => router.push('/admin/tenants')} className="text-teal-600 text-sm hover:underline">
+        <button onClick={() => router.push('/admin/tenants')} className="text-violet-600 text-sm hover:underline">
           Back to Organizations
         </button>
       </div>
@@ -326,14 +326,14 @@ export default function TenantDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Organizations
         </button>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-cyan-500 text-white font-bold">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white font-bold">
             {tenant.name.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{tenant.name}</h1>
               {tenant.is_default && (
-                <span className="rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 px-2 py-0.5 text-[10px] font-semibold">
+                <span className="rounded-full bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 px-2 py-0.5 text-[10px] font-semibold">
                   Default
                 </span>
               )}
@@ -362,7 +362,7 @@ export default function TenantDetailPage() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
               tab === t
-                ? 'border-teal-600 text-teal-700 dark:text-teal-400'
+                ? 'border-violet-600 text-violet-700 dark:text-violet-400'
                 : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
@@ -391,7 +391,7 @@ export default function TenantDetailPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
               >
                 <Save className="h-4 w-4" />
                 {saving ? 'Saving...' : 'Save Changes'}
@@ -458,19 +458,19 @@ export default function TenantDetailPage() {
                 value={wsSearch}
                 onChange={e => setWsSearch(e.target.value)}
                 placeholder="Search workspaces..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             <button
               onClick={() => { setShowAddWs(true); setWsError('') }}
-              className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors whitespace-nowrap"
             >
               <Plus className="h-4 w-4" /> Add Workspace
             </button>
           </div>
 
           {showAddWs && (
-            <div className="rounded-xl border border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-900/10 p-4">
+            <div className="rounded-xl border border-violet-200 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-900/10 p-4">
               <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">New Workspace</p>
               {wsError && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{wsError}</p>}
               <div className="flex items-end gap-2">
@@ -488,7 +488,7 @@ export default function TenantDetailPage() {
                 <button
                   onClick={handleAddWorkspace}
                   disabled={addingWs || !wsName.trim()}
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >
                   {addingWs ? 'Adding…' : 'Add'}
                 </button>
@@ -526,7 +526,7 @@ export default function TenantDetailPage() {
                     <tr key={ws.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400">
                             <LayoutGrid className="h-3.5 w-3.5" />
                           </div>
                           <span className="font-medium text-slate-900 dark:text-white">{ws.name}</span>
@@ -567,19 +567,19 @@ export default function TenantDetailPage() {
                 value={memberSearch}
                 onChange={e => setMemberSearch(e.target.value)}
                 placeholder="Search members..."
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
               />
             </div>
             <button
               onClick={() => { setShowAddMember(true); loadAllUsers(); setMemberError('') }}
-              className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors whitespace-nowrap"
             >
               <Plus className="h-4 w-4" /> Add Member
             </button>
           </div>
 
           {showAddMember && (
-            <div className="rounded-xl border border-teal-200 bg-teal-50/50 dark:border-teal-800 dark:bg-teal-900/10 p-4">
+            <div className="rounded-xl border border-violet-200 bg-violet-50/50 dark:border-violet-800 dark:bg-violet-900/10 p-4">
               <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Add Member to Organization</p>
               {memberError && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{memberError}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -606,7 +606,7 @@ export default function TenantDetailPage() {
                 <button
                   onClick={handleAddMember}
                   disabled={addingMember || !addMemberUserId}
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >
                   {addingMember ? 'Adding…' : 'Add Member'}
                 </button>
@@ -675,7 +675,7 @@ export default function TenantDetailPage() {
                                   <button
                                     key={r.value}
                                     onClick={() => handleChangeRole(m, r.value)}
-                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${m.role === r.value ? 'text-teal-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
+                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${m.role === r.value ? 'text-violet-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
                                   >
                                     {r.label}
                                   </button>

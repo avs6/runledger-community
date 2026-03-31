@@ -14,7 +14,7 @@ type TimePreset = 'all' | '1d' | '7d' | '30d'
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 function cutoff(preset: TimePreset): Date | null {
   if (preset === 'all') return null
@@ -55,7 +55,7 @@ function ResultCount({ filtered, total }: { filtered: number; total: number }) {
   if (filtered === total)
     return <span className="text-xs text-slate-400">{total} session{total !== 1 ? 's' : ''}</span>
   return (
-    <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
+    <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
       {filtered} of {total} sessions
     </span>
   )
@@ -330,7 +330,7 @@ export default function SessionsPage() {
                       : 'No sessions match your filters.'}
                   </p>
                   {(hasFilters || hasSearch) && (
-                    <button onClick={clearAll} className="mt-2 text-xs text-teal-600 hover:underline">
+                    <button onClick={clearAll} className="mt-2 text-xs text-violet-600 hover:underline">
                       Reset all filters
                     </button>
                   )}

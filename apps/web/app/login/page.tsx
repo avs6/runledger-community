@@ -85,7 +85,7 @@ export default function LoginPage() {
           <RunLedgerLogo size={36} />
           <div>
             <div className="text-sm font-semibold text-white leading-none">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-teal-400 leading-none">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-400 leading-none">
               Control Plane
             </div>
           </div>
@@ -109,7 +109,7 @@ export default function LoginPage() {
               'Prompt versioning & evaluation scores',
             ].map(f => (
               <div key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                <div className="h-1.5 w-1.5 rounded-full bg-teal-400 shrink-0" />
+                <div className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
                 {f}
               </div>
             ))}
@@ -126,7 +126,7 @@ export default function LoginPage() {
           <RunLedgerLogo size={48} />
           <div className="text-center">
             <div className="text-xl font-bold text-white">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-teal-400">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-violet-400">
               FinOps Control Plane
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 autoFocus
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
               />
             </div>
             <div className="space-y-1.5">
@@ -164,7 +164,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
               />
             </div>
 
@@ -176,7 +176,7 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-md hover:from-teal-500 hover:to-cyan-500"
+              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md hover:from-violet-500 hover:to-indigo-500"
               disabled={loading}
             >
               {loading ? (

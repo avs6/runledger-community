@@ -54,7 +54,7 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
 }
 
 const inputCls =
-  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 const labelCls = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1'
 
@@ -106,7 +106,7 @@ function ExperimentsTab({
         </p>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700"
+          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
         >
           <Plus className="h-4 w-4" />
           New Experiment
@@ -166,7 +166,7 @@ function ExperimentsTab({
             </div>
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={creating || !name}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create Experiment'}
               </button>
               <button type="button" onClick={() => setShowForm(false)}
@@ -203,7 +203,7 @@ function ExperimentsTab({
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
                     {exp.prompt_name && (
-                      <span className="rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-xs text-teal-700 dark:text-teal-300">
+                      <span className="rounded-full bg-violet-100 dark:bg-violet-900/50 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300">
                         {exp.prompt_name}{exp.prompt_version ? ` v${exp.prompt_version}` : ''}
                       </span>
                     )}
@@ -223,7 +223,7 @@ function ExperimentsTab({
                 <td className="px-4 py-3">
                   <button onClick={() => onRun(exp.id)}
                     disabled={exp.status === 'running'}
-                    className="flex items-center gap-1 rounded-lg bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-40">
+                    className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40">
                     <Play className="h-3 w-3" /> Run
                   </button>
                 </td>
@@ -304,7 +304,7 @@ function DatasetsTab({
           Test case collections (input / expected output pairs) shared with Experiments.
         </p>
         <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700">
+          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
           <Plus className="h-4 w-4" /> New Dataset
         </button>
       </div>
@@ -327,7 +327,7 @@ function DatasetsTab({
               <div className="flex gap-1 mb-3">
                 {(['paste', 'upload', 'url'] as const).map(mode => (
                   <button key={mode} type="button" onClick={() => setInputMode(mode)}
-                    className={`rounded px-3 py-1 text-xs font-medium capitalize ${inputMode === mode ? 'bg-teal-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+                    className={`rounded px-3 py-1 text-xs font-medium capitalize ${inputMode === mode ? 'bg-violet-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
                     {mode === 'paste' ? 'Paste' : mode === 'upload' ? 'Upload File' : 'From URL'}
                   </button>
                 ))}
@@ -343,7 +343,7 @@ function DatasetsTab({
                 <div>
                   <label className={labelCls}>Upload CSV or JSON file</label>
                   <input type="file" accept=".csv,.json,.txt" onChange={handleFileUpload}
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:bg-teal-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-teal-700 hover:file:bg-teal-100 dark:file:bg-teal-900/30 dark:file:text-teal-400" />
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-400" />
                   {itemsText && <p className="mt-1 text-xs text-green-600">✓ File loaded — switch to Paste to review</p>}
                 </div>
               )}
@@ -364,7 +364,7 @@ function DatasetsTab({
             </div>
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={creating || !name}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create Dataset'}
               </button>
               <button type="button" onClick={() => setShowForm(false)}
@@ -458,7 +458,7 @@ function PromptsTab({
           Version-controlled prompt templates with variable substitution and environment promotion.
         </p>
         <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700">
+          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
           <Plus className="h-4 w-4" /> New Prompt
         </button>
       </div>
@@ -485,7 +485,7 @@ function PromptsTab({
             </div>
             <div className="sm:col-span-3 flex gap-2">
               <button type="submit" disabled={creating}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create'}
               </button>
               <button type="button" onClick={() => setShowForm(false)}
@@ -520,7 +520,7 @@ function PromptsTab({
             ) : prompts.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
                 onClick={() => router.push(`/prompts/${encodeURIComponent(p.name)}`)}>
-                <td className="px-4 py-3 font-mono font-medium text-teal-700 dark:text-teal-400">{p.name}</td>
+                <td className="px-4 py-3 font-mono font-medium text-violet-700 dark:text-violet-400">{p.name}</td>
                 <td className="px-4 py-3 max-w-xs truncate text-slate-600 dark:text-slate-300">{p.description ?? <span className="text-slate-400">—</span>}</td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">{p.default_environment}</span>
@@ -592,7 +592,7 @@ function EvaluatorsTab({
           ) : (
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />New Evaluator
             </button>
@@ -633,7 +633,7 @@ function EvaluatorsTab({
                 </p>
               )}
             </div>
-            <button type="submit" disabled={creating || !name} className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors">
+            <button type="submit" disabled={creating || !name} className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors">
               {creating && <Loader2 className="h-4 w-4 animate-spin" />}Create
             </button>
           </form>
@@ -684,7 +684,7 @@ function EvaluatorsTab({
                         <button
                           onClick={async () => { setRunning(ev.id); try { await onRun(ev.id) } finally { setRunning(null) } }}
                           disabled={running === ev.id}
-                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors disabled:opacity-50"
                         >
                           {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
                         </button>
@@ -756,7 +756,7 @@ function EvaluatorsTab({
                     <td className="py-2 px-1 font-mono text-xs text-slate-700 dark:text-slate-200">{bv.model}</td>
                     <td className="py-2 px-1 text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">{Number(bv.avg_score).toFixed(3)}</td>
                     <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(bv.avg_cost_usd).toFixed(6)}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-teal-600 dark:text-teal-400 font-semibold">{Number(bv.value_score).toFixed(2)}</td>
+                    <td className="py-2 px-1 text-right tabular-nums text-violet-600 dark:text-violet-400 font-semibold">{Number(bv.value_score).toFixed(2)}</td>
                     <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{bv.run_count}</td>
                   </tr>
                 ))}
@@ -885,7 +885,7 @@ export default function EvaluationPage() {
             onClick={() => setTab(t.id)}
             className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
               tab === t.id
-                ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-sm'
+                ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -893,7 +893,7 @@ export default function EvaluationPage() {
             {t.label}
             {t.count !== undefined && t.count > 0 && (
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                tab === t.id ? 'bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                tab === t.id ? 'bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
               }`}>
                 {t.count}
               </span>

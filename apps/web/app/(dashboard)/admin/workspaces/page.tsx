@@ -32,7 +32,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 function inp(extra?: string) {
-  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 ${extra ?? ''}`
+  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${extra ?? ''}`
 }
 
 export default function AdminWorkspacesPage() {
@@ -133,7 +133,7 @@ export default function AdminWorkspacesPage() {
         </div>
         <button
           onClick={() => { setShowForm(true); loadOrgs() }}
-          className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
         >
           <Plus className="h-4 w-4" /> New Workspace
         </button>
@@ -148,7 +148,7 @@ export default function AdminWorkspacesPage() {
 
       {/* Create form */}
       {showForm && (
-        <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5 dark:border-teal-800 dark:bg-teal-900/10">
+        <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-5 dark:border-violet-800 dark:bg-violet-900/10">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">Create New Workspace</h3>
           {createError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{createError}</p>}
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -165,7 +165,7 @@ export default function AdminWorkspacesPage() {
             </div>
             <div className="sm:col-span-2 flex gap-2 pt-1">
               <button type="submit" disabled={creating}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors">
                 {creating ? 'Creating...' : 'Create Workspace'}
               </button>
               <button type="button" onClick={() => { setShowForm(false); setCreateError('') }}
@@ -185,14 +185,14 @@ export default function AdminWorkspacesPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search workspaces or organizations..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
           />
         </div>
         <select
           value={orgFilter}
           onChange={e => setOrgFilter(e.target.value)}
           onFocus={loadOrgs}
-          className="rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 min-w-[180px]"
+          className="rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 min-w-[180px]"
         >
           <option value="">All organizations</option>
           {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
@@ -232,7 +232,7 @@ export default function AdminWorkspacesPage() {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 shrink-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 shrink-0">
                           <LayoutGrid className="h-4 w-4" />
                         </div>
                         <span className="font-medium text-slate-900 dark:text-white">{ws.name}</span>
@@ -244,7 +244,7 @@ export default function AdminWorkspacesPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={e => { e.stopPropagation(); router.push(`/admin/tenants/${ws.tenant_id}`) }}
-                        className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                        className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                       >
                         <Building2 className="h-3.5 w-3.5 shrink-0" />
                         <span className="text-sm">{ws.tenant_name}</span>
@@ -268,7 +268,7 @@ export default function AdminWorkspacesPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => router.push(`/admin/workspaces/${ws.id}`)}
-                          className="rounded-lg px-2.5 py-1.5 text-xs text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 font-medium transition-colors flex items-center gap-1"
+                          className="rounded-lg px-2.5 py-1.5 text-xs text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-medium transition-colors flex items-center gap-1"
                         >
                           Manage <ChevronRight className="h-3.5 w-3.5" />
                         </button>

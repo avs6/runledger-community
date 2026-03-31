@@ -106,7 +106,7 @@ function SpansTable({ spans }: { spans: SpanDetail[] }) {
     llm: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
     chain: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
     tool: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-    agent: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+    agent: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
     retrieval: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
     run: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
   }

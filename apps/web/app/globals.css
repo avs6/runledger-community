@@ -3,64 +3,79 @@
 @tailwind utilities;
 
 ::selection {
-  background-color: #0f766e;
-  color: #ffffff;
+  background-color: rgba(124, 58, 237, 0.35);
+  color: #fff;
+}
+
+/* ── Background orb CSS vars — toggled by .dark ── */
+:root {
+  --orb-1: rgba(109, 40, 217, 0.06);
+  --orb-2: rgba(99, 102, 241, 0.04);
+  --orb-3: rgba(34, 211, 238, 0.00);
+}
+
+.dark {
+  --orb-1: rgba(124, 58, 237, 0.18);
+  --orb-2: rgba(99, 102, 241, 0.11);
+  --orb-3: rgba(34, 211, 238, 0.04);
 }
 
 @layer base {
   :root {
-    --background: 168 22% 98%;
-    --foreground: 222 26% 16%;
+    /* ── Light ───────────────────────────────────── */
+    --background: 220 25% 97%;
+    --foreground: 222 47% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 222 26% 16%;
+    --card-foreground: 222 47% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 26% 16%;
-    --primary: 174 84% 30%;
-    --primary-foreground: 0 0% 99%;
-    --secondary: 210 28% 95%;
-    --secondary-foreground: 222 26% 18%;
-    --muted: 210 24% 94%;
-    --muted-foreground: 215 16% 44%;
-    --accent: 188 34% 92%;
-    --accent-foreground: 222 26% 16%;
-    --destructive: 0 84.2% 60.2%;
+    --popover-foreground: 222 47% 10%;
+    --primary: 262 80% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 93%;
+    --secondary-foreground: 222 47% 14%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 215 16% 48%;
+    --accent: 220 20% 93%;
+    --accent-foreground: 222 47% 10%;
+    --destructive: 0 84% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 210 20% 86%;
-    --input: 210 20% 86%;
-    --ring: 174 84% 30%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.65rem;
+    --border: 220 18% 88%;
+    --input: 220 18% 88%;
+    --ring: 262 80% 50%;
+    --chart-1: 262 83% 55%;
+    --chart-2: 186 96% 36%;
+    --chart-3: 43 95% 46%;
+    --chart-4: 158 64% 36%;
+    --chart-5: 0 84% 55%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 220 28% 9%;
-    --foreground: 210 18% 96%;
-    --card: 220 24% 11%;
-    --card-foreground: 210 18% 96%;
-    --popover: 220 24% 11%;
-    --popover-foreground: 210 18% 96%;
-    --primary: 170 65% 55%;
-    --primary-foreground: 220 28% 9%;
-    --secondary: 220 18% 16%;
-    --secondary-foreground: 210 18% 96%;
-    --muted: 220 18% 16%;
-    --muted-foreground: 215 14% 70%;
-    --accent: 220 16% 18%;
-    --accent-foreground: 210 18% 96%;
-    --destructive: 0 62.8% 30.6%;
+    /* ── Dark ────────────────────────────────────── */
+    --background: 222 47% 6%;
+    --foreground: 214 32% 91%;
+    --card: 222 44% 9%;
+    --card-foreground: 214 32% 91%;
+    --popover: 222 44% 11%;
+    --popover-foreground: 214 32% 91%;
+    --primary: 262 83% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 36% 14%;
+    --secondary-foreground: 214 32% 85%;
+    --muted: 222 36% 11%;
+    --muted-foreground: 215 20% 52%;
+    --accent: 222 36% 14%;
+    --accent-foreground: 214 32% 91%;
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 218 14% 24%;
-    --input: 218 14% 24%;
-    --ring: 170 65% 55%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    --border: 222 30% 16%;
+    --input: 222 30% 16%;
+    --ring: 262 83% 62%;
+    --chart-1: 262 83% 65%;
+    --chart-2: 186 96% 55%;
+    --chart-3: 43 95% 58%;
+    --chart-4: 158 64% 52%;
+    --chart-5: 0 84% 65%;
   }
 
   * {
@@ -76,9 +91,14 @@
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
     background-image:
-      radial-gradient(circle at 10% 0%, rgba(15, 118, 110, 0.08), transparent 35%),
-      radial-gradient(circle at 95% 0%, rgba(14, 116, 144, 0.08), transparent 32%);
+      radial-gradient(ellipse 80% 50% at 15% -5%, var(--orb-1), transparent),
+      radial-gradient(ellipse 60% 40% at 85% -5%, var(--orb-2), transparent),
+      radial-gradient(ellipse 50% 50% at 50% 100%, var(--orb-3), transparent);
     background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display), var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   }
 
   code,
@@ -87,6 +107,12 @@
   samp {
     font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   }
+
+  /* ── Slim scrollbar ─────────────────────────────── */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: hsl(var(--border)); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
 }
 
 /* ── Print styles (used by "Print / Save PDF" in Runs) ───────────────────── */

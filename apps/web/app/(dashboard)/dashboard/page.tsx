@@ -108,36 +108,36 @@ async function DashboardContent() {
           title="Total Spend"
           value={fmt$$(summary.total_cost_usd)}
           delta={summary.cost_delta_pct}
-          icon={<DollarSign className="h-5 w-5 text-teal-600 dark:text-teal-300" />}
-          cardFrom="from-teal-50 to-teal-100/40 dark:from-teal-950/60 dark:to-teal-900/20"
-          cardTo="bg-teal-300/30 dark:bg-teal-500/20"
-          border="border-teal-200/70 dark:border-teal-800/50"
+          icon={<DollarSign className="h-5 w-5 text-amber-500 dark:text-amber-400" />}
+          cardFrom="from-amber-50 to-amber-100/40 dark:from-amber-950/30 dark:to-amber-900/10"
+          cardTo="bg-amber-300/25 dark:bg-amber-500/15"
+          border="border-amber-200/60 dark:border-amber-500/20"
         />
         <KpiCard
           title="Agent Runs"
           value={summary.run_count.toLocaleString()}
           sub="last 7 days"
-          icon={<Zap className="h-5 w-5 text-violet-600 dark:text-violet-300" />}
-          cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-950/60 dark:to-violet-900/20"
-          cardTo="bg-violet-300/30 dark:bg-violet-500/20"
-          border="border-violet-200/70 dark:border-violet-800/50"
+          icon={<Zap className="h-5 w-5 text-violet-500 dark:text-violet-400" />}
+          cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-950/30 dark:to-violet-900/10"
+          cardTo="bg-violet-300/25 dark:bg-violet-500/15"
+          border="border-violet-200/60 dark:border-violet-500/20"
         />
         <KpiCard
           title="Avg Cost / Run"
           value={avg}
-          icon={<Hash className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />}
-          cardFrom="from-indigo-50 to-indigo-100/40 dark:from-indigo-950/60 dark:to-indigo-900/20"
-          cardTo="bg-indigo-300/30 dark:bg-indigo-500/20"
-          border="border-indigo-200/70 dark:border-indigo-800/50"
+          icon={<Hash className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />}
+          cardFrom="from-indigo-50 to-indigo-100/40 dark:from-indigo-950/30 dark:to-indigo-900/10"
+          cardTo="bg-indigo-300/25 dark:bg-indigo-500/15"
+          border="border-indigo-200/60 dark:border-indigo-500/20"
         />
         <KpiCard
           title="Total Tokens"
           value={formatTokens(tokens)}
           sub={inputPct ? `${inputPct}% input` : undefined}
-          icon={<Cpu className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />}
-          cardFrom="from-cyan-50 to-cyan-100/40 dark:from-cyan-950/60 dark:to-cyan-900/20"
-          cardTo="bg-cyan-300/30 dark:bg-cyan-500/20"
-          border="border-cyan-200/70 dark:border-cyan-800/50"
+          icon={<Cpu className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />}
+          cardFrom="from-cyan-50 to-cyan-100/40 dark:from-cyan-950/30 dark:to-cyan-900/10"
+          cardTo="bg-cyan-300/25 dark:bg-cyan-500/15"
+          border="border-cyan-200/60 dark:border-cyan-500/20"
         />
       </div>
 
@@ -186,7 +186,7 @@ async function DashboardContent() {
           </div>
           <Link
             href="/runs"
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-teal-600 transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-violet-600 transition-colors hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-500/10"
           >
             View all <ArrowRight className="h-3 w-3" />
           </Link>
@@ -195,12 +195,12 @@ async function DashboardContent() {
           {recentRuns.items.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-muted-foreground">No runs yet</p>
           ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="divide-y divide-slate-100 dark:divide-white/[0.04]">
               {recentRuns.items.map(run => (
                 <Link
                   key={run.id}
                   href={`/runs/${run.id}`}
-                  className="group flex items-center gap-4 px-5 py-3 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                  className="group flex items-center gap-4 px-5 py-3 transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.02]"
                 >
                   <code className="w-28 shrink-0 font-mono text-xs text-indigo-600 group-hover:underline dark:text-indigo-400">
                     {truncateId(run.id, 12)}
@@ -265,19 +265,19 @@ export default async function DashboardPage() {
         <div>
           {workspaceName && (
             <div className="flex items-center gap-2 mb-1">
-              <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-[11px] font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+              <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
                 {workspaceName}
               </span>
             </div>
           )}
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight font-display">Dashboard</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{dateStr} · Last 7 days</p>
         </div>
         <div className="hidden sm:flex items-center gap-4">
           {isOrgAdmin && (
             <Link
               href="/organization/dashboard"
-              className="flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/40"
+              className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-sm font-medium text-violet-300 transition-colors hover:bg-violet-500/15 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/15"
             >
               Global Dashboard →
             </Link>

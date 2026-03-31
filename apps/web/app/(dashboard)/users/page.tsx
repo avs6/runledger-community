@@ -13,7 +13,7 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 const TABLE_HEAD =
   'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'
@@ -68,7 +68,7 @@ function RoleBadge({ role, colors }: { role: string; colors: Record<string, stri
   )
 }
 
-function Avatar({ name, email, color = 'from-teal-400 to-cyan-500' }: { name: string | null; email: string; color?: string }) {
+function Avatar({ name, email, color = 'from-violet-500 to-indigo-500' }: { name: string | null; email: string; color?: string }) {
   const initial = ((name ?? email)[0] ?? '?').toUpperCase()
   return (
     <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${color} text-white text-xs font-bold`}>
@@ -262,7 +262,7 @@ function WorkspaceUsersTab({ apiKey }: { apiKey: string }) {
 
         <span className="text-xs text-slate-400 shrink-0">
           {filtered.length === users.length ? `${users.length} user${users.length !== 1 ? 's' : ''}` : (
-            <span className="font-medium text-teal-600 dark:text-teal-400">{filtered.length} of {users.length}</span>
+            <span className="font-medium text-violet-600 dark:text-violet-400">{filtered.length} of {users.length}</span>
           )}
         </span>
 
@@ -275,7 +275,7 @@ function WorkspaceUsersTab({ apiKey }: { apiKey: string }) {
           {canManage && (
             <button
               onClick={() => { setShowInviteForm((v) => !v); setInviteEmail(''); setInviteRole('member') }}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
             >
               <UserPlus className="h-4 w-4" />
               Invite User
@@ -288,7 +288,7 @@ function WorkspaceUsersTab({ apiKey }: { apiKey: string }) {
       {showInviteForm && canManage && (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-5">
           <div className="flex items-center gap-2 mb-4">
-            <UserPlus className="h-4 w-4 text-teal-500" />
+            <UserPlus className="h-4 w-4 text-violet-500" />
             <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Invite to workspace</span>
           </div>
           <form onSubmit={handleInvite} className="flex flex-wrap items-end gap-3">
@@ -308,7 +308,7 @@ function WorkspaceUsersTab({ apiKey }: { apiKey: string }) {
               </select>
             </div>
             <button type="submit" disabled={inviting || !inviteEmail.trim()}
-              className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
               <UserPlus className="h-3.5 w-3.5" />
               {inviting ? 'Sending…' : 'Send Invite'}
             </button>
@@ -344,7 +344,7 @@ function WorkspaceUsersTab({ apiKey }: { apiKey: string }) {
                   </p>
                   {users.length === 0 && canManage && (
                     <button onClick={() => setShowInviteForm(true)}
-                      className="inline-flex items-center gap-1.5 text-sm text-teal-600 dark:text-teal-400 hover:underline">
+                      className="inline-flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:underline">
                       <UserPlus className="h-4 w-4" /> Invite the first user
                     </button>
                   )}
@@ -368,7 +368,7 @@ function WorkspaceUsersTab({ apiKey }: { apiKey: string }) {
                     {canManage ? (
                       <select value={user.role}
                         onChange={(e) => handleRoleChange(user.user_id, e.target.value as WorkspaceRoleOption)}
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 ${WS_ROLE_COLORS[user.role] ?? WS_ROLE_COLORS.member}`}>
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500 ${WS_ROLE_COLORS[user.role] ?? WS_ROLE_COLORS.member}`}>
                         <option value="workspace_admin">Admin</option>
                         <option value="member">Member</option>
                         <option value="viewer">Viewer</option>
@@ -523,7 +523,7 @@ function OrgMembersTab({ apiKey }: { apiKey: string }) {
 
         <span className="text-xs text-slate-400">
           {filtered.length === members.length ? `${members.length} member${members.length !== 1 ? 's' : ''}` : (
-            <span className="font-medium text-teal-600 dark:text-teal-400">{filtered.length} of {members.length}</span>
+            <span className="font-medium text-violet-600 dark:text-violet-400">{filtered.length} of {members.length}</span>
           )}
         </span>
 
@@ -533,7 +533,7 @@ function OrgMembersTab({ apiKey }: { apiKey: string }) {
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => { setShowForm((v) => !v); setInviteEmail(''); setInvitePassword('') }}
-            className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white transition-colors">
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors">
             <UserPlus className="h-4 w-4" />
             Add Member
           </button>
@@ -544,7 +544,7 @@ function OrgMembersTab({ apiKey }: { apiKey: string }) {
       {showForm && (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-5">
           <div className="flex items-center gap-2 mb-4">
-            <UserPlus className="h-4 w-4 text-teal-500" />
+            <UserPlus className="h-4 w-4 text-violet-500" />
             <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Add to organization</span>
           </div>
           <form onSubmit={handleInvite} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -561,7 +561,7 @@ function OrgMembersTab({ apiKey }: { apiKey: string }) {
                 <option value="org_admin">Org Admin</option>
               </select>
               <button type="submit" disabled={inviting || !inviteEmail.trim() || !invitePassword.trim()}
-                className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 whitespace-nowrap">
+                className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 whitespace-nowrap">
                 <UserPlus className="h-3.5 w-3.5" />
                 {inviting ? 'Adding…' : 'Add'}
               </button>
@@ -669,7 +669,7 @@ export default function UsersPage() {
           onClick={() => setActiveTab('workspace')}
           className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === 'workspace'
-              ? 'border-teal-500 text-teal-700 dark:text-teal-400'
+              ? 'border-violet-500 text-violet-700 dark:text-violet-400'
               : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
           }`}
         >
@@ -680,7 +680,7 @@ export default function UsersPage() {
             onClick={() => setActiveTab('org')}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'org'
-                ? 'border-teal-500 text-teal-700 dark:text-teal-400'
+                ? 'border-violet-500 text-violet-700 dark:text-violet-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >

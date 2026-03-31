@@ -51,7 +51,7 @@ type WsRole = 'workspace_admin' | 'member' | 'viewer'
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500'
+  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 const TABLE_HEAD =
   'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'
@@ -76,7 +76,7 @@ const ORG_ROLE_COLORS: Record<string, string> = {
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 function Avatar({
-  name, email, color = 'from-teal-400 to-cyan-500',
+  name, email, color = 'from-violet-500 to-indigo-500',
 }: { name: string | null; email: string; color?: string }) {
   const ch = ((name ?? email)[0] ?? '?').toUpperCase()
   return (
@@ -164,7 +164,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white text-2xl font-bold shadow-sm">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-600 text-white text-2xl font-bold shadow-sm">
             {profile?.name?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div>
@@ -176,7 +176,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
                 </span>
               )}
               {profile?.is_default && (
-                <span className="rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300 px-2 py-0.5 text-xs font-medium">
+                <span className="rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 px-2 py-0.5 text-xs font-medium">
                   Default
                 </span>
               )}
@@ -207,7 +207,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
             <button
               type="submit"
               disabled={saving || editName.trim() === profile?.name}
-              className="rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -323,7 +323,7 @@ function WorkspaceMemberPanel({
       <button
         onClick={load}
         disabled={loading}
-        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors mt-2"
+        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors mt-2"
       >
         <Users className="h-3 w-3" />
         {loading ? 'Loading…' : loaded ? `${members.length} member${members.length !== 1 ? 's' : ''}` : 'Manage members'}
@@ -338,7 +338,7 @@ function WorkspaceMemberPanel({
           ) : (
             members.map((m) => (
               <div key={m.user_id} className="flex items-center gap-2 rounded bg-white dark:bg-slate-900 px-2.5 py-1.5 border border-slate-100 dark:border-slate-700">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-[10px] font-bold uppercase">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white text-[10px] font-bold uppercase">
                   {((m.full_name ?? m.email)[0] ?? '?').toUpperCase()}
                 </div>
                 <span className="flex-1 text-xs text-slate-700 dark:text-slate-300 truncate">
@@ -358,7 +358,7 @@ function WorkspaceMemberPanel({
           {/* Add member */}
           <button
             onClick={() => setShowAddForm((v) => !v)}
-            className="flex items-center gap-1 text-xs text-teal-600 dark:text-teal-400 hover:underline"
+            className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
           >
             <UserPlus className="h-3 w-3" />
             {showAddForm ? 'Cancel' : 'Add member'}
@@ -386,7 +386,7 @@ function WorkspaceMemberPanel({
               <button
                 onClick={() => handleAdd(m)}
                 disabled={adding[m.user_id]}
-                className="flex items-center gap-0.5 rounded bg-teal-600 hover:bg-teal-700 disabled:opacity-50 px-2 py-0.5 text-[10px] font-medium text-white"
+                className="flex items-center gap-0.5 rounded bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-2 py-0.5 text-[10px] font-medium text-white"
               >
                 <Check className="h-2.5 w-2.5" />
                 {adding[m.user_id] ? '…' : 'Add'}
@@ -472,7 +472,7 @@ function WorkspacesTab({ headers }: { headers: Record<string, string> }) {
         <span className="text-xs text-slate-400 ml-auto">{workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''}</span>
         <button
           onClick={() => { setShowForm((v) => !v); setNewName('') }}
-          className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+          className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
         >
           <Plus className="h-4 w-4" />
           New Workspace
@@ -489,7 +489,7 @@ function WorkspacesTab({ headers }: { headers: Record<string, string> }) {
                 placeholder="e.g. Production, Staging…" autoFocus required />
             </div>
             <button type="submit" disabled={creating || !newName.trim()}
-              className="rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+              className="rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">
               {creating ? 'Creating…' : 'Create'}
             </button>
             <button type="button" onClick={() => setShowForm(false)}
@@ -502,13 +502,13 @@ function WorkspacesTab({ headers }: { headers: Record<string, string> }) {
 
       {/* Newly created — show assign members inline */}
       {newlyCreatedWs && (
-        <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 p-4">
+        <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-950/30 p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-teal-800 dark:text-teal-200">
+            <p className="text-sm font-medium text-violet-800 dark:text-violet-200">
               &ldquo;{newlyCreatedWs.name}&rdquo; created — assign members below
             </p>
             <button onClick={() => setNewlyCreatedWs(null)}
-              className="text-xs text-teal-600 dark:text-teal-400 hover:underline">Done</button>
+              className="text-xs text-violet-600 dark:text-violet-400 hover:underline">Done</button>
           </div>
           <WorkspaceMemberPanel workspace={newlyCreatedWs} headers={headers} />
         </div>
@@ -517,14 +517,14 @@ function WorkspacesTab({ headers }: { headers: Record<string, string> }) {
       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         {loading ? (
           <div className="p-8 text-center">
-            <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-teal-500 border-t-transparent" />
+            <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
           </div>
         ) : workspaces.length === 0 ? (
           <div className="p-10 text-center">
             <FolderOpen className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-slate-600" />
             <p className="text-sm text-slate-400">No workspaces yet.</p>
             <button onClick={() => setShowForm(true)}
-              className="mt-2 text-sm text-teal-600 dark:text-teal-400 hover:underline">
+              className="mt-2 text-sm text-violet-600 dark:text-violet-400 hover:underline">
               Create the first workspace
             </button>
           </div>
@@ -543,7 +543,7 @@ function WorkspacesTab({ headers }: { headers: Record<string, string> }) {
                 <tr key={ws.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-cyan-500 text-white text-xs font-bold uppercase">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 text-white text-xs font-bold uppercase">
                         {ws.name[0] ?? '?'}
                       </div>
                       <span className="font-medium text-slate-900 dark:text-white">{ws.name}</span>
@@ -685,7 +685,7 @@ function MembersTab({ headers }: { headers: Record<string, string> }) {
         <span className="text-xs text-slate-400">
           {filtered.length === members.length
             ? `${members.length} member${members.length !== 1 ? 's' : ''}`
-            : <span className="text-teal-600 dark:text-teal-400 font-medium">{filtered.length} of {members.length}</span>}
+            : <span className="text-violet-600 dark:text-violet-400 font-medium">{filtered.length} of {members.length}</span>}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => load(true)} disabled={refreshing}
@@ -694,7 +694,7 @@ function MembersTab({ headers }: { headers: Record<string, string> }) {
           </button>
           <button
             onClick={() => { setShowForm((v) => !v); setForm({ email: '', full_name: '', password: '', role: 'org_member' }) }}
-            className="flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
           >
             <UserPlus className="h-4 w-4" />
             Add Member
@@ -706,7 +706,7 @@ function MembersTab({ headers }: { headers: Record<string, string> }) {
       {showForm && (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-5">
           <div className="flex items-center gap-2 mb-4">
-            <UserPlus className="h-4 w-4 text-teal-500" />
+            <UserPlus className="h-4 w-4 text-violet-500" />
             <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Add to organization</span>
           </div>
           <form onSubmit={handleAdd} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -723,7 +723,7 @@ function MembersTab({ headers }: { headers: Record<string, string> }) {
                 <option value="org_admin">Org Admin</option>
               </select>
               <button type="submit" disabled={submitting || !form.email.trim() || !form.password.trim()}
-                className="flex items-center gap-1 rounded-lg bg-teal-600 hover:bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 whitespace-nowrap">
+                className="flex items-center gap-1 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 whitespace-nowrap">
                 <UserPlus className="h-3.5 w-3.5" />
                 {submitting ? 'Adding…' : 'Add'}
               </button>
@@ -758,7 +758,7 @@ function MembersTab({ headers }: { headers: Record<string, string> }) {
                   </p>
                   {members.length === 0 && (
                     <button onClick={() => setShowForm(true)}
-                      className="mt-2 flex items-center gap-1.5 mx-auto text-sm text-teal-600 dark:text-teal-400 hover:underline">
+                      className="mt-2 flex items-center gap-1.5 mx-auto text-sm text-violet-600 dark:text-violet-400 hover:underline">
                       <UserPlus className="h-4 w-4" /> Add first member
                     </button>
                   )}
@@ -867,7 +867,7 @@ export default function OrganizationPage() {
             onClick={() => setActiveTab(id)}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === id
-                ? 'border-teal-500 text-teal-700 dark:text-teal-400'
+                ? 'border-violet-500 text-violet-700 dark:text-violet-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >

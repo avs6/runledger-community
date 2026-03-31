@@ -43,20 +43,20 @@ function VerifyContent() {
     <div className="w-full max-w-sm text-center space-y-6">
       {status === 'loading' && (
         <>
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-teal-400" />
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-violet-400" />
           <p className="text-slate-300 text-lg font-medium">Verifying your email…</p>
         </>
       )}
 
       {status === 'success' && (
         <>
-          <CheckCircle2 className="mx-auto h-14 w-14 text-teal-400" />
+          <CheckCircle2 className="mx-auto h-14 w-14 text-violet-400" />
           <div>
             <p className="text-white text-xl font-semibold">Email verified!</p>
             <p className="mt-2 text-slate-400 text-sm">Your account is active. You can now sign in.</p>
           </div>
           <Button
-            className="w-full bg-gradient-to-r from-teal-600 to-cyan-600 text-white hover:from-teal-500 hover:to-cyan-500"
+            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500"
             onClick={() => router.push('/login')}
           >
             Go to Sign In
@@ -87,7 +87,7 @@ export default function VerifyEmailPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
       <Suspense fallback={
         <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-teal-400" />
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-violet-400" />
         </div>
       }>
         <VerifyContent />

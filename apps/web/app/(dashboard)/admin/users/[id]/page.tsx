@@ -54,14 +54,14 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, string> = {
   org_admin: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  org_manager: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  org_manager: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
   org_member: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   org_billing_admin: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   org_auditor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
 }
 
 function inp(extra?: string) {
-  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 ${extra ?? ''}`
+  return `mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 ${extra ?? ''}`
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ export default function UserDetailPage() {
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <Users className="h-12 w-12 text-slate-300" />
         <p className="text-slate-500">{error || 'User not found'}</p>
-        <button onClick={() => router.push('/admin/users')} className="text-teal-600 text-sm hover:underline">
+        <button onClick={() => router.push('/admin/users')} className="text-violet-600 text-sm hover:underline">
           Back to Users
         </button>
       </div>
@@ -295,7 +295,7 @@ export default function UserDetailPage() {
                 type="checkbox"
                 checked={profileForm.is_active}
                 onChange={e => setProfileForm({ ...profileForm, is_active: e.target.checked })}
-                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
               />
               <span className="text-sm text-slate-700 dark:text-slate-300">Account Active</span>
             </label>
@@ -305,7 +305,7 @@ export default function UserDetailPage() {
             <button
               onClick={handleSaveProfile}
               disabled={savingProfile}
-              className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
             >
               <Save className="h-4 w-4" />
               {savingProfile ? 'Saving...' : 'Save Changes'}
@@ -341,7 +341,7 @@ export default function UserDetailPage() {
                 <button
                   onClick={handleResetPassword}
                   disabled={savingPw || newPassword.length < 8}
-                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >
                   {savingPw ? 'Saving...' : 'Set Password'}
                 </button>
@@ -380,14 +380,14 @@ export default function UserDetailPage() {
           </div>
           <button
             onClick={() => { setShowAddOrg(true); loadTenants(); setOrgError('') }}
-            className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
           >
             <Plus className="h-4 w-4" /> Add to Org
           </button>
         </div>
 
         {showAddOrg && (
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-teal-50/40 dark:bg-teal-900/10">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-violet-50/40 dark:bg-violet-900/10">
             {orgError && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{orgError}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
@@ -410,7 +410,7 @@ export default function UserDetailPage() {
               <button
                 onClick={handleAddOrg}
                 disabled={addingOrg || !addOrgId}
-                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
               >
                 {addingOrg ? 'Adding…' : 'Add to Organization'}
               </button>
@@ -443,13 +443,13 @@ export default function UserDetailPage() {
                 <tr key={o.tenant_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-cyan-500 text-white font-bold text-xs shrink-0">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-500 text-white font-bold text-xs shrink-0">
                         {o.tenant_name.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <button
                           onClick={() => router.push(`/admin/tenants/${o.tenant_id}`)}
-                          className="font-medium text-slate-900 dark:text-white hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                          className="font-medium text-slate-900 dark:text-white hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                         >
                           {o.tenant_name}
                         </button>
@@ -473,7 +473,7 @@ export default function UserDetailPage() {
                               <button
                                 key={r.value}
                                 onClick={() => handleChangeOrgRole(o, r.value)}
-                                className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${o.role === r.value ? 'text-teal-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
+                                className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${o.role === r.value ? 'text-violet-600 font-semibold' : 'text-slate-700 dark:text-slate-300'}`}
                               >
                                 {r.label}
                               </button>

@@ -357,7 +357,7 @@ export default function ProviderProfilesPage() {
                     </>
                   )}
                   <td className="px-4 py-2.5 text-center">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.workspace_id ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.workspace_id ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
                       {p.workspace_id ? 'Workspace' : 'Global'}
                     </span>
                   </td>

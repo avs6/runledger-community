@@ -820,7 +820,7 @@ export default function SettingsPage() {
               {workspaceName && (
                 <div className="shrink-0 flex flex-col items-end gap-0.5">
                   {tenantName && <span className="text-[10px] text-slate-400 dark:text-slate-500">{tenantName}</span>}
-                  <span className="rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                  <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
                     {workspaceName}
                   </span>
                 </div>
@@ -844,7 +844,7 @@ export default function SettingsPage() {
                   </button>
                   <button
                     onClick={() => { setTab('mcp'); setMcpSelectedKey(newRawKey) }}
-                    className="rounded bg-teal-600 px-3 py-1.5 text-xs text-white hover:bg-teal-700"
+                    className="rounded bg-violet-600 px-3 py-1.5 text-xs text-white hover:bg-violet-700"
                   >
                     Set up MCP →
                   </button>
@@ -856,7 +856,7 @@ export default function SettingsPage() {
             )}
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Create new key for <span className="text-teal-600 dark:text-teal-400">{workspaceName ?? 'this workspace'}</span></p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Create new key for <span className="text-violet-600 dark:text-violet-400">{workspaceName ?? 'this workspace'}</span></p>
               <form onSubmit={handleCreateKey} className="flex flex-wrap gap-2">
                 <input type="text" placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className={inputCls} />
                 <select value={newKeyEnv} onChange={(e) => setNewKeyEnv(e.target.value)} className={inputCls}>
@@ -920,7 +920,7 @@ export default function SettingsPage() {
                 )}
               </div>
               {filteredApiKeys.length !== apiKeys.length && (
-                <span className="text-xs font-medium text-teal-600 dark:text-teal-400">
+                <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
                   {filteredApiKeys.length} of {apiKeys.length} keys
                 </span>
               )}
@@ -979,7 +979,7 @@ export default function SettingsPage() {
                     All MCP tool calls are attributed to <strong className="text-slate-700 dark:text-slate-200">{workspaceName ?? 'your workspace'}</strong>.
                   </p>
                 </div>
-                <span className="shrink-0 rounded-full bg-teal-100 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                <span className="shrink-0 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
                   /mcp
                 </span>
               </div>
@@ -989,7 +989,7 @@ export default function SettingsPage() {
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Select API key to use</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   The key below will be pre-filled in the snippets. It must belong to{' '}
-                  <strong className="text-teal-600 dark:text-teal-400">{workspaceName ?? 'this workspace'}</strong>.
+                  <strong className="text-violet-600 dark:text-violet-400">{workspaceName ?? 'this workspace'}</strong>.
                 </p>
                 <div className="flex items-center gap-2">
                   <input
@@ -1001,7 +1001,7 @@ export default function SettingsPage() {
                   />
                   <button
                     onClick={() => setTab('api-keys')}
-                    className="shrink-0 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:border-teal-300 hover:text-teal-700 dark:hover:border-teal-600 dark:hover:text-teal-400 transition-colors"
+                    className="shrink-0 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:border-violet-300 hover:text-violet-700 dark:hover:border-violet-600 dark:hover:text-violet-400 transition-colors"
                   >
                     + Create key
                   </button>
@@ -1009,7 +1009,7 @@ export default function SettingsPage() {
                 {newRawKey && !mcpSelectedKey && (
                   <button
                     onClick={() => setMcpSelectedKey(newRawKey)}
-                    className="text-[11px] text-teal-600 dark:text-teal-400 hover:underline"
+                    className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
                   >
                     ↑ Use your recently created key
                   </button>
@@ -1024,7 +1024,7 @@ export default function SettingsPage() {
               {/* Claude Code CLI */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
-                  <Terminal className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <Terminal className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                   <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Claude Code</h3>
                   <span className="text-xs text-slate-400">— one command to register</span>
                 </div>
@@ -1044,7 +1044,7 @@ export default function SettingsPage() {
                         setMcpCopied('cli')
                         setTimeout(() => setMcpCopied(null), 2000)
                       }}
-                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-teal-300 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-teal-600 dark:hover:text-teal-400"
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-violet-300 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-violet-600 dark:hover:text-violet-400"
                     >
                       {mcpCopied === 'cli' ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500" /> : 'Copy'}
                     </button>
@@ -1055,7 +1055,7 @@ export default function SettingsPage() {
               {/* Claude Desktop JSON */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center gap-2.5 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
-                  <Key className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <Key className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                   <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Claude Desktop</h3>
                   <span className="text-xs text-slate-400">— add to <code className="font-mono">claude_desktop_config.json</code></span>
                 </div>
@@ -1082,7 +1082,7 @@ export default function SettingsPage() {
                         setMcpCopied('json')
                         setTimeout(() => setMcpCopied(null), 2000)
                       }}
-                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-teal-300 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-teal-600 dark:hover:text-teal-400"
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-violet-300 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-violet-600 dark:hover:text-violet-400"
                     >
                       {mcpCopied === 'json' ? <CheckCheck className="h-3.5 w-3.5 text-emerald-500" /> : 'Copy'}
                     </button>
@@ -1095,7 +1095,7 @@ export default function SettingsPage() {
                 <p className="font-semibold text-slate-700 dark:text-slate-300">How it works</p>
                 <ul className="list-disc list-inside space-y-0.5 pl-1">
                   <li>The MCP server exposes RunLedger tools to Claude (query runs, budgets, analytics).</li>
-                  <li>All tool calls are authenticated with your workspace API key — data is scoped to <strong className="text-teal-600 dark:text-teal-400">{workspaceName ?? 'this workspace'}</strong>.</li>
+                  <li>All tool calls are authenticated with your workspace API key — data is scoped to <strong className="text-violet-600 dark:text-violet-400">{workspaceName ?? 'this workspace'}</strong>.</li>
                   <li>Switch workspaces by changing <code className="font-mono">RUNLEDGER_API_KEY</code> to a key from the target workspace.</li>
                 </ul>
               </div>
@@ -1248,7 +1248,7 @@ export default function SettingsPage() {
                         <td className="px-4 py-2 text-xs dark:text-gray-300">{rule.operator === 'gt' ? '>' : '<'} {rule.threshold}</td>
                         <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
                         <td className="px-4 py-2">
-                          <span className={`text-xs ${rule.email_enabled ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-600'}`}>
+                          <span className={`text-xs ${rule.email_enabled ? 'text-violet-600 dark:text-violet-400' : 'text-gray-400 dark:text-gray-600'}`}>
                             {rule.email_enabled ? 'On' : 'Off'}
                           </span>
                         </td>
@@ -1303,7 +1303,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleSendReport}
                 disabled={sendingReport}
-                className="rounded bg-teal-600 px-4 py-1.5 text-sm text-white hover:bg-teal-700 disabled:opacity-50"
+                className="rounded bg-violet-600 px-4 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50"
               >
                 {sendingReport ? 'Sending…' : 'Send Report Now'}
               </button>
@@ -1706,7 +1706,7 @@ export default function SettingsPage() {
               <p className="font-medium">Tool Registry</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Tool governance has moved to its own page.{' '}
-                <a href="/tool-registry" className="text-teal-600 dark:text-teal-400 hover:underline">Go to Tool Registry →</a>
+                <a href="/tool-registry" className="text-violet-600 dark:text-violet-400 hover:underline">Go to Tool Registry →</a>
               </p>
             </div>
           </div>

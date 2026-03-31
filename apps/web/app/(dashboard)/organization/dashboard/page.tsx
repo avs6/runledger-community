@@ -87,10 +87,10 @@ async function OrgDashboardContent() {
           title="Total Org Spend"
           value={fmt$$(data.total_cost_usd)}
           delta={data.cost_delta_pct}
-          icon={<DollarSign className="h-5 w-5 text-teal-600 dark:text-teal-300" />}
-          cardFrom="from-teal-50 to-teal-100/40 dark:from-teal-950/60 dark:to-teal-900/20"
-          cardTo="bg-teal-300/30 dark:bg-teal-500/20"
-          border="border-teal-200/70 dark:border-teal-800/50"
+          icon={<DollarSign className="h-5 w-5 text-violet-600 dark:text-violet-300" />}
+          cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-950/60 dark:to-violet-900/20"
+          cardTo="bg-violet-300/30 dark:bg-violet-500/20"
+          border="border-violet-200/70 dark:border-violet-800/50"
         />
         <KpiCard
           title="Agent Runs"
@@ -167,7 +167,7 @@ async function OrgDashboardContent() {
           </div>
           <Link
             href="/organization"
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-teal-600 transition-colors hover:bg-teal-50 dark:text-teal-400 dark:hover:bg-teal-950/40"
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-violet-600 transition-colors hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/40"
           >
             Manage org <ArrowRight className="h-3 w-3" />
           </Link>
@@ -191,7 +191,7 @@ async function OrgDashboardContent() {
                   <tr key={ws.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 text-xs font-bold shrink-0">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 text-xs font-bold shrink-0">
                           {ws.name.charAt(0).toUpperCase()}
                         </div>
                         <span className="font-medium text-slate-900 dark:text-white">{ws.name}</span>
@@ -320,7 +320,7 @@ export default async function OrgDashboardPage() {
         </div>
         <Link
           href="/dashboard"
-          className="hidden text-sm text-teal-600 hover:underline dark:text-teal-400 sm:block"
+          className="hidden text-sm text-violet-600 hover:underline dark:text-violet-400 sm:block"
         >
           ← Workspace dashboard
         </Link>
