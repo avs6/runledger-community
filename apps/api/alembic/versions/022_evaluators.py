@@ -1,7 +1,7 @@
 """Add evaluators table and evaluator_id to score_events.
 
 Revision ID: 022
-Revises: 021
+Revises: 018
 Create Date: 2026-03-22
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "022"
-down_revision = "021"
+down_revision = "018"
 branch_labels = None
 depends_on = None
 

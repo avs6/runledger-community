@@ -1,7 +1,7 @@
 """Add outcomes and outcome_rollups_daily tables.
 
 Revision ID: 024
-Revises: 023
+Revises: 022
 Create Date: 2026-03-22
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision = "024"
-down_revision = "023"
+down_revision = "022"
 branch_labels = None
 depends_on = None
 

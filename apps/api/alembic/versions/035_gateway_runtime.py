@@ -1,7 +1,7 @@
 """035 — Gateway runtime controls: cost caps, PII redaction, per-user rate limits, health
 
 Revision ID: 035
-Revises: 034
+Revises: 033
 Create Date: 2026-03-24
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "035"
-down_revision = "034"
+down_revision = "033"
 branch_labels = None
 depends_on = None
 

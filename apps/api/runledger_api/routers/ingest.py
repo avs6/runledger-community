@@ -13,7 +13,6 @@ from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.events import AgentRun
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.events import AgentRunResponse, BatchIngestRequest, IngestEvent
-from runledger_api.services.quotas import check_quota, increment_quota_usage
 from runledger_api.workers.pipeline import process_events_task
 
 log = structlog.get_logger()
@@ -31,13 +30,10 @@ async def ingest_event(
     db: DbDep,
 ) -> dict[str, int]:
     """Ingest a single event. Returns 202 immediately; processing is async."""
-    await check_quota(workspace.tenant_id, db)
     process_events_task.delay(
         workspace_id=str(workspace.id),
         events=[event.model_dump(mode="json")],
     )
-    await increment_quota_usage(workspace.tenant_id, 1, db)
-    await db.commit()
     log.debug("event_accepted", workspace_id=str(workspace.id), event_type=event.event_type)
     return {"accepted": 1}
 
@@ -51,13 +47,10 @@ async def ingest_batch(
     """Ingest a batch of events. Returns 202 immediately."""
     if not payload.events:
         return {"accepted": 0}
-    await check_quota(workspace.tenant_id, db)
     process_events_task.delay(
         workspace_id=str(workspace.id),
         events=[e.model_dump(mode="json") for e in payload.events],
     )
-    await increment_quota_usage(workspace.tenant_id, len(payload.events), db)
-    await db.commit()
     log.debug("batch_accepted", workspace_id=str(workspace.id), count=len(payload.events))
     return {"accepted": len(payload.events)}
 

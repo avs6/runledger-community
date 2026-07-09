@@ -277,32 +277,18 @@ async def route_and_forward(
     tool_choice: str | dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], GatewayRoute, int, str]:
     """
-    Apply routing policy, then forward to the selected route.
+    Select route by priority, then forward to the provider.
     Retries once on transient errors, then falls back to next priority route.
     Returns (response_json, winning_route, latency_ms, decision_reason).
     Raises HTTPException 502 when all routes fail.
     """
-    from runledger_api.services.routing import select_route_with_policy
-
-    try:
-        selected_route, decision_reason = await select_route_with_policy(
-            db,
-            workspace_id,
-            model_alias,
-            messages,
-        )
-        # Policy selected a single route; still fall back to priority order on failure
-        candidate_routes = [selected_route]
-        # Append remaining priority-order routes as fallbacks
-        all_routes = await select_routes(db, workspace_id, model_alias)
-        for r in all_routes:
-            if r.id != selected_route.id:
-                candidate_routes.append(r)
-    except ValueError:
+    candidate_routes = await select_routes(db, workspace_id, model_alias)
+    if not candidate_routes:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"No active gateway routes configured for alias '{model_alias}'",
-        ) from None
+        )
+    decision_reason = "priority"
 
     last_error: Exception | None = None
     for route in candidate_routes:

@@ -1,7 +1,7 @@
 """Add runtime_enforcement to tool_registry.
 
 Revision ID: 016
-Revises: 015
+Revises: 014
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "016"
-down_revision = "015"
+down_revision = "014"
 branch_labels = None
 depends_on = None
 

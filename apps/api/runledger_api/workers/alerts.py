@@ -116,23 +116,6 @@ async def _run_evaluation() -> dict[str, int]:
                 threshold=str(rule.threshold),
             )
 
-            # Publish to Kafka (fire-and-forget)
-            from runledger_api.workers.kafka_export import dispatch_kafka_event  # noqa: PLC0415
-
-            dispatch_kafka_event.delay(
-                str(rule.workspace_id),
-                "alert.fired",
-                {
-                    "event": "alert.fired",
-                    "rule_id": str(rule.id),
-                    "rule_name": rule.name,
-                    "metric": rule.metric,
-                    "metric_value": str(metric_value),
-                    "threshold": str(rule.threshold),
-                    "fired_at": now.isoformat(),
-                },
-            )
-
             # Send Slack notification if channel configured
             if rule.channel_id is not None:
                 await _send_alert_notification(session, rule, metric_value, now)

@@ -1,7 +1,7 @@
 """Add email_enabled to alert_rules.
 
 Revision ID: 031
-Revises: 030
+Revises: 029
 Create Date: 2026-03-23
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "031"
-down_revision = "030"
+down_revision = "029"
 branch_labels = None
 depends_on = None
 

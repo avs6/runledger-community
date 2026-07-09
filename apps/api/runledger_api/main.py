@@ -32,26 +32,16 @@ from runledger_api.routers import eval_experiments as eval_experiments_router
 from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import gateway as gateway_router
 from runledger_api.routers import integrations as integrations_router
-from runledger_api.routers import invoices as invoices_router
-from runledger_api.routers import kafka_export as kafka_export_router
-from runledger_api.routers import ops as ops_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
 from runledger_api.routers import outcomes as outcomes_router
-from runledger_api.routers import platform as platform_router
 from runledger_api.routers import policies as policies_router
-from runledger_api.routers import pricing_intelligence as pricing_intelligence_router
 from runledger_api.routers import prompts as prompts_router
 from runledger_api.routers import providers as providers_router
 from runledger_api.routers import retention as retention_router
-from runledger_api.routers import saas as saas_router
-from runledger_api.routers import scim as scim_router
 from runledger_api.routers import sessions as sessions_router
 from runledger_api.routers import settings as settings_router
-from runledger_api.routers import sso as sso_router
 from runledger_api.routers import users as users_router
-from runledger_api.routers import warehouse as warehouse_router
-from runledger_api.services.pricing_sync import load_pricing_yaml, sync_pricing
 
 configure_logging()
 log = structlog.get_logger()
@@ -60,17 +50,6 @@ log = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log.info("startup", environment=settings.environment)
-
-    # Sync provider pricing from YAML file on every startup
-    try:
-        entries = load_pricing_yaml(settings.pricing_file)
-        if entries:
-            async with AsyncSessionLocal() as session:
-                result = await sync_pricing(session, entries)
-                log.info("pricing_startup_sync", **result)
-    except Exception:
-        log.exception("pricing_startup_sync_failed")  # non-fatal
-
     yield
     log.info("shutdown")
     await engine.dispose()
@@ -115,21 +94,12 @@ app.include_router(sessions_router.router)
 app.include_router(policies_router.router)
 app.include_router(users_router.router)
 app.include_router(org_router.router)
-app.include_router(platform_router.router)
-app.include_router(saas_router.router)
-app.include_router(invoices_router.router)
 app.include_router(outcomes_router.router)
 app.include_router(approvals_router.router)
 app.include_router(audit_router.router)
 app.include_router(retention_router.router)
 app.include_router(otlp_router.router)
-app.include_router(warehouse_router.router)
-app.include_router(sso_router.router)
-app.include_router(scim_router.router)
-app.include_router(kafka_export_router.router)
-app.include_router(ops_router.router)
 app.include_router(eval_experiments_router.router)
-app.include_router(pricing_intelligence_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

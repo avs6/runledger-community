@@ -1,7 +1,7 @@
 """eval_experiments and eval_datasets tables
 
 Revision ID: 043
-Revises: 042
+Revises: 035
 Create Date: 2026-03-25
 """
 
@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 revision = "043"
-down_revision = "042"
+down_revision = "035"
 branch_labels = None
 depends_on = None
 

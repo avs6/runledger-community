@@ -12,11 +12,7 @@ GET    /gateway/routes                    List routes
 PUT    /gateway/routes/{id}               Update / disable route
 DELETE /gateway/routes/{id}               Delete route
 GET    /gateway/stats                     Request statistics
-GET    /gateway/requests                  Routing log with decision_reason
-POST   /gateway/policies                  Create a routing policy
-GET    /gateway/policies                  List routing policies
-PUT    /gateway/policies/{id}             Update a routing policy
-DELETE /gateway/policies/{id}             Delete a routing policy
+GET    /gateway/requests                  Routing log
 """
 
 from __future__ import annotations
@@ -24,7 +20,6 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import AsyncGenerator
-from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -35,9 +30,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
-from runledger_api.core.feature_gate import require_feature
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.gateway import GatewayRequest, GatewayRoute, RoutingPolicy
+from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.gateway import (
     GatewayCompletionRequest,
@@ -49,12 +43,6 @@ from runledger_api.schemas.gateway import (
     GatewayRouteStats,
     GatewayRouteUpdate,
     GatewayStats,
-    RoutingPolicyCreate,
-    RoutingPolicyList,
-    RoutingPolicyResponse,
-    RoutingPolicyUpdate,
-    RoutingRecommendationModel,
-    RoutingRecommendationResponse,
 )
 from runledger_api.services.gateway import (
     check_cache,
@@ -94,11 +82,11 @@ async def gateway_chat_completions(
     Flow:
       1. Check prompt cache (if body.cache=True)
       2. If cache hit: record + return cached response
-      3. Apply routing policy to select target route
+      3. Select target route by priority
       4. Check runtime controls: cost cap + per-user rate limit
       5. Apply PII redaction (if enabled on route)
       6. Forward to provider (with retry + fallback)
-      7. Store result in cache + record GatewayRequest with decision_reason
+      7. Store result in cache + record GatewayRequest
       8. If body.stream=True: return SSE StreamingResponse
     """
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
@@ -128,20 +116,16 @@ async def gateway_chat_completions(
 
     # ── 2. Streaming path ────────────────────────────────────────────────────
     if body.stream:
-        from runledger_api.services.routing import select_route_with_policy
+        from runledger_api.services.gateway import select_routes  # noqa: PLC0415
 
-        try:
-            route, decision_reason = await select_route_with_policy(
-                db,
-                workspace.id,
-                body.model,
-                messages,
-            )
-        except ValueError:
+        routes = await select_routes(db, workspace.id, body.model)
+        if not routes:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"No active gateway routes for alias '{body.model}'",
-            ) from None
+            )
+        route = routes[0]
+        decision_reason = "priority"
 
         # Runtime controls
         await check_cost_cap(db, route, workspace.id)
@@ -376,105 +360,6 @@ async def delete_gateway_route(
     await db.commit()
 
 
-# ── Routing policies CRUD ──────────────────────────────────────────────────────
-
-
-@router.post(
-    "/policies",
-    response_model=RoutingPolicyResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_routing_policy(
-    body: RoutingPolicyCreate,
-    workspace: WorkspaceDep,
-    db: DbDep,
-) -> RoutingPolicyResponse:
-    """
-    Create or replace a routing policy for the given alias.
-    Only one active policy per alias is allowed (unique constraint on workspace+alias).
-    """
-    require_feature("routing_policies", "Advanced routing policies")
-    # Check for existing policy on this alias
-    existing_stmt = select(RoutingPolicy).where(
-        RoutingPolicy.workspace_id == workspace.id,
-        RoutingPolicy.alias == body.alias,
-    )
-    existing = (await db.execute(existing_stmt)).scalar_one_or_none()
-    if existing:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"A routing policy for alias '{body.alias}' already exists. "
-            "Use PUT /gateway/policies/{id} to update it.",
-        )
-
-    policy = RoutingPolicy(
-        workspace_id=workspace.id,
-        alias=body.alias,
-        policy_type=body.policy_type,
-        config=body.config,
-    )
-    db.add(policy)
-    await db.flush()
-    await db.commit()
-    await db.refresh(policy)
-    return RoutingPolicyResponse.model_validate(policy)
-
-
-@router.get("/policies", response_model=RoutingPolicyList)
-async def list_routing_policies(
-    workspace: WorkspaceDep,
-    db: DbDep,
-    include_inactive: bool = Query(False),
-) -> RoutingPolicyList:
-    require_feature("routing_policies", "Advanced routing policies")
-    stmt = select(RoutingPolicy).where(RoutingPolicy.workspace_id == workspace.id)
-    if not include_inactive:
-        stmt = stmt.where(RoutingPolicy.is_active.is_(True))
-    stmt = stmt.order_by(RoutingPolicy.alias.asc())
-    result = await db.execute(stmt)
-    policies = list(result.scalars().all())
-    return RoutingPolicyList(items=[RoutingPolicyResponse.model_validate(p) for p in policies])
-
-
-@router.put("/policies/{policy_id}", response_model=RoutingPolicyResponse)
-async def update_routing_policy(
-    policy_id: uuid.UUID,
-    body: RoutingPolicyUpdate,
-    workspace: WorkspaceDep,
-    db: DbDep,
-) -> RoutingPolicyResponse:
-    require_feature("routing_policies", "Advanced routing policies")
-    policy = await db.get(RoutingPolicy, policy_id)
-    if policy is None or policy.workspace_id != workspace.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
-
-    if body.policy_type is not None:
-        policy.policy_type = body.policy_type
-    if body.config is not None:
-        policy.config = body.config
-    if body.is_active is not None:
-        policy.is_active = body.is_active
-    policy.updated_at = datetime.utcnow()
-
-    await db.commit()
-    await db.refresh(policy)
-    return RoutingPolicyResponse.model_validate(policy)
-
-
-@router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_routing_policy(
-    policy_id: uuid.UUID,
-    workspace: WorkspaceDep,
-    db: DbDep,
-) -> None:
-    require_feature("routing_policies", "Advanced routing policies")
-    policy = await db.get(RoutingPolicy, policy_id)
-    if policy is None or policy.workspace_id != workspace.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
-    await db.delete(policy)
-    await db.commit()
-
-
 # ── Request log (routing log) ─────────────────────────────────────────────────
 
 
@@ -596,141 +481,4 @@ async def gateway_stats(
         cache_hit_rate=overall_hit_rate,
         avg_latency_ms=overall_latency,
         routes=route_stats,
-    )
-
-
-# ── Routing recommendations ────────────────────────────────────────────────────
-
-
-@router.get("/recommendations/{alias}", response_model=RoutingRecommendationResponse)
-async def get_routing_recommendation(
-    alias: str,
-    workspace: WorkspaceDep,
-    db: DbDep,
-    window_days: int = Query(30, ge=1, le=365, description="Outcome lookback window in days"),
-    workflow_type: str | None = Query(None, description="Filter outcomes by outcome_type"),
-    min_sample_size: int = Query(5, ge=1, description="Minimum outcomes per model to include"),
-) -> RoutingRecommendationResponse:
-    """
-    Outcome-based routing recommendation for an alias.
-
-    Aggregates success rate and cost-per-success from the outcomes ledger,
-    grouped by the primary model used in each linked agent run.  Returns a
-    ranked list of routes with improvement percentages and a plain-English
-    recommendation message.
-
-    Example response message:
-      "Based on the last 150 outcomes, gpt-4o-mini has a 12% better
-       cost-per-success ($0.0023 vs $0.0026) than gpt-4o"
-    """
-    from runledger_api.services.routing import get_outcome_stats_by_model  # noqa: PLC0415
-
-    # Fetch active routes for this alias
-    routes = list(
-        (
-            await db.execute(
-                select(GatewayRoute)
-                .where(
-                    GatewayRoute.workspace_id == workspace.id,
-                    GatewayRoute.alias == alias,
-                    GatewayRoute.is_active.is_(True),
-                )
-                .order_by(GatewayRoute.priority.asc())
-            )
-        )
-        .scalars()
-        .all()
-    )
-    if not routes:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No active routes for alias '{alias}'")
-
-    models = [r.target_model for r in routes]
-    model_to_route = {r.target_model: r for r in routes}
-
-    stats = await get_outcome_stats_by_model(
-        db,
-        workspace.id,
-        models,
-        lookback_days=window_days,
-        workflow_type=workflow_type,
-        min_sample_size=min_sample_size,
-    )
-
-    # Build recommendation items — one per route, with stats where available
-    items: list[RoutingRecommendationModel] = []
-    for route in routes:
-        s = stats.get(route.target_model)
-        items.append(
-            RoutingRecommendationModel(
-                model=route.target_model,
-                route_id=route.id,
-                sample_count=s["sample_count"] if s else 0,
-                success_rate=s["success_rate"] if s else 0.0,
-                cost_per_success=s["cost_per_success"] if s else None,
-                improvement_vs_current=None,  # filled below
-            )
-        )
-
-    # Sort by cost_per_success ascending (None = worst)
-    items.sort(key=lambda x: (x.cost_per_success is None, x.cost_per_success or float("inf")))
-
-    # Compute improvement_vs_current: % cheaper than the current top-priority route
-    # "current" = highest-priority route (routes[0] before sort, = routes[0] by priority)
-    current_model = routes[0].target_model
-    current_cps = stats.get(current_model, {}).get("cost_per_success")
-
-    for item in items:
-        if current_cps and item.cost_per_success is not None and current_cps > 0:
-            item.improvement_vs_current = (current_cps - item.cost_per_success) / current_cps
-        else:
-            item.improvement_vs_current = None
-
-    total_sampled = sum(i.sample_count for i in items)
-
-    # Determine best
-    best_item = items[0] if items and items[0].cost_per_success is not None else None
-    best_model = best_item.model if best_item else None
-    recommended_route_id = model_to_route[best_model].id if best_model else None
-
-    # Build human-readable message
-    if best_item and len(items) > 1 and best_item.improvement_vs_current is not None:
-        second = next((i for i in items if i.model != best_model), None)
-        improvement_pct = best_item.improvement_vs_current * 100
-        cps_best = f"${best_item.cost_per_success:.4f}" if best_item.cost_per_success else "N/A"
-        if second and second.cost_per_success:
-            cps_second = f"${second.cost_per_success:.4f}"
-            message = (
-                f"Based on the last {total_sampled} outcomes"
-                + (f" of type '{workflow_type}'" if workflow_type else "")
-                + f", {best_model} has a {abs(improvement_pct):.1f}% better cost-per-success"
-                + f" ({cps_best} vs {cps_second}) than {second.model}"
-            )
-        else:
-            message = (
-                f"Based on the last {total_sampled} outcomes"
-                + (f" of type '{workflow_type}'" if workflow_type else "")
-                + f", {best_model} has the best cost-per-success at {cps_best}"
-            )
-    elif total_sampled == 0:
-        message = (
-            f"No outcome data found for alias '{alias}'"
-            + (f" (workflow_type='{workflow_type}')" if workflow_type else "")
-            + f" in the last {window_days} days. Record outcomes via POST /outcomes to enable this."
-        )
-    else:
-        message = (
-            f"Collected {total_sampled} outcomes for '{alias}' over {window_days} days"
-            + (f" (workflow_type='{workflow_type}')" if workflow_type else "")
-            + ". Need more data per model to make a recommendation."
-        )
-
-    return RoutingRecommendationResponse(
-        alias=alias,
-        window_days=window_days,
-        workflow_type=workflow_type,
-        total_outcomes_sampled=total_sampled,
-        models=items,
-        best_model=best_model,
-        recommended_route_id=recommended_route_id,
-        message=message,
     )

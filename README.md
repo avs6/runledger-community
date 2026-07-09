@@ -1,17 +1,15 @@
-# RunLedger
+# RunLedger Community
 
-[![CI](https://github.com/avs6/runledger/actions/workflows/ci.yml/badge.svg)](https://github.com/avs6/runledger/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/avs6/runledger)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger-community)
 
-**AI spend system of record and runtime control plane.**
+**Self-hosted AI cost observability and budget control for production agents.**
 
-RunLedger is an open-source Agent FinOps Control Plane. It turns LangChain, LangGraph, OpenAI, Anthropic, and any OpenTelemetry-instrumented agent into trace-linked usage accounting, provider invoice reconciliation, internal chargeback, budget enforcement, economics-aware routing, and outcome-to-cost visibility — with payload logging optional by default.
+RunLedger Community is an open-source FinOps control plane for AI agents. It turns OpenAI, Anthropic, Gemini, Mistral, Cohere, LangChain, LangGraph, and any OpenTelemetry-instrumented agent into trace-linked usage accounting, budget enforcement, cost analytics, and outcome-to-cost visibility -- with payload logging optional by default.
 
-Tracing tools tell you *what happened*. RunLedger tells you *what it cost, who pays, whether you're over budget, how it reconciles against the provider invoice, and what the ROI was.*
+Tracing tools tell you *what happened*. RunLedger tells you *what it cost, who pays, whether you're over budget, and what the ROI was.*
 
 ---
 
@@ -19,66 +17,46 @@ Tracing tools tell you *what happened*. RunLedger tells you *what it cost, who p
 
 Every team shipping AI agents in production hits the same wall:
 
-- **Spend explodes** — a retry loop or runaway agent silently burns through API budget overnight
-- **Chargeback is guesswork** — you can't attribute cost to a tenant, user, or feature without custom instrumentation
-- **Routing isn't tied to economics** — model selection is based on capability, not cost-per-outcome
-- **Finance can't trust the numbers** — no audit trail linking an invoice line to the exact agent run
+- **Spend explodes** -- a retry loop or runaway agent silently burns through API budget overnight
+- **Attribution is guesswork** -- you can't attribute cost to a tenant, user, or feature without custom instrumentation
+- **Routing isn't tied to economics** -- model selection is based on capability, not cost-per-outcome
+- **No audit trail** -- no link between internal metering and the exact agent run that generated the spend
 
 ---
 
-## What's Built
+## What's Included
 
-- **Provider-aware metering** — input vs output tokens (plus cached input) mapped to provider pricing so internal numbers match the invoice
-- **Spend guardrails** — budgets with automatic actions (throttle / block / downgrade model) for runaway loops and retry storms
-- **Provider invoice reconciliation** — import billing exports from OpenAI, Anthropic, Google; match against internal calls by request ID; export signed dispute packages
-- **End-user analytics** — cost per user/tenant/feature, cohorts, top spenders, anomaly detection
-- **Unit economics graph** — cost breakdown across steps, tools, retrieval, retries, and human approvals; "what changed?" diffs after prompt or model updates
-- **Tamper-evident usage ledger** — cryptographic integrity for usage summaries so finance teams can trust chargeback and invoices
-- **Model gateway** — OpenAI-compatible proxy with prompt caching, provider fallback, cost-aware routing policies, outcome-optimized routing, and full request logging
-- **Outcome & ROI ledger** — tie spend to business outcomes: cost-per-success, ROI by workflow, success rate trends
-- **Approvals & governance** — require approval for prompt production promotions, budget increases, and sensitive policy changes
-- **OTLP / OpenTelemetry ingestion** — accept traces from any OTel or OpenInference instrumented application, no SDK required
-- **SSO / SCIM** — OIDC single sign-on and SCIM 2.0 user provisioning for enterprise deployments
-- **Warehouse export** — daily Parquet/JSONL exports to S3, GCS, or R2 for BI and data warehouse
-- **Privacy-first** — payload logging off by default; errors-only / sampled / full are explicit opt-ins
+- **Provider-aware metering** -- input vs output tokens (plus cached input) mapped to provider pricing tables
+- **Spend guardrails** -- budgets with automatic actions (throttle / block / downgrade model) for runaway loops and retry storms
+- **End-user analytics** -- cost per user/tenant/feature, cohorts, top spenders, anomaly detection
+- **Unit economics graph** -- cost breakdown across steps, tools, retrieval, retries; "what changed?" diffs after prompt or model updates
+- **Tamper-evident usage ledger** -- HMAC-signed snapshots for billing integrity
+- **Model gateway** -- OpenAI-compatible proxy with prompt caching, provider fallback, and cost-aware routing
+- **Outcome & ROI ledger** -- tie spend to business outcomes: cost-per-success, ROI by workflow, success rate trends
+- **Approvals & governance** -- require approval for prompt production promotions and sensitive policy changes
+- **OTLP / OpenTelemetry ingestion** -- accept traces from any OTel or OpenInference instrumented application, no SDK required
+- **Evaluations & experiments** -- submit quality scores, run prompt x model x dataset evaluations, track regressions
+- **Prompt registry** -- version-controlled prompts with diff viewer, promote-to-production workflow, variable substitution
+- **Multi-tenant RBAC** -- workspace-scoped isolation with org admin, workspace admin, member, and viewer roles
+- **Privacy-first** -- payload logging off by default; errors-only / sampled / full are explicit opt-ins
+- **MCP server** -- connect Claude Desktop or Claude Code directly to your RunLedger instance
 
 ---
 
 ## Architecture
 
-<img width="1408" height="768" alt="image" src="https://github.com/user-attachments/assets/f57882fb-c531-4e02-80d4-6c6e9b512a76" />
-
----
+<img width="1408" height="768" alt="RunLedger Architecture" src="https://github.com/user-attachments/assets/f57882fb-c531-4e02-80d4-6c6e9b512a76" />
 
 **Ingestion paths:**
 
 | Path | When to use |
 |------|-------------|
-| **RunLedger SDK** | Best path — budget enforcement, `rl.score()`, prompt fetch, propagation headers |
+| **RunLedger SDK** | Best path -- budget enforcement, `rl.score()`, prompt fetch, propagation headers |
 | **OTLP direct** | Already emit OTel / OpenInference; zero instrumentation change |
-| **OTLP via Collector** | Production — batching, retry, attribute enrichment |
-| **Model Gateway** | OpenAI base_url swap — works for any OpenAI-compatible client |
+| **OTLP via Collector** | Production -- batching, retry, attribute enrichment |
+| **Model Gateway** | OpenAI base_url swap -- works for any OpenAI-compatible client |
 
-All paths normalise into the same domain model: `AgentRun → Span → ProviderCall / ToolCall`.
-
----
-
-### SDK instrumentation flow
-
-<img width="1408" height="768" alt="image" src="https://github.com/user-attachments/assets/17a53335-68e3-4793-a05f-01ac0c385a06" />
-
-
----
-
-### OTLP ingestion flow
-
-<img width="1408" height="768" alt="image" src="https://github.com/user-attachments/assets/36d06cdc-ffbb-4dd4-80d7-fddc66cc42e2" />
-
----
-
-### Model Gateway interception flow
-
-<img width="1408" height="768" alt="image" src="https://github.com/user-attachments/assets/55251b8f-e072-424b-b81b-640e5d619f0d" />
+All paths normalise into the same domain model: `AgentRun -> Span -> ProviderCall / ToolCall`.
 
 ---
 
@@ -87,19 +65,19 @@ All paths normalise into the same domain model: `AgentRun → Span → ProviderC
 **Docker Compose (recommended):**
 
 ```bash
-git clone https://github.com/avs6/runledger
-cd runledger
+git clone https://github.com/avs6/runledger-community
+cd runledger-community
 cp infra/.env.example infra/.env   # set SECRET_KEY
 docker compose -f infra/docker-compose.yml up -d
 ```
 
-Then bootstrap the platform admin:
+Then bootstrap the admin:
 
 ```bash
 curl -s -X POST http://localhost:8000/admin/bootstrap \
   -H "X-Admin-Secret: runledger-admin" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Platform Admin","org_name":"My Org"}'
+  -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
 ```
 
 | URL | What it is |
@@ -108,13 +86,11 @@ curl -s -X POST http://localhost:8000/admin/bootstrap \
 | `http://localhost:8000/reference` | Interactive API reference (Scalar) |
 | `http://localhost:4318` | OTLP/HTTP receiver (via OTel Collector) |
 
-→ **Full setup guide, Codespaces, Railway deploy, pip install:** [docs/quickstart.mdx](docs/quickstart.mdx)
-
 ---
 
 ## Instrument Your Code
 
-### Python — 2 lines
+### Python -- 2 lines
 
 ```python
 from runledger_sdk import RunLedger
@@ -131,12 +107,12 @@ with rl.context(end_user_id="u_123", feature_tag="support-chat") as run_id:
         messages=[{"role": "user", "content": "Hello!"}],
     )
 
-rl.shutdown()  # flush before process exits
+rl.shutdown()
 ```
 
-**Anthropic, LangChain, LangGraph, async, FastAPI, cross-service propagation:** [docs/quickstart.mdx](docs/quickstart.mdx)
+Also supports Anthropic, LangChain, LangGraph, async, and cross-service propagation.
 
-### TypeScript — 2 lines
+### TypeScript -- 2 lines
 
 ```typescript
 import OpenAI from 'openai'
@@ -155,22 +131,11 @@ await rl.flush()
 
 Also supports Gemini, Mistral, Cohere.
 
-### Install
-
-```bash
-# Python
-pip install "runledger-sdk[openai] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
-# or: pip install "runledger-sdk[all]"   # openai + anthropic + langchain + langgraph + otel + cli
-
-# TypeScript
-npm install ./packages/ts-sdk
-```
-
 ---
 
 ## Model Gateway
 
-Point any OpenAI client at RunLedger's proxy — change only `base_url`:
+Point any OpenAI client at RunLedger's proxy -- change only `base_url`:
 
 ```python
 import openai
@@ -180,203 +145,45 @@ client = openai.OpenAI(
     base_url="http://localhost:8000/gateway",
 )
 resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
-# First call → forwarded to provider. Identical second call → cache hit (<5ms).
+# First call -> forwarded to provider. Identical second call -> cache hit (<5ms).
 ```
-
-Routes support priority fallback, canary splits, cost-optimized selection, and **outcome-optimized routing** (picks the model with the best cost-per-success based on recorded outcomes).
 
 ---
 
-## Dashboard
+## Dashboard Pages
 
 | Page | Path | Description |
 |------|------|-------------|
+| Dashboard | `/dashboard` | Spend summary, key metrics |
 | Run Explorer | `/runs` | Filter + paginate runs; DAG viewer; CSV export |
-| Analytics | `/analytics` | Spend summary, charts, top spenders |
-| User Profiles | `/analytics/users` | Cohorts, anomaly detection, per-user spend |
-| Economics | `/analytics/economics` | Unit economics, version comparison, regressions |
-| Budgets | `/budgets` | Create budgets, live spend progress, breach history |
-| Billing | `/billing` | Billing periods, chargeback breakdown, signed export |
-| Invoices | `/invoices` | Provider invoice import, reconciliation, dispute trail |
-| Outcomes & ROI | `/outcomes` | Cost-per-outcome, workflow ROI, success rate trends |
 | Sessions | `/sessions` | Multi-turn conversations; cost-over-turns chart |
-| Datasets | `/datasets` | Test case collections (CSV/JSON/URL import) for eval experiments |
-| Experiments | `/experiments` | Run prompt × model × dataset evaluations; compare model scores |
+| Analytics | `/analytics` | Spend charts, top spenders, economics |
+| Budgets | `/budgets` | Create budgets, live spend progress, breach history |
+| Outcomes & ROI | `/outcomes` | Cost-per-outcome, workflow ROI, success rate trends |
 | Evaluations | `/evaluations` | Submit + view quality scores, regressions |
-| Prompts | `/prompts` | Version-controlled prompt registry, diff viewer, promote, GitHub sync |
+| Experiments | `/experiments` | Run prompt x model x dataset evaluations |
+| Prompts | `/prompts` | Version-controlled registry, diff viewer, promote |
+| Gateway | `/gateway` | Routes, routing log, runtime controls |
 | Approvals | `/approvals` | Governance queue for sensitive actions |
-| Replay | `/replay` | Cost-projection experiments across model configs |
-| Ledger | `/ledger` | HMAC-signed snapshots, tool registry, privacy policy |
-| Gateway | `/gateway` | Routes, routing log, outcome-aware insights, runtime controls |
-| Settings | `/settings` | API keys, SSO/SCIM, alerts, integrations, warehouse, retention |
-| Admin | `/admin` | Platform stats, tenant + user management (platform admin only) |
+| Monitoring | `/monitoring` | Alert rules, metric thresholds |
+| Settings | `/settings` | API keys, MCP setup, alerts, integrations, retention |
 
 ---
 
-## LangGraph / LangChain → RunLedger via OTLP
+## Tech Stack
 
-If you are already using `openinference-instrumentation-langchain` (or any OTel-based tracer) to send traces to LangSmith, switching to RunLedger is one import swap. No changes to your agent code.
-
-### Option A — replace LangSmith's OTLP exporter
-
-```python
-# Before (LangSmith)
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-exporter = OTLPSpanExporter(
-    endpoint="https://api.smith.langchain.com/otel/v1/traces",
-    headers={"x-api-key": os.environ["LANGSMITH_API_KEY"]},
-)
-
-# After (RunLedger) — one line change
-from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
-
-exporter = RunLedgerOTLPExporter(
-    api_key=os.environ["RUNLEDGER_API_KEY"],   # rl_live_...
-    base_url="http://localhost:8000",           # or your deployed instance
-)
-```
-
-Wire it into a `TracerProvider` and instrument LangChain — everything else stays the same:
-
-```python
-import os
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from openinference.instrumentation.langchain import LangChainInstrumentor
-from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
-
-# 1. Build a TracerProvider with RunLedger as the export destination
-provider = TracerProvider()
-provider.add_span_processor(
-    BatchSpanProcessor(
-        RunLedgerOTLPExporter(
-            api_key=os.environ["RUNLEDGER_API_KEY"],
-            base_url=os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000"),
-        )
-    )
-)
-
-# 2. Instrument LangChain (covers LangGraph too — it builds on LangChain)
-LangChainInstrumentor().instrument(tracer_provider=provider)
-
-# 3. Your agent code is unchanged
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, StateGraph
-from langchain_core.messages import HumanMessage
-
-llm = ChatOpenAI(model="gpt-4o-mini")
-
-# ... build your graph normally ...
-result = graph.invoke({"messages": [HumanMessage(content="Summarise today's AI news")]})
-
-# 4. Flush before process exits
-provider.force_flush(timeout_millis=10_000)
-```
-
-Install dependencies:
-
-```bash
-pip install "runledger-sdk[otel] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
-pip install opentelemetry-sdk openinference-instrumentation-langchain langchain-openai langgraph
-```
-
----
-
-### Option B — send to RunLedger and LangSmith simultaneously
-
-Add both exporters to the same `TracerProvider`. Every span ships to both destinations:
-
-```python
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.instrumentation.langchain import LangChainInstrumentor
-from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
-
-provider = TracerProvider()
-
-# LangSmith
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(
-            endpoint="https://api.smith.langchain.com/otel/v1/traces",
-            headers={"x-api-key": os.environ["LANGSMITH_API_KEY"]},
-        )
-    )
-)
-
-# RunLedger — finance-grade cost accounting on top of LangSmith observability
-provider.add_span_processor(
-    BatchSpanProcessor(
-        RunLedgerOTLPExporter(api_key=os.environ["RUNLEDGER_API_KEY"])
-    )
-)
-
-LangChainInstrumentor().instrument(tracer_provider=provider)
-```
-
----
-
-### Option C — RunLedger native SDK (no OTel required)
-
-If you are not already using OTel, the RunLedger SDK has a first-class LangChain callback and LangGraph `instrument_graph()` helper that require zero boilerplate:
-
-```python
-from runledger_sdk import RunLedger
-from runledger_sdk.langgraph import instrument_graph
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, StateGraph
-
-rl = RunLedger()  # reads RUNLEDGER_API_KEY from env
-
-# Instrument the compiled graph — every node becomes a span automatically
-instrumented = instrument_graph(graph, rl._get_sync_transport())
-
-with rl.context(end_user_id="u_123", feature_tag="research-agent") as run_id:
-    result = instrumented.invoke({"messages": [HumanMessage(content="...")]})
-
-rl.shutdown()
-```
-
-This path also enables budget enforcement (pre-call spend checks), `rl.score()` outcome recording, and `rl.get_prompt()` prompt registry — features not available through the OTLP path.
-
-See [`examples/04_langgraph_agent.py`](examples/04_langgraph_agent.py) and [`examples/03_langchain_chain.py`](examples/03_langchain_chain.py) for full working examples.
-
----
-
-## Coming from LangSmith / Langfuse / Helicone?
-
-RunLedger can run **alongside** your existing observability tool — or replace it. The migration is typically 1–3 lines.
-
-| From | What changes | Guide |
-|------|-------------|-------|
-| **LangSmith** | Add `rl.callback_handler()` to the same `callbacks` list | [docs/migration/from-langsmith.mdx](docs/migration/from-langsmith.mdx) |
-| **Langfuse** | Add `rl.instrument()` after `from langfuse.openai import openai` | [docs/migration/from-langfuse.mdx](docs/migration/from-langfuse.mdx) |
-| **Helicone** | Change `base_url` from `oai.helicone.ai/v1` to `your-runledger/gateway` | [docs/migration/from-helicone.mdx](docs/migration/from-helicone.mdx) |
-
-The key difference: the other tools focus on trace visibility and evals. RunLedger adds **finance-grade cost accounting** — invoice reconciliation, budget enforcement, chargeback, and tamper-evident billing snapshots.
-
----
-
-## Documentation
-
-| Doc | Contents |
-|-----|----------|
-| [Quickstart](docs/quickstart.mdx) | Full setup guide, all SDK providers, gateway, analytics API, troubleshooting |
-| [Introduction](docs/introduction.mdx) | Product overview, ingestion paths, navigation |
-| [OTLP integration](docs/otlp.md) | Route reference, attribute priority, error codes |
-| [OpenInference mapping](docs/openinference.md) | Full attribute mapping tables |
-| [OTel Collector config](docs/collector.md) | Reference configs, processor examples |
-| [Railway deployment](docs/deployment.md) | Full production deployment guide |
-| [Helm chart](docs/helm.md) | Kubernetes deployment with Helm, values reference |
-| [High availability](docs/ha.md) | Multi-replica setup, Redis Sentinel, read replicas |
-| [Backup & restore](docs/backup-restore.md) | Postgres dump/restore, snapshot strategy |
-| [Upgrades](docs/upgrade.md) | Zero-downtime upgrade procedure, migration notes |
-| [BYOK / KMS](docs/byok.md) | Bring-your-own-key encryption with AWS KMS or Vault |
-| [Migration from LangSmith](docs/migration/from-langsmith.mdx) | Add RunLedger alongside or replace LangSmith |
-| [Migration from Langfuse](docs/migration/from-langfuse.mdx) | Callback swap or wrapper replacement |
-| [Migration from Helicone](docs/migration/from-helicone.mdx) | One `base_url` change |
+| Layer | Choice |
+|-------|--------|
+| Language | Python 3.13 |
+| API framework | FastAPI (async) |
+| Database | PostgreSQL 16 (partitioned tables + materialized views) |
+| Queue / cache | Redis 7 (Streams + budget hot-path) |
+| Workers | Celery + Redis broker |
+| SDKs | Python (`runledger-sdk`) + TypeScript (`@runledger/sdk`) |
+| Frontend | Next.js 14, App Router, TypeScript, Tailwind, shadcn/ui, Recharts |
+| Migrations | Alembic |
+| Package manager | uv (workspaces) |
+| Deploy | Docker Compose (local), Railway (managed) |
 
 ---
 
@@ -384,18 +191,18 @@ The key difference: the other tools focus on trace visibility and evals. RunLedg
 
 | Provider | SDK |
 |----------|-----|
-| OpenAI (gpt-4o, gpt-4o-mini, o1, o3-mini, …) | Python + TypeScript |
-| Anthropic (claude-opus-4-6, claude-sonnet-4-6, …) | Python + TypeScript |
+| OpenAI (gpt-4o, gpt-4o-mini, o1, o3-mini, ...) | Python + TypeScript |
+| Anthropic (Claude Opus, Sonnet, Haiku, ...) | Python + TypeScript |
 | Google Gemini | Python + TypeScript |
 | Mistral | Python + TypeScript |
 | Cohere | Python + TypeScript |
 | Any OpenAI-compatible (Ollama, vLLM, Groq, Azure, Bedrock, Vertex) | Python + TypeScript |
 
-Add a new model by inserting a row into `provider_pricing` — no code change required.
+Add a new model by inserting a row into `provider_pricing` -- no code change required.
 
 ---
 
-## Development Commands
+## Development
 
 ```bash
 # Install all workspace dependencies
@@ -404,7 +211,7 @@ uv sync --all-packages
 # API (dev server)
 cd apps/api && uv run fastapi dev runledger_api/main.py
 
-# Celery worker + beat (separate terminals)
+# Celery worker + beat
 cd apps/api && uv run celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
 cd apps/api && uv run celery -A runledger_api.core.celery_app beat --loglevel=info
 
@@ -426,12 +233,43 @@ uv run ruff check . && uv run mypy apps/api/runledger_api
 
 ---
 
+## Community vs Enterprise
+
+| Feature | Community | Enterprise |
+|---------|:---------:|:----------:|
+| SDK instrumentation (Python + TypeScript) | Y | Y |
+| OTLP / OpenTelemetry ingestion | Y | Y |
+| Core metering + pricing engine | Y | Y |
+| Budgets + spend guardrails | Y | Y |
+| Analytics + dashboards | Y | Y |
+| Model gateway + prompt caching | Y | Y |
+| Evaluations + experiments | Y | Y |
+| Prompt registry | Y | Y |
+| Outcomes & ROI | Y | Y |
+| Approvals & governance | Y | Y |
+| Multi-tenant RBAC | Y | Y |
+| Alert rules | Y | Y |
+| Data retention policies | Y | Y |
+| Provider invoice reconciliation | | Y |
+| Chargeback engine + cost centers | | Y |
+| SSO / OIDC + SCIM provisioning | | Y |
+| Warehouse export (S3/GCS/R2) | | Y |
+| BYOK / KMS encryption | | Y |
+| Advanced routing policies | | Y |
+| Finance system exports (QuickBooks, NetSuite) | | Y |
+| Kafka event streaming | | Y |
+| Pricing contracts + credits | | Y |
+
+Enterprise features are available separately -- [contact for details](mailto:abijith13@gmail.com).
+
+---
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and the PR process.
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and PR process.
 
 ---
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE)

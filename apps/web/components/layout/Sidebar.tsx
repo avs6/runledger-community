@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, LayoutList, MessageSquare,
   FlaskConical, Activity, Wallet, Settings,
-  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, CreditCard, FileText, Receipt, TrendingUp, ShieldCheck, ScrollText, Beaker, TableProperties,
+  Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, FileText, TrendingUp, ShieldCheck, ScrollText, Beaker, TableProperties,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -61,23 +61,15 @@ export default function Sidebar() {
   // Build the bottom admin items based on role — no duplicates
   const bottomItems: { href: string; label: string; icon: React.ElementType }[] = []
 
-  if (isPlatformAdmin) {
-    bottomItems.push({ href: '/admin/tenants', label: 'Organization', icon: Building2 })
-  } else if (isOrgAdmin) {
+  if (isOrgAdmin || isPlatformAdmin) {
     bottomItems.push({ href: '/organization', label: 'Organization', icon: Building2 })
   }
 
-  if (isPlatformAdmin) {
-    bottomItems.push({ href: '/admin/users', label: 'Users', icon: Users })
-  } else if (isWorkspaceAdmin) {
+  if (isWorkspaceAdmin || isOrgAdmin || isPlatformAdmin) {
     bottomItems.push({ href: '/users', label: 'Users', icon: Users })
   }
 
-  if (isPlatformAdmin) {
-    bottomItems.push({ href: '/admin/workspaces', label: 'Workspaces', icon: LayoutGrid })
-  } else {
-    bottomItems.push({ href: '/workspace', label: 'Workspace', icon: LayoutGrid })
-  }
+  bottomItems.push({ href: '/workspace', label: 'Workspace', icon: LayoutGrid })
 
   return (
     <aside className="flex h-full w-60 flex-col border-r border-white/[0.05] bg-white/80 px-3 py-4 backdrop-blur-xl dark:border-white/[0.05] dark:bg-[#070A17]/90">
@@ -155,8 +147,7 @@ export default function Sidebar() {
         {canAccessFinance && (
           <>
             <SectionLabel label="Finance" />
-            <NavLink href="/finance" label="Finance" icon={Wallet} />
-            <NavLink href="/invoices" label="Invoice Reconciliation" icon={Receipt} />
+            <NavLink href="/budgets" label="Budgets" icon={Wallet} />
             <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
           </>
         )}
@@ -175,9 +166,6 @@ export default function Sidebar() {
           {bottomItems.map(({ href, label, icon: Icon }) => (
             <NavLink key={href} href={href} label={label} icon={Icon} />
           ))}
-          {canAccessFinance && (
-            <NavLink href="/billing/subscription" label="Subscription" icon={CreditCard} />
-          )}
           <NavLink href="/settings" label="Settings" icon={Settings} />
         </div>
       </div>

@@ -13,16 +13,12 @@ celery_app = Celery(
         "runledger_api.workers.billing",
         "runledger_api.workers.ledger",
         "runledger_api.workers.alerts",
-        "runledger_api.workers.quotas",
         "runledger_api.workers.evaluators",
         "runledger_api.workers.outcomes",
         "runledger_api.workers.otlp_finalize",
         "runledger_api.workers.retention",
-        "runledger_api.workers.warehouse",
         "runledger_api.workers.email_reports",
         "runledger_api.workers.gateway_health",
-        "runledger_api.workers.pricing_sync",
-        "runledger_api.workers.kafka_export",
     ],
 )
 
@@ -36,11 +32,6 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     beat_schedule={
-        # Pricing sync from YAML file: every 6 hours
-        "sync-pricing-from-file-6h": {
-            "task": "metering.sync_pricing_from_file",
-            "schedule": 21600.0,
-        },
         # Cost enrichment: every 60 seconds
         "cost-enrichment-60s": {
             "task": "metering.cost_enrichment",
@@ -96,11 +87,6 @@ celery_app.conf.update(
             "task": "alerts.evaluate_rules",
             "schedule": 300.0,
         },
-        # Quota monthly reset: daily check (idempotent, only resets on month boundary)
-        "quota-monthly-reset-daily": {
-            "task": "quota_monthly_reset",
-            "schedule": 86400.0,
-        },
         # Judge drift detection: every 6 hours
         "judge-drift-6h": {
             "task": "evaluators.detect_judge_drift",
@@ -126,11 +112,6 @@ celery_app.conf.update(
             "task": "retention.apply_policies",
             "schedule": 86400.0,
         },
-        # Warehouse exports: daily at 02:00 UTC (exports previous day's data)
-        "warehouse-exports-daily": {
-            "task": "warehouse.run_scheduled_exports",
-            "schedule": 86400.0,
-        },
         # Weekly analytics email report: every Monday at 07:00 UTC
         "email-report-weekly": {
             "task": "email_reports.send_weekly_analytics",
@@ -140,11 +121,6 @@ celery_app.conf.update(
         "gateway-health-check-5m": {
             "task": "gateway.health_check",
             "schedule": 300.0,
-        },
-        # Pricing catalog sync: every 6 hours
-        "pricing-catalog-sync-6h": {
-            "task": "pricing.sync_catalog",
-            "schedule": 21600.0,
         },
     },
 )

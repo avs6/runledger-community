@@ -22,15 +22,7 @@ class Settings(BaseSettings):
     # App
     environment: str = "development"
     log_level: str = "INFO"
-    runledger_mode: str = "oss"  # "oss" | "saas" | "enterprise" (legacy)
-
-    # ── License — enterprise self-hosted ──────────────────────────────────────
-    # Customers set this in their .env to unlock enterprise features.
-    # Format: rl_lic_<base64url_payload>.<base64url_hmac_sha256_sig>
-    runledger_license_key: str = ""
-    # Signing key — held ONLY by the RunLedger vendor to issue keys.
-    # Never ship this to customers.  Leave empty in customer deployments.
-    runledger_license_signing_key: str = ""
+    runledger_mode: str = "community"
 
     # CORS — comma-separated list of allowed origins.
     # In production set CORS_ORIGINS=https://your-frontend.railway.app
@@ -48,35 +40,7 @@ class Settings(BaseSettings):
     smtp_from: str = "runledger@gmail.com"
     app_base_url: str = "http://localhost:3000"  # used for verification links
 
-    # Stripe — leave empty for OSS / self-hosted deployments
-    stripe_secret_key: str = ""
-    stripe_webhook_secret: str = ""
-    stripe_price_starter: str = ""  # Stripe Price ID for Starter plan
-    stripe_price_growth: str = ""  # Stripe Price ID for Growth plan
-    stripe_price_enterprise: str = ""  # Stripe Price ID for Enterprise plan
-
-    # Firebase Admin SDK — leave empty to disable social login
-    # Create a service account at: Firebase Console → Project Settings → Service Accounts
-    firebase_project_id: str = ""
-    firebase_client_email: str = ""
-    firebase_private_key: str = ""  # PEM key; \n in value is auto-converted
-
-    # ── BYOK / KMS (enterprise) ───────────────────────────────────────────────
-    # KMS_PROVIDER=local (default) | aws_kms | vault
-    kms_provider: str = "local"
-
-    # AWS KMS — requires boto3 and IAM permissions for kms:GenerateDataKey + kms:Decrypt
-    aws_kms_key_id: str = ""  # e.g. arn:aws:kms:us-east-1:123456:key/abc-def
-    aws_kms_region: str = "us-east-1"
-
-    # HashiCorp Vault Transit secrets engine
-    vault_addr: str = ""  # e.g. https://vault.example.com
-    vault_token: str = ""  # Vault token with transit encrypt/decrypt policy
-    vault_transit_key: str = "runledger"  # Transit key name
-
     # ── Operational metrics ───────────────────────────────────────────────────
-    # Token required to scrape /metrics and /ops/status.
-    # If empty, falls back to effective_admin_secret.
     metrics_token: str = ""
 
     @property

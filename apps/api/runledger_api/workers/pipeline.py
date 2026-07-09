@@ -162,27 +162,6 @@ async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
         )
     )
 
-    # Publish run completion to Kafka (fire-and-forget)
-    event_type = "run.completed" if status == "completed" else "run.failed"
-    workspace_id = e.get("workspace_id")
-    if workspace_id:
-        from runledger_api.workers.kafka_export import dispatch_kafka_event  # noqa: PLC0415
-
-        dispatch_kafka_event.delay(
-            workspace_id,
-            event_type,
-            {
-                "event": event_type,
-                "run_id": e["run_id"],
-                "status": status,
-                "ended_at": e["ended_at"],
-                "total_cost_usd": str(e.get("total_cost_usd") or "0"),
-                "total_input_tokens": e.get("total_input_tokens"),
-                "total_output_tokens": e.get("total_output_tokens"),
-                "feature_tag": e.get("feature_tag"),
-                "end_user_id": e.get("end_user_id"),
-            },
-        )
 
 
 async def _handle_span_start(session: AsyncSession, e: dict[str, Any]) -> None:
