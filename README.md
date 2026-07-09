@@ -150,6 +150,40 @@ resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
 
 ---
 
+## Screenshots
+
+### Login
+<img src="docs/screenshots/login.png" alt="Login" width="780" />
+
+### Dashboard
+<img src="docs/screenshots/dashboard.png" alt="Dashboard" width="780" />
+
+### Run Explorer
+<img src="docs/screenshots/runs.png" alt="Runs" width="780" />
+
+### Analytics
+<img src="docs/screenshots/analytics.png" alt="Analytics" width="780" />
+
+### Model Gateway
+<img src="docs/screenshots/gateway.png" alt="Model Gateway" width="780" />
+
+### Prompt Registry
+<img src="docs/screenshots/prompts.png" alt="Prompts" width="780" />
+
+### Evaluation & Experiments
+<img src="docs/screenshots/evaluation.png" alt="Evaluation" width="780" />
+
+### Outcomes & ROI
+<img src="docs/screenshots/outcomes.png" alt="Outcomes & ROI" width="780" />
+
+### Approvals & Governance
+<img src="docs/screenshots/approvals.png" alt="Approvals" width="780" />
+
+### Settings
+<img src="docs/screenshots/settings.png" alt="Settings" width="780" />
+
+---
+
 ## Dashboard Pages
 
 | Page | Path | Description |
