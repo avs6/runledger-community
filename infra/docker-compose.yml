@@ -55,21 +55,6 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
-      # Firebase Admin SDK — set in infra/.env to enable social login
-      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
-      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
-      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
-      # Stripe — set in infra/.env for paid plans
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
-      STRIPE_PRICE_GROWTH: ${STRIPE_PRICE_GROWTH:-}
-      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
-      RUNLEDGER_MODE: ${RUNLEDGER_MODE:-enterprise}
-      RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
-      RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_PROMPTS_REPO: ${GITHUB_PROMPTS_REPO:-}
     volumes:
       - ../logs:/app/logs
       # Provider pricing — edit config/pricing.yml then restart api + beat to apply
@@ -97,9 +82,6 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
-      RUNLEDGER_MODE: ${RUNLEDGER_MODE:-enterprise}
-      RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
-      RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
     volumes:
       - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
@@ -108,7 +90,7 @@ services:
       redis:
         condition: service_healthy
 
-  # Celery Beat scheduler — fires periodic tasks: pricing sync (6h),
+  # Celery Beat scheduler — fires periodic tasks:
   # cost_enrichment (60s), hourly rollup (30m), daily rollup, anomaly detection
   beat:
     build:
@@ -122,9 +104,6 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: development
       LOG_LEVEL: INFO
-      RUNLEDGER_MODE: ${RUNLEDGER_MODE:-enterprise}
-      RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
-      RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
     volumes:
       - ../config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
@@ -140,12 +119,6 @@ services:
       args:
         # Must be the browser-facing URL — NEXT_PUBLIC_ vars are baked in at build time
         NEXT_PUBLIC_API_URL: http://localhost:8000
-        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
-        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
-        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
-        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
-        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
     ports:
       - "3000:3000"
     environment:

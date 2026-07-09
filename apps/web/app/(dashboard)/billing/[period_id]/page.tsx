@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { ChevronLeft, AlertCircle } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getBillingPeriod, getReconciliation, getPeriodBreakdown } from '@/lib/api'
-import ReconciliationPanel from '@/components/billing/ReconciliationPanel'
 import BreakdownTable from '@/components/billing/BreakdownTable'
 import type { ReconciliationResult, PeriodBreakdown, BillingPeriod } from '@/types/api'
 
@@ -108,7 +107,12 @@ export default async function BillingPeriodDetailPage({
       {reconciliationError ? (
         <ErrorCard message={`Reconciliation unavailable: ${reconciliationError}`} />
       ) : reconciliation ? (
-        <ReconciliationPanel result={reconciliation} />
+        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Reconciliation</h3>
+          <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-x-auto">
+            {JSON.stringify(reconciliation, null, 2)}
+          </pre>
+        </div>
       ) : null}
 
       {/* Breakdown */}

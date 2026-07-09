@@ -31,7 +31,7 @@ COPY --from=builder /app/apps/api/alembic /app/alembic
 COPY --from=builder /app/apps/api/alembic.ini /app/alembic.ini
 COPY --from=builder /app/apps/api/scripts /app/scripts
 
-RUN chmod +x /app/scripts/start.sh
+RUN sed -i 's/\r$//' /app/scripts/start.sh && chmod +x /app/scripts/start.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"

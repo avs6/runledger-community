@@ -52,62 +52,6 @@ export const authOptions: AuthOptions = {
       },
     }),
 
-    CredentialsProvider({
-      id: 'sso',
-      name: 'SSO',
-      credentials: {
-        // The frontend exchanges a short-lived Redis token for the full session data
-        email: { label: 'Email', type: 'email' },
-        apiKey: { label: 'API Key', type: 'text' },
-        userId: { label: 'User ID', type: 'text' },
-        workspaceId: { label: 'Workspace ID', type: 'text' },
-        workspaceName: { label: 'Workspace Name', type: 'text' },
-        tenantId: { label: 'Tenant ID', type: 'text' },
-        fullName: { label: 'Full Name', type: 'text' },
-        isPlatformAdmin: { label: 'Platform Admin', type: 'text' },
-        tenantRole: { label: 'Tenant Role', type: 'text' },
-        workspaceRole: { label: 'Workspace Role', type: 'text' },
-        workspaceIds: { label: 'Workspace IDs', type: 'text' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.apiKey) return null
-        return buildUserFromApiResponse({
-          email: credentials.email,
-          full_name: credentials.fullName || null,
-          user_id: credentials.userId,
-          api_key: credentials.apiKey,
-          workspace_id: credentials.workspaceId,
-          workspace_name: credentials.workspaceName,
-          tenant_id: credentials.tenantId,
-          is_platform_admin: credentials.isPlatformAdmin === 'true',
-          tenant_role: credentials.tenantRole || null,
-          workspace_role: credentials.workspaceRole || null,
-          workspace_ids: JSON.parse(credentials.workspaceIds || '[]'),
-        })
-      },
-    }),
-
-    CredentialsProvider({
-      id: 'firebase',
-      name: 'Firebase',
-      credentials: {
-        idToken: { label: 'Firebase ID Token', type: 'text' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.idToken) return null
-        try {
-          const res = await fetch(`${API_URL}/auth/firebase-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_token: credentials.idToken }),
-          })
-          if (!res.ok) return null
-          return buildUserFromApiResponse(await res.json())
-        } catch {
-          return null
-        }
-      },
-    }),
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
