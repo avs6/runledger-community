@@ -69,13 +69,13 @@ export default function GatewayPage() {
     setLoading(true)
     try {
       const [routesData, statsData, policiesData, pricingData] = await Promise.all([
-        listGatewayRoutes(apiKey, true),
-        getGatewayStats(apiKey),
-        listRoutingPolicies(apiKey),
-        listProviderPricing(apiKey),
+        listGatewayRoutes(apiKey, true).catch(() => ({ items: [] })),
+        getGatewayStats(apiKey).catch(() => ({ total_requests: 0, cache_hits: 0, cache_hit_rate: '0', avg_latency_ms: null, routes: [] })),
+        listRoutingPolicies(apiKey).catch(() => ({ items: [] })),
+        listProviderPricing(apiKey).catch(() => ({ items: [] })),
       ])
       setGatewayRoutes(routesData.items)
-      setGatewayStats(statsData)
+      setGatewayStats(statsData as any)
       setRoutingPolicies(policiesData.items)
       setPricing(pricingData.items)
     } catch {

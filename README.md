@@ -182,6 +182,12 @@ resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
 ### Settings
 <img src="docs/screenshots/settings.png" alt="Settings" width="780" />
 
+### Users & RBAC
+<img src="docs/screenshots/users.png" alt="Users" width="780" />
+
+### Organization
+<img src="docs/screenshots/organization.png" alt="Organization" width="780" />
+
 ---
 
 ## Dashboard Pages
