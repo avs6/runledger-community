@@ -516,4 +516,3 @@ async def _run_replay_backfill(from_iso: str, to_iso: str) -> dict[str, Any]:
         "hourly_window": hourly_result,
         "days_rerolled": days_rerolled,
     }
-

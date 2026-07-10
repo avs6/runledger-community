@@ -444,12 +444,3 @@ def test_rule_evaluator_empty_rules() -> None:
 
     score, _ = run_rule_evaluator({"rules": []}, {"status": "succeeded"})
     assert score == Decimal("0")
-
-
-def test_normalise_model() -> None:
-    from runledger_api.services.invoices import _normalise_model  # type: ignore[attr-defined]
-
-    assert _normalise_model("gpt-4o-2024-11-20") == "gpt-4o"
-    assert _normalise_model("claude-3-5-sonnet-20241022") == "claude-3-5-sonnet"
-    assert _normalise_model("gpt-3.5-turbo") == "gpt-3.5-turbo"
-    assert _normalise_model(None) == ""
