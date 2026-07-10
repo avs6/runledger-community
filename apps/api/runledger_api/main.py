@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from runledger_api.core.config import settings
-from runledger_api.core.db import AsyncSessionLocal, engine
+from runledger_api.core.db import engine
 from runledger_api.core.logging import configure_logging
 from runledger_api.core.redis import redis_client
 from runledger_api.mcp_server import mcp as _mcp_server

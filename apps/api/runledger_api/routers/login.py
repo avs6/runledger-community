@@ -11,8 +11,6 @@ NextAuth stores the raw key in the encrypted JWT session.
 
 from __future__ import annotations
 
-import re
-import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -24,19 +22,14 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_user
 from runledger_api.models.tenant import (
     ApiKey,
     EnvironmentEnum,
-    PlanEnum,
-    Tenant,
-    TenantRoleEnum,
     TenantUser,
     User,
     Workspace,
-    WorkspaceRoleEnum,
     WorkspaceUser,
 )
 from runledger_api.schemas.runs import LoginRequest, LoginResponse
