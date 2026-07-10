@@ -163,7 +163,6 @@ async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
     )
 
 
-
 async def _handle_span_start(session: AsyncSession, e: dict[str, Any]) -> None:
     stmt = (
         insert(Span)
