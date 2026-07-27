@@ -44,6 +44,7 @@ from runledger_api.schemas.gateway import (
     GatewayRouteUpdate,
     GatewayStats,
 )
+from runledger_api.services import semantic_cache
 from runledger_api.services.gateway import (
     check_cache,
     increment_hit_count,
@@ -113,6 +114,28 @@ async def gateway_chat_completions(
             decision_reason="cache_hit",
         )
         return cache_entry.response_json
+
+    # ── 1b. Semantic cache lookup (opt-in, fail-open) ────────────────────────
+    # Only for non-streaming requests that opt in. Never raises; a miss or an
+    # unreachable service simply falls through to normal routing.
+    if body.semantic_cache and not body.stream:
+        sem_hit = await semantic_cache.lookup(workspace.id, body.model, messages)
+        if sem_hit is not None:
+            usage = sem_hit.get("usage") or {}
+            await record_gateway_request(
+                db=db,
+                workspace_id=workspace.id,
+                model_requested=body.model,
+                route=None,
+                model_used=body.model,
+                cache_hit=True,
+                input_tokens=usage.get("prompt_tokens"),
+                output_tokens=usage.get("completion_tokens"),
+                latency_ms=0,
+                req_status="cache_hit",
+                decision_reason="semantic_cache_hit",
+            )
+            return sem_hit
 
     # ── 2. Streaming path ────────────────────────────────────────────────────
     if body.stream:
@@ -237,6 +260,17 @@ async def gateway_chat_completions(
             workspace_id=workspace.id,
             cache_key=cache_key,
             model=winning_route.target_model,
+            response_json=response_json,
+            prompt_tokens=input_tokens,
+            completion_tokens=output_tokens,
+        )
+
+    # Semantic cache store (opt-in, fail-open — bounded 2s timeout, mirrors exact-cache store)
+    if body.semantic_cache:
+        await semantic_cache.store(
+            workspace_id=workspace.id,
+            model=body.model,
+            messages=messages,
             response_json=response_json,
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,
