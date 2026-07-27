@@ -16,15 +16,15 @@ RunLedger sits between your agents and every model provider — OpenAI, Anthropi
 
 ## Why RunLedger
 
-Every team shipping AI agents in production hits the same wall:
+Shipping AI agents to production is easy. Keeping them accountable is not. Every team hits the same five walls:
 
-- **Spend explodes** — a retry loop or runaway agent silently burns through the API budget overnight.
+- **Spend explodes** — a retry loop or runaway agent silently burns through the API budget overnight, and nobody notices until the invoice lands.
 - **Attribution is guesswork** — cost can't be tied to a tenant, user, or feature without custom instrumentation.
 - **Routing ignores economics** — models are chosen for capability, never for cost-per-outcome.
-- **Context is bloated** — agents ship tens of thousands of redundant tokens on every call.
-- **No audit trail** — nothing links internal metering to the exact agent run that generated the spend.
+- **Context is bloated** — agents ship tens of thousands of redundant tokens on every call, paying frontier rates for context the model never needed.
+- **No audit trail** — nothing links internal metering back to the exact agent run that generated the spend.
 
-RunLedger closes all five gaps in one self-hosted control plane.
+RunLedger closes all five in one self-hosted control plane — no vendor lock-in, no data leaving your infrastructure, no GPU required.
 
 ---
 
@@ -93,6 +93,10 @@ Everything below is **available today** in RunLedger Community.
 ## Architecture
 
 RunLedger is a **control plane** (metering, budgets, analytics, governance) fronting an **inline data plane** (the gateway and its caching/routing stages). Agents reach it three ways — SDK, OpenTelemetry, or the model gateway — and everything normalizes into a single domain model.
+
+<img width="1408" height="768" alt="RunLedger Architecture" src="https://github.com/user-attachments/assets/f57882fb-c531-4e02-80d4-6c6e9b512a76" />
+
+The request path in detail — the inline gateway data plane, and how every ingestion route feeds one control plane:
 
 ```mermaid
 flowchart TB
@@ -384,8 +388,12 @@ Add a new model by inserting a row into `provider_pricing` — no code change re
 | Monitoring | `/monitoring` | Alert rules, metric thresholds |
 | Settings | `/settings` | API keys, MCP setup, alerts, integrations, retention |
 
-<details>
-<summary><strong>Screenshots</strong></summary>
+---
+
+## Screenshots
+
+### Login
+<img src="docs/screenshots/login.png" alt="Login" width="780" />
 
 ### Dashboard
 <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="780" />
@@ -411,10 +419,14 @@ Add a new model by inserting a row into `provider_pricing` — no code change re
 ### Approvals & Governance
 <img src="docs/screenshots/approvals.png" alt="Approvals" width="780" />
 
+### Settings
+<img src="docs/screenshots/settings.png" alt="Settings" width="780" />
+
 ### Users & RBAC
 <img src="docs/screenshots/users.png" alt="Users" width="780" />
 
-</details>
+### Organization
+<img src="docs/screenshots/organization.png" alt="Organization" width="780" />
 
 ---
 
@@ -466,37 +478,6 @@ Add a new model by inserting a row into `provider_pricing` — no code change re
 | Pricing contracts + credits | | ✅ |
 
 Enterprise features are available separately — [contact for details](mailto:abijith13@gmail.com).
-
----
-
-## Development
-
-```bash
-# Install all workspace dependencies
-uv sync --all-packages
-
-# API (dev server)
-cd apps/api && uv run fastapi dev runledger_api/main.py
-
-# Celery worker + beat
-cd apps/api && uv run celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
-cd apps/api && uv run celery -A runledger_api.core.celery_app beat --loglevel=info
-
-# Frontend
-cd apps/web && npm run dev
-
-# Migrations
-cd apps/api && uv run alembic upgrade head
-
-# Full local stack
-docker compose -f infra/docker-compose.yml up
-
-# Tests
-cd apps/api && uv run pytest
-
-# Lint + typecheck
-uv run ruff check . && uv run mypy apps/api/runledger_api
-```
 
 ---
 
