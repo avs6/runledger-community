@@ -633,6 +633,8 @@ _ADAPTER_MAP: dict[str, OpenAIAdapter | AzureAdapter | BedrockAdapter | VertexAd
     "openai": _OPENAI_ADAPTER,
     "anthropic": _OPENAI_ADAPTER,
     "ollama": _OPENAI_ADAPTER,
+    "vllm": _OPENAI_ADAPTER,  # local vLLM server (OpenAI-compatible /v1)
+    "local": _OPENAI_ADAPTER,  # generic local OpenAI-compatible endpoint
     "groq": _OPENAI_ADAPTER,
     "mistral": _OPENAI_ADAPTER,
     "custom": _OPENAI_ADAPTER,

@@ -15,7 +15,8 @@ from pydantic import BaseModel, Field
 class GatewayRouteCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=128, description="Model alias clients use")
     provider: str = Field(
-        ..., pattern="^(openai|anthropic|ollama|groq|mistral|azure|bedrock|vertex|custom)$"
+        ...,
+        pattern="^(openai|anthropic|ollama|vllm|local|groq|mistral|azure|bedrock|vertex|custom)$",
     )
     target_model: str = Field(..., min_length=1, max_length=128)
     base_url: str | None = None
@@ -102,6 +103,11 @@ class GatewayCompletionRequest(BaseModel):
     # Gateway-specific
     stream: bool = False
     cache: bool = Field(True, description="Enable prompt cache lookup for this request")
+    semantic_cache: bool = Field(
+        False,
+        description="Enable semantic (near-duplicate) cache lookup via semantic-cache-svc. "
+        "Default off; fail-open (skipped if the service is unavailable).",
+    )
 
 
 # ── Stats schema ───────────────────────────────────────────────────────────────
