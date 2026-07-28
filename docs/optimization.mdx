@@ -1,123 +1,47 @@
 ---
 title: "Cost Optimization Layer"
-description: "Reduce frontier-model token spend before it happens — semantic caching, self-hosted models, and the Context Compiler — with a quality floor."
+description: "Reduce frontier-model token spend before it happens — semantic caching, self-hosted models, the Context Compiler, and prompt compression — with a quality floor."
 ---
 
 RunLedger doesn't just *measure* AI cost — it *reduces* it. The optimization layer sits inline in the
-Model Gateway and cuts tokens before they're ever sent to a provider, every stage **opt-in, fail-open,
-and default-off** so it can never break a working request.
+Model Gateway and cuts tokens before they're ever sent to a provider. Every stage is **opt-in,
+fail-open, and default-off**, so it can never break a working request, and everything runs on **CPU —
+no GPU required**.
 
-```
-REQUEST
-  │
-  ▼
-Exact cache ──────────────► hit → return
-  │ miss
-Semantic cache ───────────► hit → return          (near-duplicate)
-  │ miss
-Context Compiler ─────────► shrink the request     (dedup · tool-output · rerank · compaction)
-  │
-Routing + budgets ────────► provider (OpenAI / Anthropic / Gemini / self-hosted)
-  │
-Metering / ledger / ROI
-```
+## The pipeline
 
-Everything is self-hosted and **CPU-only — no GPU required**. The optimizer helpers run as small
-containers alongside the API.
-
----
-
-## Semantic cache
-
-The exact prompt cache only hits on a byte-for-byte identical request. The **semantic cache** also
-hits on a *paraphrase* whose embedding is within a similarity threshold — so
-`"how much parental leave do employees get"` hits an earlier
-`"How much parental leave do employees get?"`.
-
-Hits are **strictly scope-isolated** by `{tenant, model, system-prompt, knowledge-version,
-security-scope}`, so a cached answer can never leak across a permission or version boundary.
-
-**Enable it** (any one):
-
-- **Dashboard** → Gateway page → the **Cache ON/OFF** badge on a route.
-- **Per route** → `POST /gateway/routes` with `"semantic_cache_enabled": true`.
-- **Per request** → add `"semantic_cache": true` to a `/gateway/chat/completions` body.
-
-A hit is recorded with `decision_reason = "semantic_cache_hit"`. Backed by Qdrant + a CPU embedding
-model (`BAAI/bge-small-en-v1.5`). See [`examples/33_semantic_cache.py`](https://github.com/avs6/runledger-community/blob/master/examples/33_semantic_cache.py).
-
----
-
-## Self-hosted & local models
-
-Any OpenAI-compatible endpoint is a first-class gateway provider — **Ollama** (CPU), **vLLM**, or any
-local server. The runtimes are **external**: RunLedger points at their base URL, it doesn't ship them.
-
-```bash
-# .env
-OLLAMA_BASE_URL=http://host.docker.internal:11434/v1   # Ollama on the Docker host
-VLLM_BASE_URL=http://your-vllm-host:8000/v1            # a remote vLLM server
+```mermaid
+flowchart TB
+  req[REQUEST] --> exact[Exact cache]
+  exact -- hit --> ret1[return]
+  exact -- miss --> sem[Semantic cache]
+  sem -- hit --> ret2[return]
+  sem -- miss --> comp[Context Compiler\ndedup · tool-output · rerank · compaction · compression]
+  comp --> route[Routing + budgets]
+  route --> prov[Provider\nOpenAI · Anthropic · Gemini · self-hosted]
+  prov --> meter[(Metering · ledger · ROI)]
 ```
 
-Create a route with `provider: ollama` (or `vllm` / `local`) and `target_model` set to a model from
-`ollama list`. Add models to `config/pricing.yml` (set rates to `0.00` for free local inference) — they
-then appear in the dashboard model dropdowns and are metered like any hosted provider.
+## Features
 
----
-
-## Context Compiler
-
-The Context Compiler shrinks an oversized request **before** it reaches the model — the single biggest
-token win — in five toggleable, fail-open stages:
-
-| Stage | What it does |
-|-------|--------------|
-| **Dedup** | Drops exact-duplicate content blocks (agent loops that resend context). |
-| **Tool-output compression** | Collapses `role: tool` / oversized outputs — line-dedupe, head+tail, or a local-LLM summary for very large outputs. |
-| **Rerank + prune** | Reranks context chunks against the current question (cross-encoder) and prunes low-relevance overflow. |
-| **Conversation compaction** | Summarizes older turns into a checkpoint (goal / decisions / facts / artifacts / pending) when over the token budget. |
-| **Prompt compression** | *(opt-in, lossy)* LLMLingua-2 drops low-information tokens to a target keep-rate, protecting the question and recent turns. |
-| **Token budgeting** | Enforces an input ceiling and emits a `token_report` (before / after per stage). |
-
-It engages only when estimated input tokens exceed the configurable **engage threshold**
-(`token_threshold`, where **`0` = always engage**), so small requests are untouched.
-
-**Enable it** (any one):
-
-- **Dashboard** → Gateway page → **Compiler ON/OFF** badge, with a config popover: compaction-model
-  dropdown (your local models), reranker-model dropdown, engage threshold, token budget.
-- **Per route** → `"context_compiler_enabled": true` + a `context_compiler_config`:
-
-  ```json
-  {
-    "model": "llama3.1:8b",          // compaction / tool-summary LLM (local)
-    "reranker_model": "flashrank",   // "flashrank" | "bge-reranker-base" | "jina-tiny"
-    "token_threshold": 2000,         // 0 = always engage
-    "token_budget": 32000,
-    "stages": { "dedup": true, "tool_output": true, "rerank": true, "compaction": true, "compress": false },
-    "compression_model": "bert-base-multilingual",  // or "xlm-roberta-large"
-    "compression_rate": 0.5,         // fraction of tokens to keep
-    "compress_when": "over_budget"   // always | over_budget | over_pct (+ compress_budget_pct)
-  }
-  ```
-
-  **Prompt compression** (the `compress` stage) is opt-in and lossy: LLMLingua-2 (CPU, PyTorch) drops
-  low-information tokens to the keep-rate. Its engage policy is configurable — `always`, only
-  `over_budget`, or over a percentage of the budget — and the question plus recent turns are never
-  compressed. See [`examples/35_prompt_compression.py`](https://github.com/avs6/runledger-community/blob/master/examples/35_prompt_compression.py).
-
-- **Per request** → add `"context_compiler": true` to a `/gateway/chat/completions` body.
-- **MCP** → the `compile_context` tool on the RunLedger MCP server (for Claude Desktop / Code).
-
-The compaction stage uses your external local LLM; the reranker runs a CPU ONNX cross-encoder
-(MiniLM by default, or a BGE reranker). See
-[`examples/34_context_compiler.py`](https://github.com/avs6/runledger-community/blob/master/examples/34_context_compiler.py).
-
----
+<CardGroup cols={2}>
+  <Card title="Semantic Cache" href="/optimization/semantic-cache">
+    Serve paraphrases from cache with strict scope isolation.
+  </Card>
+  <Card title="Self-Hosted & Local Models" href="/optimization/local-models">
+    Ollama, vLLM, or any OpenAI-compatible endpoint as a metered provider.
+  </Card>
+  <Card title="Context Compiler" href="/optimization/context-compiler">
+    Shrink oversized requests: dedup, tool-output, rerank, compaction.
+  </Card>
+  <Card title="Prompt Compression" href="/optimization/prompt-compression">
+    Opt-in LLMLingua-2 token compression, under a quality floor.
+  </Card>
+</CardGroup>
 
 ## Services & ports
 
-The optimization helpers come up with `docker compose up -d`:
+Everything comes up with `docker compose up -d`:
 
 | Service | Port | Role |
 |---------|------|------|
@@ -130,8 +54,6 @@ The optimization helpers come up with `docker compose up -d`:
 | `runledger-compression` | 8209 | LLMLingua-2 prompt compression (opt-in) |
 
 Local LLM runtimes (Ollama / vLLM) are external and reached via `OLLAMA_BASE_URL` / `VLLM_BASE_URL`.
-
----
 
 ## Measuring savings
 
