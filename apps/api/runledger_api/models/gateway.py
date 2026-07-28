@@ -63,6 +63,12 @@ class GatewayRoute(Base):
     )
     # Compiler settings: model, reranker_model, token_threshold, token_budget, stages{}.
     context_compiler_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # When enabled, requests to this alias are classified and routed to a model tier.
+    intelligent_routing_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    # Router settings: classifier_mode, llm_model, tiers{}, matrix{}, risk_keywords[], on_failure, ...
+    routing_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     per_user_rpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     health_auto_disable: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")

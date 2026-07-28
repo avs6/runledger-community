@@ -162,6 +162,7 @@ async def forward_request(
     response_format: dict[str, Any] | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | dict[str, Any] | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """
     Forward the completion request to the provider (non-streaming).
@@ -186,6 +187,7 @@ async def forward_request(
         response_format=response_format,
         tools=tools,
         tool_choice=tool_choice,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -202,6 +204,7 @@ async def stream_request(
     response_format: dict[str, Any] | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | dict[str, Any] | None = None,
+    reasoning_effort: str | None = None,
 ) -> AsyncGenerator[bytes]:
     """
     Stream SSE chunks from the provider, yielding raw bytes lines.
@@ -226,6 +229,7 @@ async def stream_request(
         response_format=response_format,
         tools=tools,
         tool_choice=tool_choice,
+        reasoning_effort=reasoning_effort,
     ):
         yield chunk
 
@@ -275,6 +279,7 @@ async def route_and_forward(
     response_format: dict[str, Any] | None = None,
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | dict[str, Any] | None = None,
+    reasoning_effort: str | None = None,
 ) -> tuple[dict[str, Any], GatewayRoute, int, str]:
     """
     Select route by priority, then forward to the provider.
@@ -308,6 +313,7 @@ async def route_and_forward(
                     response_format=response_format,
                     tools=tools,
                     tool_choice=tool_choice,
+                    reasoning_effort=reasoning_effort,
                 )
                 latency_ms = int((time.monotonic() - t0) * 1000)
                 return response, route, latency_ms, decision_reason

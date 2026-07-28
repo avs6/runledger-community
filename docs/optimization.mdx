@@ -37,6 +37,9 @@ flowchart TB
   <Card title="Prompt Compression" href="/optimization/prompt-compression">
     Opt-in LLMLingua-2 token compression, under a quality floor.
   </Card>
+  <Card title="Intelligent Routing" href="/optimization/intelligent-routing">
+    Route by complexity × risk to the right model tier; set reasoning effort.
+  </Card>
 </CardGroup>
 
 ## Services & ports
@@ -52,6 +55,7 @@ Everything comes up with `docker compose up -d`:
 | `runledger-context-compiler` | 8207 | The Context Compiler |
 | `runledger-reranker` | 8208 | Cross-encoder reranker (MiniLM / BGE) |
 | `runledger-compression` | 8209 | LLMLingua-2 prompt compression (opt-in) |
+| `runledger-router` | 8210 | Intelligent routing (complexity × risk → tier) |
 
 Local LLM runtimes (Ollama / vLLM) are external and reached via `OLLAMA_BASE_URL` / `VLLM_BASE_URL`.
 

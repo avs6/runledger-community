@@ -45,7 +45,7 @@ from runledger_api.schemas.gateway import (
     GatewayRouteUpdate,
     GatewayStats,
 )
-from runledger_api.services import context_compiler, semantic_cache
+from runledger_api.services import context_compiler, intelligent_router, semantic_cache
 from runledger_api.services.gateway import (
     check_cache,
     increment_hit_count,
@@ -173,18 +173,51 @@ async def gateway_chat_completions(
                 _cc_report.get("saved"),
             )
 
+    # ── 1d. Intelligent routing (opt-in, fail-open) ──────────────────────────
+    # Classify complexity × risk → model tier; forward to that tier's alias and set
+    # reasoning_effort. Fail-open: on any error the requested alias is used unchanged.
+    route_alias = body.model
+    effective_reasoning_effort = body.reasoning_effort
+    ir_decision: dict[str, Any] | None = None
+    ir_enabled = body.intelligent_routing
+    routing_config: dict[str, Any] | None = None
+    if intelligent_router.enabled():
+        from runledger_api.services.gateway import select_routes  # noqa: PLC0415
+
+        _ir_routes = await select_routes(db, workspace.id, body.model)
+        if _ir_routes:
+            routing_config = _ir_routes[0].routing_config
+            ir_enabled = ir_enabled or _ir_routes[0].intelligent_routing_enabled
+    if ir_enabled:
+        ir_decision = await intelligent_router.classify(messages, routing_config)
+        if ir_decision and ir_decision.get("alias"):
+            route_alias = ir_decision["alias"]
+            if ir_decision.get("reasoning_effort") and effective_reasoning_effort is None:
+                effective_reasoning_effort = ir_decision["reasoning_effort"]
+            log.info(
+                "intelligent_routing alias=%s -> %s (%s)",
+                body.model,
+                route_alias,
+                ir_decision.get("reason"),
+            )
+        elif routing_config:
+            # No decision → optional default-tier fallback (on_failure = a tier name)
+            on_fail = routing_config.get("on_failure")
+            if isinstance(on_fail, str) and on_fail != "passthrough":
+                route_alias = (routing_config.get("tiers") or {}).get(on_fail, route_alias)
+
     # ── 2. Streaming path ────────────────────────────────────────────────────
     if body.stream:
         from runledger_api.services.gateway import select_routes  # noqa: PLC0415
 
-        routes = await select_routes(db, workspace.id, body.model)
+        routes = await select_routes(db, workspace.id, route_alias)
         if not routes:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"No active gateway routes for alias '{body.model}'",
+                detail=f"No active gateway routes for alias '{route_alias}'",
             )
         route = routes[0]
-        decision_reason = "priority"
+        decision_reason = ir_decision["reason"] if ir_decision and ir_decision.get("alias") else "priority"
 
         # Runtime controls
         await check_cost_cap(db, route, workspace.id)
@@ -212,6 +245,7 @@ async def gateway_chat_completions(
                 response_format=body.response_format,
                 tools=body.tools,
                 tool_choice=body.tool_choice,
+                reasoning_effort=effective_reasoning_effort,
             ):
                 yield chunk
 
@@ -241,7 +275,7 @@ async def gateway_chat_completions(
         response_json, winning_route, latency_ms, decision_reason = await route_and_forward(
             db=db,
             workspace_id=workspace.id,
-            model_alias=body.model,
+            model_alias=route_alias,
             messages=messages,
             temperature=body.temperature,
             max_tokens=body.max_tokens,
@@ -253,7 +287,10 @@ async def gateway_chat_completions(
             response_format=body.response_format,
             tools=body.tools,
             tool_choice=body.tool_choice,
+            reasoning_effort=effective_reasoning_effort,
         )
+        if ir_decision and ir_decision.get("alias"):
+            decision_reason = ir_decision["reason"]
     except HTTPException:
         await record_gateway_request(
             db=db,
@@ -354,6 +391,8 @@ async def create_gateway_route(
         semantic_cache_enabled=body.semantic_cache_enabled,
         context_compiler_enabled=body.context_compiler_enabled,
         context_compiler_config=body.context_compiler_config,
+        intelligent_routing_enabled=body.intelligent_routing_enabled,
+        routing_config=body.routing_config,
         per_user_rpm_limit=body.per_user_rpm_limit,
         health_auto_disable=body.health_auto_disable,
     )
@@ -416,6 +455,10 @@ async def update_gateway_route(
         route.context_compiler_enabled = body.context_compiler_enabled
     if "context_compiler_config" in body.model_fields_set:
         route.context_compiler_config = body.context_compiler_config
+    if body.intelligent_routing_enabled is not None:
+        route.intelligent_routing_enabled = body.intelligent_routing_enabled
+    if "routing_config" in body.model_fields_set:
+        route.routing_config = body.routing_config
     if "per_user_rpm_limit" in body.model_fields_set:
         route.per_user_rpm_limit = body.per_user_rpm_limit
     if body.health_auto_disable is not None:

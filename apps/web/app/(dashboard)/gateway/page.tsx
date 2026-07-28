@@ -51,6 +51,26 @@ export default function GatewayPage() {
   const [newRouteCompressRate, setNewRouteCompressRate] = useState('0.5')
   const [newRouteCompressWhen, setNewRouteCompressWhen] = useState('over_budget')
   const [newRouteCompressPct, setNewRouteCompressPct] = useState('0.8')
+  const [newRouteIntelligent, setNewRouteIntelligent] = useState(false)
+  const [newRouteRoutingConfigStr, setNewRouteRoutingConfigStr] = useState(() =>
+    JSON.stringify(
+      {
+        classifier_mode: 'hybrid',
+        llm_model: 'llama3.1:8b',
+        tiers: { cheap: 'gpt-4o-mini', mid: 'gpt-4o', frontier: 'o1' },
+        matrix: {
+          simple: { low: 'cheap', high: 'mid' },
+          medium: { low: 'mid', high: 'frontier' },
+          complex: { low: 'frontier', high: 'frontier' },
+        },
+        reasoning_effort: true,
+        on_failure: 'passthrough',
+      },
+      null,
+      2,
+    ),
+  )
+  const [newRouteRoutingError, setNewRouteRoutingError] = useState('')
   const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
@@ -110,6 +130,15 @@ export default function GatewayPage() {
         return
       }
     }
+    let routingConfig: Record<string, unknown> | null = null
+    if (newRouteIntelligent && newRouteRoutingConfigStr.trim()) {
+      try {
+        routingConfig = JSON.parse(newRouteRoutingConfigStr.trim())
+      } catch {
+        setNewRouteRoutingError('Routing config must be valid JSON')
+        return
+      }
+    }
     setCreatingRoute(true)
     try {
       const route = await createGatewayRoute(apiKey, {
@@ -141,6 +170,8 @@ export default function GatewayPage() {
                 : {}),
             }
           : null,
+        intelligent_routing_enabled: newRouteIntelligent,
+        routing_config: routingConfig,
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
       })
       setGatewayRoutes((prev) => [...prev, route])
@@ -163,6 +194,8 @@ export default function GatewayPage() {
       setNewRouteCompressRate('0.5')
       setNewRouteCompressWhen('over_budget')
       setNewRouteCompressPct('0.8')
+      setNewRouteIntelligent(false)
+      setNewRouteRoutingError('')
       setNewRoutePerUserRpm('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
@@ -205,6 +238,19 @@ export default function GatewayPage() {
       })
       setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
       toast.success(updated.context_compiler_enabled ? 'Context compiler on' : 'Context compiler off')
+    } catch {
+      toast.error('Failed to update route')
+    }
+  }
+
+  async function handleToggleIntelligentRouting(route: GatewayRoute) {
+    if (!apiKey) return
+    try {
+      const updated = await updateGatewayRoute(apiKey, route.id, {
+        intelligent_routing_enabled: !route.intelligent_routing_enabled,
+      })
+      setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
+      toast.success(updated.intelligent_routing_enabled ? 'Intelligent routing on' : 'Intelligent routing off')
     } catch {
       toast.error('Failed to update route')
     }
@@ -556,6 +602,30 @@ export default function GatewayPage() {
                   )}
                 </div>
               </div>
+              <div className="sm:col-span-2 lg:col-span-3 border-t border-indigo-100 dark:border-indigo-900 pt-3 mt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="intelligent-routing"
+                    type="checkbox"
+                    checked={newRouteIntelligent}
+                    onChange={(e) => setNewRouteIntelligent(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <label htmlFor="intelligent-routing" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Classify complexity × risk and route to a model tier; also sets reasoning effort">Intelligent Routing</label>
+                </div>
+                {newRouteIntelligent && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    <label className="text-[11px] text-gray-500 dark:text-gray-400">Routing config (JSON) — tiers, matrix, classifier_mode, llm_model, reasoning_effort, on_failure</label>
+                    <textarea
+                      rows={12}
+                      value={newRouteRoutingConfigStr}
+                      onChange={(e) => { setNewRouteRoutingConfigStr(e.target.value); setNewRouteRoutingError('') }}
+                      className={`${inputCls} font-mono text-[11px]`}
+                    />
+                    {newRouteRoutingError && <p className="text-xs text-red-500">{newRouteRoutingError}</p>}
+                  </div>
+                )}
+              </div>
               <div className="sm:col-span-2 lg:col-span-3">
                 <button type="submit" disabled={creatingRoute || !newRouteAlias || !newRouteTargetModel} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                   {creatingRoute ? 'Adding…' : 'Add Route'}
@@ -629,6 +699,17 @@ export default function GatewayPage() {
                           </button>
                         ) : route.context_compiler_enabled && (
                           <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 text-[10px] font-medium">Compiler</span>
+                        )}
+                        {canManage ? (
+                          <button
+                            onClick={() => handleToggleIntelligentRouting(route)}
+                            title={route.intelligent_routing_enabled ? 'Intelligent routing ON — click to turn off' : 'Intelligent routing OFF — click to turn on'}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 ${route.intelligent_routing_enabled ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'}`}
+                          >
+                            Routing {route.intelligent_routing_enabled ? 'ON' : 'OFF'}
+                          </button>
+                        ) : route.intelligent_routing_enabled && (
+                          <span className="rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 text-[10px] font-medium">Routing</span>
                         )}
                       </div>
                     </td>

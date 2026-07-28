@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "f6bd0d12-a66a-4e67-a018-d97b5658bcca",
+    "_postman_id": "e8ffd65c-3dc5-454a-9956-ad98a917896c",
     "name": "RunLedger API",
     "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -3473,6 +3473,44 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"How much parental leave do employees get?\"\n    }\n  ],\n  \"context_compiler\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Gateway Chat Completions (Intelligent Routing)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/chat/completions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "chat",
+                "completions"
+              ]
+            },
+            "description": "Classify complexity \u00d7 risk and route to a model tier (decision_reason shows the tier).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"auto\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Does this contract create regulatory exposure?\"\n    }\n  ],\n  \"intelligent_routing\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -8245,6 +8283,67 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant. Parental leave is 16 weeks paid.\"\n    },\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant. Parental leave is 16 weeks paid.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"How much parental leave do employees get?\"\n    }\n  ],\n  \"config\": {\n    \"reranker_model\": \"flashrank\",\n    \"token_threshold\": 0,\n    \"token_budget\": 400,\n    \"stages\": {\n      \"dedup\": true,\n      \"tool_output\": true,\n      \"rerank\": true,\n      \"compaction\": true,\n      \"compress\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Router Service",
+      "description": "Direct calls to the intelligent-router microservice ({{router_url}}, default :8210). No auth.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{router_url}}/health",
+              "host": [
+                "{{router_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness + classifier modes."
+          },
+          "response": []
+        },
+        {
+          "name": "Classify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{router_url}}/classify",
+              "host": [
+                "{{router_url}}"
+              ],
+              "path": [
+                "classify"
+              ]
+            },
+            "description": "Classify complexity \u00d7 risk \u2192 tier; returns { complexity, risk, reasoning_effort, tier, alias }.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Does this contract create regulatory exposure?\"\n    }\n  ],\n  \"config\": {\n    \"classifier_mode\": \"hybrid\",\n    \"tiers\": {\n      \"cheap\": \"gpt-4o-mini\",\n      \"mid\": \"gpt-4o\",\n      \"frontier\": \"o1\"\n    },\n    \"matrix\": {\n      \"simple\": {\n        \"low\": \"cheap\",\n        \"high\": \"mid\"\n      },\n      \"medium\": {\n        \"low\": \"mid\",\n        \"high\": \"frontier\"\n      },\n      \"complex\": {\n        \"low\": \"frontier\",\n        \"high\": \"frontier\"\n      }\n    },\n    \"reasoning_effort\": true,\n    \"on_failure\": \"passthrough\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"

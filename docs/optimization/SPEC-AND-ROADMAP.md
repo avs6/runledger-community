@@ -1,6 +1,6 @@
 # RunLedger Optimization Layer — Spec & Roadmap
 
-> Status: **IN PROGRESS — Phases 0–3 shipped** · Owner: Abijith · Last updated: 2026-07-28
+> Status: **IN PROGRESS — Phases 0–4 shipped** · Owner: Abijith · Last updated: 2026-07-28
 >
 > This document turns the *Token Usage Optimization* gap analysis (see `Token Usage Optimization.pdf`)
 > and the follow-on "cognitive/augmentation layer" discussion into a concrete, phased engineering
@@ -15,8 +15,8 @@
 | **1** | Foundations + semantic cache + local models | ✅ Shipped |
 | **2** | Context Compiler (dedup, tool-output, rerank, compaction) | ✅ Shipped |
 | **3** | Prompt compression (LLMLingua-2) | ✅ Shipped |
-| **4** | Intelligent routing (complexity + risk + reasoning-effort) | ⏳ Next |
-| **5** | Cognitive / memory layer (Letta / Kùzu / Qdrant) | ▢ Planned |
+| **4** | Intelligent routing (complexity + risk + reasoning-effort) | ✅ Shipped |
+| **5** | Cognitive / memory layer (Letta / Kùzu / Qdrant) | ⏳ Next |
 | **6** | MCP dynamic tool filtering | ▢ Planned |
 | **7** | Optimization flywheel (cost × quality SLA) | ▢ Planned |
 | **8** | Hardening — proxy spike + HA/backup | ▢ Deferred |
@@ -363,7 +363,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** additional reduction with eval-verified quality hold; auto-disable on SLA breach proven.
 - **Deps:** Phase 2, eval harness.
 
-### Phase 4 — Intelligent routing (complexity + risk + reasoning-effort)
+### Phase 4 — Intelligent routing (complexity + risk + reasoning-effort) ✅ SHIPPED
 **Goal:** upgrade `complexity_based` from `chars/4` to a real classifier, add risk + reasoning-effort.
 - Router svc (RouteLLM-seeded) → model tier + reasoning_effort + cost ceiling.
 - Integrate as a new/extended `routing.py` policy; keep priority fallback.
@@ -424,11 +424,11 @@ graph LR
 
   classDef done fill:#16a34a,stroke:#166534,color:#fff;
   classDef next fill:#eab308,stroke:#a16207,color:#111;
-  class P0,P1,P2,P3 done;
-  class P4 next;
+  class P0,P1,P2,P3,P4 done;
+  class P5 next;
 ```
 
-**Green = shipped (Phases 0–3), yellow = next (Phase 4).**
+**Green = shipped (Phases 0–4), yellow = next (Phase 5).**
 
 ---
 
