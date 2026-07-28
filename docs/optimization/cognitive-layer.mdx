@@ -41,11 +41,11 @@ semantic archival search.
   **separate from the control-plane `runledger-postgres`** for independent scale.
 
 <Note>
-**Letta embedding provider.** Memory store/recall needs Letta to have a working **embedding model**.
-Out of the box it uses `letta/letta-free` (Letta's hosted free inference — needs outbound internet).
-To keep memory fully local, register a local embedding model with Letta and set
-`LETTA_MODEL` / `LETTA_EMBEDDING` to those handles. The rest of the cognitive layer (knowledge graph,
-skills, MCP tools, consolidation) is fully local and has no such dependency.
+**Fully local by default.** Memory embeds with a local Ollama text-embedding model — pull one once
+(`ollama pull nomic-embed-text`) and it's added to the [model provider](/optimization/local-models)
+catalog (`config/pricing.yml`). It's configurable via `EMBEDDING_MODEL` / `EMBEDDING_DIM` (point them
+at any embedding model you've pulled), and the agent LLM via `LETTA_MODEL` (set `LETTA_MODEL=letta/letta-free`
+to use Letta's hosted inference instead). No internet required.
 </Note>
 
 ```

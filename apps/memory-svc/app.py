@@ -31,10 +31,14 @@ from pydantic import BaseModel, Field
 log = logging.getLogger(__name__)
 
 LETTA_BASE_URL = os.getenv("LETTA_BASE_URL", "http://runledger-letta:8283").rstrip("/")
-# letta/letta-free works out of the box (Letta's hosted free inference + embeddings). Point these at
-# an Ollama LLM + a registered embedding model to keep memory fully local.
-LETTA_MODEL = os.getenv("LETTA_MODEL", "letta/letta-free")
-LETTA_EMBEDDING = os.getenv("LETTA_EMBEDDING", "letta/letta-free")
+# Fully local by default: an Ollama chat model for the (barely-used) agent LLM, and a local Ollama
+# embedding model for archival memory. All configurable — point EMBEDDING_MODEL at any local text
+# embedding model you have pulled (e.g. nomic-embed-text). Set LETTA_MODEL=letta/letta-free to use
+# Letta's hosted inference instead.
+LETTA_MODEL = os.getenv("LETTA_MODEL", "ollama/llama3.1:8b")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))
+OLLAMA_EMBED_ENDPOINT = os.getenv("OLLAMA_EMBED_ENDPOINT", "http://host.docker.internal:11434/v1").rstrip("/")
 TIMEOUT = float(os.getenv("MEMORY_TIMEOUT_SECONDS", "30"))
 
 app = FastAPI(title="RunLedger Memory Service", version="0.1.0")
@@ -63,7 +67,15 @@ async def _get_or_create_agent(client: httpx.AsyncClient, workspace: str) -> str
         payload = {
             "name": name,
             "model": LETTA_MODEL,
-            "embedding": LETTA_EMBEDDING,
+            # Explicit local embedding config — Letta's auto-discovery skips embedding-only
+            # Ollama models, so we register the one we want directly.
+            "embedding_config": {
+                "embedding_endpoint_type": "ollama",
+                "embedding_endpoint": OLLAMA_EMBED_ENDPOINT,
+                "embedding_model": EMBEDDING_MODEL,
+                "embedding_dim": EMBEDDING_DIM,
+                "embedding_chunk_size": 300,
+            },
             "memory_blocks": [
                 {"label": "persona", "value": "I am a scoped memory store for one workspace."},
                 {"label": "human", "value": ""},
@@ -139,6 +151,14 @@ async def recall(req: RecallRequest) -> dict[str, object]:
             )
             r.raise_for_status()
             items = r.json() if isinstance(r.json(), list) else r.json().get("passages", [])
+            # Letta's archival search threshold can be strict on long queries — fall back to
+            # the most recent passages so recall still surfaces relevant memory.
+            if not items:
+                r2 = await client.get(
+                    f"{LETTA_BASE_URL}/v1/agents/{agent_id}/archival-memory/",
+                    params={"limit": req.k},
+                )
+                items = r2.json() if isinstance(r2.json(), list) else []
         except Exception as exc:  # noqa: BLE001 — fail-open
             log.warning("memory_recall_failed error=%s", str(exc))
             return {"memories": []}

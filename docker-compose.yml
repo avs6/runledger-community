@@ -347,8 +347,11 @@ services:
       - "${MEMORY_PORT:-8211}:8107"
     environment:
       LETTA_BASE_URL: http://runledger-letta:8283
-      LETTA_MODEL: ${LETTA_MODEL:-letta/letta-free}
-      LETTA_EMBEDDING: ${LETTA_EMBEDDING:-letta/letta-free}
+      LETTA_MODEL: ${LETTA_MODEL:-ollama/llama3.1:8b}
+      # Local text embedding model for memory (configurable — any model you've pulled in Ollama).
+      EMBEDDING_MODEL: ${MEMORY_EMBEDDING_MODEL:-nomic-embed-text}
+      EMBEDDING_DIM: ${MEMORY_EMBEDDING_DIM:-768}
+      OLLAMA_EMBED_ENDPOINT: ${OLLAMA_EMBED_ENDPOINT:-http://host.docker.internal:11434/v1}
     depends_on:
       - runledger-letta
 
