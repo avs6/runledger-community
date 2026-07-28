@@ -49,9 +49,6 @@ flowchart TB
   <Card title="Optimization Flywheel" href="/optimization/flywheel">
     Learn the cheapest config per segment that holds your quality SLA — then recommend or auto-apply it.
   </Card>
-  <Card title="High Availability & Backup" href="/optimization/ha-and-backup">
-    Scale the services on demand with Kubernetes; back up every durable store to S3 with a tested restore.
-  </Card>
 </CardGroup>
 
 ## Services & ports
@@ -74,6 +71,12 @@ Everything comes up with `docker compose up -d`:
 | `runledger-flywheel` | 8215 | Cost × quality flywheel analyzer |
 
 Local LLM runtimes (Ollama / vLLM) are external and reached via `OLLAMA_BASE_URL` / `VLLM_BASE_URL`.
+
+## Running in production
+
+On Kubernetes, every stateless service here autoscales (HPA + PDB + anti-affinity) and the stateful
+stores are pluggable — in-cluster or managed. See [Helm deployment](/helm), [high availability](/ha), and
+[backup & restore](/backup-restore).
 
 ## Measuring savings
 

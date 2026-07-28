@@ -1,6 +1,13 @@
 # Helm Chart Deployment
 
-RunLedger ships an official Helm chart for production Kubernetes deployments. The chart deploys all four components — API, Celery worker, Celery beat, and Next.js web — plus an optional pre-install migration Job and backup CronJob.
+RunLedger ships an official Helm chart for production Kubernetes deployments. The chart deploys the full stack — the control plane (API, Celery worker, Celery beat, Next.js web) and the optimization layer (the stateless microservices, each with an HPA + PDB, plus the pluggable stateful stores) — along with an optional pre-install migration Job and a multi-store backup CronJob.
+
+Two modes, one chart:
+
+- **Self-hosted / dev** — leave the stores in-cluster; a single `helm install` brings up everything (including optional in-cluster Postgres + Redis), no external dependencies.
+- **Production / HA** — set each store `external: true` with a managed URL; the stateless services still autoscale in-cluster. See [ha.md](./ha.md) for the scaling model.
+
+The optimization microservice images are published to `docker.io/abijith13/runledger-<svc>` by the `Build & Push Images` workflow; override `optimization.imageRegistry` / `optimization.imageTag` to use your own registry.
 
 ## Prerequisites
 
@@ -120,11 +127,11 @@ secrets:
   vaultTransitKey: runledger
 ```
 
-See [byok.md](./byok.md) for required IAM/Vault policies.
+The referenced Secret must carry the provider credentials (`AWS_KMS_KEY_ID` for KMS, or `VAULT_TOKEN` for Vault Transit); grant the ServiceAccount the matching IAM role (EKS IRSA) or Vault policy.
 
 ## Backup CronJob
 
-The chart includes an optional nightly `pg_dump` CronJob that writes compressed `.dump` files to S3-compatible storage:
+The chart includes an optional nightly **multi-store** backup CronJob → S3. The control-plane Postgres is always dumped; the optimization-layer durable stores are toggled individually:
 
 ```yaml
 backup:
@@ -133,9 +140,14 @@ backup:
   s3Bucket: "s3://my-bucket/runledger-backups"
   awsRegion: us-east-1
   retainDays: 30
+  stores:
+    memoryDb: { enabled: true }   # pg_dump the Letta memory Postgres
+    qdrant:   { enabled: false }  # Qdrant snapshot (largely regenerable)
+    kuzu:     { enabled: true }   # tar the knowledge-graph PVC
+    skills:   { enabled: true }   # tar the skill-registry PVC
 ```
 
-The backup pod uses the `postgres:16-alpine` image and requires AWS credentials. Use IRSA (EKS) or a `kube2iam` annotation on the ServiceAccount. See [backup-restore.md](./backup-restore.md) for restore procedures.
+The backup pod uses the `postgres:16-alpine` image and requires AWS credentials. Use IRSA (EKS) or a `kube2iam` annotation on the ServiceAccount. See [backup-restore.md](./backup-restore.md) for the store matrix and restore procedures (`scripts/restore.sh`).
 
 ## Migrations
 
@@ -190,5 +202,11 @@ Import the dashboard JSON from `docs/grafana-dashboard.json` (see [ha.md](./ha.m
 | `secrets.kmsProvider` | `local` | `local` / `aws_kms` / `vault` |
 | `ingress.enabled` | `false` | Create Ingress resources |
 | `migrations.enabled` | `true` | Run Alembic pre-upgrade Job |
-| `backup.enabled` | `false` | Enable nightly pg_dump CronJob |
+| `backup.enabled` | `false` | Enable nightly multi-store backup CronJob |
+| `backup.stores.*.enabled` | varies | Include memory-db / qdrant / kuzu / skills in the backup |
 | `pricingConfig.enabled` | `false` | Mount custom pricing YAML |
+| `optimization.enabled` | `true` | Deploy the optimization-layer services + stores |
+| `optimization.imageRegistry` | `docker.io/abijith13` | Registry for the microservice images |
+| `optimizationServices.<svc>.autoscaling.enabled` | `true` | HPA for a stateless optimization service |
+| `stores.<store>.external` | `false` | Use a managed URL instead of an in-cluster StatefulSet |
+| `postgres.inCluster` / `redis.inCluster` | `false` | Run control-plane Postgres / Redis in-cluster (self-host) |
