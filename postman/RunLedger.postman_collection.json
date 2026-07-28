@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "48189ca6-8ac4-42e9-97ee-a657dc7fdcf0",
+    "_postman_id": "f6bd0d12-a66a-4e67-a018-d97b5658bcca",
     "name": "RunLedger API",
     "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -8244,7 +8244,68 @@
             "description": "Shrink a messages array; returns { messages, token_report, dropped }.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant. Parental leave is 16 weeks paid.\"\n    },\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant. Parental leave is 16 weeks paid.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"How much parental leave do employees get?\"\n    }\n  ],\n  \"config\": {\n    \"reranker_model\": \"flashrank\",\n    \"token_threshold\": 0,\n    \"token_budget\": 400,\n    \"stages\": {\n      \"dedup\": true,\n      \"tool_output\": true,\n      \"rerank\": true,\n      \"compaction\": true\n    }\n  }\n}",
+              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant. Parental leave is 16 weeks paid.\"\n    },\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant. Parental leave is 16 weeks paid.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"How much parental leave do employees get?\"\n    }\n  ],\n  \"config\": {\n    \"reranker_model\": \"flashrank\",\n    \"token_threshold\": 0,\n    \"token_budget\": 400,\n    \"stages\": {\n      \"dedup\": true,\n      \"tool_output\": true,\n      \"rerank\": true,\n      \"compaction\": true,\n      \"compress\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Compression Service",
+      "description": "Direct calls to the LLMLingua-2 compression microservice ({{compression_url}}, default :8209). No auth.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compression_url}}/health",
+              "host": [
+                "{{compression_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness + available models."
+          },
+          "response": []
+        },
+        {
+          "name": "Compress",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compression_url}}/compress",
+              "host": [
+                "{{compression_url}}"
+              ],
+              "path": [
+                "compress"
+              ]
+            },
+            "description": "Compress text to a target keep-rate; returns { compressed_text, original_tokens, compressed_tokens, ratio }.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"The parental leave policy grants sixteen weeks of fully paid leave to all full-time employees and benefits continue throughout the leave period.\",\n  \"rate\": 0.5,\n  \"model\": \"bert-base-multilingual\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

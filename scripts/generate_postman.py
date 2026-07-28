@@ -260,7 +260,17 @@ def _add_optimization_extras(items: list[dict]) -> None:
                                {"role": "system", "content": "You are a concise HR assistant. Parental leave is 16 weeks paid."},
                                {"role": "user", "content": "How much parental leave do employees get?"}],
                   "config": {"reranker_model": "flashrank", "token_threshold": 0, "token_budget": 400,
-                             "stages": {"dedup": True, "tool_output": True, "rerank": True, "compaction": True}}}, auth=False),
+                             "stages": {"dedup": True, "tool_output": True, "rerank": True, "compaction": True, "compress": False}}}, auth=False),
+        ]})
+    items.append({"name": "Compression Service",
+        "description": "Direct calls to the LLMLingua-2 compression microservice ({{compression_url}}, default :8209). No auth.",
+        "item": [
+            _req("Health", "GET", "{{compression_url}}/health", "Liveness + available models.", None, auth=False),
+            _req("Compress", "POST", "{{compression_url}}/compress",
+                 "Compress text to a target keep-rate; returns { compressed_text, original_tokens, compressed_tokens, ratio }.",
+                 {"text": "The parental leave policy grants sixteen weeks of fully paid leave to all "
+                          "full-time employees and benefits continue throughout the leave period.",
+                  "rate": 0.5, "model": "bert-base-multilingual"}, auth=False),
         ]})
 
 
@@ -311,6 +321,13 @@ environment = {
             "type": "default",
             "enabled": True,
             "description": "Context-compiler microservice base URL (optimization layer).",
+        },
+        {
+            "key": "compression_url",
+            "value": "http://localhost:8209",
+            "type": "default",
+            "enabled": True,
+            "description": "LLMLingua-2 compression microservice base URL (optimization layer).",
         },
         {
             "key": "api_key",

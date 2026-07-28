@@ -44,6 +44,7 @@ Everything below is **available today** in RunLedger Community.
 | ✅ | Exact-match prompt cache (sub-5ms hits, tenant-scoped) |
 | ✅ | Semantic near-duplicate cache with strict scope isolation (tenant / model / prompt / version) |
 | ✅ | Context Compiler — shrink oversized requests before the model (dedup, tool-output compression, relevance rerank/prune, conversation compaction) |
+| ✅ | Prompt compression — opt-in LLMLingua-2 token compression on the compiled context, under a quality floor |
 | ✅ | Per-route runtime controls — cost caps, per-user rate limits, PII redaction |
 
 ### Cost, Metering & FinOps
@@ -255,7 +256,6 @@ flowchart TB
 
 RunLedger is evolving from **observing and controlling** AI cost into **actively minimizing** it — cutting tokens before they are ever sent, subject to a customer-defined quality and outcome SLA. On the way:
 
-- **Prompt/context compression** — LLMLingua-style token compression on top of the Context Compiler, under a quality floor.
 - **Intelligent routing** — model selection driven by task complexity, business risk, and reasoning-effort, not just price.
 - **Dynamic MCP tool filtering** — serve an agent only the tools relevant to the current request instead of the entire catalog.
 - **Cognitive layer** — persistent memory, a knowledge graph, episodic recall, and a skill registry, shared across every MCP client.
