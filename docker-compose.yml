@@ -1,29 +1,34 @@
-# RunLedger — portable production-ready stack
+# RunLedger — single, self-contained stack.
 #
-# Pull and run anywhere:
-#   curl -O https://raw.githubusercontent.com/avs6/runledger/master/docker-compose.yml
-#   curl -O https://raw.githubusercontent.com/avs6/runledger/master/.env.example
-#   cp .env.example .env          # fill in SECRET_KEY + RUNLEDGER_LICENSE_KEY
-#   docker compose up -d
+#   Run with published images:   docker compose up -d
+#   Build from source instead:   docker compose up -d --build
 #
 # First-time setup (after `up`):
-#   curl -X POST http://localhost:8000/admin/bootstrap \
+#   curl -X POST http://localhost:8201/admin/bootstrap \
 #     -H "X-Admin-Secret: $ADMIN_SECRET" \
 #     -H "Content-Type: application/json" \
 #     -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
 #
-# Dashboard: http://localhost:3000
-# API docs:  http://localhost:8000/reference
-# OTLP HTTP: http://localhost:4318   (send traces from your agents here)
-# OTLP gRPC: http://localhost:4317
+# Ports are namespaced so RunLedger never clashes with other local products:
+#   Dashboard:        http://localhost:3201
+#   API / docs:       http://localhost:8201  (/reference)
+#   Qdrant:           http://localhost:8202
+#   Embedding svc:    http://localhost:8204
+#   Semantic cache:   http://localhost:8205
+#   MCP gateway:      http://localhost:8206
+#   OTLP HTTP/gRPC:   http://localhost:4318 / 4317   (standard OTLP ports)
+#
+# Local LLM runtimes (Ollama / vLLM) are external — set OLLAMA_BASE_URL / VLLM_BASE_URL in .env.
+# All containers are named runledger-<service>.
 
 name: runledger
 
 services:
-  # ── Infrastructure ─────────────────────────────────────────────────────────
+  # ── Infrastructure ───────────────────────────────────────────────────────────
 
-  postgres:
+  runledger-postgres:
     image: postgres:16-alpine
+    container_name: runledger-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: runledger
@@ -39,8 +44,9 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
+  runledger-redis:
     image: redis:7-alpine
+    container_name: runledger-redis
     restart: unless-stopped
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
@@ -51,34 +57,62 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── RunLedger API ──────────────────────────────────────────────────────────
-
-  api:
-    image: abijith13/runledger-api:latest
+  runledger-qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: runledger-qdrant
     restart: unless-stopped
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${QDRANT_HTTP_PORT:-8202}:6333"
+      - "${QDRANT_GRPC_PORT:-8203}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── RunLedger API ──────────────────────────────────────────────────────────
+
+  runledger-api:
+    image: abijith13/runledger-api:latest
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: runledger-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8201}:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@postgres:5432/runledger
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
+      REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3201}
       RUNLEDGER_BASE_URL: ${RUNLEDGER_BASE_URL:-http://localhost:8000}
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
       # License key — required for enterprise features (SSO, warehouse, etc.)
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
       RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+      # Optimization layer
+      QDRANT_URL: http://runledger-qdrant:6333
+      EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
+      SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
+      # External local-LLM runtimes (Ollama on the host / a remote vLLM) — OpenAI-compatible
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-}
+      LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
+      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.2:3b}
       # Optional: transactional email via Brevo
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3201}
       # Optional: Firebase social login
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
@@ -92,29 +126,38 @@ services:
       # Optional: GitHub-backed prompt storage
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_PROMPTS_REPO: ${GITHUB_PROMPTS_REPO:-}
+    volumes:
+      - ./logs:/app/logs
+      # Provider pricing — edit config/pricing.yml then restart api + beat to apply
+      - ./config/pricing.yml:/app/config/pricing.yml:ro
+    # Lets the gateway reach an Ollama/vLLM server on the Docker host.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
+      runledger-postgres:
         condition: service_healthy
-      redis:
+      runledger-redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health/live || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health/live')\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
 
-  # ── Celery Worker (event pipeline, metering, rollups) ─────────────────────
+  # ── Celery Worker (event pipeline, metering, rollups, optimizer jobs) ──────
 
-  worker:
+  runledger-worker:
     image: abijith13/runledger-worker:latest
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: runledger-worker
     restart: unless-stopped
     command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
     environment:
-      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@postgres:5432/runledger
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
+      REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: ${ENVIRONMENT:-production}
@@ -122,21 +165,36 @@ services:
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
       RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+      QDRANT_URL: http://runledger-qdrant:6333
+      EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
+      SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-}
+      LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
+      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.2:3b}
+    volumes:
+      - ./config/pricing.yml:/app/config/pricing.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      postgres:
+      runledger-postgres:
         condition: service_healthy
-      redis:
+      runledger-redis:
         condition: service_healthy
 
   # ── Celery Beat (periodic tasks: rollups, alerts, health checks) ───────────
 
-  beat:
+  runledger-beat:
     image: abijith13/runledger-beat:latest
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: runledger-beat
     restart: unless-stopped
     command: celery -A runledger_api.core.celery_app beat --loglevel=info
     environment:
-      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@postgres:5432/runledger
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
+      REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: ${ENVIRONMENT:-production}
@@ -144,39 +202,98 @@ services:
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
       RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+    volumes:
+      - ./config/pricing.yml:/app/config/pricing.yml:ro
     depends_on:
-      postgres:
+      runledger-postgres:
         condition: service_healthy
-      redis:
+      runledger-redis:
         condition: service_healthy
 
   # ── Dashboard (Next.js) ───────────────────────────────────────────────────
 
-  web:
+  runledger-web:
     image: abijith13/runledger-web:latest
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        # Browser-facing API URL — baked in at build time
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8201}
+    container_name: runledger-web
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${WEB_PORT:-3201}:3000"
     environment:
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3201}
       NEXTAUTH_SECRET: ${SECRET_KEY:-change-me-in-production-32chars}
       # Internal Docker network URL — never seen by the browser
-      API_URL: http://api:8000
+      API_URL: http://runledger-api:8000
     depends_on:
-      api:
+      runledger-api:
         condition: service_healthy
 
-  # ── OTel Collector (OTLP receiver → RunLedger) ────────────────────────────
-  #
-  # Send traces from any instrumented agent to:
-  #   OTLP/HTTP  http://localhost:4318
-  #   OTLP/gRPC  http://localhost:4317
-  #
-  # Python:  RunLedgerOTLPExporter(api_key=..., base_url="http://localhost:8000")
-  # LangGraph/LangChain: use openinference-instrumentation-langchain + RunLedgerOTLPExporter
+  # ── Optimization services ──────────────────────────────────────────────────
 
-  otel-collector:
+  runledger-embedding-svc:
+    build:
+      context: ./apps/embedding-svc
+    container_name: runledger-embedding-svc
+    restart: unless-stopped
+    ports:
+      - "${EMBEDDING_PORT:-8204}:8100"
+    environment:
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+    volumes:
+      - embedding_cache:/app/.cache/fastembed
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8100/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  runledger-semantic-cache-svc:
+    build:
+      context: ./apps/semantic-cache-svc
+    container_name: runledger-semantic-cache-svc
+    restart: unless-stopped
+    ports:
+      - "${SEMANTIC_CACHE_PORT:-8205}:8101"
+    environment:
+      QDRANT_URL: http://runledger-qdrant:6333
+      EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
+      SEMANTIC_CACHE_THRESHOLD: ${SEMANTIC_CACHE_THRESHOLD:-0.95}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-384}
+    depends_on:
+      runledger-qdrant:
+        condition: service_healthy
+      runledger-embedding-svc:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8101/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  runledger-mcp-gateway:
+    build:
+      context: ./apps/mcp-gateway
+    container_name: runledger-mcp-gateway
+    restart: unless-stopped
+    ports:
+      - "${MCP_PORT:-8206}:8200"
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8200
+
+  # ── OTel Collector (OTLP receiver → RunLedger) ────────────────────────────
+  # Send traces from any instrumented agent to http://localhost:4318 (HTTP) or :4317 (gRPC).
+
+  runledger-otel-collector:
     image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: runledger-otel-collector
     restart: unless-stopped
     command: ["--config=/etc/otel/config.yaml"]
     configs:
@@ -195,11 +312,13 @@ services:
       retries: 5
       start_period: 10s
     depends_on:
-      api:
+      runledger-api:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  qdrant_data:
+  embedding_cache:
 
 configs:
   otel_config:
@@ -229,7 +348,7 @@ configs:
           spike_limit_mib: 64
       exporters:
         otlphttp/runledger:
-          endpoint: http://api:8000
+          endpoint: http://runledger-api:8000
           headers:
             Authorization: "Bearer $${env:RUNLEDGER_API_KEY}"
           tls:

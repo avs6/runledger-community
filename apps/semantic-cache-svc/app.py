@@ -31,8 +31,8 @@ from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
 
-QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant:6333")
-EMBEDDING_SVC_URL = os.getenv("EMBEDDING_SVC_URL", "http://embedding-svc:8100")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://runledger-qdrant:6333")
+EMBEDDING_SVC_URL = os.getenv("EMBEDDING_SVC_URL", "http://runledger-embedding-svc:8100")
 COLLECTION = os.getenv("SEMANTIC_CACHE_COLLECTION", "semantic_cache")
 DEFAULT_THRESHOLD = float(os.getenv("SEMANTIC_CACHE_THRESHOLD", "0.95"))
 DEFAULT_TTL_SECONDS = int(os.getenv("SEMANTIC_CACHE_TTL_SECONDS", str(24 * 3600)))
@@ -125,14 +125,15 @@ def health() -> dict[str, object]:
 async def lookup(req: LookupRequest) -> LookupResponse:
     threshold = req.threshold if req.threshold is not None else DEFAULT_THRESHOLD
     vector = await _embed(req.text)
-    hits = _client.search(
+    result = _client.query_points(
         collection_name=COLLECTION,
-        query_vector=vector,
+        query=vector,
         query_filter=_scope_filter(req.scope),
         limit=1,
         score_threshold=threshold,
         with_payload=True,
     )
+    hits = result.points
     if not hits:
         return LookupResponse(hit=False)
     top = hits[0]

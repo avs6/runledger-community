@@ -35,12 +35,12 @@ Useful when you want fan-out to multiple backends (Jaeger, Tempo, RunLedger).
 # otel-collector-config.yaml
 exporters:
   otlphttp/runledger:
-    endpoint: "http://localhost:8000"
+    endpoint: "http://localhost:8201"
     headers:
       Authorization: "Bearer ${RUNLEDGER_API_KEY}"
 ```
 
-RunLedger ships a pre-configured Collector in `infra/docker-compose.yml`:
+RunLedger ships a pre-configured Collector in `docker-compose.yml`:
 
 ```bash
 docker compose --profile otel up otel-collector

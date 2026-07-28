@@ -54,7 +54,7 @@ What already exists in this repo and is genuinely strong — we build **on** it,
 | Evaluations / experiments | `routers/evaluations.py`, `eval_experiments.py`, `services/evaluators.py` | Quality scoring + experiment scaffolding. |
 | Outcome / ROI ledger | `routers/outcomes.py`, `models/outcomes.py` | cost-per-success, ROI by workflow. **This is the differentiator the flywheel plugs into.** |
 | Domain model | `models/` | `AgentRun → Span → ProviderCall / ToolCall`. Ideal shape for optimization analytics. |
-| Async workers | Celery `worker` + `beat` | `docker-compose`/`infra/docker-compose.yml`. We reuse this for consolidation/flywheel jobs. |
+| Async workers | Celery `worker` + `beat` | `docker-compose`/`docker-compose.yml`. We reuse this for consolidation/flywheel jobs. |
 | Deploy | `infra/` (compose + helm) | Postgres 16, Redis 7, `api`, `worker`, `beat`, `web`, OTel collector. |
 
 **Gap in one line (from the PDF):** RunLedger receives an 80K-token request, meters/budgets/routes/records

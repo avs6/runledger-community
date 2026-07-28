@@ -18,15 +18,15 @@ install:
 ## Full stack via Docker Compose (Postgres + Redis + API + Worker + Web)
 ## On first start the API prints the generated API key — save it.
 dev:
-	docker compose -f infra/docker-compose.yml up
+	docker compose up
 
 ## Detached mode (runs in background)
 dev-d:
-	docker compose -f infra/docker-compose.yml up -d
+	docker compose up -d
 
 ## Run only Postgres + Redis — use alongside dev-api / dev-worker / dev-web
 dev-infra:
-	docker compose -f infra/docker-compose.yml up postgres redis
+	docker compose up runledger-postgres runledger-redis
 
 ## API with hot-reload (requires Postgres + Redis running)
 dev-api:
@@ -150,24 +150,24 @@ samples-setup: samples-env
 
 ## Build Docker images
 build:
-	docker compose -f infra/docker-compose.yml build
+	docker compose build
 
 ## Stop all containers
 down:
-	docker compose -f infra/docker-compose.yml down
+	docker compose down
 
 ## Stop all containers and delete volumes (wipes database)
 down-volumes:
-	docker compose -f infra/docker-compose.yml down -v
+	docker compose down -v
 
 ## Show running container status
 ps:
-	docker compose -f infra/docker-compose.yml ps
+	docker compose ps
 
 ## Tail all container logs
 logs:
-	docker compose -f infra/docker-compose.yml logs -f
+	docker compose logs -f
 
 ## Tail API logs only (shows the generated API key on first start)
 logs-api:
-	docker compose -f infra/docker-compose.yml logs -f api
+	docker compose logs -f runledger-api

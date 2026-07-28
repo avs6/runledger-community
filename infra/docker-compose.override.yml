@@ -1,4 +1,0 @@
-services:
-  web:
-    image: runledger-web:v2
-    build: !reset null

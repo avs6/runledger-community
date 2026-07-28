@@ -44,13 +44,13 @@ uv sync --all-packages
 **2. Start Postgres + Redis via Docker**
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d postgres redis
+docker compose up -d runledger-postgres runledger-redis
 ```
 
 Or run the full stack:
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose up -d
 ```
 
 **3. Configure environment**

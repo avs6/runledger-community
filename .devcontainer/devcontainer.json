@@ -1,12 +1,12 @@
 {
   "name": "RunLedger",
-  "dockerComposeFile": "../infra/docker-compose.yml",
-  "service": "api",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "runledger-api",
   "workspaceFolder": "/app",
-  "forwardPorts": [3000, 8000, 5432, 6379],
+  "forwardPorts": [3201, 8201, 5432, 6379],
   "portsAttributes": {
-    "3000": { "label": "Dashboard (Next.js)", "onAutoForward": "openBrowser" },
-    "8000": { "label": "API (FastAPI)", "onAutoForward": "notify" },
+    "3201": { "label": "Dashboard (Next.js)", "onAutoForward": "openBrowser" },
+    "8201": { "label": "API (FastAPI)", "onAutoForward": "notify" },
     "5432": { "label": "PostgreSQL", "onAutoForward": "silent" },
     "6379": { "label": "Redis", "onAutoForward": "silent" }
   },

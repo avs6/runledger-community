@@ -16,10 +16,10 @@ description: "Up and running in 5 minutes. Full SDK reference and troubleshootin
 ```bash
 git clone https://github.com/avs6/runledger
 cd runledger
-cp infra/.env.example infra/.env
+cp .env.example .env
 ```
 
-Edit `infra/.env` and set `SECRET_KEY`:
+Edit `.env` and set `SECRET_KEY`:
 
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
@@ -28,14 +28,18 @@ python -c "import secrets; print(secrets.token_hex(32))"
 ## 2. Start all services
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d
+docker compose up -d
 ```
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Dashboard | 3000 | Next.js UI |
-| API + Swagger | 8000 | FastAPI |
-| API Reference | 8000/reference | Scalar UI |
+| Dashboard | 3201 | Next.js UI |
+| API + Swagger | 8201 | FastAPI |
+| API Reference | 8201/reference | Scalar UI |
+| Qdrant | 8202 | Vector store (semantic cache) |
+| Embedding svc | 8204 | fastembed (CPU) |
+| Semantic cache | 8205 | Near-duplicate cache |
+| MCP gateway | 8206 | Claude Desktop / Code |
 | PostgreSQL | 5432 | — |
 | Redis | 6379 | — |
 | OTel Collector | 4317 / 4318 | OTLP/gRPC + HTTP |
@@ -43,7 +47,7 @@ docker compose -f infra/docker-compose.yml up -d
 ## 3. Bootstrap the platform admin
 
 ```bash
-curl -s -X POST http://localhost:8000/admin/bootstrap \
+curl -s -X POST http://localhost:8201/admin/bootstrap \
   -H "X-Admin-Secret: runledger-admin" \
   -H "Content-Type: application/json" \
   -d '{
@@ -87,7 +91,7 @@ Click the button to open a pre-configured Codespace with the full stack running:
 
 The setup script automatically starts all services, runs migrations, and bootstraps the admin user.
 
-- Dashboard: **http://localhost:3000**
+- Dashboard: **http://localhost:3201**
 - Login: `admin@example.com` / `Admin123!`
 
   </Tab>
@@ -390,7 +394,7 @@ import openai
 
 client = openai.OpenAI(
     api_key="rl_...",
-    base_url="http://localhost:8000/gateway",
+    base_url="http://localhost:8201/gateway",
 )
 
 resp = client.chat.completions.create(
@@ -485,7 +489,7 @@ curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
     Correct — Ollama has no API cost. Runs appear in analytics with `cost_usd = 0.00`. To assign an internal transfer price, add a pricing row via **Settings → Provider Profiles** or `POST /providers/pricing` for `provider = ollama`.
   </Accordion>
   <Accordion title="OTel Collector not forwarding traces">
-    Set `RUNLEDGER_API_KEY` in `infra/.env`. Without it, the Collector starts but gets 401s from the API. Restart after setting:
+    Set `RUNLEDGER_API_KEY` in `.env`. Without it, the Collector starts but gets 401s from the API. Restart after setting:
     ```bash
     docker compose restart otel-collector
     docker compose logs otel-collector
@@ -502,7 +506,7 @@ from runledger_sdk import RunLedger, PrivacyMode
 
 rl = RunLedger(
     api_key="rl_...",                          # reads RUNLEDGER_API_KEY if omitted
-    base_url="http://localhost:8000",           # default
+    base_url="http://localhost:8201",           # default
     privacy_mode=PrivacyMode.METADATA_ONLY,    # default — no payloads captured
     local=False,                               # True → stdout, no HTTP
     budget_check=False,                        # True → pre-call budget enforcement
@@ -512,7 +516,7 @@ rl = RunLedger(
 | Parameter | Env var | Default |
 |-----------|---------|---------|
 | `api_key` | `RUNLEDGER_API_KEY` | required |
-| `base_url` | `RUNLEDGER_BASE_URL` | `http://localhost:8000` |
+| `base_url` | `RUNLEDGER_BASE_URL` | `http://localhost:8201` |
 | `local` | `RUNLEDGER_LOCAL` | `False` |
 | `budget_check` | — | `False` |
 | `privacy_mode` | — | `metadata_only` |
