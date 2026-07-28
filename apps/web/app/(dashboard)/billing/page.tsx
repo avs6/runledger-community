@@ -19,7 +19,7 @@ export default async function BillingPage() {
         </p>
       </div>
 
-      <BillingPeriodTable items={periods.items} apiKey={session.apiKey} onClosed={() => {}} />
+      <BillingPeriodTable items={periods.items} apiKey={session.apiKey} />
     </div>
   )
 }

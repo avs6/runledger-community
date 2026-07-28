@@ -53,7 +53,10 @@ async def list_pricing(workspace: WorkspaceDep, db: DbDep) -> ProviderPricingLis
             or_(
                 ProviderPricing.workspace_id.is_(None),
                 ProviderPricing.workspace_id == workspace.id,
-            )
+            ),
+            # Only currently-active pricing — exclude superseded/historical rows so the
+            # model dropdown and pricing UI don't show stale duplicates.
+            ProviderPricing.effective_to.is_(None),
         )
         .order_by(
             ProviderPricing.provider,

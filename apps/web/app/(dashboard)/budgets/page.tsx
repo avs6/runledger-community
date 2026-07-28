@@ -26,7 +26,7 @@ export default async function BudgetsPage() {
           </p>
         </div>
       ) : (
-        <BudgetList items={budgets.items} apiKey={session.apiKey} onDeleted={() => {}} />
+        <BudgetList items={budgets.items} apiKey={session.apiKey} />
       )}
     </div>
   )
