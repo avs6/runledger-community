@@ -28,6 +28,8 @@ class GatewayRouteCreate(BaseModel):
     monthly_cost_limit_usd: Decimal | None = None
     pii_redaction_enabled: bool = False
     semantic_cache_enabled: bool = False
+    context_compiler_enabled: bool = False
+    context_compiler_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
     health_auto_disable: bool = True
 
@@ -45,6 +47,8 @@ class GatewayRouteUpdate(BaseModel):
     monthly_cost_limit_usd: Decimal | None = None
     pii_redaction_enabled: bool | None = None
     semantic_cache_enabled: bool | None = None
+    context_compiler_enabled: bool | None = None
+    context_compiler_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
     health_auto_disable: bool | None = None
 
@@ -65,6 +69,8 @@ class GatewayRouteResponse(BaseModel):
     monthly_cost_limit_usd: Decimal | None = None
     pii_redaction_enabled: bool = False
     semantic_cache_enabled: bool = False
+    context_compiler_enabled: bool = False
+    context_compiler_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = None
     health_auto_disable: bool = True
     last_health_check_at: datetime | None = None
@@ -110,6 +116,11 @@ class GatewayCompletionRequest(BaseModel):
         False,
         description="Enable semantic (near-duplicate) cache lookup via semantic-cache-svc. "
         "Default off; fail-open (skipped if the service is unavailable).",
+    )
+    context_compiler: bool = Field(
+        False,
+        description="Run the Context Compiler on this request (dedup / tool-output compression / "
+        "rerank / compaction) before routing. Default off; fail-open.",
     )
 
 

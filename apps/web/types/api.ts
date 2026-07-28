@@ -674,6 +674,8 @@ export interface GatewayRoute {
   monthly_cost_limit_usd: string | null
   pii_redaction_enabled: boolean
   semantic_cache_enabled: boolean
+  context_compiler_enabled: boolean
+  context_compiler_config: Record<string, unknown> | null
   per_user_rpm_limit: number | null
   health_auto_disable: boolean
   last_health_check_at: string | null

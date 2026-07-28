@@ -40,7 +40,9 @@ def main() -> None:
     ap.add_argument("--profile", default="baseline", help="Label for this run (baseline|semantic_cache|...)")
     ap.add_argument("--workload", default="smoke", choices=list(WORKLOADS))
     ap.add_argument("--repeat", type=int, default=5)
-    ap.add_argument("--cache", action="store_true", help="Set body.cache=true (exact + semantic cache)")
+    ap.add_argument("--cache", action="store_true", help="Set body.cache=true (exact prompt cache)")
+    ap.add_argument("--semantic-cache", action="store_true", help="Set body.semantic_cache=true")
+    ap.add_argument("--context-compiler", action="store_true", help="Set body.context_compiler=true")
     args = ap.parse_args()
 
     url = f"{args.base_url.rstrip('/')}/gateway/chat/completions"
@@ -52,7 +54,13 @@ def main() -> None:
     ok = 0
     with httpx.Client(timeout=120.0) as client:
         for i in range(args.repeat):
-            body = {"model": args.alias, "messages": messages, "cache": args.cache}
+            body = {
+                "model": args.alias,
+                "messages": messages,
+                "cache": args.cache,
+                "semantic_cache": args.semantic_cache,
+                "context_compiler": args.context_compiler,
+            }
             r = client.post(url, headers=headers, json=body)
             ok += 1 if r.status_code == 200 else 0
             print(f"  run {i + 1}/{args.repeat} → {r.status_code}")
@@ -65,6 +73,8 @@ def main() -> None:
         "workload": args.workload,
         "repeat": args.repeat,
         "cache": args.cache,
+        "semantic_cache": args.semantic_cache,
+        "context_compiler": args.context_compiler,
         "ok": ok,
         "started": started,
         "ended": ended,

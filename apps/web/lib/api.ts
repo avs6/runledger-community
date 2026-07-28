@@ -1064,6 +1064,8 @@ export async function createGatewayRoute(
     monthly_cost_limit_usd?: number | null
     pii_redaction_enabled?: boolean
     semantic_cache_enabled?: boolean
+    context_compiler_enabled?: boolean
+    context_compiler_config?: Record<string, unknown> | null
     per_user_rpm_limit?: number | null
     health_auto_disable?: boolean
   }
@@ -1086,6 +1088,8 @@ export async function updateGatewayRoute(
     is_active?: boolean
     pii_redaction_enabled?: boolean
     semantic_cache_enabled?: boolean
+    context_compiler_enabled?: boolean
+    context_compiler_config?: Record<string, unknown> | null
   }
 ): Promise<GatewayRoute> {
   return apiFetch<GatewayRoute>(`/gateway/routes/${routeId}`, apiKey, {

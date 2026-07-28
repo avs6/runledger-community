@@ -196,6 +196,76 @@ for tag, display_name in TAG_ORDER:
             }
         )
 
+
+# ── Optimization-layer extras (not in the API's OpenAPI) ──────────────────────
+# The semantic cache and context compiler are standalone microservices; their toggles
+# ride on the gateway. These curated requests demonstrate both, and give direct access
+# to each microservice for testing.
+def _req(name, method, raw_url, desc, body=None, auth=True):
+    parts = raw_url.split("/")
+    headers = [{"key": "Content-Type", "value": "application/json"}]
+    if auth:
+        headers.append({"key": "Authorization", "value": "Bearer {{api_key}}"})
+    r = {
+        "method": method,
+        "header": headers,
+        "url": {"raw": raw_url, "host": [parts[0]], "path": parts[1:]},
+        "description": desc,
+    }
+    if body is not None:
+        r["body"] = {"mode": "raw", "raw": json.dumps(body, indent=2), "options": {"raw": {"language": "json"}}}
+    return {"name": name, "request": r, "response": []}
+
+
+def _add_optimization_extras(items: list[dict]) -> None:
+    gw = next((it for it in items if it["name"] == "Model Gateway"), None)
+    if gw is not None:
+        sys_hr = {"role": "system", "content": "You are a concise HR assistant."}
+        gw["item"] += [
+            _req("Gateway Chat Completions (Semantic Cache)", "POST",
+                 "{{base_url}}/gateway/chat/completions",
+                 "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).",
+                 {"model": "gpt-4o-mini", "messages": [sys_hr, {"role": "user", "content": "how much parental leave do employees get"}], "semantic_cache": True}),
+            _req("Gateway Chat Completions (Context Compiler)", "POST",
+                 "{{base_url}}/gateway/chat/completions",
+                 "Request shrunk (dedup/tool-output/rerank/compaction) before routing.",
+                 {"model": "gpt-4o-mini", "messages": [sys_hr, {"role": "user", "content": "How much parental leave do employees get?"}], "context_compiler": True}),
+            _req("Create Gateway Route (Semantic Cache + Compiler on)", "POST",
+                 "{{base_url}}/gateway/routes",
+                 "Create a route with the semantic cache and context compiler enabled, incl. compiler config.",
+                 {"alias": "gpt-4o-mini", "provider": "openai", "target_model": "gpt-4o-mini",
+                  "api_key_env_var": "OPENAI_API_KEY", "priority": 10, "semantic_cache_enabled": True,
+                  "context_compiler_enabled": True,
+                  "context_compiler_config": {"model": "llama3.1:8b", "reranker_model": "flashrank", "token_threshold": 2000, "token_budget": 32000}}),
+        ]
+    scope = {"tenant": "{{workspace_id}}", "model": "gpt-4o-mini", "system_prompt_hash": "", "knowledge_version": "", "security_scope": ""}
+    items.append({"name": "Semantic Cache Service",
+        "description": "Direct calls to the semantic-cache microservice ({{semantic_cache_url}}, default :8205). No auth.",
+        "item": [
+            _req("Health", "GET", "{{semantic_cache_url}}/health", "Liveness + Qdrant collection status.", None, auth=False),
+            _req("Lookup", "POST", "{{semantic_cache_url}}/lookup", "Semantic hit within scope (score >= threshold).",
+                 {"text": "how much parental leave do employees get", "scope": scope, "threshold": 0.95}, auth=False),
+            _req("Store", "POST", "{{semantic_cache_url}}/store", "Store a response for future semantic hits.",
+                 {"text": "How much parental leave do employees get?", "scope": scope,
+                  "response": {"choices": [{"message": {"role": "assistant", "content": "16 weeks paid."}}], "usage": {"prompt_tokens": 20, "completion_tokens": 12}},
+                  "prompt_tokens": 20, "completion_tokens": 12}, auth=False),
+        ]})
+    items.append({"name": "Context Compiler Service",
+        "description": "Direct calls to the context-compiler microservice ({{context_compiler_url}}, default :8207). No auth.",
+        "item": [
+            _req("Health", "GET", "{{context_compiler_url}}/health", "Liveness + downstream URLs.", None, auth=False),
+            _req("Compile", "POST", "{{context_compiler_url}}/compile",
+                 "Shrink a messages array; returns { messages, token_report, dropped }.",
+                 {"messages": [{"role": "system", "content": "You are a concise HR assistant. Parental leave is 16 weeks paid."},
+                               {"role": "system", "content": "You are a concise HR assistant. Parental leave is 16 weeks paid."},
+                               {"role": "user", "content": "How much parental leave do employees get?"}],
+                  "config": {"reranker_model": "flashrank", "token_threshold": 0, "token_budget": 400,
+                             "stages": {"dedup": True, "tool_output": True, "rerank": True, "compaction": True}}}, auth=False),
+        ]})
+
+
+_add_optimization_extras(items_list)
+
 # ── Assemble collection ───────────────────────────────────────────────────────
 collection = {
     "info": {
@@ -223,10 +293,24 @@ environment = {
     "values": [
         {
             "key": "base_url",
-            "value": "http://localhost:8000",
+            "value": "http://localhost:8201",
             "type": "default",
             "enabled": True,
             "description": "RunLedger API base URL. Change to your deployed URL for production.",
+        },
+        {
+            "key": "semantic_cache_url",
+            "value": "http://localhost:8205",
+            "type": "default",
+            "enabled": True,
+            "description": "Semantic-cache microservice base URL (optimization layer).",
+        },
+        {
+            "key": "context_compiler_url",
+            "value": "http://localhost:8207",
+            "type": "default",
+            "enabled": True,
+            "description": "Context-compiler microservice base URL (optimization layer).",
         },
         {
             "key": "api_key",
