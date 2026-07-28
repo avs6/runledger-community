@@ -30,6 +30,7 @@ from runledger_api.routers import approvals as approvals_router
 from runledger_api.routers import audit as audit_router
 from runledger_api.routers import eval_experiments as eval_experiments_router
 from runledger_api.routers import evaluations as evaluations_router
+from runledger_api.routers import flywheel as flywheel_router
 from runledger_api.routers import gateway as gateway_router
 from runledger_api.routers import integrations as integrations_router
 from runledger_api.routers import org as org_router
@@ -88,6 +89,7 @@ app.include_router(providers_router.router)
 app.include_router(integrations_router.router)
 app.include_router(alerts_router.router)
 app.include_router(gateway_router.router)
+app.include_router(flywheel_router.router)
 app.include_router(evaluations_router.router)
 app.include_router(prompts_router.router)
 app.include_router(sessions_router.router)

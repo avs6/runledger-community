@@ -70,6 +70,45 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 
 
+def _config_fingerprint(
+    *,
+    model_used: str | None,
+    semantic_cache: bool,
+    compiler_enabled: bool,
+    compiler_config: dict[str, Any] | None,
+    ir_decision: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """
+    The optimization config a request ran under, captured so the flywheel can group
+    traffic by (segment, config) and learn the cheapest config that holds the SLA.
+    Only the *tunable* dimensions are recorded — the analyzer treats this as the key.
+    """
+    fp: dict[str, Any] = {
+        "model": model_used,
+        "semantic_cache": bool(semantic_cache),
+        "context_compiler": bool(compiler_enabled),
+        "routing": bool(ir_decision and ir_decision.get("alias")),
+    }
+    if compiler_enabled and isinstance(compiler_config, dict):
+        stages = compiler_config.get("stages") or {}
+        if isinstance(stages, dict):
+            fp["stages"] = sorted(k for k, v in stages.items() if v)
+        rate = compiler_config.get("compression_rate")
+        if rate is not None and (stages.get("compress") if isinstance(stages, dict) else False):
+            fp["compression_rate"] = rate
+    if ir_decision and ir_decision.get("tier"):
+        fp["tier"] = ir_decision.get("tier")
+    return fp
+
+
+def _segment_key(model_alias: str, ir_decision: dict[str, Any] | None) -> str:
+    """Coarse label stamped at request time; the router's complexity×risk class when
+    intelligent routing ran, otherwise the requested alias."""
+    if ir_decision and ir_decision.get("complexity") and ir_decision.get("risk"):
+        return f"{ir_decision['complexity']}x{ir_decision['risk']}"
+    return model_alias
+
+
 # ── Chat completions ────────────────────────────────────────────────────────────
 
 
@@ -265,6 +304,14 @@ async def gateway_chat_completions(
             latency_ms=None,
             req_status="success",
             decision_reason=decision_reason,
+            config_fingerprint=_config_fingerprint(
+                model_used=route.target_model,
+                semantic_cache=semantic_enabled,
+                compiler_enabled=compiler_enabled,
+                compiler_config=compiler_config,
+                ir_decision=ir_decision,
+            ),
+            segment_key=_segment_key(body.model, ir_decision),
         )
         return StreamingResponse(
             _sse_gen(),
@@ -365,6 +412,14 @@ async def gateway_chat_completions(
         latency_ms=latency_ms,
         req_status="success",
         decision_reason=decision_reason,
+        config_fingerprint=_config_fingerprint(
+            model_used=winning_route.target_model,
+            semantic_cache=body.semantic_cache or winning_route.semantic_cache_enabled,
+            compiler_enabled=compiler_enabled,
+            compiler_config=compiler_config,
+            ir_decision=ir_decision,
+        ),
+        segment_key=_segment_key(body.model, ir_decision),
     )
 
     return response_json

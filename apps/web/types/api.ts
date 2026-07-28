@@ -774,6 +774,54 @@ export interface RoutingRecommendationResponse {
   message: string
 }
 
+// ── Optimization flywheel (Phase 7) ─────────────────────────────────────────────
+
+export interface FlywheelSettings {
+  enabled: boolean
+  apply_mode: string // approval | auto | off
+  quality_metric: Record<string, unknown>
+  min_quality: string
+  segment_by: string // outcome_type | task_class | alias
+  action_space: string[]
+  min_sample_size: number
+  lookback_days: number
+  updated_at: string
+}
+
+export interface FlywheelRecommendation {
+  id: string
+  segment_by: string
+  segment_key: string
+  kind: string // switch | explore | guardrail
+  current_config: Record<string, unknown>
+  proposed_config: Record<string, unknown>
+  est_cost_delta_pct: string | null
+  est_cost_delta_per_req: string | null
+  current_quality: string | null
+  proposed_quality: string | null
+  min_quality: string
+  sample_size: number
+  confidence: string // high | medium | low
+  rationale: string | null
+  status: string // pending | applied | dismissed | rolled_back | superseded
+  apply_mode: string
+  applied_route_id: string | null
+  created_at: string
+  updated_at: string
+  applied_at: string | null
+}
+
+export interface FlywheelRecommendationList {
+  items: FlywheelRecommendation[]
+  total: number
+}
+
+export interface FlywheelRunResponse {
+  status: string
+  recommendations: number
+  auto_applied: number
+}
+
 // ── Org Dashboard ──────────────────────────────────────────────────────────────
 
 export interface OrgDashboardWorkspace {

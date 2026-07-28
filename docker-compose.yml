@@ -105,6 +105,7 @@ services:
       ROUTER_SVC_URL: http://runledger-router:8105
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
+      FLYWHEEL_SVC_URL: http://runledger-flywheel:8109
       # External local-LLM runtimes (Ollama on the host / a remote vLLM) — OpenAI-compatible
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
@@ -176,6 +177,7 @@ services:
       ROUTER_SVC_URL: http://runledger-router:8105
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
+      FLYWHEEL_SVC_URL: http://runledger-flywheel:8109
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
@@ -299,6 +301,7 @@ services:
       ROUTER_SVC_URL: http://runledger-router:8105
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
+      FLYWHEEL_SVC_URL: http://runledger-flywheel:8109
       SKILL_REGISTRY_URL: http://runledger-skill-registry:8108
 
   # ── Cognitive layer (Phase 5) ────────────────────────────────────────────
@@ -457,6 +460,20 @@ services:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8103/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  runledger-flywheel:
+    build:
+      context: ./apps/flywheel-svc
+    container_name: runledger-flywheel
+    restart: unless-stopped
+    ports:
+      - "${FLYWHEEL_PORT:-8215}:8109"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8109/health')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

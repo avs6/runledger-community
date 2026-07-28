@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "906a4ba1-6db5-489f-94fe-7abaf6a1618a",
+    "_postman_id": "c440542b-ef34-4eac-ad15-67bf7d67c1bd",
     "name": "RunLedger API",
     "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -3559,6 +3559,233 @@
         }
       ],
       "description": "RunLedger Model Gateway endpoints"
+    },
+    {
+      "name": "Optimization Flywheel",
+      "item": [
+        {
+          "name": "List Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/flywheel/recommendations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "flywheel",
+                "recommendations"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Recommendations"
+          },
+          "response": []
+        },
+        {
+          "name": "Apply Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/flywheel/recommendations/:rec_id/apply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "flywheel",
+                "recommendations",
+                ":rec_id",
+                "apply"
+              ],
+              "variable": [
+                {
+                  "key": "rec_id",
+                  "value": "{{rec_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Apply Recommendation"
+          },
+          "response": []
+        },
+        {
+          "name": "Dismiss Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/flywheel/recommendations/:rec_id/dismiss",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "flywheel",
+                "recommendations",
+                ":rec_id",
+                "dismiss"
+              ],
+              "variable": [
+                {
+                  "key": "rec_id",
+                  "value": "{{rec_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Dismiss Recommendation"
+          },
+          "response": []
+        },
+        {
+          "name": "Run Flywheel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/flywheel/run",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "flywheel",
+                "run"
+              ]
+            },
+            "description": "Run Flywheel"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Flywheel Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/flywheel/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "flywheel",
+                "settings"
+              ]
+            },
+            "description": "Get Flywheel Settings"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Flywheel Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/flywheel/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "flywheel",
+                "settings"
+              ]
+            },
+            "description": "Update Flywheel Settings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": null,\n  \"apply_mode\": null,\n  \"quality_metric\": null,\n  \"min_quality\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "RunLedger Optimization Flywheel endpoints"
     },
     {
       "name": "Evaluations",
@@ -8730,6 +8957,67 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"text\": \"The parental leave policy grants sixteen weeks of fully paid leave to all full-time employees and benefits continue throughout the leave period.\",\n  \"rate\": 0.5,\n  \"model\": \"bert-base-multilingual\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Flywheel Service",
+      "description": "Direct calls to the stateless flywheel analyzer ({{flywheel_url}}, default :8215). No auth.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{flywheel_url}}/health",
+              "host": [
+                "{{flywheel_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness."
+          },
+          "response": []
+        },
+        {
+          "name": "Analyze",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{flywheel_url}}/analyze",
+              "host": [
+                "{{flywheel_url}}"
+              ],
+              "path": [
+                "analyze"
+              ]
+            },
+            "description": "Given per-segment observations, return the cheapest config per segment that holds the SLA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"segment_by\": \"outcome_type\",\n  \"min_quality\": 0.85,\n  \"min_sample_size\": 20,\n  \"segments\": [\n    {\n      \"segment_key\": \"refund_resolved\",\n      \"observations\": [\n        {\n          \"config\": {\n            \"model\": \"gpt-4o\"\n          },\n          \"n\": 140,\n          \"avg_cost_per_req\": 0.028,\n          \"quality\": 0.94\n        },\n        {\n          \"config\": {\n            \"model\": \"gpt-4o-mini\"\n          },\n          \"n\": 90,\n          \"avg_cost_per_req\": 0.006,\n          \"quality\": 0.9\n        }\n      ]\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

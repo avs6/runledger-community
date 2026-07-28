@@ -20,6 +20,7 @@ celery_app = Celery(
         "runledger_api.workers.email_reports",
         "runledger_api.workers.gateway_health",
         "runledger_api.workers.consolidation",
+        "runledger_api.workers.flywheel",
     ],
 )
 
@@ -36,6 +37,11 @@ celery_app.conf.update(
         # Cognitive consolidation: distil episodes → facts, daily
         "cognitive-consolidation-daily": {
             "task": "cognitive.consolidate",
+            "schedule": 86400.0,
+        },
+        # Optimization flywheel: learn cheapest config per segment holding the SLA, daily
+        "flywheel-analyze-daily": {
+            "task": "flywheel.analyze",
             "schedule": 86400.0,
         },
         # Cost enrichment: every 60 seconds

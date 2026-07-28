@@ -18,8 +18,8 @@
 | **4** | Intelligent routing (complexity + risk + reasoning-effort) | ✅ Shipped |
 | **5** | Cognitive / memory layer (Letta / Kùzu / skills) | ✅ Shipped |
 | **6** | Dynamic tool filtering + skill injection | ✅ Shipped |
-| **7** | Optimization flywheel (cost × quality SLA) | ⏳ Next |
-| **8** | Hardening — proxy spike + HA/backup | ▢ Deferred |
+| **7** | Optimization flywheel (cost × quality SLA) | ✅ Shipped |
+| **8** | Hardening — proxy spike + HA/backup | ⏳ Next (deferred) |
 
 User-facing docs for the shipped features: [`docs/optimization.mdx`](../optimization.mdx) and the
 per-feature pages under `docs/optimization/`.
@@ -385,11 +385,16 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** measured tool-schema token reduction on multi-MCP agent runs.
 - **Deps:** Phase 5 (MCP layer), Router svc intent signal.
 
-### Phase 7 — Optimization flywheel (cost × quality SLA)
+### Phase 7 — Optimization flywheel (cost × quality SLA) ✅ SHIPPED
 **Goal:** the differentiator — auto-pick the cheapest config that holds the SLA.
-- Flywheel svc over RunLedger `(config, cost, quality, outcome)` tuples → recommendations to Router/policy store.
-- Customer sets `min_quality`; system selects config (the PDF's Claude-Mid-over-Frontier-Low example).
-- **Exit:** closed loop — recommendations auto-applied (or approval-gated) and shown to move cost down at held quality.
+- ✅ Stateless `runledger-flywheel` (:8215) analyzer over RunLedger `(config, cost, quality)` tuples →
+  `switch` / `explore` / `guardrail` recommendations, honouring a per-workspace SLA + action space.
+- ✅ Customer sets `min_quality` + `quality_metric` (outcome / eval / blend) + `segment_by`; per-workspace
+  `apply_mode` (approval / auto / off), auto-apply guardrailed with auto-rollback on SLA breach.
+- ✅ Config fingerprint stamped on `gateway_requests` (migration 047); `flywheel_settings` +
+  `flywheel_recommendations` (migration 048); nightly beat job; dashboard panel; MCP `flywheel_analyze`.
+- **Exit:** ✅ closed loop verified — organic `switch chat: gpt-4o → gpt-4o-mini` (−99% cost, quality
+  0.95→0.90 ≥ 0.85 SLA); applying patched the route with a rollback snapshot. See `PHASE-7-IMPLEMENTATION.md`.
 - **Deps:** Phases 3–5 (enough signal), eval/outcome data.
 
 ### Phase 8 — Hardening: proxy spike + HA/backup (deferred)
@@ -424,11 +429,11 @@ graph LR
 
   classDef done fill:#16a34a,stroke:#166534,color:#fff;
   classDef next fill:#eab308,stroke:#a16207,color:#111;
-  class P0,P1,P2,P3,P4,P5,P6 done;
-  class P7 next;
+  class P0,P1,P2,P3,P4,P5,P6,P7 done;
+  class P8 next;
 ```
 
-**Green = shipped (Phases 0–6), yellow = next (Phase 7).**
+**Green = shipped (Phases 0–7), yellow = next (Phase 8, deferred hardening).**
 
 ---
 
