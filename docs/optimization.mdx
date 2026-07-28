@@ -76,6 +76,7 @@ token win — in five toggleable, fail-open stages:
 | **Tool-output compression** | Collapses `role: tool` / oversized outputs — line-dedupe, head+tail, or a local-LLM summary for very large outputs. |
 | **Rerank + prune** | Reranks context chunks against the current question (cross-encoder) and prunes low-relevance overflow. |
 | **Conversation compaction** | Summarizes older turns into a checkpoint (goal / decisions / facts / artifacts / pending) when over the token budget. |
+| **Prompt compression** | *(opt-in, lossy)* LLMLingua-2 drops low-information tokens to a target keep-rate, protecting the question and recent turns. |
 | **Token budgeting** | Enforces an input ceiling and emits a `token_report` (before / after per stage). |
 
 It engages only when estimated input tokens exceed the configurable **engage threshold**
@@ -93,9 +94,17 @@ It engages only when estimated input tokens exceed the configurable **engage thr
     "reranker_model": "flashrank",   // "flashrank" | "bge-reranker-base" | "jina-tiny"
     "token_threshold": 2000,         // 0 = always engage
     "token_budget": 32000,
-    "stages": { "dedup": true, "tool_output": true, "rerank": true, "compaction": true }
+    "stages": { "dedup": true, "tool_output": true, "rerank": true, "compaction": true, "compress": false },
+    "compression_model": "bert-base-multilingual",  // or "xlm-roberta-large"
+    "compression_rate": 0.5,         // fraction of tokens to keep
+    "compress_when": "over_budget"   // always | over_budget | over_pct (+ compress_budget_pct)
   }
   ```
+
+  **Prompt compression** (the `compress` stage) is opt-in and lossy: LLMLingua-2 (CPU, PyTorch) drops
+  low-information tokens to the keep-rate. Its engage policy is configurable — `always`, only
+  `over_budget`, or over a percentage of the budget — and the question plus recent turns are never
+  compressed. See [`examples/35_prompt_compression.py`](https://github.com/avs6/runledger-community/blob/master/examples/35_prompt_compression.py).
 
 - **Per request** → add `"context_compiler": true` to a `/gateway/chat/completions` body.
 - **MCP** → the `compile_context` tool on the RunLedger MCP server (for Claude Desktop / Code).
@@ -118,6 +127,7 @@ The optimization helpers come up with `docker compose up -d`:
 | `runledger-mcp-gateway` | 8206 | MCP server (`compile_context`, `health`) |
 | `runledger-context-compiler` | 8207 | The Context Compiler |
 | `runledger-reranker` | 8208 | Cross-encoder reranker (MiniLM / BGE) |
+| `runledger-compression` | 8209 | LLMLingua-2 prompt compression (opt-in) |
 
 Local LLM runtimes (Ollama / vLLM) are external and reached via `OLLAMA_BASE_URL` / `VLLM_BASE_URL`.
 

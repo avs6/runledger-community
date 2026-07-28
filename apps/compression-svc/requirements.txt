@@ -1,0 +1,2 @@
+fastapi[standard]>=0.115.0
+llmlingua>=0.2.2

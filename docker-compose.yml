@@ -309,6 +309,24 @@ services:
       retries: 5
       start_period: 30s
 
+  runledger-compression:
+    build:
+      context: ./apps/compression-svc
+    container_name: runledger-compression
+    restart: unless-stopped
+    ports:
+      - "${COMPRESSION_PORT:-8209}:8104"
+    environment:
+      COMPRESSION_MODEL: ${COMPRESSION_MODEL:-bert-base-multilingual}
+    volumes:
+      - hf_cache:/app/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8104/health')\" || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
   runledger-context-compiler:
     build:
       context: ./apps/context-compiler-svc
@@ -318,6 +336,7 @@ services:
       - "${CONTEXT_COMPILER_PORT:-8207}:8103"
     environment:
       RERANKER_SVC_URL: http://runledger-reranker:8102
+      COMPRESSION_SVC_URL: http://runledger-compression:8104
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       COMPILER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}
     extra_hosts:
@@ -364,6 +383,7 @@ volumes:
   qdrant_data:
   embedding_cache:
   reranker_cache:
+  hf_cache:
 
 configs:
   otel_config:

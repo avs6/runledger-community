@@ -33,9 +33,11 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 RERANKER_SVC_URL = os.getenv("RERANKER_SVC_URL", "http://runledger-reranker:8102").rstrip("/")
+COMPRESSION_SVC_URL = os.getenv("COMPRESSION_SVC_URL", "http://runledger-compression:8104").rstrip("/")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1").rstrip("/")
 DEFAULT_LLM_MODEL = os.getenv("COMPILER_LLM_MODEL", "llama3.1:8b")
 DEFAULT_RERANKER = os.getenv("RERANKER_MODEL", "flashrank")
+DEFAULT_COMPRESSION_MODEL = os.getenv("COMPRESSION_MODEL", "bert-base-multilingual")
 TIMEOUT = float(os.getenv("COMPILER_TIMEOUT_SECONDS", "20"))
 
 app = FastAPI(title="RunLedger Context Compiler", version="0.1.0")
@@ -56,13 +58,19 @@ class CompileConfig(BaseModel):
     reranker_model: str = DEFAULT_RERANKER
     token_threshold: int = 2000  # 0 = always engage
     token_budget: int = 32000
-    keep_recent: int = 4  # recent messages kept verbatim by compaction
+    keep_recent: int = 4  # recent messages kept verbatim by compaction/compression
+    # Prompt compression (Phase 3) — opt-in, lossy.
+    compression_model: str = DEFAULT_COMPRESSION_MODEL
+    compression_rate: float = 0.5  # fraction of tokens to keep (lower = more aggressive)
+    compress_when: str = "over_budget"  # always | over_budget | over_pct
+    compress_budget_pct: float = 0.8  # used when compress_when == "over_pct"
     stages: dict[str, bool] = Field(
         default_factory=lambda: {
             "dedup": True,
             "tool_output": True,
             "rerank": True,
             "compaction": True,
+            "compress": False,  # opt-in: prompt compression is lossy
         }
     )
 
@@ -116,6 +124,19 @@ async def _rerank(query: str, passages: list[str], model: str) -> list[float] | 
         for item in data.get("results", []):
             scores[item["index"]] = item["score"]
         return scores
+    except Exception:
+        return None
+
+
+async def _compress(text: str, rate: float, model: str) -> str | None:
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+            r = await c.post(
+                f"{COMPRESSION_SVC_URL}/compress",
+                json={"text": text, "rate": rate, "model": model},
+            )
+            r.raise_for_status()
+            return r.json().get("compressed_text")
     except Exception:
         return None
 
@@ -291,6 +312,38 @@ async def stage_compaction(
     return rebuilt
 
 
+# ── Stage 6: prompt compression (LLMLingua-2, opt-in, lossy) ──────────────────
+async def stage_compress(
+    messages: list[dict[str, Any]], cfg: CompileConfig, dropped: list[str]
+) -> list[dict[str, Any]]:
+    total = total_tokens(messages)
+    when = cfg.compress_when
+    if when == "over_budget" and total <= cfg.token_budget:
+        return messages
+    if when == "over_pct" and total <= cfg.token_budget * cfg.compress_budget_pct:
+        return messages
+    # else "always" (or over-threshold met) → engage
+    protected = _protected_indices(messages, cfg.keep_recent)
+    out: list[dict[str, Any]] = []
+    compressed_any = False
+    for i, m in enumerate(messages):
+        content = str(m.get("content", ""))
+        if i in protected or est(content) < 100:
+            out.append(m)
+            continue
+        c = await _compress(content, cfg.compression_rate, cfg.compression_model)
+        if c is not None and c != content:
+            compressed_any = True
+            nm = dict(m)
+            nm["content"] = c
+            out.append(nm)
+        else:
+            out.append(m)
+    if compressed_any:
+        dropped.append(f"compress: LLMLingua-2 compressed context (rate={cfg.compression_rate})")
+    return out
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 @app.get("/health")
 def health() -> dict[str, object]:
@@ -320,7 +373,8 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
 
     async def run(name: str, fn):
         nonlocal messages, degraded
-        if not cfg.stages.get(name, True):
+        # All stages default on, except compress (lossy → opt-in).
+        if not cfg.stages.get(name, name != "compress"):
             return
         pre = total_tokens(messages)
         try:
@@ -337,6 +391,7 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
     await run("tool_output", lambda: stage_tool_output(messages, cfg))
     await run("rerank", lambda: stage_rerank(messages, query, cfg, dropped))
     await run("compaction", lambda: stage_compaction(messages, cfg, dropped))
+    await run("compress", lambda: stage_compress(messages, cfg, dropped))
 
     after = total_tokens(messages)
     return CompileResponse(

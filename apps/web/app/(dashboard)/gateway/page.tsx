@@ -46,6 +46,11 @@ export default function GatewayPage() {
   const [newRouteCompilerModel, setNewRouteCompilerModel] = useState('')
   const [newRouteRerankerModel, setNewRouteRerankerModel] = useState('flashrank')
   const [newRouteCompilerThreshold, setNewRouteCompilerThreshold] = useState('2000')
+  const [newRouteCompress, setNewRouteCompress] = useState(false)
+  const [newRouteCompressModel, setNewRouteCompressModel] = useState('bert-base-multilingual')
+  const [newRouteCompressRate, setNewRouteCompressRate] = useState('0.5')
+  const [newRouteCompressWhen, setNewRouteCompressWhen] = useState('over_budget')
+  const [newRouteCompressPct, setNewRouteCompressPct] = useState('0.8')
   const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
@@ -125,6 +130,15 @@ export default function GatewayPage() {
               model: newRouteCompilerModel || undefined,
               reranker_model: newRouteRerankerModel,
               token_threshold: parseInt(newRouteCompilerThreshold, 10) || 0,
+              stages: { compress: newRouteCompress },
+              ...(newRouteCompress
+                ? {
+                    compression_model: newRouteCompressModel,
+                    compression_rate: parseFloat(newRouteCompressRate) || 0.5,
+                    compress_when: newRouteCompressWhen,
+                    compress_budget_pct: parseFloat(newRouteCompressPct) || 0.8,
+                  }
+                : {}),
             }
           : null,
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
@@ -144,6 +158,11 @@ export default function GatewayPage() {
       setNewRouteCompilerModel('')
       setNewRouteRerankerModel('flashrank')
       setNewRouteCompilerThreshold('2000')
+      setNewRouteCompress(false)
+      setNewRouteCompressModel('bert-base-multilingual')
+      setNewRouteCompressRate('0.5')
+      setNewRouteCompressWhen('over_budget')
+      setNewRouteCompressPct('0.8')
       setNewRoutePerUserRpm('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
@@ -494,6 +513,45 @@ export default function GatewayPage() {
                         <label className="text-[11px] text-gray-500 dark:text-gray-400">Engage threshold (tokens · 0 = always)</label>
                         <input type="number" min="0" value={newRouteCompilerThreshold} onChange={(e) => setNewRouteCompilerThreshold(e.target.value)} className={inputCls} />
                       </div>
+                      <div className="flex items-center gap-2 border-t border-indigo-200 dark:border-indigo-800 pt-2">
+                        <input
+                          id="compress"
+                          type="checkbox"
+                          checked={newRouteCompress}
+                          onChange={(e) => setNewRouteCompress(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <label htmlFor="compress" className="text-[11px] text-gray-600 dark:text-gray-300 cursor-pointer" title="LLMLingua-2 prompt compression — lossy, opt-in">Prompt compression (LLMLingua-2)</label>
+                      </div>
+                      {newRouteCompress && (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500 dark:text-gray-400">Compression model</label>
+                            <select className={inputCls} value={newRouteCompressModel} onChange={(e) => setNewRouteCompressModel(e.target.value)}>
+                              <option value="bert-base-multilingual">bert-base-multilingual (fast, default)</option>
+                              <option value="xlm-roberta-large">xlm-roberta-large (quality)</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500 dark:text-gray-400">Keep rate (0.1–1.0 · lower = more aggressive)</label>
+                            <input type="number" min="0.1" max="1" step="0.05" value={newRouteCompressRate} onChange={(e) => setNewRouteCompressRate(e.target.value)} className={inputCls} />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[11px] text-gray-500 dark:text-gray-400">Compress when</label>
+                            <select className={inputCls} value={newRouteCompressWhen} onChange={(e) => setNewRouteCompressWhen(e.target.value)}>
+                              <option value="over_budget">only over token budget</option>
+                              <option value="over_pct">over a % of the budget</option>
+                              <option value="always">always</option>
+                            </select>
+                          </div>
+                          {newRouteCompressWhen === 'over_pct' && (
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[11px] text-gray-500 dark:text-gray-400">Budget fraction to trigger (e.g. 0.8)</label>
+                              <input type="number" min="0.1" max="1" step="0.05" value={newRouteCompressPct} onChange={(e) => setNewRouteCompressPct(e.target.value)} className={inputCls} />
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
