@@ -52,7 +52,8 @@
         "optimization/semantic-cache",
         "optimization/local-models",
         "optimization/context-compiler",
-        "optimization/prompt-compression"
+        "optimization/prompt-compression",
+        "optimization/intelligent-routing"
       ]
     },
     {

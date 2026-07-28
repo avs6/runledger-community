@@ -41,6 +41,7 @@ Everything below is **available today** in RunLedger Community.
 | ✅ | Self-hosted & local models: Ollama, vLLM, or any OpenAI-compatible endpoint |
 | ✅ | Provider fallback with automatic retries on transient errors |
 | ✅ | Cost-aware routing policies — cost, latency, quality, weighted, canary, budget-aware, complexity, and outcome strategies |
+| ✅ | Intelligent routing — classify complexity × business risk → model tier, plus reasoning-effort, per request |
 | ✅ | Exact-match prompt cache (sub-5ms hits, tenant-scoped) |
 | ✅ | Semantic near-duplicate cache with strict scope isolation (tenant / model / prompt / version) |
 | ✅ | Context Compiler — shrink oversized requests before the model (dedup, tool-output compression, relevance rerank/prune, conversation compaction) |
@@ -256,7 +257,6 @@ flowchart TB
 
 RunLedger is evolving from **observing and controlling** AI cost into **actively minimizing** it — cutting tokens before they are ever sent, subject to a customer-defined quality and outcome SLA. On the way:
 
-- **Intelligent routing** — model selection driven by task complexity, business risk, and reasoning-effort, not just price.
 - **Dynamic MCP tool filtering** — serve an agent only the tools relevant to the current request instead of the entire catalog.
 - **Cognitive layer** — persistent memory, a knowledge graph, episodic recall, and a skill registry, shared across every MCP client.
 - **Cost × quality optimization flywheel** — automatically settle on the cheapest configuration that still holds your quality SLA.

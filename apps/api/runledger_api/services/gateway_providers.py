@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -30,6 +31,16 @@ import httpx
 from runledger_api.models.gateway import GatewayRoute
 
 log = logging.getLogger(__name__)
+
+
+def _is_reasoning_model(model: str) -> bool:
+    """
+    True only for models that accept the `reasoning_effort` parameter (OpenAI o-series and
+    anything explicitly labelled 'reasoning'). Sending it to other models (gpt-4o, Ollama, …)
+    returns a 400, so it is filtered out for them.
+    """
+    m = (model or "").lower()
+    return bool(re.match(r"o\d", m)) or "reasoning" in m
 
 
 # ── Response normalizer helpers ────────────────────────────────────────────────
@@ -110,10 +121,14 @@ class OpenAIAdapter:
             "response_format",
             "tools",
             "tool_choice",
+            "reasoning_effort",
         ):
             v = kwargs.get(k)
-            if v is not None:
-                payload[k] = v
+            if v is None:
+                continue
+            if k == "reasoning_effort" and not _is_reasoning_model(route.target_model):
+                continue  # only reasoning models accept reasoning_effort
+            payload[k] = v
         if kwargs.get("stream"):
             payload["stream"] = True
         return payload
@@ -203,10 +218,14 @@ class AzureAdapter:
             "response_format",
             "tools",
             "tool_choice",
+            "reasoning_effort",
         ):
             v = kwargs.get(k)
-            if v is not None:
-                payload[k] = v
+            if v is None:
+                continue
+            if k == "reasoning_effort" and not _is_reasoning_model(route.target_model):
+                continue  # only reasoning models accept reasoning_effort
+            payload[k] = v
         if kwargs.get("stream"):
             payload["stream"] = True
         return payload

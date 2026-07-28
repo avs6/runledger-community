@@ -102,6 +102,7 @@ services:
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
+      ROUTER_SVC_URL: http://runledger-router:8105
       # External local-LLM runtimes (Ollama on the host / a remote vLLM) — OpenAI-compatible
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
@@ -170,6 +171,7 @@ services:
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
+      ROUTER_SVC_URL: http://runledger-router:8105
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
@@ -290,6 +292,7 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8200
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
+      ROUTER_SVC_URL: http://runledger-router:8105
 
   runledger-reranker:
     build:
@@ -326,6 +329,25 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+
+  runledger-router:
+    build:
+      context: ./apps/router-svc
+    container_name: runledger-router
+    restart: unless-stopped
+    ports:
+      - "${ROUTER_PORT:-8210}:8105"
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      ROUTER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8105/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   runledger-context-compiler:
     build:

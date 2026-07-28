@@ -676,6 +676,8 @@ export interface GatewayRoute {
   semantic_cache_enabled: boolean
   context_compiler_enabled: boolean
   context_compiler_config: Record<string, unknown> | null
+  intelligent_routing_enabled: boolean
+  routing_config: Record<string, unknown> | null
   per_user_rpm_limit: number | null
   health_auto_disable: boolean
   last_health_check_at: string | null

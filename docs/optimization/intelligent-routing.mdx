@@ -1,0 +1,89 @@
+---
+title: "Intelligent Routing"
+description: "Route each request by complexity × business risk to the right model tier, and set reasoning effort — so cheap models handle easy work and only hard/high-risk work reaches a frontier model."
+---
+
+Priority routing always picks the same route. Intelligent routing understands *the request*: it
+classifies **complexity** and **business risk**, maps them to a **model tier**, and picks a
+**reasoning effort** — so a *"summarize this meeting"* goes to a cheap model while *"does this contract
+create regulatory exposure?"* reaches a frontier model, even though the prompt looks short.
+
+## How it works
+
+```mermaid
+flowchart TB
+  req[Request to an alias with routing on] --> cls[router-svc /classify]
+  cls --> cx[Complexity\nsimple / medium / complex]
+  cls --> rk[Risk\nlow / high]
+  cls --> re[Reasoning effort\nlow / medium / high]
+  cx --> mat{matrix\ncomplexity × risk}
+  rk --> mat
+  mat --> tier[Tier name]
+  tier --> alias[tiers[tier] → target alias]
+  alias --> fwd[Forward to that alias]
+  re --> fwd
+  fwd --> log[(decision_reason records the tier)]
+```
+
+It runs as an inline gateway stage after the semantic cache and Context Compiler. **Fail-open**: if the
+router is unavailable, the request routes to the alias it was sent to (or a configured default tier).
+
+### Complexity × Risk → tier (default matrix)
+
+| | Risk low | Risk high |
+|---|---|---|
+| **Complexity low** | cheap | mid |
+| **Complexity high** | mid | frontier |
+
+Tiers are an **arbitrary map** — you define any number of named tiers (`name → alias`) and the matrix
+that maps each complexity × risk cell to a tier name.
+
+## Classifier modes
+
+Configurable per route via `classifier_mode`:
+
+| Mode | Behaviour |
+|---|---|
+| `heuristic` | Token estimate → complexity; a configurable **risk-keyword** scan → risk. Deterministic, no LLM. |
+| `llm` | A local Ollama model zero-shot-labels `{complexity, risk, reasoning_effort}`. Falls back to heuristic if the LLM is unavailable. |
+| `hybrid` | Heuristic first, LLM refine merged on top. Default. |
+
+## Reasoning effort
+
+The router also decides `reasoning_effort` (low / medium / high). It's passed to the provider **only for
+reasoning models** (OpenAI o-series) — other models never receive it, so routing to a `gpt-4o` or a local
+model stays clean. You can also override it per request with `"reasoning_effort": "high"`.
+
+## Configuration
+
+```json
+{
+  "classifier_mode": "hybrid",        // hybrid | llm | heuristic
+  "llm_model": "llama3.1:8b",
+  "risk_keywords": ["regulatory", "contract", "compliance", "..."],
+  "complexity_thresholds": { "medium": 500, "complex": 2000 },
+  "tiers": { "cheap": "gpt-4o-mini", "mid": "gpt-4o", "frontier": "o1" },
+  "matrix": {
+    "simple":  { "low": "cheap",    "high": "mid" },
+    "medium":  { "low": "mid",      "high": "frontier" },
+    "complex": { "low": "frontier", "high": "frontier" }
+  },
+  "reasoning_effort": true,
+  "on_failure": "passthrough"         // passthrough | <tier name>
+}
+```
+
+Enable it via the dashboard Gateway page (**Routing ON/OFF** badge + a routing-config editor), a route's
+`"intelligent_routing_enabled": true`, or per request with `"intelligent_routing": true`. Each routed
+request records the decision (`complexity=… risk=… → tier=…`) on the `GatewayRequest`, which feeds the
+future cost × quality flywheel.
+
+## Services
+
+| Service | Port | Role |
+|---|---|---|
+| `runledger-router` | 8210 | Classify + tier mapping |
+| local LLM (Ollama / vLLM) | external | `llm` / `hybrid` classifier |
+
+See [`examples/36_intelligent_routing.py`](https://github.com/avs6/runledger-community/blob/master/examples/36_intelligent_routing.py)
+and the [overview](/optimization).

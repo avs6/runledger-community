@@ -30,6 +30,8 @@ class GatewayRouteCreate(BaseModel):
     semantic_cache_enabled: bool = False
     context_compiler_enabled: bool = False
     context_compiler_config: dict[str, Any] | None = None
+    intelligent_routing_enabled: bool = False
+    routing_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
     health_auto_disable: bool = True
 
@@ -49,6 +51,8 @@ class GatewayRouteUpdate(BaseModel):
     semantic_cache_enabled: bool | None = None
     context_compiler_enabled: bool | None = None
     context_compiler_config: dict[str, Any] | None = None
+    intelligent_routing_enabled: bool | None = None
+    routing_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
     health_auto_disable: bool | None = None
 
@@ -71,6 +75,8 @@ class GatewayRouteResponse(BaseModel):
     semantic_cache_enabled: bool = False
     context_compiler_enabled: bool = False
     context_compiler_config: dict[str, Any] | None = None
+    intelligent_routing_enabled: bool = False
+    routing_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = None
     health_auto_disable: bool = True
     last_health_check_at: datetime | None = None
@@ -121,6 +127,15 @@ class GatewayCompletionRequest(BaseModel):
         False,
         description="Run the Context Compiler on this request (dedup / tool-output compression / "
         "rerank / compaction) before routing. Default off; fail-open.",
+    )
+    intelligent_routing: bool = Field(
+        False,
+        description="Classify this request (complexity × risk) and route it to a model tier. "
+        "Default off; fail-open to the requested alias.",
+    )
+    reasoning_effort: str | None = Field(
+        None,
+        description="Override reasoning effort (low|medium|high) passed to reasoning models.",
     )
 
 
