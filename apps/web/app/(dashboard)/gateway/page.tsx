@@ -51,6 +51,10 @@ export default function GatewayPage() {
   const [newRouteCompressRate, setNewRouteCompressRate] = useState('0.5')
   const [newRouteCompressWhen, setNewRouteCompressWhen] = useState('over_budget')
   const [newRouteCompressPct, setNewRouteCompressPct] = useState('0.8')
+  const [newRouteToolFilter, setNewRouteToolFilter] = useState(true)
+  const [newRouteToolK, setNewRouteToolK] = useState('8')
+  const [newRouteSkills, setNewRouteSkills] = useState(false)
+  const [newRouteSkillK, setNewRouteSkillK] = useState('2')
   const [newRouteIntelligent, setNewRouteIntelligent] = useState(false)
   const [newRouteRoutingConfigStr, setNewRouteRoutingConfigStr] = useState(() =>
     JSON.stringify(
@@ -159,7 +163,9 @@ export default function GatewayPage() {
               model: newRouteCompilerModel || undefined,
               reranker_model: newRouteRerankerModel,
               token_threshold: parseInt(newRouteCompilerThreshold, 10) || 0,
-              stages: { compress: newRouteCompress },
+              tool_k: parseInt(newRouteToolK, 10) || 8,
+              skill_k: parseInt(newRouteSkillK, 10) || 2,
+              stages: { compress: newRouteCompress, tools: newRouteToolFilter, skills: newRouteSkills },
               ...(newRouteCompress
                 ? {
                     compression_model: newRouteCompressModel,
@@ -194,6 +200,10 @@ export default function GatewayPage() {
       setNewRouteCompressRate('0.5')
       setNewRouteCompressWhen('over_budget')
       setNewRouteCompressPct('0.8')
+      setNewRouteToolFilter(true)
+      setNewRouteToolK('8')
+      setNewRouteSkills(false)
+      setNewRouteSkillK('2')
       setNewRouteIntelligent(false)
       setNewRouteRoutingError('')
       setNewRoutePerUserRpm('')
@@ -558,6 +568,20 @@ export default function GatewayPage() {
                       <div className="flex flex-col gap-1">
                         <label className="text-[11px] text-gray-500 dark:text-gray-400">Engage threshold (tokens · 0 = always)</label>
                         <input type="number" min="0" value={newRouteCompilerThreshold} onChange={(e) => setNewRouteCompilerThreshold(e.target.value)} className={inputCls} />
+                      </div>
+                      <div className="flex items-center gap-2 border-t border-indigo-200 dark:border-indigo-800 pt-2">
+                        <input id="tool-filter" type="checkbox" checked={newRouteToolFilter} onChange={(e) => setNewRouteToolFilter(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                        <label htmlFor="tool-filter" className="text-[11px] text-gray-600 dark:text-gray-300 cursor-pointer" title="Keep only the tools relevant to the request">Tool filtering</label>
+                        {newRouteToolFilter && (
+                          <input type="number" min="1" value={newRouteToolK} onChange={(e) => setNewRouteToolK(e.target.value)} className={`w-16 ${inputCls}`} title="Keep top-k tools" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input id="skills" type="checkbox" checked={newRouteSkills} onChange={(e) => setNewRouteSkills(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                        <label htmlFor="skills" className="text-[11px] text-gray-600 dark:text-gray-300 cursor-pointer" title="Inject matched skill bodies from the registry">Skill injection</label>
+                        {newRouteSkills && (
+                          <input type="number" min="1" value={newRouteSkillK} onChange={(e) => setNewRouteSkillK(e.target.value)} className={`w-16 ${inputCls}`} title="Max skills injected" />
+                        )}
                       </div>
                       <div className="flex items-center gap-2 border-t border-indigo-200 dark:border-indigo-800 pt-2">
                         <input

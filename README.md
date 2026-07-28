@@ -90,6 +90,7 @@ Everything below is **available today** in RunLedger Community.
 | ✅ | MCP server — connect Claude Desktop or Claude Code directly to your instance |
 | ✅ | Works with any OpenAI-compatible client, framework, or agent (LangChain, LangGraph, and more) |
 | ✅ | Cognitive layer — shared workspace memory, knowledge graph, and skills over MCP |
+| ✅ | Dynamic tool filtering + skill injection — keep only relevant tools, inject matched skill bodies |
 | ✅ | Fully self-hosted — Docker Compose, no external dependencies, no GPU required |
 
 ---
@@ -258,7 +259,6 @@ flowchart TB
 
 RunLedger is evolving from **observing and controlling** AI cost into **actively minimizing** it — cutting tokens before they are ever sent, subject to a customer-defined quality and outcome SLA. On the way:
 
-- **Dynamic MCP tool filtering** — serve an agent only the tools relevant to the current request instead of the entire catalog.
 - **Cost × quality optimization flywheel** — automatically settle on the cheapest configuration that still holds your quality SLA.
 
 ---

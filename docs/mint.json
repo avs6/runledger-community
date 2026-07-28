@@ -54,7 +54,8 @@
         "optimization/context-compiler",
         "optimization/prompt-compression",
         "optimization/intelligent-routing",
-        "optimization/cognitive-layer"
+        "optimization/cognitive-layer",
+        "optimization/tool-filtering"
       ]
     },
     {

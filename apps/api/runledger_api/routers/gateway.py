@@ -162,9 +162,10 @@ async def gateway_chat_completions(
         if _cc_routes:
             compiler_config = _cc_routes[0].context_compiler_config
             compiler_enabled = compiler_enabled or _cc_routes[0].context_compiler_enabled
+    effective_tools = body.tools
     if compiler_enabled:
-        messages, _cc_report = await context_compiler.compile_messages(
-            messages, compiler_config, workspace=str(workspace.id)
+        messages, effective_tools, _cc_report = await context_compiler.compile_messages(
+            messages, compiler_config, workspace=str(workspace.id), tools=body.tools
         )
         if _cc_report and _cc_report.get("saved"):
             log.info(
@@ -245,7 +246,7 @@ async def gateway_chat_completions(
                 seed=body.seed,
                 stop=body.stop,
                 response_format=body.response_format,
-                tools=body.tools,
+                tools=effective_tools,
                 tool_choice=body.tool_choice,
                 reasoning_effort=effective_reasoning_effort,
             ):
@@ -287,7 +288,7 @@ async def gateway_chat_completions(
             seed=body.seed,
             stop=body.stop,
             response_format=body.response_format,
-            tools=body.tools,
+            tools=effective_tools,
             tool_choice=body.tool_choice,
             reasoning_effort=effective_reasoning_effort,
         )

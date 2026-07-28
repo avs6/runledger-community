@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "0917d07b-289c-41be-943b-ce84f212daff",
+    "_postman_id": "906a4ba1-6db5-489f-94fe-7abaf6a1618a",
     "name": "RunLedger API",
     "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -8257,6 +8257,38 @@
               ]
             },
             "description": "Liveness + downstream URLs."
+          },
+          "response": []
+        },
+        {
+          "name": "Select tools",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{context_compiler_url}}/select-tools",
+              "host": [
+                "{{context_compiler_url}}"
+              ],
+              "path": [
+                "select-tools"
+              ]
+            },
+            "description": "Return the subset of tool definitions relevant to a query (dynamic tool filtering).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"Check my Salesforce opportunity\",\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"salesforce_search\",\n        \"description\": \"Search Salesforce\"\n      }\n    },\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"k8s_scale\",\n        \"description\": \"Scale a Kubernetes deployment\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         },

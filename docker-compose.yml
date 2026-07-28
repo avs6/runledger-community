@@ -446,6 +446,7 @@ services:
     environment:
       RERANKER_SVC_URL: http://runledger-reranker:8102
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
+      SKILL_REGISTRY_URL: http://runledger-skill-registry:8108
       COMPRESSION_SVC_URL: http://runledger-compression:8104
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       COMPILER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}
