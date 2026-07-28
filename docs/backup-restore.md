@@ -2,17 +2,29 @@
 
 ## Backup strategy
 
-RunLedger uses PostgreSQL as its system of record. All Redis state is either:
-- **Ephemeral** (Celery queues, rate-limit counters) — lost on Redis restart, safe to discard
-- **Derived** (budget counters) — rebuilt from Postgres on next request
+The **control-plane PostgreSQL** is RunLedger's system of record and the primary thing to back up.
+The optimization layer adds a few more **durable** stores that also hold state worth keeping:
 
-This means **only PostgreSQL requires backup**. Redis does not.
+| Store | Contents | Back up? |
+|-------|----------|----------|
+| control-plane Postgres | routes, ledger, flywheel, everything | **Always** |
+| memory-db (Letta) | facts / preferences / decisions / episodes | **Yes** |
+| Kùzu graph | knowledge graph | **Yes** |
+| skill-registry | skill files | **Yes** |
+| Qdrant | semantic cache + episode vectors | Optional — largely regenerable |
+
+Everything else is **regenerable** and is *not* backed up:
+- **Redis** — Celery queues + rate-limit counters (ephemeral) and budget counters (rebuilt from Postgres).
+- **Embedding / reranker / compression model caches** — re-downloaded on pod start.
+
+The Helm chart's backup CronJob covers every durable store in one job (see below); `scripts/restore.sh`
+is the companion restore tool.
 
 ## Automated backups
 
 ### Via Helm chart (K8s)
 
-Enable the nightly backup CronJob in your values:
+Enable the nightly multi-store backup CronJob in your values and pick which durable stores to include:
 
 ```yaml
 backup:
@@ -21,9 +33,26 @@ backup:
   s3Bucket: "s3://my-bucket/runledger-backups"
   awsRegion: us-east-1
   retainDays: 30
+  stores:
+    memoryDb: { enabled: true }  # pg_dump the Letta memory Postgres
+    qdrant:   { enabled: false } # snapshot (semantic cache is regenerable; episodes are not)
+    kuzu:     { enabled: true }  # tar the knowledge-graph PVC
+    skills:   { enabled: true }  # tar the skill-registry PVC
 ```
 
-The job uses `pg_dump --format=custom` and uploads a `.dump` file to S3. Files older than `retainDays` are pruned automatically.
+One job backs up every enabled store to S3 (`STANDARD_IA`) under per-store prefixes, pruning objects
+older than `retainDays`:
+
+| Store | Method |
+|-------|--------|
+| control-plane Postgres | `pg_dump --format=custom` (always) |
+| memory-db | `pg_dump --format=custom` |
+| Qdrant | snapshot API |
+| Kùzu / skills | `tar` the StatefulSet PVC |
+
+> **PVC access:** the Kùzu and skills backups mount their `ReadWriteOnce` PVCs, which single-attach — so
+> the backup Job must land on the same node as the owning pod, or the PVC must use a `ReadWriteMany`
+> storage class. For managed production, prefer external stores with the provider's own snapshots.
 
 The backup pod needs S3 write access. On EKS, use IRSA:
 
@@ -90,7 +119,28 @@ Enable PITR in addition to daily snapshots — it lets you restore to within sec
 
 ## Restore procedures
 
-### From pg_dump file
+### All stores — `scripts/restore.sh`
+
+[`scripts/restore.sh`](https://github.com/avs6/runledger-community/blob/master/scripts/restore.sh) restores
+any subset of stores from S3 — the latest object per prefix, or a specific `--timestamp`:
+
+```bash
+S3_BUCKET=s3://my-bucket/runledger-backups \
+DATABASE_URL=postgresql://user:pass@host:5432/runledger \
+MEMORY_DB_URL=postgresql://user:pass@host:5432/memory \
+QDRANT_URL=http://qdrant:6333 \
+./scripts/restore.sh --control-plane --memory-db --qdrant \
+    --kuzu-dir /data --skills-dir /data/skills
+```
+
+- **Postgres stores** → `pg_restore --clean --if-exists` (idempotent).
+- **Qdrant** → snapshot upload/recover API.
+- **Kùzu / skills** → `tar` extract into the PVC; restart `runledger-kg` / `runledger-skill-registry` to reload.
+
+Run a restore drill on a scratch namespace periodically — that is the only way to know your backups work.
+The manual per-store procedures below cover the control-plane Postgres in detail.
+
+### From pg_dump file (control-plane)
 
 ```bash
 # 1. Create an empty database (if restoring to a new instance)

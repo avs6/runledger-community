@@ -56,8 +56,7 @@
         "optimization/intelligent-routing",
         "optimization/cognitive-layer",
         "optimization/tool-filtering",
-        "optimization/flywheel",
-        "optimization/ha-and-backup"
+        "optimization/flywheel"
       ]
     },
     {
@@ -83,8 +82,7 @@
         "helm",
         "ha",
         "backup-restore",
-        "upgrade",
-        "byok"
+        "upgrade"
       ]
     }
   ],

@@ -101,6 +101,36 @@ beat:
   replicaCount: 1   # Do not change — duplicate beat = duplicate scheduled tasks
 ```
 
+## Optimization layer services
+
+The optimization layer (semantic cache, context compiler, reranker, embedding, compression, router,
+memory, flywheel, MCP gateway) is a set of **stateless** microservices. Each gets a Deployment, Service,
+CPU HorizontalPodAutoscaler, PodDisruptionBudget, and soft anti-affinity so replicas spread across nodes.
+They scale on demand exactly like the API:
+
+```yaml
+optimizationServices:
+  semantic-cache:
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
+  context-compiler:
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
+  # …one entry per service
+```
+
+The **stateful** stores (Qdrant, memory-db, Letta, Kùzu, skills) are pluggable — run them in-cluster as
+StatefulSets with PVCs for self-hosting, or point at managed services for production HA:
+
+```yaml
+stores:
+  qdrant:   { external: true, url: "http://qdrant.internal:6333" }
+  memoryDb: { external: true, url: "postgresql://user:pass@pg:5432/memory" }
+  letta:    { external: true, url: "http://letta.internal:8283" }
+```
+
+`kg` and `skill-registry` embed their store on a PVC, so they run as single-replica StatefulSets rather
+than autoscaling. Availability comes from standard Kubernetes primitives — replicas, HPA, PDB, and
+anti-affinity — there is no bespoke HA component. See [helm.md](./helm.md) for the full values reference.
+
 ## Redis HA
 
 ### Redis Sentinel (recommended for self-hosted)
