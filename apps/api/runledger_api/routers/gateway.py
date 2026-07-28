@@ -163,7 +163,9 @@ async def gateway_chat_completions(
             compiler_config = _cc_routes[0].context_compiler_config
             compiler_enabled = compiler_enabled or _cc_routes[0].context_compiler_enabled
     if compiler_enabled:
-        messages, _cc_report = await context_compiler.compile_messages(messages, compiler_config)
+        messages, _cc_report = await context_compiler.compile_messages(
+            messages, compiler_config, workspace=str(workspace.id)
+        )
         if _cc_report and _cc_report.get("saved"):
             log.info(
                 "context_compiler alias=%s before=%s after=%s saved=%s",

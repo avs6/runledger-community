@@ -25,7 +25,9 @@ def enabled() -> bool:
 
 
 async def compile_messages(
-    messages: list[dict[str, Any]], config: dict[str, Any] | None
+    messages: list[dict[str, Any]],
+    config: dict[str, Any] | None,
+    workspace: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     Return (compiled_messages, token_report). On any failure returns the original
@@ -37,6 +39,8 @@ async def compile_messages(
         payload: dict[str, Any] = {"messages": messages}
         if config:
             payload["config"] = config
+        if workspace:
+            payload["workspace"] = workspace
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(f"{_SVC_URL}/compile", json=payload)
             resp.raise_for_status()

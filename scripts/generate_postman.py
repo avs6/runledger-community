@@ -280,6 +280,35 @@ def _add_optimization_extras(items: list[dict]) -> None:
                                         "complex": {"low": "frontier", "high": "frontier"}},
                              "reasoning_effort": True, "on_failure": "passthrough"}}, auth=False),
         ]})
+    items.append({"name": "Memory Service",
+        "description": "Cognitive layer — Letta-backed memory ({{memory_url}}, default :8211). No auth.",
+        "item": [
+            _req("Health", "GET", "{{memory_url}}/health", "Liveness + Letta reachability.", None, auth=False),
+            _req("Store", "POST", "{{memory_url}}/memory",
+                 "Store a memory (kind: fact|preference|decision|episode).",
+                 {"workspace": "{{workspace_id}}", "kind": "decision", "text": "We standardized on Qdrant."}, auth=False),
+            _req("Recall", "POST", "{{memory_url}}/recall", "Recall top-k memories for a query.",
+                 {"workspace": "{{workspace_id}}", "query": "what vector database do we use?", "k": 3}, auth=False),
+        ]})
+    items.append({"name": "Knowledge Graph",
+        "description": "Cognitive layer — Kùzu graph ({{kg_url}}, default :8212). No auth.",
+        "item": [
+            _req("Health", "GET", "{{kg_url}}/health", "Liveness.", None, auth=False),
+            _req("Add entity", "POST", "{{kg_url}}/entities", "Upsert an entity.",
+                 {"workspace": "{{workspace_id}}", "id": "svc-api", "type": "service", "name": "API"}, auth=False),
+            _req("Add relation", "POST", "{{kg_url}}/relations", "Add a relationship.",
+                 {"workspace": "{{workspace_id}}", "from_id": "svc-api", "to_id": "db-pg", "type": "depends_on"}, auth=False),
+            _req("Neighbors", "GET", "{{kg_url}}/neighbors?workspace={{workspace_id}}&entity=svc-api",
+                 "Connected entities.", None, auth=False),
+        ]})
+    items.append({"name": "Skill Registry",
+        "description": "Cognitive layer — skills ({{skill_url}}, default :8213). No auth.",
+        "item": [
+            _req("Health", "GET", "{{skill_url}}/health", "Liveness.", None, auth=False),
+            _req("Upsert skill", "POST", "{{skill_url}}/skills", "Store a skill.",
+                 {"workspace": "{{workspace_id}}", "name": "deploy", "description": "How to deploy", "content": "1. build 2. push", "version": 1}, auth=False),
+            _req("List skills", "GET", "{{skill_url}}/skills?workspace={{workspace_id}}", "List skills.", None, auth=False),
+        ]})
     items.append({"name": "Compression Service",
         "description": "Direct calls to the LLMLingua-2 compression microservice ({{compression_url}}, default :8209). No auth.",
         "item": [
@@ -354,6 +383,12 @@ environment = {
             "enabled": True,
             "description": "Intelligent-router microservice base URL (optimization layer).",
         },
+        {"key": "memory_url", "value": "http://localhost:8211", "type": "default", "enabled": True,
+         "description": "Memory microservice base URL (cognitive layer)."},
+        {"key": "kg_url", "value": "http://localhost:8212", "type": "default", "enabled": True,
+         "description": "Knowledge-graph microservice base URL (cognitive layer)."},
+        {"key": "skill_url", "value": "http://localhost:8213", "type": "default", "enabled": True,
+         "description": "Skill-registry microservice base URL (cognitive layer)."},
         {
             "key": "api_key",
             "value": "",

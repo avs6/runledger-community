@@ -103,6 +103,8 @@ services:
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       ROUTER_SVC_URL: http://runledger-router:8105
+      MEMORY_SVC_URL: http://runledger-memory-svc:8107
+      KG_SVC_URL: http://runledger-kg-svc:8106
       # External local-LLM runtimes (Ollama on the host / a remote vLLM) — OpenAI-compatible
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
@@ -172,6 +174,8 @@ services:
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       ROUTER_SVC_URL: http://runledger-router:8105
+      MEMORY_SVC_URL: http://runledger-memory-svc:8107
+      KG_SVC_URL: http://runledger-kg-svc:8106
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
@@ -293,6 +297,86 @@ services:
       MCP_PORT: 8200
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       ROUTER_SVC_URL: http://runledger-router:8105
+      MEMORY_SVC_URL: http://runledger-memory-svc:8107
+      KG_SVC_URL: http://runledger-kg-svc:8106
+      SKILL_REGISTRY_URL: http://runledger-skill-registry:8108
+
+  # ── Cognitive layer (Phase 5) ────────────────────────────────────────────
+  # runledger-memory-db is a SEPARATE Postgres+pgvector for Letta — distinct from the
+  # control-plane runledger-postgres (plain Postgres 16).
+
+  runledger-memory-db:
+    image: pgvector/pgvector:pg16
+    container_name: runledger-memory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: letta
+      POSTGRES_PASSWORD: letta
+      POSTGRES_DB: letta
+    volumes:
+      - memory_db_data:/var/lib/postgresql/data
+      # Enable pgvector on first init so Letta's migrations succeed.
+      - ./infra/memory-db-init.sql:/docker-entrypoint-initdb.d/00-pgvector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U letta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  runledger-letta:
+    image: letta/letta:latest
+    container_name: runledger-letta
+    restart: unless-stopped
+    ports:
+      - "${LETTA_PORT:-8214}:8283"
+    environment:
+      LETTA_PG_URI: postgresql://letta:letta@runledger-memory-db:5432/letta
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      runledger-memory-db:
+        condition: service_healthy
+
+  runledger-memory-svc:
+    build:
+      context: ./apps/memory-svc
+    container_name: runledger-memory-svc
+    restart: unless-stopped
+    ports:
+      - "${MEMORY_PORT:-8211}:8107"
+    environment:
+      LETTA_BASE_URL: http://runledger-letta:8283
+      LETTA_MODEL: ${LETTA_MODEL:-letta/letta-free}
+      LETTA_EMBEDDING: ${LETTA_EMBEDDING:-letta/letta-free}
+    depends_on:
+      - runledger-letta
+
+  runledger-kg-svc:
+    build:
+      context: ./apps/kg-svc
+    container_name: runledger-kg-svc
+    restart: unless-stopped
+    ports:
+      - "${KG_PORT:-8212}:8106"
+    volumes:
+      - kuzu_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8106/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  runledger-skill-registry:
+    build:
+      context: ./apps/skill-registry
+    container_name: runledger-skill-registry
+    restart: unless-stopped
+    ports:
+      - "${SKILL_PORT:-8213}:8108"
+    volumes:
+      - skills_data:/data/skills
 
   runledger-reranker:
     build:
@@ -358,6 +442,7 @@ services:
       - "${CONTEXT_COMPILER_PORT:-8207}:8103"
     environment:
       RERANKER_SVC_URL: http://runledger-reranker:8102
+      MEMORY_SVC_URL: http://runledger-memory-svc:8107
       COMPRESSION_SVC_URL: http://runledger-compression:8104
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       COMPILER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}
@@ -405,6 +490,9 @@ volumes:
   qdrant_data:
   embedding_cache:
   reranker_cache:
+  memory_db_data:
+  kuzu_data:
+  skills_data:
   hf_cache:
 
 configs:

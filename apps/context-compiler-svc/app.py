@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 
 RERANKER_SVC_URL = os.getenv("RERANKER_SVC_URL", "http://runledger-reranker:8102").rstrip("/")
 COMPRESSION_SVC_URL = os.getenv("COMPRESSION_SVC_URL", "http://runledger-compression:8104").rstrip("/")
+MEMORY_SVC_URL = os.getenv("MEMORY_SVC_URL", "http://runledger-memory-svc:8107").rstrip("/")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1").rstrip("/")
 DEFAULT_LLM_MODEL = os.getenv("COMPILER_LLM_MODEL", "llama3.1:8b")
 DEFAULT_RERANKER = os.getenv("RERANKER_MODEL", "flashrank")
@@ -64,8 +65,10 @@ class CompileConfig(BaseModel):
     compression_rate: float = 0.5  # fraction of tokens to keep (lower = more aggressive)
     compress_when: str = "over_budget"  # always | over_budget | over_pct
     compress_budget_pct: float = 0.8  # used when compress_when == "over_pct"
+    memory_k: int = 5  # top-k memories injected by the (opt-in) memory stage
     stages: dict[str, bool] = Field(
         default_factory=lambda: {
+            "memory": False,  # opt-in: augment with recalled facts (adds context)
             "dedup": True,
             "tool_output": True,
             "rerank": True,
@@ -78,6 +81,7 @@ class CompileConfig(BaseModel):
 class CompileRequest(BaseModel):
     messages: list[dict[str, Any]]
     query: str | None = None
+    workspace: str | None = None  # required for the memory stage
     config: CompileConfig = Field(default_factory=CompileConfig)
 
 
@@ -126,6 +130,19 @@ async def _rerank(query: str, passages: list[str], model: str) -> list[float] | 
         return scores
     except Exception:
         return None
+
+
+async def _recall_memory(workspace: str, query: str, k: int) -> list[dict[str, Any]]:
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+            r = await c.post(
+                f"{MEMORY_SVC_URL}/recall",
+                json={"workspace": workspace, "query": query, "k": k},
+            )
+            r.raise_for_status()
+            return r.json().get("memories", [])
+    except Exception:
+        return []
 
 
 async def _compress(text: str, rate: float, model: str) -> str | None:
@@ -312,6 +329,23 @@ async def stage_compaction(
     return rebuilt
 
 
+# ── Stage 0: memory recall (opt-in, augments context) ────────────────────────
+async def stage_memory(
+    messages: list[dict[str, Any]], workspace: str | None, query: str, cfg: CompileConfig,
+    dropped: list[str],
+) -> list[dict[str, Any]]:
+    if not workspace:
+        return messages
+    mems = await _recall_memory(workspace, query, cfg.memory_k)
+    if not mems:
+        return messages
+    block = "Relevant memory (recalled facts/decisions):\n" + "\n".join(
+        f"- [{m.get('kind', 'fact')}] {m.get('text', '')}" for m in mems
+    )
+    dropped.append(f"memory: injected {len(mems)} recalled item(s)")
+    return [{"role": "system", "content": block}, *messages]
+
+
 # ── Stage 6: prompt compression (LLMLingua-2, opt-in, lossy) ──────────────────
 async def stage_compress(
     messages: list[dict[str, Any]], cfg: CompileConfig, dropped: list[str]
@@ -373,8 +407,8 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
 
     async def run(name: str, fn):
         nonlocal messages, degraded
-        # All stages default on, except compress (lossy → opt-in).
-        if not cfg.stages.get(name, name != "compress"):
+        # All stages default on, except memory + compress (opt-in).
+        if not cfg.stages.get(name, name not in ("compress", "memory")):
             return
         pre = total_tokens(messages)
         try:
@@ -387,6 +421,7 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
             return
         per_stage[name] = pre - total_tokens(messages)
 
+    await run("memory", lambda: stage_memory(messages, req.workspace, query, cfg, dropped))
     await run("dedup", lambda: stage_dedup(messages, dropped))
     await run("tool_output", lambda: stage_tool_output(messages, cfg))
     await run("rerank", lambda: stage_rerank(messages, query, cfg, dropped))
