@@ -246,6 +246,8 @@ async def record_gateway_request(
     latency_ms: int | None,
     req_status: str,
     decision_reason: str | None = None,
+    config_fingerprint: dict[str, Any] | None = None,
+    segment_key: str | None = None,
 ) -> None:
     """Insert a GatewayRequest log entry."""
     entry = GatewayRequest(
@@ -259,6 +261,8 @@ async def record_gateway_request(
         latency_ms=latency_ms,
         status=req_status,
         decision_reason=decision_reason,
+        config_fingerprint=config_fingerprint,
+        segment_key=segment_key,
     )
     db.add(entry)
     await db.commit()

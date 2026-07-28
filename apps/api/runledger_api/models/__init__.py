@@ -11,6 +11,7 @@ from runledger_api.models.events import (
     Span,
     ToolCall,
 )
+from runledger_api.models.flywheel import FlywheelRecommendation, FlywheelSettings
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute, PromptCache
 from runledger_api.models.ledger import (
     CapturePolicy,
@@ -81,6 +82,8 @@ __all__ = [
     "GatewayRoute",
     "GatewayRequest",
     "PromptCache",
+    "FlywheelSettings",
+    "FlywheelRecommendation",
     "RetentionPolicy",
     "EmailPreference",
     "EmailLog",

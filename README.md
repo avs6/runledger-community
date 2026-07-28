@@ -46,6 +46,8 @@ Everything below is **available today** in RunLedger Community.
 | ✅ | Semantic near-duplicate cache with strict scope isolation (tenant / model / prompt / version) |
 | ✅ | Context Compiler — shrink oversized requests before the model (dedup, tool-output compression, relevance rerank/prune, conversation compaction) |
 | ✅ | Prompt compression — opt-in LLMLingua-2 token compression on the compiled context, under a quality floor |
+| ✅ | Dynamic tool filtering & skill injection — keep only relevant tools; inject the body of matched skills |
+| ✅ | Optimization flywheel — learns the cheapest config per traffic segment that still holds your quality SLA, then recommends or auto-applies it (guardrailed) |
 | ✅ | Per-route runtime controls — cost caps, per-user rate limits, PII redaction |
 
 ### Cost, Metering & FinOps

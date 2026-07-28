@@ -55,7 +55,8 @@
         "optimization/prompt-compression",
         "optimization/intelligent-routing",
         "optimization/cognitive-layer",
-        "optimization/tool-filtering"
+        "optimization/tool-filtering",
+        "optimization/flywheel"
       ]
     },
     {

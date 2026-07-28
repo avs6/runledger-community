@@ -27,6 +27,7 @@ TAG_ORDER = [
     ("outcomes", "Outcomes & ROI"),
     ("approvals", "Approvals"),
     ("gateway", "Model Gateway"),
+    ("flywheel", "Optimization Flywheel"),
     ("evaluations", "Evaluations"),
     ("experiments", "Experiments"),
     ("prompts", "Prompts"),
@@ -324,6 +325,18 @@ def _add_optimization_extras(items: list[dict]) -> None:
                           "full-time employees and benefits continue throughout the leave period.",
                   "rate": 0.5, "model": "bert-base-multilingual"}, auth=False),
         ]})
+    items.append({"name": "Flywheel Service",
+        "description": "Direct calls to the stateless flywheel analyzer ({{flywheel_url}}, default :8215). No auth.",
+        "item": [
+            _req("Health", "GET", "{{flywheel_url}}/health", "Liveness.", None, auth=False),
+            _req("Analyze", "POST", "{{flywheel_url}}/analyze",
+                 "Given per-segment observations, return the cheapest config per segment that holds the SLA.",
+                 {"segment_by": "outcome_type", "min_quality": 0.85, "min_sample_size": 20,
+                  "segments": [{"segment_key": "refund_resolved", "observations": [
+                      {"config": {"model": "gpt-4o"}, "n": 140, "avg_cost_per_req": 0.028, "quality": 0.94},
+                      {"config": {"model": "gpt-4o-mini"}, "n": 90, "avg_cost_per_req": 0.006, "quality": 0.90}]}]},
+                 auth=False),
+        ]})
 
 
 _add_optimization_extras(items_list)
@@ -373,6 +386,13 @@ environment = {
             "type": "default",
             "enabled": True,
             "description": "Context-compiler microservice base URL (optimization layer).",
+        },
+        {
+            "key": "flywheel_url",
+            "value": "http://localhost:8215",
+            "type": "default",
+            "enabled": True,
+            "description": "Flywheel analyzer microservice base URL (optimization layer).",
         },
         {
             "key": "compression_url",

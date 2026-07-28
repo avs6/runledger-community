@@ -27,6 +27,7 @@ CONTEXT_COMPILER_SVC_URL = os.getenv("CONTEXT_COMPILER_SVC_URL", "http://runledg
 MEMORY_SVC_URL = os.getenv("MEMORY_SVC_URL", "http://runledger-memory-svc:8107").rstrip("/")
 KG_SVC_URL = os.getenv("KG_SVC_URL", "http://runledger-kg-svc:8106").rstrip("/")
 SKILL_REGISTRY_URL = os.getenv("SKILL_REGISTRY_URL", "http://runledger-skill-registry:8108").rstrip("/")
+FLYWHEEL_SVC_URL = os.getenv("FLYWHEEL_SVC_URL", "http://runledger-flywheel:8109").rstrip("/")
 
 mcp = FastMCP("runledger-optimization", host=HOST, port=PORT)
 
@@ -90,6 +91,26 @@ async def kg_add_relation(workspace: str, from_id: str, to_id: str, type: str) -
 async def kg_neighbors(workspace: str, entity: str, limit: int = 25) -> dict[str, Any]:
     """Return the entities connected to a given entity."""
     return await _call("GET", f"{KG_SVC_URL}/neighbors", params={"workspace": workspace, "entity": entity, "limit": limit})
+
+
+@mcp.tool()
+async def flywheel_analyze(
+    segments: list[dict[str, Any]],
+    min_quality: float = 0.8,
+    min_sample_size: int = 20,
+    segment_by: str = "outcome_type",
+    action_space: list[str] | None = None,
+) -> dict[str, Any]:
+    """Given per-segment observations of how configs performed (config, n, avg_cost_per_req, quality), return the cheapest config per segment that holds the quality SLA. Returns { recommendations }."""
+    payload: dict[str, Any] = {
+        "segments": segments,
+        "min_quality": min_quality,
+        "min_sample_size": min_sample_size,
+        "segment_by": segment_by,
+    }
+    if action_space:
+        payload["action_space"] = action_space
+    return await _call("POST", f"{FLYWHEEL_SVC_URL}/analyze", json=payload)
 
 
 @mcp.tool()

@@ -1169,6 +1169,64 @@ export async function getRoutingRecommendation(
   )
 }
 
+// ── Optimization flywheel (Phase 7) ────────────────────────────────────────────
+
+export async function getFlywheelSettings(
+  apiKey: string,
+): Promise<import('@/types/api').FlywheelSettings> {
+  return apiFetch<import('@/types/api').FlywheelSettings>('/gateway/flywheel/settings', apiKey)
+}
+
+export async function updateFlywheelSettings(
+  apiKey: string,
+  body: Partial<import('@/types/api').FlywheelSettings>,
+): Promise<import('@/types/api').FlywheelSettings> {
+  return apiFetch<import('@/types/api').FlywheelSettings>('/gateway/flywheel/settings', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listFlywheelRecommendations(
+  apiKey: string,
+  status = 'pending',
+): Promise<import('@/types/api').FlywheelRecommendationList> {
+  return apiFetch<import('@/types/api').FlywheelRecommendationList>(
+    `/gateway/flywheel/recommendations?status=${encodeURIComponent(status)}`,
+    apiKey,
+  )
+}
+
+export async function applyFlywheelRecommendation(
+  apiKey: string,
+  recId: string,
+): Promise<import('@/types/api').FlywheelRecommendation> {
+  return apiFetch<import('@/types/api').FlywheelRecommendation>(
+    `/gateway/flywheel/recommendations/${recId}/apply`,
+    apiKey,
+    { method: 'POST' },
+  )
+}
+
+export async function dismissFlywheelRecommendation(
+  apiKey: string,
+  recId: string,
+): Promise<import('@/types/api').FlywheelRecommendation> {
+  return apiFetch<import('@/types/api').FlywheelRecommendation>(
+    `/gateway/flywheel/recommendations/${recId}/dismiss`,
+    apiKey,
+    { method: 'POST' },
+  )
+}
+
+export async function runFlywheel(
+  apiKey: string,
+): Promise<import('@/types/api').FlywheelRunResponse> {
+  return apiFetch<import('@/types/api').FlywheelRunResponse>('/gateway/flywheel/run', apiKey, {
+    method: 'POST',
+  })
+}
+
 // ── Org Dashboard ─────────────────────────────────────────────────────────────
 
 export async function getOrgDashboard(apiKey: string): Promise<import('@/types/api').OrgDashboard> {

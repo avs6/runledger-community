@@ -117,6 +117,12 @@ class GatewayRequest(Base):
     latency_ms: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="success")
     decision_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Phase 7: the optimization config this request ran under (model/tier + which stages
+    # were on + compression rate + cache/routing), so the flywheel can learn per-config cost.
+    config_fingerprint: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # Coarse segment label captured at request time (e.g. router task_class); the flywheel
+    # can also segment by outcome_type (joined) or alias.
+    segment_key: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
