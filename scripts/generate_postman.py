@@ -258,6 +258,11 @@ def _add_optimization_extras(items: list[dict]) -> None:
         "description": "Direct calls to the context-compiler microservice ({{context_compiler_url}}, default :8207). No auth.",
         "item": [
             _req("Health", "GET", "{{context_compiler_url}}/health", "Liveness + downstream URLs.", None, auth=False),
+            _req("Select tools", "POST", "{{context_compiler_url}}/select-tools",
+                 "Return the subset of tool definitions relevant to a query (dynamic tool filtering).",
+                 {"query": "Check my Salesforce opportunity",
+                  "tools": [{"type": "function", "function": {"name": "salesforce_search", "description": "Search Salesforce"}},
+                            {"type": "function", "function": {"name": "k8s_scale", "description": "Scale a Kubernetes deployment"}}]}, auth=False),
             _req("Compile", "POST", "{{context_compiler_url}}/compile",
                  "Shrink a messages array; returns { messages, token_report, dropped }.",
                  {"messages": [{"role": "system", "content": "You are a concise HR assistant. Parental leave is 16 weeks paid."},

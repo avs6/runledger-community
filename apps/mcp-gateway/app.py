@@ -57,6 +57,12 @@ async def compile_context(messages: list[dict[str, Any]], config: dict[str, Any]
 
 
 @mcp.tool()
+async def select_tools(query: str, tools: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the subset of the given tool definitions most relevant to the query (reduces tool-schema tokens)."""
+    return await _call("POST", f"{CONTEXT_COMPILER_SVC_URL}/select-tools", json={"query": query, "tools": tools})
+
+
+@mcp.tool()
 async def memory_store(workspace: str, text: str, kind: str = "fact") -> dict[str, Any]:
     """Store a memory (kind: fact | preference | decision | episode) for a workspace."""
     return await _call("POST", f"{MEMORY_SVC_URL}/memory", json={"workspace": workspace, "kind": kind, "text": text})

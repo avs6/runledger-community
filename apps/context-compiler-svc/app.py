@@ -24,6 +24,7 @@ POST /compile { messages, query?, config } -> { messages, token_report, dropped[
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any
@@ -35,6 +36,7 @@ from pydantic import BaseModel, Field
 RERANKER_SVC_URL = os.getenv("RERANKER_SVC_URL", "http://runledger-reranker:8102").rstrip("/")
 COMPRESSION_SVC_URL = os.getenv("COMPRESSION_SVC_URL", "http://runledger-compression:8104").rstrip("/")
 MEMORY_SVC_URL = os.getenv("MEMORY_SVC_URL", "http://runledger-memory-svc:8107").rstrip("/")
+SKILL_REGISTRY_URL = os.getenv("SKILL_REGISTRY_URL", "http://runledger-skill-registry:8108").rstrip("/")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1").rstrip("/")
 DEFAULT_LLM_MODEL = os.getenv("COMPILER_LLM_MODEL", "llama3.1:8b")
 DEFAULT_RERANKER = os.getenv("RERANKER_MODEL", "flashrank")
@@ -66,9 +68,21 @@ class CompileConfig(BaseModel):
     compress_when: str = "over_budget"  # always | over_budget | over_pct
     compress_budget_pct: float = 0.8  # used when compress_when == "over_pct"
     memory_k: int = 5  # top-k memories injected by the (opt-in) memory stage
+    # Skill injection (Phase 6) — opt-in, inject-body-on-match.
+    skill_k: int = 2  # max skills whose body is injected
+    # Cross-encoder logit floor for a skill to be injected. Relevant matches are typically > -8,
+    # clearly-irrelevant ones well below; tune per route.
+    skill_min_score: float = -8.0
+    # Tool filtering (Phase 6).
+    tool_k: int = 8  # keep the top-k most relevant tools
+    tool_filter_threshold: int = 12  # only filter when the request carries more tools than this
+    tool_min_score: float | None = None  # optional absolute score floor
+    always_tools: list[str] = Field(default_factory=list)  # tool names never dropped
     stages: dict[str, bool] = Field(
         default_factory=lambda: {
             "memory": False,  # opt-in: augment with recalled facts (adds context)
+            "skills": False,  # opt-in: inject matched skill bodies (adds context)
+            "tools": True,  # filter the tool schemas to the relevant subset
             "dedup": True,
             "tool_output": True,
             "rerank": True,
@@ -80,13 +94,15 @@ class CompileConfig(BaseModel):
 
 class CompileRequest(BaseModel):
     messages: list[dict[str, Any]]
+    tools: list[dict[str, Any]] | None = None  # OpenAI-style tool definitions
     query: str | None = None
-    workspace: str | None = None  # required for the memory stage
+    workspace: str | None = None  # required for the memory/skills stages
     config: CompileConfig = Field(default_factory=CompileConfig)
 
 
 class CompileResponse(BaseModel):
     messages: list[dict[str, Any]]
+    tools: list[dict[str, Any]] | None = None  # filtered tool set (None if unchanged)
     token_report: dict[str, Any]
     dropped: list[str]
     degraded: bool = False
@@ -143,6 +159,35 @@ async def _recall_memory(workspace: str, query: str, k: int) -> list[dict[str, A
             return r.json().get("memories", [])
     except Exception:
         return []
+
+
+async def _list_skills(workspace: str) -> list[dict[str, Any]]:
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+            r = await c.get(f"{SKILL_REGISTRY_URL}/skills", params={"workspace": workspace})
+            r.raise_for_status()
+            return r.json().get("skills", [])
+    except Exception:
+        return []
+
+
+async def _get_skill(workspace: str, name: str) -> dict[str, Any] | None:
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+            r = await c.get(f"{SKILL_REGISTRY_URL}/skills/{name}", params={"workspace": workspace})
+            r.raise_for_status()
+            return r.json()
+    except Exception:
+        return None
+
+
+def _tool_text(tool: dict[str, Any]) -> str:
+    fn = tool.get("function", tool)
+    return f"{fn.get('name', '')}: {fn.get('description', '')}".strip()
+
+
+def _tool_name(tool: dict[str, Any]) -> str:
+    return tool.get("function", tool).get("name", "")
 
 
 async def _compress(text: str, rate: float, model: str) -> str | None:
@@ -329,6 +374,59 @@ async def stage_compaction(
     return rebuilt
 
 
+# ── Skill injection (opt-in, inject-body-on-match) ───────────────────────────
+async def stage_skills(
+    messages: list[dict[str, Any]], workspace: str | None, query: str, cfg: CompileConfig,
+    dropped: list[str],
+) -> list[dict[str, Any]]:
+    if not workspace:
+        return messages
+    skills = await _list_skills(workspace)
+    if not skills:
+        return messages
+    descriptions = [f"{s.get('name', '')}: {s.get('description', '')}" for s in skills]
+    scores = await _rerank(query, descriptions, cfg.reranker_model)
+    if scores is None:
+        return messages
+    ranked = sorted(range(len(skills)), key=lambda k: scores[k], reverse=True)
+    injected = []
+    for k in ranked[: cfg.skill_k]:
+        if scores[k] < cfg.skill_min_score:
+            break
+        full = await _get_skill(workspace, skills[k]["name"])
+        if full and full.get("content"):
+            injected.append(f"Relevant skill — {full['name']}:\n{full['content']}")
+    if not injected:
+        return messages
+    dropped.append(f"skills: injected {len(injected)} matched skill(s)")
+    return [{"role": "system", "content": "\n\n".join(injected)}, *messages]
+
+
+# ── Tool filtering (keep the top-k relevant tools) ───────────────────────────
+async def stage_tools(
+    tools: list[dict[str, Any]] | None, query: str, cfg: CompileConfig, dropped: list[str]
+) -> tuple[list[dict[str, Any]] | None, int]:
+    if not tools or len(tools) <= cfg.tool_filter_threshold:
+        return tools, 0
+    always = set(cfg.always_tools)
+    candidates = [(i, t) for i, t in enumerate(tools) if _tool_name(t) not in always]
+    scores = await _rerank(query, [_tool_text(t) for _, t in candidates], cfg.reranker_model)
+    if scores is None:
+        return tools, 0
+    order = sorted(range(len(candidates)), key=lambda j: scores[j], reverse=True)
+    keep_idx = set()
+    for j in order[: cfg.tool_k]:
+        if cfg.tool_min_score is not None and scores[j] < cfg.tool_min_score:
+            break
+        keep_idx.add(candidates[j][0])
+    keep = [i for i in range(len(tools)) if _tool_name(tools[i]) in always or i in keep_idx]
+    kept = [tools[i] for i in keep]
+    saved = sum(est(json.dumps(tools[i])) for i in range(len(tools)) if i not in set(keep))
+    if len(kept) < len(tools):
+        dropped.append(f"tools: kept {len(kept)}/{len(tools)} tools by relevance")
+    return kept, saved
+
+
 # ── Stage 0: memory recall (opt-in, augments context) ────────────────────────
 async def stage_memory(
     messages: list[dict[str, Any]], workspace: str | None, query: str, cfg: CompileConfig,
@@ -384,31 +482,55 @@ def health() -> dict[str, object]:
     return {"status": "ok", "reranker": RERANKER_SVC_URL, "llm": OLLAMA_BASE_URL}
 
 
+class SelectToolsRequest(BaseModel):
+    query: str
+    tools: list[dict[str, Any]]
+    config: CompileConfig = Field(default_factory=CompileConfig)
+
+
+@app.post("/select-tools")
+async def select_tools(req: SelectToolsRequest) -> dict[str, Any]:
+    """Return the subset of tools relevant to the query (same reranker path as the compiler)."""
+    dropped: list[str] = []
+    tools, saved = await stage_tools(req.tools, req.query, req.config, dropped)
+    return {"tools": tools, "saved_tokens": saved, "note": dropped}
+
+
 @app.post("/compile", response_model=CompileResponse)
 async def compile_context(req: CompileRequest) -> CompileResponse:
     messages = req.messages
     cfg = req.config
     before = total_tokens(messages)
-
-    # Below the engage threshold (and threshold != 0) → pass through untouched.
-    if cfg.token_threshold and before <= cfg.token_threshold:
-        return CompileResponse(
-            messages=messages,
-            token_report={"before": before, "after": before, "saved": 0, "per_stage": {}},
-            dropped=[],
-        )
-
     query = req.query or _last_user(messages)
     dropped: list[str] = []
     per_stage: dict[str, int] = {}
     degraded = False
+    tools = req.tools
+
+    # Tool filtering engages on tool COUNT (independent of the message token threshold).
+    if cfg.stages.get("tools", True) and tools:
+        try:
+            tools, tool_saved = await stage_tools(tools, query, cfg, dropped)
+            if tool_saved:
+                per_stage["tools"] = tool_saved
+        except Exception:
+            degraded = True
+
+    # Below the engage threshold (and threshold != 0) → skip the message stages.
+    if cfg.token_threshold and before <= cfg.token_threshold:
+        return CompileResponse(
+            messages=messages,
+            tools=tools if tools is not req.tools else None,
+            token_report={"before": before, "after": before, "saved": 0, "per_stage": per_stage},
+            dropped=dropped,
+        )
 
     import inspect
 
     async def run(name: str, fn):
         nonlocal messages, degraded
-        # All stages default on, except memory + compress (opt-in).
-        if not cfg.stages.get(name, name not in ("compress", "memory")):
+        # All stages default on, except memory + skills + compress (opt-in).
+        if not cfg.stages.get(name, name not in ("compress", "memory", "skills")):
             return
         pre = total_tokens(messages)
         try:
@@ -422,6 +544,7 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
         per_stage[name] = pre - total_tokens(messages)
 
     await run("memory", lambda: stage_memory(messages, req.workspace, query, cfg, dropped))
+    await run("skills", lambda: stage_skills(messages, req.workspace, query, cfg, dropped))
     await run("dedup", lambda: stage_dedup(messages, dropped))
     await run("tool_output", lambda: stage_tool_output(messages, cfg))
     await run("rerank", lambda: stage_rerank(messages, query, cfg, dropped))
@@ -431,6 +554,7 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
     after = total_tokens(messages)
     return CompileResponse(
         messages=messages,
+        tools=tools if tools is not req.tools else None,
         token_report={"before": before, "after": after, "saved": before - after, "per_stage": per_stage},
         dropped=dropped,
         degraded=degraded,

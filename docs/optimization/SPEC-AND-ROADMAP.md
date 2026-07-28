@@ -1,6 +1,6 @@
 # RunLedger Optimization Layer — Spec & Roadmap
 
-> Status: **IN PROGRESS — Phases 0–5 shipped** · Owner: Abijith · Last updated: 2026-07-28
+> Status: **IN PROGRESS — Phases 0–6 shipped** · Owner: Abijith · Last updated: 2026-07-28
 >
 > This document turns the *Token Usage Optimization* gap analysis (see `Token Usage Optimization.pdf`)
 > and the follow-on "cognitive/augmentation layer" discussion into a concrete, phased engineering
@@ -17,8 +17,8 @@
 | **3** | Prompt compression (LLMLingua-2) | ✅ Shipped |
 | **4** | Intelligent routing (complexity + risk + reasoning-effort) | ✅ Shipped |
 | **5** | Cognitive / memory layer (Letta / Kùzu / skills) | ✅ Shipped |
-| **6** | MCP dynamic tool filtering | ⏳ Next |
-| **7** | Optimization flywheel (cost × quality SLA) | ▢ Planned |
+| **6** | Dynamic tool filtering + skill injection | ✅ Shipped |
+| **7** | Optimization flywheel (cost × quality SLA) | ⏳ Next |
 | **8** | Hardening — proxy spike + HA/backup | ▢ Deferred |
 
 User-facing docs for the shipped features: [`docs/optimization.mdx`](../optimization.mdx) and the
@@ -379,7 +379,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** Claude gets task-relevant minimal context from memory; cross-client shared memory demonstrated.
 - **Deps:** Phase 1 (embed, MCP, Qdrant, Kùzu, Letta), Phase 2 (compiler). Runs concurrently with Lane A phases 3–4.
 
-### Phase 6 — MCP dynamic tool filtering
+### Phase 6 — Dynamic tool filtering + skill injection ✅ SHIPPED
 **Goal:** stop shipping the full tool catalog every turn.
 - MCP Tool Router svc: intent → minimal tool subset (PDF gap #9).
 - **Exit:** measured tool-schema token reduction on multi-MCP agent runs.
@@ -424,11 +424,11 @@ graph LR
 
   classDef done fill:#16a34a,stroke:#166534,color:#fff;
   classDef next fill:#eab308,stroke:#a16207,color:#111;
-  class P0,P1,P2,P3,P4,P5 done;
-  class P6 next;
+  class P0,P1,P2,P3,P4,P5,P6 done;
+  class P7 next;
 ```
 
-**Green = shipped (Phases 0–5), yellow = next (Phase 6).**
+**Green = shipped (Phases 0–6), yellow = next (Phase 7).**
 
 ---
 
