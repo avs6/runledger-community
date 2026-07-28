@@ -31,6 +31,7 @@ def fetch(base_url: str, api_key: str, alias: str, limit: int) -> list[dict]:
 
 def summarize(items: list[dict], since: datetime | None) -> dict:
     n = cache_hits = in_tok = out_tok = lat_sum = lat_n = 0
+    reasons: dict[str, int] = {}
     for it in items:
         if since is not None:
             created = it.get("created_at")
@@ -40,6 +41,8 @@ def summarize(items: list[dict], since: datetime | None) -> dict:
         cache_hits += 1 if it.get("cache_hit") else 0
         in_tok += it.get("input_tokens") or 0
         out_tok += it.get("output_tokens") or 0
+        reason = it.get("decision_reason") or "—"
+        reasons[reason] = reasons.get(reason, 0) + 1
         if it.get("latency_ms") is not None:
             lat_sum += it["latency_ms"]
             lat_n += 1
@@ -48,8 +51,10 @@ def summarize(items: list[dict], since: datetime | None) -> dict:
         "cache_hits": cache_hits,
         "cache_hit_rate": round(cache_hits / n, 3) if n else 0.0,
         "input_tokens": in_tok,
+        "avg_input_tokens": round(in_tok / n, 1) if n else 0,
         "output_tokens": out_tok,
         "avg_latency_ms": round(lat_sum / lat_n, 1) if lat_n else None,
+        "decision_reasons": reasons,
         "cost_usd": "TODO (analytics endpoint)",
     }
 

@@ -46,6 +46,12 @@
       ]
     },
     {
+      "group": "Cost Optimization",
+      "pages": [
+        "optimization"
+      ]
+    },
+    {
       "group": "Migration Guides",
       "pages": [
         "migration/from-langsmith",

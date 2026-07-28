@@ -101,6 +101,7 @@ services:
       QDRANT_URL: http://runledger-qdrant:6333
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
+      CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       # External local-LLM runtimes (Ollama on the host / a remote vLLM) — OpenAI-compatible
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
@@ -168,6 +169,7 @@ services:
       QDRANT_URL: http://runledger-qdrant:6333
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
+      CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
@@ -287,6 +289,48 @@ services:
     environment:
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8200
+      CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
+
+  runledger-reranker:
+    build:
+      context: ./apps/reranker-svc
+    container_name: runledger-reranker
+    restart: unless-stopped
+    ports:
+      - "${RERANKER_PORT:-8208}:8102"
+    environment:
+      RERANKER_MODEL: ${RERANKER_MODEL:-flashrank}
+    volumes:
+      - reranker_cache:/app/.cache/fastembed
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8102/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  runledger-context-compiler:
+    build:
+      context: ./apps/context-compiler-svc
+    container_name: runledger-context-compiler
+    restart: unless-stopped
+    ports:
+      - "${CONTEXT_COMPILER_PORT:-8207}:8103"
+    environment:
+      RERANKER_SVC_URL: http://runledger-reranker:8102
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      COMPILER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      runledger-reranker:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8103/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   # ── OTel Collector (OTLP receiver → RunLedger) ────────────────────────────
   # Send traces from any instrumented agent to http://localhost:4318 (HTTP) or :4317 (gRPC).
@@ -319,6 +363,7 @@ volumes:
   postgres_data:
   qdrant_data:
   embedding_cache:
+  reranker_cache:
 
 configs:
   otel_config:

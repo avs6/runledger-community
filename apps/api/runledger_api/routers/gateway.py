@@ -17,6 +17,7 @@ GET    /gateway/requests                  Routing log
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -44,7 +45,7 @@ from runledger_api.schemas.gateway import (
     GatewayRouteUpdate,
     GatewayStats,
 )
-from runledger_api.services import semantic_cache
+from runledger_api.services import context_compiler, semantic_cache
 from runledger_api.services.gateway import (
     check_cache,
     increment_hit_count,
@@ -56,6 +57,8 @@ from runledger_api.services.gateway import (
 )
 from runledger_api.services.gateway_controls import check_cost_cap, check_per_user_rpm
 from runledger_api.services.gateway_redact import redact_messages
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/gateway",
@@ -144,6 +147,31 @@ async def gateway_chat_completions(
                 decision_reason="semantic_cache_hit",
             )
             return sem_hit
+
+    # ── 1c. Context Compiler (opt-in, fail-open) ─────────────────────────────
+    # Enabled per-request (body.context_compiler) OR via the route toggle
+    # (context_compiler_enabled). Shrinks `messages` before routing; applies to
+    # both streaming and non-streaming. Never raises — on any error the original
+    # messages pass through untouched.
+    compiler_enabled = body.context_compiler
+    compiler_config: dict[str, Any] | None = None
+    if context_compiler.enabled():
+        from runledger_api.services.gateway import select_routes  # noqa: PLC0415
+
+        _cc_routes = await select_routes(db, workspace.id, body.model)
+        if _cc_routes:
+            compiler_config = _cc_routes[0].context_compiler_config
+            compiler_enabled = compiler_enabled or _cc_routes[0].context_compiler_enabled
+    if compiler_enabled:
+        messages, _cc_report = await context_compiler.compile_messages(messages, compiler_config)
+        if _cc_report and _cc_report.get("saved"):
+            log.info(
+                "context_compiler alias=%s before=%s after=%s saved=%s",
+                body.model,
+                _cc_report.get("before"),
+                _cc_report.get("after"),
+                _cc_report.get("saved"),
+            )
 
     # ── 2. Streaming path ────────────────────────────────────────────────────
     if body.stream:
@@ -324,6 +352,8 @@ async def create_gateway_route(
         monthly_cost_limit_usd=body.monthly_cost_limit_usd,
         pii_redaction_enabled=body.pii_redaction_enabled,
         semantic_cache_enabled=body.semantic_cache_enabled,
+        context_compiler_enabled=body.context_compiler_enabled,
+        context_compiler_config=body.context_compiler_config,
         per_user_rpm_limit=body.per_user_rpm_limit,
         health_auto_disable=body.health_auto_disable,
     )
@@ -382,6 +412,10 @@ async def update_gateway_route(
         route.pii_redaction_enabled = body.pii_redaction_enabled
     if body.semantic_cache_enabled is not None:
         route.semantic_cache_enabled = body.semantic_cache_enabled
+    if body.context_compiler_enabled is not None:
+        route.context_compiler_enabled = body.context_compiler_enabled
+    if "context_compiler_config" in body.model_fields_set:
+        route.context_compiler_config = body.context_compiler_config
     if "per_user_rpm_limit" in body.model_fields_set:
         route.per_user_rpm_limit = body.per_user_rpm_limit
     if body.health_auto_disable is not None:

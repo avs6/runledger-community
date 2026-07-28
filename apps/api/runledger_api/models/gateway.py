@@ -57,6 +57,12 @@ class GatewayRoute(Base):
     semantic_cache_enabled: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
+    # When enabled, the Context Compiler shrinks the request before routing.
+    context_compiler_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    # Compiler settings: model, reranker_model, token_threshold, token_budget, stages{}.
+    context_compiler_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     per_user_rpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     health_auto_disable: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")

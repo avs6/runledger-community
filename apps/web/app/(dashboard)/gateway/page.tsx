@@ -42,6 +42,10 @@ export default function GatewayPage() {
   const [newRouteMonthlyCap, setNewRouteMonthlyCap] = useState('')
   const [newRoutePiiRedaction, setNewRoutePiiRedaction] = useState(false)
   const [newRouteSemanticCache, setNewRouteSemanticCache] = useState(false)
+  const [newRouteContextCompiler, setNewRouteContextCompiler] = useState(false)
+  const [newRouteCompilerModel, setNewRouteCompilerModel] = useState('')
+  const [newRouteRerankerModel, setNewRouteRerankerModel] = useState('flashrank')
+  const [newRouteCompilerThreshold, setNewRouteCompilerThreshold] = useState('2000')
   const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
@@ -115,6 +119,14 @@ export default function GatewayPage() {
         monthly_cost_limit_usd: newRouteMonthlyCap ? parseFloat(newRouteMonthlyCap) : null,
         pii_redaction_enabled: newRoutePiiRedaction,
         semantic_cache_enabled: newRouteSemanticCache,
+        context_compiler_enabled: newRouteContextCompiler,
+        context_compiler_config: newRouteContextCompiler
+          ? {
+              model: newRouteCompilerModel || undefined,
+              reranker_model: newRouteRerankerModel,
+              token_threshold: parseInt(newRouteCompilerThreshold, 10) || 0,
+            }
+          : null,
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
       })
       setGatewayRoutes((prev) => [...prev, route])
@@ -128,6 +140,10 @@ export default function GatewayPage() {
       setNewRouteMonthlyCap('')
       setNewRoutePiiRedaction(false)
       setNewRouteSemanticCache(false)
+      setNewRouteContextCompiler(false)
+      setNewRouteCompilerModel('')
+      setNewRouteRerankerModel('flashrank')
+      setNewRouteCompilerThreshold('2000')
       setNewRoutePerUserRpm('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
@@ -157,6 +173,19 @@ export default function GatewayPage() {
       })
       setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
       toast.success(updated.semantic_cache_enabled ? 'Semantic cache on' : 'Semantic cache off')
+    } catch {
+      toast.error('Failed to update route')
+    }
+  }
+
+  async function handleToggleContextCompiler(route: GatewayRoute) {
+    if (!apiKey) return
+    try {
+      const updated = await updateGatewayRoute(apiKey, route.id, {
+        context_compiler_enabled: !route.context_compiler_enabled,
+      })
+      setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
+      toast.success(updated.context_compiler_enabled ? 'Context compiler on' : 'Context compiler off')
     } catch {
       toast.error('Failed to update route')
     }
@@ -432,6 +461,41 @@ export default function GatewayPage() {
                     />
                     <label htmlFor="semantic-cache" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Also serve near-duplicate prompts from the semantic cache">Semantic Cache</label>
                   </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <input
+                      id="context-compiler"
+                      type="checkbox"
+                      checked={newRouteContextCompiler}
+                      onChange={(e) => setNewRouteContextCompiler(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="context-compiler" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Shrink oversized requests before routing: dedup, tool-output compression, rerank, compaction">Context Compiler</label>
+                  </div>
+                  {newRouteContextCompiler && (
+                    <div className="mt-2 flex flex-col gap-2 rounded-lg border border-indigo-200 dark:border-indigo-800 p-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] text-gray-500 dark:text-gray-400">Compaction model (local)</label>
+                        <select className={inputCls} value={newRouteCompilerModel} onChange={(e) => setNewRouteCompilerModel(e.target.value)}>
+                          <option value="">— default —</option>
+                          {pricing.filter((p) => ['ollama', 'vllm', 'local'].includes(p.provider)).map((m) => (
+                            <option key={m.id} value={m.model}>{m.model}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] text-gray-500 dark:text-gray-400">Reranker model</label>
+                        <select className={inputCls} value={newRouteRerankerModel} onChange={(e) => setNewRouteRerankerModel(e.target.value)}>
+                          <option value="flashrank">flashrank (fast, default)</option>
+                          <option value="bge-reranker-base">BGE reranker (quality)</option>
+                          <option value="jina-tiny">jina tiny</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] text-gray-500 dark:text-gray-400">Engage threshold (tokens · 0 = always)</label>
+                        <input type="number" min="0" value={newRouteCompilerThreshold} onChange={(e) => setNewRouteCompilerThreshold(e.target.value)} className={inputCls} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
@@ -496,6 +560,17 @@ export default function GatewayPage() {
                           </button>
                         ) : route.semantic_cache_enabled && (
                           <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 text-[10px] font-medium">Cache</span>
+                        )}
+                        {canManage ? (
+                          <button
+                            onClick={() => handleToggleContextCompiler(route)}
+                            title={route.context_compiler_enabled ? 'Context compiler ON — click to turn off' : 'Context compiler OFF — click to turn on'}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 ${route.context_compiler_enabled ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'}`}
+                          >
+                            Compiler {route.context_compiler_enabled ? 'ON' : 'OFF'}
+                          </button>
+                        ) : route.context_compiler_enabled && (
+                          <span className="rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 text-[10px] font-medium">Compiler</span>
                         )}
                       </div>
                     </td>

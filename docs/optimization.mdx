@@ -1,0 +1,142 @@
+---
+title: "Cost Optimization Layer"
+description: "Reduce frontier-model token spend before it happens — semantic caching, self-hosted models, and the Context Compiler — with a quality floor."
+---
+
+RunLedger doesn't just *measure* AI cost — it *reduces* it. The optimization layer sits inline in the
+Model Gateway and cuts tokens before they're ever sent to a provider, every stage **opt-in, fail-open,
+and default-off** so it can never break a working request.
+
+```
+REQUEST
+  │
+  ▼
+Exact cache ──────────────► hit → return
+  │ miss
+Semantic cache ───────────► hit → return          (near-duplicate)
+  │ miss
+Context Compiler ─────────► shrink the request     (dedup · tool-output · rerank · compaction)
+  │
+Routing + budgets ────────► provider (OpenAI / Anthropic / Gemini / self-hosted)
+  │
+Metering / ledger / ROI
+```
+
+Everything is self-hosted and **CPU-only — no GPU required**. The optimizer helpers run as small
+containers alongside the API.
+
+---
+
+## Semantic cache
+
+The exact prompt cache only hits on a byte-for-byte identical request. The **semantic cache** also
+hits on a *paraphrase* whose embedding is within a similarity threshold — so
+`"how much parental leave do employees get"` hits an earlier
+`"How much parental leave do employees get?"`.
+
+Hits are **strictly scope-isolated** by `{tenant, model, system-prompt, knowledge-version,
+security-scope}`, so a cached answer can never leak across a permission or version boundary.
+
+**Enable it** (any one):
+
+- **Dashboard** → Gateway page → the **Cache ON/OFF** badge on a route.
+- **Per route** → `POST /gateway/routes` with `"semantic_cache_enabled": true`.
+- **Per request** → add `"semantic_cache": true` to a `/gateway/chat/completions` body.
+
+A hit is recorded with `decision_reason = "semantic_cache_hit"`. Backed by Qdrant + a CPU embedding
+model (`BAAI/bge-small-en-v1.5`). See [`examples/33_semantic_cache.py`](https://github.com/avs6/runledger-community/blob/master/examples/33_semantic_cache.py).
+
+---
+
+## Self-hosted & local models
+
+Any OpenAI-compatible endpoint is a first-class gateway provider — **Ollama** (CPU), **vLLM**, or any
+local server. The runtimes are **external**: RunLedger points at their base URL, it doesn't ship them.
+
+```bash
+# .env
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1   # Ollama on the Docker host
+VLLM_BASE_URL=http://your-vllm-host:8000/v1            # a remote vLLM server
+```
+
+Create a route with `provider: ollama` (or `vllm` / `local`) and `target_model` set to a model from
+`ollama list`. Add models to `config/pricing.yml` (set rates to `0.00` for free local inference) — they
+then appear in the dashboard model dropdowns and are metered like any hosted provider.
+
+---
+
+## Context Compiler
+
+The Context Compiler shrinks an oversized request **before** it reaches the model — the single biggest
+token win — in five toggleable, fail-open stages:
+
+| Stage | What it does |
+|-------|--------------|
+| **Dedup** | Drops exact-duplicate content blocks (agent loops that resend context). |
+| **Tool-output compression** | Collapses `role: tool` / oversized outputs — line-dedupe, head+tail, or a local-LLM summary for very large outputs. |
+| **Rerank + prune** | Reranks context chunks against the current question (cross-encoder) and prunes low-relevance overflow. |
+| **Conversation compaction** | Summarizes older turns into a checkpoint (goal / decisions / facts / artifacts / pending) when over the token budget. |
+| **Token budgeting** | Enforces an input ceiling and emits a `token_report` (before / after per stage). |
+
+It engages only when estimated input tokens exceed the configurable **engage threshold**
+(`token_threshold`, where **`0` = always engage**), so small requests are untouched.
+
+**Enable it** (any one):
+
+- **Dashboard** → Gateway page → **Compiler ON/OFF** badge, with a config popover: compaction-model
+  dropdown (your local models), reranker-model dropdown, engage threshold, token budget.
+- **Per route** → `"context_compiler_enabled": true` + a `context_compiler_config`:
+
+  ```json
+  {
+    "model": "llama3.1:8b",          // compaction / tool-summary LLM (local)
+    "reranker_model": "flashrank",   // "flashrank" | "bge-reranker-base" | "jina-tiny"
+    "token_threshold": 2000,         // 0 = always engage
+    "token_budget": 32000,
+    "stages": { "dedup": true, "tool_output": true, "rerank": true, "compaction": true }
+  }
+  ```
+
+- **Per request** → add `"context_compiler": true` to a `/gateway/chat/completions` body.
+- **MCP** → the `compile_context` tool on the RunLedger MCP server (for Claude Desktop / Code).
+
+The compaction stage uses your external local LLM; the reranker runs a CPU ONNX cross-encoder
+(MiniLM by default, or a BGE reranker). See
+[`examples/34_context_compiler.py`](https://github.com/avs6/runledger-community/blob/master/examples/34_context_compiler.py).
+
+---
+
+## Services & ports
+
+The optimization helpers come up with `docker compose up -d`:
+
+| Service | Port | Role |
+|---------|------|------|
+| `runledger-qdrant` | 8202 | Vector store (semantic cache) |
+| `runledger-embedding-svc` | 8204 | Shared CPU embedding model of record |
+| `runledger-semantic-cache-svc` | 8205 | Scope-isolated near-duplicate cache |
+| `runledger-mcp-gateway` | 8206 | MCP server (`compile_context`, `health`) |
+| `runledger-context-compiler` | 8207 | The Context Compiler |
+| `runledger-reranker` | 8208 | Cross-encoder reranker (MiniLM / BGE) |
+
+Local LLM runtimes (Ollama / vLLM) are external and reached via `OLLAMA_BASE_URL` / `VLLM_BASE_URL`.
+
+---
+
+## Measuring savings
+
+The `scripts/bench` harness runs the same workload under different profiles and reports tokens, cache
+hits, decision reasons, and latency:
+
+```bash
+# Baseline
+python scripts/bench/run_benchmark.py --api-key $RL_KEY --alias my-route --profile baseline --repeat 5
+# With the optimizers on
+python scripts/bench/run_benchmark.py --api-key $RL_KEY --alias my-route --profile optimized \
+    --semantic-cache --context-compiler --repeat 5
+# Compare
+python scripts/bench/report.py --api-key $RL_KEY --alias my-route
+```
+
+The invariant across every stage: **cost reduction subject to a quality floor**. Optimizations are
+measured on the evaluation harness and can be turned off per route the moment quality regresses.
