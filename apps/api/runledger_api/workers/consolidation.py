@@ -66,7 +66,8 @@ async def _distill(episodes: list[str]) -> str | None:
                 },
             )
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"].strip()
+            content: str = r.json()["choices"][0]["message"]["content"]
+            return content.strip()
     except Exception:
         return None
 
@@ -79,9 +80,18 @@ async def _consolidate() -> dict[str, int]:
             try:
                 r = await client.post(
                     f"{MEMORY_SVC_URL}/recall",
-                    json={"workspace": ws, "query": "recent completed tasks", "kind": "episode", "k": 20},
+                    json={
+                        "workspace": ws,
+                        "query": "recent completed tasks",
+                        "kind": "episode",
+                        "k": 20,
+                    },
                 )
-                episodes = [m.get("text", "") for m in r.json().get("memories", [])] if r.status_code == 200 else []
+                episodes = (
+                    [m.get("text", "") for m in r.json().get("memories", [])]
+                    if r.status_code == 200
+                    else []
+                )
             except Exception:
                 episodes = []
             if len(episodes) < 2:
@@ -94,7 +104,12 @@ async def _consolidate() -> dict[str, int]:
                 try:
                     await client.post(
                         f"{MEMORY_SVC_URL}/memory",
-                        json={"workspace": ws, "kind": "fact", "text": line, "metadata": {"source": "consolidation"}},
+                        json={
+                            "workspace": ws,
+                            "kind": "fact",
+                            "text": line,
+                            "metadata": {"source": "consolidation"},
+                        },
                     )
                     facts += 1
                 except Exception:
@@ -106,5 +121,7 @@ async def _consolidate() -> dict[str, int]:
 def consolidate() -> dict[str, int]:
     """Distil recent episodes into durable facts for each active workspace."""
     result = asyncio.run(_consolidate())
-    log.info("cognitive_consolidation workspaces=%s facts=%s", result["workspaces"], result["facts"])
+    log.info(
+        "cognitive_consolidation workspaces=%s facts=%s", result["workspaces"], result["facts"]
+    )
     return result

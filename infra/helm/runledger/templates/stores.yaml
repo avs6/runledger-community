@@ -1,0 +1,370 @@
+{{- $root := . }}
+{{- $full := include "runledger.fullname" . }}
+
+{{/* ── Qdrant (vector store) ─────────────────────────────────────────────── */}}
+{{- if and .Values.optimization.enabled (not .Values.stores.qdrant.external) }}
+{{- $q := .Values.stores.qdrant }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $full }}-qdrant
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+spec:
+  serviceName: {{ $full }}-qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: qdrant
+  template:
+    metadata:
+      labels:
+        {{- include "runledger.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: qdrant
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: qdrant
+          image: {{ $q.image | quote }}
+          ports:
+            - name: http
+              containerPort: {{ $q.port }}
+          resources:
+            {{- toYaml $q.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $q.persistence.mountPath }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $q.persistence.storageClass }}
+        storageClassName: {{ $q.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $q.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-qdrant
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+spec:
+  clusterIP: None
+  ports:
+    - port: {{ $q.port }}
+      targetPort: http
+      name: http
+  selector:
+    {{- include "runledger.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+{{- end }}
+
+{{/* ── Memory DB (dedicated Postgres + pgvector for Letta) ────────────────── */}}
+{{- if and .Values.optimization.enabled (not .Values.stores.memoryDb.external) }}
+{{- $m := .Values.stores.memoryDb }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $full }}-memory-db-init
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+data:
+  init.sql: |
+    CREATE EXTENSION IF NOT EXISTS vector;
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $full }}-memory-db
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: memory-db
+spec:
+  serviceName: {{ $full }}-memory-db
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: memory-db
+  template:
+    metadata:
+      labels:
+        {{- include "runledger.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: memory-db
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: {{ $m.image | quote }}
+          ports:
+            - name: pg
+              containerPort: {{ $m.port }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ $m.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ $m.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ $m.database | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            {{- toYaml $m.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $m.persistence.mountPath }}
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init
+          configMap:
+            name: {{ $full }}-memory-db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $m.persistence.storageClass }}
+        storageClassName: {{ $m.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $m.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-memory-db
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: memory-db
+spec:
+  clusterIP: None
+  ports:
+    - port: {{ $m.port }}
+      targetPort: pg
+      name: pg
+  selector:
+    {{- include "runledger.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: memory-db
+{{- end }}
+
+{{/* ── Letta (memory server; persists in memory-db) ──────────────────────── */}}
+{{- if and .Values.optimization.enabled (not .Values.stores.letta.external) }}
+{{- $l := .Values.stores.letta }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $full }}-letta
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: letta
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: letta
+  template:
+    metadata:
+      labels:
+        {{- include "runledger.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: letta
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: letta
+          image: {{ $l.image | quote }}
+          ports:
+            - name: http
+              containerPort: {{ $l.port }}
+          env:
+            - name: LETTA_PG_URI
+              value: {{ include "runledger.memoryDbUrl" $root | quote }}
+            - name: OLLAMA_BASE_URL
+              value: {{ $root.Values.optimization.ollamaBaseUrl | quote }}
+          resources:
+            {{- toYaml $l.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-letta
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: letta
+spec:
+  ports:
+    - port: {{ $l.port }}
+      targetPort: http
+      name: http
+  selector:
+    {{- include "runledger.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: letta
+{{- end }}
+
+{{/* ── Control-plane Postgres (self-host convenience) ────────────────────── */}}
+{{- if .Values.postgres.inCluster }}
+{{- $p := .Values.postgres }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $full }}-postgres
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: {{ $full }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "runledger.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: {{ $p.image | quote }}
+          ports:
+            - name: pg
+              containerPort: {{ $p.port }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ $p.user | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ $p.password | quote }}
+            - name: POSTGRES_DB
+              value: {{ $p.database | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            {{- toYaml $p.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $p.persistence.mountPath }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $p.persistence.storageClass }}
+        storageClassName: {{ $p.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $p.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-postgres
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  clusterIP: None
+  ports:
+    - port: {{ $p.port }}
+      targetPort: pg
+      name: pg
+  selector:
+    {{- include "runledger.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: postgres
+{{- end }}
+
+{{/* ── Control-plane Redis (self-host convenience) ───────────────────────── */}}
+{{- if .Values.redis.inCluster }}
+{{- $r := .Values.redis }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $full }}-redis
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  serviceName: {{ $full }}-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "runledger.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: redis
+          image: {{ $r.image | quote }}
+          args: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - name: redis
+              containerPort: {{ $r.port }}
+          resources:
+            {{- toYaml $r.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $r.persistence.storageClass }}
+        storageClassName: {{ $r.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $r.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $full }}-redis
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  clusterIP: None
+  ports:
+    - port: {{ $r.port }}
+      targetPort: redis
+      name: redis
+  selector:
+    {{- include "runledger.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}

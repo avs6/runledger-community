@@ -30,18 +30,14 @@ def enabled() -> bool:
 
 
 def _system_prompt_hash(messages: list[dict[str, Any]]) -> str:
-    system = "\n".join(
-        str(m.get("content", "")) for m in messages if m.get("role") == "system"
-    )
+    system = "\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "system")
     return hashlib.sha256(system.encode()).hexdigest()[:16]
 
 
 def _canonical_text(messages: list[dict[str, Any]]) -> str:
     """Text used to compute the similarity embedding (non-system turns)."""
     return "\n".join(
-        f"{m.get('role')}: {m.get('content', '')}"
-        for m in messages
-        if m.get("role") != "system"
+        f"{m.get('role')}: {m.get('content', '')}" for m in messages if m.get("role") != "system"
     )
 
 
@@ -70,9 +66,10 @@ async def lookup(
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(f"{_SVC_URL}/lookup", json=payload)
             resp.raise_for_status()
-            data = resp.json()
+            data: dict[str, Any] = resp.json()
         if data.get("hit") and data.get("payload"):
-            return data["payload"]
+            hit_payload: dict[str, Any] = data["payload"]
+            return hit_payload
     except Exception as exc:  # noqa: BLE001 — fail-open
         log.warning("semantic_cache_lookup_skipped error=%s", str(exc))
     return None

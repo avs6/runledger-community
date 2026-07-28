@@ -40,7 +40,8 @@ async def classify(
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.post(f"{_SVC_URL}/classify", json=payload)
             resp.raise_for_status()
-            return resp.json()
+            decision: dict[str, Any] = resp.json()
+            return decision
     except Exception as exc:  # noqa: BLE001 — fail-open
         log.warning("intelligent_router_skipped error=%s", str(exc))
     return None

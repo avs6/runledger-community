@@ -1,0 +1,161 @@
+{{- if .Values.optimization.enabled }}
+{{- $root := . }}
+{{- $full := include "runledger.fullname" . }}
+{{- range $name, $svc := .Values.optimizationServices }}
+{{- if $svc.enabled }}
+{{- $fqName := printf "%s-%s" $full $name }}
+{{- $isStateful := default false $svc.stateful }}
+{{- $hpaOn := and (hasKey $svc "autoscaling") $svc.autoscaling.enabled }}
+---
+# ── {{ $name }} ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+{{- if $isStateful }}
+kind: StatefulSet
+{{- else }}
+kind: Deployment
+{{- end }}
+metadata:
+  name: {{ $fqName }}
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  {{- if $isStateful }}
+  serviceName: {{ $fqName }}
+  replicas: 1
+  {{- else if not $hpaOn }}
+  replicas: {{ default 1 $svc.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- include "runledger.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: {{ $name }}
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "runledger.serviceAccountName" $root }}
+      securityContext:
+        {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $root.Values.optimization.imageRegistry }}/{{ $svc.image }}:{{ $root.Values.optimization.imageTag }}"
+          imagePullPolicy: {{ $root.Values.optimization.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+              protocol: TCP
+          env:
+            {{- include "runledger.optimizationEnv" $root | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          {{- if $isStateful }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ $svc.persistence.mountPath }}
+          {{- end }}
+      {{- include "runledger.antiAffinity" (list $root $name) | nindent 6 }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if $isStateful }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if $svc.persistence.storageClass }}
+        storageClassName: {{ $svc.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $svc.persistence.size }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fqName }}
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  {{- if $isStateful }}
+  clusterIP: None
+  {{- end }}
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "runledger.selectorLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+{{- if $hpaOn }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $fqName }}
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $fqName }}
+  minReplicas: {{ $svc.autoscaling.minReplicas }}
+  maxReplicas: {{ $svc.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if and $root.Values.optimization.podDisruptionBudget.enabled (or $hpaOn (gt (int (default 1 $svc.replicaCount)) 1)) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $fqName }}
+  labels:
+    {{- include "runledger.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  minAvailable: {{ $root.Values.optimization.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "runledger.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ $name }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

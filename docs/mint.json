@@ -56,7 +56,8 @@
         "optimization/intelligent-routing",
         "optimization/cognitive-layer",
         "optimization/tool-filtering",
-        "optimization/flywheel"
+        "optimization/flywheel",
+        "optimization/ha-and-backup"
       ]
     },
     {

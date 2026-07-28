@@ -1,0 +1,76 @@
+name: Build & Push Images
+
+# Builds the optimization-layer microservice images and pushes them to Docker Hub
+# (docker.io/abijith13/runledger-<svc>). Consumed by the Helm chart
+# (infra/helm/runledger — optimization.imageRegistry).
+#
+# Requires two repo secrets:
+#   DOCKERHUB_USERNAME  → abijith13
+#   DOCKERHUB_TOKEN     → a Docker Hub access token (Account Settings → Security)
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+    paths:
+      - "apps/**"
+      - ".github/workflows/images.yml"
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: docker.io
+  NAMESPACE: abijith13
+
+jobs:
+  build:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    # Skip on forks / when Docker Hub secrets are absent.
+    if: github.repository == 'avs6/runledger-community'
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - embedding-svc
+          - semantic-cache-svc
+          - reranker-svc
+          - context-compiler-svc
+          - compression-svc
+          - router-svc
+          - flywheel-svc
+          - memory-svc
+          - kg-svc
+          - skill-registry
+          - mcp-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/runledger-${{ matrix.service }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
