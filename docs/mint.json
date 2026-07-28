@@ -48,7 +48,11 @@
     {
       "group": "Cost Optimization",
       "pages": [
-        "optimization"
+        "optimization",
+        "optimization/semantic-cache",
+        "optimization/local-models",
+        "optimization/context-compiler",
+        "optimization/prompt-compression"
       ]
     },
     {

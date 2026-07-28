@@ -1,11 +1,28 @@
 # RunLedger Optimization Layer — Spec & Roadmap
 
-> Status: **DRAFT for discussion** · Owner: Abijith · Last updated: 2026-07-27
+> Status: **IN PROGRESS — Phases 0–3 shipped** · Owner: Abijith · Last updated: 2026-07-28
 >
 > This document turns the *Token Usage Optimization* gap analysis (see `Token Usage Optimization.pdf`)
 > and the follow-on "cognitive/augmentation layer" discussion into a concrete, phased engineering
 > spec. It is deliberately **implementation-agnostic on details** — we agree the architecture and
 > sequencing here first, then write a per-phase implementation plan.
+
+## Delivery status
+
+| Phase | Scope | Status |
+|---|---|:--:|
+| **0** | Baseline & benchmark harness | ✅ Shipped |
+| **1** | Foundations + semantic cache + local models | ✅ Shipped |
+| **2** | Context Compiler (dedup, tool-output, rerank, compaction) | ✅ Shipped |
+| **3** | Prompt compression (LLMLingua-2) | ✅ Shipped |
+| **4** | Intelligent routing (complexity + risk + reasoning-effort) | ⏳ Next |
+| **5** | Cognitive / memory layer (Letta / Kùzu / Qdrant) | ▢ Planned |
+| **6** | MCP dynamic tool filtering | ▢ Planned |
+| **7** | Optimization flywheel (cost × quality SLA) | ▢ Planned |
+| **8** | Hardening — proxy spike + HA/backup | ▢ Deferred |
+
+User-facing docs for the shipped features: [`docs/optimization.mdx`](../optimization.mdx) and the
+per-feature pages under `docs/optimization/`.
 >
 > **Decisions locked (2026-07-27):**
 > 1. **Strict-parallel tracks** — inline gateway pipeline (Track A) *and* MCP augmentation (Track B) funded from the start.
@@ -312,7 +329,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 > The two lanes converge at the Context Compiler (shared) and at RunLedger measurement. Enterprise weighting
 > means Lane A gets first claim on shared capacity when the two compete.
 
-### Phase 0 — Baseline & benchmark harness
+### Phase 0 — Baseline & benchmark harness ✅ SHIPPED
 **Goal:** make savings measurable before optimizing anything.
 - Route Codex CLI + Claude Code through RunLedger; confirm `/chat/completions` and (spike) `/responses` + Anthropic-proxy behavior.
 - Define the standard benchmark task (the PDF's "analyze this repo / find security issues / write report").
@@ -320,7 +337,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** a reproducible Baseline vs Optimized comparison table wired to real runs.
 - **Deps:** none (uses existing RunLedger).
 
-### Phase 1 — Shared foundations
+### Phase 1 — Shared foundations ✅ SHIPPED
 **Goal:** the substrate both lanes need.
 - Embedding svc (fastembed, CPU) + container.
 - Stand up dedicated stores: **Qdrant** (vectors), **Kùzu** (graph), and Letta's Postgres — single-instance containers with healthchecks. **No HA, no backup/restore yet** (decision #10 — deferred to P8); local volumes are fine for now.
@@ -330,7 +347,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** semantic cache measurably lifts hit-rate over exact cache on the benchmark; MCP server reachable from Claude Desktop; all dedicated stores green in compose.
 - **Deps:** Phase 0.
 
-### Phase 2 — Context Compiler v1 (prune & rerank)
+### Phase 2 — Context Compiler v1 (prune & rerank) ✅ SHIPPED
 **Goal:** the biggest token win in the PDF. Enterprise weighting → build **inline (Lane A) first**, expose the same service over MCP (Lane B) in the same phase.
 - Conversation compaction (checkpoint → goal/decisions/facts/artifacts/pending).
 - RAG rerank + relevance-threshold prune (FlashRank/BGE).
@@ -339,7 +356,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** demonstrated input-token reduction on the benchmark with success-rate held, in the inline pipeline; same service reachable as an MCP tool from Claude Code.
 - **Deps:** Phase 1 (embed, Qdrant, Ollama, MCP).
 
-### Phase 3 — Prompt compression
+### Phase 3 — Prompt compression ✅ SHIPPED
 **Goal:** squeeze the compiled context further under a quality floor.
 - Prompt Compression svc (LLMLingua-2), protected-span support.
 - Wire into Context Compiler as the final stage; quality-gate it.
@@ -404,7 +421,14 @@ graph LR
   P5 --> P7
   P7 --> P8[P8 Hardening - proxy spike + HA/backup]
   P6 --> P8
+
+  classDef done fill:#16a34a,stroke:#166534,color:#fff;
+  classDef next fill:#eab308,stroke:#a16207,color:#111;
+  class P0,P1,P2,P3 done;
+  class P4 next;
 ```
+
+**Green = shipped (Phases 0–3), yellow = next (Phase 4).**
 
 ---
 
