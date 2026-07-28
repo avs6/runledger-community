@@ -19,7 +19,7 @@ flowchart TB
   cx --> mat{matrix\ncomplexity × risk}
   rk --> mat
   mat --> tier[Tier name]
-  tier --> alias[tiers[tier] → target alias]
+  tier --> alias["tiers[tier] → target alias"]
   alias --> fwd[Forward to that alias]
   re --> fwd
   fwd --> log[(decision_reason records the tier)]
