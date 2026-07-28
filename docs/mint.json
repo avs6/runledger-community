@@ -53,7 +53,8 @@
         "optimization/local-models",
         "optimization/context-compiler",
         "optimization/prompt-compression",
-        "optimization/intelligent-routing"
+        "optimization/intelligent-routing",
+        "optimization/cognitive-layer"
       ]
     },
     {

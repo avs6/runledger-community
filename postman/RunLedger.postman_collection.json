@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "e8ffd65c-3dc5-454a-9956-ad98a917896c",
+    "_postman_id": "0917d07b-289c-41be-943b-ce84f212daff",
     "name": "RunLedger API",
     "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -8350,6 +8350,299 @@
                 }
               }
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Memory Service",
+      "description": "Cognitive layer \u2014 Letta-backed memory ({{memory_url}}, default :8211). No auth.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{memory_url}}/health",
+              "host": [
+                "{{memory_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness + Letta reachability."
+          },
+          "response": []
+        },
+        {
+          "name": "Store",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{memory_url}}/memory",
+              "host": [
+                "{{memory_url}}"
+              ],
+              "path": [
+                "memory"
+              ]
+            },
+            "description": "Store a memory (kind: fact|preference|decision|episode).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspace\": \"{{workspace_id}}\",\n  \"kind\": \"decision\",\n  \"text\": \"We standardized on Qdrant.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Recall",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{memory_url}}/recall",
+              "host": [
+                "{{memory_url}}"
+              ],
+              "path": [
+                "recall"
+              ]
+            },
+            "description": "Recall top-k memories for a query.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspace\": \"{{workspace_id}}\",\n  \"query\": \"what vector database do we use?\",\n  \"k\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Graph",
+      "description": "Cognitive layer \u2014 K\u00f9zu graph ({{kg_url}}, default :8212). No auth.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{kg_url}}/health",
+              "host": [
+                "{{kg_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness."
+          },
+          "response": []
+        },
+        {
+          "name": "Add entity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{kg_url}}/entities",
+              "host": [
+                "{{kg_url}}"
+              ],
+              "path": [
+                "entities"
+              ]
+            },
+            "description": "Upsert an entity.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspace\": \"{{workspace_id}}\",\n  \"id\": \"svc-api\",\n  \"type\": \"service\",\n  \"name\": \"API\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add relation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{kg_url}}/relations",
+              "host": [
+                "{{kg_url}}"
+              ],
+              "path": [
+                "relations"
+              ]
+            },
+            "description": "Add a relationship.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspace\": \"{{workspace_id}}\",\n  \"from_id\": \"svc-api\",\n  \"to_id\": \"db-pg\",\n  \"type\": \"depends_on\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Neighbors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{kg_url}}/neighbors?workspace={{workspace_id}}&entity=svc-api",
+              "host": [
+                "{{kg_url}}"
+              ],
+              "path": [
+                "neighbors?workspace={{workspace_id}}&entity=svc-api"
+              ]
+            },
+            "description": "Connected entities."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Skill Registry",
+      "description": "Cognitive layer \u2014 skills ({{skill_url}}, default :8213). No auth.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skill_url}}/health",
+              "host": [
+                "{{skill_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness."
+          },
+          "response": []
+        },
+        {
+          "name": "Upsert skill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skill_url}}/skills",
+              "host": [
+                "{{skill_url}}"
+              ],
+              "path": [
+                "skills"
+              ]
+            },
+            "description": "Store a skill.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspace\": \"{{workspace_id}}\",\n  \"name\": \"deploy\",\n  \"description\": \"How to deploy\",\n  \"content\": \"1. build 2. push\",\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List skills",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{skill_url}}/skills?workspace={{workspace_id}}",
+              "host": [
+                "{{skill_url}}"
+              ],
+              "path": [
+                "skills?workspace={{workspace_id}}"
+              ]
+            },
+            "description": "List skills."
           },
           "response": []
         }

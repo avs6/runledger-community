@@ -40,6 +40,9 @@ flowchart TB
   <Card title="Intelligent Routing" href="/optimization/intelligent-routing">
     Route by complexity × risk to the right model tier; set reasoning effort.
   </Card>
+  <Card title="Cognitive Layer" href="/optimization/cognitive-layer">
+    Shared memory, knowledge graph, and skills over MCP.
+  </Card>
 </CardGroup>
 
 ## Services & ports
@@ -56,6 +59,9 @@ Everything comes up with `docker compose up -d`:
 | `runledger-reranker` | 8208 | Cross-encoder reranker (MiniLM / BGE) |
 | `runledger-compression` | 8209 | LLMLingua-2 prompt compression (opt-in) |
 | `runledger-router` | 8210 | Intelligent routing (complexity × risk → tier) |
+| `runledger-memory-svc` / `runledger-letta` | 8211 / 8214 | Shared memory (Letta) |
+| `runledger-kg-svc` | 8212 | Knowledge graph (Kùzu) |
+| `runledger-skill-registry` | 8213 | Skill registry |
 
 Local LLM runtimes (Ollama / vLLM) are external and reached via `OLLAMA_BASE_URL` / `VLLM_BASE_URL`.
 

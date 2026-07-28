@@ -1,6 +1,6 @@
 # RunLedger Optimization Layer — Spec & Roadmap
 
-> Status: **IN PROGRESS — Phases 0–4 shipped** · Owner: Abijith · Last updated: 2026-07-28
+> Status: **IN PROGRESS — Phases 0–5 shipped** · Owner: Abijith · Last updated: 2026-07-28
 >
 > This document turns the *Token Usage Optimization* gap analysis (see `Token Usage Optimization.pdf`)
 > and the follow-on "cognitive/augmentation layer" discussion into a concrete, phased engineering
@@ -16,8 +16,8 @@
 | **2** | Context Compiler (dedup, tool-output, rerank, compaction) | ✅ Shipped |
 | **3** | Prompt compression (LLMLingua-2) | ✅ Shipped |
 | **4** | Intelligent routing (complexity + risk + reasoning-effort) | ✅ Shipped |
-| **5** | Cognitive / memory layer (Letta / Kùzu / Qdrant) | ⏳ Next |
-| **6** | MCP dynamic tool filtering | ▢ Planned |
+| **5** | Cognitive / memory layer (Letta / Kùzu / skills) | ✅ Shipped |
+| **6** | MCP dynamic tool filtering | ⏳ Next |
 | **7** | Optimization flywheel (cost × quality SLA) | ▢ Planned |
 | **8** | Hardening — proxy spike + HA/backup | ▢ Deferred |
 
@@ -371,7 +371,7 @@ independently shippable, containerized, and measured against the Phase 0 baselin
 - **Exit:** measured cost shift toward cheaper tiers at held quality (PDF's 70/20/10 vs 100% frontier).
 - **Deps:** Phase 0 data; benefits from Phase 7 loop later.
 
-### Phase 5 — Cognitive / memory layer (Lane B core)
+### Phase 5 — Cognitive / memory layer (Lane B core) ✅ SHIPPED
 **Goal:** the shared cognitive substrate across Claude Desktop/Code/Codex/Cursor.
 - Memory svc (**Letta**), Knowledge Graph svc (**Kùzu**), Episode Store svc (**Qdrant**), Skill Registry svc.
 - Consolidation worker (nightly, Ollama).
@@ -424,11 +424,11 @@ graph LR
 
   classDef done fill:#16a34a,stroke:#166534,color:#fff;
   classDef next fill:#eab308,stroke:#a16207,color:#111;
-  class P0,P1,P2,P3,P4 done;
-  class P5 next;
+  class P0,P1,P2,P3,P4,P5 done;
+  class P6 next;
 ```
 
-**Green = shipped (Phases 0–4), yellow = next (Phase 5).**
+**Green = shipped (Phases 0–5), yellow = next (Phase 6).**
 
 ---
 

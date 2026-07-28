@@ -192,6 +192,13 @@ models:
     input_per_1m: 0.00
     output_per_1m: 0.00
 
+  # Text embedding model — used by the cognitive-layer memory (Letta) for local embeddings.
+  # Pull it once:  ollama pull nomic-embed-text
+  - provider: ollama
+    model: nomic-embed-text
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
   # ── vLLM / other self-hosted ─────────────────────────────────────────────────
   # Example — uncomment and fill in your model + cost:
   #

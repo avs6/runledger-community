@@ -19,6 +19,7 @@ celery_app = Celery(
         "runledger_api.workers.retention",
         "runledger_api.workers.email_reports",
         "runledger_api.workers.gateway_health",
+        "runledger_api.workers.consolidation",
     ],
 )
 
@@ -32,6 +33,11 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     beat_schedule={
+        # Cognitive consolidation: distil episodes → facts, daily
+        "cognitive-consolidation-daily": {
+            "task": "cognitive.consolidate",
+            "schedule": 86400.0,
+        },
         # Cost enrichment: every 60 seconds
         "cost-enrichment-60s": {
             "task": "metering.cost_enrichment",
