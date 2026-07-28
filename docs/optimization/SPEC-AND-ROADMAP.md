@@ -19,7 +19,7 @@
 | **5** | Cognitive / memory layer (Letta / Kùzu / skills) | ✅ Shipped |
 | **6** | Dynamic tool filtering + skill injection | ✅ Shipped |
 | **7** | Optimization flywheel (cost × quality SLA) | ✅ Shipped |
-| **8** | Hardening — proxy spike + HA/backup | ⏳ Next (deferred) |
+| **8** | Hardening — HA/backup (k8s) ✅ · proxy spike ⏳ | 🔨 In progress |
 
 User-facing docs for the shipped features: [`docs/optimization.mdx`](../optimization.mdx) and the
 per-feature pages under `docs/optimization/`.
@@ -397,12 +397,20 @@ independently shippable, containerized, and measured against the Phase 0 baselin
   0.95→0.90 ≥ 0.85 SLA); applying patched the route with a rollback snapshot. See `PHASE-7-IMPLEMENTATION.md`.
 - **Deps:** Phases 3–5 (enough signal), eval/outcome data.
 
-### Phase 8 — Hardening: proxy spike + HA/backup (deferred)
+### Phase 8 — Hardening: HA/backup ✅ SHIPPED · proxy spike ⏳ remaining
 **Goal:** validate the assumptions we deliberately deferred, and make the multi-store stack production-grade.
-- **Claude inference-through-proxy spike** (decision #6): confirm Claude Code inference actually flows through the Anthropic-compatible RunLedger proxy. If it fails, formalize the MCP+OTel-measured fallback for Claude (Lane A stays OpenAI/Codex-only for full inline optimization).
-- **HA + backup/restore** for all stateful stores (decision #10): Qdrant, Kùzu, Letta-Postgres, RunLedger-Postgres, Redis — consolidated backup/retention + failover story wired into `infra/` (compose + helm).
-- **Exit:** proxy behavior known for certain; documented, tested backup/restore + HA path for every store.
-- **Deps:** everything (this is the productionization pass).
+- ✅ **HA + backup/restore via Kubernetes** (decision #10): the Helm chart now templates the whole
+  optimization layer — every stateless service gets a **Deployment + Service + CPU HPA + PDB + anti-affinity**
+  (scale cache & co. on demand), and the stateful stores (Qdrant, memory-db, Letta, Kùzu, skills, plus optional
+  control-plane Postgres/Redis) are **pluggable**: in-cluster StatefulSets+PVCs for self-hosting, or `external: true`
+  managed URLs for prod HA — one chart, both modes. Backup is a **multi-store CronJob** → S3 (control-plane +
+  memory-db `pg_dump`, Qdrant snapshot toggle, Kùzu + skills PVC tar) with retention/prune + a tested
+  `scripts/restore.sh`. Availability is pure k8s primitives — no bespoke HA component. Docs:
+  `docs/optimization/ha-and-backup.mdx`.
+- ⏳ **Claude inference-through-proxy spike** (decision #6): confirm Claude Code inference actually flows through
+  the Anthropic-compatible RunLedger proxy. If it fails, formalize the MCP+OTel-measured fallback for Claude
+  (Lane A stays OpenAI/Codex-only for full inline optimization). **This is the last remaining item on the roadmap.**
+- **Exit:** ✅ documented, tested backup/restore + k8s HA path for every store; ⏳ proxy behavior known for certain.
 
 ### Sequencing at a glance
 

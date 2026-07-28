@@ -62,9 +62,13 @@ async def update_flywheel_settings(
     s = await flywheel.get_settings(db, workspace.id)
     data = body.model_dump(exclude_unset=True)
     if "apply_mode" in data and data["apply_mode"] not in _VALID_APPLY_MODES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "apply_mode must be approval|auto|off")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "apply_mode must be approval|auto|off"
+        )
     if "segment_by" in data and data["segment_by"] not in _VALID_SEGMENT_BY:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "segment_by must be outcome_type|task_class|alias")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "segment_by must be outcome_type|task_class|alias"
+        )
     for k, v in data.items():
         setattr(s, k, v)
     await db.commit()
@@ -80,11 +84,11 @@ async def list_recommendations(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> FlywheelRecommendationList:
-    stmt = select(FlywheelRecommendation).where(
-        FlywheelRecommendation.workspace_id == workspace.id
-    )
-    count_stmt = select(func.count()).select_from(FlywheelRecommendation).where(
-        FlywheelRecommendation.workspace_id == workspace.id
+    stmt = select(FlywheelRecommendation).where(FlywheelRecommendation.workspace_id == workspace.id)
+    count_stmt = (
+        select(func.count())
+        .select_from(FlywheelRecommendation)
+        .where(FlywheelRecommendation.workspace_id == workspace.id)
     )
     if status_filter and status_filter != "all":
         stmt = stmt.where(FlywheelRecommendation.status == status_filter)

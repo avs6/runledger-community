@@ -126,9 +126,7 @@ async def _quality_by_model(
     if mtype in ("eval_score", "blend"):
         name_clause = "AND se.name = :ev" if evaluator else ""
         grp = "o.outcome_type, pc.model" if by_outcome_type else "pc.model"
-        join_outcome = (
-            "JOIN outcomes o ON o.run_id = ar.id" if by_outcome_type else ""
-        )
+        join_outcome = "JOIN outcomes o ON o.run_id = ar.id" if by_outcome_type else ""
         bind: dict[str, Any] = {"ws": _uuid(workspace_id), "cutoff": cutoff}
         if evaluator:
             bind["ev"] = evaluator
@@ -165,7 +163,9 @@ async def _quality_by_model(
     return blended
 
 
-async def _aggregate(db: AsyncSession, workspace_id: Any, s: FlywheelSettings) -> list[dict[str, Any]]:
+async def _aggregate(
+    db: AsyncSession, workspace_id: Any, s: FlywheelSettings
+) -> list[dict[str, Any]]:
     """Build the analyzer's per-segment observations from recorded traffic."""
     cutoff = datetime.now(UTC) - timedelta(days=int(s.lookback_days))
     seg_by = s.segment_by
@@ -198,7 +198,9 @@ async def _aggregate(db: AsyncSession, workspace_id: Any, s: FlywheelSettings) -
         return []
 
     provider_map = await _provider_by_model(db, workspace_id)
-    quality = await _quality_by_model(db, workspace_id, cutoff, s.quality_metric, by_outcome_type=by_otype)
+    quality = await _quality_by_model(
+        db, workspace_id, cutoff, s.quality_metric, by_outcome_type=by_otype
+    )
 
     async def _avg_cost(model: str | None, in_tok: int, out_tok: int, n: int) -> float:
         if n <= 0:
@@ -206,8 +208,11 @@ async def _aggregate(db: AsyncSession, workspace_id: Any, s: FlywheelSettings) -
         cost: Decimal | None = None
         if model and model in provider_map:
             cost = await calculate_cost(
-                db, provider=provider_map[model], model=model,
-                input_tokens=int(in_tok), output_tokens=int(out_tok),
+                db,
+                provider=provider_map[model],
+                model=model,
+                input_tokens=int(in_tok),
+                output_tokens=int(out_tok),
             )
         if cost is None:
             cost = Decimal(int(in_tok) + int(out_tok)) * _FALLBACK_RATE
@@ -222,13 +227,15 @@ async def _aggregate(db: AsyncSession, workspace_id: Any, s: FlywheelSettings) -
             observations = []
             for g in groups:
                 q = quality.get((ot, g.model))
-                observations.append({
-                    "config": g.fp,
-                    "n": int(g.n),
-                    "avg_cost_per_req": await _avg_cost(g.model, g.in_tok, g.out_tok, int(g.n)),
-                    "quality": q,
-                    "success_rate": q,
-                })
+                observations.append(
+                    {
+                        "config": g.fp,
+                        "n": int(g.n),
+                        "avg_cost_per_req": await _avg_cost(g.model, g.in_tok, g.out_tok, int(g.n)),
+                        "quality": q,
+                        "success_rate": q,
+                    }
+                )
             if observations:
                 segments.append({"segment_key": ot, "observations": observations})
         return segments
@@ -237,13 +244,15 @@ async def _aggregate(db: AsyncSession, workspace_id: Any, s: FlywheelSettings) -
     by_seg: dict[str, list[dict[str, Any]]] = {}
     for g in groups:
         q = quality.get(g.model)
-        by_seg.setdefault(g.seg, []).append({
-            "config": g.fp,
-            "n": int(g.n),
-            "avg_cost_per_req": await _avg_cost(g.model, g.in_tok, g.out_tok, int(g.n)),
-            "quality": q,
-            "success_rate": q,
-        })
+        by_seg.setdefault(g.seg, []).append(
+            {
+                "config": g.fp,
+                "n": int(g.n),
+                "avg_cost_per_req": await _avg_cost(g.model, g.in_tok, g.out_tok, int(g.n)),
+                "quality": q,
+                "success_rate": q,
+            }
+        )
     return [{"segment_key": k, "observations": v} for k, v in by_seg.items()]
 
 
@@ -433,17 +442,27 @@ async def check_guardrails(db: AsyncSession, workspace_id: Any) -> int:
     rolled = 0
     for rec in rows.scalars().all():
         model = (rec.proposed_config or {}).get("model")
-        q = quality.get(model) if s.segment_by != "outcome_type" else quality.get((rec.segment_key, model))
+        q = (
+            quality.get(model)
+            if s.segment_by != "outcome_type"
+            else quality.get((rec.segment_key, model))
+        )
         if q is not None and q < float(rec.min_quality):
             route = await db.get(GatewayRoute, rec.applied_route_id)
             snap = (rec.current_config or {}).get("_route_snapshot")
             if route is not None and snap:
                 route.target_model = snap.get("target_model", route.target_model)
-                route.semantic_cache_enabled = snap.get("semantic_cache_enabled", route.semantic_cache_enabled)
-                route.context_compiler_enabled = snap.get("context_compiler_enabled", route.context_compiler_enabled)
+                route.semantic_cache_enabled = snap.get(
+                    "semantic_cache_enabled", route.semantic_cache_enabled
+                )
+                route.context_compiler_enabled = snap.get(
+                    "context_compiler_enabled", route.context_compiler_enabled
+                )
                 route.context_compiler_config = snap.get("context_compiler_config")
             rec.status = "rolled_back"
-            rec.rationale = (rec.rationale or "") + f" [rolled back: quality {q:.2f} < SLA {float(rec.min_quality):.2f}]"
+            rec.rationale = (
+                rec.rationale or ""
+            ) + f" [rolled back: quality {q:.2f} < SLA {float(rec.min_quality):.2f}]"
             rec.updated_at = datetime.now(UTC)
             rolled += 1
     if rolled:

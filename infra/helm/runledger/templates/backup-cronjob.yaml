@@ -1,8 +1,12 @@
 {{- if .Values.backup.enabled }}
+{{- $full := include "runledger.fullname" . }}
+{{- $stores := .Values.backup.stores }}
+{{- $mountKuzu := and .Values.optimization.enabled $stores.kuzu.enabled (index .Values.optimizationServices "kg").enabled }}
+{{- $mountSkills := and .Values.optimization.enabled $stores.skills.enabled (index .Values.optimizationServices "skill-registry").enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "runledger.fullname" . }}-backup
+  name: {{ $full }}-backup
   labels:
     {{- include "runledger.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup
@@ -37,48 +41,95 @@ spec:
               env:
                 - name: DATABASE_URL
                   {{ include "runledger.databaseUrl" . }}
+                - name: MEMORY_DB_URL
+                  value: {{ include "runledger.memoryDbUrl" . | quote }}
+                - name: QDRANT_URL
+                  value: {{ include "runledger.qdrantUrl" . | quote }}
                 - name: S3_BUCKET
                   value: {{ .Values.backup.s3Bucket | quote }}
                 - name: AWS_DEFAULT_REGION
                   value: {{ .Values.backup.awsRegion | quote }}
                 - name: RETAIN_DAYS
                   value: {{ .Values.backup.retainDays | quote }}
+                - name: BACKUP_MEMORY_DB
+                  value: {{ $stores.memoryDb.enabled | quote }}
+                - name: BACKUP_QDRANT
+                  value: {{ $stores.qdrant.enabled | quote }}
+                - name: BACKUP_KUZU
+                  value: {{ $mountKuzu | quote }}
+                - name: BACKUP_SKILLS
+                  value: {{ $mountSkills | quote }}
               command:
                 - /bin/sh
                 - -ec
                 - |
-                  TIMESTAMP=$(date +%Y%m%dT%H%M%SZ)
-                  FILENAME="runledger-${TIMESTAMP}.dump"
+                  # postgres:16-alpine ships pg_dump; add the rest at runtime.
+                  apk add --no-cache aws-cli curl tar >/dev/null
 
-                  # Extract connection components from DATABASE_URL
-                  # Supports: postgresql+asyncpg://user:pass@host:port/db
-                  DB_URL="${DATABASE_URL}"
-                  DB_URL="${DB_URL#postgresql+asyncpg://}"
-                  DB_URL="${DB_URL#postgresql://}"
-                  DB_URL="${DB_URL#postgres://}"
+                  TS=$(date +%Y%m%dT%H%M%SZ)
+                  PGCP="${DATABASE_URL/postgresql+asyncpg:/postgresql:}"
 
-                  pg_dump "${DATABASE_URL/postgresql+asyncpg:/postgresql:}" \
-                    --format=custom \
-                    --no-acl \
-                    --no-owner \
-                    --file="/tmp/${FILENAME}"
+                  upload() {  # $1 = local file, $2 = s3 prefix
+                    aws s3 cp "$1" "${S3_BUCKET}/$2/$(basename "$1")" --storage-class STANDARD_IA
+                    echo "  uploaded ${S3_BUCKET}/$2/$(basename "$1")"
+                  }
 
-                  # Upload to S3
-                  aws s3 cp "/tmp/${FILENAME}" "${S3_BUCKET}/${FILENAME}" \
-                    --storage-class STANDARD_IA
+                  echo "[control-plane] pg_dump"
+                  pg_dump "$PGCP" --format=custom --no-acl --no-owner --file="/tmp/runledger-${TS}.dump"
+                  upload "/tmp/runledger-${TS}.dump" "control-plane"
 
-                  echo "Backup complete: ${S3_BUCKET}/${FILENAME}"
+                  if [ "$BACKUP_MEMORY_DB" = "true" ]; then
+                    echo "[memory-db] pg_dump"
+                    pg_dump "$MEMORY_DB_URL" --format=custom --no-acl --no-owner --file="/tmp/memory-${TS}.dump"
+                    upload "/tmp/memory-${TS}.dump" "memory-db"
+                  fi
 
-                  # Prune backups older than RETAIN_DAYS
-                  CUTOFF=$(date -d "${RETAIN_DAYS} days ago" +%Y-%m-%d 2>/dev/null || \
-                           date -v-${RETAIN_DAYS}d +%Y-%m-%d)
-                  aws s3 ls "${S3_BUCKET}/" | awk '{print $4}' | while read f; do
-                    fdate=$(echo "$f" | grep -oP '\d{8}')
-                    if [ -n "$fdate" ] && [ "$fdate" \< "${CUTOFF//-/}" ]; then
-                      aws s3 rm "${S3_BUCKET}/${f}"
-                      echo "Pruned: ${f}"
+                  if [ "$BACKUP_QDRANT" = "true" ]; then
+                    echo "[qdrant] full snapshot"
+                    SNAP=$(curl -sf -X POST "${QDRANT_URL}/snapshots" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+                    if [ -n "$SNAP" ]; then
+                      curl -sf "${QDRANT_URL}/snapshots/${SNAP}" -o "/tmp/qdrant-${TS}.snapshot"
+                      upload "/tmp/qdrant-${TS}.snapshot" "qdrant"
+                      curl -sf -X DELETE "${QDRANT_URL}/snapshots/${SNAP}" >/dev/null || true
+                    else
+                      echo "  WARN: could not create Qdrant snapshot (skipping)"
+                    fi
+                  fi
+
+                  if [ "$BACKUP_KUZU" = "true" ]; then
+                    echo "[kuzu] tar PVC"
+                    tar czf "/tmp/kuzu-${TS}.tar.gz" -C /backup/kuzu .
+                    upload "/tmp/kuzu-${TS}.tar.gz" "kuzu"
+                  fi
+
+                  if [ "$BACKUP_SKILLS" = "true" ]; then
+                    echo "[skills] tar PVC"
+                    tar czf "/tmp/skills-${TS}.tar.gz" -C /backup/skills .
+                    upload "/tmp/skills-${TS}.tar.gz" "skills"
+                  fi
+
+                  echo "[prune] removing backups older than ${RETAIN_DAYS} days"
+                  CUTOFF=$(date -d "${RETAIN_DAYS} days ago" +%Y%m%d 2>/dev/null || date -v-${RETAIN_DAYS}d +%Y%m%d)
+                  aws s3 ls "${S3_BUCKET}/" --recursive | awk '{print $4}' | while read -r f; do
+                    fdate=$(echo "$f" | grep -oE '[0-9]{8}' | head -1)
+                    if [ -n "$fdate" ] && [ "$fdate" -lt "$CUTOFF" ]; then
+                      aws s3 rm "${S3_BUCKET}/${f}" && echo "  pruned ${f}"
                     fi
                   done
+                  echo "Backup complete."
+              {{- if or $mountKuzu $mountSkills }}
+              volumeMounts:
+                {{- if $mountKuzu }}
+                - name: kuzu
+                  mountPath: /backup/kuzu
+                  readOnly: true
+                {{- end }}
+                {{- if $mountSkills }}
+                - name: skills
+                  mountPath: /backup/skills
+                  readOnly: true
+                {{- end }}
+              {{- end }}
               resources:
                 requests:
                   cpu: 100m
@@ -86,6 +137,21 @@ spec:
                 limits:
                   cpu: 500m
                   memory: 512Mi
+          {{- if or $mountKuzu $mountSkills }}
+          volumes:
+            {{- if $mountKuzu }}
+            # RWO single-attach: this job must land on the kg-svc pod's node, or the
+            # PVC must be RWX. See docs/optimization/ha-and-backup.mdx.
+            - name: kuzu
+              persistentVolumeClaim:
+                claimName: data-{{ $full }}-kg-0
+            {{- end }}
+            {{- if $mountSkills }}
+            - name: skills
+              persistentVolumeClaim:
+                claimName: data-{{ $full }}-skill-registry-0
+            {{- end }}
+          {{- end }}
           {{- with .Values.nodeSelector }}
           nodeSelector:
             {{- toYaml . | nindent 12 }}

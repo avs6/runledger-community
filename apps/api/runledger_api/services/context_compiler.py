@@ -52,7 +52,11 @@ async def compile_messages(
         compiled = data.get("messages")
         if isinstance(compiled, list) and compiled:
             new_tools = data.get("tools")  # None if unchanged
-            return compiled, (new_tools if new_tools is not None else tools), data.get("token_report")
+            return (
+                compiled,
+                (new_tools if new_tools is not None else tools),
+                data.get("token_report"),
+            )
     except Exception as exc:  # noqa: BLE001 — fail-open
         log.warning("context_compiler_skipped error=%s", str(exc))
     return messages, tools, None

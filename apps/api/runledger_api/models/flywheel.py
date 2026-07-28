@@ -38,14 +38,20 @@ class FlywheelSettings(Base):
     # approval — propose only, human clicks Apply
     # auto     — apply guardrail-passing proposals automatically, auto-rollback on SLA breach
     # off      — analysis runs but nothing is applied
-    apply_mode: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="approval")
+    apply_mode: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, server_default="approval"
+    )
     # {"type": "outcome_success" | "eval_score" | "blend", "weight": 0.5, "evaluator": null}
     quality_metric: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text('\'{"type": "blend", "weight": 0.5}\'')
     )
-    min_quality: Mapped[Decimal] = mapped_column(sa.Numeric(6, 4), nullable=False, server_default="0.8")
+    min_quality: Mapped[Decimal] = mapped_column(
+        sa.Numeric(6, 4), nullable=False, server_default="0.8"
+    )
     # outcome_type | task_class | alias
-    segment_by: Mapped[str] = mapped_column(sa.String(24), nullable=False, server_default="outcome_type")
+    segment_by: Mapped[str] = mapped_column(
+        sa.String(24), nullable=False, server_default="outcome_type"
+    )
     action_space: Mapped[list[str]] = mapped_column(
         JSONB,
         nullable=False,
@@ -94,7 +100,9 @@ class FlywheelRecommendation(Base):
     confidence: Mapped[str] = mapped_column(sa.String(8), nullable=False, server_default="low")
     rationale: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="pending")
-    apply_mode: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="approval")
+    apply_mode: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, server_default="approval"
+    )
     applied_route_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

@@ -94,6 +94,8 @@ Everything below is **available today** in RunLedger Community.
 | ✅ | Cognitive layer — shared workspace memory, knowledge graph, and skills over MCP |
 | ✅ | Dynamic tool filtering + skill injection — keep only relevant tools, inject matched skill bodies |
 | ✅ | Fully self-hosted — Docker Compose, no external dependencies, no GPU required |
+| ✅ | Kubernetes Helm chart — one chart for self-host (in-cluster stores) or production HA (external managed stores); every stateless service autoscales (HPA + PDB + anti-affinity) |
+| ✅ | Multi-store backup to S3 — control-plane + memory-db `pg_dump`, Qdrant snapshot, Kùzu + skills PVC tar, with retention and a tested restore script |
 
 ---
 

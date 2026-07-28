@@ -25,16 +25,11 @@ def upgrade() -> None:
     )
     op.execute(
         sa.text(
-            "ALTER TABLE gateway_routes ADD COLUMN IF NOT EXISTS "
-            "context_compiler_config JSONB NULL"
+            "ALTER TABLE gateway_routes ADD COLUMN IF NOT EXISTS context_compiler_config JSONB NULL"
         )
     )
 
 
 def downgrade() -> None:
-    op.execute(
-        sa.text("ALTER TABLE gateway_routes DROP COLUMN IF EXISTS context_compiler_config")
-    )
-    op.execute(
-        sa.text("ALTER TABLE gateway_routes DROP COLUMN IF EXISTS context_compiler_enabled")
-    )
+    op.execute(sa.text("ALTER TABLE gateway_routes DROP COLUMN IF EXISTS context_compiler_config"))
+    op.execute(sa.text("ALTER TABLE gateway_routes DROP COLUMN IF EXISTS context_compiler_enabled"))

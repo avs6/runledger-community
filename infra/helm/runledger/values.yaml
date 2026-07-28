@@ -202,10 +202,180 @@ migrations:
   ttlSecondsAfterFinished: 300
 
 # ── Backup CronJob ────────────────────────────────────────────────────────────
+# Multi-store logical backup → S3. The control-plane Postgres is always dumped;
+# the optimization-layer durable stores are toggled individually. See
+# docs/optimization/ha-and-backup.mdx for the restore runbook (scripts/restore.sh).
 backup:
   enabled: false
   schedule: "0 2 * * *"   # 02:00 UTC daily
-  image: postgres:16-alpine
+  image: postgres:16-alpine   # has pg_dump; awscli + curl + tar installed at runtime
   s3Bucket: ""             # s3://my-bucket/runledger-backups
   awsRegion: us-east-1
   retainDays: 30
+  stores:
+    memoryDb:
+      enabled: true        # pg_dump the dedicated Letta memory Postgres
+    qdrant:
+      enabled: false       # snapshot Qdrant (semantic cache is regenerable; episodes are not)
+    kuzu:
+      enabled: true        # tar the knowledge-graph PVC
+    skills:
+      enabled: true        # tar the skill-registry PVC
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Optimization layer (Phases 1–7) — HA & scaling
+# ══════════════════════════════════════════════════════════════════════════════
+# One chart, two modes:
+#   • Self-hosted / dev  → leave stores in-cluster (StatefulSets + PVCs); `helm install`
+#     brings up the entire stack, no external dependencies.
+#   • Production / HA    → set each store `external: true` + a URL to point at a managed
+#     service; the stateless services still scale in-cluster via HPA.
+optimization:
+  enabled: true
+  imageRegistry: docker.io/abijith13   # microservice images (see .github/workflows/images.yml)
+  imageTag: latest
+  pullPolicy: IfNotPresent
+  # External local-LLM runtimes (always external — never bundled).
+  ollamaBaseUrl: "http://host.docker.internal:11434/v1"
+  vllmBaseUrl: ""
+  localLlmModel: "llama3.2:3b"
+  embeddingModel: "nomic-embed-text"
+  embeddingDim: 768
+  rerankerModel: "flashrank"
+  compressionModel: "bert-base-multilingual"
+  # Spread replicas across nodes (soft anti-affinity) + a PodDisruptionBudget.
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  antiAffinity: soft              # soft | hard | off
+
+# Stateless optimization services — Deployment + Service + HPA + PDB each.
+# `stateful: true` (kg, skills) swaps the Deployment for a StatefulSet + PVC.
+# Add a future service by appending an entry here — no new template needed.
+optimizationServices:
+  embedding:
+    enabled: true
+    image: runledger-embedding-svc
+    port: 8100
+    replicaCount: 2
+    resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 8, targetCPUUtilizationPercentage: 70 }
+  semantic-cache:
+    enabled: true
+    image: runledger-semantic-cache-svc
+    port: 8101
+    replicaCount: 2
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
+  reranker:
+    enabled: true
+    image: runledger-reranker-svc
+    port: 8102
+    replicaCount: 2
+    resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 8, targetCPUUtilizationPercentage: 70 }
+  context-compiler:
+    enabled: true
+    image: runledger-context-compiler-svc
+    port: 8103
+    replicaCount: 2
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
+  compression:
+    enabled: true
+    image: runledger-compression-svc
+    port: 8104
+    replicaCount: 1
+    resources: { requests: { cpu: 250m, memory: 1Gi }, limits: { cpu: "2", memory: 2Gi } }
+    autoscaling: { enabled: true, minReplicas: 1, maxReplicas: 6, targetCPUUtilizationPercentage: 75 }
+  router:
+    enabled: true
+    image: runledger-router-svc
+    port: 8105
+    replicaCount: 2
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 8, targetCPUUtilizationPercentage: 70 }
+  memory:
+    enabled: true
+    image: runledger-memory-svc
+    port: 8107
+    replicaCount: 2
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 8, targetCPUUtilizationPercentage: 70 }
+  flywheel:
+    enabled: true
+    image: runledger-flywheel-svc
+    port: 8109
+    replicaCount: 1
+    resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: true, minReplicas: 1, maxReplicas: 4, targetCPUUtilizationPercentage: 70 }
+  mcp-gateway:
+    enabled: true
+    image: runledger-mcp-gateway
+    port: 8200
+    replicaCount: 2
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 6, targetCPUUtilizationPercentage: 70 }
+  # ── Stateful app services (embedded store on a PVC → StatefulSet, single replica) ──
+  kg:
+    enabled: true
+    image: runledger-kg-svc
+    port: 8106
+    stateful: true
+    persistence: { size: 5Gi, storageClass: "", mountPath: /data }
+    resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
+    autoscaling: { enabled: false }
+  skill-registry:
+    enabled: true
+    image: runledger-skill-registry
+    port: 8108
+    stateful: true
+    persistence: { size: 1Gi, storageClass: "", mountPath: /data/skills }
+    resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 250m, memory: 256Mi } }
+    autoscaling: { enabled: false }
+
+# Data stores — pluggable. external:true uses `url`; else an in-cluster StatefulSet+PVC.
+stores:
+  qdrant:
+    external: false
+    url: ""                      # http://host:6333 when external
+    image: qdrant/qdrant:v1.12.1
+    port: 6333
+    persistence: { size: 10Gi, storageClass: "", mountPath: /qdrant/storage }
+    resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { cpu: "1", memory: 2Gi } }
+  memoryDb:
+    external: false
+    url: ""                      # postgresql://user:pass@host:5432/memory when external
+    image: pgvector/pgvector:pg16
+    port: 5432
+    database: memory
+    user: runledger
+    # password read from the app secret (MEMORY_DB_PASSWORD) or set here for dev only.
+    password: runledger
+    persistence: { size: 10Gi, storageClass: "", mountPath: /var/lib/postgresql/data }
+    resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+  letta:
+    external: false
+    url: ""                      # http://host:8283 when external
+    image: letta/letta:latest
+    port: 8283
+    resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
+
+# In-cluster control-plane Postgres + Redis (self-host convenience). For production,
+# leave these disabled and set externalDatabase.url / externalRedis.url to managed services.
+postgres:
+  inCluster: false
+  image: postgres:16-alpine
+  port: 5432
+  database: runledger
+  user: runledger
+  password: runledger           # dev only — use a Secret in production
+  persistence: { size: 20Gi, storageClass: "", mountPath: /var/lib/postgresql/data }
+  resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: "2", memory: 2Gi } }
+
+redis:
+  inCluster: false
+  image: redis:7-alpine
+  port: 6379
+  persistence: { size: 5Gi, storageClass: "" }
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }

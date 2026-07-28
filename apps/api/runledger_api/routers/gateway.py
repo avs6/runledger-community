@@ -259,7 +259,9 @@ async def gateway_chat_completions(
                 detail=f"No active gateway routes for alias '{route_alias}'",
             )
         route = routes[0]
-        decision_reason = ir_decision["reason"] if ir_decision and ir_decision.get("alias") else "priority"
+        decision_reason = (
+            ir_decision["reason"] if ir_decision and ir_decision.get("alias") else "priority"
+        )
 
         # Runtime controls
         await check_cost_cap(db, route, workspace.id)

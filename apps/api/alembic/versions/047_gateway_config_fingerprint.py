@@ -23,7 +23,9 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(
-        sa.text("ALTER TABLE gateway_requests ADD COLUMN IF NOT EXISTS config_fingerprint JSONB NULL")
+        sa.text(
+            "ALTER TABLE gateway_requests ADD COLUMN IF NOT EXISTS config_fingerprint JSONB NULL"
+        )
     )
     op.execute(
         sa.text("ALTER TABLE gateway_requests ADD COLUMN IF NOT EXISTS segment_key TEXT NULL")

@@ -60,7 +60,7 @@ ServiceAccount name.
 {{- end }}
 
 {{/*
-Database URL — from existing secret or direct value.
+Database URL — existing secret, in-cluster Postgres, or external value.
 */}}
 {{- define "runledger.databaseUrl" -}}
 {{- if .Values.secrets.existingSecret -}}
@@ -68,13 +68,15 @@ valueFrom:
   secretKeyRef:
     name: {{ .Values.secrets.existingSecret }}
     key: DATABASE_URL
+{{- else if .Values.postgres.inCluster -}}
+value: {{ printf "postgresql+asyncpg://%s:%s@%s-postgres:%v/%s" .Values.postgres.user .Values.postgres.password (include "runledger.fullname" .) .Values.postgres.port .Values.postgres.database | quote }}
 {{- else -}}
-value: {{ required "externalDatabase.url is required" .Values.externalDatabase.url | quote }}
+value: {{ required "externalDatabase.url is required (or set postgres.inCluster=true)" .Values.externalDatabase.url | quote }}
 {{- end }}
 {{- end }}
 
 {{/*
-Redis URL — from existing secret or direct value.
+Redis URL — existing secret, in-cluster Redis, or external value.
 */}}
 {{- define "runledger.redisUrl" -}}
 {{- if .Values.secrets.existingSecret -}}
@@ -82,8 +84,103 @@ valueFrom:
   secretKeyRef:
     name: {{ .Values.secrets.existingSecret }}
     key: REDIS_URL
+{{- else if .Values.redis.inCluster -}}
+value: {{ printf "redis://%s-redis:%v/0" (include "runledger.fullname" .) .Values.redis.port | quote }}
 {{- else -}}
-value: {{ required "externalRedis.url is required" .Values.externalRedis.url | quote }}
+value: {{ required "externalRedis.url is required (or set redis.inCluster=true)" .Values.externalRedis.url | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
+Store URLs — in-cluster service DNS unless the store is marked external.
+*/}}
+{{- define "runledger.qdrantUrl" -}}
+{{- if .Values.stores.qdrant.external -}}{{ required "stores.qdrant.url required when external" .Values.stores.qdrant.url }}{{- else -}}http://{{ include "runledger.fullname" . }}-qdrant:{{ .Values.stores.qdrant.port }}{{- end -}}
+{{- end }}
+{{- define "runledger.lettaUrl" -}}
+{{- if .Values.stores.letta.external -}}{{ required "stores.letta.url required when external" .Values.stores.letta.url }}{{- else -}}http://{{ include "runledger.fullname" . }}-letta:{{ .Values.stores.letta.port }}{{- end -}}
+{{- end }}
+{{- define "runledger.memoryDbUrl" -}}
+{{- if .Values.stores.memoryDb.external -}}{{ required "stores.memoryDb.url required when external" .Values.stores.memoryDb.url }}{{- else -}}postgresql://{{ .Values.stores.memoryDb.user }}:{{ .Values.stores.memoryDb.password }}@{{ include "runledger.fullname" . }}-memory-db:{{ .Values.stores.memoryDb.port }}/{{ .Values.stores.memoryDb.database }}{{- end -}}
+{{- end }}
+
+{{/*
+Shared optimization-layer env — all inter-service URLs + store URLs + model config.
+Included on api/worker/beat and every optimization microservice pod. Over-provisioning
+env a given pod doesn't read is harmless; it keeps wiring in one place.
+*/}}
+{{- define "runledger.optimizationEnv" -}}
+{{- $full := include "runledger.fullname" . -}}
+- name: EMBEDDING_SVC_URL
+  value: {{ printf "http://%s-embedding:8100" $full | quote }}
+- name: SEMANTIC_CACHE_SVC_URL
+  value: {{ printf "http://%s-semantic-cache:8101" $full | quote }}
+- name: RERANKER_SVC_URL
+  value: {{ printf "http://%s-reranker:8102" $full | quote }}
+- name: CONTEXT_COMPILER_SVC_URL
+  value: {{ printf "http://%s-context-compiler:8103" $full | quote }}
+- name: COMPRESSION_SVC_URL
+  value: {{ printf "http://%s-compression:8104" $full | quote }}
+- name: ROUTER_SVC_URL
+  value: {{ printf "http://%s-router:8105" $full | quote }}
+- name: KG_SVC_URL
+  value: {{ printf "http://%s-kg:8106" $full | quote }}
+- name: MEMORY_SVC_URL
+  value: {{ printf "http://%s-memory:8107" $full | quote }}
+- name: SKILL_REGISTRY_URL
+  value: {{ printf "http://%s-skill-registry:8108" $full | quote }}
+- name: FLYWHEEL_SVC_URL
+  value: {{ printf "http://%s-flywheel:8109" $full | quote }}
+- name: QDRANT_URL
+  value: {{ include "runledger.qdrantUrl" . | quote }}
+- name: LETTA_BASE_URL
+  value: {{ include "runledger.lettaUrl" . | quote }}
+- name: OLLAMA_BASE_URL
+  value: {{ .Values.optimization.ollamaBaseUrl | quote }}
+- name: VLLM_BASE_URL
+  value: {{ .Values.optimization.vllmBaseUrl | quote }}
+- name: LOCAL_LLM_MODEL
+  value: {{ .Values.optimization.localLlmModel | quote }}
+- name: LETTA_MODEL
+  value: {{ .Values.optimization.localLlmModel | quote }}
+- name: EMBEDDING_MODEL
+  value: {{ .Values.optimization.embeddingModel | quote }}
+- name: EMBEDDING_DIM
+  value: {{ .Values.optimization.embeddingDim | quote }}
+- name: RERANKER_MODEL
+  value: {{ .Values.optimization.rerankerModel | quote }}
+- name: COMPRESSION_MODEL
+  value: {{ .Values.optimization.compressionModel | quote }}
+{{- end }}
+
+{{/*
+Soft/hard pod anti-affinity for a component, spreading replicas across nodes.
+Usage: {{ include "runledger.antiAffinity" (list . "embedding") }}
+*/}}
+{{- define "runledger.antiAffinity" -}}
+{{- $ctx := index . 0 -}}
+{{- $component := index . 1 -}}
+{{- $mode := $ctx.Values.optimization.antiAffinity -}}
+{{- if ne $mode "off" }}
+affinity:
+  podAntiAffinity:
+    {{- if eq $mode "hard" }}
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            {{- include "runledger.selectorLabels" $ctx | nindent 12 }}
+            app.kubernetes.io/component: {{ $component }}
+    {{- else }}
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              {{- include "runledger.selectorLabels" $ctx | nindent 14 }}
+              app.kubernetes.io/component: {{ $component }}
+    {{- end }}
 {{- end }}
 {{- end }}
 
@@ -150,4 +247,7 @@ Common environment variables shared by api, worker, and beat.
   value: {{ .Values.email.smtpFrom | quote }}
 - name: APP_BASE_URL
   value: {{ .Values.email.appBaseUrl | quote }}
+{{- if .Values.optimization.enabled }}
+{{ include "runledger.optimizationEnv" . }}
+{{- end }}
 {{- end }}

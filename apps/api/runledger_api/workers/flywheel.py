@@ -17,7 +17,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
@@ -28,7 +28,7 @@ from runledger_api.services import flywheel
 log = logging.getLogger(__name__)
 
 
-async def _active_workspaces(db) -> list[str]:
+async def _active_workspaces(db: AsyncSession) -> list[str]:
     since = datetime.now(UTC) - timedelta(days=1)
     rows = await db.execute(
         select(GatewayRequest.workspace_id).where(GatewayRequest.created_at >= since).distinct()

@@ -33,7 +33,12 @@ def upgrade() -> None:
         # approval | auto | off
         sa.Column("apply_mode", sa.String(16), nullable=False, server_default="approval"),
         # {"type": "outcome_success" | "eval_score" | "blend", "weight": 0.5, "evaluator": null}
-        sa.Column("quality_metric", JSONB, nullable=False, server_default=sa.text("'{\"type\": \"blend\", \"weight\": 0.5}'")),
+        sa.Column(
+            "quality_metric",
+            JSONB,
+            nullable=False,
+            server_default=sa.text('\'{"type": "blend", "weight": 0.5}\''),
+        ),
         sa.Column("min_quality", sa.Numeric(6, 4), nullable=False, server_default="0.8"),
         # outcome_type | task_class | alias
         sa.Column("segment_by", sa.String(24), nullable=False, server_default="outcome_type"),
@@ -43,7 +48,7 @@ def upgrade() -> None:
             JSONB,
             nullable=False,
             server_default=sa.text(
-                "'[\"model\", \"stages\", \"compression_rate\", \"cache_threshold\", \"routing\"]'"
+                '\'["model", "stages", "compression_rate", "cache_threshold", "routing"]\''
             ),
         ),
         sa.Column("min_sample_size", sa.Integer(), nullable=False, server_default="20"),

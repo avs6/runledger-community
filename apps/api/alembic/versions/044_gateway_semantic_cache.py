@@ -26,6 +26,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        sa.text("ALTER TABLE gateway_routes DROP COLUMN IF EXISTS semantic_cache_enabled")
-    )
+    op.execute(sa.text("ALTER TABLE gateway_routes DROP COLUMN IF EXISTS semantic_cache_enabled"))
