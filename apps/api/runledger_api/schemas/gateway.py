@@ -27,6 +27,7 @@ class GatewayRouteCreate(BaseModel):
     daily_cost_limit_usd: Decimal | None = None
     monthly_cost_limit_usd: Decimal | None = None
     pii_redaction_enabled: bool = False
+    semantic_cache_enabled: bool = False
     per_user_rpm_limit: int | None = Field(None, ge=1)
     health_auto_disable: bool = True
 
@@ -43,6 +44,7 @@ class GatewayRouteUpdate(BaseModel):
     daily_cost_limit_usd: Decimal | None = None
     monthly_cost_limit_usd: Decimal | None = None
     pii_redaction_enabled: bool | None = None
+    semantic_cache_enabled: bool | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
     health_auto_disable: bool | None = None
 
@@ -62,6 +64,7 @@ class GatewayRouteResponse(BaseModel):
     daily_cost_limit_usd: Decimal | None = None
     monthly_cost_limit_usd: Decimal | None = None
     pii_redaction_enabled: bool = False
+    semantic_cache_enabled: bool = False
     per_user_rpm_limit: int | None = None
     health_auto_disable: bool = True
     last_health_check_at: datetime | None = None

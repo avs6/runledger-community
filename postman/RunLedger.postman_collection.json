@@ -4466,9 +4466,177 @@
             "description": "Aggregate gateway request stats per route for the workspace."
           },
           "response": []
+        },
+        {
+          "name": "Gateway Chat Completions (Semantic Cache)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/chat/completions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "chat",
+                "completions"
+              ]
+            },
+            "description": "Chat completions with `semantic_cache: true`. A paraphrase / near-duplicate of a previously answered prompt is served from the semantic cache instead of calling the provider (the exact SHA cache would miss it). decision_reason = \"semantic_cache_hit\".",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"how much parental leave do employees get\"\n    }\n  ],\n  \"semantic_cache\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Gateway Route (Semantic Cache On)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/routes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "routes"
+              ]
+            },
+            "description": "Create a route with `semantic_cache_enabled: true` \u2014 every request to this alias also consults the semantic cache. Same flag the dashboard Gateway page toggles (Cache ON/OFF).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alias\": \"gpt-4o-mini\",\n  \"provider\": \"openai\",\n  \"target_model\": \"gpt-4o-mini\",\n  \"api_key_env_var\": \"OPENAI_API_KEY\",\n  \"priority\": 10,\n  \"semantic_cache_enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ],
       "description": "RunLedger Model Gateway endpoints"
+    },
+    {
+      "name": "Semantic Cache Service",
+      "description": "Direct calls to the standalone semantic-cache microservice ({{semantic_cache_url}}, default :8205). Normally driven by the gateway; exposed here for testing. No auth \u2014 internal service.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{semantic_cache_url}}/health",
+              "host": [
+                "{{semantic_cache_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness + Qdrant collection status."
+          },
+          "response": []
+        },
+        {
+          "name": "Lookup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{semantic_cache_url}}/lookup",
+              "host": [
+                "{{semantic_cache_url}}"
+              ],
+              "path": [
+                "lookup"
+              ]
+            },
+            "description": "Return a cached response on a semantic hit (score >= threshold) within the same scope.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"how much parental leave do employees get\",\n  \"scope\": {\n    \"tenant\": \"{{workspace_id}}\",\n    \"model\": \"gpt-4o-mini\",\n    \"system_prompt_hash\": \"\",\n    \"knowledge_version\": \"\",\n    \"security_scope\": \"\"\n  },\n  \"threshold\": 0.95\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Store",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{semantic_cache_url}}/store",
+              "host": [
+                "{{semantic_cache_url}}"
+              ],
+              "path": [
+                "store"
+              ]
+            },
+            "description": "Store a response for future semantic hits, scoped to tenant/model/prompt/version.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"How much parental leave do employees get?\",\n  \"scope\": {\n    \"tenant\": \"{{workspace_id}}\",\n    \"model\": \"gpt-4o-mini\",\n    \"system_prompt_hash\": \"\",\n    \"knowledge_version\": \"\",\n    \"security_scope\": \"\"\n  },\n  \"response\": {\n    \"choices\": [\n      {\n        \"message\": {\n          \"role\": \"assistant\",\n          \"content\": \"Employees get 16 weeks of paid parental leave.\"\n        }\n      }\n    ],\n    \"usage\": {\n      \"prompt_tokens\": 20,\n      \"completion_tokens\": 12\n    }\n  },\n  \"prompt_tokens\": 20,\n  \"completion_tokens\": 12,\n  \"ttl_seconds\": 86400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
     },
     {
       "name": "Evaluations",

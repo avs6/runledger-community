@@ -41,7 +41,7 @@ This gives us three model classes from day one, all measurable by RunLedger:
 ### 1.1 Tasks
 - **T0.1** Standard benchmark task set — encode the PDF's harness workloads (e.g. "analyze this repo → find security issues → write report") as reproducible scripted agent runs (Codex CLI profile + a Claude Code run).
 - **T0.2** Route clients through RunLedger:
-  - Codex CLI → `model_providers.runledger` `base_url = http://localhost:8000/gateway`, `wire_api = responses`.
+  - Codex CLI → `model_providers.runledger` `base_url = http://localhost:8201/gateway`, `wire_api = responses`.
   - Claude Code → **assume proxy route** (per decision #6; real spike is P8).
   - Add a **local** route (`provider: ollama`, model `llama3.2:3b`) so we can baseline local vs hosted in the same harness.
 - **T0.3** Metrics capture — from the existing `GatewayRequest` + `AgentRun → Span → ProviderCall/ToolCall` model, emit the baseline table: input / cached / output tokens, agent calls, cost, task success, latency.
@@ -64,7 +64,7 @@ This gives us three model classes from day one, all measurable by RunLedger:
 **Goal:** stand up the substrate both lanes need, and land the first standalone token win (semantic cache).
 
 ### 2.1 New infrastructure (containers)
-Added via `infra/docker-compose.optimization.yml` (an overlay composed alongside the base stack):
+Added via `docker-compose.yml` (an overlay composed alongside the base stack):
 
 | Service | Image / build | Port | Notes |
 |---|---|---|---|
@@ -126,14 +126,14 @@ request proceeds exactly as today.
   whole optimizer path can run with **zero external API dependency** and **no GPU**.
 
 ### 2.5 Deliverables
-- `infra/docker-compose.optimization.yml` (Qdrant, Ollama, vLLM[gpu], embedding-svc, semantic-cache-svc, mcp-gateway).
+- `docker-compose.yml` (Qdrant, Ollama, vLLM[gpu], embedding-svc, semantic-cache-svc, mcp-gateway).
 - `apps/embedding-svc/`, `apps/semantic-cache-svc/`, `apps/mcp-gateway/` (each: app + Dockerfile + deps).
 - `services/gateway_providers.py` — `vllm`/`local` aliases.
 - `routers/gateway.py` + `services/gateway.py` — semantic-cache stage (fail-open, flag-gated).
 - `.env.example` additions.
 
 ### 2.6 Acceptance criteria
-- `docker compose -f infra/docker-compose.yml -f infra/docker-compose.optimization.yml up` brings up all P1 services green (no local-LLM container in the suite).
+- `docker compose up` brings up all P1 services green (no local-LLM container in the suite).
 - Semantic cache measurably lifts hit-rate over exact cache on the benchmark, with **success rate held** and cross-scope isolation verified.
 - A `provider: ollama|vllm|local` route pointed at an external `OLLAMA_BASE_URL`/`VLLM_BASE_URL` serves a local model through the gateway and is metered.
 - `mcp-gateway` is reachable from Claude Desktop and lists its health tool.

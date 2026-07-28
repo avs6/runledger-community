@@ -116,9 +116,17 @@ async def gateway_chat_completions(
         return cache_entry.response_json
 
     # ── 1b. Semantic cache lookup (opt-in, fail-open) ────────────────────────
-    # Only for non-streaming requests that opt in. Never raises; a miss or an
+    # Enabled per-request (body.semantic_cache) OR via the route's GUI toggle
+    # (semantic_cache_enabled). Non-streaming only; never raises — a miss or an
     # unreachable service simply falls through to normal routing.
-    if body.semantic_cache and not body.stream:
+    semantic_enabled = body.semantic_cache
+    if not semantic_enabled and not body.stream:
+        from runledger_api.services.gateway import select_routes  # noqa: PLC0415
+
+        _sc_routes = await select_routes(db, workspace.id, body.model)
+        semantic_enabled = bool(_sc_routes and _sc_routes[0].semantic_cache_enabled)
+
+    if semantic_enabled and not body.stream:
         sem_hit = await semantic_cache.lookup(workspace.id, body.model, messages)
         if sem_hit is not None:
             usage = sem_hit.get("usage") or {}
@@ -266,7 +274,7 @@ async def gateway_chat_completions(
         )
 
     # Semantic cache store (opt-in, fail-open — bounded 2s timeout, mirrors exact-cache store)
-    if body.semantic_cache:
+    if body.semantic_cache or winning_route.semantic_cache_enabled:
         await semantic_cache.store(
             workspace_id=workspace.id,
             model=body.model,
@@ -315,6 +323,7 @@ async def create_gateway_route(
         daily_cost_limit_usd=body.daily_cost_limit_usd,
         monthly_cost_limit_usd=body.monthly_cost_limit_usd,
         pii_redaction_enabled=body.pii_redaction_enabled,
+        semantic_cache_enabled=body.semantic_cache_enabled,
         per_user_rpm_limit=body.per_user_rpm_limit,
         health_auto_disable=body.health_auto_disable,
     )
@@ -371,6 +380,8 @@ async def update_gateway_route(
         route.monthly_cost_limit_usd = body.monthly_cost_limit_usd
     if body.pii_redaction_enabled is not None:
         route.pii_redaction_enabled = body.pii_redaction_enabled
+    if body.semantic_cache_enabled is not None:
+        route.semantic_cache_enabled = body.semantic_cache_enabled
     if "per_user_rpm_limit" in body.model_fields_set:
         route.per_user_rpm_limit = body.per_user_rpm_limit
     if body.health_auto_disable is not None:

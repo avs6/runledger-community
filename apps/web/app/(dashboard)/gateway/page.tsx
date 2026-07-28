@@ -41,6 +41,7 @@ export default function GatewayPage() {
   const [newRouteDailyCap, setNewRouteDailyCap] = useState('')
   const [newRouteMonthlyCap, setNewRouteMonthlyCap] = useState('')
   const [newRoutePiiRedaction, setNewRoutePiiRedaction] = useState(false)
+  const [newRouteSemanticCache, setNewRouteSemanticCache] = useState(false)
   const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
@@ -113,6 +114,7 @@ export default function GatewayPage() {
         daily_cost_limit_usd: newRouteDailyCap ? parseFloat(newRouteDailyCap) : null,
         monthly_cost_limit_usd: newRouteMonthlyCap ? parseFloat(newRouteMonthlyCap) : null,
         pii_redaction_enabled: newRoutePiiRedaction,
+        semantic_cache_enabled: newRouteSemanticCache,
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
       })
       setGatewayRoutes((prev) => [...prev, route])
@@ -125,6 +127,7 @@ export default function GatewayPage() {
       setNewRouteDailyCap('')
       setNewRouteMonthlyCap('')
       setNewRoutePiiRedaction(false)
+      setNewRouteSemanticCache(false)
       setNewRoutePerUserRpm('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
@@ -141,6 +144,19 @@ export default function GatewayPage() {
       const updated = await updateGatewayRoute(apiKey, route.id, { is_active: !route.is_active })
       setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
       toast.success(updated.is_active ? 'Route enabled' : 'Route disabled')
+    } catch {
+      toast.error('Failed to update route')
+    }
+  }
+
+  async function handleToggleSemanticCache(route: GatewayRoute) {
+    if (!apiKey) return
+    try {
+      const updated = await updateGatewayRoute(apiKey, route.id, {
+        semantic_cache_enabled: !route.semantic_cache_enabled,
+      })
+      setGatewayRoutes((prev) => prev.map((r) => (r.id === route.id ? updated : r)))
+      toast.success(updated.semantic_cache_enabled ? 'Semantic cache on' : 'Semantic cache off')
     } catch {
       toast.error('Failed to update route')
     }
@@ -406,6 +422,16 @@ export default function GatewayPage() {
                     />
                     <label htmlFor="pii-redact" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer">PII Redaction</label>
                   </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <input
+                      id="semantic-cache"
+                      type="checkbox"
+                      checked={newRouteSemanticCache}
+                      onChange={(e) => setNewRouteSemanticCache(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="semantic-cache" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Also serve near-duplicate prompts from the semantic cache">Semantic Cache</label>
+                  </div>
                 </div>
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
@@ -459,6 +485,17 @@ export default function GatewayPage() {
                         )}
                         {route.pii_redaction_enabled && (
                           <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">PII</span>
+                        )}
+                        {canManage ? (
+                          <button
+                            onClick={() => handleToggleSemanticCache(route)}
+                            title={route.semantic_cache_enabled ? 'Semantic cache ON — click to turn off' : 'Semantic cache OFF — click to turn on'}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 ${route.semantic_cache_enabled ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'}`}
+                          >
+                            Cache {route.semantic_cache_enabled ? 'ON' : 'OFF'}
+                          </button>
+                        ) : route.semantic_cache_enabled && (
+                          <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 text-[10px] font-medium">Cache</span>
                         )}
                       </div>
                     </td>

@@ -1063,6 +1063,7 @@ export async function createGatewayRoute(
     daily_cost_limit_usd?: number | null
     monthly_cost_limit_usd?: number | null
     pii_redaction_enabled?: boolean
+    semantic_cache_enabled?: boolean
     per_user_rpm_limit?: number | null
     health_auto_disable?: boolean
   }
@@ -1083,6 +1084,8 @@ export async function updateGatewayRoute(
     api_key_env_var?: string | null
     priority?: number
     is_active?: boolean
+    pii_redaction_enabled?: boolean
+    semantic_cache_enabled?: boolean
   }
 ): Promise<GatewayRoute> {
   return apiFetch<GatewayRoute>(`/gateway/routes/${routeId}`, apiKey, {

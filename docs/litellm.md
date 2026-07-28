@@ -164,7 +164,7 @@ LiteLLM Proxy.  RunLedger adds:
 
 ```
 your app
-  └── openai.OpenAI(base_url="http://api:8000/gateway/v1")
+  └── openai.OpenAI(base_url="http://runledger-api:8000/gateway/v1")
         └── RunLedger Gateway :8000
               ├── prompt cache  (cache hit → return immediately)
               ├── cost-cap check
@@ -176,7 +176,7 @@ your app
 ### 1. Register LiteLLM Proxy as a gateway route
 
 ```bash
-curl -X POST http://localhost:8000/gateway/routes \
+curl -X POST http://localhost:8201/gateway/routes \
   -H "Authorization: Bearer $RUNLEDGER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -201,7 +201,7 @@ Set `LITELLM_PROXY_KEY` in the RunLedger API server's environment (e.g.
 import openai
 
 client = openai.OpenAI(
-    base_url="http://localhost:8000/gateway/v1",
+    base_url="http://localhost:8201/gateway/v1",
     api_key="rl_live_...",    # your RunLedger workspace API key
 )
 
@@ -215,7 +215,7 @@ response = client.chat.completions.create(
 
 ```bash
 # Cost-optimised routing across multiple LiteLLM routes
-curl -X POST http://localhost:8000/gateway/policies \
+curl -X POST http://localhost:8201/gateway/policies \
   -H "Authorization: Bearer $RUNLEDGER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{

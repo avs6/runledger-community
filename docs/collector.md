@@ -213,7 +213,7 @@ docker compose --profile otel up
 # Collector endpoints:
 #   gRPC:  localhost:4317
 #   HTTP:  localhost:4318
-# Forwards to: http://api:8000 (local RunLedger API)
+# Forwards to: http://runledger-api:8000 (local RunLedger API)
 ```
 
 Configuration: `infra/otel-collector-config.yaml`

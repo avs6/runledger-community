@@ -270,14 +270,14 @@ RunLedger is evolving from **observing and controlling** AI cost into **actively
 ```bash
 git clone https://github.com/avs6/runledger-community
 cd runledger-community
-cp infra/.env.example infra/.env   # set SECRET_KEY
-docker compose -f infra/docker-compose.yml up -d
+cp .env.example .env   # set SECRET_KEY
+docker compose up -d   # add --build to build from source instead of pulling images
 ```
 
 Bootstrap the admin:
 
 ```bash
-curl -s -X POST http://localhost:8000/admin/bootstrap \
+curl -s -X POST http://localhost:8201/admin/bootstrap \
   -H "X-Admin-Secret: runledger-admin" \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
@@ -285,8 +285,8 @@ curl -s -X POST http://localhost:8000/admin/bootstrap \
 
 | URL | What it is |
 |-----|------------|
-| `http://localhost:3000` | Dashboard |
-| `http://localhost:8000/reference` | Interactive API reference (Scalar) |
+| `http://localhost:3201` | Dashboard |
+| `http://localhost:8201/reference` | Interactive API reference (Scalar) |
 | `http://localhost:4318` | OTLP/HTTP receiver (via OTel Collector) |
 
 ---
@@ -345,7 +345,7 @@ import openai
 
 client = openai.OpenAI(
     api_key="rl_...",
-    base_url="http://localhost:8000/gateway",
+    base_url="http://localhost:8201/gateway",
 )
 resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
 # First call → forwarded to provider. Identical second call → cache hit (<5ms).

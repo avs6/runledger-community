@@ -53,6 +53,10 @@ class GatewayRoute(Base):
     pii_redaction_enabled: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
+    # When enabled, requests to this alias also consult the semantic (near-duplicate) cache.
+    semantic_cache_enabled: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
     per_user_rpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     health_auto_disable: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")
