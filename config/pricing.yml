@@ -104,42 +104,93 @@ models:
   # ── Ollama (local / self-hosted) ─────────────────────────────────────────────
   # Set rates to 0.00 for free local inference, or enter your infrastructure
   # cost per 1M tokens if you want to track GPU / cloud spend.
-  # Add new models by duplicating a block — use the exact name Ollama reports.
+  # Add new models by duplicating a block — use the exact name Ollama reports
+  # (from `ollama list`). The models below were synced from a local Ollama host.
 
   - provider: ollama
-    model: llama3.2
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    model: deepseek-r1:14b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   - provider: ollama
-    model: llama3.2:3b
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    model: deepseek-r1:8b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   - provider: ollama
-    model: llama3.1
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    model: dolphin-llama3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: dolphin3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: gemma3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: gemma4:12b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: hf.co/empero-ai/Qwable-9B-Claude-Fable-5-GGUF:Q4_K_M
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: hf.co/empero-ai/Qwable-9B-Claude-Fable-5-GGUF:Q8_0
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: hf.co/empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF:Q8_0
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: llama2-uncensored:7b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   - provider: ollama
     model: llama3.1:8b
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   - provider: ollama
-    model: mistral
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    model: nomic-embed-text:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   - provider: ollama
-    model: qwen2.5
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    model: qwen2.5-coder:14b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   - provider: ollama
-    model: phi4
-    input_per_1m: 110.00
-    output_per_1m: 110.00
+    model: qwen3.5:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: qwen3.6:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: richardyoung/qwable-9b-abliterated:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: richardyoung/qwythos-9b-abliterated:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
 
   # ── vLLM / other self-hosted ─────────────────────────────────────────────────
   # Example — uncomment and fill in your model + cost:

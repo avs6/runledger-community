@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Budget } from '@/types/api'
@@ -9,7 +10,7 @@ import { deleteBudget } from '@/lib/api'
 interface Props {
   items: Budget[]
   apiKey: string
-  onDeleted: (id: string) => void
+  onDeleted?: (id: string) => void
 }
 
 const ACTION_COLOURS: Record<string, string> = {
@@ -20,13 +21,15 @@ const ACTION_COLOURS: Record<string, string> = {
 
 export default function BudgetList({ items, apiKey, onDeleted }: Props) {
   const [deleting, setDeleting] = useState<string | null>(null)
+  const router = useRouter()
 
   async function handleDelete(id: string) {
     if (!confirm('Deactivate this budget?')) return
     setDeleting(id)
     try {
       await deleteBudget(apiKey, id)
-      onDeleted(id)
+      onDeleted?.(id)
+      router.refresh()
     } catch (err) {
       toast.error('Failed to delete budget')
       console.error(err)

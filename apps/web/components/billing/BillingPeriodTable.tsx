@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import type { BillingPeriod } from '@/types/api'
@@ -9,7 +10,7 @@ import { closeBillingPeriod, exportPeriodCsv, exportPeriodSignedJson, exportPeri
 interface Props {
   items: BillingPeriod[]
   apiKey: string
-  onClosed: (id: string) => void
+  onClosed?: (id: string) => void
 }
 
 function StatusBadge({ status }: { status: BillingPeriod['status'] }) {
@@ -38,12 +39,14 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
 
 export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
+  const router = useRouter()
 
   async function handleClose(id: string) {
     setLoading(`close-${id}`)
     try {
       await closeBillingPeriod(apiKey, id)
-      onClosed(id)
+      onClosed?.(id)
+      router.refresh()
     } catch (err) {
       console.error(err)
       toast.error('Failed to close period')
