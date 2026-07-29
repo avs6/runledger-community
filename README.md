@@ -43,7 +43,7 @@ Everything below is **available today** in RunLedger Community. Click through fo
 
 ### 🚦 Model Gateway
 - [Overview](docs/gateway/overview.mdx) — OpenAI-compatible
-- [Routing & fallback](docs/gateway/routing.mdx)
+- [Advanced routing & fallback](docs/gateway/routing.mdx) — cost · latency · quality · outcome · canary · budget-aware
 - [Caching](docs/gateway/caching.mdx) — exact + semantic
 - [Runtime controls](docs/gateway/runtime-controls.mdx)
 - [Providers](docs/gateway/providers.mdx)
@@ -213,6 +213,8 @@ RunLedger fits your stack however matches your latency, enforcement, and code-ch
 | Budgets + spend guardrails | ✅ | ✅ |
 | Analytics + dashboards | ✅ | ✅ |
 | Model gateway + prompt caching + semantic cache | ✅ | ✅ |
+| Advanced routing policies (cost · latency · quality · outcome · weighted · canary · budget-aware · complexity) | ✅ | ✅ |
+| Intelligent routing (complexity × risk → model tier) | ✅ | ✅ |
 | Token optimization (compiler, compression, routing, flywheel) | ✅ | ✅ |
 | Self-hosted & local model routing | ✅ | ✅ |
 | Evaluations, prompt registry, outcomes & ROI | ✅ | ✅ |
