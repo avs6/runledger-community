@@ -186,6 +186,14 @@ with rl.context(end_user_id="u_123", feature_tag="support-chat"):
 
 Or point any OpenAI client at the gateway — change only `base_url` ([gateway guide](docs/gateway/overview.mdx)).
 
+**Populate demo data** — turn an empty stack into a fully-populated demo (multiple orgs, gateway routes, runs, budgets, outcomes, and pricing — including **priced local Ollama models**) by running every scenario through the API:
+
+```bash
+uv run python scripts/full_simulate.py
+```
+
+It resets the cluster, imports [`scripts/pricing.yaml`](scripts/pricing.yaml), and runs every scenario under [`scripts/scenarios/`](scripts/scenarios) (organized in `hosted/` and `ollama/` folders — add your own). See [scripts/README.md](scripts/README.md) for the full flow and how to write scenarios.
+
 ---
 
 ## Deployment

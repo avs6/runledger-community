@@ -38,7 +38,7 @@ def run(sim: Sim) -> None:
     ws.add_budget("feature", 100, period_type="daily", action="block", scope_id="fraud-review")
 
     # Conversions: recommendations + product-qa drive revenue.
-    for r in runs:
+    for r in ws.sample(runs, 30):
         if r.success and r.feature in ("recommendations", "product-qa") and random.random() < 0.35:
             ws.record_outcome(r, "conversion", success=True,
                               value_usd=round(random.uniform(20, 240), 2),
@@ -48,4 +48,4 @@ def run(sim: Sim) -> None:
                               labels={"risk": random.choice(["low", "medium", "high"])})
         ws.score(r, "relevance", round(random.uniform(0.6, 0.98), 2))
 
-    ws.add_alert("Fraud model cost", "daily_cost_usd", "gt", 80.0)
+    ws.add_alert("Fraud model cost", "spend_velocity", "gt", 80.0)
