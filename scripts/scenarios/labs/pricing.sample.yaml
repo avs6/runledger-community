@@ -1,0 +1,53 @@
+# Sample pricing catalog — upload this in the dashboard (Provider Profiles → Import).
+# ──────────────────────────────────────────────────────────────────────────────
+# The lab prices your LOCAL Ollama models at a small per-1M-token cost (your GPU /
+# electricity / infra spend) so local inference is actually TRACKED — budgets bite,
+# and cost-per-outcome is measurable even with no cloud provider. Tune to your rig.
+#
+# A couple of hosted models are included for comparison. Importing is idempotent:
+# re-uploading updates rows in place; the catalog lives in the DB afterwards.
+
+models:
+
+  # ── Ollama (local — priced so cost is tracked) ────────────────────────────────
+  - provider: ollama
+    model: llama3.2
+    display_name: Llama 3.2 (local)
+    input_per_1m: 0.02
+    output_per_1m: 0.04
+    tags: [local, chat, fast]
+
+  - provider: ollama
+    model: qwen2.5-coder:14b
+    display_name: Qwen2.5 Coder 14B (local)
+    input_per_1m: 0.12
+    output_per_1m: 0.24
+    tags: [local, coding]
+
+  - provider: ollama
+    model: deepseek-r1:8b
+    display_name: DeepSeek-R1 8B (local)
+    input_per_1m: 0.06
+    output_per_1m: 0.12
+    tags: [local, reasoning]
+
+  - provider: ollama
+    model: nomic-embed-text
+    display_name: Nomic Embed Text (local)
+    input_per_1m: 0.01
+    output_per_1m: 0.00
+    tags: [local, embedding]
+
+  # ── Hosted (for comparison) ───────────────────────────────────────────────────
+  - provider: openai
+    model: gpt-4o-mini
+    input_per_1m: 0.15
+    output_per_1m: 0.60
+    cached_input_per_1m: 0.075
+    tags: [chat, cheap, fast]
+
+  - provider: anthropic
+    model: claude-haiku-4-5
+    input_per_1m: 0.80
+    output_per_1m: 4.00
+    tags: [chat, cheap, fast]
