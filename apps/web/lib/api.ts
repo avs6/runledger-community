@@ -637,6 +637,48 @@ export async function listOrgWorkspaces(
   return apiFetch<{ id: string; name: string }[]>('/org/workspaces', apiKey)
 }
 
+// ── Identity registry (org-admin) — Users page ────────────────────────────────
+export interface OrgUser {
+  id: string
+  email: string
+  full_name: string | null
+  is_active: boolean
+  email_verified: boolean
+  org_role: string | null
+  last_login_at: string | null
+  created_at: string
+}
+
+export async function listOrgUsers(apiKey: string): Promise<OrgUser[]> {
+  return apiFetch<OrgUser[]>('/users/all', apiKey)
+}
+
+export async function createOrgUser(
+  apiKey: string,
+  body: { email: string; full_name?: string | null; temporary_password?: string; skip_verification?: boolean }
+): Promise<OrgUser> {
+  return apiFetch<OrgUser>('/users', apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function updateOrgUser(
+  apiKey: string,
+  userId: string,
+  body: { full_name?: string | null; password?: string; is_active?: boolean; email_verified?: boolean }
+): Promise<OrgUser> {
+  return apiFetch<OrgUser>(`/users/${userId}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
+}
+
+// Platform-admin: create a new organization (adds you as its org admin).
+export async function createOrganization(
+  apiKey: string,
+  name: string
+): Promise<{ id: string; name: string }> {
+  return apiFetch<{ id: string; name: string }>('/org/tenants', apiKey, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
 export async function revokeApiKey(apiKey: string, keyId: string): Promise<void> {
   await apiFetch<void>(`/settings/api-keys/${keyId}`, apiKey, { method: 'DELETE' })
 }
