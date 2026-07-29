@@ -26,7 +26,7 @@ def run(sim: Sim) -> None:
 
     runs = ws.ingest_runs(
         150,
-        models=["gpt-4o-mini", "claude-haiku-4-5", "gpt-4o", "gemini-1.5-pro"],
+        models=["gpt-4o-mini", "claude-haiku-4-5", "gpt-4o", "claude-sonnet-4-6"],
         features=["product-qa", "recommendations", "returns-agent", "fraud-review"],
         users=[f"shopper_{i}" for i in range(1, 40)],
         days=30,

@@ -23,6 +23,31 @@ uv run python scripts/full_simulate.py --hard-clean  # wipe every volume first
 uv run python scripts/cleanup.py [--hard]         # reset only
 ```
 
+## What the bundled scenarios simulate
+
+The seven scenarios below create seven orgs and populate **~940 runs**, plus routes,
+budgets, outcomes, scores, and alerts. Every model they use is priced in
+[`pricing.yaml`](../pricing.yaml), so cost is attributed for **both** hosted and local runs.
+
+| Scenario | Org / Workspace | Models | Demonstrates |
+|---|---|---|---|
+| `hosted/01_saas_support` | Acme SaaS / Support Bot | gpt-4o-mini, gpt-4o | High-volume support; semantic cache; monthly-notify + daily-block + per-user budgets; ticket-resolved outcomes with $ value; CSAT scores; spend alert |
+| `hosted/02_ml_research` | Nova Labs / Research | o3-mini, claude-sonnet-4-6, gpt-4o, llama3.1:8b, llama3.2 | Frontier-vs-local cost/quality; dense multi-metric eval scoring (accuracy/faithfulness/helpfulness); benchmark-passed outcomes |
+| `hosted/03_ecommerce_agents` | Shopwave / Agents | gpt-4o-mini, claude-haiku-4-5, gpt-4o, claude-sonnet-4-6 | Multi-provider fallback routes; conversion ROI outcomes ($ value); fraud-review flagging; feature-scoped hard-block budget |
+| `ollama/01_coding_assistant` | Acme Dev Tools / Coding Assistant | qwen2.5-coder:14b, deepseek-r1:14b/8b | **Priced local inference** — bug-resolved outcomes, correctness scores, GPU-spend budgets + alert |
+| `ollama/02_local_rag` | DataCo / Knowledge Base | llama3.1:8b, nomic-embed-text | Generation **vs embedding** cost split; relevance/faithfulness scores; answer-helpful outcomes |
+| `ollama/03_reasoning_agent` | ThinkLocal / Reasoning | deepseek-r1:14b vs 8b | Output-heavy reasoning cost; 14B-vs-8B cost × quality; decision-supported outcomes with $ value |
+| `ollama/04_chat_support` | HelpDesk Local / Support Bot | llama3.2, gemma3:latest | Local mirror of the hosted SaaS-support org — compare cost-per-resolved-ticket local vs hosted |
+
+> **Budgets are the one deliberate gap.** `/budgets` requires a workspace-admin *dashboard
+> session*, which an API key can't provide, so `add_budget()` is skipped quietly under the
+> simulator. Create budgets from the dashboard. Everything else populates end-to-end.
+>
+> **TODO:** seed budgets automatically by having the simulator perform a real `/auth/login`
+> as the platform admin (which bypasses the role check) and posting `/budgets` with that
+> session token instead of the API key — pending a check of how a session request selects
+> its workspace context.
+
 ## Writing a scenario
 
 Create a file in any folder, e.g. `scripts/scenarios/ollama/05_your_scenario.py`:
@@ -61,11 +86,12 @@ best-effort (a failure warns and continues):
 | Method | Populates |
 |---|---|
 | `ingest_runs(n, models=, features=, users=, days=, success_rate=, sessions=)` | Runs + spans + provider calls (via `/ingest/v1/batch`); returns the runs |
-| `add_route(alias, model, priority=, **flags)` | A gateway route (`semantic_cache_enabled`, etc.) |
-| `add_budget(scope_type, limit_usd, period_type=, action=, scope_id=)` | A budget |
+| `sample(runs, k=60)` | A random subset — keep per-run scores/outcomes under the 60/min management rate limit |
+| `add_route(alias, model, priority=, **flags)` | A gateway route (`semantic_cache_enabled=`, `base_url=` for Ollama, etc.) |
+| `add_budget(scope_type, limit_usd, period_type=, action=, scope_id=)` | A budget (skipped under the sim — needs a dashboard session) |
 | `record_outcome(run, outcome_type, success=, value_usd=, labels=)` | A business outcome |
 | `score(run, metric_name, value, label=)` | An evaluation score |
-| `add_alert(name, metric, operator, threshold)` | An alert rule |
+| `add_alert(name, metric, operator, threshold)` | An alert rule (`metric` ∈ error_rate, p95_latency, avg_score, spend_velocity) |
 
 Costs are computed from a small pricing table in `_base.py`, so analytics and budgets
 show real numbers even for free local (Ollama) models.
