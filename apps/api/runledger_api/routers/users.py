@@ -12,10 +12,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import require_user, require_workspace_admin
-from runledger_api.models.tenant import User, Workspace, WorkspaceUser
+from runledger_api.core.deps import require_org_admin, require_user, require_workspace_admin
+from runledger_api.models.tenant import (
+    TenantRoleEnum,
+    TenantUser,
+    User,
+    Workspace,
+    WorkspaceUser,
+)
 from runledger_api.schemas.auth import (
+    AdminUserCreate,
+    AdminUserUpdate,
     InviteUserRequest,
+    OrgUserResponse,
     RoleUpdateRequest,
     UserResponse,
     UserUpdate,
@@ -50,6 +59,129 @@ async def update_me(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
+
+
+def _org_user_response(u: User, org_role: Any | None) -> OrgUserResponse:
+    return OrgUserResponse(
+        id=u.id,
+        email=u.email,
+        full_name=u.full_name,
+        is_active=u.is_active,
+        email_verified=u.email_verified,
+        org_role=(org_role.value if org_role is not None else None),
+        last_login_at=u.last_login_at,
+        created_at=u.created_at,
+    )
+
+
+@router.get("/all", response_model=list[OrgUserResponse])
+async def list_org_users(auth: OrgAdminDep, db: DbDep) -> list[OrgUserResponse]:
+    """Every user in the caller's org — the identity registry (org-admin)."""
+    workspace, _u, _tu = auth
+    tenant_id = workspace.tenant_id
+    tu_rows = (
+        (await db.execute(select(TenantUser).where(TenantUser.tenant_id == tenant_id)))
+        .scalars()
+        .all()
+    )
+    role_by_user = {tu.user_id: tu.role for tu in tu_rows}
+    ws_ids = (
+        (await db.execute(select(Workspace.id).where(Workspace.tenant_id == tenant_id)))
+        .scalars()
+        .all()
+    )
+    user_ids = set(role_by_user.keys())
+    if ws_ids:
+        wu_users = (
+            (
+                await db.execute(
+                    select(WorkspaceUser.user_id).where(
+                        WorkspaceUser.workspace_id.in_(list(ws_ids))
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        user_ids.update(wu_users)
+    if not user_ids:
+        return []
+    users = (
+        (
+            await db.execute(
+                select(User).where(User.id.in_(list(user_ids))).order_by(User.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [_org_user_response(u, role_by_user.get(u.id)) for u in users]
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=OrgUserResponse)
+async def create_user(body: AdminUserCreate, auth: OrgAdminDep, db: DbDep) -> OrgUserResponse:
+    """Create a user identity and add them to the caller's org as a member (org-admin).
+
+    ``skip_verification`` (default true here) marks the account verified so it can sign
+    in immediately when no SMTP is configured.
+    """
+    workspace, _u, _tu = auth
+    existing = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Email '{body.email}' already exists")
+    pw_hash = bcrypt.hashpw(body.temporary_password.encode(), bcrypt.gensalt()).decode()
+    user = User(
+        email=body.email,
+        password_hash=pw_hash,
+        full_name=body.full_name or body.email.split("@")[0],
+        is_active=True,
+        email_verified=body.skip_verification,
+    )
+    db.add(user)
+    await db.flush()
+    # New users join the org as a plain member; grant workspace access separately.
+    db.add(
+        TenantUser(tenant_id=workspace.tenant_id, user_id=user.id, role=TenantRoleEnum.org_member)
+    )
+    await db.commit()
+    await db.refresh(user)
+    log.info("user_created", user_id=str(user.id), verified=body.skip_verification)
+    return _org_user_response(user, TenantRoleEnum.org_member)
+
+
+@router.put("/{user_id}", response_model=OrgUserResponse)
+async def admin_update_user(
+    user_id: uuid.UUID, body: AdminUserUpdate, auth: OrgAdminDep, db: DbDep
+) -> OrgUserResponse:
+    """Edit another user's identity (name / password / active / verified) — org-admin."""
+    workspace, _u, _tu = auth
+    membership = (
+        await db.execute(
+            select(TenantUser).where(
+                TenantUser.tenant_id == workspace.tenant_id, TenantUser.user_id == user_id
+            )
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    if body.full_name is not None:
+        user.full_name = body.full_name
+    if body.password is not None:
+        user.password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    if body.is_active is not None:
+        user.is_active = body.is_active
+    if body.email_verified is not None:
+        user.email_verified = body.email_verified
+    await db.commit()
+    await db.refresh(user)
+    log.info("user_updated", user_id=str(user.id))
+    return _org_user_response(user, membership.role)
 
 
 @router.get("", response_model=list[WorkspaceMemberResponse])

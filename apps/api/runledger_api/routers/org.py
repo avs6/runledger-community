@@ -15,7 +15,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import _ORG_ADMIN_ROLES, require_org_admin, require_user
+from runledger_api.core.deps import (
+    _ORG_ADMIN_ROLES,
+    require_org_admin,
+    require_platform_admin,
+    require_user,
+)
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.billing import BillingPeriod
 from runledger_api.models.budgets import Budget
@@ -31,6 +36,7 @@ from runledger_api.models.tenant import (
     WorkspaceStatusEnum,
     WorkspaceUser,
 )
+from runledger_api.routers.auth import _make_slug
 from runledger_api.schemas.audit import AuditEventResponse as AuditEventResponse
 from runledger_api.schemas.auth import (
     AddWorkspaceMemberRequest,
@@ -39,7 +45,9 @@ from runledger_api.schemas.auth import (
     OrgProfileResponse,
     OrgProfileUpdate,
     OrgRoleUpdateRequest,
+    PlatformOrgCreate,
     TenantMemberResponse,
+    TenantResponse,
     WorkspaceCreateForOrg,
     WorkspaceMemberResponse,
     WorkspaceResponse,
@@ -51,6 +59,43 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/org", tags=["organization"])
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+@router.post("/tenants", status_code=status.HTTP_201_CREATED, response_model=TenantResponse)
+async def create_org(
+    body: PlatformOrgCreate,
+    auth: Annotated[tuple[Workspace, User], Depends(require_platform_admin)],
+    db: DbDep,
+) -> dict[str, Any]:
+    """Platform admin creates a new organization + default workspace, and is added as its
+    org admin so it shows up in their org switcher immediately (no admin secret needed)."""
+    _ws, admin = auth
+    tenant = Tenant(slug=_make_slug(body.name), name=body.name)
+    db.add(tenant)
+    await db.flush()
+    tenant.owner_user_id = admin.id
+    db.add(TenantUser(tenant_id=tenant.id, user_id=admin.id, role=TenantRoleEnum.org_admin))
+    workspace = Workspace(tenant_id=tenant.id, name=f"{body.name} Workspace")
+    db.add(workspace)
+    await db.flush()
+    db.add(
+        WorkspaceUser(
+            workspace_id=workspace.id, user_id=admin.id, role=WorkspaceRoleEnum.workspace_admin
+        )
+    )
+    await db.commit()
+    await db.refresh(tenant)
+    log.info("org_created", tenant_id=str(tenant.id), by=admin.email)
+    return {
+        "id": tenant.id,
+        "name": tenant.name,
+        "plan": tenant.plan,
+        "is_default": tenant.is_default,
+        "owner_user_id": tenant.owner_user_id,
+        "created_at": tenant.created_at,
+        "workspace_count": 1,
+        "member_count": 1,
+    }
 
 
 @router.get("/profile", response_model=OrgProfileResponse)

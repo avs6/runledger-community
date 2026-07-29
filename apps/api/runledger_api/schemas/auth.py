@@ -157,6 +157,7 @@ class UserResponse(BaseModel):
     full_name: str | None
     is_active: bool
     is_platform_admin: bool
+    email_verified: bool = False
     last_login_at: datetime | None
     created_at: datetime
 
@@ -186,6 +187,45 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     is_active: bool | None = None
     password: str | None = None
+
+
+class AdminUserCreate(BaseModel):
+    """Create a user identity (no membership) — org-admin action in the Users page."""
+
+    email: str
+    full_name: str | None = None
+    temporary_password: str = "ChangeMe123!"
+    # When true (default on this SMTP-less build) the user is marked verified and can
+    # log in immediately without an email-confirmation step.
+    skip_verification: bool = True
+
+
+class AdminUserUpdate(BaseModel):
+    """Admin edit of another user's identity."""
+
+    full_name: str | None = None
+    password: str | None = None
+    is_active: bool | None = None
+    email_verified: bool | None = None
+
+
+class OrgUserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str | None
+    is_active: bool
+    email_verified: bool
+    org_role: str | None = None
+    last_login_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PlatformOrgCreate(BaseModel):
+    """Platform-admin creates a new organization (tenant) from the dashboard."""
+
+    name: str
 
 
 # ── TenantUser / WorkspaceUser ─────────────────────────────────────────────────
