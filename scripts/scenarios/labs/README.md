@@ -164,13 +164,20 @@ linked guides.
 
 ---
 
-## Module 3 · Mint API keys  *(GUI)*
+## Module 3 · Mint API keys  *(GUI — org admin)*
 
 **Goal:** one workspace key per team; the scripts authenticate with these.
 
-1. Switch to the **AI Support Team** workspace (workspace switcher, top of the sidebar).
-2. Open **Settings → API Keys → New API Key**. Copy the key (shown once).
-3. Repeat for **AI Development Team** and **AI Test Team** — keep all three keys handy.
+> 🔒 **API-key management is an org-admin function.** You must be signed in as an
+> **organization admin** (the seeded `admin@runledger.local` is one). A plain API key
+> can't mint keys — only a logged-in org admin can. Keys are organised by **workspace**
+> (there's no dev/prod environment anymore).
+
+1. Open **Settings → API Keys**. In the create form, **pick a workspace** — start with
+   **AI Support Team** — give the key a name, and **Create Key**. Copy it (shown once).
+2. Repeat, picking **AI Development Team**, then **AI Test Team**. The list shows a
+   **Workspace** column so you can see which key belongs to which team.
+3. Keep all three keys handy.
 
 Each key is scoped to exactly one team; **swapping the key is how you switch teams**.
 Put the relevant key in `agents/.env` before running each lab:
@@ -179,7 +186,7 @@ Put the relevant key in `agents/.env` before running each lab:
 RUNLEDGER_API_KEY=rl_...      # the team whose lab you're about to run
 ```
 
-✅ **Verify:** three keys exist, one per workspace.
+✅ **Verify:** three keys exist — the list's **Workspace** column shows one per team.
 
 ---
 

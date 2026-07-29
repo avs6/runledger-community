@@ -26,6 +26,7 @@ import {
   listApiKeys,
   createApiKey,
   revokeApiKey,
+  listOrgWorkspaces,
   testSlackWebhook,
   getCapturePolicy,
   upsertCapturePolicy,
@@ -91,7 +92,8 @@ export default function SettingsPage() {
   const [keySearch, setKeySearch] = useState('')
   const [keyUserFilter, setKeyUserFilter] = useState('')
   const [newKeyName, setNewKeyName] = useState('')
-  const [newKeyEnv, setNewKeyEnv] = useState('dev')
+  const [newKeyWs, setNewKeyWs] = useState('')
+  const [orgWorkspaces, setOrgWorkspaces] = useState<{ id: string; name: string }[]>([])
   const [creatingKey, setCreatingKey] = useState(false)
   const [newRawKey, setNewRawKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -167,15 +169,21 @@ export default function SettingsPage() {
   const [savingEmailPrefs, setSavingEmailPrefs] = useState(false)
   const [testingEmail, setTestingEmail] = useState(false)
 
+  const canManageKeys = isOrgAdmin || isPlatformAdmin
+
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [keys, policy, alertsData, historyData] = await Promise.all([
-        listApiKeys(apiKey),
+      // Key management is org-admin only; skip those calls for everyone else so the
+      // rest of the settings page still loads.
+      const [keys, orgWs, policy, alertsData, historyData] = await Promise.all([
+        canManageKeys ? listApiKeys(apiKey) : Promise.resolve([]),
+        canManageKeys ? listOrgWorkspaces(apiKey) : Promise.resolve([]),
         getCapturePolicy(apiKey),
         listAlertRules(apiKey, true),
         listAlertHistory(apiKey, 10),
       ])
+      setOrgWorkspaces(orgWs)
       setApiKeys(keys.filter((k) => !k.is_session))
       if (policy) {
         setCapturePolicy(policy)
@@ -188,7 +196,7 @@ export default function SettingsPage() {
       console.error(err)
       toast.error('Failed to load settings')
     }
-  }, [apiKey])
+  }, [apiKey, canManageKeys])
 
   useEffect(() => { load() }, [load])
 
@@ -285,15 +293,13 @@ export default function SettingsPage() {
     try {
       const created = await createApiKey(apiKey, {
         name: newKeyName.trim() || null,
-        environment: newKeyEnv,
+        workspace_id: newKeyWs || undefined,
         scopes: [],
-        created_by: session?.user?.email ?? null,
       })
       setNewRawKey(created.key)
       setCopied(false)
       setApiKeys((prev) => [created, ...prev])
       setNewKeyName('')
-      setNewKeyEnv('dev')
       toast.success('API key created — save it now')
     } catch (err) {
       console.error(err)
@@ -606,8 +612,8 @@ export default function SettingsPage() {
 
   const filteredApiKeys = useMemo(() => {
     let rows = apiKeys
-    // Non-admins only see their own keys
-    if (!isWorkspaceAdmin && !isPlatformAdmin && currentUserEmail) {
+    // Only org admins list keys (the API enforces this); everyone else gets none.
+    if (!canManageKeys && currentUserEmail) {
       rows = rows.filter((k) => k.created_by === currentUserEmail)
     }
     if (keyUserFilter.trim()) {
@@ -624,7 +630,7 @@ export default function SettingsPage() {
       )
     }
     return rows
-  }, [apiKeys, keySearch, keyUserFilter, isWorkspaceAdmin, isPlatformAdmin, currentUserEmail])
+  }, [apiKeys, keySearch, keyUserFilter, canManageKeys, currentUserEmail])
 
   // ── Tab content ─────────────────────────────────────────────────────────────
 
@@ -718,20 +724,27 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Create new key for <span className="text-violet-600 dark:text-violet-400">{workspaceName ?? 'this workspace'}</span></p>
-              <form onSubmit={handleCreateKey} className="flex flex-wrap gap-2">
-                <input type="text" placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className={inputCls} />
-                <select value={newKeyEnv} onChange={(e) => setNewKeyEnv(e.target.value)} className={inputCls}>
-                  <option value="dev">dev</option>
-                  <option value="staging">staging</option>
-                  <option value="prod">prod</option>
-                </select>
-                <button type="submit" disabled={creatingKey} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
-                  {creatingKey ? 'Creating…' : 'Create Key'}
-                </button>
-              </form>
-            </div>
+            {canManageKeys ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Create new key <span className="text-violet-600 dark:text-violet-400">— pick a workspace in your org</span></p>
+                <form onSubmit={handleCreateKey} className="flex flex-wrap gap-2">
+                  <input type="text" placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className={inputCls} />
+                  <select value={newKeyWs} onChange={(e) => setNewKeyWs(e.target.value)} className={inputCls}>
+                    <option value="">Current workspace ({workspaceName ?? 'default'})</option>
+                    {orgWorkspaces.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                  <button type="submit" disabled={creatingKey} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+                    {creatingKey ? 'Creating…' : 'Create Key'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                API key management is an <span className="font-medium">organization-admin</span> function. Ask an org admin to mint a key for your workspace.
+              </div>
+            )}
 
             {/* Filter bar */}
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 space-y-3">
@@ -739,7 +752,7 @@ export default function SettingsPage() {
                 <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
               </div>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                {(isWorkspaceAdmin || isPlatformAdmin) && (
+                {canManageKeys && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500 dark:text-slate-400 w-16 shrink-0">Created by</span>
                     <div className="relative">
@@ -787,7 +800,7 @@ export default function SettingsPage() {
                   {filteredApiKeys.length} of {apiKeys.length} keys
                 </span>
               )}
-              {!isWorkspaceAdmin && !isPlatformAdmin && (
+              {!canManageKeys && (
                 <span className="text-xs text-slate-400 italic">Showing your keys only</span>
               )}
             </div>
@@ -798,6 +811,7 @@ export default function SettingsPage() {
                   <tr>
                     <th className="px-4 py-2 text-left">Prefix</th>
                     <th className="px-4 py-2 text-left">Name</th>
+                    <th className="px-4 py-2 text-left">Workspace</th>
                     <th className="px-4 py-2 text-left">Created</th>
                     <th className="px-4 py-2 text-left">Created By</th>
                     <th className="px-4 py-2" />
@@ -805,7 +819,7 @@ export default function SettingsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {filteredApiKeys.length === 0 ? (
-                    <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                       {apiKeys.length === 0 ? 'No active API keys.' : 'No keys match your filters.'}
                     </td></tr>
                   ) : (
@@ -813,6 +827,7 @@ export default function SettingsPage() {
                       <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                         <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{k.key_prefix}…</td>
                         <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{k.name ?? '—'}</td>
+                        <td className="px-4 py-2 text-xs text-violet-600 dark:text-violet-400">{k.workspace_name ?? '—'}</td>
                         <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">{new Date(k.created_at).toLocaleString()}</td>
                         <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{k.created_by ?? '—'}</td>
                         <td className="px-4 py-2 text-right">
