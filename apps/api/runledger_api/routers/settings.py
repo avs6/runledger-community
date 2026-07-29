@@ -46,8 +46,10 @@ OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 async def _org_workspaces(db: AsyncSession, tenant_id: uuid.UUID) -> dict[uuid.UUID, str]:
     """All workspaces in an org, as {id: name} — the org's key-visibility boundary."""
     rows = (
-        await db.execute(select(Workspace).where(Workspace.tenant_id == tenant_id))
-    ).scalars().all()
+        (await db.execute(select(Workspace).where(Workspace.tenant_id == tenant_id)))
+        .scalars()
+        .all()
+    )
     return {w.id: w.name for w in rows}
 
 
@@ -92,9 +94,7 @@ async def create_api_key(body: ApiKeyCreate, auth: OrgAdminDep, db: DbDep) -> di
     ws = await _org_workspaces(db, workspace.tenant_id)
     target_id = body.workspace_id or workspace.id
     if target_id not in ws:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Workspace is not in your organization"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace is not in your organization")
     raw_key, key_hash, key_prefix = generate_api_key(body.environment)
     api_key = ApiKey(
         workspace_id=target_id,
@@ -136,9 +136,7 @@ async def revoke_api_key(key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) -> Non
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
     ws = await _org_workspaces(db, workspace.tenant_id)
     if api_key.workspace_id not in ws:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "API key is not in your organization"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "API key is not in your organization")
     api_key.revoked_at = datetime.now(UTC)
     await db.commit()
     log.info("api_key_revoked", key_id=str(key_id))
