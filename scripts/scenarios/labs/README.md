@@ -91,6 +91,7 @@ linked guides.
 | **[Part 5 · Governance & Control](./part5_governance.md)** | Gateway guardrails · Tool Registry · Approvals |
 | **[Part 6 · Operations](./part6_operations.md)** | Adding a workspace · Backup & Restore (local + S3) |
 | **[Part 7 · Settings & Administration](./part7_settings.md)** | OTLP · MCP · Integrations · Data Capture · Compliance · Retention · Email |
+| **[Part 8 · Integrating an existing stack](./part8_integrating_existing_stack.md)** | How customers adopt RunLedger beside an existing AI stack (hub instrumentation, gateway, SDK) |
 
 ---
 
@@ -351,6 +352,7 @@ labs/
   part5_governance.md             ← gateway guardrails · Tool Registry · Approvals
   part6_operations.md             ← add workspace · backup & restore
   part7_settings.md               ← OTLP · MCP · Integrations · Data Capture · Retention · Email
+  part8_integrating_existing_stack.md  ← adopt RunLedger beside an existing AI stack
   pricing.sample.yaml             ← upload in Provider Profiles (Module 2)
   samples/                        ← ready-to-load GUI assets
     dataset_support_faq.json      ← import in Datasets
