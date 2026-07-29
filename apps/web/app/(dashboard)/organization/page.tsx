@@ -253,8 +253,9 @@ function WorkspaceMemberPanel({
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [adding, setAdding] = useState<Record<string, boolean>>({})
-  const [selectedRole, setSelectedRole] = useState<Record<string, WsRole>>({})
+  const [busy, setBusy] = useState(false)
+  const [pickUser, setPickUser] = useState('')
+  const [pickRole, setPickRole] = useState<WsRole>('member')
   const [showAddForm, setShowAddForm] = useState(false)
 
   async function load() {
@@ -276,13 +277,14 @@ function WorkspaceMemberPanel({
     }
   }
 
-  async function handleAdd(member: OrgMember) {
-    const role = selectedRole[member.user_id] ?? 'member'
-    setAdding((prev) => ({ ...prev, [member.user_id]: true }))
+  async function handleAdd() {
+    if (!pickUser) return
+    const member = orgMembers.find((m) => m.user_id === pickUser)
+    setBusy(true)
     try {
       const res = await fetch(`${apiBase}/org/workspaces/${workspace.id}/members`, {
         method: 'POST', headers,
-        body: JSON.stringify({ user_id: member.user_id, role }),
+        body: JSON.stringify({ user_id: pickUser, role: pickRole }),
       })
       if (!res.ok) {
         const msg = await res.json().catch(() => ({ detail: 'Unknown error' }))
@@ -290,11 +292,12 @@ function WorkspaceMemberPanel({
       }
       const wm: WorkspaceMember = await res.json()
       setMembers((prev) => [...prev, wm])
-      toast.success(`${member.email} added`)
+      setPickUser(''); setPickRole('member')
+      toast.success(`${member?.email ?? 'User'} added`)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to add member')
     } finally {
-      setAdding((prev) => ({ ...prev, [member.user_id]: false }))
+      setBusy(false)
     }
   }
 
@@ -364,35 +367,41 @@ function WorkspaceMemberPanel({
             {showAddForm ? 'Cancel' : 'Add member'}
           </button>
 
-          {showAddForm && eligible.length === 0 && (
-            <p className="text-xs text-slate-400">All org members are already in this workspace.</p>
-          )}
-
-          {showAddForm && eligible.map((m) => (
-            <div key={m.user_id} className="flex items-center gap-2 rounded bg-white dark:bg-slate-900 px-2.5 py-1.5 border border-dashed border-slate-200 dark:border-slate-700">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 text-white text-[10px] font-bold uppercase">
-                {((m.full_name ?? m.email)[0] ?? '?').toUpperCase()}
+          {showAddForm && (
+            eligible.length === 0 ? (
+              <p className="text-xs text-slate-400">All org users are already in this workspace. Create more in the Users page.</p>
+            ) : (
+              <div className="flex items-center gap-2 rounded bg-white dark:bg-slate-900 px-2.5 py-1.5 border border-dashed border-slate-200 dark:border-slate-700">
+                <select
+                  value={pickUser}
+                  onChange={(e) => setPickUser(e.target.value)}
+                  className="flex-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 text-xs"
+                >
+                  <option value="">Select an org user…</option>
+                  {eligible.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>{m.full_name ?? m.email}</option>
+                  ))}
+                </select>
+                <select
+                  value={pickRole}
+                  onChange={(e) => setPickRole(e.target.value as WsRole)}
+                  className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-1 text-xs"
+                >
+                  <option value="workspace_admin">Admin</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <button
+                  onClick={handleAdd}
+                  disabled={!pickUser || busy}
+                  className="flex items-center gap-0.5 rounded bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-2 py-1 text-[10px] font-medium text-white"
+                >
+                  <Check className="h-2.5 w-2.5" />
+                  {busy ? '…' : 'Add'}
+                </button>
               </div>
-              <span className="flex-1 text-xs text-slate-700 dark:text-slate-300 truncate">{m.full_name ?? m.email}</span>
-              <select
-                value={selectedRole[m.user_id] ?? 'member'}
-                onChange={(e) => setSelectedRole((prev) => ({ ...prev, [m.user_id]: e.target.value as WsRole }))}
-                className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 text-xs"
-              >
-                <option value="workspace_admin">Admin</option>
-                <option value="member">Member</option>
-                <option value="viewer">Viewer</option>
-              </select>
-              <button
-                onClick={() => handleAdd(m)}
-                disabled={adding[m.user_id]}
-                className="flex items-center gap-0.5 rounded bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-2 py-0.5 text-[10px] font-medium text-white"
-              >
-                <Check className="h-2.5 w-2.5" />
-                {adding[m.user_id] ? '…' : 'Add'}
-              </button>
-            </div>
-          ))}
+            )
+          )}
         </div>
       )}
     </div>
