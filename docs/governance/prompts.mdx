@@ -31,11 +31,16 @@ flowchart LR
 ## Fetch at runtime
 
 ```python
-prompt = rl.prompts.get("support-reply", variables={"tone": "friendly"})
-resp = client.chat.completions.create(model="gpt-4o-mini", messages=prompt.messages)
+prompt = rl.get_prompt("support-reply", variables={"tone": "friendly"})
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "system", "content": prompt["content"]}, ...],
+)
 ```
 
-The app always fetches the **production** version by name; promoting a new version rolls everyone forward
+`get_prompt(name, environment="production", variables=...)` returns a dict — `content` (the rendered
+string), `version`, `environment`, `model_hint`, and the `variables` schema. The app always fetches the
+**production** version by name; promoting a new version rolls everyone forward
 (and rolling back is just re-promoting the previous one). Runs record the
 `deployment_version` so you can tie quality and cost to a specific prompt version.
 

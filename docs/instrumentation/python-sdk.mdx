@@ -61,30 +61,37 @@ rl.shutdown()   # flush pending telemetry
 ```python
 with rl.context(feature_tag="summarize") as run_id:
     resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
-    rl.score(run_id, name="relevance", value=0.92, source="human")
+    rl.score("relevance", 0.92, run_id=run_id, source="human")   # value is 0–1
 ```
 
-Scores flow into [Evaluations](/governance/evaluations) and the [Outcomes & ROI](/finops/outcomes) ledger.
+`score(name, value, ...)` — the name and value are positional; `run_id` defaults to the current
+context. Scores flow into [Evaluations](/governance/evaluations) and the
+[Outcomes & ROI](/finops/outcomes) ledger.
 
-### Frameworks
+### Other providers & frameworks
 
-`instrument()` also patches Anthropic and the LangChain / LangGraph callback stack:
+`instrument()` patches **OpenAI** (sync + async). Other providers have their own one-liner, and
+LangChain / LangGraph use a callback handler:
 
 ```python
-rl.instrument()                    # OpenAI + Anthropic
-from runledger_sdk.langchain import RunLedgerCallbackHandler
-chain.invoke(input, config={"callbacks": [RunLedgerCallbackHandler()]})
+rl.instrument()             # OpenAI
+rl.instrument_anthropic()   # Anthropic  (also: instrument_gemini / _mistral / _cohere / _litellm)
+
+# LangChain / LangGraph — pass the handler on invoke:
+handler = rl.callback_handler()
+chain.invoke(inputs, config={"callbacks": [handler]})
 ```
 
 Async clients, FastAPI services, and cross-service propagation are supported — see the examples below.
 
 ## Configuration
 
-| Option | Env var | Default | Notes |
+| Option | Where | Default | Notes |
 |---|---|---|---|
-| API key | `RUNLEDGER_API_KEY` | — | Workspace-scoped key (`rl_...`). |
-| Base URL | `RUNLEDGER_BASE_URL` | `http://localhost:8201` | Your RunLedger API. |
-| Payload logging | `RUNLEDGER_CAPTURE` | `off` | `off` / `errors` / `sampled` / `full` — off by default for privacy. |
+| API key | `RUNLEDGER_API_KEY` env / `api_key=` | — | Workspace-scoped key (`rl_...`). |
+| Base URL | `RUNLEDGER_BASE_URL` env / `base_url=` | `https://api.runledger.io` | Point at your self-hosted API, e.g. `http://localhost:8201`. |
+| Payload privacy | `privacy_mode=` arg | `metadata_only` | `metadata_only` / `errors_only` / `sampled` / `full` — metadata-only by default. |
+| Print-only mode | `local=` arg / `RUNLEDGER_LOCAL` env | `false` | Log events instead of sending them. |
 
 ## Examples
 

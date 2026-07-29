@@ -31,10 +31,11 @@ flowchart LR
 ## Record an outcome
 
 ```python
-rl.outcome(run_id, outcome_type="refund_resolved", success=True, value_usd=12.00)
+rl.outcome("refund_resolved", True, run_id=run_id, value_usd=12.00)
 ```
 
-Or `POST /outcomes` with the run id. Outcomes roll up nightly into per-workflow metrics.
+`outcome(outcome_type, success, ...)` — type and success are positional; `run_id` defaults to the current
+context. Or `POST /outcomes` with the run id. Outcomes roll up nightly into per-workflow metrics.
 
 ## Why it matters
 
