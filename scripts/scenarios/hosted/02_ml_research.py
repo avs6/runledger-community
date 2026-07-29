@@ -33,7 +33,7 @@ def run(sim: Sim) -> None:
     )
 
     # Dense evaluation scores — this team scores everything on multiple metrics.
-    for r in runs:
+    for r in ws.sample(runs, 30):
         ws.score(r, "accuracy", round(random.uniform(0.55, 0.98), 2), label="auto")
         ws.score(r, "faithfulness", round(random.uniform(0.6, 0.99), 2), label="judge")
         if random.random() < 0.4:
@@ -43,7 +43,7 @@ def run(sim: Sim) -> None:
     ws.add_budget("workspace", 1500, period_type="monthly", action="notify")
 
     # Tie a few successful benchmark runs to an outcome (a shipped model improvement).
-    for r in runs:
+    for r in ws.sample(runs, 30):
         if r.success and r.feature == "rag-benchmark" and random.random() < 0.5:
             ws.record_outcome(r, "benchmark_passed", success=True,
                               labels={"suite": "rag-v2"})

@@ -85,6 +85,9 @@ async def create_tenant(body: TenantCreate, db: DbDep) -> dict[str, Any]:
         password_hash=pw_hash,
         full_name=body.admin_full_name or body.admin_email.split("@")[0],
         is_active=True,
+        # A platform admin is provisioning this org, so the admin is pre-verified —
+        # no email-confirmation step required before they can sign in.
+        email_verified=True,
     )
     db.add(user)
     await db.flush()

@@ -1,7 +1,8 @@
 """
 Scenario registry.
 
-Each ``NN_*.py`` module in this package defines a self-contained simulation scenario:
+Each scenario is a Python module — anywhere under this package, including in
+**category subfolders** — that defines a self-contained simulation:
 
     NAME = "saas-support"
     DESCRIPTION = "A SaaS support-bot org …"
@@ -9,7 +10,9 @@ Each ``NN_*.py`` module in this package defines a self-contained simulation scen
         ws = sim.workspace("Acme SaaS", "Support Bot")
         ...
 
-`discover()` returns the modules in filename order so the driver can run them all.
+Organize scenarios however you like — e.g. ``scenarios/ollama/…`` and
+``scenarios/hosted/…``. Add a new folder with an ``__init__.py`` and drop scenario
+files in; ``discover()`` walks the whole tree recursively (sorted by dotted path).
 """
 
 from __future__ import annotations
@@ -20,12 +23,15 @@ from types import ModuleType
 
 
 def discover() -> list[ModuleType]:
-    """Return all scenario modules (NN_*.py) in sorted filename order."""
+    """Return every scenario module under this package (recursively), sorted by path."""
     mods: list[ModuleType] = []
-    for info in sorted(pkgutil.iter_modules(__path__), key=lambda m: m.name):
-        if info.name.startswith("_"):
+    for info in sorted(
+        pkgutil.walk_packages(__path__, prefix=f"{__name__}."), key=lambda m: m.name
+    ):
+        short = info.name.rsplit(".", 1)[-1]
+        if info.ispkg or short.startswith("_"):
             continue
-        mod = importlib.import_module(f"{__name__}.{info.name}")
+        mod = importlib.import_module(info.name)
         if hasattr(mod, "run") and hasattr(mod, "NAME"):
             mods.append(mod)
     return mods

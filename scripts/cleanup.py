@@ -34,6 +34,11 @@ import time
 import urllib.request
 from pathlib import Path
 
+# Force UTF-8 so the Unicode console output (→ ✓) never crashes on a non-UTF-8 host
+# console (e.g. Windows cp1252).
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 REPO = Path(__file__).resolve().parent.parent
 PG = "runledger-postgres"
 REDIS = "runledger-redis"

@@ -40,11 +40,11 @@ def run(sim: Sim) -> None:
     ws.add_budget("end_user", 5, period_type="daily", action="notify", scope_id="cust_1")
 
     # Outcomes: ~60% of runs resolved a ticket; each resolution has a support-cost value.
-    for r in runs:
+    for r in ws.sample(runs, 30):
         if r.success and random.random() < 0.6:
             ws.record_outcome(r, "ticket_resolved", success=True,
                               value_usd=round(random.uniform(6, 18), 2),
                               labels={"channel": random.choice(["email", "chat", "in-app"])})
         ws.score(r, "csat", round(random.uniform(0.7, 0.99), 2))
 
-    ws.add_alert("Support spend spike", "daily_cost_usd", "gt", 60.0)
+    ws.add_alert("Support spend spike", "spend_velocity", "gt", 60.0)

@@ -24,12 +24,38 @@ import argparse
 import sys
 from pathlib import Path
 
+# The console output uses Unicode (→ ✓ ▶ ═). Force UTF-8 so it never crashes on a
+# non-UTF-8 host console (e.g. Windows cp1252).
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # Make the sibling `scenarios` package and `cleanup` module importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cleanup  # noqa: E402
 import scenarios  # noqa: E402
 from scenarios._base import Sim, say  # noqa: E402
+
+
+def _import_pricing(sim: Sim) -> None:
+    """Upload scripts/pricing.yaml to the provider-pricing catalog (best-effort)."""
+    path = Path(__file__).resolve().parent / "pricing.yaml"
+    if not path.exists() or not sim.platform_key:
+        return
+    try:
+        resp = sim.http.post(
+            f"{sim.base}/providers/pricing/import",
+            headers={"Authorization": f"Bearer {sim.platform_key}"},
+            files={"file": ("pricing.yaml", path.read_bytes(), "text/yaml")},
+        )
+        resp.raise_for_status()
+        d = resp.json()
+        say(
+            f"  ✓ pricing imported — {d.get('inserted', 0)} added, {d.get('updated', 0)} updated",
+            "g",
+        )
+    except Exception as exc:  # noqa: BLE001 — non-fatal
+        say(f"  ! pricing import skipped: {exc}", "y")
 
 
 def main() -> None:
@@ -55,6 +81,10 @@ def main() -> None:
     sim.wait_healthy()
     say("\n→ bootstrapping platform admin", "b")
     sim.bootstrap(args.admin_email, args.admin_password, args.org_name)
+
+    # 2b. Import the simulation pricing catalog (prices local Ollama models too) so the
+    #     DB catalog matches the cost of the runs each scenario ingests.
+    _import_pricing(sim)
 
     # 3. Run every scenario.
     mods = scenarios.discover()

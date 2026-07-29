@@ -1,8 +1,20 @@
 # Simulation scenarios
 
-Each `NN_*.py` file here is a self-contained scenario that populates a RunLedger
-workspace **through the REST API**. The driver [`scripts/full_simulate.py`](../full_simulate.py)
-resets the cluster, bootstraps an admin, and runs every scenario in filename order.
+Each scenario module (`NAME` + `run(sim)`) populates a RunLedger workspace **through the REST
+API**. Scenarios are organized in **folders** and discovered recursively, so add categories
+freely:
+
+```
+scenarios/
+  _base.py          # SimClient helpers (loads costs from scripts/pricing.yaml)
+  hosted/           # OpenAI / Anthropic / Google scenarios
+    01_saas_support.py …
+  ollama/           # local Ollama scenarios (priced → cost is tracked)
+    01_coding_assistant.py …
+```
+
+The driver [`scripts/full_simulate.py`](../full_simulate.py) resets the cluster, bootstraps an
+admin, imports [`scripts/pricing.yaml`](../pricing.yaml), and runs every scenario (sorted by path):
 
 ```bash
 # from the repo root, with the stack running
@@ -13,7 +25,7 @@ uv run python scripts/cleanup.py [--hard]         # reset only
 
 ## Writing a scenario
 
-Create `scripts/scenarios/NN_your_scenario.py`:
+Create a file in any folder, e.g. `scripts/scenarios/ollama/05_your_scenario.py`:
 
 ```python
 from scenarios._base import Sim
