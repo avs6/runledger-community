@@ -90,7 +90,9 @@ services:
       ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3201}
+      # Allow both hostnames the dashboard is commonly opened at. If you browse the UI
+      # from another host (a LAN IP, a machine name), add it here (comma-separated).
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3201,http://127.0.0.1:3201}
       RUNLEDGER_BASE_URL: ${RUNLEDGER_BASE_URL:-http://localhost:8000}
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
       # License key — required for enterprise features (SSO, warehouse, etc.)
