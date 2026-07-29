@@ -788,6 +788,8 @@ configs:
           # RunLedger's /v1/traces accepts OTLP/JSON, not protobuf — without this the
           # exporter sends application/x-protobuf and the API rejects it with 415.
           encoding: json
+          headers:
+            Authorization: "Bearer $${env:RUNLEDGER_API_KEY}"
           tls:
             insecure: true
           retry_on_failure:
