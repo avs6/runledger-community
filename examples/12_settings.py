@@ -2,12 +2,18 @@
 examples/12_settings.py — Phase 12: Settings Console
 
 Demonstrates:
-  1. POST /settings/api-keys      → create key, print prefix + raw key
-  2. GET  /settings/api-keys      → list active keys
-  3. DELETE /settings/api-keys    → revoke key
+  1. POST /settings/api-keys      → create key (ORG-ADMIN session only)
+  2. GET  /settings/api-keys      → list keys across the org (with workspace)
+  3. DELETE /settings/api-keys    → revoke key (org-admin only)
   4. GET  /providers/pricing      → list all pricing (global + workspace)
   5. POST /providers/pricing      → add workspace override
   6. DELETE /providers/pricing    → remove workspace override
+
+NOTE — API-key management is now an **org-admin** function performed by a logged-in
+user (a dashboard session), not by a bare API key. Running steps 1–3 with a plain
+RUNLEDGER_API_KEY returns 401/403; this script detects that and skips them. To mint
+keys programmatically, use POST /admin/workspaces/{id}/api-keys with the
+X-Admin-Secret header instead.
 
 Install
 ───────
@@ -55,27 +61,28 @@ def _check(resp: httpx.Response, label: str) -> dict:
 def main() -> None:
     with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=10) as client:
 
-        # ── 1. Create API key ──────────────────────────────────────────────────
+        # ── 1–3. API keys (org-admin session only) ─────────────────────────────
+        # A plain API key can't manage keys anymore, so probe first and skip if gated.
         print("\n[1] Creating API key…")
-        body = {"name": "Example key", "environment": "dev", "scopes": []}
-        resp = client.post("/settings/api-keys", json=body)
-        created = _check(resp, "create api-key")
-        print(f"  Created: prefix={created['key_prefix']}  id={created['id']}")
-        print(f"  Raw key (save now — shown once): {created['key']}")
-        new_key_id: str = created["id"]
+        resp = client.post("/settings/api-keys", json={"name": "Example key", "scopes": []})
+        if resp.status_code in (401, 403):
+            print("  Skipped — key management requires an org-admin dashboard session.")
+            print("  Create keys in the dashboard (Settings → API Keys), or for automation")
+            print("  use POST /admin/workspaces/{id}/api-keys with the X-Admin-Secret header.")
+        else:
+            created = _check(resp, "create api-key")
+            print(f"  Created: prefix={created['key_prefix']}  workspace={created.get('workspace_name')}")
+            print(f"  Raw key (save now — shown once): {created['key']}")
+            new_key_id: str = created["id"]
 
-        # ── 2. List API keys ───────────────────────────────────────────────────
-        print("\n[2] Listing API keys…")
-        resp = client.get("/settings/api-keys")
-        keys = _check(resp, "list api-keys")
-        for k in keys:
-            print(f"  {k['key_prefix']}…  name={k['name']}  id={k['id']}")
+            print("\n[2] Listing API keys (org-wide)…")
+            keys = _check(client.get("/settings/api-keys"), "list api-keys")
+            for k in keys:
+                print(f"  {k['key_prefix']}…  name={k['name']}  workspace={k.get('workspace_name')}")
 
-        # ── 3. Revoke the key ──────────────────────────────────────────────────
-        print(f"\n[3] Revoking key {new_key_id}…")
-        resp = client.delete(f"/settings/api-keys/{new_key_id}")
-        _check(resp, "revoke api-key")
-        print("  Revoked.")
+            print(f"\n[3] Revoking key {new_key_id}…")
+            _check(client.delete(f"/settings/api-keys/{new_key_id}"), "revoke api-key")
+            print("  Revoked.")
 
         # ── 4. List provider pricing ───────────────────────────────────────────
         print("\n[4] Listing provider pricing (global + workspace)…")

@@ -104,6 +104,11 @@ class ApplicationResponse(BaseModel):
 
 class ApiKeyCreate(BaseModel):
     name: str | None = None
+    # Which workspace the key is minted for. Must belong to the caller's org.
+    # Defaults to the caller's current workspace when omitted.
+    workspace_id: uuid.UUID | None = None
+    # environment is retained internally (drives the key prefix) but is no longer
+    # surfaced in the dashboard — keys are organised by workspace, not env.
     environment: EnvironmentEnum = EnvironmentEnum.dev
     scopes: list[str] = []
     created_by: str | None = None
@@ -112,6 +117,7 @@ class ApiKeyCreate(BaseModel):
 class ApiKeyResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
+    workspace_name: str | None = None
     key_prefix: str
     name: str | None
     scopes: list[str]

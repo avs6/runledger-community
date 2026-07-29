@@ -404,7 +404,7 @@ class Sim:
                 ws_id = rows[0].get("id", "")
                 resp = self.post(
                     f"/admin/workspaces/{ws_id}/api-keys",
-                    {"name": "sim", "environment": "dev"},
+                    {"name": "sim"},
                     key=self.platform_key,
                     admin=True,
                     label=f"key {org}",

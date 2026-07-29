@@ -622,12 +622,19 @@ export async function listApiKeys(apiKey: string): Promise<ApiKeyResponse[]> {
 
 export async function createApiKey(
   apiKey: string,
-  body: { name?: string | null; environment?: string; scopes?: string[]; created_by?: string | null }
+  body: { name?: string | null; workspace_id?: string; scopes?: string[] }
 ): Promise<ApiKeyCreateResponse> {
   return apiFetch<ApiKeyCreateResponse>('/settings/api-keys', apiKey, {
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+// Workspaces in the caller's org (org-admin) — used to pick where a key is minted.
+export async function listOrgWorkspaces(
+  apiKey: string
+): Promise<{ id: string; name: string }[]> {
+  return apiFetch<{ id: string; name: string }[]>('/org/workspaces', apiKey)
 }
 
 export async function revokeApiKey(apiKey: string, keyId: string): Promise<void> {
