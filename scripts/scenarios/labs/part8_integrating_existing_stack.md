@@ -55,7 +55,14 @@ collector shows *unhealthy*). On the **RunLedger** stack:
 RUNLEDGER_API_KEY=rl_... docker compose up -d runledger-otel-collector
 ```
 
-All stack traffic lands in that one workspace — e.g. make a workspace called *"Local AI Stack"*.
+All stack traffic lands in **that one workspace** — the key decides where.
+
+> ⚠️ **Use a key from a workspace your dashboard login can actually see.** The switcher only
+> lists orgs/workspaces you're a *member* of (`/org/workspaces/my`) — being a platform admin
+> isn't enough. If you mint the key in a brand-new org your login doesn't belong to, traffic is
+> captured correctly but **invisible in the GUI** (the pages look empty). Safest: mint the key
+> in a workspace you already land in (e.g. the default one), or add your user to the new org
+> first. Then generate a call and confirm it shows on the **Runs** page.
 
 **Step B — turn on OTEL export in the hub.** In `config/litellm/config.yaml`:
 
