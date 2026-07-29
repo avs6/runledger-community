@@ -12,8 +12,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from datetime import UTC, datetime
 from decimal import Decimal
+
+# The banner/prints use Unicode (→, —). Force UTF-8 so seeding never crashes on a
+# non-UTF-8 host console (e.g. Windows cp1252); the container is UTF-8 already.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import bcrypt
 from runledger_api.core.db import AsyncSessionLocal
