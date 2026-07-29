@@ -42,6 +42,11 @@ budgets, outcomes, scores, and alerts. Every model they use is priced in
 > **Budgets are the one deliberate gap.** `/budgets` requires a workspace-admin *dashboard
 > session*, which an API key can't provide, so `add_budget()` is skipped quietly under the
 > simulator. Create budgets from the dashboard. Everything else populates end-to-end.
+>
+> **TODO:** seed budgets automatically by having the simulator perform a real `/auth/login`
+> as the platform admin (which bypasses the role check) and posting `/budgets` with that
+> session token instead of the API key — pending a check of how a session request selects
+> its workspace context.
 
 ## Writing a scenario
 
