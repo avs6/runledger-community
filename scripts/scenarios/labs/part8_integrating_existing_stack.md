@@ -64,22 +64,26 @@ litellm_settings:
   callbacks: ["otel"]
 ```
 
-and on the `litellm` service in your compose, add the standard OTEL env pointing at RunLedger's
-collector:
+and on the `litellm` service in your compose, add the OTEL env pointing at RunLedger's
+collector (these exact values are **verified** against `ghcr.io/berriai/litellm:main-latest`):
 
 ```yaml
     environment:
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:4318"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+      OTEL_EXPORTER: "otlp_http"
+      OTEL_ENDPOINT: "http://host.docker.internal:4318/v1/traces"
 ```
 
-> Exact var names vary by LiteLLM version — confirm against yours. The collector accepts both
-> gRPC (4317) and HTTP (4318); RunLedger's ingest reads OTel **GenAI** (`gen_ai.*`) and
-> OpenInference conventions, which LiteLLM emits.
+> Var names vary across LiteLLM versions; if traces don't flow, check `docker logs litellm`.
+> The collector accepts OTLP on HTTP (4318) or gRPC (4317) and re-exports to RunLedger — the
+> shipped collector config sends **OTLP/JSON** (`encoding: json`), which RunLedger's `/v1/traces`
+> requires (protobuf is rejected with 415). RunLedger normalizes LiteLLM's spans into runs.
 
 **Step C — verify.** Restart LiteLLM, then make a call through the stack (chat in Open WebUI,
-or `curl` LiteLLM). Within ~5s it appears on RunLedger's **Runs** page with model, tokens, and
-(once pricing is uploaded) cost. Nothing in your stack changed except a mirror.
+or `curl` LiteLLM). Within ~15s it appears on RunLedger's **Runs** page with model and tokens.
+**Verified live:** a `qwen2.5-coder-3b` call through LiteLLM landed as an `ollama` provider_call
+with the exact token counts. **Cost** shows only once the model has a pricing row — import
+[`samples/pricing.sample.yaml`](./pricing.sample.yaml) (add your model names). Nothing in your
+stack changed except a mirror.
 
 🔎 You now see cost/usage for **every tool** — Open WebUI, OpenHands, LangGraph, AnythingLLM —
 in one place, sliced by model.
