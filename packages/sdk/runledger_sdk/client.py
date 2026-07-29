@@ -400,7 +400,7 @@ class RunLedger:
         name:
             Score dimension name (e.g. "relevance", "accuracy", "helpfulness").
         value:
-            Numeric score, 0–100 scale.
+            Numeric score on a 0–1 scale (e.g. ``0.92``).
         run_id:
             Optional UUID of the run being scored. Defaults to current context run_id.
         span_id:

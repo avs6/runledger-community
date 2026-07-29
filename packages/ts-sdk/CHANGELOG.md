@@ -5,6 +5,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.6.0]
+
+### Changed
+- Version aligned with the published package. No API changes since 0.4.0 — the current
+  surface is `instrument()` (OpenAI), `instrumentGemini()` / `instrumentMistral()` /
+  `instrumentCohere()`, `withContext()`, `propagationHeaders()`, and `flush()`.
+- Confirmed current: multi-provider detection (`detectProvider`) and invoice-reconciliation
+  fields (`provider_request_id`, `input_tokens_details` / `output_tokens_details`).
+
+---
+
 ## [0.4.0] — 2026-03-24
 
 ### Added

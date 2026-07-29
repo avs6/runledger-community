@@ -15,7 +15,9 @@ This page is the reference for the ones you'll actually touch.
 | `DATABASE_URL` | in-compose Postgres | `postgresql+asyncpg://…` |
 | `REDIS_URL` | in-compose Redis | Queue + budget hot-path. |
 | `CORS_ORIGINS` | `http://localhost:3201` | Dashboard origin(s). |
-| `RUNLEDGER_CAPTURE` | `off` | Payload logging: `off` / `errors` / `sampled` / `full`. |
+
+Payload capture is **off by default** and is controlled by the SDK's `privacy_mode` argument (not a
+server env var) — see [Data retention](/governance/retention).
 
 ## Ports
 

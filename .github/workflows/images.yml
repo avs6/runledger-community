@@ -22,11 +22,32 @@ env:
   NAMESPACE: abijith13
 
 jobs:
+  # Only build/push when the Docker Hub secrets are configured. Without this gate the
+  # workflow fails red on every push until the secrets exist; with it, it cleanly skips.
+  gate:
+    name: check-secrets
+    runs-on: ubuntu-latest
+    if: github.repository == 'avs6/runledger-community'
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$DH_USER" ] && [ -n "$DH_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Docker Hub secrets not set — skipping image build/push. Add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN to enable."
+          fi
+
   build:
     name: ${{ matrix.service }}
     runs-on: ubuntu-latest
-    # Skip on forks / when Docker Hub secrets are absent.
-    if: github.repository == 'avs6/runledger-community'
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
     strategy:
       fail-fast: false
       matrix:

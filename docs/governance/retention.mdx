@@ -12,13 +12,14 @@ Message content is **not** stored unless you opt in. Capture is an explicit sett
 
 | Mode | Stores |
 |---|---|
-| `off` (default) | No payloads — metadata, tokens, and cost only. |
-| `errors` | Payloads only for failed runs. |
+| `metadata_only` (default) | No payloads — metadata, tokens, and cost only. |
+| `errors_only` | Payloads only for failed runs. |
 | `sampled` | A configurable fraction of payloads. |
 | `full` | All payloads. |
 
-Set it via `RUNLEDGER_CAPTURE` (SDK) or per workspace. The [gateway PII redaction](/gateway/runtime-controls)
-can additionally scrub content before it ever reaches a provider.
+Set it via the SDK's `privacy_mode` argument (`RunLedger(privacy_mode="errors_only")`), or per workspace.
+The [gateway PII redaction](/gateway/runtime-controls) can additionally scrub content before it ever
+reaches a provider.
 
 ## Retention policies
 

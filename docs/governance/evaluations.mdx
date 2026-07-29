@@ -31,7 +31,7 @@ flowchart LR
 ## Score a run
 
 ```python
-rl.score(run_id, name="relevance", value=0.92, source="human")
+rl.score("relevance", 0.92, run_id=run_id, source="human")   # value is 0–1
 ```
 
 Or `POST /evaluations` / `POST /scores`. Scores feed `quality_optimized` routing and the
