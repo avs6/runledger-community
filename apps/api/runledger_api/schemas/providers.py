@@ -13,6 +13,8 @@ class ProviderPricingCreate(BaseModel):
     input_cost_per_1m: Decimal
     output_cost_per_1m: Decimal
     cached_input_cost_per_1m: Decimal | None = None
+    tags: list[str] = []
+    display_name: str | None = None
     effective_from: datetime | None = None  # defaults to NOW() if omitted
 
 
@@ -20,6 +22,8 @@ class ProviderPricingUpdate(BaseModel):
     input_cost_per_1m: Decimal | None = None
     output_cost_per_1m: Decimal | None = None
     cached_input_cost_per_1m: Decimal | None = None
+    tags: list[str] | None = None
+    display_name: str | None = None
 
 
 class ProviderPricingResponse(BaseModel):
@@ -29,6 +33,8 @@ class ProviderPricingResponse(BaseModel):
     input_cost_per_1m: Decimal
     output_cost_per_1m: Decimal
     cached_input_cost_per_1m: Decimal | None
+    tags: list[str] = []
+    display_name: str | None = None
     effective_from: datetime
     effective_to: datetime | None
     workspace_id: uuid.UUID | None  # None means global
@@ -45,3 +51,15 @@ class ProviderPricingResponse(BaseModel):
 
 class ProviderPricingList(BaseModel):
     items: list[ProviderPricingResponse]
+
+
+class PricingImportResult(BaseModel):
+    """Summary returned after importing a pricing YAML."""
+
+    inserted: int
+    updated: int
+    unchanged: int
+    total: int
+    providers: list[str]
+    tags: list[str]
+    errors: list[str] = []

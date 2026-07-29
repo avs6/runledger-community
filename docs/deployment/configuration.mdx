@@ -1,0 +1,58 @@
+---
+title: "Configuration"
+description: "The environment variables and ports that configure RunLedger — core, gateway, optimization, and local-LLM settings."
+---
+
+RunLedger is configured through environment variables (see [`.env.example`](https://github.com/avs6/runledger-community/blob/master/.env.example)).
+This page is the reference for the ones you'll actually touch.
+
+## Core
+
+| Variable | Default | Notes |
+|---|---|---|
+| `SECRET_KEY` | — | **Required.** 32-byte hex; signs tokens and the ledger. |
+| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/bootstrap`. |
+| `DATABASE_URL` | in-compose Postgres | `postgresql+asyncpg://…` |
+| `REDIS_URL` | in-compose Redis | Queue + budget hot-path. |
+| `CORS_ORIGINS` | `http://localhost:3201` | Dashboard origin(s). |
+| `RUNLEDGER_CAPTURE` | `off` | Payload logging: `off` / `errors` / `sampled` / `full`. |
+
+## Ports
+
+Host ports are chosen to avoid clashes with other local products: dashboard **3201**, API **8201**, and
+the optimization services in the **8202–8215** band. Override any with the `*_PORT` variables in `.env`.
+
+## Optimization layer
+
+| Variable | Default | Notes |
+|---|---|---|
+| `QDRANT_URL` | in-compose Qdrant | Vector store. |
+| `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `bge-small-en-v1.5` / 384 | Shared embedding model of record. |
+| `SEMANTIC_CACHE_THRESHOLD` | `0.95` | Similarity floor for a cache hit. |
+| `RERANKER_MODEL` / `COMPRESSION_MODEL` | `flashrank` / `bert-base-multilingual` | Model choices for those services. |
+
+## Local LLMs (external)
+
+Ollama and vLLM are never bundled — RunLedger points at their base URL:
+
+| Variable | Example |
+|---|---|
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434/v1` |
+| `VLLM_BASE_URL` | `http://vllm-host:8000/v1` |
+| `LOCAL_LLM_MODEL` | `llama3.2:3b` |
+
+## Kubernetes
+
+On Kubernetes these are set through the Helm chart's values (secrets, `optimization.*`, `stores.*`).
+See [Helm deployment](/helm) and [Configuration reference in helm.md](/helm#values-reference).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Docker Compose" icon="docker" href="/deployment/docker-compose">
+    Local self-hosting.
+  </Card>
+  <Card title="Kubernetes / Helm" icon="dharmachakra" href="/helm">
+    Cluster values.
+  </Card>
+</CardGroup>

@@ -1,0 +1,112 @@
+---
+title: "Docker Compose"
+description: "Self-host the entire RunLedger stack on a single host with one command — control plane, gateway, optimization services, and stores."
+---
+
+Docker Compose is the fastest way to run RunLedger. One `docker compose up -d` brings up the whole stack —
+the control plane, the model gateway, every optimization microservice, and the data stores — with no
+external dependencies and no GPU.
+
+## Prerequisites
+
+- Docker + Docker Compose
+- Git
+
+## Start the stack
+
+```bash
+git clone https://github.com/avs6/runledger-community
+cd runledger-community
+cp .env.example .env
+# set SECRET_KEY:
+python -c "import secrets; print(secrets.token_hex(32))"
+
+docker compose up -d          # add --build to build from source instead of pulling images
+```
+
+Bootstrap the first admin:
+
+```bash
+curl -s -X POST http://localhost:8201/admin/bootstrap \
+  -H "X-Admin-Secret: runledger-admin" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
+```
+
+| URL | What it is |
+|---|---|
+| `http://localhost:3201` | Dashboard |
+| `http://localhost:8201/reference` | Interactive API reference (Scalar) |
+| `http://localhost:4318` | OTLP/HTTP receiver (via OTel Collector) |
+
+## Load demo data (optional)
+
+A fresh install has empty dashboards. To fill the whole cluster with realistic data — multiple orgs
+and workspaces, gateway routes, runs, budgets, outcomes, scores, and alerts — run the simulator. It
+drives the **REST API** exactly as a client would (no direct database writes):
+
+```bash
+# from the repo root, with the stack running
+uv run python scripts/full_simulate.py
+```
+
+By default it **resets to a blank slate first** (truncates all data), then bootstraps an admin and runs
+every scenario under `scripts/scenarios/`. Useful variants:
+
+```bash
+uv run python scripts/full_simulate.py --hard-clean   # wipe every volume first (Qdrant, memory, etc.)
+uv run python scripts/full_simulate.py --no-clean     # add on top of existing data
+uv run python scripts/cleanup.py                      # just reset (truncate + flush Redis)
+uv run python scripts/cleanup.py --hard               # full reset: down -v + up
+```
+
+Each scenario is a self-contained Python module in `scripts/scenarios/` — copy one to add your own.
+Cost enrichment and rollups run on Celery, so give analytics ~60s to populate. The
+[Product Tour](/observability/product-tour) shows what each page looks like with data.
+
+<Note>
+`full_simulate.py` **truncates existing data by default** so every run is reproducible. Pass `--no-clean`
+to keep what's there.
+</Note>
+
+## Common commands
+
+A `Makefile` wraps the everyday tasks so you don't memorize the underlying commands:
+
+| Command | Does |
+|---|---|
+| `make dev` / `make dev-d` | Start the full stack (foreground / detached) |
+| `make ps` / `make logs` / `make logs-api` | Status · all logs · API logs (shows the first API key) |
+| `make migrate` | Apply database migrations (`alembic upgrade head`) |
+| `make simulate` / `make simulate-hard` | Reset + populate the cluster with demo data (`--hard` wipes volumes) |
+| `make clean-data` / `make reset` | Truncate data / full `down -v` reset |
+| `make build` | Rebuild images from source |
+| `make down` / `make down-volumes` | Stop containers / stop **and wipe** the database |
+
+For contributor workflows — hot-reload dev servers, tests, lint, and type-checks — see the
+[Makefile](https://github.com/avs6/runledger-community/blob/master/Makefile) and `CONTRIBUTING.md`.
+
+## What comes up
+
+| Component | Host port | Role |
+|---|---|---|
+| `runledger-web` | 3201 | Next.js dashboard |
+| `runledger-api` | 8201 | FastAPI control plane + gateway |
+| `runledger-postgres` / `runledger-redis` | 5432 / 6379 | System of record + queue/cache |
+| `runledger-qdrant` | 8202 | Vector store (semantic cache) |
+| Optimization services | 8204–8215 | embedding, semantic-cache, context-compiler, reranker, compression, router, memory, kg, skill-registry, flywheel, mcp-gateway |
+| `runledger-otel-collector` | 4317 / 4318 | OTLP receiver |
+
+Local LLM runtimes (Ollama / vLLM) stay **external** — point `OLLAMA_BASE_URL` / `VLLM_BASE_URL` at them.
+See the [Token Optimization overview](/optimization) for the full service map.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Environment variables and ports.
+  </Card>
+  <Card title="Kubernetes / Helm" icon="dharmachakra" href="/helm">
+    Move to a cluster.
+  </Card>
+</CardGroup>

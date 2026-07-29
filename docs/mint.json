@@ -42,11 +42,43 @@
       "group": "Getting Started",
       "pages": [
         "introduction",
-        "quickstart"
+        "quickstart",
+        "concepts"
       ]
     },
     {
-      "group": "Cost Optimization",
+      "group": "Instrumentation",
+      "pages": [
+        "instrumentation/python-sdk",
+        "instrumentation/typescript-sdk",
+        "otlp",
+        "openinference",
+        "collector"
+      ]
+    },
+    {
+      "group": "Model Gateway",
+      "pages": [
+        "gateway/overview",
+        "gateway/routing",
+        "gateway/caching",
+        "gateway/runtime-controls",
+        "gateway/providers"
+      ]
+    },
+    {
+      "group": "Cost & FinOps",
+      "pages": [
+        "finops/metering",
+        "finops/pricing",
+        "finops/attribution",
+        "finops/budgets",
+        "finops/outcomes",
+        "finops/ledger"
+      ]
+    },
+    {
+      "group": "Token Optimization",
       "pages": [
         "optimization",
         "optimization/semantic-cache",
@@ -60,6 +92,38 @@
       ]
     },
     {
+      "group": "Quality & Governance",
+      "pages": [
+        "governance/evaluations",
+        "governance/prompts",
+        "governance/approvals",
+        "governance/rbac",
+        "governance/alerts",
+        "governance/retention"
+      ]
+    },
+    {
+      "group": "Observability",
+      "pages": [
+        "observability/runs",
+        "observability/sessions",
+        "observability/analytics",
+        "observability/product-tour"
+      ]
+    },
+    {
+      "group": "Deployment & Self-Hosting",
+      "pages": [
+        "deployment/docker-compose",
+        "helm",
+        "ha",
+        "backup-restore",
+        "upgrade",
+        "deployment",
+        "deployment/configuration"
+      ]
+    },
+    {
       "group": "Migration Guides",
       "pages": [
         "migration/from-langsmith",
@@ -68,21 +132,10 @@
       ]
     },
     {
-      "group": "Operations",
+      "group": "Reference",
       "pages": [
-        "deployment",
-        "otlp",
-        "openinference",
-        "collector"
-      ]
-    },
-    {
-      "group": "Self-Hosted Enterprise",
-      "pages": [
-        "helm",
-        "ha",
-        "backup-restore",
-        "upgrade"
+        "reference/api",
+        "reference/cli"
       ]
     }
   ],

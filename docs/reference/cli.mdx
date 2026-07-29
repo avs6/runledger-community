@@ -1,0 +1,50 @@
+---
+title: "CLI"
+description: "The runledger command-line tool — validate connectivity, list runs, check status, and gate CI on quality regressions."
+---
+
+The Python SDK ships a `runledger` CLI (built on Typer) for quick checks and CI integration.
+
+## Install
+
+```bash
+pip install "runledger-sdk[cli]"
+```
+
+Set `RUNLEDGER_API_KEY` (and `RUNLEDGER_BASE_URL` if not localhost), or pass `--api-key` / `--base-url`.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `runledger init` | Scaffold configuration for a project. |
+| `runledger validate` | Verify the API key and connectivity to your instance. |
+| `runledger status` | Print instance health and key metrics. |
+| `runledger runs` | List recent runs (`-n / --limit`). |
+| `runledger check-regression` | Fail (exit 1) if quality scores regressed — for CI gates. |
+| `runledger doctor` | Diagnose common setup problems. |
+| `runledger pricing-timeline` | Show effective pricing over time for a model. |
+
+## Examples
+
+```bash
+# Verify connectivity
+runledger validate
+
+# Last 10 runs
+runledger runs --limit 10
+
+# Gate a CI job on quality — non-zero exit blocks the pipeline
+runledger check-regression
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="API reference" icon="code" href="/reference/api">
+    The full REST surface.
+  </Card>
+  <Card title="Python SDK" icon="python" href="/instrumentation/python-sdk">
+    The library the CLI wraps.
+  </Card>
+</CardGroup>

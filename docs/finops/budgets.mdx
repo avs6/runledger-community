@@ -1,0 +1,55 @@
+---
+title: "Budgets"
+description: "Spend limits per workspace, user, or feature that act automatically — throttle, block, or downgrade the model — with a fast Redis hot-path check."
+---
+
+Budgets turn cost visibility into cost *control*. Set a limit on any attribution dimension and choose what
+happens when it's approached or breached.
+
+## Key features
+
+- **Scoped limits** — per workspace, end user, or feature tag.
+- **Automatic actions** — **throttle**, **block**, or **downgrade** to a cheaper model.
+- **Runaway protection** — a background job catches sudden spikes between rollups.
+- **Fast enforcement** — spend counters live in Redis, so a pre-check adds negligible latency.
+
+## How it works
+
+```mermaid
+flowchart LR
+  req[Request] --> chk[Budget pre-check · Redis counter]
+  chk -- under --> allow[Allow]
+  chk -- near --> action1[Throttle / downgrade]
+  chk -- over --> action2[Block]
+  allow --> meter[Meter spend → increment counter]
+```
+
+Spend is tracked against the budget in Redis on the hot path and reconciled from Postgres on a schedule
+(so a Redis eviction can't lose accounting). The **runaway protection** worker runs every few minutes to
+catch spikes that would otherwise slip between rollups.
+
+## Actions
+
+| Action | Effect when the threshold is hit |
+|---|---|
+| **Throttle** | Rate-limit further requests on the scope. |
+| **Block** | Reject requests until the window resets. |
+| **Downgrade** | Route to a cheaper alias (see [budget_aware routing](/gateway/routing)). |
+
+## Enforcement modes
+
+- **Inline (gateway)** — blocking, enforced before the provider call.
+- **Out-of-band (SDK)** — an advisory pre-check you can choose to block on.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Runtime controls" icon="sliders" href="/gateway/runtime-controls">
+    Per-route cost caps + rate limits.
+  </Card>
+  <Card title="Cost attribution" icon="building" href="/finops/attribution">
+    The dimensions you budget on.
+  </Card>
+</CardGroup>
+
+See [`examples/08_budget_enforcement.py`](https://github.com/avs6/runledger-community/blob/master/examples/08_budget_enforcement.py).

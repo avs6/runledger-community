@@ -426,8 +426,9 @@ export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 
 // ── Phase 12 — Providers ───────────────────────────────────────────────────────
 
-export interface ProviderPricingResponse { id: string; provider: string; model: string; input_cost_per_1m: string; output_cost_per_1m: string; cached_input_cost_per_1m: string | null; effective_from: string; effective_to: string | null; workspace_id: string | null; created_at: string }
+export interface ProviderPricingResponse { id: string; provider: string; model: string; input_cost_per_1m: string; output_cost_per_1m: string; cached_input_cost_per_1m: string | null; tags: string[]; display_name: string | null; effective_from: string; effective_to: string | null; workspace_id: string | null; created_at: string }
 export interface ProviderPricingList { items: ProviderPricingResponse[] }
+export interface PricingImportResult { inserted: number; updated: number; unchanged: number; total: number; providers: string[]; tags: string[]; errors: string[] }
 
 // ── Phase 14 — Integrations ────────────────────────────────────────────────────
 

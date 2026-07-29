@@ -1,0 +1,54 @@
+---
+title: "Caching"
+description: "Two cache layers in the gateway — an exact-match prompt cache for identical requests, and a semantic cache for paraphrases — both tenant-scoped."
+---
+
+The gateway checks two caches before forwarding a request, so repeated and near-duplicate prompts are
+served without paying for inference again.
+
+## Exact cache
+
+A SHA-256 of `{model, messages}` keys a per-tenant response cache. A byte-for-byte identical request
+returns the stored response in **under 5 ms**. Enable it per request with `"cache": true`.
+
+```mermaid
+flowchart LR
+  req[Request] --> key[SHA-256 of model + messages]
+  key --> look{Key in cache?}
+  look -- yes --> hit[Return cached response <5ms]
+  look -- no --> fwd[Forward · then store]
+```
+
+## Semantic cache
+
+The semantic cache also hits on a **paraphrase** whose embedding is within a similarity threshold — so
+`"how much parental leave do employees get"` hits an earlier `"How much parental leave do employees get?"`.
+It is **scope-isolated**: a mandatory `{tenant, model, system-prompt, knowledge-version, security}` key
+means a cached answer can never cross a permission or version boundary.
+
+Enable it per route (`semantic_cache_enabled`) or per request (`"semantic_cache": true`). It is fail-open
+and defaults off. Full details, tuning, and the vector pipeline are in
+[Semantic Cache](/optimization/semantic-cache).
+
+## Choosing
+
+| | Exact cache | Semantic cache |
+|---|---|---|
+| Hits on | Identical request | Paraphrase within threshold |
+| Backing store | Postgres | Qdrant (vectors) |
+| Latency | < 5 ms | ~embedding + vector search |
+| Default | Per-request `cache` | Off (opt-in) |
+| Isolation | Tenant | Full scope key |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Semantic cache (deep dive)" icon="database" href="/optimization/semantic-cache">
+    Scope isolation, thresholds, tuning.
+  </Card>
+  <Card title="Context Compiler" icon="compress" href="/optimization/context-compiler">
+    Shrink what isn't cached.
+  </Card>
+</CardGroup>
+
+See [`examples/33_semantic_cache.py`](https://github.com/avs6/runledger-community/blob/master/examples/33_semantic_cache.py).

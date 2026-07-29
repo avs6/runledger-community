@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,11 +31,13 @@ from runledger_api.models.events import ProviderCall
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.providers import (
+    PricingImportResult,
     ProviderPricingCreate,
     ProviderPricingList,
     ProviderPricingResponse,
     ProviderPricingUpdate,
 )
+from runledger_api.services.pricing_import import import_pricing_yaml
 
 log = structlog.get_logger()
 
@@ -68,6 +72,51 @@ async def list_pricing(workspace: WorkspaceDep, db: DbDep) -> ProviderPricingLis
     return ProviderPricingList(items=[ProviderPricingResponse.model_validate(r) for r in rows])
 
 
+@router.post("/pricing/import", response_model=PricingImportResult)
+async def import_pricing(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    file: Annotated[UploadFile, File(description="A pricing YAML file")],
+) -> PricingImportResult:
+    """
+    Import a pricing YAML — idempotently upserts the **global** pricing catalog
+    (update-in-place; re-importing the same file is a no-op). This is the DB-backed
+    source of truth; the file is only the transport.
+    """
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "file must be UTF-8 text") from None
+    result = await import_pricing_yaml(db, text)
+    log.info(
+        "provider_pricing_imported",
+        workspace_id=str(workspace.id),
+        inserted=result.inserted,
+        updated=result.updated,
+        unchanged=result.unchanged,
+    )
+    return result
+
+
+@router.get("/pricing/example", response_class=PlainTextResponse)
+async def pricing_example(workspace: WorkspaceDep) -> str:
+    """Return the example pricing YAML so the GUI can offer a downloadable template."""
+    from runledger_api.core.config import settings  # noqa: PLC0415
+
+    candidates = [
+        Path(settings.pricing_file).parent / "pricing.example.yml",  # alongside the live file
+        Path("/app/config/pricing.example.yml"),
+    ]
+    # Repo-relative (local dev): walk up until a config/ dir is found.
+    for parent in Path(__file__).resolve().parents:
+        candidates.append(parent / "config" / "pricing.example.yml")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.read_text(encoding="utf-8")
+    raise HTTPException(status.HTTP_404_NOT_FOUND, "example pricing file not found")
+
+
 @router.post(
     "/pricing",
     status_code=status.HTTP_201_CREATED,
@@ -82,6 +131,8 @@ async def create_pricing(
         input_cost_per_1m=body.input_cost_per_1m,
         output_cost_per_1m=body.output_cost_per_1m,
         cached_input_cost_per_1m=body.cached_input_cost_per_1m,
+        tags=body.tags,
+        display_name=body.display_name,
         effective_from=body.effective_from or datetime.now(UTC),
         workspace_id=workspace.id,
     )
@@ -111,6 +162,10 @@ async def update_pricing(
         pricing.output_cost_per_1m = body.output_cost_per_1m
     if body.cached_input_cost_per_1m is not None:
         pricing.cached_input_cost_per_1m = body.cached_input_cost_per_1m
+    if body.tags is not None:
+        pricing.tags = body.tags
+    if body.display_name is not None:
+        pricing.display_name = body.display_name
     await db.commit()
     await db.refresh(pricing)
     return ProviderPricingResponse.model_validate(pricing)

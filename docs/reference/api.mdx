@@ -1,0 +1,65 @@
+---
+title: "API Reference"
+description: "RunLedger exposes a complete REST API — browse it interactively with Scalar, or import the Postman collection."
+---
+
+Everything the dashboard and SDKs do is a REST call. The full, always-current API surface is available
+interactively on your running instance.
+
+## Interactive reference (Scalar)
+
+Every RunLedger instance serves a live, interactive API reference generated from the OpenAPI spec:
+
+```
+http://localhost:8201/reference
+```
+
+Try requests directly from the browser with your workspace API key. The raw spec is at
+`http://localhost:8201/openapi.json`.
+
+## Postman
+
+A generated Postman collection + environment live in the repo under
+[`postman/`](https://github.com/avs6/runledger-community/tree/master/postman) — import both, set `base_url`
+and `api_key`, and every endpoint (including the optimization microservices) is ready to call.
+
+To regenerate the collection after changing the API, run the generator against your live OpenAPI spec:
+
+```bash
+curl -s http://localhost:8201/openapi.json -o /tmp/openapi.json
+python scripts/generate_postman.py /tmp/openapi.json \
+  postman/RunLedger.postman_collection.json \
+  postman/RunLedger.postman_environment.json
+```
+
+## Authentication
+
+All endpoints are workspace-scoped via a Bearer API key:
+
+```bash
+curl http://localhost:8201/gateway/stats \
+  -H "Authorization: Bearer rl_..."
+```
+
+Create keys from the **Settings** page or `POST /auth/login`.
+
+## Surface at a glance
+
+| Area | Prefix |
+|---|---|
+| Ingest / runs | `/ingest` · `/runs` · `/sessions` |
+| Gateway | `/gateway/*` (routes, chat/completions, flywheel) |
+| FinOps | `/budgets` · `/outcomes` · `/ledger` · `/analytics` |
+| Quality | `/evaluations` · `/scores` · `/prompts` · `/approvals` |
+| Admin | `/auth` · `/org` · `/users` · `/settings` · `/retention` |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="CLI" icon="terminal" href="/reference/cli">
+    Command-line usage.
+  </Card>
+  <Card title="Python SDK" icon="python" href="/instrumentation/python-sdk">
+    The typed client.
+  </Card>
+</CardGroup>
