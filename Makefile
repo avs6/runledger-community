@@ -1,10 +1,15 @@
-.PHONY: install dev dev-infra dev-api dev-worker dev-web \
-        migrate migrate-new migrate-down seed \
+.PHONY: install dev dev-d dev-infra dev-api dev-worker dev-beat dev-web \
+        migrate migrate-new migrate-down \
+        simulate simulate-hard clean-data reset \
         test test-sdk test-all test-watch \
         lint lint-fix typecheck \
         health check-regression \
         samples-setup samples-env \
-        build down down-volumes
+        build down down-volumes ps logs logs-api
+
+# API base URL used by the `health` target. Defaults to the Docker Compose stack
+# (host port 8201). Override for a local hot-reload API: make health API_URL=http://localhost:8000
+API_URL ?= http://localhost:8201
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
 
@@ -58,22 +63,39 @@ migrate-new:
 migrate-down:
 	cd apps/api && uv run alembic downgrade -1
 
-## Seed default tenant, workspace, and API key (idempotent)
-seed:
-	cd apps/api && uv run python -m runledger_api.scripts.seed
+# ── Simulation / demo data ─────────────────────────────────────────────────────
+# Populate the whole cluster from the API by running every scenario in
+# scripts/scenarios/. `simulate` resets (truncate) first; `simulate-hard` wipes
+# every volume first. See docs/deployment/docker-compose.mdx.
+
+## Reset + populate the cluster with all scenarios (via the API)
+simulate:
+	uv run python scripts/full_simulate.py
+
+## Wipe every volume, then populate the cluster with all scenarios
+simulate-hard:
+	uv run python scripts/full_simulate.py --hard-clean
+
+## Truncate all data tables + flush Redis (keeps schema; stack stays up)
+clean-data:
+	uv run python scripts/cleanup.py
+
+## Full reset — docker compose down -v + up (wipes every volume)
+reset:
+	uv run python scripts/cleanup.py --hard
 
 # ── Health ─────────────────────────────────────────────────────────────────────
 
-## Check all health endpoints (requires API running on :8000)
+## Check all health endpoints (uses API_URL, default http://localhost:8201)
 health:
 	@echo "── /health (legacy) ──────────────────────────────────"
-	@curl -s http://localhost:8000/health | python -m json.tool
+	@curl -s $(API_URL)/health | python -m json.tool
 	@echo ""
 	@echo "── /health/live (liveness probe) ────────────────────"
-	@curl -s http://localhost:8000/health/live | python -m json.tool
+	@curl -s $(API_URL)/health/live | python -m json.tool
 	@echo ""
 	@echo "── /health/ready (readiness probe) ──────────────────"
-	@curl -s http://localhost:8000/health/ready | python -m json.tool
+	@curl -s $(API_URL)/health/ready | python -m json.tool
 
 # ── Quality ────────────────────────────────────────────────────────────────────
 

@@ -54,6 +54,11 @@ class ProviderPricing(Base):
     source: Mapped[str] = mapped_column(
         sa.String(32), nullable=False, server_default=sa.text("'manual'")
     )
+    # Freeform metadata (Phase: pricing import). e.g. ["reasoning", "coding", "embedding"].
+    tags: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'::jsonb")
+    )
+    display_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
 
 _SYNC_CONFIG_SINGLETON_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")

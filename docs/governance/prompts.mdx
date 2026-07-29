@@ -1,0 +1,53 @@
+---
+title: "Prompt Registry"
+description: "Version-controlled prompts with a diff viewer, variable substitution, and promote-to-production — fetch the right version at runtime by name."
+---
+
+The prompt registry treats prompts as versioned artifacts: edit, diff, promote, and fetch by name at
+runtime — so a prompt change is auditable and reversible instead of a silent code edit.
+
+<Frame caption="Prompt registry — versioning, diff viewer, and promote-to-production.">
+  <img src="/images/prompts.png" alt="Prompt registry" />
+</Frame>
+
+## Key features
+
+- **Versioning** — every edit is a new immutable version.
+- **Diff viewer** — compare any two versions.
+- **Promote-to-production** — pin the version your app fetches by name.
+- **Variable substitution** — `{{variables}}` filled at fetch time.
+- **GitHub sync** — optionally back the registry with a repo.
+
+## How it works
+
+```mermaid
+flowchart LR
+  edit[Edit prompt] --> v[New version]
+  v --> promote[Promote → production pointer]
+  app[App: fetch by name] --> promote
+  promote --> render[Substitute variables] --> use[Use in call]
+```
+
+## Fetch at runtime
+
+```python
+prompt = rl.prompts.get("support-reply", variables={"tone": "friendly"})
+resp = client.chat.completions.create(model="gpt-4o-mini", messages=prompt.messages)
+```
+
+The app always fetches the **production** version by name; promoting a new version rolls everyone forward
+(and rolling back is just re-promoting the previous one). Runs record the
+`deployment_version` so you can tie quality and cost to a specific prompt version.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Evaluations" icon="flask" href="/governance/evaluations">
+    Score prompt versions before promoting.
+  </Card>
+  <Card title="Approvals" icon="user-check" href="/governance/approvals">
+    Gate promotion behind an approval.
+  </Card>
+</CardGroup>
+
+See [`examples/15_prompts.py`](https://github.com/avs6/runledger-community/blob/master/examples/15_prompts.py).

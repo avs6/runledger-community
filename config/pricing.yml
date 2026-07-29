@@ -1,322 +1,161 @@
-# RunLedger Provider Pricing Configuration
+# RunLedger Provider Pricing — curated starter catalog
 # ──────────────────────────────────────────────────────────────────────────────
-# All rates are in USD per 1 million tokens.
+# Focused on the providers most deployments use: Ollama (local), OpenAI, Anthropic.
+# Import it from the dashboard — Settings → Pricing → Import YAML — or it seeds
+# nothing by default (fresh installs start empty; the DB is the source of truth
+# once imported). For a broader catalogue (Google, Azure, Bedrock, Vertex, …) see
+# config/pricing.example.yml.
 #
-# How to update prices
-# --------------------
-#   1. Edit this file (provider/model/rates below)
-#   2. docker compose restart api beat
-#      The API syncs on startup; Beat re-syncs every 6 hours.
-#
-# How the sync works
-# ------------------
-#   - New model      → INSERT a new pricing row (effective from now)
-#   - Price changed  → Old row closed (effective_to = now), new row inserted
-#                      Historical cost data is preserved.
-#   - Price unchanged → No-op (fully idempotent)
-#
-# Workspace-specific overrides (added via Settings > Provider Profiles in the
-# dashboard) are never touched by this sync — they always take precedence.
-#
-# Custom / self-hosted models
-# ---------------------------
-#   Add a block for any provider/model not listed here.
-#   The "provider" and "model" values must exactly match what your SDK sends.
-#   For local inference with no cost, set both rates to 0.00.
+# All rates are USD per 1 million tokens.
 #
 # Fields
 # ------
-#   provider              string  e.g. openai, anthropic, google, ollama, vllm
-#   model                 string  exact model identifier (case-sensitive)
-#   input_per_1m          float   USD per 1 million input (prompt) tokens
-#   output_per_1m         float   USD per 1 million output (completion) tokens
-#   cached_input_per_1m   float   optional — USD per 1M cached prompt tokens
-#                                 omit to default to 50% of input_per_1m
+#   provider              e.g. ollama, openai, anthropic
+#   model                 exact model identifier your SDK sends (case-sensitive)
+#   input_per_1m          USD per 1M input (prompt) tokens
+#   output_per_1m         USD per 1M output (completion) tokens
+#   cached_input_per_1m   optional — USD per 1M cached prompt tokens (else 50% of input)
+#   tags                  optional freeform list — e.g. [reasoning, coding, embedding]
+#   display_name          optional friendly label for the UI
+#
+# Import is idempotent: a changed price updates the row in place; unchanged = no-op.
 
 models:
 
-  # ── OpenAI ──────────────────────────────────────────────────────────────────
-
+  # ── OpenAI (latest) ───────────────────────────────────────────────────────────
   - provider: openai
     model: gpt-4o
+    display_name: GPT-4o
     input_per_1m: 2.50
     output_per_1m: 10.00
     cached_input_per_1m: 1.25
+    tags: [chat, vision, flagship]
 
   - provider: openai
     model: gpt-4o-mini
+    display_name: GPT-4o mini
     input_per_1m: 0.15
     output_per_1m: 0.60
     cached_input_per_1m: 0.075
-
-  - provider: openai
-    model: gpt-4-turbo
-    input_per_1m: 10.00
-    output_per_1m: 30.00
-    cached_input_per_1m: 5.00
-
-  - provider: openai
-    model: gpt-3.5-turbo
-    input_per_1m: 0.50
-    output_per_1m: 1.50
-
-  - provider: openai
-    model: o1
-    input_per_1m: 15.00
-    output_per_1m: 60.00
-    cached_input_per_1m: 7.50
+    tags: [chat, cheap, fast]
 
   - provider: openai
     model: o3-mini
+    display_name: OpenAI o3-mini
     input_per_1m: 1.10
     output_per_1m: 4.40
     cached_input_per_1m: 0.55
+    tags: [reasoning, coding]
 
-  # ── Anthropic ───────────────────────────────────────────────────────────────
+  - provider: openai
+    model: o1
+    display_name: OpenAI o1
+    input_per_1m: 15.00
+    output_per_1m: 60.00
+    cached_input_per_1m: 7.50
+    tags: [reasoning, frontier]
 
+  # ── Anthropic (latest) ────────────────────────────────────────────────────────
   - provider: anthropic
     model: claude-opus-4-6
+    display_name: Claude Opus 4
     input_per_1m: 15.00
     output_per_1m: 75.00
+    tags: [reasoning, coding, frontier]
 
   - provider: anthropic
     model: claude-sonnet-4-6
+    display_name: Claude Sonnet 4.6
     input_per_1m: 3.00
     output_per_1m: 15.00
+    tags: [chat, coding, balanced]
 
   - provider: anthropic
     model: claude-haiku-4-5
+    display_name: Claude Haiku 4.5
     input_per_1m: 0.80
     output_per_1m: 4.00
+    tags: [chat, cheap, fast]
 
-  # ── Google ──────────────────────────────────────────────────────────────────
-
-  - provider: google
-    model: gemini-1.5-pro
-    input_per_1m: 1.25
-    output_per_1m: 5.00
-
-  - provider: google
-    model: gemini-1.5-flash
-    input_per_1m: 0.075
-    output_per_1m: 0.30
-
-  # ── Ollama (local / self-hosted) ─────────────────────────────────────────────
-  # Set rates to 0.00 for free local inference, or enter your infrastructure
-  # cost per 1M tokens if you want to track GPU / cloud spend.
-  # Add new models by duplicating a block — use the exact name Ollama reports
-  # (from `ollama list`). The models below were synced from a local Ollama host.
+  # ── Ollama (local / self-hosted — $0, tracks tokens only) ─────────────────────
+  # Use the exact name `ollama list` reports. Set rates to your GPU/infra cost if
+  # you want to track self-hosted spend instead of $0.
+  - provider: ollama
+    model: llama3.1:8b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+    tags: [local, chat]
 
   - provider: ollama
     model: deepseek-r1:14b
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, reasoning]
 
   - provider: ollama
     model: deepseek-r1:8b
     input_per_1m: 0.00
     output_per_1m: 0.00
-
-  - provider: ollama
-    model: dolphin-llama3:latest
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: dolphin3:latest
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: gemma3:latest
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: gemma4:12b
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: hf.co/empero-ai/Qwable-9B-Claude-Fable-5-GGUF:Q4_K_M
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: hf.co/empero-ai/Qwable-9B-Claude-Fable-5-GGUF:Q8_0
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: hf.co/empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF:Q8_0
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: llama2-uncensored:7b
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: llama3.1:8b
-    input_per_1m: 0.00
-    output_per_1m: 0.00
-
-  - provider: ollama
-    model: nomic-embed-text:latest
-    input_per_1m: 0.00
-    output_per_1m: 0.00
+    tags: [local, reasoning]
 
   - provider: ollama
     model: qwen2.5-coder:14b
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, coding]
 
   - provider: ollama
     model: qwen3.5:latest
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, chat]
 
   - provider: ollama
     model: qwen3.6:latest
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, chat]
 
   - provider: ollama
-    model: richardyoung/qwable-9b-abliterated:latest
+    model: gemma3:latest
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, chat]
 
   - provider: ollama
-    model: richardyoung/qwythos-9b-abliterated:latest
+    model: gemma4:12b
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, chat]
 
-  # Text embedding model — used by the cognitive-layer memory (Letta) for local embeddings.
-  # Pull it once:  ollama pull nomic-embed-text
+  - provider: ollama
+    model: dolphin3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+    tags: [local, chat]
+
+  - provider: ollama
+    model: dolphin-llama3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+    tags: [local, chat]
+
+  - provider: ollama
+    model: llama2-uncensored:7b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+    tags: [local, chat]
+
+  # Text embedding model — used by the cognitive-layer memory (Letta) for local
+  # embeddings. Pull once: `ollama pull nomic-embed-text`
   - provider: ollama
     model: nomic-embed-text
     input_per_1m: 0.00
     output_per_1m: 0.00
+    tags: [local, embedding]
 
-  # ── vLLM / other self-hosted ─────────────────────────────────────────────────
-  # Example — uncomment and fill in your model + cost:
-  #
-  # - provider: vllm
-  #   model: meta-llama/Meta-Llama-3.1-8B-Instruct
-  #   input_per_1m: 0.10   # e.g. cloud GPU cost per 1M tokens
-  #   output_per_1m: 0.15
-
-  # ── Azure OpenAI ─────────────────────────────────────────────────────────────
-  # Same models as OpenAI but billed through Azure. Rates match OpenAI list price.
-  # Override with workspace-specific pricing if you have a negotiated rate.
-
-  - provider: azure
-    model: gpt-4o
-    input_per_1m: 2.50
-    output_per_1m: 10.00
-    cached_input_per_1m: 1.25
-
-  - provider: azure
-    model: gpt-4o-mini
-    input_per_1m: 0.15
-    output_per_1m: 0.60
-    cached_input_per_1m: 0.075
-
-  - provider: azure
-    model: gpt-4-turbo
-    input_per_1m: 10.00
-    output_per_1m: 30.00
-    cached_input_per_1m: 5.00
-
-  - provider: azure
-    model: o1
-    input_per_1m: 15.00
-    output_per_1m: 60.00
-    cached_input_per_1m: 7.50
-
-  - provider: azure
-    model: o3-mini
-    input_per_1m: 1.10
-    output_per_1m: 4.40
-    cached_input_per_1m: 0.55
-
-  # ── AWS Bedrock ───────────────────────────────────────────────────────────────
-  # On-demand rates (us-east-1). Rates vary by region; update as needed.
-  # model values must match Bedrock model IDs exactly.
-
-  - provider: bedrock
-    model: anthropic.claude-3-5-sonnet-20241022-v2:0
-    input_per_1m: 3.00
-    output_per_1m: 15.00
-    cached_input_per_1m: 1.50
-
-  - provider: bedrock
-    model: anthropic.claude-3-5-haiku-20241022-v1:0
-    input_per_1m: 0.80
-    output_per_1m: 4.00
-
-  - provider: bedrock
-    model: anthropic.claude-3-opus-20240229-v1:0
-    input_per_1m: 15.00
-    output_per_1m: 75.00
-
-  - provider: bedrock
-    model: amazon.nova-pro-v1:0
-    input_per_1m: 0.80
-    output_per_1m: 3.20
-
-  - provider: bedrock
-    model: amazon.nova-lite-v1:0
-    input_per_1m: 0.06
-    output_per_1m: 0.24
-
-  - provider: bedrock
-    model: amazon.titan-text-express-v1
-    input_per_1m: 0.20
-    output_per_1m: 0.60
-
-  - provider: bedrock
-    model: meta.llama3-2-90b-instruct-v1:0
-    input_per_1m: 2.00
-    output_per_1m: 2.00
-
-  - provider: bedrock
-    model: meta.llama3-2-11b-instruct-v1:0
-    input_per_1m: 0.35
-    output_per_1m: 0.35
-
-  - provider: bedrock
-    model: mistral.mistral-large-2402-v1:0
-    input_per_1m: 4.00
-    output_per_1m: 12.00
-
-  # ── Google Vertex AI ──────────────────────────────────────────────────────────
-  # Gemini on Vertex AI (us-central1 rates, ≤128K context window).
-
-  - provider: vertex
-    model: gemini-2.0-flash
-    input_per_1m: 0.10
-    output_per_1m: 0.40
-
-  - provider: vertex
-    model: gemini-2.0-pro
-    input_per_1m: 1.25
-    output_per_1m: 5.00
-
-  - provider: vertex
-    model: gemini-1.5-pro
-    input_per_1m: 1.25
-    output_per_1m: 5.00
-    cached_input_per_1m: 0.3125
-
-  - provider: vertex
-    model: gemini-1.5-flash
-    input_per_1m: 0.075
-    output_per_1m: 0.30
-    cached_input_per_1m: 0.01875
-
-  - provider: vertex
-    model: gemini-1.0-pro
-    input_per_1m: 0.50
-    output_per_1m: 1.50
+  - provider: ollama
+    model: nomic-embed-text:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+    tags: [local, embedding]

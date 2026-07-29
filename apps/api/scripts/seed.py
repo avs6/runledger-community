@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -81,7 +82,11 @@ _PRICING_DATA: list[tuple[str, str, str, str, str | None]] = [
 async def seed() -> None:
     async with AsyncSessionLocal() as session:
         await _seed_tenant(session)
-        await _seed_pricing(session)
+        # Pricing starts EMPTY by default — import config/pricing.yml from the dashboard
+        # (Settings → Pricing → Import YAML), which is the DB-backed source of truth.
+        # Set RUNLEDGER_SEED_PRICING=true to seed the legacy built-in catalog instead.
+        if os.getenv("RUNLEDGER_SEED_PRICING", "false").lower() in ("1", "true", "yes"):
+            await _seed_pricing(session)
         # Always look up the workspace so _seed_user runs even on re-runs
         result = await session.execute(select(Workspace).where(Workspace.name == "default"))
         workspace = result.scalar_one_or_none()

@@ -1,0 +1,60 @@
+---
+title: "Providers"
+description: "Route to any hosted or self-hosted model — OpenAI, Anthropic, Gemini, Mistral, Cohere, Ollama, vLLM, or any OpenAI-compatible endpoint — all metered the same way."
+---
+
+A route maps an alias to a **provider** + **target model**. Hosted and self-hosted models are configured
+identically and metered the same way.
+
+## Supported providers
+
+| Provider | Access |
+|---|---|
+| OpenAI (gpt-4o, gpt-4o-mini, o1, o3-mini, …) | SDK · Gateway |
+| Anthropic (Claude Opus, Sonnet, Haiku, …) | SDK · Gateway |
+| Google Gemini | SDK · Gateway |
+| Mistral | SDK · Gateway |
+| Cohere | SDK · Gateway |
+| Self-hosted & OpenAI-compatible (Ollama, vLLM, Groq, Azure, Bedrock, Vertex) | Gateway |
+
+## Self-hosted & local models
+
+Local runtimes stay **external** — RunLedger never bundles them; it points at their base URL. Configure
+Ollama or vLLM as an ordinary route:
+
+```bash
+POST /gateway/routes
+{
+  "alias": "cheap",
+  "provider": "ollama",
+  "target_model": "llama3.1:8b",
+  "base_url": "http://host.docker.internal:11434/v1"
+}
+```
+
+Set `OLLAMA_BASE_URL` / `VLLM_BASE_URL` in the environment for the default endpoints. Because they're
+OpenAI-compatible, they route, cache, fall back, and meter like any hosted provider. See
+[Self-Hosted & Local Models](/optimization/local-models).
+
+## Adding a model
+
+Add a new model by inserting a row into `provider_pricing` — **no code change required**. The
+[pricing engine](/finops/pricing) then meters it automatically.
+
+## API keys
+
+Each route references an env var holding the provider key (`api_key_env_var`, e.g. `OPENAI_API_KEY`), so
+keys stay in your environment / secret store, never in the database.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Self-hosted & local models" icon="server" href="/optimization/local-models">
+    Ollama / vLLM as first-class routes.
+  </Card>
+  <Card title="Pricing engine" icon="tags" href="/finops/pricing">
+    Add a model with a pricing row.
+  </Card>
+</CardGroup>
+
+See [`examples/06_ollama_local.py`](https://github.com/avs6/runledger-community/blob/master/examples/06_ollama_local.py).

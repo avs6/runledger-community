@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Database, Plus, Pencil, Trash2, RefreshCw, Search, SlidersHorizontal, X, CloudDownload } from 'lucide-react'
+import { Database, Plus, Pencil, Trash2, RefreshCw, Search, SlidersHorizontal, X, CloudDownload, Upload, FileDown } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
   listProviderPricing,
@@ -12,6 +12,8 @@ import {
   deleteProviderPricing,
   repriceProvider,
   triggerPricingSync,
+  importProviderPricing,
+  getPricingExampleYaml,
 } from '@/lib/api'
 import type { ProviderPricingResponse } from '@/types/api'
 
@@ -48,6 +50,8 @@ export default function ProviderProfilesPage() {
   const [editState, setEditState] = useState<EditState | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Filters
   const [pricingSearch, setPricingSearch] = useState('')
@@ -140,6 +144,39 @@ export default function ProviderProfilesPage() {
     }
   }
 
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !apiKey) return
+    setImporting(true)
+    try {
+      const r = await importProviderPricing(apiKey, file)
+      toast.success(`Imported: ${r.inserted} added, ${r.updated} updated, ${r.unchanged} unchanged`)
+      if (r.errors.length) toast.warning(`${r.errors.length} row(s) skipped — check the file`)
+      await load()
+    } catch (err: unknown) {
+      toast.error(`Import failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function handleDownloadExample() {
+    if (!apiKey) return
+    try {
+      const yaml = await getPricingExampleYaml(apiKey)
+      const blob = new Blob([yaml], { type: 'text/yaml' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'pricing.example.yml'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Could not fetch the example file')
+    }
+  }
+
   async function handleReprice(provider: string, model: string) {
     if (!apiKey) return
     if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich? This may take a minute.`)) return
@@ -200,6 +237,27 @@ export default function ProviderProfilesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canManage && (
+            <>
+              <input ref={fileInputRef} type="file" accept=".yml,.yaml,text/yaml" onChange={handleImportFile} className="hidden" />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1.5 text-sm text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
+                title="Import a pricing YAML — idempotent upsert into the catalog"
+              >
+                <Upload className={`h-3.5 w-3.5 ${importing ? 'animate-pulse' : ''}`} />
+                {importing ? 'Importing…' : 'Import YAML'}
+              </button>
+              <button
+                onClick={handleDownloadExample}
+                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                title="Download the example pricing YAML"
+              >
+                <FileDown className="h-3.5 w-3.5" /> Example
+              </button>
+            </>
+          )}
           <button
             onClick={handlePullPricing}
             disabled={syncing}
@@ -313,8 +371,13 @@ export default function ProviderProfilesPage() {
           <div className="flex flex-col items-center justify-center py-16 gap-2">
             <Database className="h-8 w-8 text-slate-300 dark:text-slate-600" />
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {pricing.length === 0 ? 'No provider profiles yet.' : 'No profiles match the current filters.'}
+              {pricing.length === 0 ? 'No pricing yet — import a YAML to load your catalog.' : 'No profiles match the current filters.'}
             </p>
+            {pricing.length === 0 && canManage && (
+              <button onClick={() => fileInputRef.current?.click()} className="mt-1 flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors">
+                <Upload className="h-3.5 w-3.5" /> Import pricing YAML
+              </button>
+            )}
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -332,9 +395,18 @@ export default function ProviderProfilesPage() {
               {filteredPricing.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-4 py-2.5">
-                    <div className="flex flex-col">
-                      <span className="font-medium capitalize dark:text-slate-200">{p.provider}</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium dark:text-slate-200">{p.display_name || <span className="capitalize">{p.provider}</span>}</span>
                       <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{p.model}</span>
+                      {p.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {p.tags.map((t) => (
+                            <span key={t} className="rounded bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </td>
                   {editState?.id === p.id ? (

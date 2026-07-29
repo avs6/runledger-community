@@ -1,0 +1,50 @@
+---
+title: "Tamper-Evident Ledger"
+description: "An HMAC-signed, hash-chained usage ledger — so internal cost accounting is verifiable and billing disputes can be settled with cryptographic evidence."
+---
+
+For metering to be trustworthy enough to bill on, it has to be **tamper-evident**. RunLedger periodically
+snapshots usage into a signed, hash-chained ledger — any later modification to the underlying data breaks
+the chain and is detectable.
+
+## Key features
+
+- **HMAC-signed snapshots** — each snapshot carries a `snapshot_hash` over its contents.
+- **Hash chaining** — each snapshot references the previous one, so the sequence is append-only.
+- **Verifiable** — re-compute the hash over the raw data and compare; a mismatch proves modification.
+- **Suspicious-sequence detection** — a background job flags gaps or reordering.
+
+## How it works
+
+```mermaid
+flowchart LR
+  s1[Snapshot N-1 · hash h1] --> s2[Snapshot N · prev=h1 · hash h2]
+  s2 --> s3[Snapshot N+1 · prev=h2 · hash h3]
+  raw[Raw usage rows] -. signed over .- s2
+```
+
+Snapshots are produced on a schedule (daily) and on demand. Each is signed with the workspace key; because
+each references the prior hash, you can't alter or drop a snapshot without breaking every one after it.
+
+## Verify
+
+```python
+# List recent snapshots and re-verify their hashes
+snapshots = client.get("/ledger/snapshots?limit=5")
+# Each snapshot_hash can be recomputed from the raw rows; a mismatch = tampering.
+```
+
+Or via the API: `GET /ledger/snapshots`.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Metering" icon="gauge-high" href="/finops/metering">
+    The data the ledger signs.
+  </Card>
+  <Card title="Backup & restore" icon="database" href="/backup-restore">
+    Verify ledger integrity after a restore.
+  </Card>
+</CardGroup>
+
+See [`examples/11_ledger_verify.py`](https://github.com/avs6/runledger-community/blob/master/examples/11_ledger_verify.py).

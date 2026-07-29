@@ -658,6 +658,8 @@ export async function createProviderPricing(
     input_cost_per_1m: string
     output_cost_per_1m: string
     cached_input_cost_per_1m?: string | null
+    tags?: string[]
+    display_name?: string | null
   }
 ): Promise<ProviderPricingResponse> {
   return apiFetch<ProviderPricingResponse>('/providers/pricing', apiKey, {
@@ -673,12 +675,39 @@ export async function updateProviderPricing(
     input_cost_per_1m?: string
     output_cost_per_1m?: string
     cached_input_cost_per_1m?: string | null
+    tags?: string[]
+    display_name?: string | null
   }
 ): Promise<ProviderPricingResponse> {
   return apiFetch<ProviderPricingResponse>(`/providers/pricing/${pricingId}`, apiKey, {
     method: 'PUT',
     body: JSON.stringify(body),
   })
+}
+
+export async function importProviderPricing(
+  apiKey: string,
+  file: File,
+): Promise<import('@/types/api').PricingImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_URL}/providers/pricing/import`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` }, // no Content-Type — browser sets multipart boundary
+    body: form,
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+  return res.json()
+}
+
+export async function getPricingExampleYaml(apiKey: string): Promise<string> {
+  const res = await fetch(`${API_URL}/providers/pricing/example`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API ${res.status}`)
+  return res.text()
 }
 
 export async function deleteProviderPricing(apiKey: string, pricingId: string): Promise<void> {

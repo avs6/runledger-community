@@ -134,7 +134,7 @@ services:
     volumes:
       - ./logs:/app/logs
       # Provider pricing — edit config/pricing.yml then restart api + beat to apply
-      - ./config/pricing.yml:/app/config/pricing.yml:ro
+      - ./config:/app/config:ro
     # Lets the gateway reach an Ollama/vLLM server on the Docker host.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -183,7 +183,7 @@ services:
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
       LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.2:3b}
     volumes:
-      - ./config/pricing.yml:/app/config/pricing.yml:ro
+      - ./config:/app/config:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -213,7 +213,7 @@ services:
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
       RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
     volumes:
-      - ./config/pricing.yml:/app/config/pricing.yml:ro
+      - ./config:/app/config:ro
     depends_on:
       runledger-postgres:
         condition: service_healthy

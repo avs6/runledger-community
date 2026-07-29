@@ -1,0 +1,322 @@
+# RunLedger Provider Pricing Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+# All rates are in USD per 1 million tokens.
+#
+# How to update prices
+# --------------------
+#   1. Edit this file (provider/model/rates below)
+#   2. docker compose restart api beat
+#      The API syncs on startup; Beat re-syncs every 6 hours.
+#
+# How the sync works
+# ------------------
+#   - New model      → INSERT a new pricing row (effective from now)
+#   - Price changed  → Old row closed (effective_to = now), new row inserted
+#                      Historical cost data is preserved.
+#   - Price unchanged → No-op (fully idempotent)
+#
+# Workspace-specific overrides (added via Settings > Provider Profiles in the
+# dashboard) are never touched by this sync — they always take precedence.
+#
+# Custom / self-hosted models
+# ---------------------------
+#   Add a block for any provider/model not listed here.
+#   The "provider" and "model" values must exactly match what your SDK sends.
+#   For local inference with no cost, set both rates to 0.00.
+#
+# Fields
+# ------
+#   provider              string  e.g. openai, anthropic, google, ollama, vllm
+#   model                 string  exact model identifier (case-sensitive)
+#   input_per_1m          float   USD per 1 million input (prompt) tokens
+#   output_per_1m         float   USD per 1 million output (completion) tokens
+#   cached_input_per_1m   float   optional — USD per 1M cached prompt tokens
+#                                 omit to default to 50% of input_per_1m
+
+models:
+
+  # ── OpenAI ──────────────────────────────────────────────────────────────────
+
+  - provider: openai
+    model: gpt-4o
+    input_per_1m: 2.50
+    output_per_1m: 10.00
+    cached_input_per_1m: 1.25
+
+  - provider: openai
+    model: gpt-4o-mini
+    input_per_1m: 0.15
+    output_per_1m: 0.60
+    cached_input_per_1m: 0.075
+
+  - provider: openai
+    model: gpt-4-turbo
+    input_per_1m: 10.00
+    output_per_1m: 30.00
+    cached_input_per_1m: 5.00
+
+  - provider: openai
+    model: gpt-3.5-turbo
+    input_per_1m: 0.50
+    output_per_1m: 1.50
+
+  - provider: openai
+    model: o1
+    input_per_1m: 15.00
+    output_per_1m: 60.00
+    cached_input_per_1m: 7.50
+
+  - provider: openai
+    model: o3-mini
+    input_per_1m: 1.10
+    output_per_1m: 4.40
+    cached_input_per_1m: 0.55
+
+  # ── Anthropic ───────────────────────────────────────────────────────────────
+
+  - provider: anthropic
+    model: claude-opus-4-6
+    input_per_1m: 15.00
+    output_per_1m: 75.00
+
+  - provider: anthropic
+    model: claude-sonnet-4-6
+    input_per_1m: 3.00
+    output_per_1m: 15.00
+
+  - provider: anthropic
+    model: claude-haiku-4-5
+    input_per_1m: 0.80
+    output_per_1m: 4.00
+
+  # ── Google ──────────────────────────────────────────────────────────────────
+
+  - provider: google
+    model: gemini-1.5-pro
+    input_per_1m: 1.25
+    output_per_1m: 5.00
+
+  - provider: google
+    model: gemini-1.5-flash
+    input_per_1m: 0.075
+    output_per_1m: 0.30
+
+  # ── Ollama (local / self-hosted) ─────────────────────────────────────────────
+  # Set rates to 0.00 for free local inference, or enter your infrastructure
+  # cost per 1M tokens if you want to track GPU / cloud spend.
+  # Add new models by duplicating a block — use the exact name Ollama reports
+  # (from `ollama list`). The models below were synced from a local Ollama host.
+
+  - provider: ollama
+    model: deepseek-r1:14b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: deepseek-r1:8b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: dolphin-llama3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: dolphin3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: gemma3:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: gemma4:12b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: hf.co/empero-ai/Qwable-9B-Claude-Fable-5-GGUF:Q4_K_M
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: hf.co/empero-ai/Qwable-9B-Claude-Fable-5-GGUF:Q8_0
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: hf.co/empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF:Q8_0
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: llama2-uncensored:7b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: llama3.1:8b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: nomic-embed-text:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: qwen2.5-coder:14b
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: qwen3.5:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: qwen3.6:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: richardyoung/qwable-9b-abliterated:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  - provider: ollama
+    model: richardyoung/qwythos-9b-abliterated:latest
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  # Text embedding model — used by the cognitive-layer memory (Letta) for local embeddings.
+  # Pull it once:  ollama pull nomic-embed-text
+  - provider: ollama
+    model: nomic-embed-text
+    input_per_1m: 0.00
+    output_per_1m: 0.00
+
+  # ── vLLM / other self-hosted ─────────────────────────────────────────────────
+  # Example — uncomment and fill in your model + cost:
+  #
+  # - provider: vllm
+  #   model: meta-llama/Meta-Llama-3.1-8B-Instruct
+  #   input_per_1m: 0.10   # e.g. cloud GPU cost per 1M tokens
+  #   output_per_1m: 0.15
+
+  # ── Azure OpenAI ─────────────────────────────────────────────────────────────
+  # Same models as OpenAI but billed through Azure. Rates match OpenAI list price.
+  # Override with workspace-specific pricing if you have a negotiated rate.
+
+  - provider: azure
+    model: gpt-4o
+    input_per_1m: 2.50
+    output_per_1m: 10.00
+    cached_input_per_1m: 1.25
+
+  - provider: azure
+    model: gpt-4o-mini
+    input_per_1m: 0.15
+    output_per_1m: 0.60
+    cached_input_per_1m: 0.075
+
+  - provider: azure
+    model: gpt-4-turbo
+    input_per_1m: 10.00
+    output_per_1m: 30.00
+    cached_input_per_1m: 5.00
+
+  - provider: azure
+    model: o1
+    input_per_1m: 15.00
+    output_per_1m: 60.00
+    cached_input_per_1m: 7.50
+
+  - provider: azure
+    model: o3-mini
+    input_per_1m: 1.10
+    output_per_1m: 4.40
+    cached_input_per_1m: 0.55
+
+  # ── AWS Bedrock ───────────────────────────────────────────────────────────────
+  # On-demand rates (us-east-1). Rates vary by region; update as needed.
+  # model values must match Bedrock model IDs exactly.
+
+  - provider: bedrock
+    model: anthropic.claude-3-5-sonnet-20241022-v2:0
+    input_per_1m: 3.00
+    output_per_1m: 15.00
+    cached_input_per_1m: 1.50
+
+  - provider: bedrock
+    model: anthropic.claude-3-5-haiku-20241022-v1:0
+    input_per_1m: 0.80
+    output_per_1m: 4.00
+
+  - provider: bedrock
+    model: anthropic.claude-3-opus-20240229-v1:0
+    input_per_1m: 15.00
+    output_per_1m: 75.00
+
+  - provider: bedrock
+    model: amazon.nova-pro-v1:0
+    input_per_1m: 0.80
+    output_per_1m: 3.20
+
+  - provider: bedrock
+    model: amazon.nova-lite-v1:0
+    input_per_1m: 0.06
+    output_per_1m: 0.24
+
+  - provider: bedrock
+    model: amazon.titan-text-express-v1
+    input_per_1m: 0.20
+    output_per_1m: 0.60
+
+  - provider: bedrock
+    model: meta.llama3-2-90b-instruct-v1:0
+    input_per_1m: 2.00
+    output_per_1m: 2.00
+
+  - provider: bedrock
+    model: meta.llama3-2-11b-instruct-v1:0
+    input_per_1m: 0.35
+    output_per_1m: 0.35
+
+  - provider: bedrock
+    model: mistral.mistral-large-2402-v1:0
+    input_per_1m: 4.00
+    output_per_1m: 12.00
+
+  # ── Google Vertex AI ──────────────────────────────────────────────────────────
+  # Gemini on Vertex AI (us-central1 rates, ≤128K context window).
+
+  - provider: vertex
+    model: gemini-2.0-flash
+    input_per_1m: 0.10
+    output_per_1m: 0.40
+
+  - provider: vertex
+    model: gemini-2.0-pro
+    input_per_1m: 1.25
+    output_per_1m: 5.00
+
+  - provider: vertex
+    model: gemini-1.5-pro
+    input_per_1m: 1.25
+    output_per_1m: 5.00
+    cached_input_per_1m: 0.3125
+
+  - provider: vertex
+    model: gemini-1.5-flash
+    input_per_1m: 0.075
+    output_per_1m: 0.30
+    cached_input_per_1m: 0.01875
+
+  - provider: vertex
+    model: gemini-1.0-pro
+    input_per_1m: 0.50
+    output_per_1m: 1.50
