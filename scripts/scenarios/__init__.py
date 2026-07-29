@@ -22,14 +22,24 @@ import pkgutil
 from types import ModuleType
 
 
+# Subpackages that are NOT auto-run scenarios. ``labs/`` is a manual, hands-on
+# workbook whose agent scripts import optional heavy deps (openai, opentelemetry)
+# and are meant to be run by hand — never swept up by the simulator.
+_SKIP_PACKAGES = {"labs"}
+
+
 def discover() -> list[ModuleType]:
     """Return every scenario module under this package (recursively), sorted by path."""
     mods: list[ModuleType] = []
     for info in sorted(
         pkgutil.walk_packages(__path__, prefix=f"{__name__}."), key=lambda m: m.name
     ):
-        short = info.name.rsplit(".", 1)[-1]
+        parts = info.name.split(".")
+        short = parts[-1]
         if info.ispkg or short.startswith("_"):
+            continue
+        # Skip anything living under a non-scenario subpackage (e.g. scenarios.labs.*).
+        if _SKIP_PACKAGES.intersection(parts):
             continue
         mod = importlib.import_module(info.name)
         if hasattr(mod, "run") and hasattr(mod, "NAME"):

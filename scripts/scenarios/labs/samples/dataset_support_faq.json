@@ -1,0 +1,57 @@
+{
+  "name": "Support FAQ v1",
+  "description": "10 canonical customer-support questions with reference answers. Load this in Datasets, then use it in an Experiment to compare models/prompts.",
+  "source": "manual",
+  "items": [
+    {
+      "input": "How long do refunds take?",
+      "expected_output": "Refunds are processed within 5 business days.",
+      "metadata": { "topic": "billing" }
+    },
+    {
+      "input": "I forgot my password. How do I reset it?",
+      "expected_output": "Use the 'Forgot password' link on the login page to reset it.",
+      "metadata": { "topic": "account" }
+    },
+    {
+      "input": "What are your support hours?",
+      "expected_output": "Support is available 9am-6pm Eastern, Monday to Friday.",
+      "metadata": { "topic": "general" }
+    },
+    {
+      "input": "Do you offer weekend support?",
+      "expected_output": "No, support runs Monday to Friday only.",
+      "metadata": { "topic": "general" }
+    },
+    {
+      "input": "How do I export my invoices?",
+      "expected_output": "Go to Billing then Invoices and click Export to download them.",
+      "metadata": { "topic": "billing" }
+    },
+    {
+      "input": "Can I upgrade my plan mid-cycle?",
+      "expected_output": "Yes. Upgrades take effect immediately and are prorated for the current cycle.",
+      "metadata": { "topic": "billing" }
+    },
+    {
+      "input": "Where do I change my billing email?",
+      "expected_output": "Update it under Settings then Billing then Billing contact.",
+      "metadata": { "topic": "account" }
+    },
+    {
+      "input": "My payment failed. What should I do?",
+      "expected_output": "Check the card details under Billing and retry; contact support if it keeps failing.",
+      "metadata": { "topic": "billing" }
+    },
+    {
+      "input": "How do I delete my account?",
+      "expected_output": "Account deletion is under Settings then Danger Zone; it is permanent.",
+      "metadata": { "topic": "account" }
+    },
+    {
+      "input": "Is my data encrypted?",
+      "expected_output": "Yes, data is encrypted in transit and at rest.",
+      "metadata": { "topic": "security" }
+    }
+  ]
+}
