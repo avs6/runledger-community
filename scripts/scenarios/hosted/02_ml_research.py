@@ -3,7 +3,8 @@ Scenario: an ML research team comparing models on hard tasks.
 
 Exercises the quality story — a mix of frontier and local models, heavy evaluation
 scoring across several metrics, and a research-heavy spend profile with fewer but
-larger runs. Local (Ollama) runs cost $0, so cost-per-quality contrast is visible.
+larger runs. Local (Ollama) models are priced at a small infra cost, so the
+cost-per-quality contrast between frontier and local is visible in analytics.
 """
 
 from __future__ import annotations
@@ -19,13 +20,13 @@ DESCRIPTION = "Research team — frontier vs local models, heavy eval scoring."
 def run(sim: Sim) -> None:
     ws = sim.workspace("Nova Labs", "Research")
 
-    ws.add_route("frontier", "o1", priority=10)
+    ws.add_route("frontier", "o3-mini", priority=10)
     ws.add_route("balanced", "claude-sonnet-4-6", priority=20)
     ws.add_route("local", "llama3.1:8b", priority=30)
 
     runs = ws.ingest_runs(
         80,
-        models=["o1", "claude-sonnet-4-6", "gpt-4o", "llama3.1:8b", "llama3.2"],
+        models=["o3-mini", "claude-sonnet-4-6", "gpt-4o", "llama3.1:8b", "llama3.2"],
         features=["reasoning-eval", "code-gen", "summarization", "rag-benchmark"],
         users=["researcher_a", "researcher_b", "researcher_c"],
         days=21,
