@@ -52,6 +52,11 @@ def make_prefs(**kwargs: object) -> SimpleNamespace:
         id=PREFS_ID,
         workspace_id=WORKSPACE_ID,
         report_frequency="weekly",
+        report_hour=7,
+        report_timezone="UTC",
+        report_recipient_mode="workspace_admins",
+        report_recipients=None,
+        report_last_sent_at=None,
         alerts_enabled=True,
         approvals_enabled=True,
         reconciliation_enabled=True,
@@ -104,7 +109,7 @@ async def test_get_email_preferences_creates_default() -> None:
     mock_db.refresh = AsyncMock(side_effect=mock_refresh)
 
     workspace = make_workspace()
-    await get_email_preferences(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
+    await get_email_preferences(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
 
     mock_db.add.assert_called_once()
     mock_db.commit.assert_awaited_once()
@@ -128,11 +133,22 @@ async def test_update_email_preferences() -> None:
     mock_db.refresh = AsyncMock()
 
     workspace = make_workspace()
-    body = EmailPreferenceUpdate(report_frequency="never", alerts_enabled=False)
+    body = EmailPreferenceUpdate(
+        report_frequency="never",
+        report_hour=9,
+        report_timezone="America/Chicago",
+        report_recipient_mode="custom",
+        report_recipients="ops@example.com",
+        alerts_enabled=False,
+    )
 
-    await update_email_preferences(body=body, workspace=workspace, db=mock_db)  # type: ignore[arg-type]
+    await update_email_preferences(body=body, auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
 
     assert prefs_obj.report_frequency == "never"
+    assert prefs_obj.report_hour == 9
+    assert prefs_obj.report_timezone == "America/Chicago"
+    assert prefs_obj.report_recipient_mode == "custom"
+    assert prefs_obj.report_recipients == "ops@example.com"
     assert prefs_obj.alerts_enabled is False
     mock_db.commit.assert_awaited_once()
 
@@ -153,7 +169,7 @@ async def test_email_test_endpoint_ok() -> None:
     workspace = make_workspace()
 
     with patch("runledger_api.routers.settings.send_email", new_callable=AsyncMock) as mock_send:
-        result = await test_email_send(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
+        result = await test_email_send(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
 
     assert result["ok"] is True
     assert result["error"] is None
@@ -170,7 +186,7 @@ async def test_email_test_endpoint_no_user() -> None:
     mock_db.execute = AsyncMock(return_value=mock_execute)
 
     workspace = make_workspace()
-    result = await test_email_send(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
+    result = await test_email_send(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
 
     assert result["ok"] is False
     assert result["error"] is not None
@@ -202,7 +218,7 @@ async def test_get_email_log() -> None:
     mock_db.execute = AsyncMock(side_effect=[mock_exec1, mock_exec2])
 
     workspace = make_workspace()
-    result = await get_email_log(workspace=workspace, db=mock_db)  # type: ignore[arg-type]
+    result = await get_email_log(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
 
     assert result.total == 1
     assert len(result.items) == 1

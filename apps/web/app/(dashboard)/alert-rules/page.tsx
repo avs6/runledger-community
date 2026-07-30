@@ -15,7 +15,7 @@ import {
 import type { AlertRule, AlertFiring } from '@/types/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400'
 
 export default function AlertRulesPage() {
   const { data: session } = useSession()
@@ -158,7 +158,7 @@ export default function AlertRulesPage() {
           />
           Email workspace admins
         </label>
-        <button type="submit" disabled={creatingAlert} className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+        <button type="submit" disabled={creatingAlert} className="rounded bg-teal-700 px-4 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400">
           {creatingAlert ? 'Creating…' : 'Add Rule'}
         </button>
       </form>
@@ -187,7 +187,7 @@ export default function AlertRulesPage() {
                   <td className="px-4 py-2 text-xs dark:text-gray-300">{rule.operator === 'gt' ? '>' : '<'} {rule.threshold}</td>
                   <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
                   <td className="px-4 py-2">
-                    <span className={`text-xs ${rule.email_enabled ? 'text-violet-600 dark:text-violet-400' : 'text-gray-400 dark:text-gray-600'}`}>
+                    <span className={`text-xs ${rule.email_enabled ? 'text-teal-700 dark:text-teal-300' : 'text-gray-400 dark:text-gray-600'}`}>
                       {rule.email_enabled ? 'On' : 'Off'}
                     </span>
                   </td>
@@ -233,16 +233,16 @@ export default function AlertRulesPage() {
       )}
 
       {/* Email Reports card */}
-      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">Email Reports</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-          Weekly analytics reports (last 7 days) are automatically emailed every Monday at 07:00 UTC to all workspace admins.
-          You can also send a report on demand.
+      <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Email Reports</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+          Scheduled analytics reports are managed by Platform Admins in Settings {'->'} Email. Org admins can still send an on-demand
+          workspace report from here.
         </p>
         <button
           onClick={handleSendReport}
           disabled={sendingReport}
-          className="rounded bg-violet-600 px-4 py-1.5 text-sm text-white hover:bg-violet-700 disabled:opacity-50"
+          className="rounded bg-teal-700 px-4 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
         >
           {sendingReport ? 'Sending…' : 'Send Report Now'}
         </button>

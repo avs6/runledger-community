@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Lock, Trash2, Mail } from 'lucide-react'
+import { Clock, DatabaseBackup, Lock, Mail, Trash2 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
   LedgerVerifyResult,
@@ -26,12 +26,13 @@ import {
 } from '@/lib/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400'
 
 const TABS = [
   { id: 'compliance', label: 'Compliance', icon: Lock },
   { id: 'retention', label: 'Data Retention', icon: Trash2 },
   { id: 'email', label: 'Email', icon: Mail },
+  { id: 'backup', label: 'Backup', icon: DatabaseBackup },
 ] as const
 
 export default function SettingsPage() {
@@ -301,20 +302,87 @@ export default function SettingsPage() {
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
                 <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Email Notification Preferences</h3>
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Report Frequency
-                    </label>
-                    <select
-                      className={inputCls}
-                      value={emailPrefs.report_frequency}
-                      onChange={(e) => setEmailPrefs({ ...emailPrefs, report_frequency: e.target.value })}
-                    >
-                      <option value="never">Never</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                    <div className="mb-4 flex items-start gap-2">
+                      <Clock className="mt-0.5 h-4 w-4 text-teal-600 dark:text-teal-300" />
+                      <div>
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Scheduled analytics report</h4>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Worker checks schedules hourly. Weekly reports send on Monday; monthly reports send on the first day of the month.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Cadence
+                        </label>
+                        <select
+                          className={`${inputCls} w-full`}
+                          value={emailPrefs.report_frequency}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_frequency: e.target.value })}
+                        >
+                          <option value="never">Never</option>
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Delivery hour
+                        </label>
+                        <select
+                          className={`${inputCls} w-full`}
+                          value={emailPrefs.report_hour ?? 7}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_hour: Number(e.target.value) })}
+                        >
+                          {Array.from({ length: 24 }, (_, hour) => (
+                            <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Timezone
+                        </label>
+                        <input
+                          className={`${inputCls} w-full`}
+                          value={emailPrefs.report_timezone ?? 'UTC'}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_timezone: e.target.value })}
+                          placeholder="UTC"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Recipients
+                        </label>
+                        <select
+                          className={`${inputCls} w-full`}
+                          value={emailPrefs.report_recipient_mode ?? 'workspace_admins'}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_recipient_mode: e.target.value })}
+                        >
+                          <option value="workspace_admins">Workspace admins</option>
+                          <option value="custom">Custom list</option>
+                        </select>
+                      </div>
+                    </div>
+                    {emailPrefs.report_recipient_mode === 'custom' && (
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Custom recipients
+                        </label>
+                        <textarea
+                          className={`${inputCls} min-h-20 w-full`}
+                          value={emailPrefs.report_recipients ?? ''}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_recipients: e.target.value })}
+                          placeholder="ops@example.com, finance@example.com"
+                        />
+                      </div>
+                    )}
+                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                      Last sent: {emailPrefs.report_last_sent_at ? new Date(emailPrefs.report_last_sent_at).toLocaleString() : 'No scheduled report sent yet.'}
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -334,7 +402,7 @@ export default function SettingsPage() {
                           type="checkbox"
                           checked={emailPrefs[key] as boolean}
                           onChange={(e) => setEmailPrefs({ ...emailPrefs, [key]: e.target.checked })}
-                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          className="h-4 w-4 rounded border-gray-300 text-teal-700 focus:ring-teal-600"
                         />
                         <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
                       </label>
@@ -342,7 +410,7 @@ export default function SettingsPage() {
                   </div>
 
                   <button
-                    className="px-4 py-2 rounded bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                    className="px-4 py-2 rounded bg-teal-700 text-white text-sm font-medium hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
                     disabled={savingEmailPrefs}
                     onClick={async () => {
                       if (!apiKey || !emailPrefs) return
@@ -350,6 +418,10 @@ export default function SettingsPage() {
                       try {
                         const updated = await updateEmailPreferences(apiKey, {
                           report_frequency: emailPrefs.report_frequency,
+                          report_hour: emailPrefs.report_hour,
+                          report_timezone: emailPrefs.report_timezone,
+                          report_recipient_mode: emailPrefs.report_recipient_mode,
+                          report_recipients: emailPrefs.report_recipients,
                           alerts_enabled: emailPrefs.alerts_enabled,
                           approvals_enabled: emailPrefs.approvals_enabled,
                           reconciliation_enabled: emailPrefs.reconciliation_enabled,
@@ -446,6 +518,96 @@ export default function SettingsPage() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'backup' && (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-teal-50 p-2 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                  <DatabaseBackup className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Backup Schedule</h3>
+                  <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+                    RunLedger already supports S3 backup and restore through the Helm CronJob and `scripts/restore.sh`.
+                    This screen defines the product-managed schedule experience we will wire to that backend runner next.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Cadence</label>
+                  <select className={`${inputCls} w-full`} defaultValue="daily">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Run time</label>
+                  <select className={`${inputCls} w-full`} defaultValue="2">
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Retention</label>
+                  <select className={`${inputCls} w-full`} defaultValue="30">
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                    <option value="365">1 year</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">S3 bucket</label>
+                  <input className={`${inputCls} w-full`} placeholder="s3://my-bucket/runledger-backups" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">AWS region</label>
+                  <input className={`${inputCls} w-full`} placeholder="us-east-1" />
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {[
+                  'Control-plane Postgres',
+                  'Memory DB',
+                  'Qdrant snapshots',
+                  'Kuzu graph PVC',
+                  'Skill registry PVC',
+                  'Trace/export artifacts',
+                ].map((label) => (
+                  <label key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+                    <input type="checkbox" defaultChecked={label !== 'Qdrant snapshots'} className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button disabled className="rounded bg-teal-700 px-4 py-2 text-sm font-medium text-white opacity-60">
+                  Save schedule
+                </button>
+                <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">
+                  Test S3 connection
+                </button>
+                <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">
+                  Restore docs planned
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                Product-managed backup execution, history, and restore drills are planned. Today, production S3 backups run through the Helm CronJob.
+              </div>
             </div>
           </div>
         )}

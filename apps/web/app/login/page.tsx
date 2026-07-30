@@ -58,12 +58,12 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-slate-950">
       {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-slate-900 to-slate-950 border-r border-slate-800">
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between border-r border-slate-800/80 bg-[radial-gradient(circle_at_20%_15%,rgba(20,184,166,0.10),transparent_28rem),linear-gradient(135deg,#0f172a,#020617)] p-12">
         <div className="flex items-center gap-3">
           <RunLedgerLogo size={36} />
           <div>
             <div className="text-sm font-semibold text-white leading-none">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-400 leading-none">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-teal-300 leading-none">
               Control Plane
             </div>
           </div>
@@ -87,7 +87,7 @@ export default function LoginPage() {
               'Prompt versioning & evaluation scores',
             ].map(f => (
               <div key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                <div className="h-1.5 w-1.5 rounded-full bg-violet-400 shrink-0" />
+                <div className="h-1.5 w-1.5 rounded-full bg-teal-300 shrink-0" />
                 {f}
               </div>
             ))}
@@ -104,7 +104,7 @@ export default function LoginPage() {
           <RunLedgerLogo size={48} />
           <div className="text-center">
             <div className="text-xl font-bold text-white">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-violet-400">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-teal-300">
               FinOps Control Plane
             </div>
           </div>
@@ -129,7 +129,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 required
                 autoFocus
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
               />
             </div>
             <div className="space-y-1.5">
@@ -142,7 +142,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-violet-500 focus:ring-violet-500/20"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
               />
             </div>
 
@@ -154,7 +154,7 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md hover:from-violet-500 hover:to-indigo-500"
+              className="w-full bg-teal-600 text-white shadow-md shadow-teal-950/20 hover:bg-teal-500"
               disabled={loading}
             >
               {loading ? (

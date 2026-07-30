@@ -30,6 +30,19 @@ class EmailPreference(Base):
     report_frequency: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, server_default=sa.text("'weekly'")
     )
+    report_hour: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("7")
+    )
+    report_timezone: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'UTC'")
+    )
+    report_recipient_mode: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'workspace_admins'")
+    )
+    report_recipients: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    report_last_sent_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     alerts_enabled: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")
     )

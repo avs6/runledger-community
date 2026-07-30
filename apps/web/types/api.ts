@@ -1277,6 +1277,11 @@ export interface EmailPreference {
   id: string
   workspace_id: string
   report_frequency: string
+  report_hour: number
+  report_timezone: string
+  report_recipient_mode: string
+  report_recipients: string | null
+  report_last_sent_at: string | null
   alerts_enabled: boolean
   approvals_enabled: boolean
   reconciliation_enabled: boolean

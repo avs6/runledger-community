@@ -3,33 +3,33 @@
 @tailwind utilities;
 
 ::selection {
-  background-color: rgba(124, 58, 237, 0.35);
+  background-color: rgba(13, 148, 136, 0.28);
   color: #fff;
 }
 
 /* ── Background orb CSS vars — toggled by .dark ── */
 :root {
-  --orb-1: rgba(109, 40, 217, 0.06);
-  --orb-2: rgba(99, 102, 241, 0.04);
-  --orb-3: rgba(34, 211, 238, 0.00);
+  --orb-1: rgba(13, 148, 136, 0.07);
+  --orb-2: rgba(14, 116, 144, 0.05);
+  --orb-3: rgba(100, 116, 139, 0.02);
 }
 
 .dark {
-  --orb-1: rgba(124, 58, 237, 0.18);
-  --orb-2: rgba(99, 102, 241, 0.11);
-  --orb-3: rgba(34, 211, 238, 0.04);
+  --orb-1: rgba(20, 184, 166, 0.12);
+  --orb-2: rgba(8, 145, 178, 0.08);
+  --orb-3: rgba(148, 163, 184, 0.03);
 }
 
 @layer base {
   :root {
     /* ── Light ───────────────────────────────────── */
-    --background: 220 25% 97%;
-    --foreground: 222 47% 10%;
+    --background: 210 24% 97%;
+    --foreground: 222 32% 11%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 10%;
-    --primary: 262 80% 50%;
+    --primary: 178 72% 28%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 20% 93%;
     --secondary-foreground: 222 47% 14%;
@@ -41,24 +41,24 @@
     --destructive-foreground: 0 0% 98%;
     --border: 220 18% 88%;
     --input: 220 18% 88%;
-    --ring: 262 80% 50%;
-    --chart-1: 262 83% 55%;
-    --chart-2: 186 96% 36%;
-    --chart-3: 43 95% 46%;
-    --chart-4: 158 64% 36%;
-    --chart-5: 0 84% 55%;
+    --ring: 178 72% 30%;
+    --chart-1: 178 72% 32%;
+    --chart-2: 203 65% 42%;
+    --chart-3: 38 76% 48%;
+    --chart-4: 151 52% 36%;
+    --chart-5: 358 62% 54%;
     --radius: 0.75rem;
   }
 
   .dark {
     /* ── Dark ────────────────────────────────────── */
-    --background: 222 47% 6%;
+    --background: 222 36% 6%;
     --foreground: 214 32% 91%;
     --card: 222 44% 9%;
     --card-foreground: 214 32% 91%;
     --popover: 222 44% 11%;
     --popover-foreground: 214 32% 91%;
-    --primary: 262 83% 62%;
+    --primary: 176 65% 42%;
     --primary-foreground: 0 0% 100%;
     --secondary: 222 36% 14%;
     --secondary-foreground: 214 32% 85%;
@@ -70,12 +70,12 @@
     --destructive-foreground: 0 0% 98%;
     --border: 222 30% 16%;
     --input: 222 30% 16%;
-    --ring: 262 83% 62%;
-    --chart-1: 262 83% 65%;
-    --chart-2: 186 96% 55%;
-    --chart-3: 43 95% 58%;
-    --chart-4: 158 64% 52%;
-    --chart-5: 0 84% 65%;
+    --ring: 176 65% 42%;
+    --chart-1: 176 65% 46%;
+    --chart-2: 199 70% 56%;
+    --chart-3: 38 80% 62%;
+    --chart-4: 151 55% 50%;
+    --chart-5: 358 70% 66%;
   }
 
   * {

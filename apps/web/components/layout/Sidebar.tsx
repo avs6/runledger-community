@@ -69,14 +69,14 @@ export default function Sidebar() {
         href={href}
         className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
           active
-            ? 'bg-violet-500/10 text-violet-200 shadow-sm dark:bg-violet-500/10 dark:text-violet-200'
-            : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200 dark:text-slate-400 dark:hover:bg-white/[0.04] dark:hover:text-slate-200'
+            ? 'bg-teal-500/10 text-teal-800 shadow-sm dark:bg-teal-500/10 dark:text-teal-100'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.04] dark:hover:text-slate-200'
         }`}
       >
         {active && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-violet-400" />
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-teal-400" />
         )}
-        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-violet-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-teal-500 dark:text-teal-300' : 'text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'}`} />
         {label}
       </Link>
     )
@@ -89,7 +89,7 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => toggleSection(id)}
-          className="mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-600 transition-colors hover:bg-white/[0.04] hover:text-slate-400 dark:text-slate-600"
+          className="mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-600 dark:hover:bg-white/[0.04] dark:hover:text-slate-400"
           aria-expanded={open}
         >
           <span>{label}</span>
@@ -101,15 +101,15 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-60 flex-col border-r border-white/[0.05] bg-white/80 px-3 py-4 backdrop-blur-xl dark:border-white/[0.05] dark:bg-[#070A17]/90">
+    <aside className="flex h-full w-60 flex-col border-r border-slate-200/80 bg-white/85 px-3 py-4 backdrop-blur-xl dark:border-white/[0.05] dark:bg-[#070D18]/92">
       {/* Logo */}
       <div className="mb-5 px-2">
         <div className="flex items-center gap-2.5">
           <svg width="28" height="28" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
             <defs>
               <linearGradient id="sb-grad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#7C3AED" />
-                <stop offset="100%" stopColor="#6366F1" />
+              <stop offset="0%" stopColor="#0F766E" />
+              <stop offset="100%" stopColor="#0891B2" />
               </linearGradient>
             </defs>
             <rect width="56" height="56" rx="14" fill="url(#sb-grad)" />
@@ -122,7 +122,7 @@ export default function Sidebar() {
             <div className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white leading-none" style={{ fontFamily: 'var(--font-display, inherit)' }}>
               RunLedger
             </div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-500 dark:text-violet-400 leading-none">
+            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-teal-600 dark:text-teal-300 leading-none">
               Control Plane
             </div>
           </div>
@@ -140,16 +140,16 @@ export default function Sidebar() {
             href={globalDashboardItem.href}
             className={`group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
               pathname.startsWith('/organization/dashboard')
-                ? 'bg-violet-500/10 text-violet-200'
-                : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
+                ? 'bg-teal-500/10 text-teal-800 dark:text-teal-100'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.04] dark:hover:text-slate-200'
             }`}
           >
             {pathname.startsWith('/organization/dashboard') && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-violet-400" />
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-teal-400" />
             )}
-            <LayoutGrid className={`h-4 w-4 shrink-0 ${pathname.startsWith('/organization/dashboard') ? 'text-violet-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+            <LayoutGrid className={`h-4 w-4 shrink-0 ${pathname.startsWith('/organization/dashboard') ? 'text-teal-500 dark:text-teal-300' : 'text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300'}`} />
             Global Dashboard
-            <span className="ml-auto rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold text-violet-400 dark:bg-violet-500/15 dark:text-violet-400">
+            <span className="ml-auto rounded-full bg-teal-500/15 px-1.5 py-0.5 text-[9px] font-bold text-teal-700 dark:bg-teal-500/15 dark:text-teal-300">
               ORG
             </span>
           </Link>

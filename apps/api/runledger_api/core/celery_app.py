@@ -124,10 +124,10 @@ celery_app.conf.update(
             "task": "retention.apply_policies",
             "schedule": 86400.0,
         },
-        # Weekly analytics email report: every Monday at 07:00 UTC
+        # Scheduled analytics email reports: hourly check, workspace prefs decide cadence.
         "email-report-weekly": {
             "task": "email_reports.send_weekly_analytics",
-            "schedule": 604800.0,  # 7 days
+            "schedule": 3600.0,
         },
         # Gateway route health monitoring: every 5 minutes
         "gateway-health-check-5m": {

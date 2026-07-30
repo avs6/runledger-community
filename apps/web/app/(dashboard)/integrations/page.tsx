@@ -25,7 +25,7 @@ import { useRole } from '@/components/rbac/useRole'
 import { testSlackWebhook } from '@/lib/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400'
 
 type IntegrationStatus = 'available' | 'planned' | 'docs' | 'coming-soon'
 
@@ -155,6 +155,13 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         icon: Bot,
         details: ['Run spans', 'Tool calls', 'Agent dependency graph'],
       },
+      {
+        name: 'Kafka / Redpanda Streaming',
+        description: 'Export RunLedger events into customer Kafka-compatible streams in real time.',
+        status: 'planned',
+        icon: RadioTower,
+        details: ['Event export', 'Delivery log', 'Dead-letter topics'],
+      },
     ],
   },
   {
@@ -205,10 +212,10 @@ function StatusBadge({ status }: { status: IntegrationStatus }) {
 function IntegrationCardView({ card }: { card: IntegrationCard }) {
   const Icon = card.icon
   return (
-    <div className="group rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-indigo-500/50">
+    <div className="group rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-teal-500/50">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-indigo-100 p-2 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+          <div className="rounded-xl bg-teal-100 p-2 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300">
             <Icon className="h-4 w-4" />
           </div>
           <div>
@@ -227,7 +234,7 @@ function IntegrationCardView({ card }: { card: IntegrationCard }) {
       </div>
       <div className="mt-4">
         {card.href ? (
-          <Link href={card.href} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-indigo-400 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:text-indigo-300">
+          <Link href={card.href} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-teal-500 hover:text-teal-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-teal-500 dark:hover:text-teal-300">
             Open
           </Link>
         ) : (
@@ -281,22 +288,22 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="min-h-screen space-y-8 bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.12),transparent_36rem)] p-8">
+    <div className="min-h-screen space-y-8 bg-[radial-gradient(circle_at_top_left,rgba(13,148,136,0.10),transparent_36rem)] p-8">
       <div className="max-w-6xl">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-indigo-400">Control Plane</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-teal-500 dark:text-teal-300">Control Plane</p>
             <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">Integrations</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
               Connect notification channels, MCP-aware agents, telemetry pipelines, model gateways, and auxiliary infrastructure to RunLedger.
             </p>
           </div>
-          <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-100">
+          <div className="rounded-2xl border border-teal-500/20 bg-teal-500/10 px-4 py-3 text-sm text-teal-900 dark:text-teal-100">
             <div className="flex items-center gap-2 font-semibold">
               <CheckCircle2 className="h-4 w-4" />
               Integration hub
             </div>
-            <p className="mt-1 text-xs text-indigo-200/80">Slack test is live. Additional connectors are staged for setup workflows.</p>
+            <p className="mt-1 text-xs text-teal-700/80 dark:text-teal-200/80">Slack test is live. Additional connectors are staged for setup workflows.</p>
           </div>
         </div>
 
@@ -304,7 +311,7 @@ export default function IntegrationsPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-indigo-400" />
+                <MessageSquare className="h-5 w-5 text-teal-500 dark:text-teal-300" />
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Slack Webhook</h2>
                 <StatusBadge status="available" />
               </div>
@@ -323,7 +330,7 @@ export default function IntegrationsPage() {
               className={`min-w-72 flex-1 ${inputCls}`}
               required
             />
-            <button type="submit" disabled={testingSlack || !slackWebhookUrl.trim()} className="rounded bg-indigo-600 px-4 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
+            <button type="submit" disabled={testingSlack || !slackWebhookUrl.trim()} className="rounded bg-teal-700 px-4 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400">
               {testingSlack ? 'Sending...' : 'Test'}
             </button>
           </form>
