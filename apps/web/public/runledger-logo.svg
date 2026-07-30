@@ -1,24 +1,32 @@
-<svg width="420" height="112" viewBox="0 0 420 112" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger AI Ops Ledger">
+<svg width="640" height="360" viewBox="0 0 640 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger Intelligence, Accounted.">
   <defs>
-    <linearGradient id="runledger-logo-bg" x1="16" y1="12" x2="96" y2="100" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0F766E"/>
-      <stop offset="0.52" stop-color="#155E75"/>
-      <stop offset="1" stop-color="#111827"/>
+    <linearGradient id="bladeA" x1="250" y1="34" x2="380" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#93C5FD"/>
+      <stop offset="0.48" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1E5A94"/>
     </linearGradient>
-    <linearGradient id="runledger-logo-line" x1="31" y1="78" x2="82" y2="36" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#A7F3D0"/>
-      <stop offset="1" stop-color="#67E8F9"/>
+    <linearGradient id="bladeB" x1="260" y1="38" x2="386" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BFDBFE"/>
+      <stop offset="0.5" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#2F6FA7"/>
     </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.38"/>
+    </filter>
   </defs>
-  <rect width="420" height="112" rx="28" fill="#F8FAFC"/>
-  <rect x="0.5" y="0.5" width="419" height="111" rx="27.5" stroke="#E2E8F0"/>
-  <rect x="12" y="12" width="88" height="88" rx="24" fill="url(#runledger-logo-bg)"/>
-  <rect x="12.75" y="12.75" width="86.5" height="86.5" rx="23.25" stroke="white" stroke-opacity="0.12"/>
-  <path d="M32 73.5L49.5 57.75L63 64.25L82 41" stroke="url(#runledger-logo-line)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M32 80V64" stroke="white" stroke-opacity="0.9" stroke-width="6" stroke-linecap="round"/>
-  <path d="M51 80V50" stroke="white" stroke-opacity="0.9" stroke-width="6" stroke-linecap="round"/>
-  <path d="M70 80V56" stroke="white" stroke-opacity="0.65" stroke-width="6" stroke-linecap="round"/>
-  <circle cx="82" cy="41" r="5" fill="#CCFBF1"/>
-  <text x="124" y="56" fill="#0F172A" font-family="Manrope, Inter, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="-1.2">RunLedger</text>
-  <text x="126" y="78" fill="#0F766E" font-family="Manrope, Inter, Arial, sans-serif" font-size="12" font-weight="800" letter-spacing="4">AI OPS LEDGER</text>
+  <rect width="640" height="360" rx="28" fill="#050505"/>
+  <g filter="url(#softShadow)">
+    <g transform="translate(320 128)">
+      <path d="M-13 -96C26 -92 49 -68 43 -28C23 -35 4 -34 -15 -23C-32 -53 -29 -79 -13 -96Z" fill="url(#bladeA)" transform="rotate(0)"/>
+      <path d="M-13 -96C26 -92 49 -68 43 -28C23 -35 4 -34 -15 -23C-32 -53 -29 -79 -13 -96Z" fill="url(#bladeB)" transform="rotate(60)"/>
+      <path d="M-13 -96C26 -92 49 -68 43 -28C23 -35 4 -34 -15 -23C-32 -53 -29 -79 -13 -96Z" fill="url(#bladeA)" transform="rotate(120)"/>
+      <path d="M-13 -96C26 -92 49 -68 43 -28C23 -35 4 -34 -15 -23C-32 -53 -29 -79 -13 -96Z" fill="url(#bladeB)" transform="rotate(180)"/>
+      <path d="M-13 -96C26 -92 49 -68 43 -28C23 -35 4 -34 -15 -23C-32 -53 -29 -79 -13 -96Z" fill="url(#bladeA)" transform="rotate(240)"/>
+      <path d="M-13 -96C26 -92 49 -68 43 -28C23 -35 4 -34 -15 -23C-32 -53 -29 -79 -13 -96Z" fill="url(#bladeB)" transform="rotate(300)"/>
+    </g>
+    <circle cx="320" cy="128" r="42" fill="#050505"/>
+    <text x="320" y="150" text-anchor="middle" fill="#FFFFFF" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="54" font-weight="800" letter-spacing="-3.5" transform="rotate(7 320 128)">RL</text>
+  </g>
+  <text x="320" y="263" text-anchor="middle" fill="#FFFFFF" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="58" font-weight="800" letter-spacing="-2.5">RunLedger</text>
+  <text x="320" y="320" text-anchor="middle" fill="#B8B0AA" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="20" font-weight="600" letter-spacing="4">INTELLIGENCE, ACCOUNTED.</text>
 </svg>

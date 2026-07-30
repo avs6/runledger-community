@@ -1,0 +1,14 @@
+<svg width="520" height="180" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variant A">
+  <rect width="520" height="180" rx="28" fill="#F4F7FB"/>
+  <rect x="0.5" y="0.5" width="519" height="179" rx="27.5" stroke="#D7E1EC"/>
+  <g transform="translate(42 34)">
+    <rect width="112" height="112" rx="28" fill="#EEF4FA"/>
+    <rect x="1" y="1" width="110" height="110" rx="27" stroke="#B9C8D8"/>
+    <path d="M30 86V30C30 20.1 38.1 12 48 12H74C93 12 105 24.2 105 41.5C105 58 93.6 69.5 76.5 69.5H61.5L84 86H105" stroke="#2E5E8C" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M30 86L56 44" stroke="#2E5E8C" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="98" cy="17" r="8" fill="#86A9CD"/>
+  </g>
+  <text x="188" y="83" fill="#122033" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+  <text x="190" y="112" fill="#426A94" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="4">AI OPS LEDGER</text>
+  <text x="42" y="154" fill="#66768A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Variant A: monoline RL badge, closest to your reference</text>
+</svg>

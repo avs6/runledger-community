@@ -1,0 +1,22 @@
+<svg width="1120" height="680" viewBox="0 0 1120 680" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger abstract logo variants comparison">
+  <rect width="1120" height="680" fill="#EAF0F6"/>
+  <text x="48" y="64" fill="#111827" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-1.3">RunLedger Abstract Mark Directions</text>
+  <text x="50" y="92" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500">A closer take on the newer reference: abstract AI/agent monogram with a subtle ledger/control-plane feel.</text>
+
+  <g transform="translate(48 132)">
+    <image href="runledger-logo-variant-e.svg" width="520" height="180"/>
+  </g>
+  <g transform="translate(592 132)">
+    <image href="runledger-logo-variant-f.svg" width="520" height="180"/>
+  </g>
+  <g transform="translate(48 352)">
+    <image href="runledger-logo-variant-g.svg" width="520" height="180"/>
+  </g>
+
+  <rect x="592" y="352" width="480" height="180" rx="28" fill="#F8FAFC" stroke="#CFDAE6"/>
+  <text x="624" y="406" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="-0.7">My Pick</text>
+  <text x="624" y="442" fill="#334155" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">Variant E for the live product logo.</text>
+  <text x="624" y="472" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14">It is closest to your reference, has a memorable silhouette, and does not feel as heavy as a black badge.</text>
+  <text x="624" y="500" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14">Use Variant F only if you want a bold app icon or favicon.</text>
+  <text x="48" y="604" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Preview URLs: /brand/runledger-logo-variants-abstract.svg and /brand/runledger-logo-variants.svg</text>
+</svg>

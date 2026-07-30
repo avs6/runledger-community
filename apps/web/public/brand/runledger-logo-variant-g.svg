@@ -1,0 +1,15 @@
+<svg width="520" height="180" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variant G">
+  <rect width="520" height="180" rx="28" fill="#F5F8FC"/>
+  <rect x="0.5" y="0.5" width="519" height="179" rx="27.5" stroke="#D8E2EE"/>
+  <g transform="translate(42 30)">
+    <rect width="120" height="120" rx="30" fill="#EDF3F8"/>
+    <path d="M33 82C23.8 97.9 46.4 110.9 55.6 95L84.5 45C93.7 29.1 71.1 16.1 61.9 32L33 82Z" stroke="#2D4F73" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M75.5 96.5L96.2 60.8C104.7 46.1 125.8 58.3 117.3 73L98.5 105.5" stroke="#2D4F73" stroke-width="15" stroke-linecap="round"/>
+    <path d="M91.5 76.5L113 113.5" stroke="#86A2BC" stroke-width="15" stroke-linecap="round"/>
+    <path d="M55 96L85 45" stroke="#EDF3F8" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="99" cy="26" r="10" fill="#86A2BC"/>
+  </g>
+  <text x="192" y="82" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+  <text x="194" y="112" fill="#55799E" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="4">AI OPERATIONS INTELLIGENCE</text>
+  <text x="42" y="154" fill="#66768A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Variant G: outlined monoline, best if we want a refined less-heavy mark</text>
+</svg>

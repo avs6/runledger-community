@@ -27,7 +27,7 @@ import {
 } from '@/lib/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400'
+  'rounded border border-stone-300 dark:border-stone-700 bg-[#fbfaf7] dark:bg-[#16181F] text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-stone-500 dark:focus:ring-[#D8CAAA]'
 
 const TABS = [
   { id: 'compliance', label: 'Compliance', description: 'Signed ledgers and audit evidence', icon: Lock },
@@ -169,9 +169,9 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white/85 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/55 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-[#fbfaf7]/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/55 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 dark:text-teal-300">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-stone-700 dark:text-[#D8CAAA]">
             Platform Console
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
@@ -181,12 +181,12 @@ export default function SettingsPage() {
             High-impact controls for compliance, retention, messaging, and recovery. These are intentionally platform-admin only.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Theme</span>
           <select
             value={theme ?? 'system'}
             onChange={(e) => setTheme(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="rounded-lg border border-stone-200 bg-[#fbfaf7] px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-stone-500 dark:border-stone-700 dark:bg-[#16181F] dark:text-slate-100"
           >
             <option value="light">Light</option>
             <option value="dark">Dark</option>
@@ -204,14 +204,14 @@ export default function SettingsPage() {
               onClick={() => setTab(id)}
               className={`group rounded-2xl border p-4 text-left transition-all ${
                 selected
-                  ? 'border-teal-500/50 bg-teal-50 text-slate-950 shadow-sm ring-1 ring-teal-500/20 dark:border-teal-400/40 dark:bg-teal-500/10 dark:text-white'
-                  : 'border-slate-200 bg-white/70 text-slate-700 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
+                  ? 'border-stone-300 bg-stone-100 text-slate-950 shadow-sm ring-1 ring-stone-400/20 dark:border-stone-500/40 dark:bg-stone-700/30 dark:text-white'
+                  : 'border-stone-200 bg-[#fbfaf7]/70 text-slate-700 hover:border-stone-300 hover:bg-[#fffdf8] dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
               }`}
             >
               <div className="flex items-start gap-3">
                 <span className={`rounded-xl p-2 ${
                   selected
-                    ? 'bg-teal-600 text-white dark:bg-teal-400 dark:text-slate-950'
+                    ? 'bg-stone-700 text-white dark:bg-[#D8CAAA] dark:text-[#111318]'
                     : 'bg-slate-100 text-slate-500 group-hover:text-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:group-hover:text-slate-200'
                 }`}>
                   <Icon className="h-4 w-4" />
@@ -228,7 +228,7 @@ export default function SettingsPage() {
         })}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="rounded-2xl border border-stone-200 bg-[#fbfaf7]/80 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
 
         {/* ── Compliance ────────────────────────────────────────────────────────── */}
         {activeTab === 'compliance' && (
@@ -259,7 +259,7 @@ export default function SettingsPage() {
                 <button
                   onClick={handleGenerateSnapshot}
                   disabled={generatingSnap}
-                  className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
+                  className="rounded bg-stone-700 px-3 py-1.5 text-sm text-white hover:bg-stone-600 disabled:opacity-50 dark:bg-[#D8CAAA] dark:text-[#111318] dark:hover:bg-[#E8DDC9]"
                 >
                   {generatingSnap ? 'Generating…' : 'Generate Snapshot'}
                 </button>
@@ -312,7 +312,7 @@ export default function SettingsPage() {
                               <button
                                 onClick={() => handleVerifySnapshot(snap)}
                                 disabled={verifyingSnap === snap.snapshot_date}
-                                className="text-xs font-medium text-teal-700 hover:underline disabled:opacity-50 dark:text-teal-300"
+                                className="text-xs font-medium text-stone-700 hover:underline disabled:opacity-50 dark:text-[#D8CAAA]"
                               >
                                 {verifyingSnap === snap.snapshot_date ? 'Verifying…' : 'Verify'}
                               </button>
@@ -331,7 +331,7 @@ export default function SettingsPage() {
               <p className="font-medium">Tool Registry</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Tool governance has moved to its own page.{' '}
-                <a href="/tool-registry" className="text-teal-700 hover:underline dark:text-teal-300">Go to Tool Registry →</a>
+                <a href="/tool-registry" className="text-stone-700 hover:underline dark:text-[#D8CAAA]">Go to Tool Registry →</a>
               </p>
             </div>
           </div>
@@ -376,7 +376,7 @@ export default function SettingsPage() {
                 <div className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/40">
                     <div className="mb-4 flex items-start gap-2">
-                      <Clock className="mt-0.5 h-4 w-4 text-teal-600 dark:text-teal-300" />
+                      <Clock className="mt-0.5 h-4 w-4 text-stone-600 dark:text-[#D8CAAA]" />
                       <div>
                         <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Scheduled analytics report</h4>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -474,7 +474,7 @@ export default function SettingsPage() {
                           type="checkbox"
                           checked={emailPrefs[key] as boolean}
                           onChange={(e) => setEmailPrefs({ ...emailPrefs, [key]: e.target.checked })}
-                          className="h-4 w-4 rounded border-gray-300 text-teal-700 focus:ring-teal-600"
+                          className="h-4 w-4 rounded border-gray-300 text-stone-700 focus:ring-stone-500"
                         />
                         <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
                       </label>
@@ -482,7 +482,7 @@ export default function SettingsPage() {
                   </div>
 
                   <button
-                    className="px-4 py-2 rounded bg-teal-700 text-white text-sm font-medium hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
+                    className="rounded bg-stone-700 px-4 py-2 text-sm font-medium text-white hover:bg-stone-600 disabled:opacity-50 dark:bg-[#D8CAAA] dark:text-[#111318] dark:hover:bg-[#E8DDC9]"
                     disabled={savingEmailPrefs}
                     onClick={async () => {
                       if (!apiKey || !emailPrefs) return
@@ -596,9 +596,9 @@ export default function SettingsPage() {
 
         {activeTab === 'backup' && (
           <div className="space-y-6">
-            <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+            <div className="rounded-lg border border-stone-200 bg-[#fbfaf7] p-6 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-teal-50 p-2 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+                <div className="rounded-xl bg-stone-100 p-2 text-stone-700 dark:bg-stone-700/35 dark:text-[#D8CAAA]">
                   <DatabaseBackup className="h-5 w-5" />
                 </div>
                 <div>
@@ -672,14 +672,14 @@ export default function SettingsPage() {
                   'Trace/export artifacts',
                 ].map((label) => (
                   <label key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
-                    <input type="checkbox" defaultChecked={label !== 'Qdrant snapshots'} disabled={backupSchedulerDisabled} className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" />
+                    <input type="checkbox" defaultChecked={label !== 'Qdrant snapshots'} disabled={backupSchedulerDisabled} className="h-4 w-4 rounded border-slate-300 text-stone-700 focus:ring-stone-500" />
                     {label}
                   </label>
                 ))}
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <button disabled className="rounded bg-teal-700 px-4 py-2 text-sm font-medium text-white opacity-60">
+                <button disabled className="rounded bg-stone-700 px-4 py-2 text-sm font-medium text-white opacity-60 dark:bg-[#D8CAAA] dark:text-[#111318]">
                   Save schedule
                 </button>
                 <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">

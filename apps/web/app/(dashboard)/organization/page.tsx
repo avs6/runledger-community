@@ -51,32 +51,32 @@ type WsRole = 'workspace_admin' | 'member' | 'viewer'
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
+  'rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm shadow-slate-200/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-300 dark:bg-white/90 dark:text-slate-900 dark:shadow-slate-300/30'
 
 const TABLE_HEAD =
-  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'
+  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-600'
 
 const PLAN_COLORS: Record<string, string> = {
-  free: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  pro: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  enterprise: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  free: 'bg-slate-100 text-slate-700 dark:bg-slate-100 dark:text-slate-700',
+  pro: 'bg-blue-100 text-blue-700 dark:bg-blue-100 dark:text-blue-700',
+  enterprise: 'bg-blue-100 text-blue-700 dark:bg-blue-100 dark:text-blue-700',
 }
 
 const WS_ROLE_COLORS: Record<string, string> = {
-  workspace_admin: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
-  member: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  viewer: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+  workspace_admin: 'bg-blue-100 text-blue-700 dark:bg-blue-100 dark:text-blue-700',
+  member: 'bg-slate-100 text-slate-700 dark:bg-slate-100 dark:text-slate-700',
+  viewer: 'bg-orange-100 text-orange-700 dark:bg-orange-100 dark:text-orange-700',
 }
 
 const ORG_ROLE_COLORS: Record<string, string> = {
-  org_admin: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  org_member: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  org_admin: 'bg-amber-100 text-amber-700 dark:bg-amber-100 dark:text-amber-700',
+  org_member: 'bg-slate-100 text-slate-700 dark:bg-slate-100 dark:text-slate-700',
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 function Avatar({
-  name, email, color = 'from-violet-500 to-indigo-500',
+  name, email, color = 'from-blue-500 to-slate-600',
 }: { name: string | null; email: string; color?: string }) {
   const ch = ((name ?? email)[0] ?? '?').toUpperCase()
   return (
@@ -90,8 +90,8 @@ function StatusDot({ active }: { active: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
       active
-        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-100 dark:text-emerald-700'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-100 dark:text-slate-500'
     }`}>
       <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
       {active ? 'Active' : 'Inactive'}
@@ -106,7 +106,7 @@ function SkeletonRows({ cols, rows = 4 }: { cols: number; rows?: number }) {
         <tr key={i}>
           {Array.from({ length: cols }).map((_, j) => (
             <td key={j} className="px-4 py-3">
-              <div className="h-4 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-4 animate-pulse rounded bg-slate-200 dark:bg-slate-200" />
             </td>
           ))}
         </tr>
@@ -155,7 +155,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
   }
 
   if (loading) {
-    return <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 animate-pulse h-40" />
+    return <div className="h-40 animate-pulse rounded-xl border border-slate-300 bg-white/80 p-6 dark:border-slate-300 dark:bg-white/80" />
   }
 
   const planLabel = profile?.plan
@@ -164,13 +164,13 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
+      <div className="rounded-xl border border-slate-300 bg-white/80 p-6 shadow-sm shadow-slate-300/30 dark:border-slate-300 dark:bg-white/80">
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-600 text-white text-2xl font-bold shadow-sm">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-slate-600 text-white text-2xl font-bold shadow-sm">
             {profile?.name?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{profile?.name ?? '—'}</h2>
+            <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-950">{profile?.name ?? '—'}</h2>
             <div className="flex items-center gap-2 mt-1">
               {profile?.plan && (
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${PLAN_COLORS[profile.plan] ?? ''}`}>
@@ -178,7 +178,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
                 </span>
               )}
               {profile?.is_default && (
-                <span className="rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 px-2 py-0.5 text-xs font-medium">
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-100 dark:text-blue-700">
                   Default
                 </span>
               )}
@@ -191,11 +191,11 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
           </div>
         </div>
 
-        <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
-          <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">Edit Organization</h3>
+        <div className="border-t border-slate-200 pt-5 dark:border-slate-200">
+          <h3 className="mb-4 text-sm font-medium text-slate-800 dark:text-slate-800">Edit Organization</h3>
           <form onSubmit={handleSave} className="flex items-end gap-3 max-w-lg">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-600">
                 Organization Name
               </label>
               <input
@@ -209,7 +209,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
             <button
               type="submit"
               disabled={saving || editName.trim() === profile?.name}
-              className="rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50 hover:bg-blue-700"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -218,12 +218,12 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
       </div>
 
       {/* Org details */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
-        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Details</h3>
+      <div className="rounded-xl border border-slate-300 bg-white/80 p-6 shadow-sm shadow-slate-300/30 dark:border-slate-300 dark:bg-white/80">
+        <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-900">Details</h3>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <dt className="text-xs text-slate-400 mb-0.5">Organization ID</dt>
-            <dd className="text-sm font-mono text-slate-700 dark:text-slate-300">{profile?.id ?? '—'}</dd>
+            <dd className="text-sm font-mono text-slate-700 dark:text-slate-700">{profile?.id ?? '—'}</dd>
           </div>
           <div>
             <dt className="text-xs text-slate-400 mb-0.5">Plan</dt>
@@ -231,11 +231,11 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
           </div>
           <div>
             <dt className="text-xs text-slate-400 mb-0.5">Default Org</dt>
-            <dd className="text-sm text-slate-700 dark:text-slate-300">{profile?.is_default ? 'Yes' : 'No'}</dd>
+            <dd className="text-sm text-slate-700 dark:text-slate-700">{profile?.is_default ? 'Yes' : 'No'}</dd>
           </div>
           <div>
             <dt className="text-xs text-slate-400 mb-0.5">Created</dt>
-            <dd className="text-sm text-slate-700 dark:text-slate-300">
+            <dd className="text-sm text-slate-700 dark:text-slate-700">
               {profile?.created_at ? new Date(profile.created_at).toLocaleString() : '—'}
             </dd>
           </div>

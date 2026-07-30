@@ -1,0 +1,15 @@
+<svg width="520" height="180" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variant F">
+  <rect width="520" height="180" rx="28" fill="#F6F8FB"/>
+  <rect x="0.5" y="0.5" width="519" height="179" rx="27.5" stroke="#D9E3EE"/>
+  <g transform="translate(42 30)">
+    <rect width="120" height="120" rx="30" fill="#334B67"/>
+    <path d="M34 82C25 97.6 47.2 110.4 56.2 94.8L85 45C94 29.4 71.8 16.6 62.8 32.2L34 82Z" fill="#F7F4EB"/>
+    <path d="M61 84.5L82.7 47" stroke="#334B67" stroke-width="15" stroke-linecap="round"/>
+    <path d="M76 97L96 62.4C104.2 48.2 124.7 60 116.5 74.2L98 106.2" stroke="#F7F4EB" stroke-width="15" stroke-linecap="round"/>
+    <path d="M91 76L112 112" stroke="#C9D8E8" stroke-width="15" stroke-linecap="round"/>
+    <circle cx="99" cy="26" r="10" fill="#C9D8E8"/>
+  </g>
+  <text x="192" y="82" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+  <text x="194" y="112" fill="#6B7280" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="4">AI COST CONTROL</text>
+  <text x="42" y="154" fill="#66768A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Variant F: high-contrast app icon version of the abstract mark</text>
+</svg>

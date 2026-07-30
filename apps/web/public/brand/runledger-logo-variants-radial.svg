@@ -1,0 +1,108 @@
+<svg width="1200" height="860" viewBox="0 0 1200 860" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger radial logo variants comparison">
+  <defs>
+    <linearGradient id="pageBg" x1="0" y1="0" x2="1200" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAF1F8"/>
+      <stop offset="1" stop-color="#F7F9FC"/>
+    </linearGradient>
+    <linearGradient id="bladeBlue" x1="0" y1="0" x2="96" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#93C5FD"/>
+      <stop offset="0.48" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#245A91"/>
+    </linearGradient>
+    <linearGradient id="bladeSoft" x1="0" y1="0" x2="96" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DBEAFE"/>
+      <stop offset="0.52" stop-color="#78AEE7"/>
+      <stop offset="1" stop-color="#3D6F9E"/>
+    </linearGradient>
+    <linearGradient id="bladeSteel" x1="0" y1="0" x2="96" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BCD0E4"/>
+      <stop offset="0.52" stop-color="#6889AA"/>
+      <stop offset="1" stop-color="#334B67"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#7C8DA1" flood-opacity="0.14"/>
+    </filter>
+    <filter id="markShadow" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1E3A5F" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="860" fill="url(#pageBg)"/>
+  <text x="56" y="64" fill="#111827" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-1.3">RunLedger Radial Brand Directions</text>
+  <text x="58" y="94" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500">Inspired by the blue orbital reference: routing, optimization loops, model flow, and AI operations intelligence.</text>
+
+  <!-- Variant H -->
+  <g transform="translate(56 140)" filter="url(#cardShadow)">
+    <rect width="520" height="270" rx="30" fill="#F8FAFC" stroke="#D4DEE9"/>
+    <g transform="translate(52 34)" filter="url(#markShadow)">
+      <circle cx="88" cy="88" r="76" fill="#EFF6FF" stroke="#CAD8E8"/>
+      <g transform="translate(88 88)">
+        <path d="M-8 -74C23 -71 39 -51 32 -21C20 -27 7 -29 -7 -25C-21 -43 -20 -59 -8 -74Z" fill="url(#bladeBlue)" transform="rotate(0)"/>
+        <path d="M-8 -74C23 -71 39 -51 32 -21C20 -27 7 -29 -7 -25C-21 -43 -20 -59 -8 -74Z" fill="url(#bladeSoft)" transform="rotate(60)"/>
+        <path d="M-8 -74C23 -71 39 -51 32 -21C20 -27 7 -29 -7 -25C-21 -43 -20 -59 -8 -74Z" fill="url(#bladeBlue)" transform="rotate(120)"/>
+        <path d="M-8 -74C23 -71 39 -51 32 -21C20 -27 7 -29 -7 -25C-21 -43 -20 -59 -8 -74Z" fill="url(#bladeSoft)" transform="rotate(180)"/>
+        <path d="M-8 -74C23 -71 39 -51 32 -21C20 -27 7 -29 -7 -25C-21 -43 -20 -59 -8 -74Z" fill="url(#bladeBlue)" transform="rotate(240)"/>
+        <path d="M-8 -74C23 -71 39 -51 32 -21C20 -27 7 -29 -7 -25C-21 -43 -20 -59 -8 -74Z" fill="url(#bladeSoft)" transform="rotate(300)"/>
+      </g>
+      <circle cx="88" cy="88" r="31" fill="#F8FAFC"/>
+      <text x="88" y="101" text-anchor="middle" fill="#1E3A5F" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="42" font-weight="800">R</text>
+    </g>
+    <text x="238" y="102" fill="#111827" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+    <text x="240" y="132" fill="#386891" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="750" letter-spacing="4">AI OPS LEDGER</text>
+    <text x="238" y="178" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500">Variant H: orbital routing mark. Best balance of motion and enterprise polish.</text>
+    <text x="238" y="206" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500">Reads as model routing, optimization loops, and AI control plane.</text>
+  </g>
+
+  <!-- Variant I -->
+  <g transform="translate(624 140)" filter="url(#cardShadow)">
+    <rect width="520" height="270" rx="30" fill="#F8FAFC" stroke="#D4DEE9"/>
+    <g transform="translate(52 34)" filter="url(#markShadow)">
+      <rect width="176" height="176" rx="38" fill="#E9F1F8" stroke="#C9D7E6"/>
+      <g transform="translate(88 88)">
+        <path d="M0 -72C32 -61 48 -39 45 -10C27 -17 10 -18 -8 -10C-20 -33 -16 -54 0 -72Z" fill="url(#bladeSteel)" transform="rotate(0)"/>
+        <path d="M0 -72C32 -61 48 -39 45 -10C27 -17 10 -18 -8 -10C-20 -33 -16 -54 0 -72Z" fill="url(#bladeSoft)" transform="rotate(72)"/>
+        <path d="M0 -72C32 -61 48 -39 45 -10C27 -17 10 -18 -8 -10C-20 -33 -16 -54 0 -72Z" fill="url(#bladeSteel)" transform="rotate(144)"/>
+        <path d="M0 -72C32 -61 48 -39 45 -10C27 -17 10 -18 -8 -10C-20 -33 -16 -54 0 -72Z" fill="url(#bladeSoft)" transform="rotate(216)"/>
+        <path d="M0 -72C32 -61 48 -39 45 -10C27 -17 10 -18 -8 -10C-20 -33 -16 -54 0 -72Z" fill="url(#bladeSteel)" transform="rotate(288)"/>
+      </g>
+      <circle cx="88" cy="88" r="29" fill="#F8FAFC"/>
+      <path d="M74 105V70H91C101 70 107 75.5 107 84C107 91.5 102 96 94 97L108 105" stroke="#1F3D5C" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="238" y="102" fill="#111827" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+    <text x="240" y="132" fill="#64748B" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="750" letter-spacing="4">AI OPERATIONS INTELLIGENCE</text>
+    <text x="238" y="178" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500">Variant I: softer turbine badge. More product-icon friendly and less literal.</text>
+    <text x="238" y="206" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500">The small R is integrated as a control center instead of a big initial.</text>
+  </g>
+
+  <!-- Variant J -->
+  <g transform="translate(56 456)" filter="url(#cardShadow)">
+    <rect width="520" height="270" rx="30" fill="#101820"/>
+    <rect x="0.5" y="0.5" width="519" height="269" rx="29.5" stroke="#293B4F"/>
+    <g transform="translate(66 38)" filter="url(#markShadow)">
+      <g transform="translate(76 76)">
+        <path d="M-6 -67C21 -65 37 -48 34 -21C19 -25 6 -24 -9 -16C-20 -37 -18 -54 -6 -67Z" fill="#DCEEFF" transform="rotate(0)"/>
+        <path d="M-6 -67C21 -65 37 -48 34 -21C19 -25 6 -24 -9 -16C-20 -37 -18 -54 -6 -67Z" fill="#8EC5FF" transform="rotate(60)"/>
+        <path d="M-6 -67C21 -65 37 -48 34 -21C19 -25 6 -24 -9 -16C-20 -37 -18 -54 -6 -67Z" fill="#3B82F6" transform="rotate(120)"/>
+        <path d="M-6 -67C21 -65 37 -48 34 -21C19 -25 6 -24 -9 -16C-20 -37 -18 -54 -6 -67Z" fill="#DCEEFF" transform="rotate(180)"/>
+        <path d="M-6 -67C21 -65 37 -48 34 -21C19 -25 6 -24 -9 -16C-20 -37 -18 -54 -6 -67Z" fill="#8EC5FF" transform="rotate(240)"/>
+        <path d="M-6 -67C21 -65 37 -48 34 -21C19 -25 6 -24 -9 -16C-20 -37 -18 -54 -6 -67Z" fill="#3B82F6" transform="rotate(300)"/>
+      </g>
+      <circle cx="76" cy="76" r="29" fill="#101820"/>
+      <text x="76" y="89" text-anchor="middle" fill="#F7F4EB" font-family="Georgia, Times New Roman, serif" font-size="42" font-weight="700">R</text>
+    </g>
+    <text x="238" y="102" fill="#F7F4EB" font-family="Georgia, Times New Roman, serif" font-size="42" font-weight="700" letter-spacing="1.4">RUNLEDGER</text>
+    <text x="242" y="136" fill="#70B8FF" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="7">SINCE 2026</text>
+    <text x="238" y="186" fill="#B8C6D4" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500">Variant J: prestige seal. Strong for a launch graphic, too ceremonial for daily UI.</text>
+    <text x="238" y="214" fill="#B8C6D4" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="14" font-weight="500">Closest to your screenshot, but less flexible inside the app.</text>
+  </g>
+
+  <!-- Recommendation -->
+  <g transform="translate(624 456)" filter="url(#cardShadow)">
+    <rect width="520" height="270" rx="30" fill="#F8FAFC" stroke="#D4DEE9"/>
+    <text x="36" y="58" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="-0.8">Recommendation</text>
+    <text x="36" y="100" fill="#22354A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">Use Variant H as the main RunLedger logo.</text>
+    <text x="36" y="134" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500">It captures the radial intelligence feel from your reference, but remains readable in a sidebar, login page, docs, and deck.</text>
+    <text x="36" y="170" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500">Use Variant I if you prefer a calmer app icon. Use Variant J only for brand/marketing hero material.</text>
+    <text x="36" y="222" fill="#386891" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="750" letter-spacing="3">MY PICK: H FOR PRODUCT, I FOR ICON</text>
+  </g>
+</svg>

@@ -98,7 +98,7 @@ export default function RequestFlowSankey({ runs }: { runs: RunListItem[] }) {
 
   if (sample.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-10 text-center dark:border-slate-700 dark:bg-slate-950/40">
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-10 text-center dark:border-slate-300 dark:bg-[#f2f6fb]/80">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">No request flow yet</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
           Send traffic through the SDK, OTLP, or Gateway and this view will map requests into intent, model, and result paths.
@@ -128,8 +128,8 @@ export default function RequestFlowSankey({ runs }: { runs: RunListItem[] }) {
   })
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/50">
-      <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-300 dark:bg-[#f2f6fb]/90">
+      <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-300">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-950 dark:text-white">AI Request Flow</h2>
@@ -137,7 +137,7 @@ export default function RequestFlowSankey({ runs }: { runs: RunListItem[] }) {
               Recent runs grouped as Request to Intent to Model to Result. Rich Skill, Agent, and Tool layers arrive with the next analytics contract.
             </p>
           </div>
-          <span className="rounded-full bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:text-teal-300">
+          <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-100 dark:text-blue-700">
             {sample.length.toLocaleString()} runs sampled
           </span>
         </div>

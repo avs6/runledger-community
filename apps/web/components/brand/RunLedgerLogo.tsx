@@ -11,35 +11,50 @@ export function RunLedgerMark({ size = 36 }: { size?: number }) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 64 64"
+      viewBox="0 0 128 128"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="runledger-mark-bg" x1="8" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#0F766E" />
-          <stop offset="0.52" stopColor="#155E75" />
-          <stop offset="1" stopColor="#111827" />
+        <linearGradient id="runledger-blade-a" x1="43" y1="8" x2="84" y2="104" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#93C5FD" />
+          <stop offset="0.48" stopColor="#3B82F6" />
+          <stop offset="1" stopColor="#1E5A94" />
         </linearGradient>
-        <linearGradient id="runledger-mark-line" x1="15" y1="45" x2="50" y2="17" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#A7F3D0" />
-          <stop offset="1" stopColor="#67E8F9" />
+        <linearGradient id="runledger-blade-b" x1="45" y1="10" x2="86" y2="104" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#BFDBFE" />
+          <stop offset="0.5" stopColor="#60A5FA" />
+          <stop offset="1" stopColor="#2F6FA7" />
         </linearGradient>
+        <filter id="runledger-mark-shadow" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+          <feDropShadow dx="0" dy="6" stdDeviation="7" floodColor="#1E3A5F" floodOpacity="0.18" />
+        </filter>
       </defs>
-      <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#runledger-mark-bg)" />
-      <rect x="4.5" y="4.5" width="55" height="55" rx="15.5" stroke="white" strokeOpacity="0.12" />
-      <path
-        d="M17 42.5L28.25 32.25L37 36.5L49 22"
-        stroke="url(#runledger-mark-line)"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M17 47V37" stroke="white" strokeOpacity="0.9" strokeWidth="4" strokeLinecap="round" />
-      <path d="M29 47V28" stroke="white" strokeOpacity="0.9" strokeWidth="4" strokeLinecap="round" />
-      <path d="M41 47V32" stroke="white" strokeOpacity="0.65" strokeWidth="4" strokeLinecap="round" />
-      <circle cx="49" cy="22" r="3.25" fill="#CCFBF1" />
+      <g filter="url(#runledger-mark-shadow)">
+        <g transform="translate(64 64)">
+          <path d="M-7 -54C15 -52 27 -38 24 -16C13 -20 2 -19 -8 -13C-18 -30 -16 -44 -7 -54Z" fill="url(#runledger-blade-a)" transform="rotate(0)" />
+          <path d="M-7 -54C15 -52 27 -38 24 -16C13 -20 2 -19 -8 -13C-18 -30 -16 -44 -7 -54Z" fill="url(#runledger-blade-b)" transform="rotate(60)" />
+          <path d="M-7 -54C15 -52 27 -38 24 -16C13 -20 2 -19 -8 -13C-18 -30 -16 -44 -7 -54Z" fill="url(#runledger-blade-a)" transform="rotate(120)" />
+          <path d="M-7 -54C15 -52 27 -38 24 -16C13 -20 2 -19 -8 -13C-18 -30 -16 -44 -7 -54Z" fill="url(#runledger-blade-b)" transform="rotate(180)" />
+          <path d="M-7 -54C15 -52 27 -38 24 -16C13 -20 2 -19 -8 -13C-18 -30 -16 -44 -7 -54Z" fill="url(#runledger-blade-a)" transform="rotate(240)" />
+          <path d="M-7 -54C15 -52 27 -38 24 -16C13 -20 2 -19 -8 -13C-18 -30 -16 -44 -7 -54Z" fill="url(#runledger-blade-b)" transform="rotate(300)" />
+        </g>
+        <circle cx="64" cy="64" r="24" fill="#050A12" fillOpacity="0.9" />
+        <text
+          x="64"
+          y="76"
+          textAnchor="middle"
+          fill="#F8FAFC"
+          fontFamily="Sora, Segoe UI, Arial, sans-serif"
+          fontSize="31"
+          fontWeight="800"
+          letterSpacing="-2"
+          transform="rotate(7 64 64)"
+        >
+          RL
+        </text>
+      </g>
     </svg>
   )
 }
@@ -48,17 +63,17 @@ export default function RunLedgerLogo({
   markSize = 36,
   showWordmark = true,
   className = '',
-  wordmarkClassName = 'text-sm text-slate-950 dark:text-white',
-  taglineClassName = 'text-teal-700 dark:text-teal-300',
+  wordmarkClassName = 'text-sm text-slate-950 dark:text-slate-950',
+  taglineClassName = 'text-blue-700 dark:text-blue-700',
 }: RunLedgerLogoProps) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <RunLedgerMark size={markSize} />
       {showWordmark && (
         <div>
-          <div className={`font-semibold leading-none tracking-tight ${wordmarkClassName}`}>RunLedger</div>
-          <div className={`mt-1 text-[9px] font-bold uppercase leading-none tracking-[0.2em] ${taglineClassName}`}>
-            AI Ops Ledger
+          <div className={`font-display font-bold leading-none tracking-[-0.045em] ${wordmarkClassName}`}>RunLedger</div>
+          <div className={`mt-1 text-[8px] font-semibold uppercase leading-none tracking-[0.18em] ${taglineClassName}`}>
+            Intelligence, Accounted.
           </div>
         </div>
       )}

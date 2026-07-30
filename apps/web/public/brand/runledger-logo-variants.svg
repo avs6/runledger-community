@@ -1,0 +1,24 @@
+<svg width="1120" height="860" viewBox="0 0 1120 860" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variants comparison">
+  <rect width="1120" height="860" fill="#EAF0F6"/>
+  <text x="48" y="64" fill="#111827" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-1.3">RunLedger Logo Directions</text>
+  <text x="50" y="92" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15" font-weight="500">RL monoline concepts inspired by your reference, tuned for a softer enterprise UI.</text>
+
+  <g transform="translate(48 132)">
+    <image href="runledger-logo-variant-a.svg" width="520" height="180"/>
+  </g>
+  <g transform="translate(592 132)">
+    <image href="runledger-logo-variant-b.svg" width="520" height="180"/>
+  </g>
+  <g transform="translate(48 352)">
+    <image href="runledger-logo-variant-c.svg" width="520" height="180"/>
+  </g>
+  <g transform="translate(592 352)">
+    <image href="runledger-logo-variant-d.svg" width="520" height="180"/>
+  </g>
+
+  <rect x="48" y="612" width="1024" height="188" rx="24" fill="#F8FAFC" stroke="#CFDAE6"/>
+  <text x="80" y="662" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="-0.7">Recommendation</text>
+  <text x="80" y="698" fill="#334155" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="17" font-weight="600">Pick Variant C for the product brand.</text>
+  <text x="80" y="728" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15">It keeps the bold RL silhouette from the reference, adds subtle ledger/routing cues, and feels more mature than the older chart icon.</text>
+  <text x="80" y="756" fill="#53657A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="15">Variant B is the best app icon if you want a darker, high-contrast mark. Variant D is safest for formal docs.</text>
+</svg>

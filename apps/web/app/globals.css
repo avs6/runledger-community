@@ -3,79 +3,79 @@
 @tailwind utilities;
 
 ::selection {
-  background-color: rgba(13, 148, 136, 0.28);
-  color: #fff;
+  background-color: rgba(37, 99, 235, 0.20);
+  color: #0f172a;
 }
 
 /* ── Background orb CSS vars — toggled by .dark ── */
 :root {
-  --orb-1: rgba(13, 148, 136, 0.07);
-  --orb-2: rgba(14, 116, 144, 0.05);
-  --orb-3: rgba(100, 116, 139, 0.02);
+  --orb-1: rgba(147, 197, 253, 0.12);
+  --orb-2: rgba(203, 213, 225, 0.18);
+  --orb-3: rgba(226, 232, 240, 0.20);
 }
 
 .dark {
-  --orb-1: rgba(20, 184, 166, 0.12);
-  --orb-2: rgba(8, 145, 178, 0.08);
-  --orb-3: rgba(148, 163, 184, 0.03);
+  --orb-1: rgba(147, 197, 253, 0.10);
+  --orb-2: rgba(148, 163, 184, 0.10);
+  --orb-3: rgba(203, 213, 225, 0.05);
 }
 
 @layer base {
   :root {
     /* ── Light ───────────────────────────────────── */
-    --background: 210 24% 97%;
+    --background: 210 30% 96%;
     --foreground: 222 32% 11%;
-    --card: 0 0% 100%;
+    --card: 210 25% 98%;
     --card-foreground: 222 47% 10%;
-    --popover: 0 0% 100%;
+    --popover: 210 25% 98%;
     --popover-foreground: 222 47% 10%;
-    --primary: 178 72% 28%;
+    --primary: 213 68% 42%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 93%;
+    --secondary: 210 22% 92%;
     --secondary-foreground: 222 47% 14%;
-    --muted: 220 20% 94%;
-    --muted-foreground: 215 16% 48%;
-    --accent: 220 20% 93%;
+    --muted: 210 24% 93%;
+    --muted-foreground: 219 14% 44%;
+    --accent: 213 46% 91%;
     --accent-foreground: 222 47% 10%;
     --destructive: 0 84% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 18% 88%;
-    --input: 220 18% 88%;
-    --ring: 178 72% 30%;
-    --chart-1: 178 72% 32%;
-    --chart-2: 203 65% 42%;
-    --chart-3: 38 76% 48%;
-    --chart-4: 151 52% 36%;
+    --border: 212 20% 86%;
+    --input: 212 20% 86%;
+    --ring: 213 68% 46%;
+    --chart-1: 213 68% 46%;
+    --chart-2: 214 42% 46%;
+    --chart-3: 36 48% 48%;
+    --chart-4: 166 28% 40%;
     --chart-5: 358 62% 54%;
     --radius: 0.75rem;
   }
 
   .dark {
     /* ── Dark ────────────────────────────────────── */
-    --background: 222 36% 6%;
-    --foreground: 214 32% 91%;
-    --card: 222 44% 9%;
-    --card-foreground: 214 32% 91%;
-    --popover: 222 44% 11%;
-    --popover-foreground: 214 32% 91%;
-    --primary: 176 65% 42%;
+    --background: 210 30% 94%;
+    --foreground: 222 32% 13%;
+    --card: 210 28% 98%;
+    --card-foreground: 222 32% 13%;
+    --popover: 210 28% 98%;
+    --popover-foreground: 222 32% 13%;
+    --primary: 213 68% 44%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 222 36% 14%;
-    --secondary-foreground: 214 32% 85%;
-    --muted: 222 36% 11%;
-    --muted-foreground: 215 20% 52%;
-    --accent: 222 36% 14%;
-    --accent-foreground: 214 32% 91%;
+    --secondary: 211 26% 91%;
+    --secondary-foreground: 222 32% 16%;
+    --muted: 211 24% 92%;
+    --muted-foreground: 218 14% 40%;
+    --accent: 213 46% 90%;
+    --accent-foreground: 222 32% 13%;
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 222 30% 16%;
-    --input: 222 30% 16%;
-    --ring: 176 65% 42%;
-    --chart-1: 176 65% 46%;
-    --chart-2: 199 70% 56%;
-    --chart-3: 38 80% 62%;
-    --chart-4: 151 55% 50%;
-    --chart-5: 358 70% 66%;
+    --border: 212 20% 84%;
+    --input: 212 20% 84%;
+    --ring: 213 68% 48%;
+    --chart-1: 213 68% 48%;
+    --chart-2: 214 42% 46%;
+    --chart-3: 36 48% 48%;
+    --chart-4: 166 28% 40%;
+    --chart-5: 358 62% 54%;
   }
 
   * {
@@ -89,7 +89,8 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     background-image:
       radial-gradient(ellipse 80% 50% at 15% -5%, var(--orb-1), transparent),
       radial-gradient(ellipse 60% 40% at 85% -5%, var(--orb-2), transparent),
@@ -98,7 +99,17 @@
   }
 
   h1, h2, h3, h4 {
-    font-family: var(--font-display), var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-display), var(--font-sans), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.035em;
+    color: hsl(var(--foreground));
+  }
+
+  h1 {
+    font-weight: 650;
+  }
+
+  h2, h3 {
+    font-weight: 600;
   }
 
   code,
@@ -113,6 +124,142 @@
   ::-webkit-scrollbar-track  { background: transparent; }
   ::-webkit-scrollbar-thumb  { background: hsl(var(--border)); border-radius: 999px; }
   ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
+}
+
+@layer components {
+  .card,
+  [class*="rounded-xl"][class*="border"] {
+    --rl-soft-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px rgba(100, 116, 139, 0.08);
+  }
+}
+
+/*
+  Legacy dark-mode compatibility.
+  The app used to be a deep navy UI. The current brand uses a Windows-like
+  light gray/blue theme in both modes, so old dark:* utilities need to be
+  softened globally until every page has been migrated to semantic tokens.
+*/
+@layer utilities {
+  .dark .dark\:bg-slate-950,
+  .dark .dark\:bg-slate-950\/60,
+  .dark .dark\:bg-slate-950\/55,
+  .dark .dark\:bg-slate-950\/45,
+  .dark .dark\:bg-slate-950\/40,
+  .dark .dark\:bg-slate-950\/35,
+  .dark .dark\:bg-slate-950\/30,
+  .dark .dark\:bg-slate-900,
+  .dark .dark\:bg-slate-900\/60,
+  .dark .dark\:bg-slate-900\/50,
+  .dark .dark\:bg-slate-900\/40,
+  .dark .dark\:bg-slate-900\/30 {
+    background-color: rgba(248, 250, 252, 0.86) !important;
+  }
+
+  .dark .dark\:bg-slate-800,
+  .dark .dark\:bg-slate-800\/60,
+  .dark .dark\:bg-slate-800\/50,
+  .dark .dark\:bg-slate-800\/40,
+  .dark .dark\:bg-slate-800\/30,
+  .dark .dark\:bg-slate-700,
+  .dark .dark\:bg-slate-700\/60,
+  .dark .dark\:bg-slate-700\/40 {
+    background-color: rgba(241, 245, 249, 0.92) !important;
+  }
+
+  .dark .dark\:border-slate-950,
+  .dark .dark\:border-slate-900,
+  .dark .dark\:border-slate-800,
+  .dark .dark\:border-slate-800\/60,
+  .dark .dark\:border-slate-800\/50,
+  .dark .dark\:border-slate-700,
+  .dark .dark\:border-slate-700\/60,
+  .dark .dark\:border-slate-700\/50 {
+    border-color: rgb(203, 213, 225) !important;
+  }
+
+  .dark .dark\:divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+  .dark .dark\:divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(226, 232, 240) !important;
+  }
+
+  .dark .dark\:text-white,
+  .dark .dark\:text-gray-100,
+  .dark .dark\:text-slate-100,
+  .dark .dark\:text-slate-200 {
+    color: rgb(15, 23, 42) !important;
+  }
+
+  .dark .dark\:text-slate-300,
+  .dark .dark\:text-slate-400,
+  .dark .dark\:text-gray-400,
+  .dark .dark\:text-gray-500 {
+    color: rgb(71, 85, 105) !important;
+  }
+
+  .dark .dark\:placeholder\:text-slate-500::placeholder,
+  .dark .dark\:placeholder\:text-gray-500::placeholder {
+    color: rgb(100, 116, 139) !important;
+  }
+
+  .dark .dark\:hover\:bg-slate-900:hover,
+  .dark .dark\:hover\:bg-slate-800:hover,
+  .dark .dark\:hover\:bg-slate-700:hover {
+    background-color: rgba(219, 234, 254, 0.58) !important;
+  }
+
+  .bg-violet-600,
+  .hover\:bg-violet-700:hover,
+  .focus\:ring-violet-500:focus,
+  .focus-visible\:ring-violet-500:focus-visible {
+    --tw-ring-color: rgb(59 130 246 / 0.35) !important;
+  }
+
+  .bg-violet-600 {
+    background-color: rgb(37, 99, 235) !important;
+  }
+
+  .hover\:bg-violet-700:hover {
+    background-color: rgb(29, 78, 216) !important;
+  }
+
+  .text-violet-700,
+  .text-violet-600,
+  .dark .dark\:text-violet-400,
+  .dark .dark\:text-violet-300 {
+    color: rgb(37, 99, 235) !important;
+  }
+
+  .bg-violet-100,
+  .dark .dark\:bg-violet-900\/60,
+  .dark .dark\:bg-violet-900\/50,
+  .dark .dark\:bg-violet-900\/40,
+  .dark .dark\:bg-violet-900\/30,
+  .dark .dark\:bg-violet-900\/20,
+  .dark .dark\:bg-violet-950,
+  .dark .dark\:bg-violet-950\/40,
+  .dark .dark\:bg-violet-950\/30 {
+    background-color: rgb(219, 234, 254) !important;
+  }
+
+  .border-violet-500,
+  .border-violet-300,
+  .border-violet-200,
+  .dark .dark\:border-violet-800,
+  .dark .dark\:border-violet-600 {
+    border-color: rgb(147, 197, 253) !important;
+  }
+
+  pre.dark\:bg-slate-950,
+  code.dark\:bg-slate-950,
+  pre.dark\:bg-slate-900,
+  code.dark\:bg-slate-900,
+  .dark pre.dark\:bg-slate-950,
+  .dark code.dark\:bg-slate-950,
+  .dark pre.dark\:bg-slate-900,
+  .dark code.dark\:bg-slate-900 {
+    background-color: #0f172a !important;
+    color: #dbeafe !important;
+  }
 }
 
 /* ── Print styles (used by "Print / Save PDF" in Runs) ───────────────────── */

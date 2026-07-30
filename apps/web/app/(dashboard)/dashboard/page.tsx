@@ -39,10 +39,10 @@ function KpiCard({
       <div className={`pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full ${cardTo} blur-2xl opacity-50`} />
       <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {title}
           </p>
-          <p className="mt-2 truncate text-3xl font-bold tracking-tight">{value}</p>
+          <p className="mt-2 truncate font-display text-3xl font-semibold tracking-[-0.045em] tabular-nums">{value}</p>
           {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
           {d !== null && (
             <div className={`mt-1.5 flex items-center gap-1 text-xs font-semibold ${d >= 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
@@ -109,40 +109,40 @@ async function DashboardContent() {
           value={fmt$$(summary.total_cost_usd)}
           delta={summary.cost_delta_pct}
           icon={<DollarSign className="h-5 w-5 text-amber-500 dark:text-amber-400" />}
-          cardFrom="from-amber-50 to-amber-100/40 dark:from-amber-950/30 dark:to-amber-900/10"
-          cardTo="bg-amber-300/25 dark:bg-amber-500/15"
-          border="border-amber-200/60 dark:border-amber-500/20"
+          cardFrom="from-amber-50 to-amber-100/40 dark:from-amber-50 dark:to-amber-100/45"
+          cardTo="bg-amber-300/25 dark:bg-amber-300/30"
+          border="border-amber-200/60"
         />
         <KpiCard
           title="Agent Runs"
           value={summary.run_count.toLocaleString()}
           sub="last 7 days"
           icon={<Zap className="h-5 w-5 text-violet-500 dark:text-violet-400" />}
-          cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-950/30 dark:to-violet-900/10"
-          cardTo="bg-violet-300/25 dark:bg-violet-500/15"
-          border="border-violet-200/60 dark:border-violet-500/20"
+          cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-50 dark:to-violet-100/45"
+          cardTo="bg-violet-300/25 dark:bg-violet-300/30"
+          border="border-violet-200/60"
         />
         <KpiCard
           title="Avg Cost / Run"
           value={avg}
           icon={<Hash className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />}
-          cardFrom="from-indigo-50 to-indigo-100/40 dark:from-indigo-950/30 dark:to-indigo-900/10"
-          cardTo="bg-indigo-300/25 dark:bg-indigo-500/15"
-          border="border-indigo-200/60 dark:border-indigo-500/20"
+          cardFrom="from-indigo-50 to-indigo-100/40 dark:from-blue-50 dark:to-blue-100/45"
+          cardTo="bg-indigo-300/25 dark:bg-blue-300/30"
+          border="border-indigo-200/60 dark:border-blue-200/80"
         />
         <KpiCard
           title="Total Tokens"
           value={formatTokens(tokens)}
           sub={inputPct ? `${inputPct}% input` : undefined}
           icon={<Cpu className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />}
-          cardFrom="from-cyan-50 to-cyan-100/40 dark:from-cyan-950/30 dark:to-cyan-900/10"
-          cardTo="bg-cyan-300/25 dark:bg-cyan-500/15"
-          border="border-cyan-200/60 dark:border-cyan-500/20"
+          cardFrom="from-cyan-50 to-cyan-100/40 dark:from-cyan-50 dark:to-cyan-100/45"
+          cardTo="bg-cyan-300/25 dark:bg-cyan-300/30"
+          border="border-cyan-200/60"
         />
       </div>
 
       {/* ── Spend over time ── */}
-      <Card className="overflow-hidden border-slate-200/60 dark:border-slate-700/60">
+      <Card className="overflow-hidden border-slate-200/80 bg-white/90 dark:border-slate-300 dark:bg-[#f2f6fb]/90">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
             <CardTitle className="text-base font-semibold">Spend Over Time</CardTitle>
@@ -156,7 +156,7 @@ async function DashboardContent() {
 
       {/* ── Model + Feature row ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="border-slate-200/60 dark:border-slate-700/60">
+        <Card className="border-slate-200/80 bg-white/90 dark:border-slate-300 dark:bg-[#f2f6fb]/90">
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-semibold">Spend by Model</CardTitle>
             <p className="text-xs text-muted-foreground">Distribution across AI providers</p>
@@ -166,7 +166,7 @@ async function DashboardContent() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/60 dark:border-slate-700/60">
+        <Card className="border-slate-200/80 bg-white/90 dark:border-slate-300 dark:bg-[#f2f6fb]/90">
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-semibold">Spend by Feature</CardTitle>
             <p className="text-xs text-muted-foreground">Top feature tags by cost</p>
@@ -178,7 +178,7 @@ async function DashboardContent() {
       </div>
 
       {/* ── Recent runs ── */}
-      <Card className="overflow-hidden border-slate-200/60 dark:border-slate-700/60">
+      <Card className="overflow-hidden border-slate-200/80 bg-white/90 dark:border-slate-300 dark:bg-[#f2f6fb]/90">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
             <CardTitle className="text-base font-semibold">Recent Runs</CardTitle>
@@ -270,14 +270,14 @@ export default async function DashboardPage() {
               </span>
             </div>
           )}
-          <h1 className="text-2xl font-bold tracking-tight font-display">Dashboard</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-[-0.045em]">Dashboard</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{dateStr} · Last 7 days</p>
         </div>
         <div className="hidden sm:flex items-center gap-4">
           {isOrgAdmin && (
             <Link
               href="/organization/dashboard"
-              className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-sm font-medium text-violet-300 transition-colors hover:bg-violet-500/15 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/15"
+              className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-200 dark:bg-blue-100 dark:text-blue-700 dark:hover:bg-blue-200"
             >
               Global Dashboard →
             </Link>

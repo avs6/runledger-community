@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="apps/web/public/runledger-logo.svg" alt="RunLedger AI Ops Ledger" width="360" />
+<img src="apps/web/public/runledger-logo.svg" alt="RunLedger Intelligence, Accounted." width="360" />
 
 # RunLedger Community
 

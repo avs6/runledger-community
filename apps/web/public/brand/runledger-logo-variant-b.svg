@@ -1,0 +1,14 @@
+<svg width="520" height="180" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variant B">
+  <rect width="520" height="180" rx="28" fill="#F6F8FB"/>
+  <rect x="0.5" y="0.5" width="519" height="179" rx="27.5" stroke="#D9E3EE"/>
+  <g transform="translate(42 34)">
+    <rect width="112" height="112" rx="28" fill="#334B67"/>
+    <path d="M29 85V34C29 24 37 16 47 16H73C91 16 101 27.5 101 42.5C101 58 90 68 73 68H58L84 85H101" stroke="#F7F4EB" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M29 85L55 45" stroke="#F7F4EB" stroke-width="9.5" stroke-linecap="round"/>
+    <path d="M35 86H101" stroke="#F7F4EB" stroke-width="9.5" stroke-linecap="round"/>
+    <circle cx="96" cy="20" r="7" fill="#C9D8E8"/>
+  </g>
+  <text x="188" y="83" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+  <text x="190" y="112" fill="#6B7280" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="4">AI COST CONTROL</text>
+  <text x="42" y="154" fill="#66768A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Variant B: premium enterprise seal, strongest app-icon presence</text>
+</svg>

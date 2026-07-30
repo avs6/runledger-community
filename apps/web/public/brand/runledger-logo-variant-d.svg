@@ -1,0 +1,15 @@
+<svg width="520" height="180" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variant D">
+  <rect width="520" height="180" rx="28" fill="#F7F8FA"/>
+  <rect x="0.5" y="0.5" width="519" height="179" rx="27.5" stroke="#D9E0E8"/>
+  <g transform="translate(42 34)">
+    <rect width="112" height="112" rx="28" fill="#F8FAFC"/>
+    <rect x="1" y="1" width="110" height="110" rx="27" stroke="#C4CFDA"/>
+    <path d="M29 84V30C29 22.8 34.8 17 42 17H76C91.5 17 101 27.2 101 41.5C101 55.8 91.2 65 74 65H61L84 84H101" stroke="#1F2937" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M29 84L52.5 47" stroke="#7C8DA1" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="97" cy="20" r="6.5" fill="#8EA3B8"/>
+    <path d="M72 84H101" stroke="#1F2937" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <text x="188" y="83" fill="#111827" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+  <text x="190" y="112" fill="#64748B" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="4">AI OPS LEDGER</text>
+  <text x="42" y="154" fill="#66768A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Variant D: minimal monochrome, most conservative enterprise look</text>
+</svg>

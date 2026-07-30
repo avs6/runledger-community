@@ -1,0 +1,16 @@
+<svg width="520" height="180" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger logo variant E">
+  <rect width="520" height="180" rx="28" fill="#F5F8FC"/>
+  <rect x="0.5" y="0.5" width="519" height="179" rx="27.5" stroke="#D8E2EE"/>
+  <g transform="translate(42 30)">
+    <rect width="120" height="120" rx="30" fill="#EEF4FA"/>
+    <rect x="1" y="1" width="118" height="118" rx="29" stroke="#C4D2E0"/>
+    <path d="M35 82C26.2 97.2 47.8 109.6 56.6 94.4L86 43.4C94.8 28.2 73.2 15.8 64.4 31L35 82Z" fill="#2D4F73"/>
+    <path d="M59.5 87L84.5 43.5" stroke="#F8FAFC" stroke-width="16" stroke-linecap="round"/>
+    <path d="M75.5 96L95.5 60.8C103.8 46.2 124.8 58.2 116.5 72.8L97.5 106.1" stroke="#2D4F73" stroke-width="16" stroke-linecap="round"/>
+    <path d="M90 74L113 113" stroke="#6F879F" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="98" cy="26" r="10" fill="#6F879F"/>
+  </g>
+  <text x="192" y="82" fill="#172232" font-family="Sora, Segoe UI, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.4">RunLedger</text>
+  <text x="194" y="112" fill="#55799E" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="4">AI OPS LEDGER</text>
+  <text x="42" y="154" fill="#66768A" font-family="Instrument Sans, Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">Variant E: closest to the new abstract AI reference, softened for product UI</text>
+</svg>

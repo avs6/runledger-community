@@ -21,14 +21,14 @@ import { createOrgUser, listOrgUsers, updateOrgUser, type OrgUser } from '@/lib/
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
+  'rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm shadow-slate-200/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-300 dark:bg-white/90 dark:text-slate-900 dark:shadow-slate-300/30'
 const TABLE_HEAD =
-  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400'
+  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-600'
 
 function Avatar({ name, email }: { name: string | null; email: string }) {
   const initial = ((name ?? email)[0] ?? '?').toUpperCase()
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-xs font-bold text-white">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-slate-600 text-xs font-bold text-white">
       {initial}
     </div>
   )
@@ -38,8 +38,8 @@ function StatusBadge({ active }: { active: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
       active
-        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-100 dark:text-emerald-700'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-100 dark:text-slate-500'
     }`}>
       <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
       {active ? 'Active' : 'Inactive'}
@@ -171,7 +171,7 @@ export default function UsersPage() {
   if (!canManage) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Users</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-950">Users</h1>
         <p className="mt-4 text-sm text-slate-500">User management is an organization-admin function.</p>
       </div>
     )
@@ -181,19 +181,19 @@ export default function UsersPage() {
     <div className="space-y-6 p-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Users</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <h1 className="font-display text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-950">Users</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-600">
             Your organization&apos;s people. Create a user here, then add them to workspaces to grant access.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700"
           >
             <UserPlus className="h-4 w-4" /> New User
           </button>
-          <button onClick={load} className="rounded-lg border border-slate-300 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800">
+          <button onClick={load} className="rounded-lg border border-slate-300 bg-white/70 p-2 text-slate-500 hover:bg-white dark:border-slate-300 dark:bg-white/70 dark:hover:bg-white">
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
@@ -204,9 +204,9 @@ export default function UsersPage() {
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${users.length} users...`} className={`${inputCls} w-full pl-8`} />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white/75 shadow-sm shadow-slate-300/30 dark:border-slate-300 dark:bg-white/75">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800/50">
+          <thead className="bg-slate-100/80 dark:bg-slate-100/80">
             <tr>
               <th className={TABLE_HEAD}>User</th>
               <th className={TABLE_HEAD}>Org role</th>
@@ -216,24 +216,24 @@ export default function UsersPage() {
               <th className={TABLE_HEAD} />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-200">
             {loading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No users. Create one to get started.</td></tr>
             ) : filtered.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <tr key={u.id} className="hover:bg-blue-50/60 dark:hover:bg-blue-50/60">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar name={u.full_name} email={u.email} />
                     <div>
-                      <div className="font-medium text-slate-800 dark:text-slate-100">{u.full_name ?? '-'}</div>
+                      <div className="font-medium text-slate-900 dark:text-slate-900">{u.full_name ?? '-'}</div>
                       <div className="text-xs text-slate-500">{u.email}</div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-100 dark:text-slate-600">
                     {u.org_role === 'org_admin' && <Shield className="h-3 w-3" />}
                     {(u.org_role ?? 'org_member').replace('org_', '')}
                   </span>
@@ -252,7 +252,7 @@ export default function UsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-3">
-                    <button onClick={() => openEdit(u)} title="Edit name / reset password" className="text-slate-400 hover:text-violet-600"><Pencil className="h-4 w-4" /></button>
+                    <button onClick={() => openEdit(u)} title="Edit name / reset password" className="text-slate-400 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
                     <button onClick={() => handleRemove(u)} title="Remove from org" className="text-slate-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </td>
@@ -271,13 +271,13 @@ export default function UsersPage() {
               <label className="text-xs text-slate-500">Temporary password</label>
               <input type="text" value={cPassword} onChange={(e) => setCPassword(e.target.value)} className={`${inputCls} w-full`} />
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-700">
               <input type="checkbox" checked={cSkipVerify} onChange={(e) => setCSkipVerify(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Skip email verification
             </label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600">Cancel</button>
-              <button type="submit" disabled={creating} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creating ? 'Creating...' : 'Create user'}</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300">Cancel</button>
+              <button type="submit" disabled={creating} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creating ? 'Creating...' : 'Create user'}</button>
             </div>
           </form>
         </Modal>
@@ -295,8 +295,8 @@ export default function UsersPage() {
               <input type="text" placeholder="********" value={ePassword} onChange={(e) => setEPassword(e.target.value)} className={`${inputCls} w-full`} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600">Cancel</button>
-              <button type="submit" disabled={saving} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
+              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300">Cancel</button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
         </Modal>
@@ -308,9 +308,9 @@ export default function UsersPage() {
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-xl border border-slate-300 bg-white p-5 shadow-xl shadow-slate-500/20 dark:border-slate-300 dark:bg-white" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
+          <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-950">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
         </div>
         {children}
