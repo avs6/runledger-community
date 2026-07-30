@@ -64,6 +64,7 @@ import type {
   SpendByUser,
   SpendOverTime,
   TenantResponse,
+  TenantStatus,
   ToolRegistryList,
   ToolRegistryResponse,
   UserSpendDetail,
@@ -687,6 +688,28 @@ export async function createOrganization(
 
 export async function listPlatformOrganizations(apiKey: string): Promise<TenantResponse[]> {
   return apiFetch<TenantResponse[]>('/org/tenants', apiKey)
+}
+
+export async function updatePlatformOrganization(
+  apiKey: string,
+  tenantId: string,
+  body: { name?: string; plan?: string; status?: TenantStatus }
+): Promise<TenantResponse> {
+  return apiFetch<TenantResponse>(`/org/tenants/${tenantId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deletePlatformOrganization(
+  apiKey: string,
+  tenantId: string,
+  confirmation: string
+): Promise<void> {
+  await apiFetch<void>(`/org/tenants/${tenantId}`, apiKey, {
+    method: 'DELETE',
+    body: JSON.stringify({ confirmation }),
+  })
 }
 
 export async function revokeApiKey(apiKey: string, keyId: string): Promise<void> {

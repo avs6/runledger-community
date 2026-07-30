@@ -20,8 +20,47 @@ DESCRIPTION = "Research team — frontier vs local models, heavy eval scoring."
 def run(sim: Sim) -> None:
     ws = sim.workspace("Nova Labs", "Research")
 
-    ws.add_route("frontier", "o3-mini", priority=10)
-    ws.add_route("balanced", "claude-sonnet-4-6", priority=20)
+    ws.add_route(
+        "frontier",
+        "o3-mini",
+        priority=10,
+        intelligent_routing_enabled=True,
+        routing_config={
+            "classifier_mode": "hybrid",
+            "tiers": {"cheap": "local", "mid": "balanced", "frontier": "frontier"},
+            "matrix": {
+                "simple": {"low": "cheap", "high": "mid"},
+                "medium": {"low": "mid", "high": "frontier"},
+                "complex": {"low": "frontier", "high": "frontier"},
+            },
+            "reasoning_effort": True,
+            "on_failure": "passthrough",
+        },
+    )
+    ws.add_route(
+        "balanced",
+        "claude-sonnet-4-6",
+        priority=20,
+        context_compiler_enabled=True,
+        context_compiler_config={
+            "token_threshold": 0,
+            "token_budget": 32000,
+            "keep_recent": 4,
+            "stages": {
+                "dedup": True,
+                "tool_output": True,
+                "rerank": True,
+                "compaction": True,
+                "compress": True,
+                "tools": True,
+                "skills": False,
+            },
+            "compression_rate": 0.65,
+            "tool_k": 8,
+            "tool_filter_threshold": 12,
+            "always_tools": ["run_eval"],
+        },
+    )
     ws.add_route("local", "llama3.1:8b", priority=30)
 
     runs = ws.ingest_runs(

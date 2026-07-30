@@ -1,0 +1,107 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "search_docs",
+      "description": "Search internal customer-support and product documentation."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "lookup_ticket",
+      "description": "Fetch a customer-support ticket by ticket id."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "refund_order",
+      "description": "Issue a refund or replacement for a commerce order."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_billing",
+      "description": "Look up invoice, plan, payment, and usage billing data."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "run_sql",
+      "description": "Run a readonly SQL query against the analytics warehouse."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "deploy_service",
+      "description": "Deploy an application service to Kubernetes."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "scale_k8s_deployment",
+      "description": "Scale a Kubernetes deployment up or down."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "rotate_secret",
+      "description": "Rotate an application secret in the production vault."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "send_slack",
+      "description": "Send a message to a Slack channel."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_jira_ticket",
+      "description": "Create a Jira ticket for engineering follow-up."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "summarize_call",
+      "description": "Summarize a sales or support call transcript."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "retrieve_policy",
+      "description": "Retrieve HR, security, or legal policy text."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "web_search",
+      "description": "Search the public web for current external information."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_purchase_order",
+      "description": "Create a procurement purchase order for vendor approval."
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "read_feature_flags",
+      "description": "Read feature flag rollout state for a product feature."
+    }
+  }
+]

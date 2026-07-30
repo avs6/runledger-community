@@ -486,7 +486,7 @@ curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
     ```
   </Accordion>
   <Accordion title="Ollama / local provider shows $0 cost">
-    Correct — Ollama has no API cost. Runs appear in analytics with `cost_usd = 0.00`. To assign an internal transfer price, add a pricing row via **Settings → Provider Profiles** or `POST /providers/pricing` for `provider = ollama`.
+    Correct — Ollama has no API cost. Runs appear in analytics with `cost_usd = 0.00`. To assign an internal transfer price, add a pricing row via **Provider Profiles** or `POST /providers/pricing` for `provider = ollama`.
   </Accordion>
   <Accordion title="OTel Collector not forwarding traces">
     Set `RUNLEDGER_API_KEY` in `.env`. Without it, the Collector starts but gets 401s from the API. Restart after setting:

@@ -8,8 +8,11 @@ uses to scope its aggregation.
 
 Baseline usage (no optimization):
     python scripts/bench/run_benchmark.py \
-        --base-url http://localhost:8000 --api-key $RUNLEDGER_API_KEY \
+        --base-url http://localhost:8201 --api-key $RUNLEDGER_API_KEY \
         --alias gpt-frontier --profile baseline --repeat 5
+
+`--api-key` must be a workspace API key minted from Control Plane -> API Keys. The
+benchmark drives the gateway data plane, not route-management APIs.
 
 Later, re-run against a semantic-cache-enabled alias/flag to get the Optimized column.
 
@@ -26,7 +29,7 @@ from datetime import UTC, datetime
 
 import httpx
 
-# Minimal placeholder workloads — replace with the PDF's harness tasks / real agent runs.
+# Minimal placeholder workloads - replace with the PDF's harness tasks / real agent runs.
 WORKLOADS: dict[str, list[dict[str, str]]] = {
     "smoke": [{"role": "user", "content": "Summarize what an AI FinOps control plane does in 3 bullets."}],
 }
@@ -34,7 +37,7 @@ WORKLOADS: dict[str, list[dict[str, str]]] = {
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base-url", default="http://localhost:8000")
+    ap.add_argument("--base-url", default="http://localhost:8201")
     ap.add_argument("--api-key", required=True)
     ap.add_argument("--alias", required=True, help="Gateway model alias / route to target")
     ap.add_argument("--profile", default="baseline", help="Label for this run (baseline|semantic_cache|...)")
@@ -63,7 +66,7 @@ def main() -> None:
             }
             r = client.post(url, headers=headers, json=body)
             ok += 1 if r.status_code == 200 else 0
-            print(f"  run {i + 1}/{args.repeat} → {r.status_code}")
+            print(f"  run {i + 1}/{args.repeat} -> {r.status_code}")
     elapsed = time.monotonic() - t0
     ended = datetime.now(UTC).isoformat()
 

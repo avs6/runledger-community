@@ -33,11 +33,20 @@ People you'll create (roles show off RunLedger's access model):
 | User | Role | Sees |
 |---|---|---|
 | `admin@runledger.local` | **Platform admin** (seeded) | everything — this is *you*, the operator |
-| `owner@acme.example` | **Org admin** | all three teams |
-| `support-lead@acme.example` | **Workspace admin** — AI Support Team | one team, full control |
-| `dev-lead@acme.example` | **Workspace admin** — AI Development Team | one team |
-| `qa-lead@acme.example` | **Workspace admin** — AI Test Team | one team |
+| `owner@acme.example` | **Org admin** | all three teams; Gateway, Provider Profiles, Control Plane, Users, Workspace |
+| `support-lead@acme.example` | **Workspace admin** — AI Support Team | one team; API Keys, Budgets, Outcomes, Approvals, Audit Log |
+| `dev-lead@acme.example` | **Workspace admin** — AI Development Team | one team; API Keys, Budgets, Outcomes, Approvals, Audit Log |
+| `qa-lead@acme.example` | **Workspace admin** — AI Test Team | one team; API Keys, Budgets, Outcomes, Approvals, Audit Log |
 | `analyst@acme.example` | **Member (read-only)** — AI Support Team | one team, view only |
+
+Role handoff for the workbook:
+
+| Work | Use this role |
+|---|---|
+| Create organizations or platform Settings | Platform admin |
+| Rename org, create workspaces, users, Gateway routes, Provider Profiles, Alert Rules, MCP, Integrations, Data Capture | Org admin |
+| Mint a key for the active workspace, manage budgets, review Approvals/Audit Log | Workspace admin |
+| Review Runs, Sessions, Analytics, Prompts, Monitoring without edits | Member |
 
 ---
 
@@ -68,6 +77,13 @@ LAB_FEATURE_TAG=support-chat LAB_RUNS=30 python traffic_gen.py
 LAB_GATEWAY_ALIAS=cached-chat LAB_RUNS=30 python traffic_gen.py
 ```
 
+PowerShell equivalent:
+
+```powershell
+$env:LAB_FEATURE_TAG='support-chat'; $env:LAB_RUNS='30'; python traffic_gen.py
+$env:LAB_GATEWAY_ALIAS='cached-chat'; $env:LAB_RUNS='30'; python traffic_gen.py
+```
+
 Swap `RUNLEDGER_API_KEY` in `.env` to switch which **team/workspace** the traffic lands in.
 Whenever a module says *"generate some traffic"*, this is what it means. (The five Part-1
 scripts, `lab_01`…`lab_05`, remain as focused demos of each instrumentation *type*.)
@@ -87,10 +103,10 @@ linked guides.
 | **Part 1** (below) | Setup · the three instrumentation types · budgets · outcomes |
 | **[Part 2 · Observe & Investigate](./part2_observe.md)** | Runs · Sessions · Analytics · Monitoring/Alerts · Audit Logs |
 | **[Part 3 · Quality & Experiments](./part3_quality.md)** | Prompts · **Evaluation vs Experiments vs Replay** · Datasets |
-| **[Part 4 · Optimization layer](./part4_optimization.md)** | Semantic cache · context compiler · intelligent routing · flywheel |
+| **[Part 4 · Optimization layer](./part4_optimization.md)** | Exact cache · semantic cache · compiler · compression · routing · MCP tool filtering · flywheel |
 | **[Part 5 · Governance & Control](./part5_governance.md)** | Gateway guardrails · Tool Registry · Approvals |
-| **[Part 6 · Operations](./part6_operations.md)** | Adding a workspace · Backup & Restore (local + S3) |
-| **[Part 7 · Settings & Administration](./part7_settings.md)** | OTLP · MCP · Integrations · Data Capture · Compliance · Retention · Email |
+| **[Part 6 · Operations](./part6_operations.md)** | Add workspace · local backup · Qdrant snapshots · restore drills · ledger integrity · S3 restore |
+| **[Part 7 - Control Plane & Platform Settings](./part7_settings.md)** | OTLP · MCP · Integrations · Data Capture · Compliance · Retention · Email |
 | **[Part 8 · Integrating an existing stack](./part8_integrating_existing_stack.md)** | How customers adopt RunLedger beside an existing AI stack (hub instrumentation, gateway, SDK) |
 
 ---
@@ -103,6 +119,16 @@ linked guides.
   ollama pull llama3.2
   ```
 - **Python 3.11+**.
+
+Quick preflight:
+
+```bash
+curl http://localhost:8201/health/live
+curl http://localhost:11434/api/tags
+docker compose ps runledger-api runledger-web runledger-worker
+```
+
+You want the API to return `{"status":"ok"}`, Ollama to list at least one model, and the API/web/worker containers to be up.
 
 ---
 
@@ -136,11 +162,11 @@ linked guides.
 
 **Goal:** one org, three team-workspaces, users with roles — all by clicking.
 
-1. **Name the company.** Open **Organization** in the sidebar. Rename the default org
+1. **Name the company.** As an org admin or platform admin, open **Org Profile** in the sidebar. Rename the default org
    to **Acme Corp** (or create a new org if your build offers it).
-2. **Create the three teams.** Open **Workspace** and add three workspaces:
+2. **Create the three teams.** As an org admin, open **Workspace** and add three workspaces:
    `AI Support Team`, `AI Development Team`, `AI Test Team`.
-3. **Invite the people.** Open **Users** → invite each user from the table above and
+3. **Invite the people.** As an org admin, open **Users** → invite each user from the table above and
    assign their role (org admin / workspace admin / member).
 
 > 💡 **Local-stack note.** User invites normally send an email. If your local stack
@@ -156,7 +182,7 @@ linked guides.
 
 **Goal:** price your local models so cost is tracked (a $0 model never shows spend or trips a budget).
 
-1. Open **Provider Profiles** in the sidebar.
+1. As an org admin, open **Provider Profiles** in the sidebar.
 2. Use **Import** and upload [`pricing.sample.yaml`](./pricing.sample.yaml) (next to this file).
 3. It's **idempotent** — re-importing updates rows in place. The catalog now lives in the database.
 
@@ -164,16 +190,13 @@ linked guides.
 
 ---
 
-## Module 3 · Mint API keys  *(GUI — org admin)*
+## Module 3 - Mint API keys  *(GUI - org or workspace admin)*
 
 **Goal:** one workspace key per team; the scripts authenticate with these.
 
-> 🔒 **API-key management is an org-admin function.** You must be signed in as an
-> **organization admin** (the seeded `admin@runledger.local` is one). A plain API key
-> can't mint keys — only a logged-in org admin can. Keys are organised by **workspace**
-> (there's no dev/prod environment anymore).
+> **API-key management is a dashboard function.** Org admins can mint keys for any workspace in their org; workspace admins can mint keys only for their active workspace. A plain API key cannot mint keys.
 
-1. Open **Settings → API Keys**. In the create form, **pick a workspace** — start with
+1. Open **Control Plane -> API Keys**. In the create form, **pick a workspace** - start with
    **AI Support Team** — give the key a name, and **Create Key**. Copy it (shown once).
 2. Repeat, picking **AI Development Team**, then **AI Test Team**. The list shows a
    **Workspace** column so you can see which key belongs to which team.
@@ -233,7 +256,7 @@ tokens) and a `search_docs` tool call — captured purely from OTel spans.
 
 ## Module 6 · Lab 03 — Gateway proxy  *(AI Test Team)*
 
-First, in the GUI, open **Gateway** and create a route:
+First, in the GUI as an org admin, open **Gateway** and create a route:
 
 | Field | Value |
 |---|---|
@@ -276,7 +299,7 @@ First, in the GUI (as the AI Support Team's workspace admin), open **Budgets** a
 
 > Budgets are created in the GUI on purpose — setting a spend cap requires a
 > workspace-admin **dashboard session**, which an API key can't provide. (This is the
-> one governance action the scripts can't do for you.)
+> one governance action the agent scripts can't do for you.)
 
 Put the **AI Support Team** key back in `.env`, then:
 
@@ -355,9 +378,9 @@ labs/
   README.md                       ← this workbook (Part 1)
   part2_observe.md                ← Runs · Sessions · Analytics · Monitoring · Audit
   part3_quality.md                ← Prompts · Evaluation · Datasets · Experiments · Replay
-  part4_optimization.md           ← cache · compiler · routing · flywheel
+  part4_optimization.md           ← cache · compiler · compression · routing · tool filtering · MCP · flywheel
   part5_governance.md             ← gateway guardrails · Tool Registry · Approvals
-  part6_operations.md             ← add workspace · backup & restore
+  part6_operations.md             ← add workspace · backup · snapshots · restore drills
   part7_settings.md               ← OTLP · MCP · Integrations · Data Capture · Retention · Email
   part8_integrating_existing_stack.md  ← adopt RunLedger beside an existing AI stack
   pricing.sample.yaml             ← upload in Provider Profiles (Module 2)
@@ -367,6 +390,7 @@ labs/
     routing_policies.md           ← configure on Gateway routes
     evaluators.md                 ← create on Evaluation
     tools_and_policies.md         ← register in Tool Registry
+    tool_filtering_catalog.json   ← sample tool schemas for MCP/tool-filtering labs
   agents/
     requirements.txt              ← pip installs
     .env.example                  ← copy to .env, add your key

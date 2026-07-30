@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "c440542b-ef34-4eac-ad15-67bf7d67c1bd",
+    "_postman_id": "e2f7a163-3489-4ba6-88f4-6ea7af993fe3",
     "name": "RunLedger API",
-    "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key",
+    "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**RBAC token model:** use a dashboard session key from `POST /auth/login` for management APIs (Organizations, Gateway routes, Provider Profiles, Control Plane, Budgets). Use a workspace API key minted from Control Plane -> API Keys for data-plane APIs (`/ingest`, `/gateway/chat/completions`, `/v1/traces`). Keep the active token in `api_key`.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`\n4. Run `POST /admin/bootstrap` once on a fresh install\n5. Log in with `POST /auth/login`; copy the returned key into `api_key` and `session_api_key`\n6. For agent traffic, create a workspace key with `POST /settings/api-keys`; copy it into `workspace_api_key` and swap `api_key` when calling data-plane endpoints",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -1689,7 +1689,7 @@
       "description": "RunLedger Analytics endpoints"
     },
     {
-      "name": "Budgets",
+      "name": "Finance - Budgets",
       "item": [
         {
           "name": "Create Budget",
@@ -1949,7 +1949,7 @@
           "response": []
         }
       ],
-      "description": "RunLedger Budgets endpoints"
+      "description": "RunLedger Finance - Budgets endpoints"
     },
     {
       "name": "Billing",
@@ -2548,7 +2548,7 @@
       "description": "RunLedger Billing endpoints"
     },
     {
-      "name": "Outcomes & ROI",
+      "name": "Finance - Outcomes & ROI",
       "item": [
         {
           "name": "Create Outcome",
@@ -2844,10 +2844,10 @@
           "response": []
         }
       ],
-      "description": "RunLedger Outcomes & ROI endpoints"
+      "description": "RunLedger Finance - Outcomes & ROI endpoints"
     },
     {
-      "name": "Approvals",
+      "name": "Governance - Approvals",
       "item": [
         {
           "name": "Create Approval",
@@ -3127,7 +3127,7 @@
           "response": []
         }
       ],
-      "description": "RunLedger Approvals endpoints"
+      "description": "RunLedger Governance - Approvals endpoints"
     },
     {
       "name": "Model Gateway",
@@ -3220,7 +3220,7 @@
                 }
               ]
             },
-            "description": "Return recent gateway requests with routing decision reasons.\nUseful for auditing which policy selected which route and why."
+            "description": "Return recent gateway requests with routing decision reasons.\nUseful for auditing which policy selected which route and why.\n\nRBAC: requires an org-admin or platform-admin dashboard session key. The data-plane /gateway/chat/completions endpoint still accepts workspace API keys."
           },
           "response": []
         },
@@ -3248,7 +3248,7 @@
                 "routes"
               ]
             },
-            "description": "Create Gateway Route",
+            "description": "Create Gateway Route\n\nRBAC: requires an org-admin or platform-admin dashboard session key. The data-plane /gateway/chat/completions endpoint still accepts workspace API keys.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"alias\": \"string\",\n  \"provider\": \"string\",\n  \"target_model\": \"string\"\n}",
@@ -3293,7 +3293,7 @@
                 }
               ]
             },
-            "description": "List Gateway Routes"
+            "description": "List Gateway Routes\n\nRBAC: requires an org-admin or platform-admin dashboard session key. The data-plane /gateway/chat/completions endpoint still accepts workspace API keys."
           },
           "response": []
         },
@@ -3329,7 +3329,7 @@
                 }
               ]
             },
-            "description": "Update Gateway Route",
+            "description": "Update Gateway Route\n\nRBAC: requires an org-admin or platform-admin dashboard session key. The data-plane /gateway/chat/completions endpoint still accepts workspace API keys.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"alias\": null,\n  \"target_model\": null,\n  \"base_url\": null,\n  \"api_key_env_var\": null\n}",
@@ -3374,7 +3374,7 @@
                 }
               ]
             },
-            "description": "Delete Gateway Route"
+            "description": "Delete Gateway Route\n\nRBAC: requires an org-admin or platform-admin dashboard session key. The data-plane /gateway/chat/completions endpoint still accepts workspace API keys."
           },
           "response": []
         },
@@ -3402,7 +3402,7 @@
                 "stats"
               ]
             },
-            "description": "Aggregate gateway request stats per route for the workspace."
+            "description": "Aggregate gateway request stats per route for the workspace.\n\nRBAC: requires an org-admin or platform-admin dashboard session key. The data-plane /gateway/chat/completions endpoint still accepts workspace API keys."
           },
           "response": []
         },
@@ -5177,7 +5177,7 @@
       "description": "RunLedger Prompts endpoints"
     },
     {
-      "name": "Alerts",
+      "name": "Control Plane - Alert Rules",
       "item": [
         {
           "name": "List Alert History",
@@ -5211,7 +5211,7 @@
                 }
               ]
             },
-            "description": "List Alert History"
+            "description": "List Alert History\n\nRBAC: org-admin or platform-admin dashboard session key."
           },
           "response": []
         },
@@ -5239,7 +5239,7 @@
                 "rules"
               ]
             },
-            "description": "Create Alert Rule",
+            "description": "Create Alert Rule\n\nRBAC: org-admin or platform-admin dashboard session key.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"string\",\n  \"metric\": \"string\",\n  \"operator\": \"string\",\n  \"threshold\": null\n}",
@@ -5284,7 +5284,7 @@
                 }
               ]
             },
-            "description": "List Alert Rules"
+            "description": "List Alert Rules\n\nRBAC: org-admin or platform-admin dashboard session key."
           },
           "response": []
         },
@@ -5320,7 +5320,7 @@
                 }
               ]
             },
-            "description": "Update Alert Rule",
+            "description": "Update Alert Rule\n\nRBAC: org-admin or platform-admin dashboard session key.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": null,\n  \"threshold\": null,\n  \"window_minutes\": null,\n  \"is_active\": null\n}",
@@ -5365,12 +5365,12 @@
                 }
               ]
             },
-            "description": "Delete Alert Rule"
+            "description": "Delete Alert Rule\n\nRBAC: org-admin or platform-admin dashboard session key."
           },
           "response": []
         }
       ],
-      "description": "RunLedger Alerts endpoints"
+      "description": "RunLedger Control Plane - Alert Rules endpoints"
     },
     {
       "name": "Ledger",
@@ -5688,7 +5688,7 @@
       "description": "RunLedger Tools endpoints"
     },
     {
-      "name": "Providers",
+      "name": "Provider Profiles",
       "item": [
         {
           "name": "List Pricing",
@@ -5756,6 +5756,74 @@
           "response": []
         },
         {
+          "name": "Pricing Example",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/providers/pricing/example",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "providers",
+                "pricing",
+                "example"
+              ]
+            },
+            "description": "Return the example pricing YAML so the GUI can offer a downloadable template."
+          },
+          "response": []
+        },
+        {
+          "name": "Import Pricing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/providers/pricing/import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "providers",
+                "pricing",
+                "import"
+              ]
+            },
+            "description": "Import a pricing YAML \u00e2\u20ac\u201d idempotently upserts the **global** pricing catalog\n(update-in-place; re-importing the same file is a no-op). This is the DB-backed\nsource of truth; the file is only the transport.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Update Pricing",
           "request": {
             "method": "PUT",
@@ -5790,7 +5858,7 @@
             "description": "Update Pricing",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"input_cost_per_1m\": null,\n  \"output_cost_per_1m\": null,\n  \"cached_input_cost_per_1m\": null\n}",
+              "raw": "{\n  \"input_cost_per_1m\": null,\n  \"output_cost_per_1m\": null,\n  \"cached_input_cost_per_1m\": null,\n  \"tags\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5874,10 +5942,10 @@
           "response": []
         }
       ],
-      "description": "RunLedger Providers endpoints"
+      "description": "RunLedger Provider Profiles endpoints"
     },
     {
-      "name": "Settings",
+      "name": "Control Plane - API Keys",
       "item": [
         {
           "name": "List Api Keys",
@@ -5903,7 +5971,7 @@
                 "api-keys"
               ]
             },
-            "description": "List Api Keys"
+            "description": "List keys across ALL workspaces in the caller's org (org-admin only).\n\nRBAC: org/platform admins can manage keys across org workspaces; workspace admins can manage keys only for their active workspace. Use a dashboard session key from POST /auth/login."
           },
           "response": []
         },
@@ -5931,10 +5999,10 @@
                 "api-keys"
               ]
             },
-            "description": "Create Api Key",
+            "description": "Mint a key for a workspace in the caller's org (org-admin only).\n\nRBAC: org/platform admins can manage keys across org workspaces; workspace admins can manage keys only for their active workspace. Use a dashboard session key from POST /auth/login.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": null,\n  \"environment\": \"dev\",\n  \"scopes\": [\n    \"string\"\n  ],\n  \"created_by\": null\n}",
+              "raw": "{\n  \"name\": null,\n  \"workspace_id\": null,\n  \"environment\": \"dev\",\n  \"scopes\": [\n    \"string\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5976,10 +6044,16 @@
                 }
               ]
             },
-            "description": "Revoke Api Key"
+            "description": "Revoke a key belonging to the caller's org (org-admin only).\n\nRBAC: org/platform admins can manage keys across org workspaces; workspace admins can manage keys only for their active workspace. Use a dashboard session key from POST /auth/login."
           },
           "response": []
-        },
+        }
+      ],
+      "description": "Workspace API-key management. Org/platform admins can manage keys across org workspaces; workspace admins can manage keys for their active workspace."
+    },
+    {
+      "name": "Platform Settings - Email",
+      "item": [
         {
           "name": "Get Email Log",
           "request": {
@@ -6005,7 +6079,7 @@
                 "log"
               ]
             },
-            "description": "List the 50 most recent email log entries for this workspace."
+            "description": "Get Email Log\n\nRBAC: platform-admin only."
           },
           "response": []
         },
@@ -6034,7 +6108,7 @@
                 "preferences"
               ]
             },
-            "description": "Get or create default email preferences for this workspace."
+            "description": "Get or create default email preferences for this workspace.\n\nRBAC: platform-admin only."
           },
           "response": []
         },
@@ -6063,7 +6137,7 @@
                 "preferences"
               ]
             },
-            "description": "Update email preferences (PATCH semantics \u00e2\u20ac\u201d only provided fields are changed).",
+            "description": "Update Email Preferences\n\nRBAC: platform-admin only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"report_frequency\": null,\n  \"alerts_enabled\": null,\n  \"approvals_enabled\": null,\n  \"reconciliation_enabled\": null\n}",
@@ -6101,12 +6175,12 @@
                 "test"
               ]
             },
-            "description": "Send a test email to the workspace's API key owner (created_by field)."
+            "description": "Test Email Send\n\nRBAC: platform-admin only."
           },
           "response": []
         }
       ],
-      "description": "RunLedger Settings endpoints"
+      "description": "Platform-admin-only email preferences, log, and test-send endpoints."
     },
     {
       "name": "Users",
@@ -6135,6 +6209,70 @@
               ]
             },
             "description": "List Workspace Users"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Create a user identity and add them to the caller's org as a member (org-admin).\n\n``skip_verification`` (default true here) marks the account verified so it can sign\nin immediately when no SMTP is configured.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Org Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "all"
+              ]
+            },
+            "description": "Every user in the caller's org \u00e2\u20ac\u201d the identity registry (org-admin)."
           },
           "response": []
         },
@@ -6241,6 +6379,50 @@
           "response": []
         },
         {
+          "name": "Admin Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:user_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":user_id"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Edit another user's identity (name / password / active / verified) \u00e2\u20ac\u201d org-admin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": null,\n  \"password\": null,\n  \"is_active\": null,\n  \"email_verified\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Remove Workspace User",
           "request": {
             "method": "DELETE",
@@ -6324,7 +6506,7 @@
       "description": "RunLedger Users endpoints"
     },
     {
-      "name": "Organization",
+      "name": "Org Profile / Organizations",
       "item": [
         {
           "name": "Get Org Audit Log",
@@ -6678,6 +6860,161 @@
           "response": []
         },
         {
+          "name": "List Platform Orgs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/tenants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "tenants"
+              ]
+            },
+            "description": "Return every organization for the platform-admin lifecycle hub.\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Org",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/tenants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "tenants"
+              ]
+            },
+            "description": "Platform admin creates a new organization + default workspace + its own org admin.\n\nThe seeded org admin (body.admin_email) is who logs in and runs the org; the creating\nplatform admin is NOT added (they are not a member of this org's data plane).\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"string\",\n  \"admin_email\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Platform Org",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/tenants/:tenant_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "tenants",
+                ":tenant_id"
+              ],
+              "variable": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Platform-admin lifecycle update for any organization.\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": null,\n  \"plan\": null,\n  \"status\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Platform Org",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/tenants/:tenant_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "tenants",
+                ":tenant_id"
+              ],
+              "variable": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete a non-default organization from the platform lifecycle hub.\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirmation\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "List Org Workspaces",
           "request": {
             "method": "GET",
@@ -6768,6 +7105,51 @@
               ]
             },
             "description": "Returns workspaces the current user belongs to.\nOrg admins and platform admins see all workspaces in the org.\nRegular members see only workspaces they've been assigned to."
+          },
+          "response": []
+        },
+        {
+          "name": "Rename Org Workspace",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/workspaces/:workspace_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "workspaces",
+                ":workspace_id"
+              ],
+              "variable": [
+                {
+                  "key": "workspace_id",
+                  "value": "{{workspace_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Rename a workspace in the caller's org (org-admin) \u00e2\u20ac\u201d full CRUD.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         },
@@ -6980,10 +7362,10 @@
           "response": []
         }
       ],
-      "description": "RunLedger Organization endpoints"
+      "description": "RunLedger Org Profile / Organizations endpoints"
     },
     {
-      "name": "Audit",
+      "name": "Governance - Audit Log",
       "item": [
         {
           "name": "List Audit Events",
@@ -7088,7 +7470,7 @@
           "response": []
         }
       ],
-      "description": "RunLedger Audit endpoints"
+      "description": "RunLedger Governance - Audit Log endpoints"
     },
     {
       "name": "Policies",
@@ -7134,7 +7516,7 @@
       "description": "RunLedger Policies endpoints"
     },
     {
-      "name": "Privacy",
+      "name": "Control Plane - Data Capture",
       "item": [
         {
           "name": "Get Capture Policy",
@@ -7202,10 +7584,10 @@
           "response": []
         }
       ],
-      "description": "RunLedger Privacy endpoints"
+      "description": "RunLedger Control Plane - Data Capture endpoints"
     },
     {
-      "name": "Retention",
+      "name": "Platform Settings - Data Retention",
       "item": [
         {
           "name": "Create Retention Policy",
@@ -7231,7 +7613,7 @@
                 "policies"
               ]
             },
-            "description": "Create a new data retention policy for this workspace.",
+            "description": "Create a new data retention policy for this workspace.\n\nRBAC: platform-admin only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"resource_type\": \"runs\",\n  \"action\": \"delete\"\n}",
@@ -7282,7 +7664,7 @@
                 }
               ]
             },
-            "description": "List retention policies for this workspace."
+            "description": "List retention policies for this workspace.\n\nRBAC: platform-admin only."
           },
           "response": []
         },
@@ -7318,7 +7700,7 @@
                 }
               ]
             },
-            "description": "Get Retention Policy"
+            "description": "Get Retention Policy\n\nRBAC: platform-admin only."
           },
           "response": []
         },
@@ -7354,7 +7736,7 @@
                 }
               ]
             },
-            "description": "Update Retention Policy",
+            "description": "Update Retention Policy\n\nRBAC: platform-admin only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"max_age_days\": null,\n  \"is_active\": null,\n  \"scope_value\": null\n}",
@@ -7399,7 +7781,7 @@
                 }
               ]
             },
-            "description": "Delete Retention Policy"
+            "description": "Delete Retention Policy\n\nRBAC: platform-admin only."
           },
           "response": []
         },
@@ -7427,7 +7809,7 @@
                 "purge"
               ]
             },
-            "description": "Execute an immediate purge (or dry-run count).\n\nProvide either `policy_id` to run a saved policy, or explicit\nresource_type / action / scope fields for a one-off purge.",
+            "description": "Execute an immediate purge (or dry-run count).\n\nProvide either `policy_id` to run a saved policy, or explicit\nresource_type / action / scope fields for a one-off purge.\n\nRBAC: platform-admin only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"policy_id\": null,\n  \"resource_type\": null,\n  \"action\": null,\n  \"scope\": \"workspace\"\n}",
@@ -7441,7 +7823,7 @@
           "response": []
         }
       ],
-      "description": "RunLedger Retention endpoints"
+      "description": "RunLedger Platform Settings - Data Retention endpoints"
     },
     {
       "name": "Replay",
@@ -7726,7 +8108,7 @@
       "description": "RunLedger Replay endpoints"
     },
     {
-      "name": "OTLP",
+      "name": "Control Plane - OTLP",
       "item": [
         {
           "name": "OTLP/HTTP trace receiver",
@@ -7795,7 +8177,7 @@
                 }
               ]
             },
-            "description": "Paginated list of recent ingest batches for this workspace.\n\nUseful for debugging ingestion issues in the Settings \u00e2\u2020\u2019 OTLP tab."
+            "description": "Paginated list of recent ingest batches for this workspace.\n\nUseful for debugging ingestion issues in the Control Plane -> OTLP page.\n\nRBAC: org-admin or platform-admin dashboard session key."
           },
           "response": []
         },
@@ -7824,52 +8206,16 @@
                 "stats"
               ]
             },
-            "description": "Return aggregate ingest stats for the current workspace.\n\nResponse fields:\n  last_24h: {batches, traces, spans}\n  last_7d:  {batches, traces, spans}"
+            "description": "Return aggregate ingest stats for the current workspace.\n\nResponse fields:\n  last_24h: {batches, traces, spans}\n  last_7d:  {batches, traces, spans}\n\nRBAC: org-admin or platform-admin dashboard session key."
           },
           "response": []
         }
       ],
-      "description": "RunLedger OTLP endpoints"
+      "description": "RunLedger Control Plane - OTLP endpoints"
     },
     {
       "name": "Bootstrap / Admin",
       "item": [
-        {
-          "name": "Revoke Api Key",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/api-keys/:key_id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "api-keys",
-                ":key_id"
-              ],
-              "variable": [
-                {
-                  "key": "key_id",
-                  "value": "{{key_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "Revoke Api Key"
-          },
-          "response": []
-        },
         {
           "name": "Create Application",
           "request": {
@@ -7943,388 +8289,12 @@
             }
           },
           "response": []
-        },
-        {
-          "name": "Create Global Pricing",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/global-pricing",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "global-pricing"
-              ]
-            },
-            "description": "Create Global Pricing",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"provider\": \"string\",\n  \"model\": \"string\",\n  \"input_cost_per_1m\": null,\n  \"output_cost_per_1m\": null\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Global Pricing",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/global-pricing/:pricing_id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "global-pricing",
-                ":pricing_id"
-              ],
-              "variable": [
-                {
-                  "key": "pricing_id",
-                  "value": "{{pricing_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "Update Global Pricing",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"input_cost_per_1m\": null,\n  \"output_cost_per_1m\": null,\n  \"cached_input_cost_per_1m\": null\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Global Pricing",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/global-pricing/:pricing_id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "global-pricing",
-                ":pricing_id"
-              ],
-              "variable": [
-                {
-                  "key": "pricing_id",
-                  "value": "{{pricing_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "Delete Global Pricing"
-          },
-          "response": []
-        },
-        {
-          "name": "Create Tenant",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/tenants",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "tenants"
-              ]
-            },
-            "description": "Atomically creates Tenant + org admin User + TenantUser + default Workspace.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"string\",\n  \"admin_email\": \"string\",\n  \"admin_password\": \"string\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "List Tenants",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/tenants",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "tenants"
-              ]
-            },
-            "description": "List Tenants"
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Tenant",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/tenants/:tenant_id",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "tenants",
-                ":tenant_id"
-              ],
-              "variable": [
-                {
-                  "key": "tenant_id",
-                  "value": "{{tenant_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "Delete Tenant"
-          },
-          "response": []
-        },
-        {
-          "name": "List Workspaces",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/tenants/:tenant_id/workspaces",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "tenants",
-                ":tenant_id",
-                "workspaces"
-              ],
-              "variable": [
-                {
-                  "key": "tenant_id",
-                  "value": "{{tenant_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "List Workspaces"
-          },
-          "response": []
-        },
-        {
-          "name": "Create Workspace",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/workspaces",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "workspaces"
-              ]
-            },
-            "description": "Create Workspace",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"tenant_id\": \"{{workspace_id}}\",\n  \"name\": \"string\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Create Api Key",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/workspaces/:workspace_id/api-keys",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "workspaces",
-                ":workspace_id",
-                "api-keys"
-              ],
-              "variable": [
-                {
-                  "key": "workspace_id",
-                  "value": "{{workspace_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "Create Api Key",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": null,\n  \"environment\": \"dev\",\n  \"scopes\": [\n    \"string\"\n  ],\n  \"created_by\": null\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "List Api Keys",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{api_key}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/admin/workspaces/:workspace_id/api-keys",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "workspaces",
-                ":workspace_id",
-                "api-keys"
-              ],
-              "variable": [
-                {
-                  "key": "workspace_id",
-                  "value": "{{workspace_id}}",
-                  "description": ""
-                }
-              ]
-            },
-            "description": "List Api Keys"
-          },
-          "response": []
         }
       ],
       "description": "RunLedger Bootstrap / Admin endpoints"
     },
     {
-      "name": "Integrations",
+      "name": "Control Plane - MCP & Integrations",
       "item": [
         {
           "name": "Test Slack Webhook",
@@ -8365,7 +8335,7 @@
           "response": []
         }
       ],
-      "description": "RunLedger Integrations endpoints"
+      "description": "RunLedger Control Plane - MCP & Integrations endpoints"
     },
     {
       "name": "Semantic Cache Service",

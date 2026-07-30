@@ -29,6 +29,7 @@ from runledger_api.models.tenant import (
     MemberStatusEnum,
     Tenant,
     TenantRoleEnum,
+    TenantStatusEnum,
     TenantUser,
     User,
     Workspace,
@@ -46,6 +47,8 @@ from runledger_api.schemas.auth import (
     OrgProfileUpdate,
     OrgRoleUpdateRequest,
     PlatformOrgCreate,
+    PlatformTenantDelete,
+    PlatformTenantUpdate,
     TenantMemberResponse,
     TenantResponse,
     WorkspaceCreateForOrg,
@@ -59,6 +62,30 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/org", tags=["organization"])
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+async def _tenant_response(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
+    workspace_count = (
+        await db.execute(
+            select(func.count()).select_from(Workspace).where(Workspace.tenant_id == tenant.id)
+        )
+    ).scalar() or 0
+    member_count = (
+        await db.execute(
+            select(func.count()).select_from(TenantUser).where(TenantUser.tenant_id == tenant.id)
+        )
+    ).scalar() or 0
+    return {
+        "id": tenant.id,
+        "name": tenant.name,
+        "plan": tenant.plan,
+        "status": tenant.status,
+        "is_default": tenant.is_default,
+        "owner_user_id": tenant.owner_user_id,
+        "created_at": tenant.created_at,
+        "workspace_count": workspace_count,
+        "member_count": member_count,
+    }
 
 
 @router.post("/tenants", status_code=status.HTTP_201_CREATED, response_model=TenantResponse)
@@ -104,16 +131,7 @@ async def create_org(
     await db.commit()
     await db.refresh(tenant)
     log.info("org_created", tenant_id=str(tenant.id), admin=body.admin_email)
-    return {
-        "id": tenant.id,
-        "name": tenant.name,
-        "plan": tenant.plan,
-        "is_default": tenant.is_default,
-        "owner_user_id": tenant.owner_user_id,
-        "created_at": tenant.created_at,
-        "workspace_count": 1,
-        "member_count": 1,
-    }
+    return await _tenant_response(db, tenant)
 
 
 @router.get("/tenants", response_model=list[TenantResponse])
@@ -158,6 +176,124 @@ async def list_platform_orgs(
         }
         for tenant in tenants
     ]
+
+
+@router.put("/tenants/{tenant_id}", response_model=TenantResponse)
+async def update_platform_org(
+    tenant_id: uuid.UUID,
+    body: PlatformTenantUpdate,
+    auth: Annotated[tuple[Workspace, User], Depends(require_platform_admin)],
+    db: DbDep,
+) -> dict[str, Any]:
+    """Platform-admin lifecycle update for any organization."""
+    current_workspace, platform_user = auth
+    tenant = await db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+
+    old_value = {
+        "name": tenant.name,
+        "plan": str(tenant.plan),
+        "status": str(tenant.status),
+    }
+    if body.name is not None:
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Organization name is required")
+        tenant.name = name
+    if body.plan is not None:
+        tenant.plan = body.plan
+    if (
+        body.status is not None
+        and body.status != TenantStatusEnum.active
+        and (tenant.is_default or tenant.id == current_workspace.tenant_id)
+    ):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Default or current organization cannot be suspended or archived",
+        )
+    if body.status is not None:
+        tenant.status = body.status
+
+    log_audit(
+        db,
+        actor_user_id=platform_user.id,
+        scope_type="tenant",
+        scope_id=tenant.id,
+        action="lifecycle.updated",
+        old_value=str(old_value),
+        new_value=str(
+            {
+                "name": tenant.name,
+                "plan": str(tenant.plan),
+                "status": str(tenant.status),
+            }
+        ),
+    )
+    await db.commit()
+    await db.refresh(tenant)
+    return await _tenant_response(db, tenant)
+
+
+@router.delete("/tenants/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_platform_org(
+    tenant_id: uuid.UUID,
+    body: PlatformTenantDelete,
+    auth: Annotated[tuple[Workspace, User], Depends(require_platform_admin)],
+    db: DbDep,
+) -> None:
+    """Delete a non-default organization from the platform lifecycle hub."""
+    current_workspace, platform_user = auth
+    tenant = await db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
+    if tenant.is_default:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete the default organization")
+    if tenant.id == current_workspace.tenant_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Switch orgs before deleting this one")
+    if body.confirmation != tenant.name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Organization name confirmation mismatch")
+
+    candidate_user_ids = list(
+        (
+            await db.execute(select(TenantUser.user_id).where(TenantUser.tenant_id == tenant.id))
+        )
+        .scalars()
+        .all()
+    )
+    old_value = {
+        "id": str(tenant.id),
+        "name": tenant.name,
+        "plan": str(tenant.plan),
+        "status": str(tenant.status),
+    }
+    log_audit(
+        db,
+        actor_user_id=platform_user.id,
+        scope_type="tenant",
+        scope_id=tenant.id,
+        action="lifecycle.deleted",
+        old_value=str(old_value),
+    )
+    await db.delete(tenant)
+    await db.flush()
+
+    for user_id in candidate_user_ids:
+        user = await db.get(User, user_id)
+        if user is None or user.is_platform_admin:
+            continue
+        has_tenant = (
+            await db.execute(select(TenantUser.id).where(TenantUser.user_id == user_id).limit(1))
+        ).scalar_one_or_none()
+        has_workspace = (
+            await db.execute(
+                select(WorkspaceUser.user_id).where(WorkspaceUser.user_id == user_id).limit(1)
+            )
+        ).scalar_one_or_none()
+        if has_tenant is None and has_workspace is None:
+            user.is_active = False
+
+    await db.commit()
 
 
 @router.get("/profile", response_model=OrgProfileResponse)

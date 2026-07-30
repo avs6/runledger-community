@@ -21,40 +21,52 @@ TAG_ORDER = [
     ("runs", "Runs"),
     ("sessions", "Sessions"),
     ("analytics", "Analytics"),
-    ("budgets", "Budgets"),
+    ("budgets", "Finance - Budgets"),
     ("billing", "Billing"),
     ("invoices", "Invoices"),
-    ("outcomes", "Outcomes & ROI"),
-    ("approvals", "Approvals"),
+    ("outcomes", "Finance - Outcomes & ROI"),
+    ("approvals", "Governance - Approvals"),
     ("gateway", "Model Gateway"),
     ("flywheel", "Optimization Flywheel"),
     ("evaluations", "Evaluations"),
     ("experiments", "Experiments"),
     ("prompts", "Prompts"),
-    ("alerts", "Alerts"),
+    ("alerts", "Control Plane - Alert Rules"),
     ("ledger", "Ledger"),
     ("tools", "Tools"),
     ("pricing-intelligence", "Pricing Intelligence"),
-    ("providers", "Providers"),
-    ("settings", "Settings"),
+    ("providers", "Provider Profiles"),
+    ("settings", "Settings / API Keys"),
     ("sso", "SSO"),
     ("scim", "SCIM"),
     ("users", "Users"),
-    ("organization", "Organization"),
+    ("organization", "Org Profile / Organizations"),
     ("platform-admin", "Platform Admin"),
     ("saas", "SaaS / Billing"),
-    ("audit", "Audit"),
+    ("audit", "Governance - Audit Log"),
     ("policies", "Policies"),
-    ("privacy", "Privacy"),
-    ("retention", "Retention"),
+    ("privacy", "Control Plane - Data Capture"),
+    ("retention", "Platform Settings - Data Retention"),
     ("replay", "Replay"),
     ("warehouse", "Warehouse"),
-    ("OTLP", "OTLP"),
+    ("OTLP", "Control Plane - OTLP"),
     ("Kafka Export", "Kafka Export"),
     ("admin", "Bootstrap / Admin"),
-    ("integrations", "Integrations"),
+    ("integrations", "Control Plane - MCP & Integrations"),
     ("Operations", "Operations"),
 ]
+
+LEGACY_ADMIN_PREFIXES = (
+    "/admin/tenants",
+    "/admin/workspaces",
+    "/admin/api-keys",
+    "/admin/global-pricing",
+)
+
+
+def should_skip_path(path: str) -> bool:
+    """Hide legacy admin provisioning routes superseded by platform-admin org APIs."""
+    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in LEGACY_ADMIN_PREFIXES)
 
 
 def make_url(path: str) -> tuple[list[str], list[dict]]:
@@ -143,6 +155,8 @@ items_list = []
 for tag, display_name in TAG_ORDER:
     folder_items = []
     for path, methods in sorted(paths.items()):
+        if should_skip_path(path):
+            continue
         for method, op in methods.items():
             if method == "parameters":
                 continue
@@ -181,6 +195,47 @@ for tag, display_name in TAG_ORDER:
                 "url": url_obj,
                 "description": op.get("description", op.get("summary", "")),
             }
+            if path.startswith("/settings/api-keys"):
+                req["description"] = (
+                    (req.get("description") or "API key management")
+                    + "\n\nRBAC: org/platform admins can manage keys across org workspaces; "
+                    "workspace admins can manage keys only for their active workspace. Use a dashboard "
+                    "session key from POST /auth/login."
+                )
+            elif path.startswith("/gateway/routes") or path in {"/gateway/requests", "/gateway/stats"}:
+                req["description"] = (
+                    (req.get("description") or "Gateway management")
+                    + "\n\nRBAC: requires an org-admin or platform-admin dashboard session key. "
+                    "The data-plane /gateway/chat/completions endpoint still accepts workspace API keys."
+                )
+            elif path.startswith("/org/tenants"):
+                req["description"] = (
+                    (req.get("description") or "Organization lifecycle")
+                    + "\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub."
+                )
+            elif path.startswith("/retention") or path.startswith("/settings/email"):
+                req["description"] = (
+                    (req.get("description") or "Platform setting")
+                    + "\n\nRBAC: platform-admin only."
+                )
+            elif path.startswith("/alerts"):
+                req["description"] = (
+                    (req.get("description") or "Alert rules")
+                    + "\n\nRBAC: org-admin or platform-admin dashboard session key."
+                )
+            elif path.startswith("/v1/traces/"):
+                desc = (req.get("description") or "OTLP ingest management").replace(
+                    "Settings → OTLP tab",
+                    "Control Plane -> OTLP page",
+                )
+                desc = desc.replace(
+                    "Settings â†’ OTLP tab",
+                    "Control Plane -> OTLP page",
+                )
+                req["description"] = (
+                    desc
+                    + "\n\nRBAC: org-admin or platform-admin dashboard session key."
+                )
             body = make_body(op)
             if body:
                 req["body"] = body
@@ -341,6 +396,70 @@ def _add_optimization_extras(items: list[dict]) -> None:
 
 _add_optimization_extras(items_list)
 
+
+def _split_settings(items: list[dict]) -> None:
+    """Split mixed /settings endpoints into UI-aligned Control Plane and Settings folders."""
+    settings = next((it for it in items if it["name"] == "Settings / API Keys"), None)
+    if settings is None:
+        return
+
+    api_key_items = []
+    email_items = []
+    other_items = []
+    for item in settings["item"]:
+        raw = item["request"]["url"].get("raw", "")
+        if "/settings/api-keys" in raw:
+            api_key_items.append(item)
+        elif "/settings/email" in raw:
+            email_items.append(item)
+        else:
+            other_items.append(item)
+
+    items.remove(settings)
+    insert_at = 0
+    for idx, folder in enumerate(items):
+        if folder["name"].startswith("Provider Profiles"):
+            insert_at = idx + 1
+            break
+
+    if api_key_items:
+        items.insert(
+            insert_at,
+            {
+                "name": "Control Plane - API Keys",
+                "item": api_key_items,
+                "description": (
+                    "Workspace API-key management. Org/platform admins can manage keys across "
+                    "org workspaces; workspace admins can manage keys for their active workspace."
+                ),
+            },
+        )
+        insert_at += 1
+
+    if email_items:
+        items.insert(
+            insert_at,
+            {
+                "name": "Platform Settings - Email",
+                "item": email_items,
+                "description": "Platform-admin-only email preferences, log, and test-send endpoints.",
+            },
+        )
+        insert_at += 1
+
+    if other_items:
+        items.insert(
+            insert_at,
+            {
+                "name": "Settings / Other",
+                "item": other_items,
+                "description": "Other settings endpoints.",
+            },
+        )
+
+
+_split_settings(items_list)
+
 # ── Assemble collection ───────────────────────────────────────────────────────
 collection = {
     "info": {
@@ -350,11 +469,20 @@ collection = {
             "RunLedger — Agent FinOps Control Plane.\n\n"
             "Full API surface: ingest, analytics, budgets, billing, model gateway, "
             "evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n"
+            "**RBAC token model:** use a dashboard session key from `POST /auth/login` "
+            "for management APIs (Organizations, Gateway routes, Provider Profiles, "
+            "Control Plane, Budgets). Use a workspace API key minted from Control Plane "
+            "-> API Keys for data-plane APIs (`/ingest`, `/gateway/chat/completions`, "
+            "`/v1/traces`). Keep the active token in `api_key`.\n\n"
             "**Setup:**\n"
             "1. Import this collection\n"
             "2. Import the companion environment (RunLedger Environment)\n"
-            "3. Set `base_url`, `api_key`, and `workspace_id` in the environment\n"
-            "4. Run `POST /admin/bootstrap` once on a fresh install to get your api_key"
+            "3. Set `base_url`\n"
+            "4. Run `POST /admin/bootstrap` once on a fresh install\n"
+            "5. Log in with `POST /auth/login`; copy the returned key into `api_key` "
+            "and `session_api_key`\n"
+            "6. For agent traffic, create a workspace key with `POST /settings/api-keys`; "
+            "copy it into `workspace_api_key` and swap `api_key` when calling data-plane endpoints"
         ),
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     },
@@ -419,7 +547,42 @@ environment = {
             "value": "",
             "type": "secret",
             "enabled": True,
-            "description": "RunLedger API key (rl_... prefix). Get one from POST /admin/bootstrap or POST /auth/login.",
+            "description": "Active Bearer token. Use a dashboard session key for management APIs, or a workspace API key for data-plane APIs.",
+        },
+        {
+            "key": "session_api_key",
+            "value": "",
+            "type": "secret",
+            "enabled": True,
+            "description": "Dashboard session key returned by POST /auth/login. Required for management APIs and RBAC checks.",
+        },
+        {
+            "key": "workspace_api_key",
+            "value": "",
+            "type": "secret",
+            "enabled": True,
+            "description": "Long-lived workspace API key minted from Control Plane -> API Keys or POST /settings/api-keys. Use for ingest, OTLP, and gateway chat completions.",
+        },
+        {
+            "key": "platform_admin_key",
+            "value": "",
+            "type": "secret",
+            "enabled": True,
+            "description": "Optional platform-admin dashboard session key for Organizations and platform Settings.",
+        },
+        {
+            "key": "org_admin_key",
+            "value": "",
+            "type": "secret",
+            "enabled": True,
+            "description": "Optional org-admin dashboard session key for Gateway, Provider Profiles, Control Plane, Users, and Workspaces.",
+        },
+        {
+            "key": "workspace_admin_key",
+            "value": "",
+            "type": "secret",
+            "enabled": True,
+            "description": "Optional workspace-admin dashboard session key for active-workspace API Keys, Budgets, Approvals, and Audit Log.",
         },
         {
             "key": "workspace_id",

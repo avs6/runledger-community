@@ -21,8 +21,52 @@ OLLAMA = "http://host.docker.internal:11434/v1"
 def run(sim: Sim) -> None:
     ws = sim.workspace("Acme Dev Tools", "Coding Assistant")
 
-    ws.add_route("code", "qwen2.5-coder:14b", priority=10, base_url=OLLAMA, semantic_cache_enabled=True)
-    ws.add_route("reason", "deepseek-r1:14b", priority=20, base_url=OLLAMA)
+    ws.add_route(
+        "code",
+        "qwen2.5-coder:14b",
+        priority=10,
+        base_url=OLLAMA,
+        semantic_cache_enabled=True,
+        context_compiler_enabled=True,
+        context_compiler_config={
+            "token_threshold": 0,
+            "token_budget": 16000,
+            "keep_recent": 4,
+            "stages": {
+                "dedup": True,
+                "tool_output": True,
+                "rerank": True,
+                "compaction": True,
+                "compress": False,
+                "tools": True,
+                "skills": True,
+            },
+            "tool_k": 6,
+            "tool_filter_threshold": 10,
+            "always_tools": ["read_file", "apply_patch"],
+            "skill_k": 2,
+        },
+        per_user_rpm_limit=60,
+        pii_redaction_enabled=True,
+    )
+    ws.add_route(
+        "reason",
+        "deepseek-r1:14b",
+        priority=20,
+        base_url=OLLAMA,
+        intelligent_routing_enabled=True,
+        routing_config={
+            "classifier_mode": "hybrid",
+            "tiers": {"cheap": "code", "mid": "reason", "frontier": "reason"},
+            "matrix": {
+                "simple": {"low": "cheap", "high": "mid"},
+                "medium": {"low": "mid", "high": "frontier"},
+                "complex": {"low": "frontier", "high": "frontier"},
+            },
+            "reasoning_effort": True,
+            "on_failure": "passthrough",
+        },
+    )
 
     runs = ws.ingest_runs(
         140,

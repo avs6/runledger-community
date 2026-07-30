@@ -17,10 +17,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_org_admin, require_platform_admin
+from runledger_api.core.deps import (
+    get_current_workspace,
+    require_platform_admin,
+    require_workspace_admin,
+)
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
-from runledger_api.models.tenant import ApiKey, Workspace
+from runledger_api.models.tenant import ApiKey, Workspace, WorkspaceUser
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
 from runledger_api.schemas.email_prefs import (
     EmailLogList,
@@ -40,7 +44,7 @@ WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 # API-key management is an **org-admin** function performed by a logged-in user
 # (a session), not by a bare API key — a key can no longer mint or revoke keys.
-OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
+WorkspaceAdminDep = Annotated[tuple[Workspace, Any, WorkspaceUser | None], Depends(require_workspace_admin)]
 PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
 
 
@@ -54,11 +58,21 @@ async def _org_workspaces(db: AsyncSession, tenant_id: uuid.UUID) -> dict[uuid.U
     return {w.id: w.name for w in rows}
 
 
+async def _key_visible_workspaces(
+    db: AsyncSession,
+    workspace: Workspace,
+    workspace_membership: WorkspaceUser | None,
+) -> dict[uuid.UUID, str]:
+    if workspace_membership is None:
+        return await _org_workspaces(db, workspace.tenant_id)
+    return {workspace.id: workspace.name}
+
+
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
-async def list_api_keys(auth: OrgAdminDep, db: DbDep) -> list[dict[str, Any]]:
+async def list_api_keys(auth: WorkspaceAdminDep, db: DbDep) -> list[dict[str, Any]]:
     """List keys across ALL workspaces in the caller's org (org-admin only)."""
-    workspace, _user, _tu = auth
-    ws = await _org_workspaces(db, workspace.tenant_id)
+    workspace, _user, workspace_membership = auth
+    ws = await _key_visible_workspaces(db, workspace, workspace_membership)
     result = await db.execute(
         select(ApiKey)
         .where(
@@ -89,13 +103,13 @@ async def list_api_keys(auth: OrgAdminDep, db: DbDep) -> list[dict[str, Any]]:
     status_code=status.HTTP_201_CREATED,
     response_model=ApiKeyCreateResponse,
 )
-async def create_api_key(body: ApiKeyCreate, auth: OrgAdminDep, db: DbDep) -> dict[str, Any]:
+async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep) -> dict[str, Any]:
     """Mint a key for a workspace in the caller's org (org-admin only)."""
-    workspace, user, _tu = auth
-    ws = await _org_workspaces(db, workspace.tenant_id)
+    workspace, user, workspace_membership = auth
+    ws = await _key_visible_workspaces(db, workspace, workspace_membership)
     target_id = body.workspace_id or workspace.id
     if target_id not in ws:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace is not in your organization")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace is outside your API key scope")
     raw_key, key_hash, key_prefix = generate_api_key(body.environment)
     api_key = ApiKey(
         workspace_id=target_id,
@@ -129,15 +143,15 @@ async def create_api_key(body: ApiKeyCreate, auth: OrgAdminDep, db: DbDep) -> di
 
 
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_api_key(key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) -> None:
+async def revoke_api_key(key_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep) -> None:
     """Revoke a key belonging to the caller's org (org-admin only)."""
-    workspace, _user, _tu = auth
+    workspace, _user, workspace_membership = auth
     api_key = await db.get(ApiKey, key_id)
     if api_key is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
-    ws = await _org_workspaces(db, workspace.tenant_id)
+    ws = await _key_visible_workspaces(db, workspace, workspace_membership)
     if api_key.workspace_id not in ws:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "API key is not in your organization")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "API key is outside your API key scope")
     api_key.revoked_at = datetime.now(UTC)
     await db.commit()
     log.info("api_key_revoked", key_id=str(key_id))

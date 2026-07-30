@@ -1,0 +1,37 @@
+---
+title: "Workspaces"
+description: "Create, rename, and manage team-level isolation inside an organization."
+---
+
+A **workspace** is RunLedger's team boundary. Runs, sessions, API keys, budgets, cache entries, gateway requests, outcomes, and audit events are scoped to a workspace.
+
+## Who Can Manage Workspaces
+
+- Org admins can create and rename workspaces inside their organization.
+- Platform admins can do the same when operating inside an organization.
+- Workspace admins can manage controls for their active workspace, but they cannot create or rename workspaces.
+- Members have read-only visibility into their assigned workspaces.
+
+## Common Actions
+
+- Create a workspace for a new team.
+- Rename a workspace from the Workspace page.
+- Add members and set workspace roles.
+- Switch workspaces from the top bar.
+
+After a workspace rename, the dashboard session updates `workspace_name`, so the top bar breadcrumb changes immediately.
+
+## Workspace Admin Scope
+
+Workspace admins can operate within their active workspace:
+
+- Create and revoke workspace-scoped API keys.
+- Create, edit, and delete budgets.
+- View Outcomes & ROI.
+- Review Approvals and Audit Log.
+
+Workspace admins do not see org-level Gateway, Provider Profiles, Alert Rules, MCP, Integrations, Data Capture, Org Profile, Users, Workspace creation, or platform Settings.
+
+## Isolation
+
+Every workspace has its own API keys and data boundary. Switching keys is how scripts and agents switch which team receives traffic.

@@ -56,14 +56,14 @@ ordered runs, total cost, and turn count for that conversation.
 
 **Goal:** get told when something goes wrong, instead of finding out later.
 
-1. Open **Monitoring** → create an **alert rule** (GUI):
+1. As an org admin, open **Control Plane -> Alert Rules** and create an alert rule:
    - Metric: `spend_velocity`  ·  Operator: `gt`  ·  Threshold: `5`
    - (Other metrics: `error_rate`, `p95_latency`, `avg_score`.)
 2. Drive a burst to trip it:
    ```bash
    LAB_FEATURE_TAG=support-chat LAB_RUNS=120 python traffic_gen.py
    ```
-3. Back on **Monitoring**, watch the rule's **firing history**.
+3. Back on **Monitoring**, watch the rule's firing history.
 
 🔎 Alerts are the always-on version of the analytics you just read by hand.
 
@@ -73,7 +73,7 @@ ordered runs, total cost, and turn count for that conversation.
 
 **Goal:** see the record of *administrative* actions (not agent traffic).
 
-Open **Audit**. Every setup step you did in the GUI — creating workspaces, minting API
+As a workspace admin, open **Governance -> Audit Log**. Every setup step you did in the GUI — creating workspaces, minting API
 keys, changing budgets, editing routes — is recorded with who/what/when.
 
 🔎 Runs = what your *agents* did. Audit = what *people* did to the configuration. Both

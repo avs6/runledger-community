@@ -4,7 +4,7 @@
 # (infra/helm/runledger/templates/backup-cronjob.yaml).
 #
 # Restores any subset of the durable stores from S3. Each store is independent;
-# pass only the flags you need. Runbook: docs/optimization/ha-and-backup.mdx.
+# pass only the flags you need. Runbook: docs/backup-restore.md.
 #
 # Prerequisites: awscli, pg_restore (postgresql-client), curl, tar.
 #

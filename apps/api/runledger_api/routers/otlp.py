@@ -287,7 +287,7 @@ async def list_traces_batches(
     """
     Paginated list of recent ingest batches for this workspace.
 
-    Useful for debugging ingestion issues in the Settings → OTLP tab.
+    Useful for debugging ingestion issues in the Control Plane -> OTLP page.
     """
     workspace = auth[0]
     rows = await db.execute(

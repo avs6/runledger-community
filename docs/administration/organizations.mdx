@@ -1,0 +1,27 @@
+---
+title: "Organizations"
+description: "Platform-admin lifecycle hub for creating, editing, suspending, and deleting organizations."
+---
+
+The **Organizations** page is platform-admin-only. It is the lifecycle hub for every tenant on a RunLedger installation.
+
+## What Platform Admins Can Do
+
+- List every organization across the platform.
+- Create a new organization with its own seeded org admin.
+- View workspace and member counts.
+- Edit organization name, plan, and lifecycle status.
+- Suspend or reactivate non-default, non-current organizations.
+- Delete non-default, non-current organizations with typed-name confirmation.
+
+## Safety Rules
+
+The default organization and the organization you are currently switched into cannot be suspended or deleted. Switch to another organization before deleting a non-default org.
+
+Deleting an organization removes its workspaces and tenant memberships. Users who no longer belong to any organization or workspace are deactivated, while platform admins are preserved.
+
+## Related Pages
+
+- **Org Profile** is for org-admin self-service rename/profile edits inside one organization.
+- **Users** manages user identity and membership.
+- **Workspace** manages teams/workspaces inside the active organization.

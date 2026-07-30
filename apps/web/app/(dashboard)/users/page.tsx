@@ -1,18 +1,22 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
-  UserPlus, Trash2, RefreshCw, Search, X, Shield, KeyRound, Pencil,
-  Building2, CheckCircle2, Circle, UsersRound, LayoutGrid,
+  CheckCircle2,
+  Circle,
+  KeyRound,
+  Pencil,
+  RefreshCw,
+  Search,
+  Shield,
+  Trash2,
+  UserPlus,
+  X,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
-import {
-  listOrgUsers, createOrgUser, updateOrgUser, createOrganization,
-  listPlatformOrganizations, type OrgUser,
-} from '@/lib/api'
-import type { TenantResponse } from '@/types/api'
+import { createOrgUser, listOrgUsers, updateOrgUser, type OrgUser } from '@/lib/api'
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -24,7 +28,7 @@ const TABLE_HEAD =
 function Avatar({ name, email }: { name: string | null; email: string }) {
   const initial = ((name ?? email)[0] ?? '?').toUpperCase()
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-white text-xs font-bold">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 text-xs font-bold text-white">
       {initial}
     </div>
   )
@@ -46,15 +50,13 @@ function StatusBadge({ active }: { active: boolean }) {
 export default function UsersPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
-  const { isOrgAdmin, isPlatformAdmin } = useRole()
-  const canManage = isOrgAdmin || isPlatformAdmin
+  const { isOrgAdmin } = useRole()
+  const canManage = isOrgAdmin
 
   const [users, setUsers] = useState<OrgUser[]>([])
-  const [organizations, setOrganizations] = useState<TenantResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  // Create-user form
   const [showCreate, setShowCreate] = useState(false)
   const [cEmail, setCEmail] = useState('')
   const [cName, setCName] = useState('')
@@ -62,36 +64,25 @@ export default function UsersPage() {
   const [cSkipVerify, setCSkipVerify] = useState(true)
   const [creating, setCreating] = useState(false)
 
-  // Edit-user form
   const [editing, setEditing] = useState<OrgUser | null>(null)
   const [eName, setEName] = useState('')
   const [ePassword, setEPassword] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Create-org form (platform admin)
-  const [showCreateOrg, setShowCreateOrg] = useState(false)
-  const [orgName, setOrgName] = useState('')
-  const [orgAdminEmail, setOrgAdminEmail] = useState('')
-  const [orgAdminPassword, setOrgAdminPassword] = useState('ChangeMe123!')
-  const [orgAdminName, setOrgAdminName] = useState('')
-  const [creatingOrg, setCreatingOrg] = useState(false)
-
   const load = useCallback(async () => {
-    if (!apiKey || !canManage) { setLoading(false); return }
+    if (!apiKey || !canManage) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
-      const [orgUsers, platformOrgs] = await Promise.all([
-        listOrgUsers(apiKey),
-        isPlatformAdmin ? listPlatformOrganizations(apiKey) : Promise.resolve([]),
-      ])
-      setUsers(orgUsers)
-      setOrganizations(platformOrgs)
-    } catch {
-      toast.error('Failed to load organization data')
+      setUsers(await listOrgUsers(apiKey))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load users')
     } finally {
       setLoading(false)
     }
-  }, [apiKey, canManage, isPlatformAdmin])
+  }, [apiKey, canManage])
 
   useEffect(() => { load() }, [load])
 
@@ -103,7 +94,7 @@ export default function UsersPage() {
     )
   }, [users, search])
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: FormEvent) {
     e.preventDefault()
     if (!cEmail.trim()) return
     setCreating(true)
@@ -116,7 +107,10 @@ export default function UsersPage() {
       })
       setUsers((prev) => [...prev, u])
       setShowCreate(false)
-      setCEmail(''); setCName(''); setCPassword('ChangeMe123!'); setCSkipVerify(true)
+      setCEmail('')
+      setCName('')
+      setCPassword('ChangeMe123!')
+      setCSkipVerify(true)
       toast.success(`User ${u.email} created${u.email_verified ? ' (verified)' : ''}. Add them to a workspace so they can sign in.`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create user')
@@ -126,10 +120,12 @@ export default function UsersPage() {
   }
 
   function openEdit(u: OrgUser) {
-    setEditing(u); setEName(u.full_name ?? ''); setEPassword('')
+    setEditing(u)
+    setEName(u.full_name ?? '')
+    setEPassword('')
   }
 
-  async function handleSaveEdit(e: React.FormEvent) {
+  async function handleSaveEdit(e: FormEvent) {
     e.preventDefault()
     if (!editing) return
     setSaving(true)
@@ -172,29 +168,6 @@ export default function UsersPage() {
     }
   }
 
-  async function handleCreateOrg(e: React.FormEvent) {
-    e.preventDefault()
-    if (!orgName.trim() || !orgAdminEmail.trim() || !orgAdminPassword.trim()) return
-    setCreatingOrg(true)
-    try {
-      const org = await createOrganization(apiKey, {
-        name: orgName.trim(),
-        admin_email: orgAdminEmail.trim(),
-        admin_password: orgAdminPassword,
-        admin_full_name: orgAdminName.trim() || null,
-        skip_verification: true,
-      })
-      const refreshed = await listPlatformOrganizations(apiKey)
-      setOrganizations(refreshed)
-      setShowCreateOrg(false); setOrgName(''); setOrgAdminEmail(''); setOrgAdminPassword('ChangeMe123!'); setOrgAdminName('')
-      toast.success(`Organization "${org.name}" created. The seeded org admin can now sign in with the credentials you entered.`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create organization')
-    } finally {
-      setCreatingOrg(false)
-    }
-  }
-
   if (!canManage) {
     return (
       <div className="p-8">
@@ -205,7 +178,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6 p-8">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Users</h1>
@@ -214,93 +187,21 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isPlatformAdmin && (
-            <button onClick={() => setShowCreateOrg(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-              <Building2 className="h-4 w-4" /> New Organization
-            </button>
-          )}
-          <button onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+          >
             <UserPlus className="h-4 w-4" /> New User
           </button>
-          <button onClick={load} className="rounded-lg border border-slate-300 dark:border-slate-600 p-2 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <button onClick={load} className="rounded-lg border border-slate-300 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800">
             <RefreshCw className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      {isPlatformAdmin && (
-        <section className="space-y-3" aria-labelledby="organizations-heading">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 id="organizations-heading" className="text-lg font-semibold text-slate-900 dark:text-white">
-                Organizations
-              </h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Platform-wide lifecycle view of organizations, workspaces, and membership.
-              </p>
-            </div>
-            <span className="text-xs font-medium text-slate-500">
-              {organizations.length} total
-            </span>
-          </div>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50">
-                <tr>
-                  <th className={TABLE_HEAD}>Organization</th>
-                  <th className={TABLE_HEAD}>Plan</th>
-                  <th className={TABLE_HEAD}>Workspaces</th>
-                  <th className={TABLE_HEAD}>Members</th>
-                  <th className={TABLE_HEAD}>Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Loading...</td></tr>
-                ) : organizations.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No organizations yet.</td></tr>
-                ) : organizations.map((org) => (
-                  <tr key={org.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
-                          <Building2 className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-slate-800 dark:text-slate-100">{org.name}</div>
-                          <div className="text-xs capitalize text-slate-500">{org.status}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">{org.plan}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                        <LayoutGrid className="h-3.5 w-3.5 text-slate-400" />
-                        {org.workspace_count}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                        <UsersRound className="h-3.5 w-3.5 text-slate-400" />
-                        {org.member_count}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {new Date(org.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
       <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${users.length} users…`} className={`${inputCls} pl-8 w-full`} />
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${users.length} users...`} className={`${inputCls} w-full pl-8`} />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
@@ -317,7 +218,7 @@ export default function UsersPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Loading…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No users. Create one to get started.</td></tr>
             ) : filtered.map((u) => (
@@ -326,20 +227,19 @@ export default function UsersPage() {
                   <div className="flex items-center gap-3">
                     <Avatar name={u.full_name} email={u.email} />
                     <div>
-                      <div className="font-medium text-slate-800 dark:text-slate-100">{u.full_name ?? '—'}</div>
+                      <div className="font-medium text-slate-800 dark:text-slate-100">{u.full_name ?? '-'}</div>
                       <div className="text-xs text-slate-500">{u.email}</div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {u.org_role === 'org_admin' && <Shield className="h-3 w-3" />}
                     {(u.org_role ?? 'org_member').replace('org_', '')}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <button onClick={() => toggleField(u, 'email_verified')} title="Toggle verification"
-                    className={`inline-flex items-center gap-1 text-xs ${u.email_verified ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <button onClick={() => toggleField(u, 'email_verified')} title="Toggle verification" className={`inline-flex items-center gap-1 text-xs ${u.email_verified ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     {u.email_verified ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
                     {u.email_verified ? 'Verified' : 'Unverified'}
                   </button>
@@ -362,7 +262,6 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {/* Create user modal */}
       {showCreate && (
         <Modal title="New user" onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
@@ -374,17 +273,16 @@ export default function UsersPage() {
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
               <input type="checkbox" checked={cSkipVerify} onChange={(e) => setCSkipVerify(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-              Skip email verification (mark verified) — use when SMTP isn&apos;t configured
+              Skip email verification
             </label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm">Cancel</button>
-              <button type="submit" disabled={creating} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creating ? 'Creating…' : 'Create user'}</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600">Cancel</button>
+              <button type="submit" disabled={creating} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creating ? 'Creating...' : 'Create user'}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Edit user modal */}
       {editing && (
         <Modal title={`Edit ${editing.email}`} onClose={() => setEditing(null)}>
           <form onSubmit={handleSaveEdit} className="space-y-3">
@@ -393,29 +291,12 @@ export default function UsersPage() {
               <input type="text" value={eName} onChange={(e) => setEName(e.target.value)} className={`${inputCls} w-full`} />
             </div>
             <div>
-              <label className="text-xs text-slate-500 flex items-center gap-1"><KeyRound className="h-3 w-3" /> New password (leave blank to keep)</label>
-              <input type="text" placeholder="••••••••" value={ePassword} onChange={(e) => setEPassword(e.target.value)} className={`${inputCls} w-full`} />
+              <label className="flex items-center gap-1 text-xs text-slate-500"><KeyRound className="h-3 w-3" /> New password (leave blank to keep)</label>
+              <input type="text" placeholder="********" value={ePassword} onChange={(e) => setEPassword(e.target.value)} className={`${inputCls} w-full`} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm">Cancel</button>
-              <button type="submit" disabled={saving} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Create org modal */}
-      {showCreateOrg && (
-        <Modal title="New organization" onClose={() => setShowCreateOrg(false)}>
-          <form onSubmit={handleCreateOrg} className="space-y-3">
-            <p className="text-xs text-slate-500">Creates a new organization with a default workspace and seeds its own org admin account.</p>
-            <input autoFocus type="text" required placeholder="Organization name" value={orgName} onChange={(e) => setOrgName(e.target.value)} className={`${inputCls} w-full`} />
-            <input type="email" required placeholder="Org admin email" value={orgAdminEmail} onChange={(e) => setOrgAdminEmail(e.target.value)} className={`${inputCls} w-full`} />
-            <input type="text" placeholder="Org admin full name (optional)" value={orgAdminName} onChange={(e) => setOrgAdminName(e.target.value)} className={`${inputCls} w-full`} />
-            <input type="text" required placeholder="Temporary password" value={orgAdminPassword} onChange={(e) => setOrgAdminPassword(e.target.value)} className={`${inputCls} w-full`} />
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowCreateOrg(false)} className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm">Cancel</button>
-              <button type="submit" disabled={creatingOrg} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creatingOrg ? 'Creating…' : 'Create organization'}</button>
+              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600">Cancel</button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
         </Modal>
@@ -424,7 +305,7 @@ export default function UsersPage() {
   )
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>

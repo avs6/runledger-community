@@ -8,8 +8,11 @@ TODO pending the analytics/ledger endpoint wiring.
 
 Usage:
     python scripts/bench/report.py \
-        --base-url http://localhost:8000 --api-key $RUNLEDGER_API_KEY \
+        --base-url http://localhost:8201 --api-key $RUNLEDGER_SESSION_KEY \
         --alias gpt-frontier --since 2026-07-27T00:00:00+00:00 --limit 200
+
+`--api-key` must be an org-admin or platform-admin dashboard session key from
+POST /auth/login. Gateway request logs are management-side after RBAC Phase 2.
 """
 
 from __future__ import annotations
@@ -61,7 +64,7 @@ def summarize(items: list[dict], since: datetime | None) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base-url", default="http://localhost:8000")
+    ap.add_argument("--base-url", default="http://localhost:8201")
     ap.add_argument("--api-key", required=True)
     ap.add_argument("--alias", required=True)
     ap.add_argument("--since", default=None, help="ISO timestamp; ignore requests before it")
@@ -72,7 +75,7 @@ def main() -> None:
     items = fetch(args.base_url, args.api_key, args.alias, args.limit)
     s = summarize(items, since)
 
-    print(f"\nBenchmark summary · alias={args.alias}")
+    print(f"\nBenchmark summary - alias={args.alias}")
     print("-" * 48)
     for k, v in s.items():
         print(f"{k:>18}: {v}")

@@ -1,0 +1,30 @@
+---
+title: "Users"
+description: "Create users, assign org roles, and grant workspace access."
+---
+
+The **Users** page is where admins manage people and access. Platform admins also use it as the user-management view, while organization lifecycle lives separately on the **Organizations** page.
+
+## Who Can Access Users
+
+- Platform admins can manage users across the installation.
+- Org admins can manage users and memberships inside their organization.
+- Workspace admins do not see Users; they manage workspace-level controls such as API Keys, Budgets, Approvals, and Audit Log for their active workspace.
+- Members do not see Users.
+
+## User Lifecycle
+
+Admins can create or invite users, set display names and passwords, activate or deactivate accounts, and assign organization roles.
+
+In local SMTP-less environments, invites can skip verification so test users can sign in immediately.
+
+## Role Model
+
+| Role | Scope | Typical Access |
+|---|---|---|
+| Platform Admin | Platform | Organizations, Settings, all org/workspace views |
+| Org Admin | Organization | Gateway, Control Plane, Org Profile, Users, Workspace |
+| Workspace Admin | Workspace | API Keys, Budgets, Outcomes, Approvals, Audit Log |
+| Member | Workspace | Read-only Runs, Sessions, Analytics, Prompts, Monitoring |
+
+Use workspace membership to decide what a user can do inside each workspace. A user can be admin in one workspace and read-only in another.

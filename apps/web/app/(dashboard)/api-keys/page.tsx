@@ -19,10 +19,11 @@ const inputCls =
 export default function ApiKeysPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
-  const { isOrgAdmin, isPlatformAdmin, canManageOrgSettings } = useRole()
-  const canManageKeys = isOrgAdmin || isPlatformAdmin
+  const { isOrgAdmin, isPlatformAdmin, isWorkspaceAdmin } = useRole()
+  const canManageKeys = isWorkspaceAdmin
 
   const currentUserEmail = (session as Record<string, unknown> | null)?.email as string | undefined
+  const workspaceId = (session as Record<string, unknown> | null)?.workspaceId as string | undefined
   const workspaceName = (session as Record<string, unknown> | null)?.workspaceName as string | undefined
   const tenantName = ((session as Record<string, unknown> | null)?.tenantName ?? (session as Record<string, unknown> | null)?.orgName) as string | undefined
 
@@ -37,19 +38,21 @@ export default function ApiKeysPage() {
   const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
-    if (!apiKey || !canManageOrgSettings) return
+    if (!apiKey || !canManageKeys) return
     try {
-      const [keys, orgWs] = await Promise.all([
-        canManageKeys ? listApiKeys(apiKey) : Promise.resolve([]),
-        canManageKeys ? listOrgWorkspaces(apiKey) : Promise.resolve([]),
-      ])
+      const keys = await listApiKeys(apiKey)
+      const orgWs = isOrgAdmin || isPlatformAdmin
+        ? await listOrgWorkspaces(apiKey)
+        : workspaceId
+          ? [{ id: workspaceId, name: workspaceName ?? 'Current workspace' }]
+          : []
       setOrgWorkspaces(orgWs)
       setApiKeys(keys.filter((k) => !k.is_session))
     } catch (err) {
       console.error(err)
       toast.error('Failed to load API keys')
     }
-  }, [apiKey, canManageKeys, canManageOrgSettings])
+  }, [apiKey, canManageKeys, isOrgAdmin, isPlatformAdmin, workspaceId, workspaceName])
 
   useEffect(() => { load() }, [load])
 
@@ -118,11 +121,11 @@ export default function ApiKeysPage() {
     return rows
   }, [apiKeys, keySearch, keyUserFilter, canManageKeys, currentUserEmail])
 
-  if (!canManageOrgSettings) {
+  if (!canManageKeys) {
     return (
       <div className="p-8">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">API Keys</h1>
-        <p className="mt-4 text-sm text-slate-500">API key management is an organization-admin function.</p>
+        <p className="mt-4 text-sm text-slate-500">API key management requires workspace-admin access.</p>
       </div>
     )
   }
@@ -173,10 +176,12 @@ export default function ApiKeysPage() {
 
       {canManageKeys ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Create new key <span className="text-violet-600 dark:text-violet-400">— pick a workspace in your org</span></p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+            Create new key <span className="text-violet-600 dark:text-violet-400">{isOrgAdmin || isPlatformAdmin ? '— pick a workspace in your org' : '— current workspace only'}</span>
+          </p>
           <form onSubmit={handleCreateKey} className="flex flex-wrap gap-2">
             <input type="text" placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className={inputCls} />
-            <select value={newKeyWs} onChange={(e) => setNewKeyWs(e.target.value)} className={inputCls}>
+            <select value={newKeyWs} onChange={(e) => setNewKeyWs(e.target.value)} disabled={!isOrgAdmin && !isPlatformAdmin} className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-60`}>
               <option value="">Current workspace ({workspaceName ?? 'default'})</option>
               {orgWorkspaces.map((w) => (
                 <option key={w.id} value={w.id}>{w.name}</option>
@@ -189,7 +194,7 @@ export default function ApiKeysPage() {
         </div>
       ) : (
         <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-          API key management is an <span className="font-medium">organization-admin</span> function.
+          API key management requires <span className="font-medium">workspace-admin</span> access.
         </div>
       )}
 

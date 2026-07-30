@@ -1527,7 +1527,7 @@ async def seed_workspace(ctx: dict) -> None:
         await c.get("/pricing/credits", skip_errors=True)
 
         # ── API key management ─────────────────────────────────────────────────
-        print("    → Settings / API keys")
+        print("    → Control Plane / API keys")
         await c.post(
             "/settings/api-keys",
             json={

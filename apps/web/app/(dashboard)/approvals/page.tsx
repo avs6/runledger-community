@@ -11,6 +11,7 @@ import {
   denyApproval,
   cancelApproval,
 } from '@/lib/api'
+import { useRole } from '@/components/rbac/useRole'
 import type { ApprovalResponse, ApprovalSummary, ApprovalRequestType } from '@/types/api'
 
 const REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
@@ -38,6 +39,7 @@ const REQUEST_TYPES: ApprovalRequestType[] = [
 
 export default function ApprovalsPage() {
   const { data: session } = useSession()
+  const { isWorkspaceAdmin } = useRole()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
   const [summary, setSummary] = useState<ApprovalSummary | null>(null)
@@ -57,7 +59,7 @@ export default function ApprovalsPage() {
   const [decisionNote, setDecisionNote] = useState('')
 
   const loadData = async () => {
-    if (!apiKey) return
+    if (!apiKey || !isWorkspaceAdmin) return
     setLoading(true)
     try {
       const [s, list] = await Promise.all([
@@ -77,10 +79,10 @@ export default function ApprovalsPage() {
   useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, statusFilter])
+  }, [apiKey, statusFilter, isWorkspaceAdmin])
 
   const handleCreate = async () => {
-    if (!apiKey) return
+    if (!apiKey || !isWorkspaceAdmin) return
     setCreateLoading(true)
     try {
       await createApproval(apiKey, {
@@ -99,7 +101,7 @@ export default function ApprovalsPage() {
   }
 
   const handleDecide = async () => {
-    if (!apiKey || !deciding) return
+    if (!apiKey || !deciding || !isWorkspaceAdmin) return
     try {
       if (deciding.action === 'approve') {
         await approveApproval(apiKey, deciding.id, decisionNote || undefined)
@@ -117,7 +119,7 @@ export default function ApprovalsPage() {
   }
 
   const handleCancel = async (id: string) => {
-    if (!apiKey) return
+    if (!apiKey || !isWorkspaceAdmin) return
     try {
       await cancelApproval(apiKey, id)
       toast.success('Approval cancelled')
@@ -125,6 +127,15 @@ export default function ApprovalsPage() {
     } catch {
       toast.error('Failed to cancel approval')
     }
+  }
+
+  if (!isWorkspaceAdmin) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Approvals</h1>
+        <p className="mt-4 text-sm text-slate-500">Approvals require workspace-admin access.</p>
+      </div>
+    )
   }
 
   return (

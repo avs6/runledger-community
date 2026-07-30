@@ -58,6 +58,16 @@ class TenantUpdate(BaseModel):
 # ── Workspace ─────────────────────────────────────────────────────────────────
 
 
+class PlatformTenantUpdate(BaseModel):
+    name: str | None = None
+    plan: PlanEnum | None = None
+    status: TenantStatusEnum | None = None
+
+
+class PlatformTenantDelete(BaseModel):
+    confirmation: str
+
+
 class WorkspaceCreate(BaseModel):
     tenant_id: uuid.UUID
     name: str

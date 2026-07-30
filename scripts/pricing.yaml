@@ -9,8 +9,8 @@
 # you can actually track and attribute the cost of local inference. Tune the
 # numbers to your hardware.
 #
-# Same format as config/pricing.yml — import it from the dashboard too if you like
-# (Settings → Provider Profiles → Import YAML).
+# Same format as config/pricing.yml - import it from the dashboard too if you like
+# (Provider Profiles -> Import YAML).
 
 models:
 

@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getBudgets } from '@/lib/api'
-import BudgetList from '@/components/budgets/BudgetList'
+import BudgetManager from '@/components/budgets/BudgetManager'
 
 export default async function BudgetsPage() {
   const session = await getServerSession(authOptions)
@@ -19,15 +19,7 @@ export default async function BudgetsPage() {
         </p>
       </div>
 
-      {budgets.items.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center dark:border-gray-800 dark:bg-gray-900">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No budgets configured yet. Create one via the API.
-          </p>
-        </div>
-      ) : (
-        <BudgetList items={budgets.items} apiKey={session.apiKey} />
-      )}
+      <BudgetManager initialItems={budgets.items} apiKey={session.apiKey} />
     </div>
   )
 }

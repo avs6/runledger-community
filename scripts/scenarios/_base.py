@@ -86,17 +86,21 @@ class RunRef:
 
 @dataclass
 class Workspace:
-    """A workspace handle scoped to one API key, with data-population helpers."""
+    """A workspace handle with separate management and data-plane credentials."""
 
     sim: Sim
     org: str
     name: str
     key: str
     workspace_id: str
+    admin_key: str = ""
     runs: list[RunRef] = field(default_factory=list)
 
     def _post(self, path: str, body: dict[str, Any], label: str) -> dict[str, Any]:
         return self.sim.post(path, body, key=self.key, label=label)
+
+    def _manage_post(self, path: str, body: dict[str, Any], label: str) -> dict[str, Any]:
+        return self.sim.post(path, body, key=self.admin_key or self.key, label=label)
 
     # ── runs ─────────────────────────────────────────────────────────────────
     def ingest_runs(
@@ -207,7 +211,7 @@ class Workspace:
             "priority": priority,
             **flags,
         }
-        self._post("/gateway/routes", body, f"route {alias}→{model}")
+        self._manage_post("/gateway/routes", body, f"route {alias}→{model}")
 
     # ── finops ───────────────────────────────────────────────────────────────
     def add_budget(
@@ -227,12 +231,12 @@ class Workspace:
         }
         if scope_id:
             body["scope_id"] = scope_id
-        # /budgets requires a workspace-admin **user session** (not an API key), so this is
-        # skipped quietly under the simulator — create budgets from the dashboard.
+        # /budgets requires a workspace-admin user session; org admins are also workspace
+        # admins for their default workspace, so the simulator uses the dashboard session.
         self.sim.post(
             "/budgets",
             body,
-            key=self.key,
+            key=self.admin_key or self.key,
             label=f"budget {scope_type}",
             expect=(200, 201, 401, 403),
         )
@@ -271,7 +275,7 @@ class Workspace:
 
     # ── quality / governance (best-effort) ───────────────────────────────────
     def add_alert(self, name: str, metric: str, operator: str, threshold: float) -> None:
-        self._post(
+        self._manage_post(
             "/alerts/rules",
             {"name": name, "metric": metric, "operator": operator, "threshold": threshold},
             f"alert {name}",
@@ -286,6 +290,8 @@ class Sim:
         self.admin_secret = admin_secret
         self.http = httpx.Client(timeout=60, follow_redirects=True)
         self.platform_key: str | None = None
+        self.platform_email: str | None = None
+        self.platform_password: str | None = None
         self.workspaces: list[Workspace] = []
 
     # ── low-level ────────────────────────────────────────────────────────────
@@ -334,6 +340,43 @@ class Sim:
         except Exception:  # noqa: BLE001
             return None
 
+    def put(
+        self,
+        path: str,
+        body: dict[str, Any],
+        *,
+        key: str | None = None,
+        label: str = "",
+        expect: tuple[int, ...] = (200, 201, 202, 204),
+    ) -> dict[str, Any]:
+        headers = {"Content-Type": "application/json"}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+        try:
+            r = self.http.put(f"{self.base}{path}", json=body, headers=headers)
+        except Exception as exc:  # noqa: BLE001
+            say(f"    ! {label or path}: {exc}", "y")
+            return {}
+        if r.status_code not in expect:
+            say(f"    ! {label or path}: {r.status_code} {r.text[:120]}", "y")
+            return {}
+        return r.json() if r.status_code != 204 and r.content else {}
+
+    def _login(self, email: str, password: str, workspace_id: str | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"email": email, "password": password}
+        if workspace_id:
+            body["workspace_id"] = workspace_id
+        return self.post("/auth/login", body, label=f"login {email}", expect=(200,))
+
+    def _switch_workspace(self, key: str, workspace_id: str) -> dict[str, Any]:
+        return self.post(
+            "/auth/switch-workspace",
+            {"workspace_id": workspace_id},
+            key=key,
+            label=f"switch workspace {workspace_id}",
+            expect=(200,),
+        )
+
     def wait_healthy(self, timeout: float = 120) -> None:
         say(f"→ waiting for {self.base} …", "b")
         deadline = datetime.now(UTC) + timedelta(seconds=timeout)
@@ -363,58 +406,71 @@ class Sim:
             label="bootstrap",
             expect=(200, 201),
         )
-        self.platform_key = data.get("api_key")
+        self.platform_email = email
+        self.platform_password = password
+        self.platform_key = self._login(email, password).get("api_key") or data.get("api_key")
         if not self.platform_key:
-            raise SystemExit("bootstrap failed — no api_key returned")
+            raise SystemExit("bootstrap failed - no dashboard session api_key returned")
         say(f"  ✓ platform admin bootstrapped ({email})", "g")
 
     def workspace(self, org: str, name: str, *, plan: str = "growth") -> Workspace:
-        """Create an org (tenant) and mint a workspace-scoped API key via the admin API.
-
-        (New tenant admins are created email-unverified, so we can't log in as them —
-        instead the platform admin mints a key for the org's workspace directly.)
-        """
+        """Create an org, log in as its org admin, and mint a workspace API key."""
         slug = org.lower().replace(" ", "-")
+        admin_email = f"admin@{slug}.example.com"
+        admin_password = "Sim-Passw0rd!"
         tenant = self.post(
-            "/admin/tenants",
+            "/org/tenants",
             {
                 "name": org,
-                "plan": plan,
-                "admin_email": f"admin@{slug}.example.com",
-                "admin_password": "Sim-Passw0rd!",
+                "admin_email": admin_email,
+                "admin_password": admin_password,
                 "admin_full_name": f"{org} Admin",
+                "skip_verification": True,
             },
             key=self.platform_key,
-            admin=True,
             label=f"org {org}",
         )
         tenant_id = tenant.get("id")
         if not tenant_id:
-            # Org already exists (re-run — truncate preserves tenants). Look it up by name.
-            listing = self.get("/admin/tenants", key=self.platform_key, admin=True) or []
+            listing = self.get("/org/tenants", key=self.platform_key) or []
             rows = listing if isinstance(listing, list) else listing.get("items", [])
             tenant_id = next((t.get("id") for t in rows if t.get("name") == org), None)
-        key, ws_id = "", ""
         if tenant_id:
-            wss = self.get(
-                f"/admin/tenants/{tenant_id}/workspaces", key=self.platform_key, admin=True
+            self.put(
+                f"/org/tenants/{tenant_id}",
+                {"plan": plan},
+                key=self.platform_key,
+                label=f"org plan {org}",
+                expect=(200,),
             )
-            rows = wss if isinstance(wss, list) else (wss or {}).get("items", [])
-            if rows:
-                ws_id = rows[0].get("id", "")
-                resp = self.post(
-                    f"/admin/workspaces/{ws_id}/api-keys",
-                    {"name": "sim"},
-                    key=self.platform_key,
-                    admin=True,
-                    label=f"key {org}",
-                )
-                key = resp.get("key", "")
+
+        key, ws_id, org_admin_key = "", "", ""
+        login = self._login(admin_email, admin_password)
+        org_admin_key = login.get("api_key", "")
+        ws_id = login.get("workspace_id", "")
+        if org_admin_key and ws_id:
+            self.put(
+                f"/org/workspaces/{ws_id}",
+                {"name": name},
+                key=org_admin_key,
+                label=f"workspace rename {org}/{name}",
+                expect=(200, 409),
+            )
+            resp = self.post(
+                "/settings/api-keys",
+                {"name": "sim", "workspace_id": ws_id},
+                key=org_admin_key,
+                label=f"key {org}",
+            )
+            key = resp.get("key", "")
+
+        if not tenant_id:
+            say(f"  ! could not create or find org {org}; scenario data may be incomplete", "y")
         if not key:
             say(f"  ! could not obtain key for {org}; scenario data will be skipped", "y")
-        ws = Workspace(self, org, name, key, ws_id)
+        ws = Workspace(self, org, name, key, ws_id, org_admin_key)
         self.workspaces.append(ws)
-        say(f"  ✓ {org} / {name}", "g")
+        say(f"  âœ“ {org} / {name}", "g")
         return ws
 
     def close(self) -> None:

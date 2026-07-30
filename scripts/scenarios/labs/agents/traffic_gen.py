@@ -33,7 +33,7 @@ EXAMPLES
   # 50 runs, tagged, through a gateway alias to test routing policies
   LAB_RUNS=50 LAB_FEATURE_TAG=policy-test LAB_GATEWAY_ALIAS=qa-chat python traffic_gen.py
 
-  # drive a budget until it blocks (Module: Budgets / Monitoring)
+  # drive a budget until it blocks (Finance -> Budgets)
   LAB_BUDGET_CHECK=true LAB_RUNS=100 python traffic_gen.py
 """
 

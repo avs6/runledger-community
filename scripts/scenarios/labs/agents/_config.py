@@ -6,7 +6,7 @@ come from the `.env` file next to this module (copy `.env.example` → `.env` fi
 
 You normally only need to set two things in `.env`:
 
-    RUNLEDGER_API_KEY   the workspace key you minted in the dashboard (Settings → API Keys)
+    RUNLEDGER_API_KEY   the workspace key you minted in the dashboard (Control Plane -> API Keys)
     OLLAMA_MODEL        a model you've pulled, e.g. `ollama pull llama3.2`
 
 Everything else has sensible defaults for the local Docker stack.
@@ -62,7 +62,7 @@ def require_key() -> str:
     if not RUNLEDGER_API_KEY:
         sys.exit(
             "RUNLEDGER_API_KEY is not set.\n"
-            "  1. In the dashboard (http://localhost:3201) open Settings → API Keys → New API Key.\n"
+            "  1. In the dashboard (http://localhost:3201) open Control Plane -> API Keys -> New API Key.\n"
             "  2. Copy the key (shown once) into scripts/scenarios/labs/agents/.env\n"
             "     RUNLEDGER_API_KEY=rl_...\n"
         )

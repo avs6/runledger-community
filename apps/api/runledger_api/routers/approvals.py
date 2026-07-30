@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_api_key, get_current_workspace
+from runledger_api.core.deps import get_current_api_key, get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.approvals import Approval
 from runledger_api.models.tenant import ApiKey, Workspace
@@ -55,6 +55,7 @@ router = APIRouter(prefix="/approvals", tags=["approvals"])
 log = structlog.get_logger()
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
+WorkspaceAdminDep = Annotated[tuple[Workspace, object, object | None], Depends(require_workspace_admin)]
 ApiKeyDep = Annotated[ApiKey, Depends(get_current_api_key)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -196,7 +197,7 @@ async def create_approval(
 
 @router.get("", response_model=ApprovalList, dependencies=[Depends(analytics_rate_limit)])
 async def list_approvals(
-    workspace: WorkspaceDep,
+    auth: WorkspaceAdminDep,
     db: DbDep,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     request_type: Annotated[str | None, Query()] = None,
@@ -204,6 +205,7 @@ async def list_approvals(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApprovalList:
     """List approval requests for this workspace."""
+    workspace = auth[0]
     stmt = select(Approval).where(Approval.workspace_id == workspace.id)
 
     if status_filter and status_filter in _VALID_STATUSES:
@@ -233,10 +235,11 @@ async def list_approvals(
     dependencies=[Depends(analytics_rate_limit)],
 )
 async def approval_summary(
-    workspace: WorkspaceDep,
+    auth: WorkspaceAdminDep,
     db: DbDep,
 ) -> ApprovalSummary:
     """Return counts of approvals grouped by status."""
+    workspace = auth[0]
     result = await db.execute(
         select(Approval.status, func.count(Approval.id).label("cnt"))
         .where(Approval.workspace_id == workspace.id)
@@ -259,10 +262,11 @@ async def approval_summary(
 )
 async def get_approval(
     approval_id: uuid.UUID,
-    workspace: WorkspaceDep,
+    auth: WorkspaceAdminDep,
     db: DbDep,
 ) -> ApprovalResponse:
     """Get a single approval by ID."""
+    workspace = auth[0]
     result = await db.execute(
         select(Approval).where(
             Approval.id == approval_id,
@@ -286,11 +290,12 @@ async def get_approval(
 async def approve_approval(
     approval_id: uuid.UUID,
     body: ApprovalDecision,
-    workspace: WorkspaceDep,
+    auth: WorkspaceAdminDep,
     api_key: ApiKeyDep,
     db: DbDep,
 ) -> ApprovalResponse:
     """Approve a pending request. Requires workspace admin or higher."""
+    workspace = auth[0]
     result = await db.execute(
         select(Approval).where(
             Approval.id == approval_id,
@@ -347,11 +352,12 @@ async def approve_approval(
 async def deny_approval(
     approval_id: uuid.UUID,
     body: ApprovalDecision,
-    workspace: WorkspaceDep,
+    auth: WorkspaceAdminDep,
     api_key: ApiKeyDep,
     db: DbDep,
 ) -> ApprovalResponse:
     """Deny a pending request."""
+    workspace = auth[0]
     result = await db.execute(
         select(Approval).where(
             Approval.id == approval_id,
@@ -407,10 +413,11 @@ async def deny_approval(
 )
 async def cancel_approval(
     approval_id: uuid.UUID,
-    workspace: WorkspaceDep,
+    auth: WorkspaceAdminDep,
     db: DbDep,
 ) -> ApprovalResponse:
     """Cancel a pending approval request (by the requester or an admin)."""
+    workspace = auth[0]
     result = await db.execute(
         select(Approval).where(
             Approval.id == approval_id,

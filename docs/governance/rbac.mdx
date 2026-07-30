@@ -27,11 +27,11 @@ flowchart TB
 
 | Scope | Roles |
 |---|---|
-| **Organization** | org admin, member |
+| **Platform** | platform admin |
+| **Organization** | org admin, org manager, member |
 | **Workspace** | workspace admin, member, viewer |
 
-Roles gate management actions (creating routes, editing budgets, approving requests) and data visibility.
-Platform admins manage the deployment itself.
+Roles gate management actions and data visibility. Platform admins manage the deployment itself; org admins manage org-wide Gateway and Control Plane features; workspace admins manage workspace-scoped API keys, budgets, approvals, and audit; members are read-only.
 
 ## Isolation is a security property
 
@@ -49,7 +49,13 @@ Workspace isolation isn't just organization — it's enforced everywhere:
     Role-gated sign-off.
   </Card>
   <Card title="Settings" icon="gear" href="/observability/product-tour">
-    API keys and workspace settings.
+    Platform-only retention, compliance, and email settings.
+  </Card>
+  <Card title="Users" icon="users" href="/administration/users">
+    User and membership management.
+  </Card>
+  <Card title="Workspaces" icon="grid" href="/administration/workspaces">
+    Workspace isolation and workspace-admin scope.
   </Card>
 </CardGroup>
 

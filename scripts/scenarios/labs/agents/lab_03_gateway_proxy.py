@@ -4,15 +4,15 @@ Lab 03 — Model Gateway proxy.
 WHAT THIS IS
 ────────────
 The **AI Test Team** doesn't want provider details baked into agent code. Instead
-they call a stable **alias** ("qa-chat") through the RunLedger Gateway, and the
-platform decides which real model serves it, applies semantic caching, and records
+they call a stable **alias** ("qa-chat") through the RunLedger Gateway, and an
+org admin decides which real model serves it, applies semantic caching, and records
 every call. Swapping the underlying model is a dashboard change — no redeploy.
 
 This is the *proxy* path: your OpenAI client points at RunLedger's OpenAI-compatible
 `/gateway` endpoint instead of at a provider. RunLedger is in the request path here
 (unlike Labs 01/02), so it can cache and route.
 
-DO THIS FIRST (dashboard → Gateway)
+DO THIS FIRST (dashboard -> Gateway, org admin)
 ───────────────────────────────────
 Create a route so the alias resolves:
     Alias:        qa-chat
@@ -27,7 +27,7 @@ host.docker.internal, never localhost — localhost would mean the container its
 PREREQUISITES
 ─────────────
   • Workspace API key in agents/.env  (this key authenticates to the gateway)
-  • The "qa-chat" route created above
+  • The "qa-chat" route created above by an org admin
   • pip install -r requirements.txt
 
 RUN

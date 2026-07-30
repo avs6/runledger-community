@@ -143,7 +143,7 @@ Check the **Runs** page in the dashboard after ~5 seconds for the ingested resul
 
 ## Viewing ingestion history
 
-The **Settings → OTLP** tab shows:
+The **Control Plane -> OTLP** page shows:
 - 24h and 7d aggregate stats (batches, traces, spans received)
 - A table of recent ingest batches with status and error details
 - A quick-start code snippet for your exporter configuration

@@ -51,7 +51,7 @@ RunLedger authenticated as a workspace. It's inert until you set it (that's why 
 collector shows *unhealthy*). On the **RunLedger** stack:
 
 ```bash
-# mint a workspace key in the dashboard (Settings → API Keys), then:
+# mint a workspace key in the dashboard (Control Plane -> API Keys), then:
 RUNLEDGER_API_KEY=rl_... docker compose up -d runledger-otel-collector
 ```
 
