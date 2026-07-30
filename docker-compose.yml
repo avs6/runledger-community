@@ -498,12 +498,6 @@ services:
       - "13133:13133"  # Health probe
     environment:
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
     depends_on:
       runledger-api:
         condition: service_healthy
