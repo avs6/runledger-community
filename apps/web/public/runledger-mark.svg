@@ -1,0 +1,20 @@
+<svg width="128" height="128" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger mark">
+  <defs>
+    <linearGradient id="runledger-mark-bg" x1="8" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F766E"/>
+      <stop offset="0.52" stop-color="#155E75"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="runledger-mark-line" x1="15" y1="45" x2="50" y2="17" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#runledger-mark-bg)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="15.5" stroke="white" stroke-opacity="0.12"/>
+  <path d="M17 42.5L28.25 32.25L37 36.5L49 22" stroke="url(#runledger-mark-line)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 47V37" stroke="white" stroke-opacity="0.9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29 47V28" stroke="white" stroke-opacity="0.9" stroke-width="4" stroke-linecap="round"/>
+  <path d="M41 47V32" stroke="white" stroke-opacity="0.65" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="49" cy="22" r="3.25" fill="#CCFBF1"/>
+</svg>

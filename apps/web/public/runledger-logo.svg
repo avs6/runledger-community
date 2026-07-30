@@ -1,0 +1,24 @@
+<svg width="420" height="112" viewBox="0 0 420 112" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RunLedger AI Ops Ledger">
+  <defs>
+    <linearGradient id="runledger-logo-bg" x1="16" y1="12" x2="96" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F766E"/>
+      <stop offset="0.52" stop-color="#155E75"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="runledger-logo-line" x1="31" y1="78" x2="82" y2="36" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A7F3D0"/>
+      <stop offset="1" stop-color="#67E8F9"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="112" rx="28" fill="#F8FAFC"/>
+  <rect x="0.5" y="0.5" width="419" height="111" rx="27.5" stroke="#E2E8F0"/>
+  <rect x="12" y="12" width="88" height="88" rx="24" fill="url(#runledger-logo-bg)"/>
+  <rect x="12.75" y="12.75" width="86.5" height="86.5" rx="23.25" stroke="white" stroke-opacity="0.12"/>
+  <path d="M32 73.5L49.5 57.75L63 64.25L82 41" stroke="url(#runledger-logo-line)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 80V64" stroke="white" stroke-opacity="0.9" stroke-width="6" stroke-linecap="round"/>
+  <path d="M51 80V50" stroke="white" stroke-opacity="0.9" stroke-width="6" stroke-linecap="round"/>
+  <path d="M70 80V56" stroke="white" stroke-opacity="0.65" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="82" cy="41" r="5" fill="#CCFBF1"/>
+  <text x="124" y="56" fill="#0F172A" font-family="Manrope, Inter, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="-1.2">RunLedger</text>
+  <text x="126" y="78" fill="#0F766E" font-family="Manrope, Inter, Arial, sans-serif" font-size="12" font-weight="800" letter-spacing="4">AI OPS LEDGER</text>
+</svg>

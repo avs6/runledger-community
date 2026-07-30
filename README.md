@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/web/public/runledger-logo.svg" alt="RunLedger AI Ops Ledger" width="360" />
+
 # RunLedger Community
 
 **The self-hosted control plane that makes AI agents observable, governable, and cheaper to run.**

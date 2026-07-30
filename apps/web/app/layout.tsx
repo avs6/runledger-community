@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "RunLedger",
-  description: "Billing-grade observability for AI agents.",
+  description: "AI usage, cost, routing, and governance in one control plane.",
 };
 
 export default function RootLayout({

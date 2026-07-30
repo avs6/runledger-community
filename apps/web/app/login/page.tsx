@@ -3,30 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { BarChart3, CheckCircle2, Gauge, LockKeyhole, Route } from 'lucide-react'
+import RunLedgerLogo, { RunLedgerMark } from '@/components/brand/RunLedgerLogo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-function RunLedgerLogo({ size = 56 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="rl-grad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#0f766e" />
-          <stop offset="100%" stopColor="#0891b2" />
-        </linearGradient>
-      </defs>
-      <rect width="56" height="56" rx="14" fill="url(#rl-grad)" />
-      <rect x="9" y="33" width="9" height="13" rx="2" fill="white" fillOpacity="0.65" />
-      <rect x="23" y="22" width="9" height="24" rx="2" fill="white" />
-      <rect x="37" y="13" width="9" height="33" rx="2" fill="white" fillOpacity="0.88" />
-      <polyline points="13.5,33 27.5,22 41.5,13" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="13.5" cy="33" r="1.5" fill="white" />
-      <circle cx="27.5" cy="22" r="1.5" fill="white" />
-      <circle cx="41.5" cy="13" r="1.5" fill="white" />
-    </svg>
-  )
-}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -56,123 +37,141 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
-      {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between border-r border-slate-800/80 bg-[radial-gradient(circle_at_20%_15%,rgba(20,184,166,0.10),transparent_28rem),linear-gradient(135deg,#0f172a,#020617)] p-12">
-        <div className="flex items-center gap-3">
-          <RunLedgerLogo size={36} />
-          <div>
-            <div className="text-sm font-semibold text-white leading-none">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-teal-300 leading-none">
-              Control Plane
+    <main className="min-h-screen overflow-hidden bg-[#07111F] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(20,184,166,0.16),transparent_28rem),radial-gradient(circle_at_85%_25%,rgba(14,116,144,0.14),transparent_24rem),linear-gradient(135deg,#08111F,#020617_58%,#07111F)]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-teal-300/50 to-transparent" />
+
+      <div className="relative grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="hidden flex-col justify-between border-r border-white/10 p-10 lg:flex xl:p-14">
+          <RunLedgerLogo
+            markSize={40}
+            wordmarkClassName="text-base text-white"
+            taglineClassName="text-teal-200"
+          />
+
+          <div className="max-w-xl">
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-teal-300/20 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-100">
+              <LockKeyhole className="h-3.5 w-3.5" />
+              Self-hosted AI operations control
+            </div>
+            <h1 className="max-w-lg text-4xl font-semibold tracking-tight text-white xl:text-5xl">
+              The ledger for every AI request, route, and dollar.
+            </h1>
+            <p className="mt-5 max-w-md text-base leading-7 text-slate-300">
+              RunLedger gives platform teams one place to observe agent traffic, enforce budgets, explain routing decisions, and prove savings.
+            </p>
+
+            <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
+              {[
+                { label: 'Requests traced', value: '18.2M', icon: Route },
+                { label: 'Savings modeled', value: '$28K', icon: BarChart3 },
+                { label: 'Budget guardrails', value: '<5ms', icon: Gauge },
+              ].map(({ label, value, icon: Icon }) => (
+                <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 shadow-2xl shadow-black/20 backdrop-blur">
+                  <Icon className="h-4 w-4 text-teal-200" />
+                  <div className="mt-4 text-2xl font-semibold text-white">{value}</div>
+                  <div className="mt-1 text-xs text-slate-400">{label}</div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        <div className="space-y-6">
-          <blockquote className="space-y-3">
-            <p className="text-2xl font-semibold text-white leading-snug">
-              Billing-grade observability<br />for AI agents.
-            </p>
-            <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
-              Track every token, enforce budgets, and understand the economics of every agent run — in real time.
-            </p>
-          </blockquote>
-
-          <div className="flex flex-col gap-2.5">
+          <div className="grid max-w-2xl grid-cols-2 gap-3 text-sm text-slate-300">
             {[
-              'Usage accounting across all providers',
-              'Budget guardrails with <5ms enforcement',
-              'Chargeback & cost attribution by team',
-              'Prompt versioning & evaluation scores',
-            ].map(f => (
-              <div key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                <div className="h-1.5 w-1.5 rounded-full bg-teal-300 shrink-0" />
-                {f}
+              'Provider-neutral metering',
+              'Workspace and org controls',
+              'Inline gateway enforcement',
+              'Out-of-band observability',
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-teal-300" />
+                {item}
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
-        <p className="text-xs text-slate-600">© {new Date().getFullYear()} RunLedger</p>
-      </div>
-
-      {/* Right panel — form */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
-        {/* Mobile logo */}
-        <div className="mb-8 flex flex-col items-center gap-3 lg:hidden">
-          <RunLedgerLogo size={48} />
-          <div className="text-center">
-            <div className="text-xl font-bold text-white">RunLedger</div>
-            <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-teal-300">
-              FinOps Control Plane
-            </div>
-          </div>
-        </div>
-
-        <div className="w-full max-w-sm space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Sign in</h1>
-            <p className="mt-1 text-sm text-slate-400">Enter your credentials to access your workspace</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium text-slate-300">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoFocus
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm font-medium text-slate-300">
-                Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600 focus:border-teal-500 focus:ring-teal-500/20"
+        <section className="flex items-center justify-center px-6 py-12">
+          <div className="w-full max-w-md">
+            <div className="mb-10 flex justify-center lg:hidden">
+              <RunLedgerLogo
+                markSize={42}
+                wordmarkClassName="text-lg text-white"
+                taglineClassName="text-teal-200"
               />
             </div>
 
-            {error && (
-              <p className="rounded-md bg-red-950/60 border border-red-800/50 px-3 py-2 text-sm text-red-400">
-                {error}
-              </p>
-            )}
+            <div className="rounded-3xl border border-white/10 bg-white/[0.055] p-7 shadow-2xl shadow-black/30 backdrop-blur-xl">
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-200">Secure Access</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Sign in</h2>
+                  <p className="mt-1 text-sm text-slate-400">Enter your workspace credentials.</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-2">
+                  <RunLedgerMark size={34} />
+                </div>
+              </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-teal-600 text-white shadow-md shadow-teal-950/20 hover:bg-teal-500"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  Signing in…
-                </span>
-              ) : (
-                'Sign in'
-              )}
-            </Button>
-          </form>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-sm font-medium text-slate-300">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    autoFocus
+                    className="h-11 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-600 focus:border-teal-400 focus:ring-teal-400/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-sm font-medium text-slate-300">
+                    Password
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="h-11 border-white/10 bg-slate-950/60 text-white placeholder:text-slate-600 focus:border-teal-400 focus:ring-teal-400/20"
+                  />
+                </div>
 
-          <p className="text-center text-xs text-slate-600">
-            Billing-grade observability for AI agents
-          </p>
-        </div>
+                {error && (
+                  <p className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  className="h-11 w-full bg-teal-500 font-semibold text-slate-950 shadow-lg shadow-teal-950/30 hover:bg-teal-400"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
+                      Signing in...
+                    </span>
+                  ) : (
+                    'Continue to RunLedger'
+                  )}
+                </Button>
+              </form>
+            </div>
+
+            <p className="mt-5 text-center text-xs text-slate-500">
+              AI usage, cost, routing, and governance in one control plane.
+            </p>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   )
 }

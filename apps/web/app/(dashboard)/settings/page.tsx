@@ -30,10 +30,10 @@ const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400'
 
 const TABS = [
-  { id: 'compliance', label: 'Compliance', icon: Lock },
-  { id: 'retention', label: 'Data Retention', icon: Trash2 },
-  { id: 'email', label: 'Email', icon: Mail },
-  { id: 'backup', label: 'Backup', icon: DatabaseBackup },
+  { id: 'compliance', label: 'Compliance', description: 'Signed ledgers and audit evidence', icon: Lock },
+  { id: 'retention', label: 'Data Retention', description: 'Delete or scrub old records safely', icon: Trash2 },
+  { id: 'email', label: 'Email Delivery', description: 'SMTP, reporting, and notification policy', icon: Mail },
+  { id: 'backup', label: 'Backup & Restore', description: 'External S3 schedules and recovery posture', icon: DatabaseBackup },
 ] as const
 
 export default function SettingsPage() {
@@ -168,34 +168,25 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Sidebar */}
-      <div className="w-52 shrink-0 border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 py-4 px-2">
-        <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Platform Settings</div>
-        <nav className="flex flex-col gap-0.5">
-          {TABS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-left w-full transition-colors ${
-                activeTab === id
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm font-medium'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Appearance at bottom */}
-        <div className="mt-6 px-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Appearance</div>
+    <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white/85 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/55 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 dark:text-teal-300">
+            Platform Console
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+            Platform Settings
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
+            High-impact controls for compliance, retention, messaging, and recovery. These are intentionally platform-admin only.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Theme</span>
           <select
             value={theme ?? 'system'}
             onChange={(e) => setTheme(e.target.value)}
-            className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           >
             <option value="light">Light</option>
             <option value="dark">Dark</option>
@@ -204,8 +195,40 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {TABS.map(({ id, label, description, icon: Icon }) => {
+          const selected = activeTab === id
+          return (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`group rounded-2xl border p-4 text-left transition-all ${
+                selected
+                  ? 'border-teal-500/50 bg-teal-50 text-slate-950 shadow-sm ring-1 ring-teal-500/20 dark:border-teal-400/40 dark:bg-teal-500/10 dark:text-white'
+                  : 'border-slate-200 bg-white/70 text-slate-700 hover:border-slate-300 hover:bg-white dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <span className={`rounded-xl p-2 ${
+                  selected
+                    ? 'bg-teal-600 text-white dark:bg-teal-400 dark:text-slate-950'
+                    : 'bg-slate-100 text-slate-500 group-hover:text-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:group-hover:text-slate-200'
+                }`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">{label}</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                    {description}
+                  </span>
+                </span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
 
         {/* ── Compliance ────────────────────────────────────────────────────────── */}
         {activeTab === 'compliance' && (
@@ -236,7 +259,7 @@ export default function SettingsPage() {
                 <button
                   onClick={handleGenerateSnapshot}
                   disabled={generatingSnap}
-                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
                 >
                   {generatingSnap ? 'Generating…' : 'Generate Snapshot'}
                 </button>
@@ -289,7 +312,7 @@ export default function SettingsPage() {
                               <button
                                 onClick={() => handleVerifySnapshot(snap)}
                                 disabled={verifyingSnap === snap.snapshot_date}
-                                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline disabled:opacity-50"
+                                className="text-xs font-medium text-teal-700 hover:underline disabled:opacity-50 dark:text-teal-300"
                               >
                                 {verifyingSnap === snap.snapshot_date ? 'Verifying…' : 'Verify'}
                               </button>
@@ -308,7 +331,7 @@ export default function SettingsPage() {
               <p className="font-medium">Tool Registry</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Tool governance has moved to its own page.{' '}
-                <a href="/tool-registry" className="text-violet-600 dark:text-violet-400 hover:underline">Go to Tool Registry →</a>
+                <a href="/tool-registry" className="text-teal-700 hover:underline dark:text-teal-300">Go to Tool Registry →</a>
               </p>
             </div>
           </div>
