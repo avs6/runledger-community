@@ -116,6 +116,50 @@ async def create_org(
     }
 
 
+@router.get("/tenants", response_model=list[TenantResponse])
+async def list_platform_orgs(
+    auth: Annotated[tuple[Workspace, User], Depends(require_platform_admin)],
+    db: DbDep,
+) -> list[dict[str, Any]]:
+    """Return every organization for the platform-admin lifecycle hub."""
+    _workspace, _platform = auth
+    tenants = list(
+        (await db.execute(select(Tenant).order_by(Tenant.created_at.desc()))).scalars().all()
+    )
+    workspace_counts = {
+        tenant_id: count
+        for tenant_id, count in (
+            await db.execute(
+                select(Workspace.tenant_id, func.count(Workspace.id))
+                .group_by(Workspace.tenant_id)
+            )
+        ).all()
+    }
+    member_counts = {
+        tenant_id: count
+        for tenant_id, count in (
+            await db.execute(
+                select(TenantUser.tenant_id, func.count(TenantUser.user_id))
+                .group_by(TenantUser.tenant_id)
+            )
+        ).all()
+    }
+    return [
+        {
+            "id": tenant.id,
+            "name": tenant.name,
+            "plan": tenant.plan,
+            "status": tenant.status,
+            "is_default": tenant.is_default,
+            "owner_user_id": tenant.owner_user_id,
+            "created_at": tenant.created_at,
+            "workspace_count": workspace_counts.get(tenant.id, 0),
+            "member_count": member_counts.get(tenant.id, 0),
+        }
+        for tenant in tenants
+    ]
+
+
 @router.get("/profile", response_model=OrgProfileResponse)
 async def get_org_profile(
     auth: Annotated[tuple[Any, ...], Depends(require_org_admin)], db: DbDep

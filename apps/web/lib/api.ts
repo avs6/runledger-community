@@ -685,6 +685,10 @@ export async function createOrganization(
   })
 }
 
+export async function listPlatformOrganizations(apiKey: string): Promise<TenantResponse[]> {
+  return apiFetch<TenantResponse[]>('/org/tenants', apiKey)
+}
+
 export async function revokeApiKey(apiKey: string, keyId: string): Promise<void> {
   await apiFetch<void>(`/settings/api-keys/${keyId}`, apiKey, { method: 'DELETE' })
 }

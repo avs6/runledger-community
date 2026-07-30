@@ -5,12 +5,14 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
   UserPlus, Trash2, RefreshCw, Search, X, Shield, KeyRound, Pencil,
-  Building2, CheckCircle2, Circle,
+  Building2, CheckCircle2, Circle, UsersRound, LayoutGrid,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
-  listOrgUsers, createOrgUser, updateOrgUser, createOrganization, type OrgUser,
+  listOrgUsers, createOrgUser, updateOrgUser, createOrganization,
+  listPlatformOrganizations, type OrgUser,
 } from '@/lib/api'
+import type { TenantResponse } from '@/types/api'
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -48,6 +50,7 @@ export default function UsersPage() {
   const canManage = isOrgAdmin || isPlatformAdmin
 
   const [users, setUsers] = useState<OrgUser[]>([])
+  const [organizations, setOrganizations] = useState<TenantResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
@@ -77,13 +80,18 @@ export default function UsersPage() {
     if (!apiKey || !canManage) { setLoading(false); return }
     setLoading(true)
     try {
-      setUsers(await listOrgUsers(apiKey))
+      const [orgUsers, platformOrgs] = await Promise.all([
+        listOrgUsers(apiKey),
+        isPlatformAdmin ? listPlatformOrganizations(apiKey) : Promise.resolve([]),
+      ])
+      setUsers(orgUsers)
+      setOrganizations(platformOrgs)
     } catch {
-      toast.error('Failed to load users')
+      toast.error('Failed to load organization data')
     } finally {
       setLoading(false)
     }
-  }, [apiKey, canManage])
+  }, [apiKey, canManage, isPlatformAdmin])
 
   useEffect(() => { load() }, [load])
 
@@ -176,6 +184,8 @@ export default function UsersPage() {
         admin_full_name: orgAdminName.trim() || null,
         skip_verification: true,
       })
+      const refreshed = await listPlatformOrganizations(apiKey)
+      setOrganizations(refreshed)
       setShowCreateOrg(false); setOrgName(''); setOrgAdminEmail(''); setOrgAdminPassword('ChangeMe123!'); setOrgAdminName('')
       toast.success(`Organization "${org.name}" created. The seeded org admin can now sign in with the credentials you entered.`)
     } catch (err) {
@@ -219,6 +229,74 @@ export default function UsersPage() {
           </button>
         </div>
       </div>
+
+      {isPlatformAdmin && (
+        <section className="space-y-3" aria-labelledby="organizations-heading">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 id="organizations-heading" className="text-lg font-semibold text-slate-900 dark:text-white">
+                Organizations
+              </h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Platform-wide lifecycle view of organizations, workspaces, and membership.
+              </p>
+            </div>
+            <span className="text-xs font-medium text-slate-500">
+              {organizations.length} total
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <tr>
+                  <th className={TABLE_HEAD}>Organization</th>
+                  <th className={TABLE_HEAD}>Plan</th>
+                  <th className={TABLE_HEAD}>Workspaces</th>
+                  <th className={TABLE_HEAD}>Members</th>
+                  <th className={TABLE_HEAD}>Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {loading ? (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Loading...</td></tr>
+                ) : organizations.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No organizations yet.</td></tr>
+                ) : organizations.map((org) => (
+                  <tr key={org.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950 dark:text-violet-300">
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-slate-800 dark:text-slate-100">{org.name}</div>
+                          <div className="text-xs capitalize text-slate-500">{org.status}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">{org.plan}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                        <LayoutGrid className="h-3.5 w-3.5 text-slate-400" />
+                        {org.workspace_count}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                        <UsersRound className="h-3.5 w-3.5 text-slate-400" />
+                        {org.member_count}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {new Date(org.created_at).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <div className="relative max-w-sm">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
