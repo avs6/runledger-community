@@ -22,6 +22,7 @@ import {
   Network,
   Plug,
   Radio,
+  Route,
   ScrollText,
   Settings,
   Settings2,
@@ -51,6 +52,7 @@ type SectionKey = keyof typeof defaultSections
 
 const workspaceNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/request-flow', label: 'Request Flow', icon: Route },
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },

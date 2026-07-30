@@ -604,8 +604,8 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Backup Schedule</h3>
                   <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-                    RunLedger already supports S3 backup and restore through the Helm CronJob and `scripts/restore.sh`.
-                    This screen defines the product-managed schedule experience we will wire to that backend runner next.
+                    S3 backup and restore are available today through the Helm CronJob and `scripts/restore.sh`.
+                    This page is the platform UI for configuring and testing that flow; local product-managed scheduling stays off until `BACKUP_ENABLED=true`.
                   </p>
                 </div>
               </div>
@@ -617,8 +617,8 @@ export default function SettingsPage() {
                   </div>
                   <p className="mt-1">
                     {backupSchedulerDisabled
-                      ? 'BACKUP_ENABLED=false, so RunLedger will not run product-managed backup jobs from this stack.'
-                      : 'BACKUP_ENABLED=true. Use this page to manage product backup scheduling once the S3 runner is wired in.'}
+                      ? 'BACKUP_ENABLED=false, so this local stack will not launch backup jobs from the UI. Helm/script-based S3 backup remains available outside the app.'
+                      : 'BACKUP_ENABLED=true. UI-managed backup actions still require the schedule/test/history endpoints to be wired for this deployment.'}
                   </p>
                 </div>
               )}
@@ -691,7 +691,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                Product-managed backup execution, history, and restore drills are planned. Today, production S3 backups run through the Helm CronJob.
+                Available today: Helm CronJob backups to S3 and `scripts/restore.sh` restore. Planned in this UI: save schedule, test S3 connection, backup history, and guided restore drills.
               </div>
             </div>
           </div>
