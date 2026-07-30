@@ -43,6 +43,7 @@ pitch.md
 tenancy_spec.md
 vc_feedback*.md
 IMPLEMENTATION*.md
+rbac-plan.md
 
 # TypeScript incremental build info
 apps/web/tsconfig.tsbuildinfo
