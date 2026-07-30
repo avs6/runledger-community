@@ -8,6 +8,7 @@ import {
   FlaskConical, Database, BookText, Plus, Trash2, Play,
   CheckCircle, Clock, XCircle, Loader2,
 } from 'lucide-react'
+import { useRole } from '@/components/rbac/useRole'
 import {
   listEvalDatasets, createEvalDataset, listEvalExperiments, createEvalExperiment, runEvalExperiment,
   listPrompts, createPrompt, deletePrompt,
@@ -62,7 +63,7 @@ const labelCls = 'block text-xs font-medium text-slate-600 dark:text-slate-400 m
 
 function ExperimentsTab({
   experiments, datasets, prompts, loading,
-  onCreate, onRun,
+  onCreate, onRun, canWrite,
 }: {
   experiments: EvalExperiment[]
   datasets: EvalDataset[]
@@ -70,6 +71,7 @@ function ExperimentsTab({
   loading: boolean
   onCreate: (data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) => Promise<void>
   onRun: (id: string) => Promise<void>
+  canWrite: boolean
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -104,16 +106,18 @@ function ExperimentsTab({
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Run prompts against datasets and evaluate model performance. Uses the datasets and prompts you have already created.
         </p>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
-        >
-          <Plus className="h-4 w-4" />
-          New Experiment
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+          >
+            <Plus className="h-4 w-4" />
+            New Experiment
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canWrite && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-white">Create Experiment</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -220,13 +224,15 @@ function ExperimentsTab({
                     {exp.status}
                   </span>
                 </td>
-                <td className="px-4 py-3">
-                  <button onClick={() => onRun(exp.id)}
-                    disabled={exp.status === 'running'}
-                    className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40">
-                    <Play className="h-3 w-3" /> Run
-                  </button>
-                </td>
+                {canWrite && (
+                  <td className="px-4 py-3">
+                    <button onClick={() => onRun(exp.id)}
+                      disabled={exp.status === 'running'}
+                      className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40">
+                      <Play className="h-3 w-3" /> Run
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -239,11 +245,12 @@ function ExperimentsTab({
 // ── Datasets tab ──────────────────────────────────────────────────────────────
 
 function DatasetsTab({
-  datasets, loading, onCreate,
+  datasets, loading, onCreate, canWrite,
 }: {
   datasets: EvalDataset[]
   loading: boolean
   onCreate: (data: { name: string; description?: string; items: DatasetItem[] }) => Promise<void>
+  canWrite: boolean
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -303,13 +310,15 @@ function DatasetsTab({
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Test case collections (input / expected output pairs) shared with Experiments.
         </p>
-        <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
-          <Plus className="h-4 w-4" /> New Dataset
-        </button>
+        {canWrite && (
+          <button onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
+            <Plus className="h-4 w-4" /> New Dataset
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canWrite && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-white">Create Dataset</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -413,11 +422,12 @@ function DatasetsTab({
 // ── Prompts tab ───────────────────────────────────────────────────────────────
 
 function PromptsTab({
-  prompts, loading, onRefresh,
+  prompts, loading, onRefresh, canWrite,
 }: {
   prompts: PromptResponse[]
   loading: boolean
   onRefresh: () => void
+  canWrite: boolean
 }) {
   const router = useRouter()
   const { data: session } = useSession()
@@ -457,13 +467,15 @@ function PromptsTab({
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Version-controlled prompt templates with variable substitution and environment promotion.
         </p>
-        <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
-          <Plus className="h-4 w-4" /> New Prompt
-        </button>
+        {canWrite && (
+          <button onClick={() => setShowForm(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
+            <Plus className="h-4 w-4" /> New Prompt
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canWrite && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
           <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-white">Create Prompt</h3>
           <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -526,12 +538,14 @@ function PromptsTab({
                   <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">{p.default_environment}</span>
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{new Date(p.created_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(p.name) }}
-                    className="rounded p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
+                {canWrite && (
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(p.name) }}
+                      className="rounded p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -545,7 +559,7 @@ function PromptsTab({
 
 function EvaluatorsTab({
   evaluators, costQuality, bestValue, loading,
-  onCreate, onDelete, onRun,
+  onCreate, onDelete, onRun, canWrite,
 }: {
   evaluators: EvaluatorResponse[]
   costQuality: CostQualityPoint[]
@@ -554,6 +568,7 @@ function EvaluatorsTab({
   onCreate: (data: { name: string; description: string; type: string; config: Record<string, unknown> }) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onRun: (id: string) => Promise<void>
+  canWrite: boolean
 }) {
   const [showForm, setShowForm] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -582,7 +597,7 @@ function EvaluatorsTab({
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Evaluators</h2>
-          {showForm ? (
+          {canWrite && (showForm ? (
             <button
               onClick={() => setShowForm(false)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
@@ -596,10 +611,10 @@ function EvaluatorsTab({
             >
               <Plus className="h-3.5 w-3.5" />New Evaluator
             </button>
-          )}
+          ))}
         </div>
 
-        {showForm && (
+        {showForm && canWrite && (
           <form onSubmit={handleSubmit} className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -681,16 +696,20 @@ function EvaluatorsTab({
                     </td>
                     <td className="py-2.5 px-1">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={async () => { setRunning(ev.id); try { await onRun(ev.id) } finally { setRunning(null) } }}
-                          disabled={running === ev.id}
-                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors disabled:opacity-50"
-                        >
-                          {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
-                        </button>
-                        <button onClick={() => onDelete(ev.id)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {canWrite && (
+                          <button
+                            onClick={async () => { setRunning(ev.id); try { await onRun(ev.id) } finally { setRunning(null) } }}
+                            disabled={running === ev.id}
+                            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors disabled:opacity-50"
+                          >
+                            {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
+                          </button>
+                        )}
+                        {canWrite && (
+                          <button onClick={() => onDelete(ev.id)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -773,6 +792,7 @@ function EvaluatorsTab({
 
 export default function EvaluationPage() {
   const { data: session } = useSession()
+  const { canWrite } = useRole()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
   const [tab, setTab] = useState<Tab>('experiments')
@@ -910,6 +930,7 @@ export default function EvaluationPage() {
           loading={loading}
           onCreate={handleCreateExperiment}
           onRun={handleRunExperiment}
+          canWrite={canWrite}
         />
       )}
       {tab === 'datasets' && (
@@ -917,6 +938,7 @@ export default function EvaluationPage() {
           datasets={datasets}
           loading={loading}
           onCreate={handleCreateDataset}
+          canWrite={canWrite}
         />
       )}
       {tab === 'prompts' && (
@@ -924,6 +946,7 @@ export default function EvaluationPage() {
           prompts={prompts}
           loading={loading}
           onRefresh={refresh}
+          canWrite={canWrite}
         />
       )}
       {tab === 'evaluators' && (
@@ -935,6 +958,7 @@ export default function EvaluationPage() {
           onCreate={handleCreateEvaluator}
           onDelete={handleDeleteEvaluator}
           onRun={handleRunEvaluator}
+          canWrite={canWrite}
         />
       )}
     </div>

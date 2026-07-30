@@ -8,6 +8,7 @@ import type { PromptResponse } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookText, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useRole } from '@/components/rbac/useRole'
 
 function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
   return (
@@ -28,6 +29,7 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
 export default function PromptsPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const { canWrite } = useRole()
   const [prompts, setPrompts] = useState<PromptResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -101,17 +103,19 @@ export default function PromptsPage() {
             Version-controlled prompt templates with variable substitution and environment promotion.
           </p>
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          <Plus className="h-4 w-4" />
-          New Prompt
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            <Plus className="h-4 w-4" />
+            New Prompt
+          </button>
+        )}
       </div>
 
       {/* Create prompt form */}
-      {showForm && (
+      {showForm && canWrite && (
         <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="text-base text-gray-900 dark:text-white">Create Prompt</CardTitle>
@@ -222,15 +226,17 @@ export default function PromptsPage() {
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                       {new Date(p.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(p.name) }}
-                        className="rounded p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-                        title="Delete prompt"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
+                    {canWrite && (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(p.name) }}
+                          className="rounded p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                          title="Delete prompt"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}

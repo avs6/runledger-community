@@ -6,12 +6,14 @@ import { listEvalDatasets, createEvalDataset, deleteEvalDataset } from '@/lib/ap
 import type { EvalDataset, DatasetItem } from '@/types/api'
 import { toast } from 'sonner'
 import { Plus, Trash2, X, TableProperties } from 'lucide-react'
+import { useRole } from '@/components/rbac/useRole'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
 export default function DatasetsPage() {
   const { data: session } = useSession()
+  const { canWrite } = useRole()
   const [datasets, setDatasets] = useState<EvalDataset[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<EvalDataset | null>(null)
@@ -129,16 +131,18 @@ export default function DatasetsPage() {
           </h1>
           <p className="mt-1 text-sm text-gray-500">Manage test case collections for evaluation experiments.</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          <Plus className="h-4 w-4" /> New Dataset
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            <Plus className="h-4 w-4" /> New Dataset
+          </button>
+        )}
       </div>
 
       {/* Create modal */}
-      {showCreate && (
+      {showCreate && canWrite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl bg-white dark:bg-gray-900 p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
@@ -235,12 +239,14 @@ export default function DatasetsPage() {
               >
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{ds.name}</p>
-                  <button
-                    onClick={e => { e.stopPropagation(); handleDelete(ds.id) }}
-                    className="text-red-400 hover:text-red-600 ml-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(ds.id) }}
+                      className="text-red-400 hover:text-red-600 ml-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
                 {ds.description && <p className="text-xs text-gray-500 mt-0.5 truncate">{ds.description}</p>}
                 <p className="text-xs text-indigo-500 mt-1">{ds.item_count} items</p>

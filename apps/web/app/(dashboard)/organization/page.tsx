@@ -118,6 +118,7 @@ function SkeletonRows({ cols, rows = 4 }: { cols: number; rows?: number }) {
 // ── Profile Tab ───────────────────────────────────────────────────────────────
 
 function ProfileTab({ headers }: { headers: Record<string, string> }) {
+  const { update: updateSession } = useSession()
   const [profile, setProfile] = useState<OrgProfile | null>(null)
   const [editName, setEditName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -144,6 +145,7 @@ function ProfileTab({ headers }: { headers: Record<string, string> }) {
       if (!r.ok) throw new Error(await r.text())
       const updated = await r.json()
       setProfile(updated)
+      await updateSession({ tenantName: updated.name })
       toast.success('Organization updated')
     } catch {
       toast.error('Failed to update organization')

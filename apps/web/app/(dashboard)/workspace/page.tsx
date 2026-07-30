@@ -308,7 +308,7 @@ function WorkspaceMembers({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function WorkspacePage() {
-  const { data: session } = useSession()
+  const { data: session, update: updateSession } = useSession()
   const { isOrgAdmin, isPlatformAdmin } = useRole()
 
   const apiKey = (session as unknown as Record<string, unknown>)?.apiKey as string ?? ''
@@ -423,6 +423,9 @@ export default function WorkspacePage() {
       }
       const updated: Workspace = await res.json()
       setWorkspaces((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      if (ws.name === currentWorkspaceName) {
+        await updateSession({ workspaceName: updated.name })
+      }
       setEditingWorkspaceId(null)
       setRenameValue('')
       toast.success(`Workspace renamed to "${updated.name}"`)

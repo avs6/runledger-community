@@ -6,6 +6,7 @@ import { listEvalExperiments, createEvalExperiment, deleteEvalExperiment, runEva
 import type { EvalExperiment, PromptResponse, EvalDataset } from '@/types/api'
 import { toast } from 'sonner'
 import { Play, Trash2, Plus, X, FlaskConical, CheckCircle2, XCircle, Clock, Loader2 } from 'lucide-react'
+import { useRole } from '@/components/rbac/useRole'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -28,6 +29,7 @@ function StatusBadge({ status }: { status: EvalExperiment['status'] }) {
 
 export default function ExperimentsPage() {
   const { data: session } = useSession()
+  const { canWrite } = useRole()
   const [experiments, setExperiments] = useState<EvalExperiment[]>([])
   const [prompts, setPrompts] = useState<PromptResponse[]>([])
   const [datasets, setDatasets] = useState<EvalDataset[]>([])
@@ -124,16 +126,18 @@ export default function ExperimentsPage() {
           </h1>
           <p className="mt-1 text-sm text-gray-500">Run prompts against datasets and evaluate model performance.</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          <Plus className="h-4 w-4" /> New Experiment
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            <Plus className="h-4 w-4" /> New Experiment
+          </button>
+        )}
       </div>
 
       {/* Create Modal */}
-      {showCreate && (
+      {showCreate && canWrite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl bg-white dark:bg-gray-900 p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
@@ -230,21 +234,25 @@ export default function ExperimentsPage() {
                   <StatusBadge status={exp.status} />
                 </div>
                 <div className="mt-2 flex items-center gap-3">
-                  <button
-                    onClick={e => { e.stopPropagation(); handleRun(exp.id) }}
-                    disabled={exp.status === 'running'}
-                    className="flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-40"
-                    title="Run experiment"
-                  >
-                    <Play className="h-3 w-3" /> Run
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); handleDelete(exp.id) }}
-                    className="flex items-center gap-1 rounded-md text-xs text-red-500 hover:text-red-700"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleRun(exp.id) }}
+                      disabled={exp.status === 'running'}
+                      className="flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-40"
+                      title="Run experiment"
+                    >
+                      <Play className="h-3 w-3" /> Run
+                    </button>
+                  )}
+                  {canWrite && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(exp.id) }}
+                      className="flex items-center gap-1 rounded-md text-xs text-red-500 hover:text-red-700"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                   <span className="ml-auto text-xs text-gray-400">{exp.run_count} runs</span>
                 </div>
               </div>
