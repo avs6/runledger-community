@@ -66,9 +66,13 @@ def log_audit(
     """Add an AuditEvent to the session. Caller must commit."""
     before = {"value": old_value} if old_value else None
     after = {"value": new_value} if new_value else None
+    # workspace_id is an FK to workspaces; only a workspace-scoped event has a real
+    # workspace id in scope_id. For org/tenant-scoped events scope_id is a *tenant*
+    # id, so leave workspace_id NULL (the FK would otherwise be violated).
+    workspace_id = scope_id if scope_type == "workspace" else None
     db.add(
         AuditEvent(
-            workspace_id=scope_id,
+            workspace_id=workspace_id,
             actor_user_id=actor_user_id,
             action=f"{scope_type}.{action}",
             target_type=scope_type if target_user_id else None,

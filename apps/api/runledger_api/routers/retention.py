@@ -26,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import require_workspace_admin
+from runledger_api.core.deps import require_platform_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.retention import RetentionPolicy
 from runledger_api.models.tenant import Workspace
@@ -49,7 +49,7 @@ router = APIRouter(
 log = structlog.get_logger()
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
+PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
 
 
 # ── POST /retention/policies ──────────────────────────────────────────────────
@@ -60,7 +60,7 @@ AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
 )
 async def create_retention_policy(
     body: RetentionPolicyCreate,
-    auth: AdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> RetentionPolicyResponse:
     """Create a new data retention policy for this workspace."""
@@ -109,7 +109,7 @@ async def create_retention_policy(
 
 @router.get("/policies", response_model=RetentionPolicyList)
 async def list_retention_policies(
-    auth: AdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
     resource_type: Annotated[str | None, Query()] = None,
     include_inactive: Annotated[bool, Query()] = False,
@@ -139,7 +139,7 @@ async def list_retention_policies(
 @router.get("/policies/{policy_id}", response_model=RetentionPolicyResponse)
 async def get_retention_policy(
     policy_id: uuid.UUID,
-    auth: AdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> RetentionPolicyResponse:
     workspace: Workspace = auth[0]
@@ -166,7 +166,7 @@ async def get_retention_policy(
 async def update_retention_policy(
     policy_id: uuid.UUID,
     body: RetentionPolicyUpdate,
-    auth: AdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> RetentionPolicyResponse:
     workspace: Workspace = auth[0]
@@ -215,7 +215,7 @@ async def update_retention_policy(
 @router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_retention_policy(
     policy_id: uuid.UUID,
-    auth: AdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> None:
     workspace: Workspace = auth[0]
@@ -256,7 +256,7 @@ async def delete_retention_policy(
 @router.post("/purge", response_model=PurgeResult)
 async def immediate_purge(
     body: PurgeRequest,
-    auth: AdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> PurgeResult:
     """

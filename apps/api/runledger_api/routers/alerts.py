@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.tenant import Workspace
@@ -43,7 +43,7 @@ router = APIRouter(
 )
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
+OrgAdminDep = Annotated[tuple, Depends(require_org_admin)]
 
 
 # ── Create rule ────────────────────────────────────────────────────────────────
@@ -52,9 +52,10 @@ WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 @router.post("/rules", response_model=AlertRuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_alert_rule(
     body: AlertRuleCreate,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> AlertRuleResponse:
+    workspace: Workspace = auth[0]
     rule = AlertRule(
         workspace_id=workspace.id,
         name=body.name,
@@ -77,10 +78,11 @@ async def create_alert_rule(
 
 @router.get("/rules", response_model=AlertRuleList)
 async def list_alert_rules(
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
     include_inactive: bool = Query(False),
 ) -> AlertRuleList:
+    workspace: Workspace = auth[0]
     stmt = select(AlertRule).where(AlertRule.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(AlertRule.is_active.is_(True))
@@ -97,9 +99,10 @@ async def list_alert_rules(
 async def update_alert_rule(
     rule_id: uuid.UUID,
     body: AlertRuleUpdate,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> AlertRuleResponse:
+    workspace: Workspace = auth[0]
     rule = await db.get(AlertRule, rule_id)
     if rule is None or rule.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Alert rule not found")
@@ -128,9 +131,10 @@ async def update_alert_rule(
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_alert_rule(
     rule_id: uuid.UUID,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> None:
+    workspace: Workspace = auth[0]
     rule = await db.get(AlertRule, rule_id)
     if rule is None or rule.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Alert rule not found")
@@ -143,10 +147,11 @@ async def delete_alert_rule(
 
 @router.get("/history", response_model=AlertHistoryList)
 async def list_alert_history(
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
     limit: int = Query(50, ge=1, le=200),
 ) -> AlertHistoryList:
+    workspace: Workspace = auth[0]
     # Fetch firings ordered newest-first
     stmt = (
         select(AlertFiring, AlertRule.name.label("rule_name"))

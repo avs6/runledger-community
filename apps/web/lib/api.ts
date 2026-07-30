@@ -671,11 +671,17 @@ export async function updateOrgUser(
 // Platform-admin: create a new organization (adds you as its org admin).
 export async function createOrganization(
   apiKey: string,
-  name: string
+  body: {
+    name: string
+    admin_email: string
+    admin_password: string
+    admin_full_name?: string | null
+    skip_verification?: boolean
+  }
 ): Promise<{ id: string; name: string }> {
   return apiFetch<{ id: string; name: string }>('/org/tenants', apiKey, {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(body),
   })
 }
 

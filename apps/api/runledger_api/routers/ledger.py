@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends
@@ -23,7 +23,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import require_platform_admin
 from runledger_api.models.ledger import LedgerSnapshot
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.ledger import (
@@ -40,6 +40,8 @@ from runledger_api.services.ledger import (
 
 router = APIRouter(prefix="/ledger", tags=["ledger"])
 log = structlog.get_logger()
+DbDep = Annotated[AsyncSession, Depends(get_db)]
+PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
 
 
 def _snap_to_response(snap: LedgerSnapshot) -> LedgerSnapshotResponse:
@@ -61,9 +63,10 @@ def _snap_to_response(snap: LedgerSnapshot) -> LedgerSnapshotResponse:
 
 @router.get("/snapshots", response_model=LedgerSnapshotList)
 async def list_snapshots(
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    auth: PlatformAdminDep,
+    db: DbDep,
 ) -> LedgerSnapshotList:
+    workspace: Workspace = auth[0]
     result = await db.execute(
         select(LedgerSnapshot)
         .where(LedgerSnapshot.workspace_id == workspace.id)
@@ -79,9 +82,10 @@ async def list_snapshots(
 
 @router.post("/snapshots/generate", response_model=LedgerSnapshotResponse, status_code=201)
 async def generate_snapshot(
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    auth: PlatformAdminDep,
+    db: DbDep,
 ) -> LedgerSnapshotResponse:
+    workspace: Workspace = auth[0]
     yesterday = (datetime.now(UTC) - timedelta(days=1)).date()
     snapshot_data = await build_daily_snapshot(db, workspace.id, yesterday)
     key = await get_or_create_active_key(db, workspace.id)
@@ -145,7 +149,8 @@ async def generate_snapshot(
 @router.get("/verify/{snapshot_date}", response_model=LedgerVerifyResult)
 async def verify_ledger_snapshot(
     snapshot_date: date,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    auth: PlatformAdminDep,
+    db: DbDep,
 ) -> LedgerVerifyResult:
+    workspace: Workspace = auth[0]
     return await verify_snapshot(db, workspace.id, snapshot_date)

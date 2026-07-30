@@ -67,11 +67,29 @@ async def create_org(
     auth: Annotated[tuple[Workspace, User], Depends(require_platform_admin)],
     db: DbDep,
 ) -> dict[str, Any]:
-    """Platform admin creates a new organization + default workspace, and is added as its
-    org admin so it shows up in their org switcher immediately (no admin secret needed)."""
-    _ws, admin = auth
+    """Platform admin creates a new organization + default workspace + its own org admin.
+
+    The seeded org admin (body.admin_email) is who logs in and runs the org; the creating
+    platform admin is NOT added (they are not a member of this org's data plane).
+    """
+    _ws, _platform = auth
+    dupe = (
+        await db.execute(select(User).where(User.email == body.admin_email))
+    ).scalar_one_or_none()
+    if dupe is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Email '{body.admin_email}' already exists")
     tenant = Tenant(slug=_make_slug(body.name), name=body.name)
     db.add(tenant)
+    await db.flush()
+    pw_hash = bcrypt.hashpw(body.admin_password.encode(), bcrypt.gensalt()).decode()
+    admin = User(
+        email=body.admin_email,
+        password_hash=pw_hash,
+        full_name=body.admin_full_name or body.admin_email.split("@")[0],
+        is_active=True,
+        email_verified=body.skip_verification,
+    )
+    db.add(admin)
     await db.flush()
     tenant.owner_user_id = admin.id
     db.add(TenantUser(tenant_id=tenant.id, user_id=admin.id, role=TenantRoleEnum.org_admin))
@@ -85,7 +103,7 @@ async def create_org(
     )
     await db.commit()
     await db.refresh(tenant)
-    log.info("org_created", tenant_id=str(tenant.id), by=admin.email)
+    log.info("org_created", tenant_id=str(tenant.id), admin=body.admin_email)
     return {
         "id": tenant.id,
         "name": tenant.name,
@@ -345,6 +363,33 @@ async def create_org_workspace(
     await db.commit()
     await db.refresh(new_ws)
     return new_ws
+
+
+@router.put("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+async def rename_org_workspace(
+    workspace_id: uuid.UUID,
+    body: WorkspaceCreateForOrg,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> Workspace:
+    """Rename a workspace in the caller's org (org-admin) — full CRUD."""
+    workspace, _user, _ = auth
+    target = await db.get(Workspace, workspace_id)
+    if target is None or target.tenant_id != workspace.tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
+    clash = await db.execute(
+        select(Workspace).where(
+            Workspace.tenant_id == workspace.tenant_id,
+            func.lower(Workspace.name) == body.name.lower(),
+            Workspace.id != workspace_id,
+        )
+    )
+    if clash.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A workspace with that name already exists")
+    target.name = body.name
+    await db.commit()
+    await db.refresh(target)
+    return target
 
 
 @router.get("/workspaces/my", response_model=list[WorkspaceResponse])

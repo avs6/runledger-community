@@ -13,7 +13,7 @@ PUT /privacy/capture-policy   Upsert capture policy
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,13 +21,15 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import require_org_admin
 from runledger_api.models.ledger import CapturePolicy
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.privacy import CapturePolicyResponse, CapturePolicyUpsert
 
 router = APIRouter(prefix="/privacy", tags=["privacy"])
 log = structlog.get_logger()
+DbDep = Annotated[AsyncSession, Depends(get_db)]
+OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 
 
 def _policy_to_response(policy: CapturePolicy) -> CapturePolicyResponse:
@@ -46,9 +48,10 @@ def _policy_to_response(policy: CapturePolicy) -> CapturePolicyResponse:
 
 @router.get("/capture-policy", response_model=CapturePolicyResponse)
 async def get_capture_policy(
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    auth: OrgAdminDep,
+    db: DbDep,
 ) -> CapturePolicyResponse:
+    workspace: Workspace = auth[0]
     result = await db.execute(
         select(CapturePolicy).where(CapturePolicy.workspace_id == workspace.id)
     )
@@ -64,9 +67,10 @@ async def get_capture_policy(
 @router.put("/capture-policy", response_model=CapturePolicyResponse)
 async def upsert_capture_policy(
     body: CapturePolicyUpsert,
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    auth: OrgAdminDep,
+    db: DbDep,
 ) -> CapturePolicyResponse:
+    workspace: Workspace = auth[0]
     result = await db.execute(
         select(CapturePolicy).where(CapturePolicy.workspace_id == workspace.id)
     )

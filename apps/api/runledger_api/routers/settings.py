@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_org_admin
+from runledger_api.core.deps import get_current_workspace, require_org_admin, require_platform_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.tenant import ApiKey, Workspace
@@ -41,6 +41,7 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 # API-key management is an **org-admin** function performed by a logged-in user
 # (a session), not by a bare API key — a key can no longer mint or revoke keys.
 OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
+PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
 
 
 async def _org_workspaces(db: AsyncSession, tenant_id: uuid.UUID) -> dict[uuid.UUID, str]:
@@ -146,8 +147,9 @@ async def revoke_api_key(key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) -> Non
 
 
 @router.get("/email/preferences", response_model=EmailPreferenceResponse)
-async def get_email_preferences(workspace: WorkspaceDep, db: DbDep) -> EmailPreference:
+async def get_email_preferences(auth: PlatformAdminDep, db: DbDep) -> EmailPreference:
     """Get or create default email preferences for this workspace."""
+    workspace = auth[0]
     result = await db.execute(
         select(EmailPreference).where(EmailPreference.workspace_id == workspace.id)
     )
@@ -162,8 +164,9 @@ async def get_email_preferences(workspace: WorkspaceDep, db: DbDep) -> EmailPref
 
 @router.put("/email/preferences", response_model=EmailPreferenceResponse)
 async def update_email_preferences(
-    body: EmailPreferenceUpdate, workspace: WorkspaceDep, db: DbDep
+    body: EmailPreferenceUpdate, auth: PlatformAdminDep, db: DbDep
 ) -> EmailPreference:
+    workspace = auth[0]
     """Update email preferences (PATCH semantics — only provided fields are changed)."""
     result = await db.execute(
         select(EmailPreference).where(EmailPreference.workspace_id == workspace.id)
@@ -184,7 +187,8 @@ async def update_email_preferences(
 
 
 @router.get("/email/log", response_model=EmailLogList)
-async def get_email_log(workspace: WorkspaceDep, db: DbDep) -> EmailLogList:
+async def get_email_log(auth: PlatformAdminDep, db: DbDep) -> EmailLogList:
+    workspace = auth[0]
     """List the 50 most recent email log entries for this workspace."""
     result = await db.execute(
         select(EmailLog)
@@ -202,9 +206,10 @@ async def get_email_log(workspace: WorkspaceDep, db: DbDep) -> EmailLogList:
 
 @router.post("/email/test")
 async def test_email_send(
-    workspace: WorkspaceDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> dict[str, Any]:
+    workspace = auth[0]
     """Send a test email to the workspace's API key owner (created_by field)."""
     # Find a session key to get the user's email
     key_result = await db.execute(

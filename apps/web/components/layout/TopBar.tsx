@@ -34,7 +34,7 @@ export default function TopBar() {
   const [mounted, setMounted] = useState(false)
   const wsButtonRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const { isPlatformAdmin, tenantRole, workspaceRole } = useRole()
+  const { isPlatformAdmin, isOrgAdmin, tenantRole, workspaceRole } = useRole()
 
   const s = session as Record<string, unknown> | null
   const displayName = (s?.fullName as string) || (s?.email as string) || 'User'
@@ -125,6 +125,7 @@ export default function TopBar() {
         workspaceId: data.workspace_id,
         workspaceName: data.workspace_name,
         tenantId: data.tenant_id,
+        tenantName: data.tenant_name,
         workspaceRole: data.workspace_role,
         tenantRole: data.tenant_role,
         workspaceIds: data.workspace_ids,
@@ -174,9 +175,11 @@ export default function TopBar() {
         })
       )}
       <div className="mx-3 border-t border-slate-100 dark:border-slate-800 mt-1 pt-1">
-        <a href="/workspace" className="flex w-full items-center gap-2 px-0 py-1.5 text-xs text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400 transition-colors">
-          <LayoutGrid className="h-3.5 w-3.5" /> Manage workspaces
-        </a>
+        {(isOrgAdmin || isPlatformAdmin) && (
+          <a href="/workspace" className="flex w-full items-center gap-2 px-0 py-1.5 text-xs text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400 transition-colors">
+            <LayoutGrid className="h-3.5 w-3.5" /> Manage workspaces
+          </a>
+        )}
       </div>
     </div>,
     document.body

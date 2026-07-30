@@ -223,9 +223,15 @@ class OrgUserResponse(BaseModel):
 
 
 class PlatformOrgCreate(BaseModel):
-    """Platform-admin creates a new organization (tenant) from the dashboard."""
+    """Platform-admin creates a new organization (tenant) + its own org admin."""
 
     name: str
+    admin_email: str
+    admin_password: str = "ChangeMe123!"
+    admin_full_name: str | None = None
+    # Mark the seeded admin verified (default true on SMTP-less builds) so they can
+    # sign in immediately.
+    skip_verification: bool = True
 
 
 # ── TenantUser / WorkspaceUser ─────────────────────────────────────────────────

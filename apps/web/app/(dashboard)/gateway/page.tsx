@@ -28,8 +28,8 @@ const inputCls =
 export default function GatewayPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
-  const { isWorkspaceAdmin, isOrgAdmin, isPlatformAdmin } = useRole()
-  const canManage = isWorkspaceAdmin || isOrgAdmin || isPlatformAdmin
+  const { isOrgAdmin, isPlatformAdmin } = useRole()
+  const canManage = isOrgAdmin || isPlatformAdmin
 
   const [gatewayRoutes, setGatewayRoutes] = useState<GatewayRoute[]>([])
   const [gatewayStats, setGatewayStats] = useState<GatewayStats | null>(null)
@@ -102,7 +102,10 @@ export default function GatewayPage() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey || !canManage) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const [routesData, statsData, policiesData, pricingData] = await Promise.all([
@@ -120,9 +123,18 @@ export default function GatewayPage() {
     } finally {
       setLoading(false)
     }
-  }, [apiKey])
+  }, [apiKey, canManage])
 
   useEffect(() => { load() }, [load])
+
+  if (!canManage) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Model Gateway</h1>
+        <p className="mt-4 text-sm text-slate-500">Model Gateway configuration is an organization-admin function.</p>
+      </div>
+    )
+  }
 
   async function handleCreateRoute(e: React.FormEvent) {
     e.preventDefault()

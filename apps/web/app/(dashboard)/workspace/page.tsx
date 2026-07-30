@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
   LayoutGrid, Plus, Trash2, RefreshCw, Search, X, Star,
-  Users, ChevronDown, ChevronUp, UserPlus, Check,
+  Users, ChevronDown, ChevronUp, UserPlus, Check, Pencil,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -323,6 +323,9 @@ export default function WorkspacePage() {
   const [search, setSearch] = useState('')
   const [newlyCreatedWs, setNewlyCreatedWs] = useState<Workspace | null>(null)
   const [managingMembersWs, setManagingMembersWs] = useState<Workspace | null>(null)
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null)
 
   const headers = useMemo(() => ({
     Authorization: `Bearer ${apiKey}`,
@@ -331,7 +334,11 @@ export default function WorkspacePage() {
 
   const load = useCallback(
     async (isRefresh = false) => {
-      if (!apiKey) return
+      if (!apiKey || !(isOrgAdmin || isPlatformAdmin)) {
+        setLoading(false)
+        setRefreshing(false)
+        return
+      }
       isRefresh ? setRefreshing(true) : setLoading(true)
       try {
         const res = await fetch(`${apiBase}/org/workspaces/my`, { headers })
@@ -345,7 +352,7 @@ export default function WorkspacePage() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [apiKey]
+    [apiKey, isOrgAdmin, isPlatformAdmin]
   )
 
   useEffect(() => { load() }, [load])
@@ -396,11 +403,50 @@ export default function WorkspacePage() {
     }
   }
 
+  async function handleRename(ws: Workspace) {
+    const nextName = renameValue.trim()
+    if (!nextName || nextName === ws.name) {
+      setEditingWorkspaceId(null)
+      setRenameValue('')
+      return
+    }
+    setRenamingWorkspaceId(ws.id)
+    try {
+      const res = await fetch(`${apiBase}/org/workspaces/${ws.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ name: nextName }),
+      })
+      if (!res.ok) {
+        const msg = await res.json().catch(() => ({ detail: 'Unknown error' }))
+        throw new Error(msg.detail || 'Failed to rename workspace')
+      }
+      const updated: Workspace = await res.json()
+      setWorkspaces((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setEditingWorkspaceId(null)
+      setRenameValue('')
+      toast.success(`Workspace renamed to "${updated.name}"`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to rename workspace')
+    } finally {
+      setRenamingWorkspaceId(null)
+    }
+  }
+
   const filteredWorkspaces = workspaces.filter((w) =>
     w.name.toLowerCase().includes(search.toLowerCase())
   )
 
   const canManage = isOrgAdmin || isPlatformAdmin
+
+  if (!canManage) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Workspaces</h1>
+        <p className="mt-4 text-sm text-slate-500">Workspace management is an organization-admin function.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -539,9 +585,32 @@ export default function WorkspacePage() {
                   <Avatar name={null} email={ws.name} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-900 dark:text-white truncate">
-                        {ws.name}
-                      </span>
+                      {editingWorkspaceId === ws.id ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault()
+                            void handleRename(ws)
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            className={`${inputCls} h-8`}
+                            autoFocus
+                          />
+                          <button type="submit" disabled={renamingWorkspaceId === ws.id} className="text-xs text-violet-600 hover:underline disabled:opacity-50">
+                            {renamingWorkspaceId === ws.id ? 'Saving…' : 'Save'}
+                          </button>
+                          <button type="button" onClick={() => { setEditingWorkspaceId(null); setRenameValue('') }} className="text-xs text-slate-400 hover:text-slate-700">
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="font-semibold text-slate-900 dark:text-white truncate">
+                          {ws.name}
+                        </span>
+                      )}
                       {isCurrent && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 text-xs font-medium shrink-0">
                           <Star className="h-3 w-3 fill-current" />
@@ -558,18 +627,28 @@ export default function WorkspacePage() {
                       Created {new Date(ws.created_at).toLocaleDateString()}
                     </p>
                     <WorkspaceMembers workspace={ws} headers={headers} canManage={canManage} />
-                    {canManage && (
+                    <div className="mt-2 flex items-center gap-3">
                       <button
                         onClick={() => {
                           setManagingMembersWs(managingMembersWs?.id === ws.id ? null : ws)
                           setNewlyCreatedWs(null)
                         }}
-                        className="mt-2 flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                        className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
                       >
                         <UserPlus className="h-3 w-3" />
                         {managingMembersWs?.id === ws.id ? 'Close' : 'Add Members'}
                       </button>
-                    )}
+                      <button
+                        onClick={() => {
+                          setEditingWorkspaceId(ws.id)
+                          setRenameValue(ws.name)
+                        }}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Rename
+                      </button>
+                    </div>
                   </div>
                 </div>
 

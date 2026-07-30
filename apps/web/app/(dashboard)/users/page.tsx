@@ -68,6 +68,9 @@ export default function UsersPage() {
   // Create-org form (platform admin)
   const [showCreateOrg, setShowCreateOrg] = useState(false)
   const [orgName, setOrgName] = useState('')
+  const [orgAdminEmail, setOrgAdminEmail] = useState('')
+  const [orgAdminPassword, setOrgAdminPassword] = useState('ChangeMe123!')
+  const [orgAdminName, setOrgAdminName] = useState('')
   const [creatingOrg, setCreatingOrg] = useState(false)
 
   const load = useCallback(async () => {
@@ -163,12 +166,18 @@ export default function UsersPage() {
 
   async function handleCreateOrg(e: React.FormEvent) {
     e.preventDefault()
-    if (!orgName.trim()) return
+    if (!orgName.trim() || !orgAdminEmail.trim() || !orgAdminPassword.trim()) return
     setCreatingOrg(true)
     try {
-      const org = await createOrganization(apiKey, orgName.trim())
-      setShowCreateOrg(false); setOrgName('')
-      toast.success(`Organization "${org.name}" created — switch to it from the org menu (top left).`)
+      const org = await createOrganization(apiKey, {
+        name: orgName.trim(),
+        admin_email: orgAdminEmail.trim(),
+        admin_password: orgAdminPassword,
+        admin_full_name: orgAdminName.trim() || null,
+        skip_verification: true,
+      })
+      setShowCreateOrg(false); setOrgName(''); setOrgAdminEmail(''); setOrgAdminPassword('ChangeMe123!'); setOrgAdminName('')
+      toast.success(`Organization "${org.name}" created. The seeded org admin can now sign in with the credentials you entered.`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create organization')
     } finally {
@@ -321,8 +330,11 @@ export default function UsersPage() {
       {showCreateOrg && (
         <Modal title="New organization" onClose={() => setShowCreateOrg(false)}>
           <form onSubmit={handleCreateOrg} className="space-y-3">
-            <p className="text-xs text-slate-500">Creates a new organization with a default workspace. You&apos;re added as its org admin, so it appears in your org switcher.</p>
+            <p className="text-xs text-slate-500">Creates a new organization with a default workspace and seeds its own org admin account.</p>
             <input autoFocus type="text" required placeholder="Organization name" value={orgName} onChange={(e) => setOrgName(e.target.value)} className={`${inputCls} w-full`} />
+            <input type="email" required placeholder="Org admin email" value={orgAdminEmail} onChange={(e) => setOrgAdminEmail(e.target.value)} className={`${inputCls} w-full`} />
+            <input type="text" placeholder="Org admin full name (optional)" value={orgAdminName} onChange={(e) => setOrgAdminName(e.target.value)} className={`${inputCls} w-full`} />
+            <input type="text" required placeholder="Temporary password" value={orgAdminPassword} onChange={(e) => setOrgAdminPassword(e.target.value)} className={`${inputCls} w-full`} />
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowCreateOrg(false)} className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm">Cancel</button>
               <button type="submit" disabled={creatingOrg} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creatingOrg ? 'Creating…' : 'Create organization'}</button>

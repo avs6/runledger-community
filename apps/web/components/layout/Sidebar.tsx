@@ -6,6 +6,7 @@ import {
   LayoutDashboard, LayoutList, MessageSquare,
   FlaskConical, Activity, Wallet, Settings,
   Building2, Users, LayoutGrid, Network, Wrench, Database, BarChart2, FileText, TrendingUp, ShieldCheck, ScrollText, Beaker, TableProperties,
+  Key, Bell, Plug, Shield, Radio, Settings2,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -15,13 +16,13 @@ const coreNav = [
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
 ] as const
 
-// Shown only to org_admin + platform_admin in the core nav section
 const globalDashboardItem = { href: '/organization/dashboard', label: 'Global Dashboard', icon: LayoutGrid }
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { isPlatformAdmin, isOrgAdmin, isWorkspaceAdmin } = useRole()
+  const { isPlatformAdmin, isOrgAdmin, isWorkspaceAdmin, canAccessSettings } = useRole()
   const canAccessFinance = isWorkspaceAdmin || isOrgAdmin || isPlatformAdmin
+  const canAccessOrgControl = isOrgAdmin || isPlatformAdmin
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
@@ -57,19 +58,6 @@ export default function Sidebar() {
       </div>
     )
   }
-
-  // Build the bottom admin items based on role — no duplicates
-  const bottomItems: { href: string; label: string; icon: React.ElementType }[] = []
-
-  if (isOrgAdmin || isPlatformAdmin) {
-    bottomItems.push({ href: '/organization', label: 'Organization', icon: Building2 })
-  }
-
-  if (isWorkspaceAdmin || isOrgAdmin || isPlatformAdmin) {
-    bottomItems.push({ href: '/users', label: 'Users', icon: Users })
-  }
-
-  bottomItems.push({ href: '/workspace', label: 'Workspace', icon: LayoutGrid })
 
   return (
     <aside className="flex h-full w-60 flex-col border-r border-white/[0.05] bg-white/80 px-3 py-4 backdrop-blur-xl dark:border-white/[0.05] dark:bg-[#070A17]/90">
@@ -136,11 +124,26 @@ export default function Sidebar() {
         <NavLink href="/prompts" label="Prompts" icon={FileText} />
 
         {/* ── Gateway ── */}
-        <SectionLabel label="Gateway" />
-        <NavLink href="/gateway" label="Model Gateway" icon={Network} />
-        <NavLink href="/tool-registry" label="Tool Registry" icon={Wrench} />
-        {(isOrgAdmin || isPlatformAdmin) && (
-          <NavLink href="/provider-profiles" label="Provider Profiles" icon={Database} />
+        {canAccessOrgControl && (
+          <>
+            <SectionLabel label="Gateway" />
+            <NavLink href="/gateway" label="Model Gateway" icon={Network} />
+            <NavLink href="/tool-registry" label="Tool Registry" icon={Wrench} />
+            <NavLink href="/provider-profiles" label="Provider Profiles" icon={Database} />
+          </>
+        )}
+
+        {/* ── Control Plane (org-admin+) ── */}
+        {canAccessOrgControl && (
+          <>
+            <SectionLabel label="Control Plane" />
+            <NavLink href="/api-keys" label="API Keys" icon={Key} />
+            <NavLink href="/alert-rules" label="Alert Rules" icon={Bell} />
+            <NavLink href="/mcp" label="MCP" icon={Plug} />
+            <NavLink href="/integrations" label="Integrations" icon={Settings2} />
+            <NavLink href="/data-capture" label="Data Capture" icon={Shield} />
+            <NavLink href="/otlp" label="OTLP" icon={Radio} />
+          </>
         )}
 
         {/* ── Finance ── */}
@@ -163,10 +166,14 @@ export default function Sidebar() {
       {/* Bottom section — org/user/workspace management + settings */}
       <div className="mt-4 pt-4 border-t border-white/[0.05]">
         <div className="flex flex-col gap-0.5">
-          {bottomItems.map(({ href, label, icon: Icon }) => (
-            <NavLink key={href} href={href} label={label} icon={Icon} />
-          ))}
-          <NavLink href="/settings" label="Settings" icon={Settings} />
+          {canAccessOrgControl && (
+            <>
+              <NavLink href="/organization" label="Organization" icon={Building2} />
+              <NavLink href="/users" label="Users" icon={Users} />
+              <NavLink href="/workspace" label="Workspace" icon={LayoutGrid} />
+            </>
+          )}
+          {canAccessSettings && <NavLink href="/settings" label="Settings" icon={Settings} />}
         </div>
       </div>
     </aside>

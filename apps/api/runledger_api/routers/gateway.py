@@ -30,10 +30,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.tenant import TenantUser, User, Workspace
 from runledger_api.schemas.gateway import (
     GatewayCompletionRequest,
     GatewayRequestList,
@@ -68,6 +68,7 @@ router = APIRouter(
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
+OrgAdminDep = Annotated[tuple[Workspace, User, TenantUser | None], Depends(require_org_admin)]
 
 
 def _config_fingerprint(
@@ -433,9 +434,10 @@ async def gateway_chat_completions(
 @router.post("/routes", response_model=GatewayRouteResponse, status_code=status.HTTP_201_CREATED)
 async def create_gateway_route(
     body: GatewayRouteCreate,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> GatewayRouteResponse:
+    workspace = auth[0]
     route = GatewayRoute(
         workspace_id=workspace.id,
         alias=body.alias,
@@ -465,10 +467,11 @@ async def create_gateway_route(
 
 @router.get("/routes", response_model=GatewayRouteList)
 async def list_gateway_routes(
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
     include_inactive: bool = Query(False),
 ) -> GatewayRouteList:
+    workspace = auth[0]
     stmt = select(GatewayRoute).where(GatewayRoute.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(GatewayRoute.is_active.is_(True))
@@ -482,9 +485,10 @@ async def list_gateway_routes(
 async def update_gateway_route(
     route_id: uuid.UUID,
     body: GatewayRouteUpdate,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> GatewayRouteResponse:
+    workspace = auth[0]
     route = await db.get(GatewayRoute, route_id)
     if route is None or route.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
@@ -532,9 +536,10 @@ async def update_gateway_route(
 @router.delete("/routes/{route_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_gateway_route(
     route_id: uuid.UUID,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> None:
+    workspace = auth[0]
     route = await db.get(GatewayRoute, route_id)
     if route is None or route.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
@@ -547,7 +552,7 @@ async def delete_gateway_route(
 
 @router.get("/requests", response_model=GatewayRequestList)
 async def list_gateway_requests(
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
     alias: str | None = Query(None, description="Filter by model alias"),
     status_filter: str | None = Query(None, alias="status"),
@@ -558,6 +563,7 @@ async def list_gateway_requests(
     Return recent gateway requests with routing decision reasons.
     Useful for auditing which policy selected which route and why.
     """
+    workspace = auth[0]
     stmt = select(GatewayRequest).where(GatewayRequest.workspace_id == workspace.id)
 
     if alias:
@@ -583,10 +589,11 @@ async def list_gateway_requests(
 
 @router.get("/stats", response_model=GatewayStats)
 async def gateway_stats(
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> GatewayStats:
     """Aggregate gateway request stats per route for the workspace."""
+    workspace = auth[0]
     stmt = (
         select(
             GatewayRequest.route_id,

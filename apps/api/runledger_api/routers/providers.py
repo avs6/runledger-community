@@ -25,11 +25,11 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.metering import ProviderPricing
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.tenant import TenantUser, User, Workspace
 from runledger_api.schemas.providers import (
     PricingImportResult,
     ProviderPricingCreate,
@@ -47,10 +47,12 @@ router = APIRouter(
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+OrgAdminDep = Annotated[tuple[Workspace, User, TenantUser | None], Depends(require_org_admin)]
 
 
 @router.get("/pricing", response_model=ProviderPricingList)
-async def list_pricing(workspace: WorkspaceDep, db: DbDep) -> ProviderPricingList:
+async def list_pricing(auth: OrgAdminDep, db: DbDep) -> ProviderPricingList:
+    workspace = auth[0]
     result = await db.execute(
         select(ProviderPricing)
         .where(
@@ -74,7 +76,7 @@ async def list_pricing(workspace: WorkspaceDep, db: DbDep) -> ProviderPricingLis
 
 @router.post("/pricing/import", response_model=PricingImportResult)
 async def import_pricing(
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
     file: Annotated[UploadFile, File(description="A pricing YAML file")],
 ) -> PricingImportResult:
@@ -83,6 +85,7 @@ async def import_pricing(
     (update-in-place; re-importing the same file is a no-op). This is the DB-backed
     source of truth; the file is only the transport.
     """
+    workspace = auth[0]
     raw = await file.read()
     try:
         text = raw.decode("utf-8")
@@ -100,7 +103,7 @@ async def import_pricing(
 
 
 @router.get("/pricing/example", response_class=PlainTextResponse)
-async def pricing_example(workspace: WorkspaceDep) -> str:
+async def pricing_example(auth: OrgAdminDep) -> str:
     """Return the example pricing YAML so the GUI can offer a downloadable template."""
     from runledger_api.core.config import settings  # noqa: PLC0415
 
@@ -123,8 +126,9 @@ async def pricing_example(workspace: WorkspaceDep) -> str:
     response_model=ProviderPricingResponse,
 )
 async def create_pricing(
-    body: ProviderPricingCreate, workspace: WorkspaceDep, db: DbDep
+    body: ProviderPricingCreate, auth: OrgAdminDep, db: DbDep
 ) -> ProviderPricingResponse:
+    workspace = auth[0]
     pricing = ProviderPricing(
         provider=body.provider,
         model=body.model,
@@ -148,9 +152,10 @@ async def create_pricing(
 async def update_pricing(
     pricing_id: uuid.UUID,
     body: ProviderPricingUpdate,
-    workspace: WorkspaceDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> ProviderPricingResponse:
+    workspace = auth[0]
     pricing = await db.get(ProviderPricing, pricing_id)
     if pricing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")
@@ -172,7 +177,8 @@ async def update_pricing(
 
 
 @router.delete("/pricing/{pricing_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_pricing(pricing_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) -> None:
+async def delete_pricing(pricing_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) -> None:
+    workspace = auth[0]
     pricing = await db.get(ProviderPricing, pricing_id)
     if pricing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")
@@ -190,7 +196,7 @@ class RepriceRequest(BaseModel):
 
 @router.post("/reprice", response_model=dict[str, int])
 async def reprice_provider(
-    body: RepriceRequest, workspace: WorkspaceDep, db: DbDep
+    body: RepriceRequest, auth: OrgAdminDep, db: DbDep
 ) -> dict[str, int]:
     """Reset cost_usd to NULL for provider_calls so the enrichment worker re-prices them.
 
@@ -198,6 +204,7 @@ async def reprice_provider(
     will not be re-enriched automatically (the worker only picks up cost_usd IS NULL).
     This endpoint nullifies their cost so they get repriced on the next enrichment cycle.
     """
+    workspace = auth[0]
     filters = [
         ProviderCall.workspace_id == workspace.id,
         ProviderCall.provider == body.provider,

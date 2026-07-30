@@ -18,7 +18,7 @@ import gzip
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -26,7 +26,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
 from runledger_api.services.otlp_parse import (
@@ -38,6 +38,7 @@ from runledger_api.services.otlp_parse import (
 log = structlog.get_logger()
 
 router = APIRouter(tags=["OTLP"])
+OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 
 _MAX_PAYLOAD_BYTES = 10 * 1024 * 1024  # 10 MB hard limit
 _SUPPORTED_CONTENT_TYPES = {
@@ -238,7 +239,7 @@ async def receive_traces_alias(
     summary="OTLP ingestion statistics",
 )
 async def get_traces_stats(
-    workspace: Any = Depends(get_current_workspace),
+    auth: OrgAdminDep,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
@@ -248,6 +249,7 @@ async def get_traces_stats(
       last_24h: {batches, traces, spans}
       last_7d:  {batches, traces, spans}
     """
+    workspace = auth[0]
     now = datetime.now(UTC)
     cutoffs = {
         "last_24h": now - timedelta(hours=24),
@@ -277,7 +279,7 @@ async def get_traces_stats(
     summary="List recent OTLP ingest batches",
 )
 async def list_traces_batches(
-    workspace: Any = Depends(get_current_workspace),
+    auth: OrgAdminDep,
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -287,6 +289,7 @@ async def list_traces_batches(
 
     Useful for debugging ingestion issues in the Settings → OTLP tab.
     """
+    workspace = auth[0]
     rows = await db.execute(
         select(OtlpIngestBatch)
         .where(OtlpIngestBatch.workspace_id == workspace.id)

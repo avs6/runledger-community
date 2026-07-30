@@ -154,6 +154,7 @@ class LoginResponse(BaseModel):
     workspace_id: str
     workspace_name: str
     tenant_id: str
+    tenant_name: str
     api_key: str
     is_platform_admin: bool
     tenant_role: str | None

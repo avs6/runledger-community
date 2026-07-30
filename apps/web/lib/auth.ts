@@ -12,6 +12,7 @@ function buildUserFromApiResponse(data: Record<string, unknown>) {
     workspaceId: data.workspace_id as string,
     workspaceName: data.workspace_name as string,
     tenantId: data.tenant_id as string,
+    tenantName: (data.tenant_name as string) || '',
     userId: data.user_id as string,
     fullName: data.full_name as string | null,
     isPlatformAdmin: (data.is_platform_admin as boolean) ?? false,
@@ -61,6 +62,7 @@ export const authOptions: AuthOptions = {
         token.workspaceId = u.workspaceId as string
         token.workspaceName = u.workspaceName as string
         token.tenantId = u.tenantId as string
+        token.tenantName = (u.tenantName as string) ?? ''
         token.userId = u.userId as string
         token.fullName = u.fullName as string | null
         token.isPlatformAdmin = u.isPlatformAdmin as boolean
@@ -75,6 +77,7 @@ export const authOptions: AuthOptions = {
         if (s.workspaceId) token.workspaceId = s.workspaceId as string
         if (s.workspaceName) token.workspaceName = s.workspaceName as string
         if (s.tenantId) token.tenantId = s.tenantId as string
+        if (s.tenantName !== undefined) token.tenantName = (s.tenantName as string) ?? ''
         if (s.workspaceRole !== undefined) token.workspaceRole = s.workspaceRole as string | null
         if (s.tenantRole !== undefined) token.tenantRole = s.tenantRole as string | null
         if (s.workspaceIds) token.workspaceIds = s.workspaceIds as string[]
@@ -86,6 +89,7 @@ export const authOptions: AuthOptions = {
       session.workspaceId = token.workspaceId as string
       session.workspaceName = token.workspaceName as string
       session.tenantId = token.tenantId as string
+      session.tenantName = (token.tenantName as string) ?? ''
       session.userId = token.userId as string
       session.fullName = (token.fullName as string | null) ?? null
       session.isPlatformAdmin = (token.isPlatformAdmin as boolean) ?? false
@@ -110,6 +114,7 @@ declare module 'next-auth' {
     workspaceId: string
     workspaceName: string
     tenantId: string
+    tenantName: string
     userId: string
     fullName: string | null
     isPlatformAdmin: boolean
@@ -125,6 +130,7 @@ declare module 'next-auth/jwt' {
     workspaceId?: string
     workspaceName?: string
     tenantId?: string
+    tenantName?: string
     userId?: string
     fullName?: string | null
     isPlatformAdmin?: boolean

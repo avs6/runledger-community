@@ -59,7 +59,10 @@ export default function ProviderProfilesPage() {
   const [pricingScopeFilter, setPricingScopeFilter] = useState<'all' | 'workspace' | 'global'>('all')
 
   const load = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey || !canManage) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const data = await listProviderPricing(apiKey)
@@ -69,9 +72,18 @@ export default function ProviderProfilesPage() {
     } finally {
       setLoading(false)
     }
-  }, [apiKey])
+  }, [apiKey, canManage])
 
   useEffect(() => { load() }, [load])
+
+  if (!canManage) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Provider Profiles</h1>
+        <p className="mt-4 text-sm text-slate-500">Provider pricing and profile management is an organization-admin function.</p>
+      </div>
+    )
+  }
 
   async function handleAddPricing(e: React.FormEvent) {
     e.preventDefault()

@@ -27,6 +27,7 @@ from runledger_api.core.deps import require_user
 from runledger_api.models.tenant import (
     ApiKey,
     EnvironmentEnum,
+    Tenant,
     TenantUser,
     User,
     Workspace,
@@ -88,6 +89,9 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
     workspace = await db.get(Workspace, workspace_user.workspace_id)
     if workspace is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace not found")
+    tenant = await db.get(Tenant, workspace.tenant_id)
+    if tenant is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Organization not found")
 
     # Load tenant role
     tu_result = await db.execute(
@@ -136,6 +140,7 @@ async def login(body: LoginRequest, db: DbDep) -> LoginResponse:
         workspace_id=str(workspace.id),
         workspace_name=workspace.name,
         tenant_id=str(workspace.tenant_id),
+        tenant_name=tenant.name,
         api_key=raw_key,
         is_platform_admin=user.is_platform_admin,
         tenant_role=tenant_role,
@@ -175,6 +180,9 @@ async def switch_workspace(
     target_workspace = await db.get(Workspace, target_ws_id)
     if target_workspace is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Workspace not found")
+    tenant = await db.get(Tenant, target_workspace.tenant_id)
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Organization not found")
 
     # Load tenant role
     tu_result = await db.execute(
@@ -219,6 +227,7 @@ async def switch_workspace(
         workspace_id=str(target_workspace.id),
         workspace_name=target_workspace.name,
         tenant_id=str(target_workspace.tenant_id),
+        tenant_name=tenant.name,
         api_key=raw_key,
         is_platform_admin=user.is_platform_admin,
         tenant_role=tenant_role,
