@@ -37,13 +37,18 @@ class Settings(BaseSettings):
     # Set PRICING_FILE=/path/to/pricing.yml to override.
     pricing_file: str = "/app/config/pricing.yml"
 
-    # Email — Brevo SMTP (leave empty to disable email sending)
+    # Email — disabled by default for local/demo stacks until SMTP is configured.
+    email_enabled: bool = False
+    email_reports_enabled: bool = False
     smtp_host: str = "smtp-relay.brevo.com"
     smtp_port: int = 587
     smtp_user: str = ""  # Brevo login email
     smtp_password: str = ""  # Brevo SMTP key
     smtp_from: str = "runledger@gmail.com"
     app_base_url: str = "http://localhost:3000"  # used for verification links
+
+    # Backup/restore — product-managed scheduler is opt-in while S3 setup matures.
+    backup_enabled: bool = False
 
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""

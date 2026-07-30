@@ -1308,6 +1308,13 @@ export interface EmailLogList {
   total: number
 }
 
+export interface OpsFeatureStatus {
+  email_enabled: boolean
+  email_reports_enabled: boolean
+  backup_enabled: boolean
+  smtp_configured: boolean
+}
+
 
 export interface BillingWebhookConfig {
   id: string

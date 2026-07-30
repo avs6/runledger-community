@@ -157,8 +157,12 @@ async def test_update_email_preferences() -> None:
 
 
 @pytest.mark.asyncio
-async def test_email_test_endpoint_ok() -> None:
-    from runledger_api.routers.settings import test_email_send
+async def test_email_test_endpoint_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    from runledger_api.routers import settings as settings_router
+
+    monkeypatch.setattr(settings_router.app_settings, "email_enabled", True)
+    monkeypatch.setattr(settings_router.app_settings, "smtp_user", "smtp-user")
+    monkeypatch.setattr(settings_router.app_settings, "smtp_password", "smtp-password")
 
     mock_db = AsyncMock()
     session_key = make_api_key("admin@example.com")
@@ -169,11 +173,23 @@ async def test_email_test_endpoint_ok() -> None:
     workspace = make_workspace()
 
     with patch("runledger_api.routers.settings.send_email", new_callable=AsyncMock) as mock_send:
-        result = await test_email_send(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
+        result = await settings_router.test_email_send(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
 
     assert result["ok"] is True
     assert result["error"] is None
     mock_send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_email_test_endpoint_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from runledger_api.routers import settings as settings_router
+
+    monkeypatch.setattr(settings_router.app_settings, "email_enabled", False)
+
+    result = await settings_router.test_email_send(auth=(make_workspace(), None), db=AsyncMock())  # type: ignore[arg-type]
+
+    assert result["ok"] is False
+    assert "disabled" in result["error"]
 
 
 @pytest.mark.asyncio

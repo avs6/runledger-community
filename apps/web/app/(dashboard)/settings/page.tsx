@@ -17,12 +17,13 @@ import {
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
 import RetentionTab from '@/components/settings/RetentionTab'
-import type { EmailPreference, EmailLogItem } from '@/types/api'
+import type { EmailPreference, EmailLogItem, OpsFeatureStatus } from '@/types/api'
 import {
   getEmailPreferences,
   updateEmailPreferences,
   testEmailSend,
   getEmailLog,
+  getOpsFeatureStatus,
 } from '@/lib/api'
 
 const inputCls =
@@ -61,6 +62,8 @@ export default function SettingsPage() {
   const [emailPrefsAttempted, setEmailPrefsAttempted] = useState(false)
   const [savingEmailPrefs, setSavingEmailPrefs] = useState(false)
   const [testingEmail, setTestingEmail] = useState(false)
+  const [opsStatus, setOpsStatus] = useState<OpsFeatureStatus | null>(null)
+  const [opsStatusAttempted, setOpsStatusAttempted] = useState(false)
 
   const loadCompliance = useCallback(async () => {
     if (!apiKey || !canManagePlatformSettings) return
@@ -81,17 +84,31 @@ export default function SettingsPage() {
     if (activeTab === 'compliance' && !complianceAttempted) loadCompliance()
   }, [activeTab, complianceAttempted, loadCompliance])
 
+  const loadOpsStatus = useCallback(async () => {
+    if (!apiKey || !canManagePlatformSettings) return
+    setOpsStatusAttempted(true)
+    try {
+      setOpsStatus(await getOpsFeatureStatus(apiKey))
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load operational feature status')
+    }
+  }, [apiKey, canManagePlatformSettings])
+
   const loadEmailPrefs = useCallback(async () => {
     if (!apiKey || !canManagePlatformSettings) return
     setEmailPrefsAttempted(true)
     setLoadingEmailPrefs(true)
     try {
-      const [prefs, logData] = await Promise.all([
+      setOpsStatusAttempted(true)
+      const [prefs, logData, status] = await Promise.all([
         getEmailPreferences(apiKey),
         getEmailLog(apiKey),
+        getOpsFeatureStatus(apiKey),
       ])
       setEmailPrefs(prefs)
       setEmailLog(logData.items.slice(0, 20))
+      setOpsStatus(status)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load email settings')
@@ -103,6 +120,18 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'email' && !emailPrefsAttempted) loadEmailPrefs()
   }, [activeTab, emailPrefsAttempted, loadEmailPrefs])
+
+  useEffect(() => {
+    if (activeTab === 'backup' && !opsStatusAttempted) loadOpsStatus()
+  }, [activeTab, opsStatusAttempted, loadOpsStatus])
+
+  const emailDeliveryDisabled = opsStatus
+    ? !opsStatus.email_enabled || !opsStatus.smtp_configured
+    : false
+  const scheduledReportsDisabled = opsStatus
+    ? !opsStatus.email_enabled || !opsStatus.email_reports_enabled || !opsStatus.smtp_configured
+    : false
+  const backupSchedulerDisabled = opsStatus ? !opsStatus.backup_enabled : true
 
   // ── Compliance handlers ─────────────────────────────────────────────────────
 
@@ -293,6 +322,26 @@ export default function SettingsPage() {
         {/* ── Email Notifications ──────────────────────────────────────────────── */}
         {activeTab === 'email' && (
           <div className="space-y-6">
+            {opsStatus && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                <div className="font-semibold">Email delivery is currently quiet.</div>
+                <p className="mt-1">
+                  {opsStatus.email_enabled
+                    ? opsStatus.smtp_configured
+                      ? opsStatus.email_reports_enabled
+                        ? 'SMTP and scheduled reports are enabled.'
+                        : 'SMTP is configured, but scheduled reports are disabled with EMAIL_REPORTS_ENABLED=false.'
+                      : 'EMAIL_ENABLED=true, but SMTP credentials are missing, so delivery is still blocked.'
+                    : 'EMAIL_ENABLED=false, so welcome emails, alerts, tests, and reports are skipped by the backend.'}
+                </p>
+                {scheduledReportsDisabled && (
+                  <p className="mt-1 text-xs">
+                    Scheduled analytics reports will not be queued unless EMAIL_ENABLED=true, EMAIL_REPORTS_ENABLED=true, and SMTP credentials are set.
+                  </p>
+                )}
+              </div>
+            )}
+
             {loadingEmailPrefs && (
               <p className="text-sm text-gray-500 dark:text-gray-400">Loading email settings…</p>
             )}
@@ -454,7 +503,7 @@ export default function SettingsPage() {
               </p>
               <button
                 className="px-4 py-2 rounded bg-gray-700 text-white text-sm font-medium hover:bg-gray-600 disabled:opacity-50"
-                disabled={testingEmail}
+                disabled={testingEmail || emailDeliveryDisabled}
                 onClick={async () => {
                   if (!apiKey) return
                   setTestingEmail(true)
@@ -473,7 +522,7 @@ export default function SettingsPage() {
                   }
                 }}
               >
-                {testingEmail ? 'Sending…' : 'Send Test Email'}
+                {testingEmail ? 'Sending…' : emailDeliveryDisabled ? 'Email disabled' : 'Send Test Email'}
               </button>
             </div>
 
@@ -538,10 +587,23 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {opsStatus && (
+                <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                  <div className="font-semibold">
+                    {backupSchedulerDisabled ? 'Backup scheduler is disabled.' : 'Backup scheduler is enabled.'}
+                  </div>
+                  <p className="mt-1">
+                    {backupSchedulerDisabled
+                      ? 'BACKUP_ENABLED=false, so RunLedger will not run product-managed backup jobs from this stack.'
+                      : 'BACKUP_ENABLED=true. Use this page to manage product backup scheduling once the S3 runner is wired in.'}
+                  </p>
+                </div>
+              )}
+
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Cadence</label>
-                  <select className={`${inputCls} w-full`} defaultValue="daily">
+                  <select className={`${inputCls} w-full`} defaultValue="daily" disabled={backupSchedulerDisabled}>
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
@@ -549,7 +611,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Run time</label>
-                  <select className={`${inputCls} w-full`} defaultValue="2">
+                  <select className={`${inputCls} w-full`} defaultValue="2" disabled={backupSchedulerDisabled}>
                     {Array.from({ length: 24 }, (_, hour) => (
                       <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>
                     ))}
@@ -557,7 +619,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Retention</label>
-                  <select className={`${inputCls} w-full`} defaultValue="30">
+                  <select className={`${inputCls} w-full`} defaultValue="30" disabled={backupSchedulerDisabled}>
                     <option value="7">7 days</option>
                     <option value="30">30 days</option>
                     <option value="90">90 days</option>
@@ -569,11 +631,11 @@ export default function SettingsPage() {
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">S3 bucket</label>
-                  <input className={`${inputCls} w-full`} placeholder="s3://my-bucket/runledger-backups" />
+                  <input className={`${inputCls} w-full`} placeholder="s3://my-bucket/runledger-backups" disabled={backupSchedulerDisabled} />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">AWS region</label>
-                  <input className={`${inputCls} w-full`} placeholder="us-east-1" />
+                  <input className={`${inputCls} w-full`} placeholder="us-east-1" disabled={backupSchedulerDisabled} />
                 </div>
               </div>
 
@@ -587,7 +649,7 @@ export default function SettingsPage() {
                   'Trace/export artifacts',
                 ].map((label) => (
                   <label key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
-                    <input type="checkbox" defaultChecked={label !== 'Qdrant snapshots'} className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" />
+                    <input type="checkbox" defaultChecked={label !== 'Qdrant snapshots'} disabled={backupSchedulerDisabled} className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-600" />
                     {label}
                   </label>
                 ))}

@@ -115,6 +115,14 @@ def send_weekly_analytics() -> dict[str, int]:
 
 
 async def _run_weekly_reports() -> dict[str, int]:
+    if not (settings.email_enabled and settings.email_reports_enabled):
+        log.info(
+            "email_reports.skipped_disabled",
+            email_enabled=settings.email_enabled,
+            email_reports_enabled=settings.email_reports_enabled,
+        )
+        return {"workspaces_processed": 0, "emails_sent": 0, "skipped_disabled": 1}
+
     factory = _make_session_factory()
     workspaces_processed = 0
     emails_sent = 0

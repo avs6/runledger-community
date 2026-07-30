@@ -82,6 +82,7 @@ import type {
   PurgeResult,
   EmailPreference,
   EmailLogList,
+  OpsFeatureStatus,
   EvalDataset,
   EvalDatasetList,
   EvalExperiment,
@@ -1809,6 +1810,10 @@ export async function testEmailSend(
 
 export async function getEmailLog(apiKey: string): Promise<EmailLogList> {
   return apiFetch<EmailLogList>('/settings/email/log', apiKey)
+}
+
+export async function getOpsFeatureStatus(apiKey: string): Promise<OpsFeatureStatus> {
+  return apiFetch<OpsFeatureStatus>('/settings/ops/status', apiKey)
 }
 
 // ── Kafka Export ───────────────────────────────────────────────────────────────

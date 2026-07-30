@@ -114,6 +114,9 @@ services:
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
       LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.2:3b}
       # Optional: transactional email via Brevo
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_REPORTS_ENABLED: ${EMAIL_REPORTS_ENABLED:-false}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_FROM: ${SMTP_FROM:-}
@@ -184,6 +187,9 @@ services:
       VLLM_BASE_URL: ${VLLM_BASE_URL:-}
       LOCAL_LLM_PROVIDER: ${LOCAL_LLM_PROVIDER:-ollama}
       LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.2:3b}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_REPORTS_ENABLED: ${EMAIL_REPORTS_ENABLED:-false}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
     volumes:
       - ./config:/app/config:ro
     extra_hosts:
@@ -214,6 +220,9 @@ services:
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
       RUNLEDGER_LICENSE_SIGNING_KEY: ${RUNLEDGER_LICENSE_SIGNING_KEY:-}
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      EMAIL_REPORTS_ENABLED: ${EMAIL_REPORTS_ENABLED:-false}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
     volumes:
       - ./config:/app/config:ro
     depends_on:

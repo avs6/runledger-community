@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings as app_settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
     get_current_workspace,
@@ -66,6 +67,19 @@ async def _key_visible_workspaces(
     if workspace_membership is None:
         return await _org_workspaces(db, workspace.tenant_id)
     return {workspace.id: workspace.name}
+
+
+@router.get("/ops/status")
+async def get_ops_feature_status(auth: PlatformAdminDep) -> dict[str, bool]:
+    """Expose platform-wide optional feature flags for the Settings UI."""
+    _workspace = auth[0]
+    smtp_configured = bool(app_settings.smtp_user and app_settings.smtp_password)
+    return {
+        "email_enabled": app_settings.email_enabled,
+        "email_reports_enabled": app_settings.email_reports_enabled,
+        "backup_enabled": app_settings.backup_enabled,
+        "smtp_configured": smtp_configured,
+    }
 
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
@@ -225,6 +239,11 @@ async def test_email_send(
 ) -> dict[str, Any]:
     workspace = auth[0]
     """Send a test email to the workspace's API key owner (created_by field)."""
+    if not app_settings.email_enabled:
+        return {"ok": False, "error": "Email delivery is disabled (EMAIL_ENABLED=false)"}
+    if not app_settings.smtp_user or not app_settings.smtp_password:
+        return {"ok": False, "error": "SMTP credentials are not configured"}
+
     # Find a session key to get the user's email
     key_result = await db.execute(
         select(ApiKey)

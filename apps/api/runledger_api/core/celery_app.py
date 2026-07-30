@@ -136,3 +136,6 @@ celery_app.conf.update(
         },
     },
 )
+
+if not (settings.email_enabled and settings.email_reports_enabled):
+    celery_app.conf.beat_schedule.pop("email-report-weekly", None)

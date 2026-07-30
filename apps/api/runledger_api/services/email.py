@@ -91,6 +91,9 @@ async def send_email(
     background: bool = True,
 ) -> None:
     """Send an email async. Silently logs on failure so signup never breaks."""
+    if not settings.email_enabled:
+        log.info("email_skipped_disabled", to=to_email, subject=subject)
+        return
     if not settings.smtp_user or not settings.smtp_password:
         log.warning("email_skipped_no_smtp_config", to=to_email, subject=subject)
         return
