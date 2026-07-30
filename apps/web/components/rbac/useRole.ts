@@ -19,7 +19,7 @@ export interface RoleContext {
   canManageOrgSettings: boolean
   /** True if user can manage platform-only settings and actions */
   canManagePlatformSettings: boolean
-  /** True if user can write/create data (not viewer) */
+  /** True for elevated users and workspace roles that may mutate data */
   canWrite: boolean
   /** True if user can view settings tabs */
   canAccessSettings: boolean
@@ -38,7 +38,11 @@ export function useRole(): RoleContext {
   const isWorkspaceAdmin = isOrgElevated || workspaceRole === 'workspace_admin'
   const canManageOrgSettings = isOrgAdmin || isPlatformAdmin
   const canManagePlatformSettings = isPlatformAdmin
-  const canWrite = workspaceRole !== 'viewer' || isOrgElevated
+  const canWrite = isOrgElevated || (
+    workspaceRole === 'workspace_admin'
+    || workspaceRole === 'workspace_editor'
+    || workspaceRole === 'workspace_contributor'
+  )
   const canAccessSettings = canManagePlatformSettings
 
   return {

@@ -17,6 +17,7 @@ import type { PromptResponse, PromptVersion, VersionMetrics, GithubConfig } from
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, GitBranch, Plus, ArrowUpCircle, Edit2, Upload, Download, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { useRole } from '@/components/rbac/useRole'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
@@ -87,6 +88,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
   const decodedName = decodeURIComponent(params.name)
   const { data: session } = useSession()
   const router = useRouter()
+  const { canWrite } = useRole()
 
   const [prompt, setPrompt] = useState<PromptResponse | null>(null)
   const [versions, setVersions] = useState<PromptVersion[]>([])
@@ -261,7 +263,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
           )}
         </div>
         <div className="ml-auto flex flex-wrap gap-2 items-center">
-          {githubConfig ? (
+          {canWrite && (githubConfig ? (
             <>
               <span className="text-xs text-gray-400 dark:text-gray-500">Git: <span className="font-mono">{githubConfig.repo}</span></span>
               <button
@@ -283,26 +285,30 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             </>
           ) : (
             <a href="/settings?tab=git" className="text-xs text-indigo-500 hover:underline">Connect Git ↗</a>
+          ))}
+          {canWrite && (
+            <button
+              onClick={() => handlePromote('staging')}
+              className="flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              <ArrowUpCircle className="h-4 w-4" />
+              Promote staging → prod
+            </button>
           )}
-          <button
-            onClick={() => handlePromote('staging')}
-            className="flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            <ArrowUpCircle className="h-4 w-4" />
-            Promote staging → prod
-          </button>
-          <button
-            onClick={() => setShowVersionForm((v) => !v)}
-            className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Version
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setShowVersionForm((v) => !v)}
+              className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              <Plus className="h-4 w-4" />
+              New Version
+            </button>
+          )}
         </div>
       </div>
 
       {/* Edit modal */}
-      {editingVersion && (
+      {editingVersion && canWrite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-gray-900 p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
@@ -338,7 +344,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
       )}
 
       {/* New version form */}
-      {showVersionForm && (
+      {showVersionForm && canWrite && (
         <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
           <CardHeader>
             <CardTitle className="text-base text-gray-900 dark:text-white">Commit New Version</CardTitle>
@@ -429,13 +435,15 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
                               </>
                             )}
                             <span>{new Date(v.created_at).toLocaleDateString()}</span>
-                            <button
-                              onClick={() => startEdit(v)}
-                              title="Edit (creates new version)"
-                              className="text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </button>
+                            {canWrite && (
+                              <button
+                                onClick={() => startEdit(v)}
+                                title="Edit (creates new version)"
+                                className="text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                         {v.commit_message && (
