@@ -13,6 +13,7 @@ from runledger_api.models.events import (
 )
 from runledger_api.models.flywheel import FlywheelRecommendation, FlywheelSettings
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute, PromptCache
+from runledger_api.models.kafka import KafkaExportConfig, KafkaExportDelivery
 from runledger_api.models.ledger import (
     CapturePolicy,
     LedgerKey,
@@ -82,6 +83,8 @@ __all__ = [
     "GatewayRoute",
     "GatewayRequest",
     "PromptCache",
+    "KafkaExportConfig",
+    "KafkaExportDelivery",
     "FlywheelSettings",
     "FlywheelRecommendation",
     "RetentionPolicy",

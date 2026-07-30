@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 import bcrypt
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -328,6 +328,8 @@ async def update_org_profile(
 async def get_org_dashboard(
     auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
     db: DbDep,
+    from_dt: Annotated[datetime | None, Query(alias="from")] = None,
+    to_dt: Annotated[datetime | None, Query(alias="to")] = None,
 ) -> dict[str, Any]:
     """Org-wide dashboard — spend, runs, and per-workspace breakdown for the last 7 days."""
     workspace, _user, _ = auth
@@ -343,9 +345,14 @@ async def get_org_dashboard(
     ws_ids = [ws.id for ws in ws_rows]
     ws_name_map = {ws.id: ws.name for ws in ws_rows}
 
-    now = datetime.now(UTC)
-    cur_start = now - timedelta(days=7)
-    prev_start = cur_start - timedelta(days=7)
+    now = to_dt or datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    cur_start = from_dt or (now - timedelta(days=7))
+    if cur_start.tzinfo is None:
+        cur_start = cur_start.replace(tzinfo=UTC)
+    window_seconds = max((now - cur_start).total_seconds(), 1)
+    prev_start = cur_start - timedelta(seconds=window_seconds)
 
     empty_kpis = {
         "tenant_name": tenant.name,
@@ -374,6 +381,7 @@ async def get_org_dashboard(
             ).where(
                 AgentRun.workspace_id.in_(ws_ids),
                 AgentRun.started_at >= cur_start,
+                AgentRun.started_at < now,
             )
         )
     ).one()
@@ -404,6 +412,7 @@ async def get_org_dashboard(
             .where(
                 AgentRun.workspace_id.in_(ws_ids),
                 AgentRun.started_at >= cur_start,
+                AgentRun.started_at < now,
             )
             .group_by(AgentRun.workspace_id)
             .order_by(func.sum(AgentRun.total_cost_usd).desc().nullslast())
@@ -449,6 +458,7 @@ async def get_org_dashboard(
             .where(
                 ProviderCall.workspace_id.in_(ws_ids),
                 ProviderCall.created_at >= cur_start,
+                ProviderCall.created_at < now,
             )
             .group_by(ProviderCall.model)
             .order_by(func.sum(ProviderCall.cost_usd).desc().nullslast())
@@ -464,7 +474,11 @@ async def get_org_dashboard(
         (
             await db.execute(
                 select(AgentRun)
-                .where(AgentRun.workspace_id.in_(ws_ids))
+                .where(
+                    AgentRun.workspace_id.in_(ws_ids),
+                    AgentRun.started_at >= cur_start,
+                    AgentRun.started_at < now,
+                )
                 .order_by(AgentRun.started_at.desc())
                 .limit(10)
             )

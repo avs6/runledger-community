@@ -12,6 +12,7 @@ import DashboardAreaChart from '@/components/dashboard/DashboardAreaChart'
 import ModelDonutChart from '@/components/dashboard/ModelDonutChart'
 import FeatureBarsChart from '@/components/dashboard/FeatureBarsChart'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
+import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   DollarSign, Zap, TrendingUp, TrendingDown,
   Hash, Cpu, ArrowRight, Clock,
@@ -82,13 +83,11 @@ function deriveKpis(summary: AnalyticsSummary) {
 
 // ── Main content (async) ──────────────────────────────────────────────────────
 
-async function DashboardContent() {
+async function DashboardContent({ from, to, rangeLabel }: { from: string; to: string; rangeLabel: string }) {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
-  const now = new Date()
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 3_600_000)
-  const win = { from: sevenDaysAgo.toISOString(), to: now.toISOString() }
+  const win = { from, to }
 
   const [summary, spendTime, spendModel, spendFeature, recentRuns] = await Promise.all([
     getAnalyticsSummary(session.apiKey, win),
@@ -116,7 +115,7 @@ async function DashboardContent() {
         <KpiCard
           title="Agent Runs"
           value={summary.run_count.toLocaleString()}
-          sub="last 7 days"
+          sub={rangeLabel.toLowerCase()}
           icon={<Zap className="h-5 w-5 text-violet-500 dark:text-violet-400" />}
           cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-50 dark:to-violet-100/45"
           cardTo="bg-violet-300/25 dark:bg-violet-300/30"
@@ -146,7 +145,7 @@ async function DashboardContent() {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
             <CardTitle className="text-base font-semibold">Spend Over Time</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">Daily — last 7 days · dashed line = average</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Daily - {rangeLabel.toLowerCase()} - dashed line = average</p>
           </div>
           </CardHeader>
         <CardContent className="pb-4 pt-0">
@@ -247,13 +246,19 @@ function DashboardSkeleton() {
   )
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { range?: string }
+}) {
   const session = await getServerSession(authOptions)
   const s = session as Record<string, unknown> | null
   const tenantRole = s?.tenantRole as string | undefined
   const isPlatformAdmin = s?.isPlatformAdmin as boolean | undefined
   const workspaceName = s?.workspaceName as string | undefined
+  const orgName = (s?.tenantName ?? s?.orgName) as string | undefined
   const isOrgAdmin = isPlatformAdmin || tenantRole === 'org_admin'
+  const win = getDashboardWindow(searchParams?.range)
 
   const dateStr = new Date().toLocaleDateString([], {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -270,8 +275,8 @@ export default async function DashboardPage() {
               </span>
             </div>
           )}
-          <h1 className="font-display text-2xl font-semibold tracking-[-0.045em]">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{dateStr} · Last 7 days</p>
+          <h1 className="font-display text-2xl font-semibold tracking-[-0.045em]">Workspace Dashboard</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{dateStr} · {win.label}</p>
         </div>
         <div className="hidden sm:flex items-center gap-4">
           {isOrgAdmin && (
@@ -279,13 +284,20 @@ export default async function DashboardPage() {
               href="/organization/dashboard"
               className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-200 dark:bg-blue-100 dark:text-blue-700 dark:hover:bg-blue-200"
             >
-              Global Dashboard →
+              Org Dashboard →
             </Link>
           )}
         </div>
       </div>
+      <DashboardScopeBar
+        scope="Workspace"
+        context={`${orgName ?? 'Organization'} / ${workspaceName ?? 'Workspace'}`}
+        activeRange={win.range}
+        basePath="/dashboard"
+        dimensions={['Workspace', 'Time range', 'Model', 'Feature', 'End user', 'Run status']}
+      />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent />
+        <DashboardContent from={win.from} to={win.to} rangeLabel={win.label} />
       </Suspense>
     </div>
   )

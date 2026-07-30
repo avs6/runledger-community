@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -14,15 +14,25 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
-from runledger_api.models.events import AgentRun, ProviderCall, RunStatusEnum, Span, ToolCall
-from runledger_api.models.tenant import Workspace
+from runledger_api.core.deps import get_current_user, get_current_workspace
+from runledger_api.models.events import (
+    AgentRun,
+    OutcomeEvent,
+    ProviderCall,
+    RunStatusEnum,
+    Span,
+    ToolCall,
+)
+from runledger_api.models.gateway import GatewayRequest, GatewayRoute
+from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
 from runledger_api.schemas.runs import (
     GraphEdge,
     GraphNode,
     GraphNodeData,
     ProviderCallDetail,
     RunDetailResponse,
+    RunFlowRecord,
+    RunFlowResponse,
     RunGraphResponse,
     RunListItem,
     RunListResponse,
@@ -34,6 +44,9 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
+UserDep = Annotated[Any, Depends(get_current_user)]
+
+_ORG_FLOW_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
 
 
 def _duration_ms(started: datetime, ended: datetime | None) -> int | None:
@@ -84,6 +97,136 @@ def _apply_run_filters(
     if max_cost is not None:
         stmt = stmt.where(AgentRun.total_cost_usd <= max_cost)
     return stmt
+
+
+def _clean_label(value: Any, fallback: str) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    if isinstance(value, (bool, int, float)):
+        return str(value)
+    return fallback
+
+
+def _metadata_value(metadata: dict[str, Any] | None, keys: list[str]) -> str | None:
+    if not metadata:
+        return None
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, (bool, int, float)):
+            return str(value)
+    return None
+
+
+def _provider_from_model(model: str | None) -> str:
+    value = (model or "").lower()
+    if "/" in value:
+        return value.split("/", 1)[0]
+    if "claude" in value:
+        return "Anthropic"
+    if "gpt" in value or value.startswith("o3") or value.startswith("o4"):
+        return "OpenAI"
+    if "gemini" in value:
+        return "Google"
+    if any(name in value for name in ("llama", "qwen", "deepseek", "mistral")):
+        return "Local / Ollama"
+    return "Provider unknown"
+
+
+def _cost_band(cost: Decimal) -> str:
+    if cost <= 0:
+        return "No cost"
+    if cost < Decimal("0.001"):
+        return "< $0.001"
+    if cost < Decimal("0.01"):
+        return "$0.001 - $0.01"
+    if cost < Decimal("0.10"):
+        return "$0.01 - $0.10"
+    return "$0.10+"
+
+
+def _duration_or_latency(run: AgentRun, primary_call: ProviderCall | None) -> int | None:
+    duration = _duration_ms(run.started_at, run.ended_at)
+    if duration is not None:
+        return duration
+    return primary_call.latency_ms if primary_call is not None else None
+
+
+async def _flow_workspace_ids(
+    *,
+    scope: str,
+    workspace: Workspace,
+    user: Any,
+    db: AsyncSession,
+) -> list[uuid.UUID]:
+    if scope == "workspace":
+        return [workspace.id]
+
+    if user is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A dashboard user session is required for org or platform flow scope",
+        )
+
+    if scope == "org":
+        if not user.is_platform_admin:
+            tenant_user = (
+                await db.execute(
+                    select(TenantUser).where(
+                        TenantUser.user_id == user.id,
+                        TenantUser.tenant_id == workspace.tenant_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if tenant_user is None or tenant_user.role not in _ORG_FLOW_ROLES:
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN,
+                    "Organization admin access required for org flow scope",
+                )
+        result = await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id))
+        return list(result.scalars().all())
+
+    if scope == "platform":
+        if not user.is_platform_admin:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Platform admin access required for platform flow scope",
+            )
+        result = await db.execute(select(Workspace.id))
+        return list(result.scalars().all())
+
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform")
+
+
+def _first_metadata(spans: list[Span], keys: list[str]) -> str | None:
+    for span in spans:
+        value = _metadata_value(span.span_metadata, keys)
+        if value:
+            return value
+    return None
+
+
+def _matching_gateway_request(
+    run: AgentRun,
+    primary_call: ProviderCall | None,
+    gateway_requests: list[GatewayRequest],
+) -> GatewayRequest | None:
+    model = (primary_call.model if primary_call else None) or ""
+    model_lower = model.lower()
+    best: tuple[int, GatewayRequest] | None = None
+    for request in gateway_requests:
+        if request.workspace_id != run.workspace_id:
+            continue
+        request_model = (request.model_used or request.model_requested or "").lower()
+        if model_lower and request_model != model_lower:
+            continue
+        distance = abs(int((request.created_at - run.started_at).total_seconds() * 1000))
+        if distance > 5 * 60 * 1000:
+            continue
+        if best is None or distance < best[0]:
+            best = (distance, request)
+    return best[1] if best else None
 
 
 @router.get("", response_model=RunListResponse)
@@ -274,6 +417,270 @@ async def export_runs(
         iter([buf.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=runs.csv"},
+    )
+
+
+# ── Request flow aggregate ────────────────────────────────────────────────────
+
+
+@router.get("/flow", response_model=RunFlowResponse)
+async def get_run_flow(
+    workspace: WorkspaceDep,
+    user: UserDep,
+    db: DbDep,
+    scope: str = Query("workspace", pattern="^(workspace|org|platform)$"),
+    mode: str = Query("request-intent-model-result"),
+    metric: str = Query("requests", pattern="^(requests|cost|tokens|savings)$"),
+    limit: int = Query(500, ge=1, le=1000),
+    from_dt: datetime | None = Query(None, alias="from"),
+    to_dt: datetime | None = Query(None, alias="to"),
+) -> RunFlowResponse:
+    """
+    Safe request-flow records for Sankey dashboards.
+
+    This endpoint returns labels and metrics only. It avoids returning captured
+    prompt/response payloads so org/platform flow views do not broaden sensitive
+    content access.
+    """
+    workspace_ids = await _flow_workspace_ids(scope=scope, workspace=workspace, user=user, db=db)
+    if not workspace_ids:
+        return RunFlowResponse(
+            scope=scope,
+            mode=mode,
+            metric=metric,
+            sampled_runs=0,
+            total_runs=0,
+            workspace_count=0,
+            generated_at=datetime.now(UTC),
+            items=[],
+        )
+
+    filters = [AgentRun.workspace_id.in_(workspace_ids)]
+    if from_dt is not None:
+        filters.append(AgentRun.started_at >= from_dt)
+    if to_dt is not None:
+        filters.append(AgentRun.started_at <= to_dt)
+
+    total_runs = (
+        await db.execute(select(func.count()).select_from(AgentRun).where(*filters))
+    ).scalar_one()
+
+    run_rows = list(
+        (
+            await db.execute(
+                select(
+                    AgentRun,
+                    Workspace.name.label("workspace_name"),
+                    Workspace.tenant_id.label("tenant_id"),
+                    Tenant.name.label("tenant_name"),
+                    Application.name.label("application_name"),
+                )
+                .join(Workspace, Workspace.id == AgentRun.workspace_id)
+                .join(Tenant, Tenant.id == Workspace.tenant_id)
+                .outerjoin(Application, Application.id == AgentRun.application_id)
+                .where(*filters)
+                .order_by(AgentRun.started_at.desc())
+                .limit(limit)
+            )
+        ).all()
+    )
+    runs = [row.AgentRun for row in run_rows]
+    run_ids = [run.id for run in runs]
+
+    primary_calls: dict[uuid.UUID, ProviderCall] = {}
+    spans_by_run: dict[uuid.UUID, list[Span]] = {run_id: [] for run_id in run_ids}
+    tools_by_run: dict[uuid.UUID, list[ToolCall]] = {run_id: [] for run_id in run_ids}
+    outcomes_by_run: dict[uuid.UUID, OutcomeEvent] = {}
+    gateway_requests: list[GatewayRequest] = []
+    gateway_routes: dict[uuid.UUID, GatewayRoute] = {}
+
+    if run_ids:
+        provider_calls = list(
+            (
+                await db.execute(
+                    select(ProviderCall)
+                    .where(ProviderCall.run_id.in_(run_ids))
+                    .order_by(
+                        ProviderCall.run_id,
+                        ProviderCall.cost_usd.desc().nulls_last(),
+                        ProviderCall.created_at,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for call in provider_calls:
+            primary_calls.setdefault(call.run_id, call)
+
+        for span in (
+            await db.execute(select(Span).where(Span.run_id.in_(run_ids)).order_by(Span.started_at))
+        ).scalars():
+            spans_by_run.setdefault(span.run_id, []).append(span)
+
+        for tool in (
+            await db.execute(
+                select(ToolCall).where(ToolCall.run_id.in_(run_ids)).order_by(ToolCall.created_at)
+            )
+        ).scalars():
+            tools_by_run.setdefault(tool.run_id, []).append(tool)
+
+        for outcome in (
+            await db.execute(
+                select(OutcomeEvent)
+                .where(OutcomeEvent.run_id.in_(run_ids))
+                .order_by(OutcomeEvent.created_at.desc())
+            )
+        ).scalars():
+            outcomes_by_run.setdefault(outcome.run_id, outcome)
+
+        min_started = min(run.started_at for run in runs) - timedelta(minutes=5)
+        max_started = max(run.started_at for run in runs) + timedelta(minutes=5)
+        gateway_requests = list(
+            (
+                await db.execute(
+                    select(GatewayRequest)
+                    .where(
+                        GatewayRequest.workspace_id.in_(workspace_ids),
+                        GatewayRequest.created_at >= min_started,
+                        GatewayRequest.created_at <= max_started,
+                    )
+                    .order_by(GatewayRequest.created_at.desc())
+                    .limit(limit * 2)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        route_ids = [request.route_id for request in gateway_requests if request.route_id is not None]
+        if route_ids:
+            gateway_routes = {
+                route.id: route
+                for route in (
+                    await db.execute(select(GatewayRoute).where(GatewayRoute.id.in_(route_ids)))
+                ).scalars()
+            }
+
+    row_by_run_id = {row.AgentRun.id: row for row in run_rows}
+    items: list[RunFlowRecord] = []
+    for run in runs:
+        row = row_by_run_id[run.id]
+        spans = spans_by_run.get(run.id, [])
+        tools = tools_by_run.get(run.id, [])
+        primary_call = primary_calls.get(run.id)
+        outcome = outcomes_by_run.get(run.id)
+        gateway_request = _matching_gateway_request(run, primary_call, gateway_requests)
+        route = (
+            gateway_routes.get(gateway_request.route_id)
+            if gateway_request is not None and gateway_request.route_id is not None
+            else None
+        )
+        metadata = run.run_metadata or {}
+        resource_metadata = run.resource_attributes or {}
+
+        input_tokens = run.total_input_tokens
+        if input_tokens is None and primary_call is not None:
+            input_tokens = primary_call.input_tokens
+        output_tokens = run.total_output_tokens
+        if output_tokens is None and primary_call is not None:
+            output_tokens = primary_call.output_tokens
+        input_tokens = input_tokens or 0
+        output_tokens = output_tokens or 0
+        cached_input_tokens = primary_call.cached_input_tokens if primary_call else None
+        cached_input_tokens = cached_input_tokens or (
+            gateway_request.input_tokens if gateway_request is not None and gateway_request.cache_hit else 0
+        )
+        total_cost = run.total_cost_usd or Decimal("0")
+        total_tokens = input_tokens + output_tokens
+        savings = Decimal("0")
+        if cached_input_tokens > 0 and total_tokens > cached_input_tokens and total_cost > 0:
+            savings = total_cost * Decimal(cached_input_tokens) / Decimal(total_tokens - cached_input_tokens)
+        elif gateway_request is not None and gateway_request.cache_hit:
+            savings = max(total_cost, Decimal("0.000001"))
+
+        agent_name = (
+            _metadata_value(metadata, ["agent_name", "agent", "agent_client", "selected_agent"])
+            or _metadata_value(resource_metadata, ["agent_name", "agent", "agent_client", "service.name"])
+            or _first_metadata(spans, ["agent_name", "agent", "agent_client", "selected_agent", "workflow_agent"])
+            or next((span.name for span in spans if span.span_type == "agent"), None)
+        )
+        skill_name = (
+            _metadata_value(metadata, ["skill", "skill_name", "selected_skill", "runledger.skill"])
+            or _first_metadata(spans, ["skill", "skill_name", "selected_skill", "runledger.skill"])
+        )
+        team = (
+            _metadata_value(metadata, ["team", "department", "cost_center"])
+            or _metadata_value(resource_metadata, ["team", "department", "cost_center"])
+            or _first_metadata(spans, ["team", "department", "cost_center"])
+        )
+        app_name = (
+            row.application_name
+            or _metadata_value(metadata, ["application", "app", "service"])
+            or _metadata_value(resource_metadata, ["application", "app", "service.name", "service"])
+            or _first_metadata(spans, ["application", "app", "service.name", "service"])
+        )
+        prompt = (
+            "Prompt captured"
+            if any(span.span_metadata and "messages" in span.span_metadata for span in spans)
+            else run.feature_tag
+        )
+        provider = (
+            primary_call.provider
+            if primary_call is not None
+            else _provider_from_model(gateway_request.model_used if gateway_request else None)
+        )
+        model = primary_call.model if primary_call is not None else (gateway_request.model_used if gateway_request else None)
+        route_label = (
+            route.alias
+            if route is not None
+            else (gateway_request.model_requested if gateway_request is not None else "Direct SDK / OTLP")
+        )
+
+        items.append(
+            RunFlowRecord(
+                id=run.id,
+                workspace_id=run.workspace_id,
+                workspace_name=row.workspace_name,
+                tenant_id=row.tenant_id,
+                tenant_name=row.tenant_name,
+                status=run.status,
+                end_user_id=run.end_user_id,
+                feature_tag=run.feature_tag,
+                primary_model=model,
+                provider=provider,
+                route=route_label,
+                outcome=(
+                    f"{outcome.event_type}: {'Success' if outcome.success else 'Miss'}"
+                    if outcome is not None
+                    else str(run.status)
+                ),
+                prompt=_clean_label(prompt, "Prompt metadata only"),
+                skill=_clean_label(skill_name, "No skill captured"),
+                agent=_clean_label(agent_name, _clean_label(run.feature_tag, "Agent unknown")),
+                tool=_clean_label(tools[0].tool_name if tools else None, "No tool called"),
+                team=_clean_label(team, "Team unknown"),
+                application=_clean_label(app_name, "App unknown"),
+                cost_band=_cost_band(total_cost),
+                total_cost_usd=total_cost,
+                total_input_tokens=input_tokens,
+                total_output_tokens=output_tokens,
+                cached_input_tokens=cached_input_tokens,
+                latency_ms=_duration_or_latency(run, primary_call),
+                success=(outcome.success if outcome is not None else run.status == RunStatusEnum.succeeded),
+                savings_usd=savings,
+                started_at=run.started_at,
+            )
+        )
+
+    return RunFlowResponse(
+        scope=scope,
+        mode=mode,
+        metric=metric,
+        sampled_runs=len(items),
+        total_runs=total_runs,
+        workspace_count=len(set(workspace_ids)),
+        generated_at=datetime.now(UTC),
+        items=items,
     )
 
 

@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import OrgSpendChart from '@/components/dashboard/OrgSpendChart'
+import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   DollarSign, Zap, TrendingUp, TrendingDown,
   Hash, Users, LayoutGrid, ArrowRight, Clock, Cpu,
@@ -72,11 +73,19 @@ const WS_STATUS: Record<string, string> = {
 
 // ── Main content (async server component) ─────────────────────────────────────
 
-async function OrgDashboardContent() {
+async function OrgDashboardContent({
+  from,
+  to,
+  rangeLabel,
+}: {
+  from: string
+  to: string
+  rangeLabel: string
+}) {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
-  const data: OrgDashboard = await getOrgDashboard(session.apiKey)
+  const data: OrgDashboard = await getOrgDashboard(session.apiKey, { from, to })
   const totalTokens = data.total_tokens ?? 0
 
   return (
@@ -95,7 +104,7 @@ async function OrgDashboardContent() {
         <KpiCard
           title="Agent Runs"
           value={data.run_count.toLocaleString()}
-          sub="last 7 days"
+          sub={rangeLabel.toLowerCase()}
           icon={<Zap className="h-5 w-5 text-violet-600 dark:text-violet-300" />}
           cardFrom="from-violet-50 to-violet-100/40 dark:from-violet-950/60 dark:to-violet-900/20"
           cardTo="bg-violet-300/30 dark:bg-violet-500/20"
@@ -127,7 +136,7 @@ async function OrgDashboardContent() {
         <Card className="overflow-hidden border-slate-200/60 dark:border-slate-700/60">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold">Spend by Workspace</CardTitle>
-            <p className="text-xs text-muted-foreground">Last 7 days · sorted by cost</p>
+            <p className="text-xs text-muted-foreground">{rangeLabel} - sorted by cost</p>
           </CardHeader>
           <CardContent className="pb-4 pt-0">
             <OrgSpendChart workspaces={data.workspaces} />
@@ -138,7 +147,7 @@ async function OrgDashboardContent() {
         <Card className="border-slate-200/60 dark:border-slate-700/60">
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-semibold">Top Models</CardTitle>
-            <p className="text-xs text-muted-foreground">Across all workspaces — last 7 days</p>
+            <p className="text-xs text-muted-foreground">Across all workspaces - {rangeLabel.toLowerCase()}</p>
           </CardHeader>
           <CardContent className="p-0">
             {data.top_models.length === 0 ? (
@@ -163,7 +172,7 @@ async function OrgDashboardContent() {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div>
             <CardTitle className="text-base font-semibold">All Workspaces</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">Cost and run breakdown — last 7 days</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Cost and run breakdown - {rangeLabel.toLowerCase()}</p>
           </div>
           <Link
             href="/organization"
@@ -289,7 +298,11 @@ function OrgDashboardSkeleton() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function OrgDashboardPage() {
+export default async function OrgDashboardPage({
+  searchParams,
+}: {
+  searchParams?: { range?: string }
+}) {
   const session = await getServerSession(authOptions)
   const s = session as Record<string, unknown> | null
   const tenantRole = s?.tenantRole as string | undefined
@@ -299,6 +312,7 @@ export default async function OrgDashboardPage() {
   if (!isOrgAdmin) redirect('/dashboard')
 
   const orgName = (s?.tenantName ?? s?.orgName) as string | undefined
+  const win = getDashboardWindow(searchParams?.range)
   const dateStr = new Date().toLocaleDateString([], {
     weekday: 'long', month: 'long', day: 'numeric',
   })
@@ -309,24 +323,31 @@ export default async function OrgDashboardPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
-              Global View
+              Organization scope
             </span>
             {orgName && (
               <span className="text-sm text-muted-foreground font-medium">{orgName}</span>
             )}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Organization Dashboard</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{dateStr} · Last 7 days · All workspaces</p>
+          <h1 className="text-2xl font-bold tracking-tight">Org Dashboard</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{dateStr} - {win.label} - All workspaces</p>
         </div>
         <Link
           href="/dashboard"
           className="hidden text-sm text-violet-600 hover:underline dark:text-violet-400 sm:block"
         >
-          ← Workspace dashboard
+          ← Workspace Dashboard
         </Link>
       </div>
+      <DashboardScopeBar
+        scope="Organization"
+        context={orgName ?? 'Current organization'}
+        activeRange={win.range}
+        basePath="/organization/dashboard"
+        dimensions={['Organization', 'Time range', 'Workspace', 'Model', 'Feature', 'Outcome']}
+      />
       <Suspense fallback={<OrgDashboardSkeleton />}>
-        <OrgDashboardContent />
+        <OrgDashboardContent from={win.from} to={win.to} rangeLabel={win.label} />
       </Suspense>
     </div>
   )

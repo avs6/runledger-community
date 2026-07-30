@@ -179,6 +179,28 @@ export async function getRunGraph(apiKey: string, runId: string): Promise<RunGra
   return apiFetch<RunGraphResponse>(`/runs/${runId}/graph`, apiKey)
 }
 
+export async function getRunFlow(
+  apiKey: string,
+  params: {
+    scope?: 'workspace' | 'org' | 'platform'
+    mode?: string
+    metric?: string
+    limit?: number
+    from?: string
+    to?: string
+  } = {}
+): Promise<import('@/types/api').RunFlowResponse> {
+  const qs = new URLSearchParams()
+  if (params.scope) qs.set('scope', params.scope)
+  if (params.mode) qs.set('mode', params.mode)
+  if (params.metric) qs.set('metric', params.metric)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.from) qs.set('from', params.from)
+  if (params.to) qs.set('to', params.to)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').RunFlowResponse>(`/runs/flow${query}`, apiKey)
+}
+
 // ── Analytics helpers ─────────────────────────────────────────────────────────
 
 interface TimeWindow {
@@ -1341,8 +1363,14 @@ export async function runFlywheel(
 
 // ── Org Dashboard ─────────────────────────────────────────────────────────────
 
-export async function getOrgDashboard(apiKey: string): Promise<import('@/types/api').OrgDashboard> {
-  return apiFetch<import('@/types/api').OrgDashboard>('/org/dashboard', apiKey)
+export async function getOrgDashboard(
+  apiKey: string,
+  window: TimeWindow = {},
+): Promise<import('@/types/api').OrgDashboard> {
+  return apiFetch<import('@/types/api').OrgDashboard>(
+    `/org/dashboard${_analyticsQs(window)}`,
+    apiKey,
+  )
 }
 
 // ── SaaS / Billing ────────────────────────────────────────────────────────────
@@ -1541,11 +1569,13 @@ export async function getQualityCorrelation(
 
 export async function listOutcomes(
   apiKey: string,
-  params?: { outcome_type?: string; success?: boolean; limit?: number }
+  params?: { outcome_type?: string; success?: boolean; run_id?: string; end_user_id?: string; limit?: number }
 ): Promise<import('@/types/api').OutcomeList> {
   const q = new URLSearchParams()
   if (params?.outcome_type) q.set('outcome_type', params.outcome_type)
   if (params?.success !== undefined) q.set('success', String(params.success))
+  if (params?.run_id) q.set('run_id', params.run_id)
+  if (params?.end_user_id) q.set('end_user_id', params.end_user_id)
   if (params?.limit) q.set('limit', String(params.limit))
   return apiFetch<import('@/types/api').OutcomeList>(
     `/outcomes${q.toString() ? '?' + q.toString() : ''}`,

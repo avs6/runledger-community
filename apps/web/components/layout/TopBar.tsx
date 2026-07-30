@@ -45,6 +45,13 @@ export default function TopBar() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   const badge = roleBadge(workspaceRole || tenantRole, isPlatformAdmin)
+  const dashboardScope = pathname.startsWith('/global-dashboard')
+    ? 'Platform'
+    : pathname.startsWith('/organization/dashboard')
+      ? 'Org'
+      : pathname === '/' || pathname.startsWith('/dashboard')
+        ? 'Workspace'
+        : null
 
   // Mount flag for portal (SSR-safe)
   useEffect(() => { setMounted(true) }, [])
@@ -214,6 +221,11 @@ export default function TopBar() {
         {badge && (
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
             {badge.label}
+          </span>
+        )}
+        {dashboardScope && (
+          <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 sm:inline-flex dark:bg-slate-200 dark:text-slate-700">
+            {dashboardScope} Scope
           </span>
         )}
       </div>

@@ -10,6 +10,7 @@ import {
   Bell,
   Building2,
   ChevronDown,
+  Cpu,
   Database,
   FileText,
   FlaskConical,
@@ -18,12 +19,15 @@ import {
   LayoutDashboard,
   LayoutGrid,
   LayoutList,
+  Lightbulb,
   MessageSquare,
   Network,
+  PiggyBank,
   Plug,
   Radio,
   Route,
   ScrollText,
+  Search,
   Settings,
   Settings2,
   Shield,
@@ -52,11 +56,13 @@ const defaultSections = {
 type SectionKey = keyof typeof defaultSections
 
 const workspaceNav = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Workspace Dashboard', icon: LayoutDashboard },
   { href: '/request-flow', label: 'Request Flow', icon: Route },
+  { href: '/request-explorer', label: 'Request Explorer', icon: Search },
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
 ] as const
 
@@ -88,7 +94,8 @@ export default function Sidebar() {
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
-    return pathname.startsWith(href)
+    if (href === '/organization') return pathname === '/organization'
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   function NavLink({ href, label, icon: Icon, badge }: { href: string; label: string; icon: React.ElementType; badge?: string }) {
@@ -145,12 +152,10 @@ export default function Sidebar() {
           {workspaceNav.map(({ href, label, icon }) => (
             <NavLink key={href} href={href} label={label} icon={icon} />
           ))}
-          {(isOrgAdmin || isPlatformAdmin) && (
-            <NavLink href="/organization/dashboard" label="Global Dashboard" icon={LayoutGrid} badge="ORG" />
-          )}
         </Section>
 
         <Section id="improve" label="Improve">
+          <NavLink href="/optimization-opportunities" label="Optimization Opportunities" icon={Lightbulb} />
           <NavLink href="/prompts" label="Prompts" icon={FileText} />
           <NavLink href="/evaluation" label="Evaluations" icon={FlaskConical} />
           <NavLink href="/experiments" label="Experiments" icon={Beaker} />
@@ -181,6 +186,7 @@ export default function Sidebar() {
 
         {canAccessFinance && (
           <Section id="finance" label="Finance">
+            <NavLink href="/cost-savings" label="Cost & Savings" icon={PiggyBank} />
             <NavLink href="/budgets" label="Budgets" icon={Wallet} />
             <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
           </Section>
@@ -197,6 +203,7 @@ export default function Sidebar() {
       <div className="mt-4 border-t border-slate-200/80 pt-4 dark:border-white/[0.06]">
         {canAccessOrgControl && (
           <Section id="organization" label="Organization">
+            <NavLink href="/organization/dashboard" label="Org Dashboard" icon={LayoutDashboard} />
             <NavLink href="/organization" label="Profile" icon={Building2} />
             <NavLink href="/users" label="Users" icon={Users} />
             <NavLink href="/workspace" label="Workspaces" icon={LayoutGrid} />
@@ -204,6 +211,7 @@ export default function Sidebar() {
         )}
         {isPlatformAdmin && (
           <Section id="platform" label="Platform">
+            <NavLink href="/global-dashboard" label="Global Dashboard" icon={Landmark} />
             <NavLink href="/organizations" label="All Organizations" icon={Landmark} />
             {canAccessSettings && <NavLink href="/settings" label="Settings" icon={Settings} />}
           </Section>

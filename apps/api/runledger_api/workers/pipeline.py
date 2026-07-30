@@ -34,6 +34,7 @@ from runledger_api.models.events import (
     ToolTypeEnum,
 )
 from runledger_api.models.ledger import CapturePolicy
+from runledger_api.services import kafka_export
 from runledger_api.services.scrubbing import scrub_dict
 
 log = structlog.get_logger()
@@ -150,9 +151,10 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
 
 async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
     status = e["status"]
+    run_id = uuid.UUID(e["run_id"])
     await session.execute(
         update(AgentRun)
-        .where(AgentRun.id == uuid.UUID(e["run_id"]))
+        .where(AgentRun.id == run_id)
         .values(
             status=RunStatusEnum(status),
             ended_at=_dt(e["ended_at"]),
@@ -161,6 +163,30 @@ async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
             total_output_tokens=e.get("total_output_tokens"),
         )
     )
+    run = await session.get(AgentRun, run_id)
+    if run is None:
+        return
+    event_type = "run.completed" if status == RunStatusEnum.succeeded else "run.failed"
+    try:
+        await kafka_export.publish_event(
+            session,
+            workspace_id=run.workspace_id,
+            event_type=event_type,
+            payload={
+                "run_id": str(run.id),
+                "status": status,
+                "end_user_id": run.end_user_id,
+                "session_id": run.session_id,
+                "feature_tag": run.feature_tag,
+                "total_cost_usd": str(e.get("total_cost_usd") or ""),
+                "total_input_tokens": e.get("total_input_tokens"),
+                "total_output_tokens": e.get("total_output_tokens"),
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "ended_at": e.get("ended_at"),
+            },
+        )
+    except Exception:
+        log.exception("kafka_export.run_end_unexpected_error", run_id=str(run_id))
 
 
 async def _handle_span_start(session: AsyncSession, e: dict[str, Any]) -> None:

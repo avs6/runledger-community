@@ -76,9 +76,14 @@ export default function RunsPage({ searchParams }: PageProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Runs</h1>
-        <Suspense fallback={null}>
-          <RunsExportButton />
-        </Suspense>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/request-explorer">Request Explorer</Link>
+          </Button>
+          <Suspense fallback={null}>
+            <RunsExportButton />
+          </Suspense>
+        </div>
       </div>
       <Suspense fallback={null}>
         <RunFilters />

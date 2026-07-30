@@ -117,6 +117,47 @@ export interface RunGraphResponse {
   edges: GraphEdge[]
 }
 
+export interface RunFlowRecord {
+  id: string
+  workspace_id: string
+  workspace_name: string
+  tenant_id: string
+  tenant_name: string
+  status: string
+  end_user_id: string | null
+  feature_tag: string | null
+  primary_model: string | null
+  provider: string | null
+  route: string
+  outcome: string
+  prompt: string
+  skill: string
+  agent: string
+  tool: string
+  team: string
+  application: string
+  cost_band: string
+  total_cost_usd: string
+  total_input_tokens: number
+  total_output_tokens: number
+  cached_input_tokens: number
+  latency_ms: number | null
+  success: boolean
+  savings_usd: string
+  started_at: string
+}
+
+export interface RunFlowResponse {
+  scope: 'workspace' | 'org' | 'platform'
+  mode: string
+  metric: string
+  sampled_runs: number
+  total_runs: number
+  workspace_count: number
+  generated_at: string
+  items: RunFlowRecord[]
+}
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 export interface AnalyticsSummary {
@@ -1349,11 +1390,24 @@ export interface BillingWebhookDeliveryList {
 export type KafkaSecurityProtocol = 'PLAINTEXT' | 'SSL' | 'SASL_PLAINTEXT' | 'SASL_SSL'
 export type KafkaSaslMechanism = 'PLAIN' | 'SCRAM-SHA-256' | 'SCRAM-SHA-512'
 export type KafkaEventType =
+  | 'run.started'
   | 'run.completed'
   | 'run.failed'
+  | 'gateway.request.completed'
+  | 'gateway.request.rejected'
+  | 'budget.threshold_crossed'
   | 'alert.fired'
   | 'budget.breached'
-  | 'score.submitted'
+  | 'optimization.applied'
+  | 'route.changed'
+  | 'mcp.tool.called'
+  | 'mcp.tool.blocked'
+  | 'approval.requested'
+  | 'approval.decided'
+  | 'email.report.sent'
+  | 'backup.completed'
+  | 'backup.failed'
+  | 'compliance.export.ready'
 
 export interface KafkaExportConfig {
   id: string

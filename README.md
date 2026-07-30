@@ -11,7 +11,7 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger-community)
 
-[Documentation](docs/introduction.mdx) · [Quickstart](#quickstart) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
+[Documentation](docs/introduction.mdx) · [MCP Integrations](docs/integration-options-mcp.md) · [Product/Data Alignment](docs/product-data-alignment.md) · [Quickstart](#quickstart) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
 
 </div>
 
@@ -39,6 +39,7 @@ Everything below is **available today** in RunLedger Community. Click through fo
 - [TypeScript SDK](docs/instrumentation/typescript-sdk.mdx)
 - [OTLP / OpenTelemetry](docs/otlp.md)
 - [OpenInference](docs/openinference.md)
+- [MCP integrations](docs/integration-options-mcp.md)
 
 </td>
 <td width="33%" valign="top">
@@ -99,7 +100,30 @@ Everything below is **available today** in RunLedger Community. Click through fo
 </tr>
 </table>
 
-📖 **[Browse the full documentation →](docs/introduction.mdx)**
+📖 **[Browse the full documentation →](docs/introduction.mdx)**  
+🧭 **[Read the dashboard product/data contract →](docs/product-data-alignment.md)**
+
+---
+
+## Agent Skills & Desktop Integrations
+
+RunLedger includes publishable connector skills for agent tools that should send usage, cost, routing, tool, and outcome telemetry into the same RunLedger workspace model. These skills are meant to make setup feel like an installable capability, not a long training document.
+
+| Agent surface | Skill / guide | Connects through | What RunLedger captures |
+|---------------|---------------|------------------|--------------------------|
+| ![Claude](https://img.shields.io/badge/Claude-Desktop%20%2F%20Code-D97706?logo=anthropic&logoColor=white) | [`runledger-connect-claude`](skills/runledger-connect-claude/SKILL.md) | MCP, generated `CLAUDE.md`, optional stdio bridge | Budget checks, tool calls, task outcomes, workspace attribution |
+| ![OpenAI Codex](https://img.shields.io/badge/OpenAI-Codex-0F766E?logo=openai&logoColor=white) | [`runledger-connect-codex`](skills/runledger-connect-codex/SKILL.md) | `AGENTS.md`, Codex hooks, MCP | Sessions, spawned agents, shell/tool usage, permission events, outcomes |
+| ![Cursor](https://img.shields.io/badge/Cursor-IDE-111827?logo=cursor&logoColor=white) | [`runledger-connect-cursor`](skills/runledger-connect-cursor/SKILL.md) | Cursor rules, MCP, optional Gateway | Coding-agent activity, repo/task attribution, policy and budget checks |
+| ![Devin](https://img.shields.io/badge/Devin-Agent-2563EB?logoColor=white) | [`runledger-connect-devin`](skills/runledger-connect-devin/SKILL.md) | Devin bridge, service-user workflow, optional MCP | Autonomous task lifecycle, session IDs, requester/repo metadata, outcomes |
+| ![Windsurf](https://img.shields.io/badge/Windsurf-Cascade-0891B2?logo=codeium&logoColor=white) | [Windsurf integration guide](scripts/Integration/Windsurf%20IDE%20Integration.md) | Cascade hooks, MCP, wrapper telemetry | Prompt/tool/command events, policy checks, out-of-band task telemetry |
+
+Shared setup helpers live in [`skills/shared`](skills/shared), including a telemetry contract and smoke test:
+
+```bash
+python skills/shared/scripts/runledger_smoke.py --client codex --task "connector smoke test"
+```
+
+See [`docs/integration-options-mcp.md`](docs/integration-options-mcp.md) for the MCP tool/resource/prompt contract, [`skills/README.md`](skills/README.md) for the publishable skill layout, and [`scripts/Integration/Desktop Agent Integration Overview.md`](scripts/Integration/Desktop%20Agent%20Integration%20Overview.md) for the broader desktop-agent integration plan.
 
 ---
 

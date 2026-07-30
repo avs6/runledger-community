@@ -7,14 +7,29 @@ Auth:   Bearer API key (get_current_workspace)
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.models.kafka import KafkaExportConfig, KafkaExportDelivery
+from runledger_api.schemas.kafka import (
+    KafkaExportConfigCreate,
+    KafkaExportConfigList,
+    KafkaExportConfigResponse,
+    KafkaExportConfigUpdate,
+    KafkaExportDeliveryList,
+    KafkaExportDeliveryResponse,
+    KafkaTestResult,
+)
+from runledger_api.services import kafka_export
 from runledger_api.services.notifications import build_test_blocks, send_slack_message
 
 router = APIRouter(
@@ -22,6 +37,7 @@ router = APIRouter(
 )
 log = structlog.get_logger()
 OrgAdminDep = Annotated[tuple, Depends(require_org_admin)]
+DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -58,3 +74,134 @@ async def test_slack_webhook(
             error=str(exc),
         )
         return SlackTestResponse(ok=False, error=str(exc))
+
+
+def _response(config: KafkaExportConfig) -> KafkaExportConfigResponse:
+    return KafkaExportConfigResponse.model_validate(config)
+
+
+async def _get_config(
+    db: AsyncSession, workspace_id: uuid.UUID, config_id: uuid.UUID
+) -> KafkaExportConfig:
+    config = await db.get(KafkaExportConfig, config_id)
+    if config is None or config.workspace_id != workspace_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kafka export config not found")
+    return config
+
+
+@router.get("/kafka/configs", response_model=KafkaExportConfigList)
+async def list_kafka_export_configs(auth: OrgAdminDep, db: DbDep) -> KafkaExportConfigList:
+    workspace = auth[0]
+    rows = (
+        (
+            await db.execute(
+                select(KafkaExportConfig)
+                .where(KafkaExportConfig.workspace_id == workspace.id)
+                .order_by(KafkaExportConfig.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return KafkaExportConfigList(items=[_response(row) for row in rows])
+
+
+@router.post("/kafka/configs", response_model=KafkaExportConfigResponse)
+async def create_kafka_export_config(
+    body: KafkaExportConfigCreate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> KafkaExportConfigResponse:
+    workspace = auth[0]
+    config = KafkaExportConfig(
+        workspace_id=workspace.id,
+        label=body.label,
+        bootstrap_servers=body.bootstrap_servers,
+        topic_prefix=body.topic_prefix,
+        security_protocol=body.security_protocol,
+        sasl_mechanism=body.sasl_mechanism,
+        sasl_username=body.sasl_username,
+        sasl_password_secret=body.sasl_password,
+        ssl_ca_cert=body.ssl_ca_cert,
+        event_types=list(body.event_types),
+        enabled=True,
+    )
+    db.add(config)
+    await db.commit()
+    await db.refresh(config)
+    return _response(config)
+
+
+@router.put("/kafka/configs/{config_id}", response_model=KafkaExportConfigResponse)
+async def update_kafka_export_config(
+    config_id: uuid.UUID,
+    body: KafkaExportConfigUpdate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> KafkaExportConfigResponse:
+    workspace = auth[0]
+    config = await _get_config(db, workspace.id, config_id)
+    data = body.model_dump(exclude_unset=True)
+    if "sasl_password" in data:
+        config.sasl_password_secret = data.pop("sasl_password")
+    for key, value in data.items():
+        if key == "event_types" and value is not None:
+            setattr(config, key, list(value))
+        else:
+            setattr(config, key, value)
+    await db.commit()
+    await db.refresh(config)
+    return _response(config)
+
+
+@router.delete("/kafka/configs/{config_id}", status_code=204)
+async def delete_kafka_export_config(
+    config_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    config = await _get_config(db, workspace.id, config_id)
+    await db.delete(config)
+    await db.commit()
+
+
+@router.post("/kafka/configs/{config_id}/test", response_model=KafkaTestResult)
+async def test_kafka_export_config(
+    config_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> KafkaTestResult:
+    workspace = auth[0]
+    config = await _get_config(db, workspace.id, config_id)
+    ok, error, topic = await kafka_export.test_config(db, config)
+    return KafkaTestResult(ok=ok, error=error, topic=topic)
+
+
+@router.get("/kafka/configs/{config_id}/deliveries", response_model=KafkaExportDeliveryList)
+async def list_kafka_export_deliveries(
+    config_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+    limit: int = Query(default=20, ge=1, le=200),
+) -> KafkaExportDeliveryList:
+    workspace = auth[0]
+    await _get_config(db, workspace.id, config_id)
+    rows = (
+        (
+            await db.execute(
+                select(KafkaExportDelivery)
+                .where(
+                    KafkaExportDelivery.workspace_id == workspace.id,
+                    KafkaExportDelivery.config_id == config_id,
+                )
+                .order_by(KafkaExportDelivery.created_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return KafkaExportDeliveryList(
+        items=[KafkaExportDeliveryResponse.model_validate(row) for row in rows]
+    )

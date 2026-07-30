@@ -138,6 +138,47 @@ class RunGraphResponse(BaseModel):
     edges: list[GraphEdge]
 
 
+class RunFlowRecord(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    workspace_name: str
+    tenant_id: uuid.UUID
+    tenant_name: str
+    status: str
+    end_user_id: str | None
+    feature_tag: str | None
+    primary_model: str | None
+    provider: str | None
+    route: str
+    outcome: str
+    prompt: str
+    skill: str
+    agent: str
+    tool: str
+    team: str
+    application: str
+    cost_band: str
+    total_cost_usd: Decimal
+    total_input_tokens: int
+    total_output_tokens: int
+    cached_input_tokens: int
+    latency_ms: int | None
+    success: bool
+    savings_usd: Decimal
+    started_at: datetime
+
+
+class RunFlowResponse(BaseModel):
+    scope: str
+    mode: str
+    metric: str
+    sampled_runs: int
+    total_runs: int
+    workspace_count: int
+    generated_at: datetime
+    items: list[RunFlowRecord]
+
+
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 
