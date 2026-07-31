@@ -305,7 +305,7 @@ export default async function GlobalDashboardPage({
           sub="Captured plus estimated optimization savings"
           icon={<PiggyBank className="h-5 w-5" />}
           tone="emerald"
-          titleHelp="Sum of savings_usd from flow records. Attribution categories are estimated until Phase 7 finance-grade savings attribution lands."
+          titleHelp="Sum of savings_usd from flow records. Attribution categories are estimated until finance-grade realized savings attribution is available."
         />
         <StatCard
           title="ROI"
@@ -371,7 +371,7 @@ export default async function GlobalDashboardPage({
         <Card className="border-slate-200/80 bg-white/90 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base font-semibold">Savings Attribution</CardTitle>
-            <p className="text-xs text-muted-foreground">Attribution is directional until Phase 7 adds finance-grade realized savings categories.</p>
+            <p className="text-xs text-muted-foreground">Attribution is directional until finance-grade realized savings categories are available.</p>
           </CardHeader>
           <CardContent>
             <ExecutiveSavingsBars data={savingsBars} />

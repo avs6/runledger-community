@@ -163,16 +163,21 @@ async def analytics_summary(
 async def spend_over_time(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    granularity: Annotated[str, Query(pattern="^(hourly|daily)$")] = "daily",
+    granularity: Annotated[str, Query(pattern="^(minute|5min|hourly|daily)$")] = "daily",
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
 ) -> SpendOverTime:
-    """Time-series of cost and token usage, bucketed by hour or day."""
+    """Time-series of cost and token usage, bucketed by minute, 5 minutes, hour, or day."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
 
-    trunc_unit = "hour" if granularity == "hourly" else "day"
-    period_col = func.date_trunc(trunc_unit, ProviderCall.created_at).label("period")
+    if granularity == "minute":
+        period_col = func.date_trunc("minute", ProviderCall.created_at).label("period")
+    elif granularity == "5min":
+        period_col = func.to_timestamp(func.floor(func.extract("epoch", ProviderCall.created_at) / 300) * 300).label("period")
+    else:
+        trunc_unit = "hour" if granularity == "hourly" else "day"
+        period_col = func.date_trunc(trunc_unit, ProviderCall.created_at).label("period")
 
     stmt = (
         select(

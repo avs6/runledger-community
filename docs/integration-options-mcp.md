@@ -72,6 +72,11 @@ Authentication: RUNLEDGER_API_KEY=<workspace-api-key>
 Transport: streamable HTTP
 ```
 
+RunLedger also ships a separate optimization/cognitive MCP gateway on `http://localhost:8206/mcp`.
+Use `:8206` for context compiler, memory, knowledge graph, skill registry, and flywheel tools.
+Use the canonical API endpoint on `:8201/mcp` when you need the Phase 1A control-plane tools
+such as budget checks, policy checks, run recording, model-call recording, and cost queries.
+
 ### Local stdio MCP Bridge
 
 Use this when a client only supports launching a local stdio MCP server.
@@ -166,6 +171,18 @@ After connecting an agent:
 4. Ask the agent to call `runledger.record_model_call` with sample token and cost values.
 5. Ask the agent to call `runledger.record_outcome`.
 6. Verify the new run appears in Runs and Request Explorer.
+
+For command-line validation of the canonical MCP endpoint:
+
+```powershell
+$env:RUNLEDGER_BASE_URL = "http://localhost:8201"
+$env:RUNLEDGER_API_KEY = "<workspace-api-key>"
+python scripts\runledger\validate_mcp_connection.py
+```
+
+The validator performs the streamable-HTTP handshake, lists tools, and verifies the required Phase 1A
+`runledger.*` tools are visible. If you just rebuilt the API image, restart the API container before
+running this command.
 
 ## Next Enhancements
 

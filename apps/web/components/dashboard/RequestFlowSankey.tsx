@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { ArrowRight, Lightbulb, Search, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, Lightbulb, Maximize2, Minimize2, RotateCcw, Search, Sparkles, Users, ZoomIn, ZoomOut } from 'lucide-react'
 import type { GatewayRequestLog, OutcomeResponse, RunDetailResponse, RunFlowRecord, RunFlowResponse, RunListItem } from '@/types/api'
 import { formatCost, formatTokens } from '@/lib/utils'
+import RequestFlowDownloadButtons from './RequestFlowDownloadButtons'
 
 export type RequestFlowMode =
   | 'request-intent-model-result'
@@ -12,6 +13,7 @@ export type RequestFlowMode =
 
 export type RequestFlowMetric = 'requests' | 'cost' | 'tokens' | 'savings'
 export type RequestFlowScope = 'workspace' | 'org' | 'platform'
+export type RequestFlowDensity = 'compact' | 'comfortable' | 'presentation'
 
 type NodeLayer = {
   key: string
@@ -64,14 +66,16 @@ type EnrichedRun = {
 }
 
 const COLORS = [
-  '#31628a',
-  '#4f78a8',
-  '#7096bf',
-  '#8aa6c2',
-  '#a98558',
-  '#7f8fa3',
-  '#5d7390',
-  '#9b8bbd',
+  '#2563eb',
+  '#0891b2',
+  '#16a34a',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#0f766e',
+  '#db2777',
+  '#64748b',
+  '#ea580c',
 ]
 
 const FLOW_MODES: Array<{ key: RequestFlowMode; label: string; description: string; layers: NodeLayer[] }> = [
@@ -146,6 +150,51 @@ const SCOPES: Array<{ key: RequestFlowScope; label: string }> = [
   { key: 'org', label: 'Org' },
   { key: 'platform', label: 'Platform' },
 ]
+
+const DENSITIES: Array<{ key: RequestFlowDensity; label: string }> = [
+  { key: 'compact', label: 'Compact' },
+  { key: 'comfortable', label: 'Comfortable' },
+  { key: 'presentation', label: 'Presentation' },
+]
+
+const TOP_N_OPTIONS = [6, 8, 10, 12, 16]
+
+const DENSITY_CONFIG: Record<
+  RequestFlowDensity,
+  {
+    height: number
+    nodeWidth: number
+    nodeHeight: number
+    labelMax: number
+    rowPadding: number
+    layerSpacing: number
+  }
+> = {
+  compact: {
+    height: 460,
+    nodeWidth: 140,
+    nodeHeight: 44,
+    labelMax: 18,
+    rowPadding: 18,
+    layerSpacing: 250,
+  },
+  comfortable: {
+    height: 580,
+    nodeWidth: 160,
+    nodeHeight: 52,
+    labelMax: 22,
+    rowPadding: 24,
+    layerSpacing: 305,
+  },
+  presentation: {
+    height: 760,
+    nodeWidth: 190,
+    nodeHeight: 62,
+    labelMax: 28,
+    rowPadding: 30,
+    layerSpacing: 380,
+  },
+}
 
 function cleanLabel(value: string | null | undefined, fallback: string) {
   const label = value?.trim()
@@ -523,8 +572,197 @@ function requestExplorerHref(link: FlowLink, enrichedRuns: EnrichedRun[], scope:
   return `/request-explorer${params.toString() ? `?${params.toString()}` : ''}`
 }
 
-function pageHref(mode: RequestFlowMode, metric: RequestFlowMetric, scope: RequestFlowScope) {
-  return `/request-flow?mode=${mode}&metric=${metric}&scope=${scope}`
+type FlowViewOptions = {
+  basePath?: string
+  density?: RequestFlowDensity
+  topN?: number
+  zoom?: number
+  collapseSmall?: boolean
+}
+
+function pageHref(mode: RequestFlowMode, metric: RequestFlowMetric, scope: RequestFlowScope, options: FlowViewOptions = {}) {
+  const params = new URLSearchParams({
+    mode,
+    metric,
+    scope,
+  })
+  if (options.density) params.set('density', options.density)
+  if (options.topN) params.set('top', String(options.topN))
+  if (options.zoom && options.zoom !== 1) params.set('zoom', options.zoom.toFixed(2).replace(/\.?0+$/, ''))
+  if (options.collapseSmall === false) params.set('collapse', '0')
+  return `${options.basePath ?? '/request-flow'}?${params.toString()}`
+}
+
+function flowLinkHref(basePath: string, mode: RequestFlowMode, metric: RequestFlowMetric, scope: RequestFlowScope, options: FlowViewOptions) {
+  return pageHref(mode, metric, scope, { ...options, basePath })
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function aggregateOtherNodes(
+  nodes: FlowNode[],
+  links: FlowLink[],
+  layers: NodeLayer[],
+  topN: number,
+  collapseSmall: boolean,
+  metric: RequestFlowMetric
+) {
+  if (!collapseSmall) {
+    const layerGroups = layers.map((_, layer) =>
+      nodes.filter((node) => node.layer === layer).sort((a, b) => metricValue(b, metric) - metricValue(a, metric)).slice(0, topN)
+    )
+    const visibleIds = new Set(layerGroups.flat().map((node) => node.id))
+    return {
+      layerGroups,
+      links: links.filter((link) => visibleIds.has(link.source) && visibleIds.has(link.target)),
+    }
+  }
+
+  const visibleByLayer = new Map<number, Set<string>>()
+  const otherNodes = new Map<number, FlowNode>()
+  const otherId = (layer: number) => nodeId(layers[layer]?.key ?? `layer-${layer}`, 'Other')
+  const cloneNode = (node: FlowNode): FlowNode => ({
+    ...node,
+    runIds: new Set(node.runIds),
+  })
+  const mergeNode = (target: FlowNode, source: FlowNode) => {
+    target.value += source.value
+    target.cost += source.cost
+    target.inputTokens += source.inputTokens
+    target.outputTokens += source.outputTokens
+    target.latencyTotal += source.latencyTotal
+    target.latencyCount += source.latencyCount
+    target.successCount += source.successCount
+    target.savings += source.savings
+    source.runIds.forEach((runId) => target.runIds.add(runId))
+  }
+
+  const layerGroups = layers.map((layer, index) => {
+    const sorted = nodes.filter((node) => node.layer === index).sort((a, b) => metricValue(b, metric) - metricValue(a, metric))
+    const keep = sorted.slice(0, topN).map(cloneNode)
+    visibleByLayer.set(index, new Set(keep.map((node) => node.id)))
+    const overflow = sorted.slice(topN)
+    if (overflow.length > 0) {
+      const other: FlowNode = {
+        id: otherId(index),
+        key: layer.key,
+        label: 'Other',
+        layer: index,
+        value: 0,
+        cost: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        latencyTotal: 0,
+        latencyCount: 0,
+        successCount: 0,
+        savings: 0,
+        runIds: new Set(),
+      }
+      overflow.forEach((node) => mergeNode(other, node))
+      otherNodes.set(index, other)
+      keep.push(other)
+    }
+    return keep
+  })
+
+  const nodesById = new Map(layerGroups.flat().map((node) => [node.id, node]))
+  const linkGroups = new Map<string, FlowLink>()
+
+  for (const link of links) {
+    const sourceNode = nodes.find((node) => node.id === link.source)
+    const targetNode = nodes.find((node) => node.id === link.target)
+    if (!sourceNode || !targetNode) continue
+    const sourceVisible = visibleByLayer.get(sourceNode.layer)?.has(sourceNode.id)
+    const targetVisible = visibleByLayer.get(targetNode.layer)?.has(targetNode.id)
+    const source = sourceVisible ? sourceNode.id : otherNodes.get(sourceNode.layer)?.id
+    const target = targetVisible ? targetNode.id : otherNodes.get(targetNode.layer)?.id
+    if (!source || !target || source === target || !nodesById.has(source) || !nodesById.has(target)) continue
+    const key = `${source}->${target}`
+    const existing = linkGroups.get(key)
+    if (existing) {
+      existing.value += link.value
+      existing.cost += link.cost
+      existing.inputTokens += link.inputTokens
+      existing.outputTokens += link.outputTokens
+      existing.latencyTotal += link.latencyTotal
+      existing.latencyCount += link.latencyCount
+      existing.successCount += link.successCount
+      existing.savings += link.savings
+      link.runIds.forEach((runId) => existing.runIds.add(runId))
+      continue
+    }
+    linkGroups.set(key, {
+      ...link,
+      source,
+      target,
+      runIds: new Set(link.runIds),
+    })
+  }
+
+  return {
+    layerGroups,
+    links: Array.from(linkGroups.values()),
+  }
+}
+
+function svgEscape(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function flowSvgDownloadUrl({
+  config,
+  layerX,
+  layerGroups,
+  links,
+  positions,
+  width,
+  height,
+  nodeWidth,
+  nodeHeight,
+  metric,
+}: {
+  config: (typeof FLOW_MODES)[number]
+  layerX: number[]
+  layerGroups: FlowNode[][]
+  links: FlowLink[]
+  positions: Map<string, { x: number; y: number; color: string }>
+  width: number
+  height: number
+  nodeWidth: number
+  nodeHeight: number
+  metric: RequestFlowMetric
+}) {
+  const maxLink = Math.max(...links.map((link) => metricValue(link, metric)), 1)
+  const paths = links
+    .map((link) => {
+      const source = positions.get(link.source)
+      const target = positions.get(link.target)
+      if (!source || !target) return ''
+      const strokeWidth = 2 + (metricValue(link, metric) / maxLink) * 24
+      const d = `M ${source.x + nodeWidth} ${source.y} C ${source.x + nodeWidth + 90} ${source.y}, ${target.x - 90} ${target.y}, ${target.x} ${target.y}`
+      return `<path d="${d}" fill="none" stroke="${target.color}" stroke-opacity="0.34" stroke-width="${strokeWidth}" stroke-linecap="round" />`
+    })
+    .join('')
+  const labels = config.layers
+    .map((layer, index) => `<text x="${layerX[index]}" y="38" fill="#475569" font-size="12" font-family="Aptos, Segoe UI, sans-serif" font-weight="700" letter-spacing="2">${svgEscape(layer.label.toUpperCase())}</text>`)
+    .join('')
+  const nodeMarkup = layerGroups
+    .flat()
+    .map((node) => {
+      const pos = positions.get(node.id)
+      if (!pos) return ''
+      const y = pos.y - nodeHeight / 2
+      return `<g transform="translate(${pos.x}, ${y})"><rect width="${nodeWidth}" height="${nodeHeight}" rx="14" fill="#ffffff" stroke="#d7e1ec" /><rect width="5" height="${nodeHeight}" rx="3" fill="${pos.color}" /><text x="16" y="${nodeHeight * 0.42}" fill="#0f172a" font-size="13" font-family="Aptos, Segoe UI, sans-serif" font-weight="700">${svgEscape(truncate(node.label, 24))}</text><text x="16" y="${nodeHeight * 0.72}" fill="#64748b" font-size="11" font-family="Aptos, Segoe UI, sans-serif">${svgEscape(metricLabel(node, metric))}</text></g>`
+    })
+    .join('')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#f8fbff" />${paths}${labels}${nodeMarkup}</svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 function topList(enrichedRuns: EnrichedRun[], key: string, limit = 5) {
@@ -584,6 +822,12 @@ export default function RequestFlowSankey({
   scope,
   mode,
   metric,
+  density = 'comfortable',
+  topN = 8,
+  zoom = 1,
+  collapseSmall = true,
+  focus = false,
+  basePath = '/request-flow',
 }: {
   flow?: RunFlowResponse | null
   runs?: RunListItem[]
@@ -593,12 +837,28 @@ export default function RequestFlowSankey({
   scope: RequestFlowScope
   mode: RequestFlowMode
   metric: RequestFlowMetric
+  density?: RequestFlowDensity
+  topN?: number
+  zoom?: number
+  collapseSmall?: boolean
+  focus?: boolean
+  basePath?: string
 }) {
   const sample = flow ? flow.items : (runs ?? []).slice(0, 200)
   const enrichedRuns = flow
     ? enrichFlowRecords(flow.items)
     : enrichRuns(runs ?? [], runDetails ?? [], gatewayRequests ?? [], outcomes ?? [])
   const { config, nodes, links } = buildFlow(enrichedRuns, mode)
+  const normalizedTopN = clamp(topN, 3, 24)
+  const normalizedZoom = clamp(zoom, 0.5, 4)
+  const activeDensity = DENSITY_CONFIG[density] ? density : 'comfortable'
+  const densityConfig = DENSITY_CONFIG[activeDensity]
+  const viewOptions = {
+    density: activeDensity,
+    topN: normalizedTopN,
+    zoom: normalizedZoom,
+    collapseSmall,
+  }
 
   if (sample.length === 0) {
     return (
@@ -611,22 +871,26 @@ export default function RequestFlowSankey({
     )
   }
 
-  const layerGroups = config.layers.map((_, layer) =>
-    nodes.filter((node) => node.layer === layer).sort((a, b) => metricValue(b, metric) - metricValue(a, metric)).slice(0, 8)
-  )
-  const visibleNodeIds = new Set(layerGroups.flat().map((node) => node.id))
-  const visibleLinks = links.filter((link) => visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target))
+  const { layerGroups, links: visibleLinks } = aggregateOtherNodes(nodes, links, config.layers, normalizedTopN, collapseSmall, metric)
   const maxLink = Math.max(...visibleLinks.map((link) => metricValue(link, metric)), 1)
   const positions = new Map<string, { x: number; y: number; color: string }>()
   const layerCount = Math.max(config.layers.length, 2)
-  const layerX = config.layers.map((_, index) => 70 + index * (880 / (layerCount - 1)))
+  const maxLayerItems = Math.max(...layerGroups.map((group) => group.length), 1)
+  const minLayerHeight = 110 + maxLayerItems * (densityConfig.nodeHeight + densityConfig.rowPadding)
+  const diagramWidth = Math.max(
+    focus ? 3200 : 1120,
+    160 + (layerCount - 1) * (focus ? densityConfig.layerSpacing * 1.35 : densityConfig.layerSpacing) + densityConfig.nodeWidth + 140,
+  )
+  const diagramHeight = Math.max(densityConfig.height, minLayerHeight)
+  const layerX = config.layers.map((_, index) => 70 + index * ((diagramWidth - densityConfig.nodeWidth - 140) / (layerCount - 1)))
 
   layerGroups.forEach((group, layer) => {
-    const gap = 330 / Math.max(group.length, 1)
+    const availableHeight = diagramHeight - 120
+    const gap = Math.max(densityConfig.nodeHeight + densityConfig.rowPadding, availableHeight / Math.max(group.length, 1))
     group.forEach((node, index) => {
       positions.set(node.id, {
         x: layerX[layer],
-        y: 82 + gap * index + gap / 2,
+        y: 72 + gap * index + gap / 2,
         color: COLORS[(index + layer) % COLORS.length],
       })
     })
@@ -636,9 +900,25 @@ export default function RequestFlowSankey({
   const topUsers = topList(enrichedRuns, 'user')
   const topAgents = topList(enrichedRuns, 'agent')
   const recs = recommendations(enrichedRuns)
+  const focusHref = pageHref(config.key, metric, scope, { ...viewOptions, basePath: '/request-flow/focus', zoom: 1 })
+  const exitHref = pageHref(config.key, metric, scope, { ...viewOptions, basePath: '/request-flow', zoom: 1 })
+  const svgId = focus ? 'request-flow-focus-svg' : 'request-flow-svg'
+  const fileBase = `runledger-request-flow-${config.key}`
+  const svgDownloadUrl = flowSvgDownloadUrl({
+    config,
+    layerX,
+    layerGroups,
+    links: visibleLinks,
+    positions,
+    width: diagramWidth,
+    height: diagramHeight,
+    nodeWidth: densityConfig.nodeWidth,
+    nodeHeight: densityConfig.nodeHeight,
+    metric,
+  })
 
   return (
-    <div className="space-y-4">
+    <div className={focus ? 'space-y-4' : 'space-y-4'}>
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -659,6 +939,13 @@ export default function RequestFlowSankey({
               >
                 Request Explorer <ArrowRight className="h-3.5 w-3.5" />
               </Link>
+              <RequestFlowDownloadButtons svgId={svgId} svgHref={svgDownloadUrl} fileBase={fileBase} />
+              <Link
+                href={focus ? exitHref : focusHref}
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                {focus ? 'Exit Focus' : 'Expand Flow'} {focus ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </Link>
             </div>
           </div>
 
@@ -666,7 +953,7 @@ export default function RequestFlowSankey({
             {SCOPES.map((item) => (
               <Link
                 key={item.key}
-                href={pageHref(config.key, metric, item.key)}
+                href={flowLinkHref(basePath, config.key, metric, item.key, viewOptions)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === scope
                     ? 'bg-slate-900 text-white'
@@ -681,7 +968,7 @@ export default function RequestFlowSankey({
             {FLOW_MODES.map((item) => (
               <Link
                 key={item.key}
-                href={pageHref(item.key, metric, scope)}
+                href={flowLinkHref(basePath, item.key, metric, scope, viewOptions)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === config.key
                     ? 'bg-slate-900 text-white'
@@ -696,7 +983,7 @@ export default function RequestFlowSankey({
             {METRICS.map((item) => (
               <Link
                 key={item.key}
-                href={pageHref(config.key, item.key, scope)}
+                href={flowLinkHref(basePath, config.key, item.key, scope, viewOptions)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === metric
                     ? 'bg-blue-100 text-blue-700'
@@ -707,67 +994,156 @@ export default function RequestFlowSankey({
               </Link>
             ))}
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Density</span>
+            {DENSITIES.map((item) => (
+              <Link
+                key={item.key}
+                href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, density: item.key })}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  item.key === activeDensity
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+            <span className="ml-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Top</span>
+            {TOP_N_OPTIONS.map((item) => (
+              <Link
+                key={item}
+                href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, topN: item })}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  item === normalizedTopN
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                {item}
+              </Link>
+            ))}
+            <Link
+              href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, collapseSmall: !collapseSmall })}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                collapseSmall
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+              }`}
+            >
+              {collapseSmall ? 'Other: On' : 'Other: Off'}
+            </Link>
+            {focus ? (
+              <>
+                <span className="ml-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Zoom</span>
+                <Link
+                  href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: clamp(normalizedZoom - 0.25, 0.5, 4) })}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                >
+                  <ZoomOut className="h-3.5 w-3.5" /> Out
+                </Link>
+                <Link
+                  href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: 1 })}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Fit
+                </Link>
+                <Link
+                  href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: clamp(normalizedZoom + 0.25, 0.5, 4) })}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                >
+                  <ZoomIn className="h-3.5 w-3.5" /> In
+                </Link>
+                {[2, 3, 4].map((item) => (
+                  <Link
+                    key={item}
+                    href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: item })}
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      Math.round(normalizedZoom * 100) === item * 100
+                        ? 'bg-slate-900 text-white'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
+                    }`}
+                  >
+                    {item * 100}%
+                  </Link>
+                ))}
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">{Math.round(normalizedZoom * 100)}%</span>
+              </>
+            ) : null}
+          </div>
         </div>
 
-        <svg viewBox="0 0 1000 460" className="h-[460px] w-full bg-gradient-to-br from-white via-slate-50 to-blue-50/50">
-          <defs>
-            <filter id="flow-shadow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#334155" floodOpacity="0.16" />
-            </filter>
-          </defs>
+        <div className="overflow-auto bg-gradient-to-br from-white via-slate-50 to-blue-50/50">
+          <svg
+            id={svgId}
+            width={diagramWidth}
+            height={diagramHeight}
+            viewBox={`0 0 ${diagramWidth} ${diagramHeight}`}
+            style={{
+              width: `${diagramWidth * normalizedZoom}px`,
+              height: `${diagramHeight * normalizedZoom}px`,
+              minWidth: `${diagramWidth * normalizedZoom}px`,
+            }}
+            className="block bg-gradient-to-br from-white via-slate-50 to-blue-50/50"
+          >
+            <defs>
+              <filter id="flow-shadow" x="-10%" y="-10%" width="120%" height="120%">
+                <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#334155" floodOpacity="0.16" />
+              </filter>
+            </defs>
 
-          {visibleLinks.map((link, index) => {
-            const source = positions.get(link.source)
-            const target = positions.get(link.target)
-            if (!source || !target) return null
-            const width = 2 + (metricValue(link, metric) / maxLink) * 24
-            const color = target.color
-            const sourceWidth = 150
-            const d = `M ${source.x + sourceWidth} ${source.y} C ${source.x + sourceWidth + 80} ${source.y}, ${target.x - 80} ${target.y}, ${target.x} ${target.y}`
-            return (
-              <a key={`${link.source}-${link.target}-${index}`} href={requestExplorerHref(link, enrichedRuns, scope)}>
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={color}
-                  strokeOpacity="0.32"
-                  strokeWidth={width}
-                  strokeLinecap="round"
-                  className="transition-opacity hover:opacity-80"
-                >
-                  <title>{tooltip(link)}</title>
-                </path>
-              </a>
-            )
-          })}
+            {visibleLinks.map((link, index) => {
+              const source = positions.get(link.source)
+              const target = positions.get(link.target)
+              if (!source || !target) return null
+              const width = 2 + (metricValue(link, metric) / maxLink) * 24
+              const color = target.color
+              const d = `M ${source.x + densityConfig.nodeWidth} ${source.y} C ${source.x + densityConfig.nodeWidth + 90} ${source.y}, ${target.x - 90} ${target.y}, ${target.x} ${target.y}`
+              return (
+                <a key={`${link.source}-${link.target}-${index}`} href={requestExplorerHref(link, enrichedRuns, scope)}>
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={color}
+                    strokeOpacity="0.34"
+                    strokeWidth={width}
+                    strokeLinecap="round"
+                    className="transition-opacity hover:opacity-80"
+                  >
+                    <title>{tooltip(link)}</title>
+                  </path>
+                </a>
+              )
+            })}
 
-          {config.layers.map((layer, index) => (
-            <text key={layer.key} x={layerX[index]} y="38" className="fill-slate-500 text-[11px] font-bold uppercase tracking-[0.16em]">
-              {layer.label}
-            </text>
-          ))}
+            {config.layers.map((layer, index) => (
+              <text key={layer.key} x={layerX[index]} y="38" className="fill-slate-500 text-[11px] font-bold uppercase tracking-[0.16em]">
+                {layer.label}
+              </text>
+            ))}
 
-          {layerGroups.flat().map((node) => {
-            const pos = positions.get(node.id)
-            if (!pos) return null
-            return (
-              <g key={node.id} transform={`translate(${pos.x}, ${pos.y - 25})`} filter="url(#flow-shadow)">
-                <rect width="150" height="50" rx="14" className="fill-white stroke-slate-200" />
-                <rect x="0" width="5" height="50" rx="2.5" fill={pos.color} />
-                <text x="16" y="20" className="fill-slate-950 text-[12px] font-semibold">
-                  {truncate(node.label, 20)}
-                </text>
-                <text x="16" y="36" className="fill-slate-500 text-[10.5px]">
-                  {metricLabel(node, metric)}
-                </text>
-                <title>{tooltip(node)}</title>
-              </g>
-            )
-          })}
-        </svg>
+            {layerGroups.flat().map((node) => {
+              const pos = positions.get(node.id)
+              if (!pos) return null
+              return (
+                <g key={node.id} transform={`translate(${pos.x}, ${pos.y - densityConfig.nodeHeight / 2})`} filter="url(#flow-shadow)">
+                  <rect width={densityConfig.nodeWidth} height={densityConfig.nodeHeight} rx="14" className="fill-white stroke-slate-200" />
+                  <rect x="0" width="5" height={densityConfig.nodeHeight} rx="2.5" fill={pos.color} />
+                  <text x="16" y={densityConfig.nodeHeight * 0.4} className="fill-slate-950 text-[12px] font-semibold">
+                    {truncate(node.label, densityConfig.labelMax)}
+                  </text>
+                  <text x="16" y={densityConfig.nodeHeight * 0.7} className="fill-slate-500 text-[10.5px]">
+                    {metricLabel(node, metric)}
+                  </text>
+                  <title>{tooltip(node)}</title>
+                </g>
+              )
+            })}
+          </svg>
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className={`grid gap-4 lg:grid-cols-4 ${focus ? 'hidden' : ''}`}>
         <InfoCard title="Top Prompts" icon={<Search className="h-4 w-4 text-blue-600" />}>
           <RankedList items={topPrompts} />
         </InfoCard>

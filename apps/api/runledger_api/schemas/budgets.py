@@ -41,6 +41,33 @@ class BudgetList(BaseModel):
     items: list[BudgetResponse]
 
 
+class BudgetRollupWorkspace(BaseModel):
+    workspace_id: str
+    workspace_name: str
+    budget_count: int
+    active_budget_count: int
+    limit_usd: Decimal
+    current_spend_usd: Decimal
+    remaining_usd: Decimal
+    pct_used: Decimal
+    exceeded_count: int
+    at_risk_count: int
+
+
+class BudgetRollupResponse(BaseModel):
+    scope: str
+    workspace_count: int
+    budget_count: int
+    active_budget_count: int
+    limit_usd: Decimal
+    current_spend_usd: Decimal
+    remaining_usd: Decimal
+    pct_used: Decimal
+    exceeded_count: int
+    at_risk_count: int
+    workspaces: list[BudgetRollupWorkspace]
+
+
 # ── Budget check (hot path) ───────────────────────────────────────────────────
 
 

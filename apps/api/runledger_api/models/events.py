@@ -161,6 +161,9 @@ class ProviderCall(Base):
     model_provider: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     input_tokens_details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     output_tokens_details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    savings_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
+    savings_category: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    savings_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
 
 class ToolCall(Base):

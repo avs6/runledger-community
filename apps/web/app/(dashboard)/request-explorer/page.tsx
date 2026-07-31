@@ -482,7 +482,7 @@ function RequestDetail({
 
       <Card className="p-5">
         <h2 className="text-base font-semibold text-slate-950">Request Lifecycle</h2>
-        <p className="mt-1 text-sm text-slate-500">The MVP explains the path with the fields RunLedger captures today.</p>
+        <p className="mt-1 text-sm text-slate-500">Explains the path with the fields RunLedger captures today.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <LifecycleCard title="Prompt" value={run.input_payload ? 'Captured' : 'Not captured'} detail={run.input_payload ? `${run.input_payload.length} input message(s)` : 'Enable Data Capture for prompt text.'} icon={MessageSquareText} />
           <LifecycleCard title="Cache" value={cacheStatus(run, gatewayMatch)} detail="Uses provider cached-token evidence and Gateway cache logs when available." icon={Sparkles} />
@@ -543,10 +543,6 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
-            <Search className="h-3.5 w-3.5" />
-            Phase 8 MVP
-          </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Request Explorer</h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
             Debug individual AI requests from prompt to route, model, tool calls, cost, latency, cache behavior, and final outcome.

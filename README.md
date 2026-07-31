@@ -11,7 +11,7 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger-community)
 
-[Documentation](docs/introduction.mdx) · [MCP Integrations](docs/integration-options-mcp.md) · [Product/Data Alignment](docs/product-data-alignment.md) · [Quickstart](#quickstart) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
+[Documentation](docs/introduction.mdx) · [AI Ops Dashboards](docs/observability/ai-ops-dashboards.mdx) · [MCP Integrations](docs/integration-options-mcp.md) · [Kafka Export](docs/integrations/kafka-export.mdx) · [Quickstart](#quickstart) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
 
 </div>
 
@@ -91,9 +91,11 @@ Everything below is **available today** in RunLedger Community. Click through fo
 <td width="33%" valign="top">
 
 ### 📊 Observability
+- [AI Ops dashboards](docs/observability/ai-ops-dashboards.mdx) - global, org, and workspace views
 - [Run Explorer](docs/observability/runs.mdx)
 - [Sessions](docs/observability/sessions.mdx)
 - [Analytics](docs/observability/analytics.mdx)
+- Request Flow / Sankey for prompt -> intent -> agent -> model -> tool -> result
 - [Product tour](docs/observability/product-tour.mdx) 📸
 
 </td>
@@ -212,13 +214,13 @@ with rl.context(end_user_id="u_123", feature_tag="support-chat"):
 
 Or point any OpenAI client at the gateway — change only `base_url` ([gateway guide](docs/gateway/overview.mdx)).
 
-**Populate demo data** — turn an empty stack into a fully-populated demo (multiple orgs, gateway routes, runs, budgets, outcomes, and pricing — including **priced local Ollama models**) by running every scenario through the API:
+**Populate demo data** — turn an empty stack into a fully-populated local Ollama demo (multiple orgs, gateway routes, runs, budgets, outcomes, and priced local-model telemetry) through the API:
 
 ```bash
 uv run python scripts/full_simulate.py
 ```
 
-It resets the cluster, imports [`scripts/pricing.yaml`](scripts/pricing.yaml), and runs every scenario under [`scripts/scenarios/`](scripts/scenarios) (organized in `hosted/` and `ollama/` folders — add your own). See [scripts/README.md](scripts/README.md) for the full flow and how to write scenarios.
+It resets the cluster, imports the Ollama-only [`scripts/pricing.yaml`](scripts/pricing.yaml), and runs the local scenarios under [`scripts/scenarios/ollama`](scripts/scenarios/ollama) with a 3x traffic multiplier. Use `--scenario-set all` only when you intentionally want the optional hosted-provider examples. See [scripts/README.md](scripts/README.md) for the full flow and how to write scenarios.
 
 ---
 

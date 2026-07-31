@@ -18,6 +18,7 @@ GET    /budgets/notifications    List notification channels
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
@@ -27,17 +28,19 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import get_current_user, get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.tenant import TenantRoleEnum, TenantUser, Workspace
 from runledger_api.schemas.budgets import (
     BreachList,
     BreachResponse,
     BudgetCheckResponse,
     BudgetCreate,
     BudgetList,
+    BudgetRollupResponse,
+    BudgetRollupWorkspace,
     BudgetResponse,
     NotificationCreate,
     NotificationList,
@@ -54,6 +57,53 @@ router = APIRouter(
     prefix="/budgets", tags=["budgets"], dependencies=[Depends(management_rate_limit)]
 )
 log = structlog.get_logger()
+_ORG_BUDGET_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
+
+
+async def _budget_rollup_workspace_ids(
+    *,
+    scope: str,
+    workspace: Workspace,
+    user: Any,
+    db: AsyncSession,
+) -> list[uuid.UUID]:
+    if scope == "workspace":
+        return [workspace.id]
+
+    if user is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A dashboard user session is required for org or platform budget rollups",
+        )
+
+    if scope == "org":
+        if not user.is_platform_admin:
+            tenant_user = (
+                await db.execute(
+                    select(TenantUser).where(
+                        TenantUser.user_id == user.id,
+                        TenantUser.tenant_id == workspace.tenant_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if tenant_user is None or tenant_user.role not in _ORG_BUDGET_ROLES:
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN,
+                    "Organization admin access required for org budget rollups",
+                )
+        result = await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id))
+        return list(result.scalars().all())
+
+    if scope == "platform":
+        if not user.is_platform_admin:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Platform admin access required for platform budget rollups",
+            )
+        result = await db.execute(select(Workspace.id))
+        return list(result.scalars().all())
+
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform")
 
 
 # ── POST /budgets ─────────────────────────────────────────────────────────────
@@ -169,6 +219,136 @@ async def list_budgets(
 # ── GET /budgets/check ────────────────────────────────────────────────────────
 # IMPORTANT: this route must be defined BEFORE /budgets/{id}/... routes
 # so FastAPI doesn't treat "check" as a budget ID.
+
+
+@router.get("/rollup", response_model=BudgetRollupResponse)
+async def budget_rollup(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    user: Annotated[Any, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    scope: Annotated[str, Query(pattern="^(workspace|org|platform)$")] = "workspace",
+    include_inactive: Annotated[bool, Query()] = False,
+) -> BudgetRollupResponse:
+    """Roll budget usage up across workspace, organization, or platform scope."""
+    workspace_ids = await _budget_rollup_workspace_ids(
+        scope=scope,
+        workspace=workspace,
+        user=user,
+        db=db,
+    )
+    if not workspace_ids:
+        return BudgetRollupResponse(
+            scope=scope,
+            workspace_count=0,
+            budget_count=0,
+            active_budget_count=0,
+            limit_usd=Decimal(0),
+            current_spend_usd=Decimal(0),
+            remaining_usd=Decimal(0),
+            pct_used=Decimal(0),
+            exceeded_count=0,
+            at_risk_count=0,
+            workspaces=[],
+        )
+
+    workspace_rows = list(
+        (
+            await db.execute(
+                select(Workspace.id, Workspace.name)
+                .where(Workspace.id.in_(workspace_ids))
+                .order_by(Workspace.name.asc())
+            )
+        ).all()
+    )
+    workspaces = {row.id: row.name for row in workspace_rows}
+
+    budget_stmt = select(Budget).where(Budget.workspace_id.in_(workspace_ids))
+    if not include_inactive:
+        budget_stmt = budget_stmt.where(Budget.is_active.is_(True))
+    budgets = list((await db.execute(budget_stmt)).scalars())
+
+    per_workspace = {
+        workspace_id: {
+            "workspace_id": workspace_id,
+            "workspace_name": name,
+            "budget_count": 0,
+            "active_budget_count": 0,
+            "limit_usd": Decimal(0),
+            "current_spend_usd": Decimal(0),
+            "exceeded_count": 0,
+            "at_risk_count": 0,
+        }
+        for workspace_id, name in workspaces.items()
+    }
+
+    total_budget_count = 0
+    total_active_budget_count = 0
+    total_limit = Decimal(0)
+    total_spend = Decimal(0)
+    total_exceeded = 0
+    total_at_risk = 0
+
+    for budget in budgets:
+        bucket = per_workspace.get(budget.workspace_id)
+        if bucket is None:
+            continue
+        bucket["budget_count"] += 1
+        total_budget_count += 1
+        if not budget.is_active:
+            continue
+
+        spend = await get_budget_spend(redis, budget.id, budget.period_type)
+        pct = (spend / budget.limit_usd * 100) if budget.limit_usd > 0 else Decimal(0)
+        bucket["active_budget_count"] += 1
+        bucket["limit_usd"] += budget.limit_usd
+        bucket["current_spend_usd"] += spend
+        total_active_budget_count += 1
+        total_limit += budget.limit_usd
+        total_spend += spend
+        if pct >= 100:
+            bucket["exceeded_count"] += 1
+            total_exceeded += 1
+        elif pct >= 80:
+            bucket["at_risk_count"] += 1
+            total_at_risk += 1
+
+    rollup_workspaces: list[BudgetRollupWorkspace] = []
+    for bucket in per_workspace.values():
+        limit = bucket["limit_usd"]
+        spend = bucket["current_spend_usd"]
+        remaining = max(limit - spend, Decimal(0))
+        pct = (spend / limit * 100) if limit > 0 else Decimal(0)
+        rollup_workspaces.append(
+            BudgetRollupWorkspace(
+                workspace_id=str(bucket["workspace_id"]),
+                workspace_name=str(bucket["workspace_name"]),
+                budget_count=int(bucket["budget_count"]),
+                active_budget_count=int(bucket["active_budget_count"]),
+                limit_usd=limit,
+                current_spend_usd=spend,
+                remaining_usd=remaining,
+                pct_used=pct,
+                exceeded_count=int(bucket["exceeded_count"]),
+                at_risk_count=int(bucket["at_risk_count"]),
+            )
+        )
+
+    total_remaining = max(total_limit - total_spend, Decimal(0))
+    total_pct = (total_spend / total_limit * 100) if total_limit > 0 else Decimal(0)
+    return BudgetRollupResponse(
+        scope=scope,
+        workspace_count=len(workspace_ids),
+        budget_count=total_budget_count,
+        active_budget_count=total_active_budget_count,
+        limit_usd=total_limit,
+        current_spend_usd=total_spend,
+        remaining_usd=total_remaining,
+        pct_used=total_pct,
+        exceeded_count=total_exceeded,
+        at_risk_count=total_at_risk,
+        workspaces=rollup_workspaces,
+    )
 
 
 @router.get("/check", response_model=BudgetCheckResponse)

@@ -46,6 +46,13 @@ IMPLEMENTATION*.md
 rbac-plan.md
 RUNLEDGER-TODO.md
 
+# Local integration state with generated API keys
+scripts/.localai-runledger.json
+scripts/.localai-runledger.env
+scripts/localai/*.local.md
+scripts/localai/*.local.json
+scripts/localai/*.local.env
+
 # TypeScript incremental build info
 apps/web/tsconfig.tsbuildinfo
 

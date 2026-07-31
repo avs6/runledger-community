@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ArrowRight, Banknote, Flame, LineChart, PiggyBank, Target, TrendingDown, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBudgets, getRunFlow } from '@/lib/api'
+import { getBudgetRollup, getRunFlow } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   CostBreakdownBars,
@@ -14,7 +14,7 @@ import {
   type SavingsCategoryPoint,
 } from '@/components/dashboard/FinOpsCharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Budget, RunFlowRecord } from '@/types/api'
+import type { BudgetRollupResponse, BudgetRollupWorkspace, RunFlowRecord } from '@/types/api'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
 
@@ -27,6 +27,39 @@ type RoiRow = {
 }
 
 const heatmapColumns = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const savingsMeta: Record<string, { name: string; color: string; note: string }> = {
+  prompt_compression: {
+    name: 'Prompt compression',
+    color: '#f59e0b',
+    note: 'Savings from reducing prompt token volume before the provider call.',
+  },
+  cache_hits: {
+    name: 'Cache hits',
+    color: '#2563eb',
+    note: 'Savings from reused cached input tokens or gateway cache hits.',
+  },
+  smart_routing: {
+    name: 'Smart routing',
+    color: '#7c3aed',
+    note: 'Savings from choosing a cheaper eligible model or route.',
+  },
+  local_models: {
+    name: 'Local models',
+    color: '#059669',
+    note: 'Savings attributed to local or self-hosted model lanes.',
+  },
+  duplicate_detection: {
+    name: 'Duplicate detection',
+    color: '#0f766e',
+    note: 'Savings from avoiding repeated work.',
+  },
+  tool_optimization: {
+    name: 'Tool optimization',
+    color: '#0891b2',
+    note: 'Savings from fewer or cheaper tool hops.',
+  },
+}
 
 function parseMoney(value: string | null | undefined) {
   const parsed = Number.parseFloat(value ?? '0')
@@ -107,21 +140,33 @@ function buildRoiRows(items: RunFlowRecord[]): RoiRow[] {
 }
 
 function buildSavings(items: RunFlowRecord[]): SavingsCategoryPoint[] {
-  const cache = items.reduce((sum, item) => sum + (item.cached_input_tokens > 0 ? parseMoney(item.savings_usd) : 0), 0)
-  const local = items.reduce((sum, item) => {
-    const text = `${item.primary_model ?? ''} ${item.provider ?? ''}`.toLowerCase()
-    return text.includes('llama') || text.includes('local') || text.includes('ollama') ? sum + parseMoney(item.savings_usd) : sum
-  }, 0)
+  const buckets = new Map<string, number>()
+  for (const item of items) {
+    const amount = parseMoney(item.savings_usd)
+    if (amount <= 0) continue
+    let category = item.savings_category
+    if (!category) {
+      const text = `${item.primary_model ?? ''} ${item.provider ?? ''}`.toLowerCase()
+      if (item.cached_input_tokens > 0) category = 'cache_hits'
+      else if (text.includes('llama') || text.includes('local') || text.includes('ollama')) category = 'local_models'
+      else category = 'smart_routing'
+    }
+    buckets.set(category, (buckets.get(category) ?? 0) + amount)
+  }
+
   const total = items.reduce((sum, item) => sum + parseMoney(item.savings_usd), 0)
-  const remaining = Math.max(total - cache - local, 0)
-  return [
-    { name: 'Cache hits', value: cache, color: '#2563eb', note: 'Savings from reused cached input tokens.' },
-    { name: 'Smart routing', value: remaining * 0.36, color: '#7c3aed', note: 'Directional savings from cheaper eligible model routes.' },
-    { name: 'Prompt compression', value: remaining * 0.24, color: '#f59e0b', note: 'Directional savings from reduced prompt token volume.' },
-    { name: 'Local models', value: local, color: '#059669', note: 'Savings attributed to local or self-hosted model lanes.' },
-    { name: 'Duplicate detection', value: remaining * 0.18, color: '#0f766e', note: 'Directional savings from avoiding repeated work.' },
-    { name: 'Tool optimization', value: remaining * 0.22, color: '#0891b2', note: 'Directional savings from fewer or cheaper tool hops.' },
-  ]
+  const categorized = Array.from(buckets.values()).reduce((sum, value) => sum + value, 0)
+  const uncategorized = Math.max(total - categorized, 0)
+  if (uncategorized > 0) {
+    buckets.set('smart_routing', (buckets.get('smart_routing') ?? 0) + uncategorized)
+  }
+
+  return Object.entries(savingsMeta).map(([key, meta]) => ({
+    name: meta.name,
+    value: buckets.get(key) ?? 0,
+    color: meta.color,
+    note: meta.note,
+  }))
 }
 
 function buildHeatmap(items: RunFlowRecord[]): HeatmapRow[] {
@@ -140,9 +185,11 @@ function buildHeatmap(items: RunFlowRecord[]): HeatmapRow[] {
     .slice(0, 8)
 }
 
-function budgetStatus(budget: Budget) {
-  const pct = parseMoney(budget.pct_used)
-  if (!budget.is_active) return { label: 'Paused', className: 'bg-slate-100 text-slate-600' }
+function budgetRollupStatus(row: Pick<BudgetRollupWorkspace, 'active_budget_count' | 'pct_used' | 'exceeded_count' | 'at_risk_count'>) {
+  const pct = parseMoney(row.pct_used)
+  if (row.active_budget_count === 0) return { label: 'Missing', className: 'bg-slate-100 text-slate-600' }
+  if (row.exceeded_count > 0) return { label: 'Exceeded', className: 'bg-rose-100 text-rose-700' }
+  if (row.at_risk_count > 0) return { label: 'At risk', className: 'bg-amber-100 text-amber-700' }
   if (pct >= 100) return { label: 'Exceeded', className: 'bg-rose-100 text-rose-700' }
   if (pct >= 80) return { label: 'At risk', className: 'bg-amber-100 text-amber-700' }
   return { label: 'Healthy', className: 'bg-emerald-100 text-emerald-700' }
@@ -179,7 +226,7 @@ export default async function CostSavingsPage({
     ? String(searchParams?.dimension)
     : 'Team'
   const win = getDashboardWindow(searchParams?.range ?? '30d')
-  const [flow, budgetsResult] = await Promise.all([
+  const [flow, budgetRollup] = await Promise.all([
     getRunFlow(session.apiKey, {
       scope: selectedScope,
       mode: 'team-app-agent-model-cost',
@@ -188,7 +235,7 @@ export default async function CostSavingsPage({
       from: win.from,
       to: win.to,
     }),
-    getBudgets(session.apiKey).catch(() => ({ items: [] })),
+    getBudgetRollup(session.apiKey, selectedScope).catch(() => null as BudgetRollupResponse | null),
   ])
 
   const items = flow.items
@@ -202,16 +249,13 @@ export default async function CostSavingsPage({
   const savings = buildSavings(items)
   const heatmapRows = buildHeatmap(items)
   const recommendation = nextOptimization(roiRows)
-  const budgets = budgetsResult.items
+  const budgetRows = budgetRollup?.workspaces ?? []
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
-            Phase 7
-          </span>
-          <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Cost & Savings</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Cost & Savings</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Trace spend by business dimension, explain savings, and identify the next optimization target.
           </p>
@@ -356,7 +400,7 @@ export default async function CostSavingsPage({
             <TrendingDown className="h-4 w-4 text-emerald-600" /> Savings Attribution
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Cache and local model savings are telemetry-backed. Routing, prompt compression, duplicate detection, and tool optimization are directional until realized savings categories are stored per request.
+            Uses realized savings category/reason codes when present, with telemetry fallback for older cached or local-model traffic.
           </p>
         </CardHeader>
         <CardContent>
@@ -380,16 +424,20 @@ export default async function CostSavingsPage({
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <Wallet className="h-4 w-4 text-blue-600" /> Budget Overlay
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Current workspace budget guardrails. Org/platform budget rollups can layer in once budgets are scoped beyond workspace API keys.</p>
+            <p className="text-xs text-muted-foreground">
+              {budgetRollup
+                ? `${scopeLabel(selectedScope)} guardrails across ${budgetRollup.workspace_count.toLocaleString()} workspace${budgetRollup.workspace_count === 1 ? '' : 's'}: ${money(parseMoney(budgetRollup.current_spend_usd))} used of ${money(parseMoney(budgetRollup.limit_usd))}.`
+                : 'Budget rollup is unavailable for this scope.'}
+            </p>
           </CardHeader>
           <CardContent className="p-0">
-            {budgets.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">No budgets configured for this workspace.</div>
+            {budgetRows.length === 0 ? (
+              <div className="px-5 py-12 text-center text-sm text-muted-foreground">No budget rollup rows for this scope.</div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-y border-slate-200 bg-slate-50/80">
-                    {['Scope', 'Limit', 'Used', 'Remaining', 'Alert'].map((heading) => (
+                    {['Workspace', 'Budgets', 'Limit', 'Used', 'Remaining', 'Alert'].map((heading) => (
                       <th key={heading} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                         {heading}
                       </th>
@@ -397,14 +445,17 @@ export default async function CostSavingsPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {budgets.map((budget) => {
-                    const used = parseMoney(budget.current_spend_usd)
-                    const limit = parseMoney(budget.limit_usd)
-                    const remaining = Math.max(limit - used, 0)
-                    const status = budgetStatus(budget)
+                  {budgetRows.map((row) => {
+                    const used = parseMoney(row.current_spend_usd)
+                    const limit = parseMoney(row.limit_usd)
+                    const remaining = parseMoney(row.remaining_usd)
+                    const status = budgetRollupStatus(row)
                     return (
-                      <tr key={budget.id} className="hover:bg-blue-50/40">
-                        <td className="px-4 py-3 font-semibold text-slate-950">{budget.scope_type}</td>
+                      <tr key={row.workspace_id} className="hover:bg-blue-50/40">
+                        <td className="px-4 py-3 font-semibold text-slate-950">{row.workspace_name}</td>
+                        <td className="px-4 py-3 font-mono text-xs">
+                          {row.active_budget_count}/{row.budget_count}
+                        </td>
                         <td className="px-4 py-3 font-mono text-xs">{money(limit)}</td>
                         <td className="px-4 py-3 font-mono text-xs">{money(used)}</td>
                         <td className="px-4 py-3 font-mono text-xs">{money(remaining)}</td>

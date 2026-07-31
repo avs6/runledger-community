@@ -1,0 +1,70 @@
+---
+title: "Kafka Export"
+description: "Stream RunLedger run lifecycle events to Kafka for downstream analytics, SIEM, and warehouse pipelines."
+---
+
+Kafka export lets an org admin stream normalized RunLedger events out of a workspace.
+It is useful when another platform owns long-term analytics, security monitoring, or
+lakehouse ingestion.
+
+## What is exported
+
+RunLedger currently exports run lifecycle events:
+
+| Event type | When it fires | Typical topic |
+|---|---|---|
+| `run.completed` | A run reaches a successful terminal state | `runledger.run.completed` |
+| `run.failed` | A run reaches a failed terminal state | `runledger.run.failed` |
+
+Each message includes workspace, run, provider/model, token, cost, latency, feature,
+session, end-user, and outcome-oriented metadata when available.
+
+## Configure from the UI
+
+1. Open **Control Plane -> Integrations**.
+2. Create a Kafka export config.
+3. Enter bootstrap servers, topic prefix, security protocol, and optional SASL/SSL settings.
+4. Choose enabled event types.
+5. Save, then use **Test** to produce a connectivity event.
+6. Watch the delivery log panel for success or failure.
+
+## API
+
+All Kafka export management endpoints require an org-admin or platform-admin dashboard
+session key.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/integrations/kafka/configs` | List workspace export configs |
+| `POST` | `/integrations/kafka/configs` | Create a config |
+| `PUT` | `/integrations/kafka/configs/{config_id}` | Update a config |
+| `DELETE` | `/integrations/kafka/configs/{config_id}` | Delete a config |
+| `POST` | `/integrations/kafka/configs/{config_id}/test` | Send a test event |
+| `GET` | `/integrations/kafka/configs/{config_id}/deliveries` | View recent delivery attempts |
+
+Example:
+
+```bash
+curl -X POST http://localhost:8201/integrations/kafka/configs \
+  -H "Authorization: Bearer $RUNLEDGER_SESSION_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "Local Kafka",
+    "bootstrap_servers": "host.docker.internal:9092",
+    "topic_prefix": "runledger",
+    "security_protocol": "PLAINTEXT",
+    "event_types": ["run.completed", "run.failed"]
+  }'
+```
+
+## Local development notes
+
+Kafka is optional infrastructure. The core stack does not require it to boot. For a
+local demo, bring up Kafka separately, configure the integration, then run:
+
+```bash
+uv run python scripts/full_simulate.py --no-clean --traffic-multiplier 2
+```
+
+The simulator generates many completed and failed runs, which will exercise export
+delivery as soon as a Kafka config is enabled.

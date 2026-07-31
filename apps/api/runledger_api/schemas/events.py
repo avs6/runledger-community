@@ -65,6 +65,9 @@ class ProviderCallEvent(BaseModel):
     cost_usd: Decimal | None = None
     status: str
     error_type: str | None = None
+    savings_usd: Decimal | None = None
+    savings_category: str | None = None
+    savings_reason: str | None = None
 
 
 class ToolCallEvent(BaseModel):

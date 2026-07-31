@@ -144,6 +144,8 @@ export interface RunFlowRecord {
   latency_ms: number | null
   success: boolean
   savings_usd: string
+  savings_category: string | null
+  savings_reason: string | null
   started_at: string
 }
 
@@ -251,6 +253,33 @@ export interface Budget {
 
 export interface BudgetList {
   items: Budget[]
+}
+
+export interface BudgetRollupWorkspace {
+  workspace_id: string
+  workspace_name: string
+  budget_count: number
+  active_budget_count: number
+  limit_usd: string
+  current_spend_usd: string
+  remaining_usd: string
+  pct_used: string
+  exceeded_count: number
+  at_risk_count: number
+}
+
+export interface BudgetRollupResponse {
+  scope: 'workspace' | 'org' | 'platform'
+  workspace_count: number
+  budget_count: number
+  active_budget_count: number
+  limit_usd: string
+  current_spend_usd: string
+  remaining_usd: string
+  pct_used: string
+  exceeded_count: number
+  at_risk_count: number
+  workspaces: BudgetRollupWorkspace[]
 }
 
 export interface BudgetCheckResponse {

@@ -7,7 +7,7 @@ They are auto-discovered by `scripts/full_simulate.py`:
 - `01_coding_assistant.py` - local coding assistant with GPU-spend budgets, compiler/tool filtering/skill injection, intelligent routing, and bug-resolved outcomes.
 - `02_local_rag.py` - local RAG with generation-vs-embedding cost split.
 - `03_reasoning_agent.py` - output-heavy reasoning workloads comparing 14B and 8B models.
-- `04_chat_support.py` - local support bot comparable to the hosted support scenario.
+- `04_chat_support.py` - dense HelpDesk Local demo with expanded Ollama model mix, rich agent/tool/outcome metadata, OTLP trace ingestion, prompt versions, eval dataset, and experiment records.
 
 Requirements:
 

@@ -12,6 +12,15 @@ import {
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const KNOWN_MODELS = [
+  { label: 'Llama 3.1 8B', value: 'llama3.1:8b', provider: 'Ollama' },
+  { label: 'Llama 3.2', value: 'llama3.2', provider: 'Ollama' },
+  { label: 'Llama 3.2 3B', value: 'llama3.2:3b', provider: 'Ollama' },
+  { label: 'DeepSeek R1 14B', value: 'deepseek-r1:14b', provider: 'Ollama' },
+  { label: 'DeepSeek R1 8B', value: 'deepseek-r1:8b', provider: 'Ollama' },
+  { label: 'Qwen 2.5 Coder 14B', value: 'qwen2.5-coder:14b', provider: 'Ollama' },
+  { label: 'Qwen 3.5', value: 'qwen3.5:latest', provider: 'Ollama' },
+  { label: 'Gemma 3', value: 'gemma3:latest', provider: 'Ollama' },
+  { label: 'Nomic Embed Text', value: 'nomic-embed-text', provider: 'Ollama' },
   { label: 'GPT-4o', value: 'gpt-4o', provider: 'OpenAI' },
   { label: 'GPT-4o Mini', value: 'gpt-4o-mini', provider: 'OpenAI' },
   { label: 'GPT-4 Turbo', value: 'gpt-4-turbo', provider: 'OpenAI' },
@@ -23,8 +32,6 @@ const KNOWN_MODELS = [
   { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5', provider: 'Anthropic' },
   { label: 'Gemini 1.5 Pro', value: 'gemini-1.5-pro', provider: 'Google' },
   { label: 'Gemini 1.5 Flash', value: 'gemini-1.5-flash', provider: 'Google' },
-  { label: 'Llama 3.2 3B', value: 'llama3.2:3b', provider: 'Ollama' },
-  { label: 'Llama 3.1', value: 'llama3.1', provider: 'Ollama' },
   { label: 'Mistral', value: 'mistral', provider: 'Ollama' },
   { label: 'Phi-4', value: 'phi4', provider: 'Ollama' },
   { label: 'Qwen 2.5', value: 'qwen2.5', provider: 'Ollama' },

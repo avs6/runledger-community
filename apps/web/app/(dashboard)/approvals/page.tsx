@@ -132,7 +132,7 @@ export default function ApprovalsPage() {
   if (!isWorkspaceAdmin) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Approvals</h1>
+        <h1 className="text-2xl font-bold text-slate-950">Approvals</h1>
         <p className="mt-4 text-sm text-slate-500">Approvals require workspace-admin access.</p>
       </div>
     )
@@ -143,8 +143,8 @@ export default function ApprovalsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Approvals</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <h1 className="text-2xl font-bold text-slate-950">Approvals</h1>
+          <p className="mt-1 text-sm text-slate-600">
             Governance workflow for sensitive actions — budget increases, production deploys, and more
           </p>
         </div>
@@ -163,30 +163,30 @@ export default function ApprovalsPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
-              className={`rounded-xl border p-3 text-left transition-colors ${
+              className={`rounded-xl border p-3 text-left shadow-sm transition-colors ${
                 statusFilter === s
-                  ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20'
-                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  ? 'border-blue-300 bg-blue-50'
+                  : 'border-slate-300 bg-white/90 hover:bg-blue-50/45'
               }`}
             >
-              <div className="text-2xl font-bold">{summary[s]}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 capitalize mt-0.5">{s}</div>
+              <div className="text-2xl font-bold text-slate-950">{summary[s]}</div>
+              <div className="mt-0.5 text-xs capitalize text-slate-600">{s}</div>
             </button>
           ))}
         </div>
       )}
 
       {/* Approvals table */}
-      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="p-4 border-b dark:border-gray-700 flex items-center gap-3">
-          <h2 className="text-sm font-semibold flex-1">
+      <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 shadow-sm">
+        <div className="flex items-center gap-3 border-b border-slate-200 p-4">
+          <h2 className="flex-1 text-sm font-semibold text-slate-950">
             {statusFilter ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Approvals` : 'All Approvals'}
-            {!loading && <span className="ml-2 text-gray-400 font-normal">({total})</span>}
+            {!loading && <span className="ml-2 font-normal text-slate-500">({total})</span>}
           </h2>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="text-xs border rounded px-2 py-1 bg-white dark:bg-gray-800 dark:border-gray-600"
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800"
           >
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
@@ -197,16 +197,16 @@ export default function ApprovalsPage() {
         </div>
 
         {loading ? (
-          <div className="divide-y dark:divide-gray-700">
+          <div className="divide-y divide-slate-200">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="p-4 animate-pulse">
-                <div className="h-4 bg-gray-100 dark:bg-gray-700 rounded w-1/3 mb-2" />
-                <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-1/2" />
+                <div className="mb-2 h-4 w-1/3 rounded bg-slate-100" />
+                <div className="h-3 w-1/2 rounded bg-slate-100" />
               </div>
             ))}
           </div>
         ) : approvals.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+          <div className="p-8 text-center text-sm text-slate-600">
             No approvals found.
             <br />
             <span className="text-xs mt-1 block">
@@ -214,7 +214,7 @@ export default function ApprovalsPage() {
             </span>
           </div>
         ) : (
-          <div className="divide-y dark:divide-gray-700">
+          <div className="divide-y divide-slate-200">
             {approvals.map(approval => {
               const filteredEntries = Object.entries(approval.request).filter(([k]) => k !== '_reason')
               const requestContextStr: string | null = filteredEntries.length > 0
@@ -222,11 +222,11 @@ export default function ApprovalsPage() {
                 : null
               const reasonStr = approval.request._reason != null ? String(approval.request._reason) : null
               return (
-              <div key={approval.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+              <div key={approval.id} className="p-4 text-slate-800 hover:bg-blue-50/45">
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm">
+                      <span className="text-sm font-medium text-slate-950">
                         {REQUEST_TYPE_LABELS[approval.request_type] ?? approval.request_type}
                       </span>
                       <span
@@ -237,7 +237,7 @@ export default function ApprovalsPage() {
                         {approval.status}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-0.5">
+                    <div className="mt-1 space-y-0.5 text-xs text-slate-600">
                       {approval.requested_by && (
                         <div>Requested by: <span className="font-mono">{approval.requested_by}</span></div>
                       )}
@@ -255,7 +255,7 @@ export default function ApprovalsPage() {
                       )}
                       {/* Request context */}
                       {requestContextStr !== null && (
-                        <div className="font-mono text-xs bg-gray-100 dark:bg-gray-700/50 rounded px-2 py-1 mt-1 max-w-lg truncate">
+                        <div className="mt-1 max-w-lg truncate rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">
                           {requestContextStr}
                         </div>
                       )}
@@ -299,15 +299,15 @@ export default function ApprovalsPage() {
       {/* Create approval modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-semibold">Request Approval</h3>
+          <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 text-slate-800 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-950">Request Approval</h3>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1">Request Type</label>
                 <select
                   value={createType}
                   onChange={e => setCreateType(e.target.value as ApprovalRequestType)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:border-gray-600"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
                 >
                   {REQUEST_TYPES.map(t => (
                     <option key={t} value={t}>{REQUEST_TYPE_LABELS[t]}</option>
@@ -321,19 +321,19 @@ export default function ApprovalsPage() {
                   onChange={e => setCreateReason(e.target.value)}
                   placeholder="Why is this change needed?"
                   rows={3}
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 resize-none"
+                  className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
                 />
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded p-2">
+              <div className="rounded bg-slate-50 p-2 text-xs text-slate-600">
                 Once approved, use the approval ID when performing the sensitive action.
-                For example, pass <code className="bg-gray-200 dark:bg-gray-600 rounded px-1">?approval_id=&lt;id&gt;</code> to{' '}
-                <code className="bg-gray-200 dark:bg-gray-600 rounded px-1">POST /prompts/&#123;name&#125;/promote</code>.
+                For example, pass <code className="rounded bg-slate-200 px-1">?approval_id=&lt;id&gt;</code> to{' '}
+                <code className="rounded bg-slate-200 px-1">POST /prompts/&#123;name&#125;/promote</code>.
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <button
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 text-sm border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -352,8 +352,8 @@ export default function ApprovalsPage() {
       {/* Decision modal */}
       {deciding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h3 className="text-lg font-semibold capitalize">
+          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 text-slate-800 shadow-xl">
+            <h3 className="text-lg font-semibold capitalize text-slate-950">
               {deciding.action} approval?
             </h3>
             <div>
@@ -363,13 +363,13 @@ export default function ApprovalsPage() {
                 onChange={e => setDecisionNote(e.target.value)}
                 placeholder="Reason for your decision…"
                 rows={3}
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 resize-none"
+                className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
               />
             </div>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setDeciding(null)}
-                className="px-4 py-2 text-sm border dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
               >
                 Back
               </button>

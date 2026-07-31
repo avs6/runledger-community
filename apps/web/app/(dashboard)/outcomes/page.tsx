@@ -83,15 +83,15 @@ export default function OutcomesPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Outcomes &amp; ROI</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <h1 className="text-2xl font-bold text-slate-950">Outcomes &amp; ROI</h1>
+          <p className="mt-1 text-sm text-slate-600">
             Business outcome tracking — cost-per-success, success rates, and ROI by workflow
           </p>
         </div>
         <select
           value={windowDays}
           onChange={e => setWindowDays(Number(e.target.value))}
-          className="text-sm border rounded px-2 py-1 bg-white dark:bg-gray-800 dark:border-gray-600"
+          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 shadow-sm"
         >
           {WINDOWS.map(w => (
             <option key={w} value={w}>Last {w}d</option>
@@ -102,7 +102,7 @@ export default function OutcomesPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-24 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />
           ))}
         </div>
       ) : (
@@ -113,10 +113,10 @@ export default function OutcomesPage() {
               {summary.items.map(item => (
                 <div
                   key={item.outcome_type}
-                  className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4 space-y-2"
+                  className="space-y-2 rounded-xl border border-slate-300 bg-white/90 p-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-300 truncate">
+                    <span className="truncate text-sm font-medium text-slate-700">
                       {item.outcome_type}
                     </span>
                     <span
@@ -131,15 +131,15 @@ export default function OutcomesPage() {
                       {(parseFloat(item.success_rate) * 100).toFixed(1)}% success
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
                     <div>
-                      <div className="text-lg font-bold text-gray-900 dark:text-white">
+                      <div className="text-lg font-bold text-slate-950">
                         {item.count}
                       </div>
                       <div>outcomes</div>
                     </div>
                     <div>
-                      <div className="text-lg font-bold text-gray-900 dark:text-white">
+                      <div className="text-lg font-bold text-slate-950">
                         {item.cost_per_success_usd
                           ? `$${parseFloat(item.cost_per_success_usd).toFixed(4)}`
                           : '—'}
@@ -162,19 +162,19 @@ export default function OutcomesPage() {
           )}
 
           {summary && summary.items.length === 0 && (
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="rounded-xl border border-slate-300 bg-white/90 p-8 text-center text-slate-600 shadow-sm">
               No outcomes recorded in the last {windowDays} days.
               <br />
               <span className="text-xs mt-1 block">
-                Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">rl.outcome()</code> in your SDK to start tracking.
+                Use <code className="rounded bg-slate-100 px-1">rl.outcome()</code> in your SDK to start tracking.
               </span>
             </div>
           )}
 
           {/* Trend chart */}
           {trendChartData.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4">
-              <h2 className="text-sm font-semibold mb-3">
+            <div className="rounded-xl border border-slate-300 bg-white/90 p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-semibold text-slate-950">
                 Success Rate Trend — {trendTypes[0]}
               </h2>
               <ResponsiveContainer width="100%" height={220}>
@@ -198,13 +198,13 @@ export default function OutcomesPage() {
 
           {/* Workflow ROI table */}
           {workflows && workflows.items.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl overflow-hidden">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h2 className="text-sm font-semibold">Workflow ROI by Feature Tag</h2>
+            <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 shadow-sm">
+              <div className="border-b border-slate-200 p-4">
+                <h2 className="text-sm font-semibold text-slate-950">Workflow ROI by Feature Tag</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase">
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
                       <th className="px-4 py-2 text-left">Feature Tag</th>
                       <th className="px-4 py-2 text-left">Outcome Type</th>
@@ -215,17 +215,17 @@ export default function OutcomesPage() {
                       <th className="px-4 py-2 text-right">ROI</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y dark:divide-gray-700">
+                  <tbody className="divide-y divide-slate-200">
                     {workflows.items.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                        <td className="px-4 py-2 font-mono text-xs">{row.feature_tag}</td>
-                        <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{row.outcome_type}</td>
-                        <td className="px-4 py-2 text-right">{row.run_count}</td>
-                        <td className="px-4 py-2 text-right">
+                      <tr key={i} className="text-slate-800 hover:bg-blue-50/45">
+                        <td className="px-4 py-2 font-mono text-xs text-slate-950">{row.feature_tag}</td>
+                        <td className="px-4 py-2 text-slate-700">{row.outcome_type}</td>
+                        <td className="px-4 py-2 text-right text-slate-950">{row.run_count}</td>
+                        <td className="px-4 py-2 text-right text-slate-950">
                           {(parseFloat(row.success_rate) * 100).toFixed(1)}%
                         </td>
-                        <td className="px-4 py-2 text-right">${parseFloat(row.total_cost_usd).toFixed(4)}</td>
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 text-right text-slate-950">${parseFloat(row.total_cost_usd).toFixed(4)}</td>
+                        <td className="px-4 py-2 text-right text-slate-950">
                           {row.total_value_usd ? `$${parseFloat(row.total_value_usd).toFixed(2)}` : '—'}
                         </td>
                         <td className={`px-4 py-2 text-right font-medium ${
@@ -247,13 +247,13 @@ export default function OutcomesPage() {
 
           {/* Quality correlation */}
           {quality && quality.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl overflow-hidden">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h2 className="text-sm font-semibold">Quality Score vs Success Rate Correlation</h2>
+            <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 shadow-sm">
+              <div className="border-b border-slate-200 p-4">
+                <h2 className="text-sm font-semibold text-slate-950">Quality Score vs Success Rate Correlation</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase">
+                  <thead className="bg-slate-100 text-xs uppercase text-slate-600">
                     <tr>
                       <th className="px-4 py-2 text-left">Outcome Type</th>
                       <th className="px-4 py-2 text-right">Avg Score</th>
@@ -261,17 +261,17 @@ export default function OutcomesPage() {
                       <th className="px-4 py-2 text-right">Sample Count</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y dark:divide-gray-700">
+                  <tbody className="divide-y divide-slate-200">
                     {quality.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                        <td className="px-4 py-2">{row.outcome_type}</td>
-                        <td className="px-4 py-2 text-right">
+                      <tr key={i} className="text-slate-800 hover:bg-blue-50/45">
+                        <td className="px-4 py-2 text-slate-950">{row.outcome_type}</td>
+                        <td className="px-4 py-2 text-right text-slate-950">
                           {row.avg_score ? parseFloat(row.avg_score).toFixed(1) : '—'}
                         </td>
-                        <td className="px-4 py-2 text-right">
+                        <td className="px-4 py-2 text-right text-slate-950">
                           {(parseFloat(row.success_rate) * 100).toFixed(1)}%
                         </td>
-                        <td className="px-4 py-2 text-right">{row.sample_count}</td>
+                        <td className="px-4 py-2 text-right text-slate-950">{row.sample_count}</td>
                       </tr>
                     ))}
                   </tbody>

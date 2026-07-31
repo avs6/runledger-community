@@ -276,8 +276,7 @@ export default async function OptimizationOpportunitiesPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">Phase 9</span>
-          <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Optimization Opportunities</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Optimization Opportunities</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Rule-based recommendations backed by current dashboard evidence. This is the bridge from reporting to advisory intelligence.
           </p>
@@ -400,7 +399,7 @@ export default async function OptimizationOpportunitiesPage({
           <div>
             <h2 className="font-semibold text-slate-950">How recommendations are generated</h2>
             <p className="mt-1 text-sm leading-6 text-slate-600">
-              This first pass uses deterministic rules over request-flow telemetry: model mismatch, cache hit rate, reasoning-heavy routes, tool overuse, latency outliers, failed spend, local-model eligibility, and outcome success. Phase 13 can replace or augment these rules with a learned advisory engine.
+              This view uses deterministic rules over request-flow telemetry: model mismatch, cache hit rate, reasoning-heavy routes, tool overuse, latency outliers, failed spend, local-model eligibility, and outcome success. A learned advisory engine can augment these recommendations over time.
             </p>
           </div>
         </div>

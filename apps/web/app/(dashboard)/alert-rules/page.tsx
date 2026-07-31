@@ -15,7 +15,7 @@ import {
 import type { AlertRule, AlertFiring } from '@/types/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400'
+  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 export default function AlertRulesPage() {
   const { data: session } = useSession()
@@ -117,7 +117,7 @@ export default function AlertRulesPage() {
   if (!canManageOrgSettings) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Alert Rules</h1>
+        <h1 className="text-2xl font-bold text-slate-950">Alert Rules</h1>
         <p className="mt-4 text-sm text-slate-500">Alert rule management is an organization-admin function.</p>
       </div>
     )
@@ -126,8 +126,8 @@ export default function AlertRulesPage() {
   return (
     <div className="p-8 space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Alert Rules</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Fire Slack notifications when a metric crosses a threshold. Evaluated every 5 minutes.</p>
+        <h1 className="text-2xl font-bold text-slate-950">Alert Rules</h1>
+        <p className="mt-1 text-sm text-slate-600">Fire Slack notifications when a metric crosses a threshold. Evaluated every 5 minutes.</p>
       </div>
 
       <form onSubmit={handleCreateAlert} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -147,28 +147,28 @@ export default function AlertRulesPage() {
         </div>
         <div className="flex items-center gap-2">
           <input className={`${inputCls} w-24`} type="number" min="5" max="1440" placeholder="60" value={newAlertWindow} onChange={(e) => setNewAlertWindow(e.target.value)} />
-          <span className="text-sm text-gray-500 dark:text-gray-400">min window</span>
+          <span className="text-sm text-slate-600">min window</span>
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={newAlertEmailEnabled}
             onChange={(e) => setNewAlertEmailEnabled(e.target.checked)}
-            className="rounded border-gray-300 dark:border-gray-600"
+            className="rounded border-slate-300"
           />
           Email workspace admins
         </label>
-        <button type="submit" disabled={creatingAlert} className="rounded bg-teal-700 px-4 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400">
+        <button type="submit" disabled={creatingAlert} className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
           {creatingAlert ? 'Creating…' : 'Add Rule'}
         </button>
       </form>
 
       {alertRules.length === 0 ? (
-        <p className="text-sm text-gray-400 dark:text-gray-500">No alert rules yet.</p>
+        <p className="text-sm text-slate-500">No alert rules yet.</p>
       ) : (
-        <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+        <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white/90 shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-600">
               <tr>
                 <th className="px-4 py-2 text-left">Name</th>
                 <th className="px-4 py-2 text-left">Metric</th>
@@ -179,20 +179,20 @@ export default function AlertRulesPage() {
                 <th className="px-4 py-2 text-left" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            <tbody className="divide-y divide-slate-200">
               {alertRules.map((rule) => (
-                <tr key={rule.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-4 py-2 font-medium dark:text-gray-200">{rule.name}</td>
-                  <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{rule.metric}</td>
-                  <td className="px-4 py-2 text-xs dark:text-gray-300">{rule.operator === 'gt' ? '>' : '<'} {rule.threshold}</td>
-                  <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{rule.window_minutes}m</td>
+                <tr key={rule.id} className="text-slate-800 hover:bg-blue-50/45">
+                  <td className="px-4 py-2 font-medium text-slate-950">{rule.name}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-slate-700">{rule.metric}</td>
+                  <td className="px-4 py-2 text-xs text-slate-700">{rule.operator === 'gt' ? '>' : '<'} {rule.threshold}</td>
+                  <td className="px-4 py-2 text-xs text-slate-600">{rule.window_minutes}m</td>
                   <td className="px-4 py-2">
-                    <span className={`text-xs ${rule.email_enabled ? 'text-teal-700 dark:text-teal-300' : 'text-gray-400 dark:text-gray-600'}`}>
+                    <span className={`text-xs ${rule.email_enabled ? 'text-blue-700' : 'text-slate-500'}`}>
                       {rule.email_enabled ? 'On' : 'Off'}
                     </span>
                   </td>
                   <td className="px-4 py-2">
-                    <button onClick={() => handleToggleAlert(rule)} className={`rounded px-2 py-0.5 text-xs font-medium ${rule.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
+                    <button onClick={() => handleToggleAlert(rule)} className={`rounded px-2 py-0.5 text-xs font-medium ${rule.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                       {rule.is_active ? 'Active' : 'Paused'}
                     </button>
                   </td>
@@ -208,22 +208,22 @@ export default function AlertRulesPage() {
 
       {alertHistory.length > 0 && (
         <div>
-          <h3 className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Recent Firings</h3>
-          <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+          <h3 className="mb-2 text-sm font-medium text-slate-800">Recent Firings</h3>
+          <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white/90 shadow-sm">
             <table className="w-full text-xs">
-              <thead className="bg-gray-50 uppercase text-gray-400 dark:bg-gray-800">
+              <thead className="bg-slate-50 uppercase text-slate-600">
                 <tr>
                   <th className="px-3 py-2 text-left">Rule</th>
                   <th className="px-3 py-2 text-left">Value</th>
                   <th className="px-3 py-2 text-left">Fired At</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody className="divide-y divide-slate-200">
                 {alertHistory.map((f) => (
-                  <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-3 py-2 font-medium dark:text-gray-200">{f.rule_name}</td>
-                    <td className="px-3 py-2 font-mono dark:text-gray-300">{parseFloat(f.metric_value).toFixed(4)}</td>
-                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400">{new Date(f.fired_at).toLocaleString()}</td>
+                  <tr key={f.id} className="text-slate-800 hover:bg-blue-50/45">
+                    <td className="px-3 py-2 font-medium text-slate-950">{f.rule_name}</td>
+                    <td className="px-3 py-2 font-mono text-slate-700">{parseFloat(f.metric_value).toFixed(4)}</td>
+                    <td className="px-3 py-2 text-slate-600">{new Date(f.fired_at).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -233,16 +233,16 @@ export default function AlertRulesPage() {
       )}
 
       {/* Email Reports card */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Email Reports</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+      <div className="rounded-xl border border-slate-300 bg-white/90 p-5 shadow-sm">
+        <h3 className="mb-1 text-sm font-semibold text-slate-950">Email Reports</h3>
+        <p className="mb-4 text-xs text-slate-600">
           Scheduled analytics reports are managed by Platform Admins in Settings {'->'} Email. Org admins can still send an on-demand
           workspace report from here.
         </p>
         <button
           onClick={handleSendReport}
           disabled={sendingReport}
-          className="rounded bg-teal-700 px-4 py-1.5 text-sm text-white hover:bg-teal-600 disabled:opacity-50 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400"
+          className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {sendingReport ? 'Sending…' : 'Send Report Now'}
         </button>

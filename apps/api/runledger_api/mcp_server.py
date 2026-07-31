@@ -25,6 +25,7 @@ BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 
 mcp = FastMCP(
     name="RunLedger",
+    streamable_http_path="/",
     instructions=(
         "RunLedger is an AI Operations Ledger and Agent FinOps control plane. "
         "Use it before expensive work to check budgets and policies, during work "

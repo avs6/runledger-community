@@ -1,0 +1,80 @@
+---
+title: "AI Ops Dashboards"
+description: "Global, organization, and workspace dashboards for AI usage, cost, routing, savings, and outcomes."
+---
+
+RunLedger dashboards are designed to answer one question quickly: where is AI traffic
+going, what did it cost, and what should be optimized next?
+
+## Dashboard scopes
+
+| Scope | Who uses it | What it answers |
+|---|---|---|
+| Global Dashboard | Platform admins | Cross-org spend, traffic, routing, and savings trends |
+| Org Dashboard | Org admins | Organization-level usage, workspace comparison, cost and outcome rollups |
+| Workspace Dashboard | Workspace admins and members | Runs, requests, sessions, model usage, and workspace-level FinOps |
+
+Members can view workspace observability surfaces in read-only mode. Org admins see
+Control Plane and Gateway pages. Platform admins also see platform-only Settings and
+the All Organizations lifecycle hub.
+
+## Core visuals
+
+The dashboard suite uses a few repeated patterns:
+
+- Executive KPI cards for monthly spend, savings, ROI, request count, latency, cache hit rate, and token reduction.
+- Stacked usage timelines for daily token and model composition.
+- Request-flow Sankey charts for `Prompt -> Intent -> Agent -> Model -> Tool -> Result`.
+- Model usage cards for requests, input tokens, output tokens, cost, latency, and quality.
+- Savings attribution for cache, routing, prompt compression, local models, duplicate detection, and tool optimization.
+- Cost waterfall charts that explain how optimized spend differs from projected spend.
+- Request Explorer tables for drilling into individual runs, routing decisions, tool calls, cost, latency, and outcomes.
+- Cost & Savings drilldowns that explain spend by team, project, application, user, agent, model, tool, and time.
+
+## API surfaces
+
+The frontend builds these views from existing API primitives:
+
+| API | Purpose |
+|---|---|
+| `GET /analytics/summary` | Cost, token, call, and run totals |
+| `GET /analytics/spend-over-time` | Daily or hourly spend and token timeline |
+| `GET /analytics/spend-by-model` | Provider/model cost and usage |
+| `GET /analytics/spend-by-feature` | Feature and agent attribution |
+| `GET /analytics/spend-by-user` | End-user attribution |
+| `GET /runs/flow` | Request-flow records for Sankey, cost breakdown, ROI, and optimization recommendations |
+| `GET /budgets/rollup?scope=workspace|org|platform` | Budget posture across the selected finance dashboard scope |
+| `GET /outcomes/summary` | Business impact and ROI |
+| `GET /outcomes/trend` | Outcome trends over time |
+| `GET /org/dashboard` | Org-level workspace rollups |
+
+## Cost and savings attribution
+
+Provider call events can carry realized savings fields:
+
+| Field | Purpose |
+|---|---|
+| `savings_usd` | Reconciliation-grade savings amount for the provider call |
+| `savings_category` | One of `cache_hits`, `smart_routing`, `prompt_compression`, `local_models`, `duplicate_detection`, or `tool_optimization` |
+| `savings_reason` | Human-readable explanation shown in finance and dashboard views |
+
+`GET /runs/flow` returns these fields on each record. If legacy traffic does not
+include explicit savings metadata, RunLedger still falls back to cache and local-model
+telemetry so older demos continue to show useful savings signals.
+
+`GET /budgets/rollup` returns workspace, org, or platform budget totals including
+limit, current spend, remaining budget, percentage used, at-risk count, and exceeded
+count. Org scope requires org admin or platform admin. Platform scope requires platform
+admin.
+
+## Local demo data
+
+For a local-only demo, use the full simulator:
+
+```bash
+uv run python scripts/full_simulate.py
+```
+
+By default this runs only the Ollama scenarios with a 3x traffic multiplier and imports
+`scripts/pricing.yaml`, which contains only priced local models. Give the Celery worker
+about a minute after ingestion so metering and rollups populate the dashboard cards.

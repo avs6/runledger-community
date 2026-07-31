@@ -223,6 +223,30 @@ for tag, display_name in TAG_ORDER:
                     (req.get("description") or "Alert rules")
                     + "\n\nRBAC: org-admin or platform-admin dashboard session key."
                 )
+            elif path == "/runs/flow":
+                req["description"] = (
+                    (req.get("description") or "Request-flow records")
+                    + "\n\nDashboard use: powers Request Flow, Sankey, optimization opportunity, "
+                    "and executive AI Ops views. Use a dashboard session key or workspace API key "
+                    "scoped to the workspace."
+                )
+            elif path.startswith("/integrations/kafka"):
+                req["description"] = (
+                    (req.get("description") or "Kafka export")
+                    + "\n\nRBAC: org-admin or platform-admin dashboard session key. "
+                    "Exports run.completed and run.failed events to Kafka topics for downstream "
+                    "analytics, SIEM, or warehouse pipelines."
+                )
+            elif path.startswith("/integrations/slack"):
+                req["description"] = (
+                    (req.get("description") or "Slack integration")
+                    + "\n\nRBAC: org-admin or platform-admin dashboard session key."
+                )
+            elif path == "/org/dashboard":
+                req["description"] = (
+                    (req.get("description") or "Org dashboard")
+                    + "\n\nDashboard use: org-level AI Ops and workspace rollup cards."
+                )
             elif path.startswith("/v1/traces/"):
                 desc = (req.get("description") or "OTLP ingest management").replace(
                     "Settings → OTLP tab",
@@ -281,11 +305,11 @@ def _add_optimization_extras(items: list[dict]) -> None:
             _req("Gateway Chat Completions (Semantic Cache)", "POST",
                  "{{base_url}}/gateway/chat/completions",
                  "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).",
-                 {"model": "gpt-4o-mini", "messages": [sys_hr, {"role": "user", "content": "how much parental leave do employees get"}], "semantic_cache": True}),
+                 {"model": "llama3.2", "messages": [sys_hr, {"role": "user", "content": "how much parental leave do employees get"}], "semantic_cache": True}),
             _req("Gateway Chat Completions (Context Compiler)", "POST",
                  "{{base_url}}/gateway/chat/completions",
                  "Request shrunk (dedup/tool-output/rerank/compaction) before routing.",
-                 {"model": "gpt-4o-mini", "messages": [sys_hr, {"role": "user", "content": "How much parental leave do employees get?"}], "context_compiler": True}),
+                 {"model": "llama3.2", "messages": [sys_hr, {"role": "user", "content": "How much parental leave do employees get?"}], "context_compiler": True}),
             _req("Gateway Chat Completions (Intelligent Routing)", "POST",
                  "{{base_url}}/gateway/chat/completions",
                  "Classify complexity × risk and route to a model tier (decision_reason shows the tier).",
@@ -293,12 +317,12 @@ def _add_optimization_extras(items: list[dict]) -> None:
             _req("Create Gateway Route (Semantic Cache + Compiler on)", "POST",
                  "{{base_url}}/gateway/routes",
                  "Create a route with the semantic cache and context compiler enabled, incl. compiler config.",
-                 {"alias": "gpt-4o-mini", "provider": "openai", "target_model": "gpt-4o-mini",
-                  "api_key_env_var": "OPENAI_API_KEY", "priority": 10, "semantic_cache_enabled": True,
+                 {"alias": "llama3.2", "provider": "ollama", "target_model": "llama3.2",
+                  "base_url": "http://host.docker.internal:11434/v1", "priority": 10, "semantic_cache_enabled": True,
                   "context_compiler_enabled": True,
                   "context_compiler_config": {"model": "llama3.1:8b", "reranker_model": "flashrank", "token_threshold": 2000, "token_budget": 32000}}),
         ]
-    scope = {"tenant": "{{workspace_id}}", "model": "gpt-4o-mini", "system_prompt_hash": "", "knowledge_version": "", "security_scope": ""}
+    scope = {"tenant": "{{workspace_id}}", "model": "llama3.2", "system_prompt_hash": "", "knowledge_version": "", "security_scope": ""}
     items.append({"name": "Semantic Cache Service",
         "description": "Direct calls to the semantic-cache microservice ({{semantic_cache_url}}, default :8205). No auth.",
         "item": [
@@ -335,7 +359,7 @@ def _add_optimization_extras(items: list[dict]) -> None:
                  "Classify complexity × risk → tier; returns { complexity, risk, reasoning_effort, tier, alias }.",
                  {"messages": [{"role": "user", "content": "Does this contract create regulatory exposure?"}],
                   "config": {"classifier_mode": "hybrid",
-                             "tiers": {"cheap": "gpt-4o-mini", "mid": "gpt-4o", "frontier": "o1"},
+                             "tiers": {"cheap": "llama3.2", "mid": "qwen2.5-coder:14b", "frontier": "deepseek-r1:14b"},
                              "matrix": {"simple": {"low": "cheap", "high": "mid"},
                                         "medium": {"low": "mid", "high": "frontier"},
                                         "complex": {"low": "frontier", "high": "frontier"}},
@@ -388,8 +412,8 @@ def _add_optimization_extras(items: list[dict]) -> None:
                  "Given per-segment observations, return the cheapest config per segment that holds the SLA.",
                  {"segment_by": "outcome_type", "min_quality": 0.85, "min_sample_size": 20,
                   "segments": [{"segment_key": "refund_resolved", "observations": [
-                      {"config": {"model": "gpt-4o"}, "n": 140, "avg_cost_per_req": 0.028, "quality": 0.94},
-                      {"config": {"model": "gpt-4o-mini"}, "n": 90, "avg_cost_per_req": 0.006, "quality": 0.90}]}]},
+                      {"config": {"model": "deepseek-r1:14b"}, "n": 140, "avg_cost_per_req": 0.0028, "quality": 0.94},
+                      {"config": {"model": "llama3.2"}, "n": 90, "avg_cost_per_req": 0.0006, "quality": 0.90}]}]},
                  auth=False),
         ]})
 
@@ -590,6 +614,27 @@ environment = {
             "type": "default",
             "enabled": True,
             "description": "Workspace UUID — set after login. Most endpoints scope data to this workspace.",
+        },
+        {
+            "key": "kafka_config_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Kafka export config UUID from POST /integrations/kafka/configs.",
+        },
+        {
+            "key": "kafka_bootstrap_servers",
+            "value": "localhost:9092",
+            "type": "default",
+            "enabled": True,
+            "description": "Kafka bootstrap servers for export tests.",
+        },
+        {
+            "key": "kafka_topic_prefix",
+            "value": "runledger",
+            "type": "default",
+            "enabled": True,
+            "description": "Topic prefix for RunLedger export events.",
         },
         {
             "key": "tenant_id",

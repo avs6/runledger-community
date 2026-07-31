@@ -25,6 +25,7 @@ import type {
   ChargebackRuleResponse,
   Budget,
   BudgetList,
+  BudgetRollupResponse,
   CapturePolicyResponse,
   CohortList,
   DatasetList,
@@ -230,7 +231,7 @@ export async function getAnalyticsSummary(
 
 export async function getSpendOverTime(
   apiKey: string,
-  granularity: 'hourly' | 'daily' = 'daily',
+  granularity: 'minute' | '5min' | 'hourly' | 'daily' = 'daily',
   window: TimeWindow = {}
 ): Promise<SpendOverTime> {
   return apiFetch<SpendOverTime>(
@@ -288,6 +289,13 @@ export async function getUserSpend(
 
 export async function getBudgets(apiKey: string): Promise<BudgetList> {
   return apiFetch<BudgetList>('/budgets', apiKey)
+}
+
+export async function getBudgetRollup(
+  apiKey: string,
+  scope: 'workspace' | 'org' | 'platform' = 'workspace'
+): Promise<BudgetRollupResponse> {
+  return apiFetch<BudgetRollupResponse>(`/budgets/rollup?scope=${scope}`, apiKey)
 }
 
 export async function createBudget(

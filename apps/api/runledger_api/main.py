@@ -46,12 +46,14 @@ from runledger_api.routers import users as users_router
 
 configure_logging()
 log = structlog.get_logger()
+_mcp_http_app = _mcp_server.streamable_http_app()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     log.info("startup", environment=settings.environment)
-    yield
+    async with _mcp_server.session_manager.run():
+        yield
     log.info("shutdown")
     await engine.dispose()
     await redis_client.aclose()
@@ -108,7 +110,7 @@ app.include_router(eval_experiments_router.router)
 #   claude mcp add --transport http runledger http://localhost:8000/mcp
 # Or in claude_desktop_config.json:
 #   { "mcpServers": { "runledger": { "url": "http://localhost:8000/mcp" } } }
-app.mount("/mcp", _mcp_server.streamable_http_app())
+app.mount("/mcp", _mcp_http_app)
 
 # ── API Reference UI — Scalar (richer DX than Swagger UI) ────────────────────
 

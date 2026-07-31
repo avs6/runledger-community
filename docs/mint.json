@@ -114,10 +114,19 @@
     {
       "group": "Observability",
       "pages": [
+        "observability/ai-ops-dashboards",
         "observability/runs",
         "observability/sessions",
         "observability/analytics",
         "observability/product-tour"
+      ]
+    },
+    {
+      "group": "Integrations",
+      "pages": [
+        "integration-options-mcp",
+        "litellm",
+        "integrations/kafka-export"
       ]
     },
     {

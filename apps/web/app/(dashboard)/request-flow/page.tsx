@@ -4,6 +4,7 @@ import { ArrowRight, GitBranch, Layers3, Route, ShieldCheck } from 'lucide-react
 import { authOptions } from '@/lib/auth'
 import { getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
+  type RequestFlowDensity,
   type RequestFlowMetric,
   type RequestFlowMode,
   type RequestFlowScope,
@@ -15,6 +16,9 @@ interface PageProps {
     mode?: string
     metric?: string
     scope?: string
+    density?: string
+    top?: string
+    collapse?: string
   }
 }
 
@@ -28,6 +32,7 @@ const flowModes: RequestFlowMode[] = [
 
 const flowMetrics: RequestFlowMetric[] = ['requests', 'cost', 'tokens', 'savings']
 const flowScopes: RequestFlowScope[] = ['workspace', 'org', 'platform']
+const flowDensities: RequestFlowDensity[] = ['compact', 'comfortable', 'presentation']
 
 function parseMode(value: string | undefined): RequestFlowMode {
   return flowModes.includes(value as RequestFlowMode) ? (value as RequestFlowMode) : 'request-intent-model-result'
@@ -41,6 +46,15 @@ function parseScope(value: string | undefined): RequestFlowScope {
   return flowScopes.includes(value as RequestFlowScope) ? (value as RequestFlowScope) : 'workspace'
 }
 
+function parseDensity(value: string | undefined): RequestFlowDensity {
+  return flowDensities.includes(value as RequestFlowDensity) ? (value as RequestFlowDensity) : 'comfortable'
+}
+
+function parseTopN(value: string | undefined) {
+  const parsed = Number.parseInt(value ?? '', 10)
+  return Number.isFinite(parsed) ? parsed : 8
+}
+
 function pct(value: number, total: number) {
   if (total <= 0) return '0%'
   return `${Math.round((value / total) * 100)}%`
@@ -52,6 +66,9 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
 
   const mode = parseMode(searchParams.mode)
   const metric = parseMetric(searchParams.metric)
+  const density = parseDensity(searchParams.density)
+  const topN = parseTopN(searchParams.top)
+  const collapseSmall = searchParams.collapse !== '0'
   const requestedScope = parseScope(searchParams.scope)
   let scope = requestedScope
   let flow: RunFlowResponse
@@ -70,10 +87,6 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-700 dark:text-teal-300">
-            <Route className="h-3.5 w-3.5" />
-            Phase 5
-          </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
             AI Request Flow
           </h1>
@@ -111,6 +124,9 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         scope={scope}
         mode={mode}
         metric={metric}
+        density={density}
+        topN={topN}
+        collapseSmall={collapseSmall}
       />
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/35 dark:text-slate-300">

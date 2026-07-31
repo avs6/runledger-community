@@ -15,6 +15,7 @@ import {
   type RoutingSlice,
 } from '@/components/dashboard/ModelRoutingCharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MODEL_FAMILY_COLORS, classifyModel as classifyModelFamily } from '@/lib/modelColors'
 import type { RunFlowRecord } from '@/types/api'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
@@ -47,16 +48,7 @@ type RouteRollup = {
   cached: number
 }
 
-const modelColors: Record<string, string> = {
-  'GPT-5': '#2563eb',
-  Claude: '#7c3aed',
-  Gemini: '#0891b2',
-  'Local Llama': '#059669',
-  DeepSeek: '#ea580c',
-  'Cached Responses': '#16a34a',
-  'Rejected Requests': '#dc2626',
-  Other: '#64748b',
-}
+const modelColors = MODEL_FAMILY_COLORS
 
 function parseMoney(value: string | null | undefined) {
   const parsed = Number.parseFloat(value ?? '0')
@@ -105,15 +97,12 @@ function modelName(item: RunFlowRecord) {
 }
 
 function classifyModel(item: RunFlowRecord) {
-  const haystack = `${item.primary_model ?? ''} ${item.provider ?? ''}`.toLowerCase()
-  if (!item.success || item.status === 'rejected' || item.outcome === 'rejected') return 'Rejected Requests'
-  if (item.cached_input_tokens > 0) return 'Cached Responses'
-  if (haystack.includes('gpt') || haystack.includes('openai')) return 'GPT-5'
-  if (haystack.includes('claude') || haystack.includes('anthropic')) return 'Claude'
-  if (haystack.includes('gemini') || haystack.includes('google')) return 'Gemini'
-  if (haystack.includes('llama') || haystack.includes('ollama') || haystack.includes('local')) return 'Local Llama'
-  if (haystack.includes('deepseek')) return 'DeepSeek'
-  return 'Other'
+  return classifyModelFamily(item.primary_model, {
+    provider: item.provider,
+    status: item.status,
+    cachedTokens: item.cached_input_tokens,
+    success: item.success,
+  })
 }
 
 function buildTimeline(items: RunFlowRecord[]) {
@@ -313,10 +302,7 @@ export default async function ModelUsagePage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
-            Phase 6
-          </span>
-          <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Model Usage</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Model Usage</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Explain which models are used, why routes select them, and how cost, latency, cache, and outcomes compare.
           </p>

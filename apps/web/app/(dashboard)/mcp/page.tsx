@@ -218,10 +218,7 @@ export default function McpPage() {
   return (
     <div className="space-y-8 p-8">
       <div className="max-w-5xl">
-        <span className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-          Phase 1A integration surface
-        </span>
-        <h1 className="mt-3 text-3xl font-semibold text-slate-950">MCP Servers</h1>
+        <h1 className="text-3xl font-semibold text-slate-950">MCP Servers</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           Connect IDEs, desktop agents, hosted agents, model gateways, and workflow tools to RunLedger.
           Use RunLedger inline for budget/policy/routing decisions and out of band for observability,

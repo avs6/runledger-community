@@ -290,6 +290,9 @@ async def _handle_provider_call(
             model_provider=e.get("model_provider"),
             input_tokens_details=e.get("input_tokens_details"),
             output_tokens_details=e.get("output_tokens_details"),
+            savings_usd=_dec(e.get("savings_usd")),
+            savings_category=e.get("savings_category"),
+            savings_reason=e.get("savings_reason"),
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )

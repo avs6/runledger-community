@@ -165,6 +165,8 @@ class RunFlowRecord(BaseModel):
     latency_ms: int | None
     success: bool
     savings_usd: Decimal
+    savings_category: str | None = None
+    savings_reason: str | None = None
     started_at: datetime
 
 

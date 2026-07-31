@@ -72,6 +72,14 @@ def _cost(model: str, in_tok: int, out_tok: int) -> float:
     return round(in_tok * pin / 1_000_000 + out_tok * pout / 1_000_000, 6)
 
 
+def _iso(dt: datetime) -> str:
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+def _ns(dt: datetime) -> str:
+    return str(int(dt.timestamp() * 1_000_000_000))
+
+
 @dataclass
 class RunRef:
     """A run that was ingested — enough to attach outcomes / scores to it."""
@@ -115,6 +123,8 @@ class Workspace:
         sessions: int = 0,
     ) -> list[RunRef]:
         """Ingest ``n`` synthetic runs spread over the last ``days`` and return them."""
+        multiplier = max(1, int(getattr(self.sim, "traffic_multiplier", 1)))
+        n = n * multiplier
         events: list[dict[str, Any]] = []
         made: list[RunRef] = []
         session_ids = [f"sess_{uuid.uuid4().hex[:8]}" for _ in range(sessions)]
@@ -196,6 +206,338 @@ class Workspace:
         self.runs.extend(made)
         say(f"    · {n} runs ingested", "d")
         return made
+
+    def ingest_rich_runs(
+        self,
+        n: int,
+        *,
+        models: list[str],
+        workflows: list[dict[str, Any]],
+        users: list[str],
+        days: int = 7,
+        success_rate: float = 0.94,
+        sessions: int = 80,
+        batch_runs: int = 120,
+    ) -> list[RunRef]:
+        """Ingest dense, dashboard-friendly traffic with agents, tools, skills, cache, and outcomes."""
+        multiplier = max(1, int(getattr(self.sim, "traffic_multiplier", 1)))
+        total = n * multiplier
+        made: list[RunRef] = []
+        session_ids = [f"{self.name.lower().replace(' ', '-')}-{i:04d}" for i in range(1, sessions + 1)]
+        now = datetime.now(UTC)
+
+        for batch_start in range(0, total, batch_runs):
+            events: list[dict[str, Any]] = []
+            for _ in range(batch_start, min(batch_start + batch_runs, total)):
+                workflow = random.choice(workflows)
+                model = random.choice(models)
+                user = random.choice(users)
+                in_tok = random.randint(180, 3200)
+                out_tok = random.randint(60, 1800)
+                cached = random.randint(35, max(40, in_tok // 2)) if random.random() < workflow.get("cache_rate", 0.2) else 0
+                success = random.random() < success_rate
+                latency = random.randint(220, 4600)
+                billable_in = max(0, in_tok - cached)
+                cost = _cost(model, billable_in, out_tok) + (_cost(model, cached, 0) * 0.15 if cached else 0)
+                run_id, span_id = str(uuid.uuid4()), str(uuid.uuid4())
+                start = now - timedelta(days=random.uniform(0, days), minutes=random.uniform(0, 1440))
+                end = start + timedelta(milliseconds=latency)
+                ts_s, ts_e = _iso(start), _iso(end)
+                pc_status = "success" if success else "error"
+                end_status = "succeeded" if success else "failed"
+                deployment_version = workflow.get("deployment_version") or f"{workflow['prompt_name']}:1"
+
+                events += [
+                    {
+                        "event_type": "run_start",
+                        "run_id": run_id,
+                        "started_at": ts_s,
+                        "end_user_id": user,
+                        "session_id": random.choice(session_ids),
+                        "feature_tag": workflow["feature"],
+                        "deployment_version": deployment_version,
+                        "metadata": {
+                            "agent_name": workflow["agent"],
+                            "skill": workflow["skill"],
+                            "team": workflow.get("team", "Support"),
+                            "application": workflow.get("application", self.name),
+                            "route_alias": workflow.get("route", "local-routing"),
+                            "intent": workflow["feature"].replace("-", " "),
+                        },
+                    },
+                    {
+                        "event_type": "span_start",
+                        "span_id": span_id,
+                        "run_id": run_id,
+                        "span_type": "agent",
+                        "name": workflow["agent"],
+                        "started_at": ts_s,
+                    },
+                    {
+                        "event_type": "provider_call",
+                        "run_id": run_id,
+                        "span_id": span_id,
+                        "provider": _provider(model),
+                        "model": model,
+                        "input_tokens": in_tok,
+                        "output_tokens": out_tok,
+                        "cached_input_tokens": cached,
+                        "latency_ms": latency,
+                        "cost_usd": round(cost, 8),
+                        "status": pc_status,
+                        "error_type": None if success else random.choice(["timeout", "tool_error", "provider_error"]),
+                    },
+                    {
+                        "event_type": "tool_call",
+                        "run_id": run_id,
+                        "span_id": span_id,
+                        "tool_name": workflow["tool"],
+                        "tool_type": workflow.get("tool_type", "read"),
+                        "risk_score": random.randint(1, 55 if success else 85),
+                        "duration_ms": random.randint(60, 1400),
+                        "status": pc_status,
+                    },
+                    {
+                        "event_type": "span_end",
+                        "span_id": span_id,
+                        "run_id": run_id,
+                        "status": end_status,
+                        "ended_at": ts_e,
+                        "cost_usd": round(cost, 8),
+                        "metadata": {
+                            "selected_model": model,
+                            "route_alias": workflow.get("route", "local-routing"),
+                            "workflow_agent": workflow["agent"],
+                            "skill": workflow["skill"],
+                        },
+                    },
+                    {
+                        "event_type": "outcome",
+                        "run_id": run_id,
+                        "outcome_type": workflow.get("outcome_type", "resolved"),
+                        "success": success and random.random() > 0.08,
+                        "labels": {
+                            "team": workflow.get("team", "Support"),
+                            "model": model,
+                            "route": workflow.get("route", "local-routing"),
+                        },
+                    },
+                    {
+                        "event_type": "run_end",
+                        "run_id": run_id,
+                        "status": end_status,
+                        "ended_at": ts_e,
+                        "total_cost_usd": round(cost, 8),
+                        "total_input_tokens": in_tok,
+                        "total_output_tokens": out_tok,
+                    },
+                ]
+                made.append(RunRef(run_id, model, workflow["feature"], user, cost, success))
+
+            self.sim.post(
+                "/ingest/v1/batch",
+                {"events": events},
+                key=self.key,
+                label=f"ingest {len(events)} rich events",
+                expect=(202, 200),
+            )
+        self.runs.extend(made)
+        say(f"    · {len(made)} rich runs ingested", "d")
+        return made
+
+    def ingest_otlp_traces(self, n: int, *, models: list[str], workflows: list[dict[str, Any]]) -> None:
+        """Send OpenTelemetry GenAI/OpenInference-style trace JSON to the OTLP receiver."""
+        multiplier = max(1, int(getattr(self.sim, "traffic_multiplier", 1)))
+        total = n * multiplier
+        now = datetime.now(UTC)
+        resource_spans: list[dict[str, Any]] = []
+        for _ in range(total):
+            workflow = random.choice(workflows)
+            model = random.choice(models)
+            trace_id = uuid.uuid4().hex
+            agent_span = uuid.uuid4().hex[:16]
+            llm_span = uuid.uuid4().hex[:16]
+            tool_span = uuid.uuid4().hex[:16]
+            start = now - timedelta(hours=random.uniform(0, 24))
+            llm_start = start + timedelta(milliseconds=80)
+            tool_start = start + timedelta(milliseconds=random.randint(220, 700))
+            end = start + timedelta(milliseconds=random.randint(900, 5200))
+            in_tok = random.randint(250, 2800)
+            out_tok = random.randint(80, 1400)
+            cost = _cost(model, in_tok, out_tok)
+
+            def attr(key: str, value: Any) -> dict[str, Any]:
+                if isinstance(value, bool):
+                    wrapped = {"boolValue": value}
+                elif isinstance(value, int):
+                    wrapped = {"intValue": str(value)}
+                elif isinstance(value, float):
+                    wrapped = {"doubleValue": value}
+                else:
+                    wrapped = {"stringValue": str(value)}
+                return {"key": key, "value": wrapped}
+
+            resource_spans.append({
+                "resource": {
+                    "attributes": [
+                        attr("service.name", self.name),
+                        attr("team", workflow.get("team", "Support")),
+                        attr("application", workflow.get("application", self.name)),
+                    ]
+                },
+                "scopeSpans": [
+                    {
+                        "scope": {"name": "runledger-simulator", "version": "1.0"},
+                        "spans": [
+                            {
+                                "traceId": trace_id,
+                                "spanId": agent_span,
+                                "name": workflow["agent"],
+                                "kind": 1,
+                                "startTimeUnixNano": _ns(start),
+                                "endTimeUnixNano": _ns(end),
+                                "attributes": [
+                                    attr("openinference.span.kind", "AGENT"),
+                                    attr("agent_name", workflow["agent"]),
+                                    attr("skill", workflow["skill"]),
+                                    attr("feature_tag", workflow["feature"]),
+                                    attr("session.id", f"otlp-{random.randint(1, 80):03d}"),
+                                ],
+                                "status": {"code": "STATUS_CODE_OK"},
+                            },
+                            {
+                                "traceId": trace_id,
+                                "spanId": llm_span,
+                                "parentSpanId": agent_span,
+                                "name": f"chat {model}",
+                                "kind": 3,
+                                "startTimeUnixNano": _ns(llm_start),
+                                "endTimeUnixNano": _ns(end),
+                                "attributes": [
+                                    attr("openinference.span.kind", "LLM"),
+                                    attr("gen_ai.system", _provider(model)),
+                                    attr("gen_ai.request.model", model),
+                                    attr("gen_ai.usage.input_tokens", in_tok),
+                                    attr("gen_ai.usage.output_tokens", out_tok),
+                                    attr("llm.cost.total", cost),
+                                ],
+                                "status": {"code": "STATUS_CODE_OK"},
+                            },
+                            {
+                                "traceId": trace_id,
+                                "spanId": tool_span,
+                                "parentSpanId": agent_span,
+                                "name": workflow["tool"],
+                                "kind": 1,
+                                "startTimeUnixNano": _ns(tool_start),
+                                "endTimeUnixNano": _ns(end),
+                                "attributes": [
+                                    attr("openinference.span.kind", "TOOL"),
+                                    attr("tool.name", workflow["tool"]),
+                                    attr("tool.risk_score", random.randint(1, 60)),
+                                ],
+                                "status": {"code": "STATUS_CODE_OK"},
+                            },
+                        ],
+                    }
+                ],
+            })
+
+        self.sim.post(
+            "/v1/traces",
+            {"resourceSpans": resource_spans},
+            key=self.key,
+            label=f"otlp {total} traces",
+            expect=(200,),
+        )
+        say(f"    · {total} OTLP traces sent", "d")
+
+    def seed_prompt_eval_assets(self, *, prompts: list[dict[str, Any]], dataset_name: str, models: list[str]) -> None:
+        """Create prompt versions, eval dataset, and experiment records through the API."""
+        prompt_version: int | None = None
+        prompt_name = prompts[0]["name"] if prompts else None
+        for prompt in prompts:
+            created = self._post(
+                "/prompts",
+                {
+                    "name": prompt["name"],
+                    "description": prompt.get("description"),
+                    "default_environment": prompt.get("environment", "production"),
+                },
+                f"prompt {prompt['name']}",
+            )
+            if not created:
+                self.sim.get(f"/prompts/{prompt['name']}", key=self.key)
+            for version in prompt.get("versions", []):
+                response = self._post(
+                    f"/prompts/{prompt['name']}/versions",
+                    {
+                        "content": version["content"],
+                        "variables": version.get("variables", []),
+                        "commit_message": version.get("commit_message", "Simulator seed"),
+                        "environment": version.get("environment", "production"),
+                        "model_hint": version.get("model_hint"),
+                    },
+                    f"prompt version {prompt['name']}",
+                )
+                if prompt["name"] == prompt_name and response.get("version"):
+                    prompt_version = int(response["version"])
+
+        dataset = self._post(
+            "/datasets",
+            {
+                "name": dataset_name,
+                "description": "Simulator-seeded evaluation set for local agent quality checks.",
+                "source": "simulator",
+                "items": [
+                    {
+                        "input": "Customer asks why a refund has not arrived.",
+                        "expected_output": "Explain refund timeline and next step clearly.",
+                        "metadata": {"intent": "refund-policy", "difficulty": "medium"},
+                    },
+                    {
+                        "input": "Customer reports duplicate billing after plan upgrade.",
+                        "expected_output": "Acknowledge issue, inspect invoice, and offer escalation path.",
+                        "metadata": {"intent": "billing-help", "difficulty": "hard"},
+                    },
+                    {
+                        "input": "Customer needs a concise setup answer from the help center.",
+                        "expected_output": "Return a short answer with article reference.",
+                        "metadata": {"intent": "faq-answer", "difficulty": "easy"},
+                    },
+                    {
+                        "input": "Angry customer says the bot is not helping.",
+                        "expected_output": "Detect sentiment, apologize, and route appropriately.",
+                        "metadata": {"intent": "sentiment-routing", "difficulty": "hard"},
+                    },
+                ],
+            },
+            f"dataset {dataset_name}",
+        )
+        dataset_id = dataset.get("id")
+        experiment = self._post(
+            "/experiments",
+            {
+                "name": f"{dataset_name} - local model bakeoff",
+                "description": "Compare local Ollama models for support quality, cost, and latency.",
+                "dataset_id": dataset_id,
+                "prompt_name": prompt_name,
+                "prompt_version": prompt_version,
+                "models": [
+                    {"model": model, "provider": _provider(model), "label": model.replace(":latest", "")}
+                    for model in models[:5]
+                ],
+            },
+            f"experiment {dataset_name}",
+        )
+        if experiment.get("id"):
+            self.sim.post(
+                f"/experiments/{experiment['id']}/run",
+                {},
+                key=self.key,
+                label=f"run experiment {dataset_name}",
+                expect=(200, 409, 422),
+            )
 
     def sample(self, runs: list[RunRef], k: int = 60) -> list[RunRef]:
         """A random subset of runs — keeps per-run scores/outcomes under the API's
@@ -285,9 +627,10 @@ class Workspace:
 class Sim:
     """Platform-level client: bootstrap the admin, then mint per-scenario workspaces."""
 
-    def __init__(self, base_url: str, admin_secret: str) -> None:
+    def __init__(self, base_url: str, admin_secret: str, *, traffic_multiplier: int = 1) -> None:
         self.base = base_url.rstrip("/")
         self.admin_secret = admin_secret
+        self.traffic_multiplier = max(1, traffic_multiplier)
         self.http = httpx.Client(timeout=60, follow_redirects=True)
         self.platform_key: str | None = None
         self.platform_email: str | None = None

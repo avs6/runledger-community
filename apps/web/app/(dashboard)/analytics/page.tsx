@@ -42,16 +42,41 @@ const COLORS = [
   '#db2777', '#16a34a', '#ea580c', '#9333ea',
 ]
 
-type Preset = '24h' | '7d' | '30d' | '90d'
+type Preset = '5m' | '15m' | '30m' | '1h' | '3h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d'
+type SpendGranularity = 'minute' | '5min' | 'hourly' | 'daily'
 
 function presetWindow(p: Preset) {
   const now = new Date()
   const from = new Date(now)
+  if (p === '5m') from.setMinutes(from.getMinutes() - 5)
+  if (p === '15m') from.setMinutes(from.getMinutes() - 15)
+  if (p === '30m') from.setMinutes(from.getMinutes() - 30)
+  if (p === '1h') from.setHours(from.getHours() - 1)
+  if (p === '3h') from.setHours(from.getHours() - 3)
+  if (p === '6h') from.setHours(from.getHours() - 6)
+  if (p === '12h') from.setHours(from.getHours() - 12)
   if (p === '24h') from.setHours(from.getHours() - 24)
   if (p === '7d') from.setDate(from.getDate() - 7)
   if (p === '30d') from.setDate(from.getDate() - 30)
   if (p === '90d') from.setDate(from.getDate() - 90)
   return { from: from.toISOString(), to: now.toISOString() }
+}
+
+function presetGranularity(p: Preset): SpendGranularity {
+  if (['5m', '15m', '30m', '1h'].includes(p)) return 'minute'
+  if (['3h', '6h', '12h'].includes(p)) return '5min'
+  if (p === '24h') return 'hourly'
+  return 'daily'
+}
+
+function presetSubtitle(p: Preset, granularity: SpendGranularity) {
+  const labels: Record<SpendGranularity, string> = {
+    minute: 'Minute',
+    '5min': '5-minute',
+    hourly: 'Hourly',
+    daily: 'Daily',
+  }
+  return `${labels[granularity]} - last ${p}`
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -96,10 +121,17 @@ function KpiStrip({ summary, prev }: { summary: AnalyticsSummary; prev?: Analyti
 }
 
 function SpendChart({ data }: { data: SpendOverTime }) {
+  const formatter = new Intl.DateTimeFormat(
+    undefined,
+    data.granularity === 'daily'
+      ? { month: 'short', day: 'numeric' }
+      : { hour: 'numeric', minute: '2-digit' },
+  )
   const points = data.points.map(p => ({
-    date: p.period.slice(0, 10),
+    date: formatter.format(new Date(p.period)),
     cost: parseFloat(p.cost_usd),
     tokens: p.input_tokens + p.output_tokens,
+    calls: p.call_count,
   }))
   if (points.length === 0) return <EmptyState label="No spend data for this period" />
   return (
@@ -114,7 +146,7 @@ function SpendChart({ data }: { data: SpendOverTime }) {
         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
-        <Tooltip formatter={(v) => [`$${Number(v).toFixed(4)}`, 'Cost']} />
+        <Tooltip formatter={(v, name) => [name === 'cost' ? `$${Number(v).toFixed(4)}` : Number(v).toLocaleString(), name === 'cost' ? 'Cost' : 'Calls']} />
         <Area type="monotone" dataKey="cost" stroke="#0d9488" strokeWidth={2} fill="url(#g1)" />
       </AreaChart>
     </ResponsiveContainer>
@@ -247,7 +279,7 @@ export default function AnalyticsPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
 
-  const [preset, setPreset] = useState<Preset>('7d')
+  const [preset, setPreset] = useState<Preset>('24h')
   const [loading, setLoading] = useState(true)
 
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null)
@@ -260,7 +292,7 @@ export default function AnalyticsPage() {
     if (!apiKey) return
     setLoading(true)
     const win = presetWindow(preset)
-    const gran = preset === '24h' ? 'hourly' : 'daily'
+    const gran = presetGranularity(preset)
     try {
       const [s, t, m, f, u] = await Promise.all([
         getAnalyticsSummary(apiKey, win),
@@ -280,6 +312,13 @@ export default function AnalyticsPage() {
   useEffect(() => { load() }, [load])
 
   const PRESETS: { v: Preset; label: string }[] = [
+    { v: '5m', label: '5m' },
+    { v: '15m', label: '15m' },
+    { v: '30m', label: '30m' },
+    { v: '1h', label: '1h' },
+    { v: '3h', label: '3h' },
+    { v: '6h', label: '6h' },
+    { v: '12h', label: '12h' },
     { v: '24h', label: '24h' },
     { v: '7d', label: '7d' },
     { v: '30d', label: '30d' },
@@ -313,7 +352,7 @@ export default function AnalyticsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <BarChart2 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h1 className="text-2xl font-bold tracking-tight dark:text-white">Analytics</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Analytics</h1>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Spend breakdown, model usage, and per-user attribution for this workspace.
@@ -342,14 +381,14 @@ export default function AnalyticsPage() {
       <div className="flex items-center gap-2">
         <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wide mr-1">Period</span>
-        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-sm">
+        <div className="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
           {PRESETS.map(({ v, label }) => (
             <button
               key={v}
               onClick={() => setPreset(v)}
               className={`px-3 py-1.5 transition-colors ${
                 preset === v
-                  ? 'bg-violet-600 text-white font-medium'
+                  ? 'bg-blue-600 text-white font-medium'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
@@ -365,7 +404,7 @@ export default function AnalyticsPage() {
       {/* Spend over time */}
       <Card
         title="Spend Over Time"
-        sub={`${preset === '24h' ? 'Hourly' : 'Daily'} — last ${preset}`}
+        sub={presetSubtitle(preset, presetGranularity(preset))}
         action={
           <ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />
         }

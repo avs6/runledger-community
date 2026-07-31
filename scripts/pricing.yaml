@@ -1,20 +1,13 @@
 # Simulation pricing catalog
-# ──────────────────────────────────────────────────────────────────────────────
-# Used by the simulator (scripts/full_simulate.py): it imports this into the
-# provider-pricing catalog AND uses it to compute the cost of each ingested run,
-# so cost/analytics look real — including for **local Ollama models**.
 #
-# Unlike config/pricing.yml (where local models are $0), here Ollama models carry
-# a small per-1M-token cost representing your GPU / electricity / infra spend, so
-# you can actually track and attribute the cost of local inference. Tune the
-# numbers to your hardware.
+# This catalog is intentionally local-only. The full simulator imports this file
+# into Provider Profiles and also uses it to compute synthetic run costs, so the
+# dashboard can show realistic FinOps for Ollama without any cloud API keys.
 #
-# Same format as config/pricing.yml - import it from the dashboard too if you like
-# (Provider Profiles -> Import YAML).
+# Values represent internal infrastructure cost per 1M tokens. Tune them to your
+# own GPU, electricity, and hosting assumptions.
 
 models:
-
-  # ── Ollama (local — priced at your infra cost so it's tracked) ────────────────
   - provider: ollama
     model: llama3.1:8b
     display_name: Llama 3.1 8B (local)
@@ -71,44 +64,9 @@ models:
     output_per_1m: 0.06
     tags: [local, chat]
 
-  # Embeddings are cheap — output tokens are 0 for embedding models.
   - provider: ollama
     model: nomic-embed-text
     display_name: Nomic Embed Text (local)
     input_per_1m: 0.01
     output_per_1m: 0.00
     tags: [local, embedding]
-
-  # ── OpenAI (hosted, for mixed / comparison scenarios) ─────────────────────────
-  - provider: openai
-    model: gpt-4o
-    input_per_1m: 2.50
-    output_per_1m: 10.00
-    cached_input_per_1m: 1.25
-    tags: [chat, flagship]
-
-  - provider: openai
-    model: gpt-4o-mini
-    input_per_1m: 0.15
-    output_per_1m: 0.60
-    cached_input_per_1m: 0.075
-    tags: [chat, cheap, fast]
-
-  - provider: openai
-    model: o3-mini
-    input_per_1m: 1.10
-    output_per_1m: 4.40
-    tags: [reasoning, coding]
-
-  # ── Anthropic (hosted) ────────────────────────────────────────────────────────
-  - provider: anthropic
-    model: claude-sonnet-4-6
-    input_per_1m: 3.00
-    output_per_1m: 15.00
-    tags: [chat, coding, balanced]
-
-  - provider: anthropic
-    model: claude-haiku-4-5
-    input_per_1m: 0.80
-    output_per_1m: 4.00
-    tags: [chat, cheap, fast]

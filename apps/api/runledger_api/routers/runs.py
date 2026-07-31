@@ -146,6 +146,38 @@ def _cost_band(cost: Decimal) -> str:
     return "$0.10+"
 
 
+def _fallback_savings_category(
+    *,
+    cached_input_tokens: int,
+    total_tokens: int,
+    total_cost: Decimal,
+    model: str | None,
+    provider: str | None,
+    gateway_request: GatewayRequest | None,
+) -> tuple[Decimal, str | None, str | None]:
+    if cached_input_tokens > 0 and total_tokens > cached_input_tokens and total_cost > 0:
+        return (
+            total_cost * Decimal(cached_input_tokens) / Decimal(total_tokens - cached_input_tokens),
+            "cache_hits",
+            "Cached input tokens avoided repeated prompt cost.",
+        )
+    if gateway_request is not None and gateway_request.cache_hit:
+        return (
+            max(total_cost, Decimal("0.000001")),
+            "cache_hits",
+            "Gateway cache hit avoided a fresh provider call.",
+        )
+
+    text = f"{model or ''} {provider or ''}".lower()
+    if any(name in text for name in ("llama", "local", "ollama")) and total_cost > 0:
+        return (
+            total_cost * Decimal("0.25"),
+            "local_models",
+            "Local or self-hosted model lane reduced provider spend.",
+        )
+    return Decimal("0"), None, None
+
+
 def _duration_or_latency(run: AgentRun, primary_call: ProviderCall | None) -> int | None:
     duration = _duration_ms(run.started_at, run.ended_at)
     if duration is not None:
@@ -590,14 +622,6 @@ async def get_run_flow(
         cached_input_tokens = cached_input_tokens or (
             gateway_request.input_tokens if gateway_request is not None and gateway_request.cache_hit else 0
         )
-        total_cost = run.total_cost_usd or Decimal("0")
-        total_tokens = input_tokens + output_tokens
-        savings = Decimal("0")
-        if cached_input_tokens > 0 and total_tokens > cached_input_tokens and total_cost > 0:
-            savings = total_cost * Decimal(cached_input_tokens) / Decimal(total_tokens - cached_input_tokens)
-        elif gateway_request is not None and gateway_request.cache_hit:
-            savings = max(total_cost, Decimal("0.000001"))
-
         agent_name = (
             _metadata_value(metadata, ["agent_name", "agent", "agent_client", "selected_agent"])
             or _metadata_value(resource_metadata, ["agent_name", "agent", "agent_client", "service.name"])
@@ -630,6 +654,28 @@ async def get_run_flow(
             else _provider_from_model(gateway_request.model_used if gateway_request else None)
         )
         model = primary_call.model if primary_call is not None else (gateway_request.model_used if gateway_request else None)
+        total_cost = run.total_cost_usd or Decimal("0")
+        total_tokens = input_tokens + output_tokens
+        savings = primary_call.savings_usd if primary_call is not None and primary_call.savings_usd is not None else Decimal("0")
+        savings_category = primary_call.savings_category if primary_call is not None else None
+        savings_reason = primary_call.savings_reason if primary_call is not None else None
+        if savings <= 0:
+            savings, savings_category, savings_reason = _fallback_savings_category(
+                cached_input_tokens=cached_input_tokens,
+                total_tokens=total_tokens,
+                total_cost=total_cost,
+                model=model,
+                provider=provider,
+                gateway_request=gateway_request,
+            )
+        elif not savings_category:
+            text = f"{model or ''} {provider or ''}".lower()
+            savings_category = (
+                "local_models"
+                if any(name in text for name in ("llama", "local", "ollama"))
+                else "smart_routing"
+            )
+            savings_reason = savings_reason or "RunLedger recorded realized savings for this provider call."
         route_label = (
             route.alias
             if route is not None
@@ -668,6 +714,8 @@ async def get_run_flow(
                 latency_ms=_duration_or_latency(run, primary_call),
                 success=(outcome.success if outcome is not None else run.status == RunStatusEnum.succeeded),
                 savings_usd=savings,
+                savings_category=savings_category,
+                savings_reason=savings_reason,
                 started_at=run.started_at,
             )
         )

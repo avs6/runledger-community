@@ -7,10 +7,12 @@ platform admin and runs every scenario under ``scripts/scenarios/`` — each cre
 own org + workspace and fills it with runs, gateway routes, budgets, outcomes, scores,
 and alerts, exactly as a real client would.
 
-    python scripts/full_simulate.py                 # clean (truncate) + simulate everything
+    python scripts/full_simulate.py                 # clean (truncate) + simulate local Ollama traffic
     python scripts/full_simulate.py --hard-clean     # wipe every volume AND remove all orgs/users/
                                                      #   keys first, then simulate
     python scripts/full_simulate.py --no-clean       # add data on top of what's already there
+    python scripts/full_simulate.py --scenario-set all
+    python scripts/full_simulate.py --traffic-multiplier 5
 
 The default clean preserves your admin login + provider pricing; --hard-clean removes every
 org / user / key too (provider pricing is kept). A fresh admin is bootstrapped either way.
@@ -65,6 +67,18 @@ def main() -> None:
     ap.add_argument("--admin-email", default="admin@runledger.local")
     ap.add_argument("--admin-password", default="runledger")
     ap.add_argument("--org-name", default="RunLedger", help="name for the default (platform) org")
+    ap.add_argument(
+        "--scenario-set",
+        choices=("ollama", "all", "hosted"),
+        default="ollama",
+        help="scenario category to run; default is local-only Ollama traffic",
+    )
+    ap.add_argument(
+        "--traffic-multiplier",
+        type=int,
+        default=3,
+        help="multiply each scenario's run count; default creates a high-volume local demo",
+    )
     clean = ap.add_mutually_exclusive_group()
     clean.add_argument("--no-clean", action="store_true", help="don't reset first")
     clean.add_argument("--hard-clean", action="store_true", help="wipe every volume before simulating")
@@ -77,7 +91,11 @@ def main() -> None:
         cleanup.truncate()
 
     # 2. Connect + bootstrap.
-    sim = Sim(args.base_url, args.admin_secret)
+    sim = Sim(
+        args.base_url,
+        args.admin_secret,
+        traffic_multiplier=max(1, args.traffic_multiplier),
+    )
     sim.wait_healthy()
     say("\n→ bootstrapping platform admin", "b")
     sim.bootstrap(args.admin_email, args.admin_password, args.org_name)
@@ -87,8 +105,12 @@ def main() -> None:
     _import_pricing(sim)
 
     # 3. Run every scenario.
-    mods = scenarios.discover()
-    say(f"\n→ running {len(mods)} scenario(s)", "b")
+    mods = scenarios.discover(args.scenario_set)
+    say(
+        f"\n→ running {len(mods)} {args.scenario_set} scenario(s) "
+        f"(traffic x{sim.traffic_multiplier})",
+        "b",
+    )
     for mod in mods:
         say(f"\n▶ {mod.NAME} — {getattr(mod, 'DESCRIPTION', '')}", "b")
         try:

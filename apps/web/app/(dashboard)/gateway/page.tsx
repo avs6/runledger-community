@@ -949,7 +949,7 @@ export default function GatewayPage() {
         )}
       </section>
 
-      {/* ── Optimization flywheel (Phase 7) ── */}
+      {/* ── Optimization flywheel ── */}
       {apiKey && <FlywheelPanel apiKey={apiKey} canManage={canManage} />}
     </div>
   )
@@ -1021,7 +1021,7 @@ function RecommendationPanel({ rec }: { rec: RoutingRecommendationResponse }) {
   )
 }
 
-// ── Optimization flywheel (Phase 7) ───────────────────────────────────────────
+// ── Optimization flywheel ─────────────────────────────────────────────────────
 
 const KIND_STYLE: Record<string, string> = {
   switch: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',

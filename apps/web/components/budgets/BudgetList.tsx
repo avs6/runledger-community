@@ -40,26 +40,26 @@ export default function BudgetList({ items, apiKey, onDeleted }: Props) {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 py-12 text-center text-sm text-slate-500 shadow-sm">
         No budgets yet. Create one to start enforcing spend limits.
       </div>
     )
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800">
+    <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white/90 shadow-sm">
+      <table className="min-w-full divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-50">
           <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Scope</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Period</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-300">Limit</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300 w-48">Spend</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Action</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Scope</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Period</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Limit</th>
+            <th className="w-48 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Spend</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Action</th>
             <th className="px-4 py-3" />
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
+        <tbody className="divide-y divide-slate-200 bg-white/80">
           {items.map((b) => {
             const pct = Math.min(100, parseFloat(b.pct_used))
             const barColour =
@@ -70,30 +70,30 @@ export default function BudgetList({ items, apiKey, onDeleted }: Props) {
                   : 'bg-indigo-500'
 
             return (
-              <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <tr key={b.id} className="hover:bg-blue-50/45">
                 <td className="px-4 py-3">
-                  <span className="font-medium capitalize text-gray-900 dark:text-gray-100">
+                  <span className="font-medium capitalize text-slate-950">
                     {b.scope_type.replace('_', ' ')}
                   </span>
                   {b.scope_id && (
-                    <span className="ml-1.5 text-gray-400 dark:text-gray-500">({b.scope_id})</span>
+                    <span className="ml-1.5 text-slate-500">({b.scope_id})</span>
                   )}
                 </td>
-                <td className="px-4 py-3 capitalize text-gray-600 dark:text-gray-300">{b.period_type}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">
+                <td className="px-4 py-3 capitalize text-slate-700">{b.period_type}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-slate-950">
                   ${parseFloat(b.limit_usd).toFixed(2)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                    <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-200">
                       <div
                         className={`h-full rounded-full ${barColour}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="tabular-nums text-gray-600 dark:text-gray-300">
+                    <span className="tabular-nums text-slate-700">
                       ${parseFloat(b.current_spend_usd).toFixed(4)}{' '}
-                      <span className="text-gray-400 dark:text-gray-500">({pct.toFixed(0)}%)</span>
+                      <span className="text-slate-500">({pct.toFixed(0)}%)</span>
                     </span>
                   </div>
                 </td>
@@ -108,7 +108,7 @@ export default function BudgetList({ items, apiKey, onDeleted }: Props) {
                   <button
                     onClick={() => handleDelete(b.id)}
                     disabled={deleting === b.id}
-                    className="text-gray-400 hover:text-red-500 disabled:opacity-40"
+                    className="text-slate-400 hover:text-red-500 disabled:opacity-40"
                     title="Deactivate"
                   >
                     <Trash2 className="h-4 w-4" />

@@ -28,9 +28,14 @@ from types import ModuleType
 _SKIP_PACKAGES = {"labs"}
 
 
-def discover() -> list[ModuleType]:
-    """Return every scenario module under this package (recursively), sorted by path."""
+def discover(category: str | None = "ollama") -> list[ModuleType]:
+    """Return scenario modules, optionally scoped to one scenario category.
+
+    The default is local-only Ollama traffic. Pass ``category="all"`` or ``None``
+    when you intentionally want every bundled scenario.
+    """
     mods: list[ModuleType] = []
+    category_filter = None if category in (None, "", "all") else category
     for info in sorted(
         pkgutil.walk_packages(__path__, prefix=f"{__name__}."), key=lambda m: m.name
     ):
@@ -40,6 +45,8 @@ def discover() -> list[ModuleType]:
             continue
         # Skip anything living under a non-scenario subpackage (e.g. scenarios.labs.*).
         if _SKIP_PACKAGES.intersection(parts):
+            continue
+        if category_filter and category_filter not in parts:
             continue
         mod = importlib.import_module(info.name)
         if hasattr(mod, "run") and hasattr(mod, "NAME"):
