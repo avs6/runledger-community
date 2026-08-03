@@ -43,6 +43,7 @@ from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.billing import (
     BillingAdjustment,
     BillingPeriod,
+    ChargebackRule,
     SharedCostPolicy,
 )
 from runledger_api.models.tenant import Workspace
@@ -53,6 +54,9 @@ from runledger_api.schemas.billing import (
     BillingPeriodCreate,
     BillingPeriodList,
     BillingPeriodResponse,
+    ChargebackRuleCreate,
+    ChargebackRuleList,
+    ChargebackRuleResponse,
     PeriodBreakdown,
     SharedCostAllocationResult,
     SharedCostPolicyCreate,
@@ -585,3 +589,86 @@ async def allocate_shared_cost(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     return SharedCostAllocationResult(**result)
+
+
+# ── Chargeback Rules ─────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/chargeback-rules",
+    response_model=ChargebackRuleResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_chargeback_rule(
+    body: ChargebackRuleCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChargebackRuleResponse:
+    workspace: Workspace = auth[0]
+    rule = ChargebackRule(
+        workspace_id=workspace.id,
+        allocation_type=body.allocation_type,
+        dimension=body.dimension,
+        weight=body.weight,
+        cost_center_id=body.cost_center_id,
+        status="pending_approval" if body.require_approval else "active",
+    )
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return ChargebackRuleResponse.model_validate(rule)
+
+
+@router.get("/chargeback-rules", response_model=ChargebackRuleList)
+async def list_chargeback_rules(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status_filter: str | None = Query(None, alias="status"),
+) -> ChargebackRuleList:
+    workspace: Workspace = auth[0]
+    stmt = select(ChargebackRule).where(ChargebackRule.workspace_id == workspace.id)
+    if status_filter:
+        stmt = stmt.where(ChargebackRule.status == status_filter)
+    result = await db.execute(stmt.order_by(ChargebackRule.created_at.desc()))
+    return ChargebackRuleList(
+        items=[ChargebackRuleResponse.model_validate(r) for r in result.scalars().all()]
+    )
+
+
+@router.get("/chargeback-rules/{rule_id}", response_model=ChargebackRuleResponse)
+async def get_chargeback_rule(
+    rule_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChargebackRuleResponse:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(ChargebackRule).where(
+            ChargebackRule.id == rule_id,
+            ChargebackRule.workspace_id == workspace.id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    return ChargebackRuleResponse.model_validate(rule)
+
+
+@router.delete("/chargeback-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_chargeback_rule(
+    rule_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(ChargebackRule).where(
+            ChargebackRule.id == rule_id,
+            ChargebackRule.workspace_id == workspace.id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    await db.delete(rule)
+    await db.commit()

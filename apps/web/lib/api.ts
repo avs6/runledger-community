@@ -100,6 +100,11 @@ import type {
   EngineeringMetrics,
   SimulationRequest,
   SimulationResult,
+  PolicyCheckResponse,
+  RunbookList,
+  RunbookResponse,
+  ModelScorecardList,
+  OnboardingStatus,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -2134,4 +2139,102 @@ export async function simulateOptimization(
       body: JSON.stringify(request),
     }
   )
+}
+
+// ── Phase 13: Audit Export ───────────────────────────────────────────────────
+
+export async function exportAuditEvents(
+  apiKey: string,
+  format: 'csv' | 'json' = 'csv',
+  action?: string,
+  targetType?: string
+): Promise<string> {
+  const qs = new URLSearchParams({ format })
+  if (action) qs.set('action', action)
+  if (targetType) qs.set('target_type', targetType)
+  const API = typeof window === 'undefined'
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+  const res = await fetch(`${API}/audit/events/export?${qs}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+  return res.text()
+}
+
+// ── Phase 13: Policy Dry Run ─────────────────────────────────────────────────
+
+export async function policyDryRun(
+  apiKey: string,
+  body: {
+    end_user_id?: string
+    feature_tag?: string
+    tool_name?: string
+    model_alias?: string
+    dry_run: true
+  }
+): Promise<PolicyCheckResponse> {
+  return apiFetch<PolicyCheckResponse>('/policies/check', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+// ── Phase 13: Runbooks ───────────────────────────────────────────────────────
+
+export async function generateRunbook(
+  apiKey: string,
+  runId: string
+): Promise<RunbookResponse> {
+  return apiFetch<RunbookResponse>(`/runs/${runId}/runbook`, apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function listRunbooks(
+  apiKey: string,
+  params?: { severity?: string; limit?: number; offset?: number }
+): Promise<RunbookList> {
+  const q = new URLSearchParams()
+  if (params?.severity) q.set('severity', params.severity)
+  if (params?.limit) q.set('limit', String(params.limit))
+  if (params?.offset) q.set('offset', String(params.offset))
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<RunbookList>(`/runs/runbooks/list${qs}`, apiKey)
+}
+
+// ── Phase 13: Model Scorecards ───────────────────────────────────────────────
+
+export async function getModelScorecards(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<ModelScorecardList> {
+  return apiFetch<ModelScorecardList>(
+    `/analytics/model-scorecards${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+// ── Phase 13: Onboarding & Demo ──────────────────────────────────────────────
+
+export async function getOnboardingStatus(apiKey: string): Promise<OnboardingStatus> {
+  return apiFetch<OnboardingStatus>('/settings/onboarding-status', apiKey)
+}
+
+export async function triggerDemoSeed(
+  apiKey: string
+): Promise<{ status: string; message: string }> {
+  return apiFetch<{ status: string; message: string }>('/settings/demo-seed', apiKey, {
+    method: 'POST',
+  })
+}
+
+// ── Phase 13: Chargeback Rules ───────────────────────────────────────────────
+
+export async function deleteChargebackRule(
+  apiKey: string,
+  ruleId: string
+): Promise<void> {
+  await apiFetch<void>(`/billing/chargeback-rules/${ruleId}`, apiKey, { method: 'DELETE' })
 }

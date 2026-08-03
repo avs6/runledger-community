@@ -8,6 +8,7 @@ import {
   BarChart2,
   Beaker,
   Bell,
+  BookOpen,
   Building2,
   ChevronDown,
   Cpu,
@@ -25,6 +26,8 @@ import {
   PiggyBank,
   Plug,
   Radio,
+  Receipt,
+  Rocket,
   Route,
   ScrollText,
   Search,
@@ -34,6 +37,7 @@ import {
   ShieldCheck,
   TableProperties,
   TrendingUp,
+  Trophy,
   Users,
   Wallet,
   Wrench,
@@ -65,6 +69,7 @@ const workspaceNav = [
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
+  { href: '/runbooks', label: 'Runbooks', icon: BookOpen },
 ] as const
 
 export default function Sidebar() {
@@ -158,10 +163,12 @@ export default function Sidebar() {
         <Section id="improve" label="Improve">
           <NavLink href="/optimization-opportunities" label="Optimization Opportunities" icon={Lightbulb} />
           <NavLink href="/optimization-simulator" label="Optimization Simulator" icon={FlaskConical} />
+          <NavLink href="/model-scorecards" label="Model Scorecards" icon={Trophy} />
           <NavLink href="/prompts" label="Prompts" icon={FileText} />
           <NavLink href="/evaluation" label="Evaluations" icon={FlaskConical} />
           <NavLink href="/experiments" label="Experiments" icon={Beaker} />
           <NavLink href="/datasets" label="Datasets" icon={TableProperties} />
+          <NavLink href="/replay" label="Replay Lab" icon={Beaker} />
         </Section>
 
         {canAccessApiKeys && (
@@ -191,6 +198,7 @@ export default function Sidebar() {
             <NavLink href="/cost-savings" label="Cost & Savings" icon={PiggyBank} />
             <NavLink href="/budgets" label="Budgets" icon={Wallet} />
             <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
+            <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />
           </Section>
         )}
 
@@ -198,6 +206,7 @@ export default function Sidebar() {
           <Section id="governance" label="Governance">
             <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />
             <NavLink href="/audit" label="Audit Log" icon={ScrollText} />
+            <NavLink href="/policy-dry-run" label="Policy Dry Run" icon={Shield} />
           </Section>
         )}
       </nav>
@@ -215,6 +224,7 @@ export default function Sidebar() {
           <Section id="platform" label="Platform">
             <NavLink href="/global-dashboard" label="Global Dashboard" icon={Landmark} />
             <NavLink href="/organizations" label="All Organizations" icon={Landmark} />
+            <NavLink href="/onboarding" label="Getting Started" icon={Rocket} />
             {canAccessSettings && <NavLink href="/settings" label="Settings" icon={Settings} />}
           </Section>
         )}

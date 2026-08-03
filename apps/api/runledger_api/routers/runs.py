@@ -25,11 +25,14 @@ from runledger_api.models.events import (
 )
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
+from runledger_api.models.events import RunbookEntry
 from runledger_api.schemas.runs import (
     GraphEdge,
     GraphNode,
     GraphNodeData,
     ProviderCallDetail,
+    RunbookList,
+    RunbookResponse,
     RunDetailResponse,
     RunFlowRecord,
     RunFlowResponse,
@@ -39,6 +42,7 @@ from runledger_api.schemas.runs import (
     SpanDetail,
     ToolCallDetail,
 )
+from runledger_api.services.runbooks import generate_runbook
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -975,3 +979,47 @@ async def get_run_graph(
         )
 
     return RunGraphResponse(run_id=run_id, nodes=nodes, edges=edges)
+
+
+# ── Runbooks ─────────────────────────────────────────────────────────────────
+
+
+@router.post("/{run_id}/runbook", response_model=RunbookResponse, status_code=status.HTTP_201_CREATED)
+async def create_runbook(
+    run_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> RunbookResponse:
+    """Generate an incident-style runbook for a run."""
+    try:
+        entry = await generate_runbook(db, workspace.id, run_id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return RunbookResponse.model_validate(entry)
+
+
+@router.get("/runbooks/list", response_model=RunbookList)
+async def list_runbooks(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    severity: str | None = Query(None, pattern="^(info|warning|critical)$"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> RunbookList:
+    """List generated runbooks for this workspace."""
+    base = select(RunbookEntry).where(RunbookEntry.workspace_id == workspace.id)
+    if severity:
+        base = base.where(RunbookEntry.severity == severity)
+
+    total_result = await db.execute(select(func.count()).select_from(base.subquery()))
+    total = total_result.scalar() or 0
+
+    result = await db.execute(
+        base.order_by(RunbookEntry.generated_at.desc()).limit(limit).offset(offset)
+    )
+    items = result.scalars().all()
+
+    return RunbookList(
+        items=[RunbookResponse.model_validate(e) for e in items],
+        total=total,
+    )

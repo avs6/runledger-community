@@ -25,7 +25,7 @@ from runledger_api.core.deps import (
 )
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
-from runledger_api.models.tenant import ApiKey, Workspace, WorkspaceUser
+from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
 from runledger_api.schemas.email_prefs import (
     EmailLogList,
@@ -289,3 +289,85 @@ async def test_email_send(
         return {"ok": True, "error": None}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+# ── Onboarding ───────────────────────────────────────────────────────────────
+
+
+@router.get("/onboarding-status")
+async def onboarding_status(
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> dict[str, Any]:
+    """Return setup completion checklist for onboarding wizard."""
+    from runledger_api.models.alerts import AlertRule  # noqa: PLC0415
+    from runledger_api.models.budgets import Budget  # noqa: PLC0415
+    from runledger_api.models.events import AgentRun  # noqa: PLC0415
+    from runledger_api.models.gateway import GatewayRoute  # noqa: PLC0415
+
+    has_org = (await db.execute(
+        select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1)
+    )).scalar_one_or_none() is not None
+
+    has_workspace = True  # they're authenticated with a workspace key
+
+    has_api_key = (await db.execute(
+        select(ApiKey.id).where(
+            ApiKey.workspace_id == workspace.id, ApiKey.revoked_at.is_(None)
+        ).limit(1)
+    )).scalar_one_or_none() is not None
+
+    has_first_run = (await db.execute(
+        select(AgentRun.id).where(AgentRun.workspace_id == workspace.id).limit(1)
+    )).scalar_one_or_none() is not None
+
+    has_gateway_route = (await db.execute(
+        select(GatewayRoute.id).where(
+            GatewayRoute.workspace_id == workspace.id, GatewayRoute.is_active.is_(True)
+        ).limit(1)
+    )).scalar_one_or_none() is not None
+
+    has_budget = (await db.execute(
+        select(Budget.id).where(Budget.workspace_id == workspace.id).limit(1)
+    )).scalar_one_or_none() is not None
+
+    has_alert_rule = (await db.execute(
+        select(AlertRule.id).where(AlertRule.workspace_id == workspace.id).limit(1)
+    )).scalar_one_or_none() is not None
+
+    steps = [has_org, has_workspace, has_api_key, has_first_run, has_gateway_route, has_budget, has_alert_rule]
+    completed = sum(1 for s in steps if s)
+
+    return {
+        "has_org": has_org,
+        "has_workspace": has_workspace,
+        "has_api_key": has_api_key,
+        "has_first_run": has_first_run,
+        "has_gateway_route": has_gateway_route,
+        "has_budget": has_budget,
+        "has_alert_rule": has_alert_rule,
+        "completed": completed,
+        "total": len(steps),
+        "pct": round(completed / len(steps) * 100),
+    }
+
+
+# ── Demo seed ────────────────────────────────────────────────────────────────
+
+
+@router.post("/demo-seed")
+async def trigger_demo_seed(
+    auth: PlatformAdminDep,
+) -> dict[str, str]:
+    """Trigger the demo data seeder (platform admin only)."""
+    import subprocess  # noqa: PLC0415, S404
+    import sys  # noqa: PLC0415
+
+    try:
+        subprocess.Popen(  # noqa: S603
+            [sys.executable, "-m", "scripts.seed_demo"],
+            cwd=str(__import__("pathlib").Path(__file__).resolve().parents[2]),
+        )
+        return {"status": "started", "message": "Demo seed started in background"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}

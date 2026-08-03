@@ -24,6 +24,8 @@ from runledger_api.core.deps import get_current_workspace, require_workspace_adm
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.tenant import Workspace
+from fastapi.responses import StreamingResponse
+
 from runledger_api.schemas.audit import AuditEventList, AuditEventResponse
 
 router = APIRouter(
@@ -74,6 +76,55 @@ async def list_audit_events(
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get("/events/export")
+async def export_audit_events(
+    auth: AdminDep,
+    db: DbDep,
+    action: str | None = Query(None),
+    target_type: str | None = Query(None),
+    format: str = Query("csv", pattern="^(csv|json)$"),
+) -> StreamingResponse:
+    """Export audit events as CSV or JSON download."""
+    ws: Workspace = auth[0]
+    base = select(AuditEvent).where(AuditEvent.workspace_id == ws.id)
+    if action:
+        base = base.where(AuditEvent.action.ilike(f"{action}%"))
+    if target_type:
+        base = base.where(AuditEvent.target_type == target_type)
+
+    result = await db.execute(base.order_by(AuditEvent.created_at.desc()).limit(5000))
+    items = result.scalars().all()
+
+    if format == "json":
+        import json
+
+        rows = [AuditEventResponse.model_validate(e).model_dump(mode="json") for e in items]
+        body = json.dumps(rows, indent=2, default=str)
+        return StreamingResponse(
+            iter([body]),
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=audit_events.json"},
+        )
+
+    import csv
+    import io
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["id", "action", "actor_user_id", "target_type", "target_id", "details", "created_at"])
+    for e in items:
+        writer.writerow([
+            str(e.id), e.action, str(e.actor_user_id) if e.actor_user_id else "",
+            e.target_type or "", e.target_id or "", str(e.details) if e.details else "", str(e.created_at),
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=audit_events.csv"},
     )
 
 

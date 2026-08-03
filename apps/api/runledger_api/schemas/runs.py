@@ -184,6 +184,25 @@ class RunFlowResponse(BaseModel):
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 
+class RunbookResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    run_id: uuid.UUID
+    severity: str
+    summary: dict[str, Any]
+    generated_at: datetime
+
+
+class RunbookList(BaseModel):
+    items: list[RunbookResponse]
+    total: int
+
+
+# ── Login ─────────────────────────────────────────────────────────────────────
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str

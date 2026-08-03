@@ -1745,3 +1745,77 @@ export interface SimulationResult {
   impacts: SimulationImpact[]
   description: string
 }
+
+// ── Phase 13: Policy Dry Run ─────────────────────────────────────────────────
+
+export interface PolicyDryRunDetail {
+  budget_remaining_usd: string | null
+  budget_limit_usd: string | null
+  budget_period: string | null
+  tool_registered: boolean | null
+  tool_policy_setting: string | null
+  gateway_routes_found: number | null
+  gateway_route_aliases: string[] | null
+  score_latest_value: string | null
+  score_gate_threshold: string | null
+}
+
+export interface PolicyCheckResponse {
+  allowed: boolean
+  reasons: string[]
+  detail: PolicyDryRunDetail | null
+}
+
+// ── Phase 13: Runbooks ───────────────────────────────────────────────────────
+
+export interface RunbookResponse {
+  id: string
+  workspace_id: string
+  run_id: string
+  severity: string
+  summary: Record<string, unknown>
+  generated_at: string
+}
+
+export interface RunbookList {
+  items: RunbookResponse[]
+  total: number
+}
+
+// ── Phase 13: Model Scorecards ───────────────────────────────────────────────
+
+export interface ModelScorecard {
+  model: string
+  provider: string | null
+  total_cost_usd: string
+  call_count: number
+  avg_cost_per_call: string
+  avg_latency_ms: string | null
+  p95_latency_ms: string | null
+  error_rate: string
+  cache_hit_rate: string | null
+  avg_quality_score: string | null
+  input_tokens: number
+  output_tokens: number
+}
+
+export interface ModelScorecardList {
+  items: ModelScorecard[]
+  from_dt: string | null
+  to_dt: string | null
+}
+
+// ── Phase 13: Onboarding ─────────────────────────────────────────────────────
+
+export interface OnboardingStatus {
+  has_org: boolean
+  has_workspace: boolean
+  has_api_key: boolean
+  has_first_run: boolean
+  has_gateway_route: boolean
+  has_budget: boolean
+  has_alert_rule: boolean
+  completed: number
+  total: number
+  pct: number
+}

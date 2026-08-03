@@ -66,6 +66,8 @@ from runledger_api.schemas.analytics import (
     EngineeringMetrics,
     LifecycleStage,
     QualityFunnel,
+    ModelScorecard,
+    ModelScorecardList,
     SimulationImpact,
     SimulationRequest,
     SimulationResult,
@@ -2406,3 +2408,103 @@ async def simulate_optimization(
         impacts=impacts,
         description=desc,
     )
+
+
+# ── Model Scorecards ────────────────────────────────────────────────────────
+
+
+@router.get("/model-scorecards", response_model=ModelScorecardList)
+async def model_scorecards(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> ModelScorecardList:
+    """Aggregate quality scorecards per model: cost, latency, errors, cache, quality."""
+    now = datetime.now(UTC)
+    start = datetime.fromisoformat(from_dt) if from_dt else now - timedelta(days=30)
+    end = datetime.fromisoformat(to_dt) if to_dt else now
+
+    filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= start,
+        ProviderCall.created_at <= end,
+    ]
+
+    stmt = (
+        select(
+            ProviderCall.model,
+            ProviderCall.provider,
+            func.sum(ProviderCall.cost_usd).label("total_cost"),
+            func.count().label("call_count"),
+            func.avg(ProviderCall.cost_usd).label("avg_cost"),
+            func.avg(ProviderCall.latency_ms).label("avg_latency"),
+            func.percentile_cont(0.95).within_group(ProviderCall.latency_ms).label("p95_latency"),
+            func.sum(case((ProviderCall.status == "failed", 1), else_=0)).label("error_count"),
+            func.sum(ProviderCall.input_tokens).label("input_tokens"),
+            func.sum(ProviderCall.output_tokens).label("output_tokens"),
+        )
+        .where(*filters)
+        .group_by(ProviderCall.model, ProviderCall.provider)
+        .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
+    )
+
+    rows = (await db.execute(stmt)).all()
+
+    from runledger_api.models.gateway import GatewayRequest
+
+    cache_stmt = (
+        select(
+            GatewayRequest.model_used,
+            func.count().label("total"),
+            func.sum(case((GatewayRequest.cache_hit.is_(True), 1), else_=0)).label("hits"),
+        )
+        .where(
+            GatewayRequest.workspace_id == workspace.id,
+            GatewayRequest.created_at >= start,
+            GatewayRequest.created_at <= end,
+        )
+        .group_by(GatewayRequest.model_used)
+    )
+    cache_rows = {r.model_used: r for r in (await db.execute(cache_stmt)).all()}
+
+    score_stmt = (
+        select(
+            ProviderCall.model,
+            func.avg(ScoreEvent.value).label("avg_score"),
+        )
+        .join(ScoreEvent, ScoreEvent.run_id == ProviderCall.run_id)
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= start,
+            ProviderCall.created_at <= end,
+        )
+        .group_by(ProviderCall.model)
+    )
+    score_map = {r.model: r.avg_score for r in (await db.execute(score_stmt)).all()}
+
+    items = []
+    for r in rows:
+        cache_info = cache_rows.get(r.model)
+        cache_hit_rate = None
+        if cache_info and cache_info.total > 0:
+            cache_hit_rate = Decimal(str(round(cache_info.hits / cache_info.total * 100, 1)))
+
+        avg_score = score_map.get(r.model)
+
+        items.append(ModelScorecard(
+            model=r.model,
+            provider=r.provider,
+            total_cost_usd=Decimal(str(r.total_cost or 0)),
+            call_count=r.call_count,
+            avg_cost_per_call=Decimal(str(round(float(r.avg_cost or 0), 6))),
+            avg_latency_ms=Decimal(str(round(float(r.avg_latency or 0), 1))) if r.avg_latency else None,
+            p95_latency_ms=Decimal(str(round(float(r.p95_latency or 0), 1))) if r.p95_latency else None,
+            error_rate=Decimal(str(round(r.error_count / r.call_count * 100, 2))) if r.call_count > 0 else Decimal("0"),
+            cache_hit_rate=cache_hit_rate,
+            avg_quality_score=Decimal(str(round(float(avg_score), 2))) if avg_score else None,
+            input_tokens=r.input_tokens or 0,
+            output_tokens=r.output_tokens or 0,
+        ))
+
+    return ModelScorecardList(items=items, from_dt=start, to_dt=end)

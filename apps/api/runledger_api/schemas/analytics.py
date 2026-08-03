@@ -291,6 +291,27 @@ class SimulationImpact(BaseModel):
     delta_pct: Decimal | None
 
 
+class ModelScorecard(BaseModel):
+    model: str
+    provider: str | None = None
+    total_cost_usd: Decimal
+    call_count: int
+    avg_cost_per_call: Decimal
+    avg_latency_ms: Decimal | None
+    p95_latency_ms: Decimal | None
+    error_rate: Decimal
+    cache_hit_rate: Decimal | None
+    avg_quality_score: Decimal | None
+    input_tokens: int
+    output_tokens: int
+
+
+class ModelScorecardList(BaseModel):
+    items: list[ModelScorecard]
+    from_dt: datetime | None = None
+    to_dt: datetime | None = None
+
+
 class SimulationResult(BaseModel):
     affected_requests: int
     current_cost_usd: Decimal

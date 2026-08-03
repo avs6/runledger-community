@@ -21,6 +21,19 @@ class PolicyCheckRequest(BaseModel):
     tool_name: str | None = None
     model_alias: str | None = None
     score_gate: ScoreGateRequest | None = None
+    dry_run: bool = False
+
+
+class PolicyDryRunDetail(BaseModel):
+    budget_remaining_usd: Decimal | None = None
+    budget_limit_usd: Decimal | None = None
+    budget_period: str | None = None
+    tool_registered: bool | None = None
+    tool_policy_setting: str | None = None
+    gateway_routes_found: int | None = None
+    gateway_route_aliases: list[str] | None = None
+    score_latest_value: Decimal | None = None
+    score_gate_threshold: Decimal | None = None
 
 
 class PolicyCheckResponse(BaseModel):
@@ -33,3 +46,4 @@ class PolicyCheckResponse(BaseModel):
     tool_policy: str | None = None
     gateway_route_available: bool | None = None
     score_gate_passed: bool | None = None
+    detail: PolicyDryRunDetail | None = None

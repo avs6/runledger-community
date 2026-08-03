@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { ScrollText, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
-import { listAuditEvents } from '@/lib/api'
+import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { listAuditEvents, exportAuditEvents } from '@/lib/api'
 import type { AuditEvent } from '@/types/api'
 import { toast } from 'sonner'
 
@@ -91,14 +91,36 @@ export default function AuditPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={fetchEvents}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              if (!apiKey) return
+              try {
+                const csv = await exportAuditEvents(apiKey, 'csv', actionFilter || undefined, targetTypeFilter || undefined)
+                const blob = new Blob([csv], { type: 'text/csv' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `audit-events-${new Date().toISOString().slice(0, 10)}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+                toast.success('Audit log exported')
+              } catch { toast.error('Export failed') }
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </button>
+          <button
+            onClick={fetchEvents}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

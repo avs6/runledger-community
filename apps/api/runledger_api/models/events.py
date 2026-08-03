@@ -82,6 +82,32 @@ class AgentRun(Base):
     resource_attributes: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
 
+class RunbookEntry(Base):
+    __tablename__ = "runbook_entries"
+    __table_args__ = (
+        sa.Index("ix_runbook_entries_workspace", "workspace_id", "generated_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("agent_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    severity: Mapped[str] = mapped_column(sa.String(20), nullable=False, default="info")
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
 class Span(Base):
     __tablename__ = "spans"
     __table_args__ = (

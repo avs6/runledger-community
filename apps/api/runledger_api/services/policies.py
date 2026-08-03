@@ -5,13 +5,13 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.gateway import GatewayRoute
 from runledger_api.models.ledger import SecurityEvent, ToolRegistry
 from runledger_api.models.scores import ScoreEvent
-from runledger_api.schemas.policies import PolicyCheckRequest, PolicyCheckResponse
+from runledger_api.schemas.policies import PolicyCheckRequest, PolicyCheckResponse, PolicyDryRunDetail
 from runledger_api.services.budgets import check_budgets
 
 try:
@@ -98,6 +98,62 @@ async def _record_policy_violation(
     await db.commit()
 
 
+async def _collect_dry_run_detail(
+    db: AsyncSession,
+    redis: Redis,
+    workspace_id: uuid.UUID,
+    body: PolicyCheckRequest,
+    budget_check: object,
+) -> PolicyDryRunDetail:
+    """Gather diagnostic detail for each policy dimension."""
+    detail = PolicyDryRunDetail()
+
+    if hasattr(budget_check, "remaining_usd"):
+        detail.budget_remaining_usd = getattr(budget_check, "remaining_usd", None)
+    if hasattr(budget_check, "limit_usd"):
+        detail.budget_limit_usd = getattr(budget_check, "limit_usd", None)
+    if hasattr(budget_check, "period"):
+        detail.budget_period = getattr(budget_check, "period", None)
+
+    if body.tool_name:
+        tool_exists = await db.execute(
+            select(ToolRegistry.tool_name).where(
+                ToolRegistry.workspace_id == workspace_id,
+                ToolRegistry.tool_name == body.tool_name,
+            )
+        )
+        detail.tool_registered = tool_exists.scalar_one_or_none() is not None
+        detail.tool_policy_setting = await _get_tool_policy(db, workspace_id, body.tool_name)
+
+    if body.model_alias:
+        routes_result = await db.execute(
+            select(GatewayRoute.alias).where(
+                GatewayRoute.workspace_id == workspace_id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+        aliases = [r for r in routes_result.scalars().all()]
+        detail.gateway_routes_found = len(aliases)
+        detail.gateway_route_aliases = aliases[:20]
+
+    if body.score_gate is not None:
+        stmt = (
+            select(ScoreEvent.value)
+            .where(
+                ScoreEvent.workspace_id == workspace_id,
+                ScoreEvent.name == body.score_gate.name,
+            )
+            .order_by(ScoreEvent.created_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        val = result.scalar_one_or_none()
+        detail.score_latest_value = Decimal(str(val)) if val is not None else None
+        detail.score_gate_threshold = body.score_gate.min_value
+
+    return detail
+
+
 async def evaluate_policy_check(
     db: AsyncSession,
     redis: Redis,
@@ -168,7 +224,10 @@ async def evaluate_policy_check(
                 f"Score gate failed: {body.score_gate.name} < {body.score_gate.min_value}"
             )
 
-    if not allowed:
+    detail: PolicyDryRunDetail | None = None
+    if body.dry_run:
+        detail = await _collect_dry_run_detail(db, redis, workspace_id, body, budget_check)
+    elif not allowed:
         await _record_policy_violation(
             db=db,
             workspace_id=workspace_id,
@@ -191,4 +250,5 @@ async def evaluate_policy_check(
         tool_policy=tool_policy,
         gateway_route_available=gateway_route_available,
         score_gate_passed=score_gate_passed,
+        detail=detail,
     )

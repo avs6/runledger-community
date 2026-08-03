@@ -23,7 +23,7 @@ Use this as the top-level checklist. Update the status checkbox when a phase is 
 | [x] | Phase 10 - Visual Design And Interaction | M | M | Polish the experience with better interactions, responsive layouts, empty states, and professional UX. |
 | [ ] | Phase 11 - Demo Data, Labs, And Scenarios | M | H | Seed realistic enterprise demos showing savings, routing, alerts, MCP filtering, and optimization impact. |
 | [x] | Phase 12 - Implementation Order | S | M | Roadmap has been converted into a practical PR sequence with validation checkpoints. |
-| [~] | Phase 13 - Product Differentiators And Advanced Roadmap | L | H | Integration Health Center and Optimization Simulator shipped; replay labs, dry-run policy, chargeback, and demo mode remain. |
+| [x] | Phase 13 - Product Differentiators And Advanced Roadmap | L | H | All items shipped: audit export, policy dry run, replay lab, runbooks, chargeback, model scorecards, onboarding wizard, demo mode. |
 | [ ] | Phase 14 - Guardrails, Content Safety And Policy Engine | XL | H | Custom guardrails with Python logic, pre-built content filters, partner guardrail integrations, guardrails monitor, and policy dry-run. |
 | [ ] | Phase 15 - Traditional AI/ML Intelligence Layer | XL | H | Anomaly detection, cost/token forecasting, top-K analysis, usage prediction, pattern recognition, and intelligent alerting. |
 | [ ] | Phase 16 - Agentic Operations And Developer Experience | L | H | Agent lifecycle management, workflow runs, agent memory, API playground, vector store management, and tag management. |
@@ -72,7 +72,7 @@ Use this to find low-hanging fruit and sequence work.
 |---|---|---:|---:|---|
 | [x] | Phase 3 - Data Model And Analytics API | XL | H | Required for durable analytics but touches backend, migrations, APIs, and rollups. |
 | [ ] | Phase 3A - Supporting Infrastructure Backbone | XL | H | Important for production readiness but spans S3, SMTP, OTEL, logs, metrics, secrets, and deployment profiles. |
-| [~] | Phase 13 - Product Differentiators | L | H | Integration Health Center and Optimization Simulator shipped; remaining items layered after foundation. |
+| [x] | Phase 13 - Product Differentiators | L | H | All items shipped: audit export, policy dry run, replay lab, runbooks, chargeback, model scorecards, onboarding wizard, demo mode. |
 | [ ] | Phase 14 - Guardrails And Content Safety | XL | H | Major competitive gap vs LiteLLM; custom guardrails, content filters, and partner integrations are table stakes. |
 | [ ] | Phase 15 - AI/ML Intelligence Layer | XL | H | Transforms RunLedger from reporting to prediction; anomaly detection, forecasting, and pattern recognition. |
 | [ ] | Phase 16 - Agentic Operations And DX | L | H | Agent lifecycle, workflow runs, memory, and playground close the gap with LiteLLM Agentic features. |
