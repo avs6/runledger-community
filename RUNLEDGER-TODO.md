@@ -27,6 +27,10 @@ Use this as the top-level checklist. Update the status checkbox when a phase is 
 | [ ] | Phase 14 - Guardrails, Content Safety And Policy Engine | XL | H | Custom guardrails with Python logic, pre-built content filters, partner guardrail integrations, guardrails monitor, and policy dry-run. |
 | [ ] | Phase 15 - Traditional AI/ML Intelligence Layer | XL | H | Anomaly detection, cost/token forecasting, top-K analysis, usage prediction, pattern recognition, and intelligent alerting. |
 | [ ] | Phase 16 - Agentic Operations And Developer Experience | L | H | Agent lifecycle management, workflow runs, agent memory, API playground, vector store management, and tag management. |
+| [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | High-perf Rust gateway, advanced routing (tag-based, A/B test, traffic mirror), fallback chains, pass-through endpoints, multi-region, DB read replicas. |
+| [ ] | Phase 18 - Enterprise Security, Compliance And Key Management | XL | H | JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, GDPR opt-out, audit log export. |
+| [ ] | Phase 19 - Advanced Budget And Rate Limit Engine | L | H | Per-tag budgets, enforcement modes (throttle/block/fallback), temporary budget increases, budget tiers, model-specific budgets per key. |
+| [ ] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP server registry, per-key/team MCP permissions, custom plugin system, pass-through endpoint builder, AI Hub (public model catalog). |
 
 Effort key: `S` = small, `M` = medium, `L` = large, `XL` = very large.
 
@@ -72,6 +76,10 @@ Use this to find low-hanging fruit and sequence work.
 | [ ] | Phase 14 - Guardrails And Content Safety | XL | H | Major competitive gap vs LiteLLM; custom guardrails, content filters, and partner integrations are table stakes. |
 | [ ] | Phase 15 - AI/ML Intelligence Layer | XL | H | Transforms RunLedger from reporting to prediction; anomaly detection, forecasting, and pattern recognition. |
 | [ ] | Phase 16 - Agentic Operations And DX | L | H | Agent lifecycle, workflow runs, memory, and playground close the gap with LiteLLM Agentic features. |
+| [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | Rust gateway, advanced routing, multi-region, and pass-through endpoints match LiteLLM's core gateway. |
+| [ ] | Phase 18 - Enterprise Security And Compliance | XL | H | JWT auth, SCIM, IP ACLs, key rotation, secret managers close enterprise security gap vs LiteLLM. |
+| [ ] | Phase 19 - Advanced Budget And Rate Limits | L | H | Per-tag budgets, enforcement modes, and temporary increases match LiteLLM's budget engine. |
+| [ ] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP gateway, custom plugins, and AI Hub match LiteLLM's extensibility story. |
 
 ### Polish After Foundation
 
@@ -96,6 +104,13 @@ Use this to find low-hanging fruit and sequence work.
 13. [ ] Add Top-K analysis API with period-over-period change detection.
 14. [ ] Add API playground for interactive model testing through the gateway.
 15. [ ] Add custom guardrail editor with sandboxed Python logic and test playground.
+16. [ ] Add tag-based routing for free/paid tier separation (Phase 17 quick win).
+17. [ ] Add deployment health status (Healthy/Degraded/Down) per model endpoint.
+18. [ ] Add rate limit headers on every gateway response (X-RateLimit-Remaining-*).
+19. [ ] Add fallback chain configuration UI for model failover (Phase 17 quick win).
+20. [ ] Add per-team logging opt-out toggle for GDPR compliance (Phase 18 quick win).
+21. [ ] Add key ownership types (user/service-account/agent/org) to key management.
+22. [ ] Add "Ask AI" natural language query on usage/analytics pages.
 
 ---
 
@@ -119,6 +134,10 @@ One-sentence vision:
 - [ ] Add guardrails and content safety engine competitive with LiteLLM's Guardrail Garden and custom guardrails.
 - [ ] Add traditional AI/ML intelligence: anomaly detection, cost forecasting, top-K analysis, and pattern recognition.
 - [ ] Add agentic operations: agent registry, workflow runs, memory management, and API playground.
+- [ ] Build enterprise-grade gateway with advanced routing, fallbacks, A/B testing, tag-based routing, and pass-through endpoints.
+- [ ] Add enterprise security: JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, and GDPR compliance.
+- [ ] Add advanced budget engine: per-tag budgets with enforcement modes, temporary increases, budget tiers, and model-specific limits.
+- [ ] Add MCP gateway with per-key permissions, custom plugin system, and public AI Hub model catalog.
 
 ---
 
@@ -2398,6 +2417,18 @@ Add a guardrails system that lets customers define, test, and enforce content sa
   - post-response: run post_call guardrails before returning
   - modify: apply text/tool_call modifications inline
 - [ ] Add guardrail bypass for trusted workspaces/API keys
+- [ ] Add per-key guardrail toggling (keys can enable/disable specific guardrails)
+- [ ] Add per-request guardrail override via request body (`"guardrails": ["pii-guard", "toxicity"]`)
+- [ ] Add guardrail execution modes:
+  - `pre_call` — run before LLM call on input
+  - `post_call` — run after LLM call on input + output
+  - `during_call` — run in parallel with LLM call
+  - configurable per guardrail
+- [ ] Add guardrail load balancing:
+  - distribute guardrail requests across multiple accounts/regions
+  - weighted distribution across guardrail instances
+  - multi-region guardrail deployments (for latency)
+- [ ] Add system message skip option per guardrail (exclude `role: system` from scanning)
 - [ ] Add guardrail metrics to engineering dashboard
 - [ ] Add guardrail cost attribution (latency overhead per request)
 
@@ -2821,6 +2852,498 @@ Add agent lifecycle management, workflow orchestration visibility, developer pla
 - [ ] Tool policies provide fine-grained control over agent tool usage
 - [ ] Response cache is manageable and its savings are measurable
 - [ ] All new features integrate with existing RunLedger cost tracking and RBAC
+
+---
+
+## Phase 17 — Enterprise Gateway And Infrastructure
+
+### Goal
+
+Build a high-performance, production-grade AI gateway that matches or exceeds LiteLLM's gateway capabilities: sub-millisecond overhead, advanced routing strategies, multi-region deployment, and universal endpoint support.
+
+### Advanced Routing Engine
+
+- [ ] Add routing strategy framework:
+  - weighted random (RPM/TPM-aware shuffle) — default for production
+  - latency-based routing (pick lowest-latency deployment)
+  - cost-based routing (pick cheapest deployment that meets SLA)
+  - rate-limit-aware routing (avoid deployments near TPM/RPM ceiling)
+  - least-busy routing (fewest in-flight requests)
+  - custom routing strategy plugin interface
+- [ ] Add routing groups:
+  - per-model routing strategies (latency-based for gpt-4o, weighted for cheap models)
+  - independent state per group
+  - configurable via API and UI
+- [ ] Add tag-based routing:
+  - tag deployments (e.g. `free`, `paid`, `provider:openai`, `region:us-east`)
+  - route requests to matching tags
+  - negation tags (`!provider:anthropic` excludes Anthropic deployments)
+  - default tags for untagged requests
+  - tag header support (`x-runledger-tags`)
+- [ ] Add routing UI:
+  - visual routing group editor
+  - routing strategy comparison dashboard
+  - routing decision audit log
+
+### Fallback And Reliability
+
+- [ ] Add fallback chain engine:
+  - ordered fallback lists per model group
+  - content-policy fallbacks (route to different model on content violation)
+  - context-window fallbacks (auto-switch to larger context model)
+  - general fallbacks (rate limit, timeout, server error)
+  - client-side fallback override (per-request fallback list)
+  - per-fallback prompt/parameter override (different messages per fallback model)
+- [ ] Add retry engine:
+  - configurable retry count per deployment
+  - exponential backoff with jitter
+  - cooldown periods for failed deployments
+  - deployment health tracking (healthy/degraded/down)
+- [ ] Add timeout management:
+  - per-model timeout configuration
+  - per-request timeout override
+  - streaming timeout vs completion timeout
+  - timeout-based fallback trigger
+
+### A/B Testing And Traffic Management
+
+- [ ] Add A/B testing framework:
+  - split traffic between model groups by percentage
+  - track metrics per variant (cost, latency, quality, error rate)
+  - statistical significance calculator
+  - auto-promote winner
+- [ ] Add traffic mirroring:
+  - mirror production traffic to shadow model (fire-and-forget)
+  - compare shadow responses without affecting production
+  - cost tracking for mirrored traffic
+- [ ] Add canary deployments:
+  - gradual rollout of new model (1% -> 5% -> 25% -> 100%)
+  - automatic rollback on error rate spike
+  - deployment promotion UI
+
+### Pass-Through Endpoints
+
+- [ ] Add pass-through endpoint builder:
+  - route arbitrary API paths to external services through RunLedger
+  - header forwarding and transformation
+  - authentication injection (RunLedger manages upstream API keys)
+  - per-request cost assignment for non-LLM APIs (image gen, rerank, OCR, etc.)
+  - default query parameter injection
+  - configurable timeout per route
+- [ ] Add pass-through UI:
+  - visual endpoint builder
+  - test endpoint from UI
+  - cost and usage tracking per pass-through route
+  - rate limiting per route
+
+### High-Performance Gateway (Rust)
+
+- [ ] Evaluate Rust-based request proxy for hot path:
+  - target: sub-1ms p99 overhead (match LiteLLM's 0.66ms claim)
+  - async request forwarding with streaming support
+  - header injection, auth, and routing in Rust
+  - Python fallback for complex logic (guardrails, ML routing)
+- [ ] Add performance benchmarking:
+  - p50/p95/p99 latency tracking for gateway overhead
+  - throughput testing (requests/second)
+  - comparison dashboard vs direct provider calls
+
+### Multi-Region And HA
+
+- [ ] Add multi-region deployment support:
+  - region-aware routing (route to nearest provider endpoint)
+  - cross-region fallback
+  - region-specific model deployments
+  - latency-based region selection
+- [ ] Add database read replica support:
+  - read queries to replica, writes to primary
+  - configurable read/write split
+  - replica lag monitoring
+- [ ] Add horizontal scaling:
+  - stateless gateway nodes behind load balancer
+  - Redis-backed shared state (cooldowns, rate limits, routing decisions)
+  - graceful shutdown with request draining
+
+### Model Health Monitoring
+
+- [ ] Add deployment health dashboard:
+  - per-deployment status: Healthy / Degraded / Down
+  - automatic health detection from error rates and latency
+  - manual override (mark deployment as maintenance)
+  - health history timeline
+- [ ] Add model availability alerts:
+  - alert on deployment degradation
+  - alert on all-deployments-down for a model group
+  - auto-cooldown and recovery detection
+
+### Acceptance Criteria
+
+- [ ] Routing strategies are configurable per model group via API and UI
+- [ ] Fallback chains handle provider failures without client-visible errors
+- [ ] Tag-based routing enables free/paid tier separation and provider exclusion
+- [ ] A/B testing provides statistically valid model comparison in production
+- [ ] Pass-through endpoints allow non-LLM APIs to be proxied with cost tracking
+- [ ] Gateway overhead is measurable and targeted below 5ms p99
+- [ ] Multi-region deployment is documented and tested
+
+---
+
+## Phase 18 — Enterprise Security, Compliance And Key Management
+
+### Goal
+
+Add enterprise-grade security features that match LiteLLM's enterprise tier: JWT/OIDC authentication, SCIM provisioning, IP-based ACLs, automated key rotation, secret manager integrations, and GDPR-compliant logging controls.
+
+### JWT / OIDC Authentication
+
+- [ ] Add JWT authentication at the gateway level:
+  - validate JWT tokens on every request (not just admin UI)
+  - support OIDC discovery (auto-fetch JWKS from IdP)
+  - map JWT claims to RunLedger teams/workspaces/roles
+  - support multiple IdPs simultaneously
+- [ ] Add SSO/SAML support:
+  - Okta, Azure AD, Google Workspace, OneLogin
+  - automatic user provisioning from SSO
+  - role mapping from IdP groups
+- [ ] Add JWT-based key generation:
+  - users authenticate via SSO, get time-limited RunLedger API key
+  - refresh token flow
+  - session management UI
+
+### SCIM Provisioning
+
+- [ ] Add SCIM 2.0 endpoint:
+  - `POST /scim/v2/Users` — create user
+  - `GET /scim/v2/Users` — list users
+  - `PATCH /scim/v2/Users/{id}` — update user
+  - `DELETE /scim/v2/Users/{id}` — deprovision user
+  - `POST /scim/v2/Groups` — create group/team
+  - `PATCH /scim/v2/Groups/{id}` — update group membership
+- [ ] Add SCIM integration with IdPs:
+  - Okta SCIM connector
+  - Azure AD SCIM connector
+  - automatic team membership sync
+
+### IP-Based Access Control
+
+- [ ] Add IP ACL engine:
+  - allowlist/denylist by CIDR range
+  - per-key IP restrictions
+  - per-team IP restrictions
+  - per-workspace IP restrictions
+  - global IP restrictions
+- [ ] Add IP ACL management UI:
+  - visual CIDR editor
+  - IP range validation
+  - test IP against current rules
+  - ACL audit log
+
+### Key Rotation And Lifecycle
+
+- [ ] Add automated key rotation:
+  - configurable rotation schedule (30/60/90 days)
+  - grace period (old key valid for N hours after rotation)
+  - rotation notification (email/webhook)
+  - emergency revocation (instant invalidation)
+- [ ] Add key ownership types:
+  - user keys (tied to a person)
+  - service account keys (tied to an application)
+  - agent keys (tied to an AI agent)
+  - organization keys (shared across teams)
+- [ ] Add key lifecycle UI:
+  - creation date, last used, expiry
+  - rotation history
+  - usage stats per key
+  - bulk key management (rotate all, revoke expired)
+
+### Secret Manager Integrations
+
+- [ ] Add secret manager backends:
+  - AWS Secrets Manager / KMS
+  - HashiCorp Vault
+  - Azure Key Vault
+  - Google Cloud Secret Manager
+  - CyberArk Conjur
+- [ ] Add secret resolution at startup:
+  - resolve provider API keys from secret manager instead of env vars
+  - automatic secret refresh on rotation
+  - secret health check (verify accessible on startup)
+- [ ] Add secret management UI:
+  - configure secret manager connection
+  - map secrets to provider credentials
+  - secret rotation status
+
+### GDPR And Compliance
+
+- [ ] Add per-team logging opt-out:
+  - teams can opt out of prompt/response logging
+  - metadata-only mode (log cost, latency, model — not content)
+  - per-workspace logging policy
+  - compliance dashboard showing opt-out status
+- [ ] Add log export to cloud storage:
+  - export to S3, GCS, Azure Blob Storage
+  - configurable export schedule (hourly/daily)
+  - export format: JSON lines, Parquet
+  - retention policy enforcement (auto-delete after N days)
+- [ ] Add data residency controls:
+  - restrict data to specific regions
+  - provider selection based on data residency requirements
+  - data residency audit report
+- [ ] Add audit log enhancements:
+  - all admin actions logged with actor, timestamp, IP, and change diff
+  - audit log export
+  - audit log retention policy
+  - immutable audit trail (append-only)
+
+### Team-Based Logging Routing
+
+- [ ] Add per-team callback routing:
+  - each team's logs to their own Langfuse/callback endpoint
+  - team-specific webhook URLs
+  - team-specific Kafka topics
+  - logging routing rules UI
+
+### Enforced Request Parameters
+
+- [ ] Add required parameter enforcement:
+  - require specific metadata fields on every request (e.g. `user_id`, `session_id`)
+  - reject requests missing required params
+  - configurable per workspace
+  - enforcement mode: warn vs reject
+
+### Custom Branding
+
+- [ ] Add white-label customization:
+  - custom logo on login and dashboard
+  - custom domain support
+  - custom email sender name/address
+  - custom Swagger/OpenAPI branding
+  - remove RunLedger branding (enterprise tier)
+
+### Acceptance Criteria
+
+- [ ] JWT/OIDC authentication works at the gateway level with major IdPs
+- [ ] SCIM provisioning auto-syncs users and teams from Okta/Azure AD
+- [ ] IP ACLs restrict access at key, team, and workspace levels
+- [ ] Key rotation is automated with grace periods and notifications
+- [ ] At least 2 secret manager integrations work end-to-end
+- [ ] Teams can opt out of prompt logging for GDPR compliance
+- [ ] Audit logs capture all admin actions with immutable trail
+
+---
+
+## Phase 19 — Advanced Budget And Rate Limit Engine
+
+### Goal
+
+Build a sophisticated budget and rate limiting system that matches LiteLLM's enterprise budget features: per-tag budgets with enforcement modes, temporary budget increases, budget tiers, model-specific budgets, and billable request metering.
+
+### Per-Tag Budgets
+
+- [ ] Add tag-based budget engine:
+  - assign budgets to tags (e.g. `project:alpha` gets $500/month)
+  - budget inheritance: org tag budget -> team tag budget -> key tag budget
+  - multiple tags per request, budget checked against all
+  - tag budget dashboard with spend vs limit visualization
+- [ ] Add budget enforcement modes:
+  - **Throttle**: reduce rate limits when approaching budget (80% -> half RPM)
+  - **Block**: reject requests when budget exhausted
+  - **Fallback**: auto-route to cheaper model when budget nearing limit
+  - configurable per tag, per workspace
+  - enforcement mode override per request (for critical workloads)
+- [ ] Add budget alerts per tag:
+  - configurable thresholds (50%, 75%, 90%, 100%)
+  - alert channels: email, Slack, webhook
+  - projected budget breach alert (based on spend velocity)
+
+### Budget Tiers
+
+- [ ] Add budget tier system:
+  - define named tiers (Free, Starter, Pro, Enterprise)
+  - each tier has: max spend, RPM limit, TPM limit, model access list
+  - assign tiers to keys at generation time
+  - tier upgrade/downgrade API
+- [ ] Add tier management UI:
+  - create/edit/delete tiers
+  - view keys per tier
+  - tier comparison table
+  - tier usage analytics
+
+### Temporary Budget Increases
+
+- [ ] Add time-boxed budget increases:
+  - `POST /budget/increase` — increase budget for N hours/days
+  - automatic rollback to original budget after expiry
+  - increase reason (audit trail)
+  - approval workflow (optional: require admin approval)
+- [ ] Add temporary increase UI:
+  - request increase with reason
+  - approve/deny queue for admins
+  - active increases dashboard
+  - increase history
+
+### Model-Specific Budgets
+
+- [ ] Add per-model budget limits on keys:
+  - key can have overall budget AND per-model budgets
+  - e.g. key allows $100 total but max $20 on gpt-4o
+  - per-model RPM/TPM limits
+  - model budget enforcement at request time
+- [ ] Add model budget UI:
+  - visual budget allocation per model
+  - spend vs limit per model per key
+  - model budget utilization heatmap
+
+### Rate Limit Enhancements
+
+- [ ] Add separate input/output TPM limits:
+  - ITPM (input tokens per minute) limit
+  - OTPM (output tokens per minute) limit
+  - useful for controlling cost of long-output models
+- [ ] Add rate limit headers:
+  - `X-RateLimit-Limit-Requests`
+  - `X-RateLimit-Remaining-Requests`
+  - `X-RateLimit-Limit-Tokens`
+  - `X-RateLimit-Remaining-Tokens`
+  - `X-RateLimit-Reset`
+- [ ] Add rate limit dashboard:
+  - current utilization per key/team/workspace
+  - rate limit hit frequency
+  - throttled request log
+
+### Billable Request Metering
+
+- [ ] Add billable request tracking:
+  - mark requests as billable/non-billable
+  - billable request count per key/team/workspace
+  - billing period management (monthly reset)
+  - usage-based billing report export (CSV, JSON)
+- [ ] Add metering API:
+  - `GET /metering/usage` — current period usage
+  - `GET /metering/invoice` — generate invoice for period
+  - webhook on billing threshold
+
+### Acceptance Criteria
+
+- [ ] Per-tag budgets enforce spend limits at request time with configurable modes
+- [ ] Budget tiers allow standardized rate/spend profiles assigned to keys
+- [ ] Temporary budget increases work with automatic rollback
+- [ ] Model-specific budgets prevent overspend on expensive models
+- [ ] Rate limit headers are returned on every response
+- [ ] Billable request metering enables usage-based billing
+
+---
+
+## Phase 20 — MCP Gateway And Plugin Ecosystem
+
+### Goal
+
+Build an MCP (Model Context Protocol) gateway that allows centralized MCP server management with per-key/team permissions, plus a custom plugin system for extending gateway behavior and a public AI Hub for model/agent discovery.
+
+### MCP Server Registry
+
+- [ ] Add MCP server management:
+  - register MCP servers (HTTP, SSE, stdio transports)
+  - MCP server CRUD API
+  - MCP server health monitoring
+  - automatic tool discovery from registered servers
+- [ ] Add MCP permission management:
+  - per-key MCP server access (key A can use MCP servers X, Y but not Z)
+  - per-team MCP server access
+  - per-organization MCP server access
+  - tool-level permissions within MCP servers
+- [ ] Add MCP gateway endpoints:
+  - `GET /mcp/tools/list` — list available tools (filtered by key permissions)
+  - `POST /mcp/tools/call` — call a tool through RunLedger (with cost tracking)
+  - `GET /mcp/prompts/list` — list available prompts
+  - `GET /mcp/resources/list` — list available resources
+- [ ] Add MCP dashboard:
+  - registered servers with status
+  - tool usage analytics (calls, cost, latency per tool)
+  - permission matrix (which keys/teams can access which servers)
+
+### MCP Authentication
+
+- [ ] Add MCP auth flows:
+  - OAuth 2.0 with PKCE for MCP servers requiring auth
+  - AWS SigV4 for AWS-hosted MCP servers (Bedrock AgentCore)
+  - API key injection for simple MCP servers
+  - credential storage in secret manager (Phase 18 integration)
+
+### Custom Plugin System
+
+- [ ] Add plugin framework:
+  - lifecycle hooks: `pre_request`, `post_request`, `on_error`, `on_stream_chunk`
+  - plugin configuration via API and config file
+  - plugin ordering (priority chain)
+  - plugin enable/disable per workspace
+- [ ] Add plugin types:
+  - request transformation plugins (modify headers, body, metadata)
+  - response transformation plugins (post-process, filter, enrich)
+  - logging plugins (custom log destinations)
+  - routing plugins (custom routing logic)
+  - cost plugins (custom cost calculation for non-standard models)
+- [ ] Add plugin management UI:
+  - plugin marketplace / registry
+  - install/uninstall plugins
+  - plugin configuration editor
+  - plugin execution logs
+
+### AI Hub (Public Model Catalog)
+
+- [ ] Add AI Hub — branded page of available models:
+  - public-facing page showing available models/agents
+  - model cards: name, provider, capabilities, pricing, context window
+  - model comparison tool
+  - "Request Access" button (generates key request)
+- [ ] Add model catalog management:
+  - admin curates which models appear on Hub
+  - custom model descriptions and tags
+  - featured models section
+  - model deprecation notices
+- [ ] Add agent catalog:
+  - list registered agents with capabilities
+  - agent comparison
+  - agent onboarding wizard
+
+### Projects (Intermediate Grouping)
+
+- [ ] Add Projects as a grouping layer between teams and keys:
+  - project name, description, owner
+  - group API keys by project/application
+  - project-level budgets and rate limits
+  - project-level analytics (spend, usage, models used)
+- [ ] Add project CRUD API:
+  - `POST /projects` — create project
+  - `GET /projects` — list projects
+  - `PUT /projects/{id}` — update project
+  - `DELETE /projects/{id}` — delete project
+  - `POST /projects/{id}/keys` — assign keys to project
+- [ ] Add project dashboard:
+  - project spend overview
+  - keys per project
+  - project comparison
+
+### Team-Managed Models
+
+- [ ] Add team-owned model deployments:
+  - teams can bring their own API keys / fine-tuned models
+  - team-managed models visible only to that team
+  - team model cost tracked separately from org models
+  - team model health monitoring
+- [ ] Add team model management UI:
+  - add/edit/remove team models
+  - team model usage analytics
+  - team model budget (separate from org budget)
+
+### Acceptance Criteria
+
+- [ ] MCP servers are manageable via API and UI with per-key/team permissions
+- [ ] MCP tool calls are proxied through RunLedger with cost tracking
+- [ ] Custom plugins extend gateway behavior via lifecycle hooks
+- [ ] AI Hub provides a branded model catalog with comparison and access requests
+- [ ] Projects enable grouping keys by application with independent budgets
+- [ ] Team-managed models let teams bring their own deployments
 
 ---
 
