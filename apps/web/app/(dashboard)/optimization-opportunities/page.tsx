@@ -17,6 +17,7 @@ type Recommendation = {
   action: string
   projectedSavings: number
   projectedSavingsPct: number
+  realizedSavings: number
   risk: Risk
   confidence: 'High' | 'Medium' | 'Directional'
   href: string
@@ -84,6 +85,15 @@ function totalSpend(items: RunFlowRecord[]) {
   return items.reduce((sum, item) => sum + parseMoney(item.total_cost_usd), 0)
 }
 
+function totalSavings(items: RunFlowRecord[], categories?: string[]) {
+  const allowed = categories ? new Set(categories) : null
+  return items.reduce((sum, item) => {
+    const category = item.savings_category
+    if (allowed && (!category || !allowed.has(category))) return sum
+    return sum + parseMoney(item.savings_usd)
+  }, 0)
+}
+
 function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
   const recommendations: Recommendation[] = []
   const total = totalSpend(items)
@@ -120,6 +130,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Enable exact/semantic cache on high-repeat routes and set a cache policy experiment.',
       projectedSavings: projected,
       projectedSavingsPct: total > 0 ? (projected / total) * 100 : 0,
+      realizedSavings: totalSavings(items.filter((item) => item.cached_input_tokens > 0), ['cache_hits']),
       risk: 'Low',
       confidence: 'Medium',
       href: '/gateway',
@@ -138,6 +149,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Create a gateway experiment comparing GPT, Claude Sonnet, and local summarization for documentation traffic.',
       projectedSavings: projected,
       projectedSavingsPct: gptDocsSpend > 0 ? 45 : 0,
+      realizedSavings: totalSavings(gptDocs, ['smart_routing', 'local_models']),
       risk: 'Medium',
       confidence: 'Directional',
       href: '/experiments',
@@ -156,6 +168,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Add a local-model route in approval mode, then compare outcome rate before widening traffic.',
       projectedSavings: projected,
       projectedSavingsPct: localEligibleSpend > 0 ? 35 : 0,
+      realizedSavings: totalSavings(localEligible, ['local_models']),
       risk: 'Medium',
       confidence: 'Directional',
       href: '/gateway',
@@ -174,6 +187,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Add a classifier route that sends only planning/reasoning intents to premium reasoning models.',
       projectedSavings: projected,
       projectedSavingsPct: reasoningSpend > 0 ? 28 : 0,
+      realizedSavings: totalSavings(reasoningLike, ['smart_routing', 'prompt_compression']),
       risk: 'Medium',
       confidence: 'Medium',
       href: '/gateway',
@@ -192,6 +206,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Use MCP tool filtering to allow only relevant tools per task class, then measure cost and latency deltas.',
       projectedSavings: projected,
       projectedSavingsPct: toolSpend > 0 ? 16 : 0,
+      realizedSavings: totalSavings(toolHeavy, ['tool_optimization', 'prompt_compression', 'smart_routing']),
       risk: 'Low',
       confidence: 'Medium',
       href: '/mcp',
@@ -210,6 +225,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Compare slow routes against faster alternatives and add fallback thresholds for high-latency paths.',
       projectedSavings: projected,
       projectedSavingsPct: slowSpend > 0 ? 12 : 0,
+      realizedSavings: totalSavings(slow, ['smart_routing', 'local_models']),
       risk: 'Low',
       confidence: 'Medium',
       href: '/model-usage',
@@ -228,6 +244,7 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
       action: 'Add failure-aware fallback routing and alert on provider/model error spikes.',
       projectedSavings: projected,
       projectedSavingsPct: failureSpend > 0 ? 50 : 0,
+      realizedSavings: totalSavings(failures),
       risk: 'Low',
       confidence: 'High',
       href: '/alert-rules',
@@ -269,6 +286,7 @@ export default async function OptimizationOpportunitiesPage({
   const items = flow.items
   const recommendations = generateRecommendations(items)
   const totalProjected = recommendations.reduce((sum, rec) => sum + rec.projectedSavings, 0)
+  const measuredSavings = totalSavings(items)
   const total = totalSpend(items)
   const requests = flow.total_runs || items.length
 
@@ -311,7 +329,7 @@ export default async function OptimizationOpportunitiesPage({
         dimensions={['Intent', 'Model', 'Route', 'Cache', 'Tools', 'Latency', 'Outcome', 'Experiment']}
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Opportunities</p>
@@ -327,6 +345,14 @@ export default async function OptimizationOpportunitiesPage({
           </div>
           <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{money(totalProjected)}</p>
           <p className="mt-1 text-xs text-slate-500">{percent(total > 0 ? (totalProjected / total) * 100 : 0)} of sampled spend</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Measured savings</p>
+            <ShieldCheck className="h-5 w-5 text-emerald-700" />
+          </div>
+          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{money(measuredSavings)}</p>
+          <p className="mt-1 text-xs text-slate-500">Realized from persisted provider-call attribution</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -360,10 +386,17 @@ export default async function OptimizationOpportunitiesPage({
                   <h2 className="mt-3 text-lg font-semibold text-slate-950">{rec.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{rec.problem}</p>
                 </div>
-                <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-right text-emerald-800">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em]">Projected</p>
-                  <p className="font-display text-2xl font-semibold tracking-[-0.04em]">{money(rec.projectedSavings)}</p>
-                  <p className="text-xs">{percent(rec.projectedSavingsPct)} segment lift</p>
+                <div className="grid gap-2 text-right">
+                  <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em]">Projected</p>
+                    <p className="font-display text-2xl font-semibold tracking-[-0.04em]">{money(rec.projectedSavings)}</p>
+                    <p className="text-xs">{percent(rec.projectedSavingsPct)} segment lift</p>
+                  </div>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-blue-800">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em]">Measured so far</p>
+                    <p className="font-display text-xl font-semibold tracking-[-0.04em]">{money(rec.realizedSavings)}</p>
+                    <p className="text-xs">Persisted savings in this segment</p>
+                  </div>
                 </div>
               </div>
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
