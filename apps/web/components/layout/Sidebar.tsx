@@ -59,6 +59,7 @@ const workspaceNav = [
   { href: '/dashboard', label: 'Workspace Dashboard', icon: LayoutDashboard },
   { href: '/request-flow', label: 'Request Flow', icon: Route },
   { href: '/request-explorer', label: 'Request Explorer', icon: Search },
+  { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
@@ -156,6 +157,7 @@ export default function Sidebar() {
 
         <Section id="improve" label="Improve">
           <NavLink href="/optimization-opportunities" label="Optimization Opportunities" icon={Lightbulb} />
+          <NavLink href="/optimization-simulator" label="Optimization Simulator" icon={FlaskConical} />
           <NavLink href="/prompts" label="Prompts" icon={FileText} />
           <NavLink href="/evaluation" label="Evaluations" icon={FlaskConical} />
           <NavLink href="/experiments" label="Experiments" icon={Beaker} />

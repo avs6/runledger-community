@@ -92,6 +92,14 @@ import type {
   GithubConfig,
   GithubSyncResult,
   DatasetItem,
+  ScopedSummary,
+  SavingsResponse,
+  OptimizationOpportunitiesResponse,
+  TrendsResponse,
+  RequestExplorerResponse,
+  EngineeringMetrics,
+  SimulationRequest,
+  SimulationResult,
 } from '@/types/api'
 
 // Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
@@ -2032,4 +2040,98 @@ export async function pushToGithub(apiKey: string): Promise<GithubSyncResult> {
 
 export async function pullFromGithub(apiKey: string): Promise<GithubSyncResult> {
   return apiFetch<GithubSyncResult>('/prompts/sync/pull', apiKey, { method: 'POST' })
+}
+
+// ── Phase 3: Scoped summary ────────────────────────────────────────────────
+
+export async function getScopedSummary(
+  apiKey: string,
+  scope: 'workspace' | 'org' | 'platform' = 'workspace',
+  window: TimeWindow = {}
+): Promise<ScopedSummary> {
+  return apiFetch<ScopedSummary>(
+    `/analytics/scoped-summary${_analyticsQs({ scope, ...window })}`,
+    apiKey
+  )
+}
+
+export async function getSavingsAnalytics(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<SavingsResponse> {
+  return apiFetch<SavingsResponse>(
+    `/analytics/savings${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+export async function getOptimizationOpportunities(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<OptimizationOpportunitiesResponse> {
+  return apiFetch<OptimizationOpportunitiesResponse>(
+    `/analytics/optimization-opportunities${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+export async function getTrends(
+  apiKey: string,
+  granularity: 'hourly' | 'daily' | 'weekly' = 'daily',
+  window: TimeWindow = {}
+): Promise<TrendsResponse> {
+  return apiFetch<TrendsResponse>(
+    `/analytics/trends${_analyticsQs({ granularity, ...window })}`,
+    apiKey
+  )
+}
+
+export async function getRequestExplorer(
+  apiKey: string,
+  params: {
+    model?: string
+    provider?: string
+    intent?: string
+    optimization?: string
+    page?: number
+    page_size?: number
+  } & TimeWindow = {}
+): Promise<RequestExplorerResponse> {
+  const qs: Record<string, string | undefined> = {}
+  if (params.from) qs.from = params.from
+  if (params.to) qs.to = params.to
+  if (params.model) qs.model = params.model
+  if (params.provider) qs.provider = params.provider
+  if (params.intent) qs.intent = params.intent
+  if (params.optimization) qs.optimization = params.optimization
+  if (params.page) qs.page = String(params.page)
+  if (params.page_size) qs.page_size = String(params.page_size)
+  return apiFetch<RequestExplorerResponse>(
+    `/analytics/request-explorer${_analyticsQs(qs)}`,
+    apiKey
+  )
+}
+
+export async function getEngineeringMetrics(
+  apiKey: string,
+  window: TimeWindow = {}
+): Promise<EngineeringMetrics> {
+  return apiFetch<EngineeringMetrics>(
+    `/analytics/engineering${_analyticsQs(window)}`,
+    apiKey
+  )
+}
+
+export async function simulateOptimization(
+  apiKey: string,
+  request: SimulationRequest
+): Promise<SimulationResult> {
+  return apiFetch<SimulationResult>(
+    '/analytics/simulate-optimization',
+    apiKey,
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }
+  )
 }

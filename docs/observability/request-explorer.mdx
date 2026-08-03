@@ -1,0 +1,43 @@
+---
+title: "Request Explorer"
+description: "Filterable, paginated log of every provider call — search by model, provider, intent, or optimization type."
+---
+
+The Request Explorer is the drill-down companion to the Analytics and Engineering dashboards. It shows individual provider calls with full metadata, so you can investigate cost outliers, latency spikes, or unexpected model usage.
+
+## Features
+
+- **Full-text filtering** — narrow by model name, provider, intent, or optimization type
+- **Pagination** — browse large volumes (configurable page size, max 100)
+- **Time-range scoping** — same `from` / `to` window as all other analytics endpoints
+- **Per-request detail** — model, provider, status, tokens (in/out/cached), cost, latency, intent, and optimization applied
+
+## API
+
+```
+GET /analytics/request-explorer?from=&to=&model=&provider=&intent=&optimization=&page=1&page_size=50
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `from` | ISO-8601 | Start of time window (default: 7 days ago) |
+| `to` | ISO-8601 | End of time window (default: now) |
+| `model` | string | Filter by model name |
+| `provider` | string | Filter by provider |
+| `intent` | string | Filter by run intent |
+| `optimization` | string | Filter by optimization type applied |
+| `page` | int | Page number (default: 1) |
+| `page_size` | int | Results per page, 1–100 (default: 50) |
+
+Returns `RequestExplorerResponse` with `total_count`, `page`, `page_size`, and `records` array.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Engineering Dashboard" icon="wrench" href="/observability/engineering">
+    Aggregate latency, errors, and cache metrics.
+  </Card>
+  <Card title="Analytics" icon="chart-bar" href="/observability/analytics">
+    Spend charts and anomaly detection.
+  </Card>
+</CardGroup>

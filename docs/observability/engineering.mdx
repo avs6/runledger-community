@@ -1,0 +1,69 @@
+---
+title: "Engineering Dashboard"
+description: "Latency percentiles, error rates, cache hit ratios, cost breakdowns, prompt lifecycle pipeline, and quality funnel — the engineering view of your AI stack."
+---
+
+The Engineering dashboard gives backend and platform teams a real-time view of system health, performance, and optimization effectiveness.
+
+<Frame caption="Engineering — latency, errors, cache, cost dimensions, pipeline, and quality funnel.">
+  <img src="/images/engineering.png" alt="Engineering Dashboard" />
+</Frame>
+
+## Key metrics
+
+| Card | What it shows |
+|------|---------------|
+| Total Requests | Provider calls in the time window |
+| Avg Latency | Mean response time across all calls |
+| P95 Latency | 95th-percentile response time |
+| Error Rate | Percentage of calls that returned an error |
+| Input / Output Tokens | Total token consumption |
+| Total Cost | Aggregate spend in USD |
+| Cache Hit Rate | Percentage of calls served from cache |
+
+## Prompt Lifecycle Pipeline
+
+A horizontal pipeline showing how requests flow through optimization stages:
+
+```
+Received → Optimized → Cached → Routed → Completed → Errored
+```
+
+Each stage shows a count and percentage relative to total requests.
+
+## Cost Breakdown
+
+Two-dimensional cost analysis:
+
+- **By Model** — cost attribution across all models used in the window
+- **By Provider** — cost attribution across providers (OpenAI, Anthropic, Ollama, etc.)
+
+## Quality Funnel
+
+Visualizes the pass-through quality of your AI pipeline:
+
+| Stage | Description |
+|-------|-------------|
+| Total | All requests received |
+| Completed | Requests that returned a response |
+| Cached | Responses served from cache (exact or semantic) |
+| Optimized | Requests where token optimization was applied |
+
+## API
+
+```
+GET /analytics/engineering?from=&to=
+```
+
+Returns `EngineeringMetrics` with all KPIs, lifecycle stages, cost dimensions, and quality funnel in a single response. See the [API reference](http://localhost:8201/reference) for the full schema.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="AI Ops Dashboards" icon="chart-bar" href="/observability/ai-ops-dashboards">
+    Executive-level cost and usage views.
+  </Card>
+  <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
+    Drill into individual requests.
+  </Card>
+</CardGroup>

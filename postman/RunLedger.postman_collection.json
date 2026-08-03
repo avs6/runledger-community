@@ -1750,6 +1750,341 @@
             "description": "Top workflows ranked by average cost or latency."
           },
           "response": []
+        },
+        {
+          "name": "Scoped Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/scoped-summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "scoped-summary"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "workspace",
+                  "description": "One of: workspace, org, platform"
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO-8601 start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO-8601 end",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Summary with workspace/org/platform scope, including savings, intents, and top models."
+          },
+          "response": []
+        },
+        {
+          "name": "Savings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/savings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "savings"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO-8601 start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO-8601 end",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Savings breakdown by category (cache, routing, compression) and over time."
+          },
+          "response": []
+        },
+        {
+          "name": "Optimization Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/optimization-opportunities",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "optimization-opportunities"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO-8601 start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO-8601 end",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Identify cost optimization opportunities from request patterns (un-optimized calls, model downgrades, cache candidates)."
+          },
+          "response": []
+        },
+        {
+          "name": "Trends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/trends",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "trends"
+              ],
+              "query": [
+                {
+                  "key": "granularity",
+                  "value": "daily",
+                  "description": "One of: hourly, daily, weekly"
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO-8601 start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO-8601 end",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Cost, usage, and savings trends over time with period-over-period comparison."
+          },
+          "response": []
+        },
+        {
+          "name": "Request Explorer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/request-explorer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "request-explorer"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO-8601 start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO-8601 end",
+                  "disabled": true
+                },
+                {
+                  "key": "model",
+                  "value": "",
+                  "description": "Filter by model name",
+                  "disabled": true
+                },
+                {
+                  "key": "provider",
+                  "value": "",
+                  "description": "Filter by provider",
+                  "disabled": true
+                },
+                {
+                  "key": "intent",
+                  "value": "",
+                  "description": "Filter by run intent",
+                  "disabled": true
+                },
+                {
+                  "key": "optimization",
+                  "value": "",
+                  "description": "Filter by optimization type",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number",
+                  "disabled": true
+                },
+                {
+                  "key": "page_size",
+                  "value": "50",
+                  "description": "Results per page (1-100)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Paginated request explorer with filtering by model, provider, intent, and optimization."
+          },
+          "response": []
+        },
+        {
+          "name": "Engineering Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/engineering",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "engineering"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO-8601 start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO-8601 end",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Engineering dashboard: latency percentiles, error rate, cache hit rate, cost breakdowns by model/provider, prompt lifecycle pipeline, and quality funnel."
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Optimization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/simulate-optimization",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "simulate-optimization"
+              ]
+            },
+            "description": "Simulate savings from a proposed model swap, caching, or compression change. All fields optional — omit filters to simulate across all traffic.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intent\": null,\n  \"current_model\": \"gpt-4o\",\n  \"proposed_model\": \"gpt-4o-mini\",\n  \"current_provider\": \"openai\",\n  \"proposed_provider\": \"openai\",\n  \"enable_cache\": true,\n  \"enable_compression\": false,\n  \"from_dt\": null,\n  \"to_dt\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ],
       "description": "RunLedger Analytics endpoints"

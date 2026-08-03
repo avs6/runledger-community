@@ -140,6 +140,7 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
             status=RunStatusEnum.running,
             started_at=_dt(e["started_at"]),
             run_metadata=scrub_dict(e.get("metadata")),
+            intent=e.get("intent"),
             # OTLP source-provenance (populated only for OTLP-ingested runs)
             source_type=e.get("source_type"),
             external_trace_id=e.get("external_trace_id"),
@@ -293,6 +294,8 @@ async def _handle_provider_call(
             savings_usd=_dec(e.get("savings_usd")),
             savings_category=e.get("savings_category"),
             savings_reason=e.get("savings_reason"),
+            baseline_cost_usd=_dec(e.get("baseline_cost_usd")),
+            optimization_applied=e.get("optimization_applied"),
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )

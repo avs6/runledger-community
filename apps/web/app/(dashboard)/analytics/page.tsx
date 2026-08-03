@@ -7,6 +7,7 @@ import {
   BarChart2, Users, Layers, TrendingDown, TrendingUp,
   RefreshCw, Download, SlidersHorizontal, ArrowUpRight,
 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   getAnalyticsSummary, getSpendOverTime, getSpendByModel,
   getSpendByFeature, getSpendByUser,
@@ -348,7 +349,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6 max-w-6xl">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <BarChart2 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
@@ -378,7 +379,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Time range selector */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wide mr-1">Period</span>
         <div className="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -399,7 +400,13 @@ export default function AnalyticsPage() {
       </div>
 
       {/* KPI strip */}
-      {summary && <KpiStrip summary={summary} />}
+      {loading && !summary ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        </div>
+      ) : summary ? (
+        <KpiStrip summary={summary} />
+      ) : null}
 
       {/* Spend over time */}
       <Card
@@ -409,16 +416,16 @@ export default function AnalyticsPage() {
           <ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />
         }
       >
-        {spendTime ? <SpendChart data={spendTime} /> : <EmptyState label="Loading…" />}
+        {spendTime ? <SpendChart data={spendTime} /> : <Skeleton className="h-[240px] w-full rounded-lg" />}
       </Card>
 
       {/* Model + Feature row */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card title="Spend by Model" sub="Cost attribution across providers">
-          {byModel ? <ModelChart data={byModel} /> : <EmptyState label="Loading…" />}
+          {byModel ? <ModelChart data={byModel} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
         </Card>
         <Card title="Spend by Feature Tag" sub="Top features by cost">
-          {byFeature ? <FeatureChart data={byFeature} /> : <EmptyState label="Loading…" />}
+          {byFeature ? <FeatureChart data={byFeature} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
         </Card>
       </div>
 
@@ -428,7 +435,7 @@ export default function AnalyticsPage() {
         sub="Attribution per end_user_id — top 20"
         action={<Users className="h-4 w-4 text-slate-300 dark:text-slate-600" />}
       >
-        {byUser ? <UserTable data={byUser} /> : <EmptyState label="Loading…" />}
+        {byUser ? <UserTable data={byUser} /> : <div className="space-y-2">{[0,1,2,3,4].map(i => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>}
       </Card>
 
       {/* Model breakdown full table */}

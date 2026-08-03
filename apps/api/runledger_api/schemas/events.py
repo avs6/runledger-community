@@ -20,6 +20,7 @@ class RunStartEvent(BaseModel):
     deployment_version: str | None = None
     started_at: datetime
     metadata: dict[str, Any] | None = None
+    intent: str | None = None
 
 
 class RunEndEvent(BaseModel):
@@ -68,6 +69,8 @@ class ProviderCallEvent(BaseModel):
     savings_usd: Decimal | None = None
     savings_category: str | None = None
     savings_reason: str | None = None
+    baseline_cost_usd: Decimal | None = None
+    optimization_applied: str | None = None
 
 
 class ToolCallEvent(BaseModel):

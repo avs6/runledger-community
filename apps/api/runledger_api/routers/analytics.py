@@ -15,25 +15,26 @@ from __future__ import annotations
 
 import csv
 import io
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_user, get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.annotations import Annotation
-from runledger_api.models.events import AgentRun, ProviderCall, Span
+from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall, Span, ToolCall
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.scores import ScoreEvent
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.tenant import TenantUser, Workspace
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
     AnomalyItem,
@@ -41,14 +42,33 @@ from runledger_api.schemas.analytics import (
     CohortList,
     CohortSummary,
     FeatureSpend,
+    IntentCount,
     ModelSpend,
+    OptimizationOpportunitiesResponse,
+    OptimizationOpportunity,
+    RequestExplorerResponse,
+    RequestRecord,
+    SavingsByCategory,
+    SavingsResponse,
+    SavingsTimeline,
+    ScopedSummary,
     SpendByFeature,
     SpendByModel,
     SpendByUser,
     SpendOverTime,
     SpendPoint,
+    TrendMetric,
+    TrendPoint,
+    TrendsResponse,
     UserSpend,
     UserSpendDetail,
+    CostByDimension,
+    EngineeringMetrics,
+    LifecycleStage,
+    QualityFunnel,
+    SimulationImpact,
+    SimulationRequest,
+    SimulationResult,
 )
 from runledger_api.schemas.economics import (
     AnnotationCreate,
@@ -615,8 +635,6 @@ async def run_economics(
     run_result = await db.execute(run_stmt)
     run = run_result.scalar_one_or_none()
     if run is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="Run not found")
 
     # Span-type cost breakdown
@@ -1404,3 +1422,987 @@ async def best_value_models(
 
     best.sort(key=lambda x: float(x.value_score), reverse=True)
     return BestValueResponse(items=best)
+
+
+# ── Phase 3: Scoped scope helpers ────────────────────────────────────────────
+
+_ORG_ADMIN_ROLES = {"org_admin", "admin"}
+
+
+async def _resolve_scoped_workspace_ids(
+    scope: str,
+    workspace: Workspace,
+    user: Any,
+    db: AsyncSession,
+) -> list[uuid.UUID]:
+    if scope == "workspace":
+        return [workspace.id]
+
+    if user is None:
+        raise HTTPException(
+            http_status.HTTP_403_FORBIDDEN,
+            "User session required for org/platform scope",
+        )
+
+    if scope == "org":
+        if not user.is_platform_admin:
+            tu = (
+                await db.execute(
+                    select(TenantUser).where(
+                        TenantUser.user_id == user.id,
+                        TenantUser.tenant_id == workspace.tenant_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if tu is None or tu.role not in _ORG_ADMIN_ROLES:
+                raise HTTPException(
+                    http_status.HTTP_403_FORBIDDEN,
+                    "Org admin access required for org scope",
+                )
+        result = await db.execute(
+            select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
+        )
+        return list(result.scalars().all())
+
+    if scope == "platform":
+        if not user.is_platform_admin:
+            raise HTTPException(
+                http_status.HTTP_403_FORBIDDEN,
+                "Platform admin access required for platform scope",
+            )
+        result = await db.execute(select(Workspace.id))
+        return list(result.scalars().all())
+
+    raise HTTPException(http_status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid scope")
+
+
+# ── Phase 3: Scoped summary ─────────────────────────────────────────────────
+
+
+@router.get("/scoped-summary", response_model=ScopedSummary)
+async def scoped_summary(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    user: Annotated[Any, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    scope: Annotated[str, Query(pattern="^(workspace|org|platform)$")] = "workspace",
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> ScopedSummary:
+    """Summary with workspace/org/platform scope, including savings, intents, and top models."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+    ws_ids = await _resolve_scoped_workspace_ids(scope, workspace, user, db)
+    duration = t_to - t_from
+
+    base_filter = [
+        ProviderCall.workspace_id.in_(ws_ids),
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+
+    agg = await db.execute(
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+            func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("inp"),
+            func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("out"),
+            func.count(ProviderCall.run_id.distinct()).label("runs"),
+            func.count(ProviderCall.id).label("calls"),
+            func.count(ProviderCall.end_user_id.distinct()).label("users"),
+        ).where(*base_filter)
+    )
+    row = agg.one()
+
+    prev_agg = await db.execute(
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+        ).where(
+            ProviderCall.workspace_id.in_(ws_ids),
+            ProviderCall.created_at >= t_from - duration,
+            ProviderCall.created_at < t_from,
+            ProviderCall.status == "success",
+        )
+    )
+    prev_cost = prev_agg.scalar_one()
+    cost_delta = None
+    if prev_cost and prev_cost > 0:
+        cost_delta = (row.cost - prev_cost) / prev_cost * Decimal(100)
+
+    intent_rows = (
+        await db.execute(
+            select(
+                AgentRun.intent,
+                func.count(AgentRun.id).label("cnt"),
+                func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost"),
+            )
+            .where(
+                AgentRun.workspace_id.in_(ws_ids),
+                AgentRun.started_at >= t_from,
+                AgentRun.started_at < t_to,
+                AgentRun.intent.isnot(None),
+            )
+            .group_by(AgentRun.intent)
+            .order_by(func.count(AgentRun.id).desc())
+            .limit(10)
+        )
+    ).all()
+
+    model_rows = (
+        await db.execute(
+            select(
+                ProviderCall.provider,
+                ProviderCall.model,
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+                func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("inp"),
+                func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("out"),
+                func.count(ProviderCall.id).label("calls"),
+            )
+            .where(*base_filter)
+            .group_by(ProviderCall.provider, ProviderCall.model)
+            .order_by(func.sum(ProviderCall.cost_usd).desc())
+            .limit(10)
+        )
+    ).all()
+
+    return ScopedSummary(
+        scope=scope,
+        total_cost_usd=row.cost,
+        total_savings_usd=row.savings,
+        total_input_tokens=row.inp,
+        total_output_tokens=row.out,
+        run_count=row.runs,
+        call_count=row.calls,
+        workspace_count=len(ws_ids),
+        active_users=row.users,
+        avg_cost_per_run=row.cost / row.runs if row.runs > 0 else None,
+        top_intents=[
+            IntentCount(intent=r.intent, count=r.cnt, cost_usd=r.cost)
+            for r in intent_rows
+        ],
+        top_models=[
+            ModelSpend(
+                provider=r.provider,
+                model=r.model,
+                cost_usd=r.cost,
+                input_tokens=r.inp,
+                output_tokens=r.out,
+                call_count=r.calls,
+            )
+            for r in model_rows
+        ],
+        cost_delta_pct=cost_delta,
+    )
+
+
+# ── Phase 3: Savings analytics ──────────────────────────────────────────────
+
+
+@router.get("/savings", response_model=SavingsResponse)
+async def savings_analytics(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> SavingsResponse:
+    """Savings breakdown by category and over time."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+
+    base = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+
+    totals = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label("baseline"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("actual"),
+            ).where(*base)
+        )
+    ).one()
+
+    by_cat = (
+        await db.execute(
+            select(
+                ProviderCall.savings_category,
+                func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+                func.count(ProviderCall.id).label("calls"),
+            )
+            .where(*base, ProviderCall.savings_category.isnot(None))
+            .group_by(ProviderCall.savings_category)
+            .order_by(func.sum(ProviderCall.savings_usd).desc())
+        )
+    ).all()
+
+    timeline = (
+        await db.execute(
+            select(
+                func.date_trunc("day", ProviderCall.created_at).label("day"),
+                func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label("baseline"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("actual"),
+            )
+            .where(*base)
+            .group_by(func.date_trunc("day", ProviderCall.created_at))
+            .order_by(func.date_trunc("day", ProviderCall.created_at))
+        )
+    ).all()
+
+    savings_rate = None
+    if totals.baseline > 0:
+        savings_rate = totals.savings / totals.baseline * Decimal(100)
+
+    return SavingsResponse(
+        total_savings_usd=totals.savings,
+        total_baseline_usd=totals.baseline,
+        total_actual_usd=totals.actual,
+        savings_rate_pct=savings_rate,
+        by_category=[
+            SavingsByCategory(category=r.savings_category, savings_usd=r.savings, call_count=r.calls)
+            for r in by_cat
+        ],
+        timeline=[
+            SavingsTimeline(
+                period=str(r.day),
+                savings_usd=r.savings,
+                baseline_cost_usd=r.baseline,
+                actual_cost_usd=r.actual,
+            )
+            for r in timeline
+        ],
+    )
+
+
+# ── Phase 3: Optimization opportunities ─────────────────────────────────────
+
+
+@router.get("/optimization-opportunities", response_model=OptimizationOpportunitiesResponse)
+async def optimization_opportunities(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> OptimizationOpportunitiesResponse:
+    """Identify cost optimization opportunities from request patterns."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+
+    base = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+
+    opportunities: list[OptimizationOpportunity] = []
+
+    # 1) Calls without any optimization — estimate 15% potential savings via caching/routing
+    unopt_row = (
+        await db.execute(
+            select(
+                func.count(ProviderCall.id).label("calls"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            ).where(*base, ProviderCall.optimization_applied.is_(None))
+        )
+    ).one()
+    if unopt_row.calls > 0:
+        potential = unopt_row.cost * Decimal("0.15")
+        opportunities.append(
+            OptimizationOpportunity(
+                optimization_type="unoptimized_requests",
+                potential_savings_usd=potential,
+                affected_calls=unopt_row.calls,
+                description=f"{unopt_row.calls} calls have no optimization applied — caching or model routing could save ~15%",
+            )
+        )
+
+    # 2) High-cost models that could be downgraded for simple intents
+    expensive = (
+        await db.execute(
+            select(
+                ProviderCall.model,
+                func.count(ProviderCall.id).label("calls"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            )
+            .where(*base)
+            .group_by(ProviderCall.model)
+            .having(func.avg(ProviderCall.cost_usd) > Decimal("0.01"))
+            .order_by(func.sum(ProviderCall.cost_usd).desc())
+            .limit(5)
+        )
+    ).all()
+    for row in expensive:
+        potential = row.cost * Decimal("0.30")
+        opportunities.append(
+            OptimizationOpportunity(
+                optimization_type="model_downgrade",
+                potential_savings_usd=potential,
+                affected_calls=row.calls,
+                description=f"Model '{row.model}' averaging >$0.01/call — routing simple tasks to a smaller model could save ~30%",
+            )
+        )
+
+    # 3) Repeated similar prompts that could benefit from caching
+    cache_row = (
+        await db.execute(
+            select(
+                func.count(ProviderCall.id).label("calls"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            ).where(
+                *base,
+                ProviderCall.cached_input_tokens.is_(None),
+                ProviderCall.input_tokens > 1000,
+            )
+        )
+    ).one()
+    if cache_row.calls > 10:
+        potential = cache_row.cost * Decimal("0.20")
+        opportunities.append(
+            OptimizationOpportunity(
+                optimization_type="prompt_caching",
+                potential_savings_usd=potential,
+                affected_calls=cache_row.calls,
+                description=f"{cache_row.calls} calls with >1K input tokens and no cache hits — prompt caching could save ~20%",
+            )
+        )
+
+    total_potential = sum(o.potential_savings_usd for o in opportunities)
+    return OptimizationOpportunitiesResponse(
+        items=opportunities, total_potential_savings_usd=total_potential
+    )
+
+
+# ── Phase 3: Trends ─────────────────────────────────────────────────────────
+
+
+@router.get("/trends", response_model=TrendsResponse)
+async def trends(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    granularity: Annotated[str, Query(pattern="^(hourly|daily|weekly)$")] = "daily",
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> TrendsResponse:
+    """Cost, usage, and savings trends over time with period-over-period comparison."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+    duration = t_to - t_from
+
+    trunc = {"hourly": "hour", "daily": "day", "weekly": "week"}[granularity]
+
+    base = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+
+    rows = (
+        await db.execute(
+            select(
+                func.date_trunc(trunc, ProviderCall.created_at).label("period"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+                func.count(ProviderCall.run_id.distinct()).label("runs"),
+                func.count(ProviderCall.id).label("calls"),
+                func.coalesce(
+                    func.sum(ProviderCall.input_tokens) + func.sum(ProviderCall.output_tokens), 0
+                ).label("tokens"),
+                func.avg(ProviderCall.latency_ms).label("latency"),
+                func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+            )
+            .where(*base)
+            .group_by(func.date_trunc(trunc, ProviderCall.created_at))
+            .order_by(func.date_trunc(trunc, ProviderCall.created_at))
+        )
+    ).all()
+
+    # Current and previous period totals for metrics
+    cur = await db.execute(
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            func.count(ProviderCall.run_id.distinct()).label("runs"),
+            func.count(ProviderCall.id).label("calls"),
+            func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+        ).where(*base)
+    )
+    cur_row = cur.one()
+
+    prev = await db.execute(
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            func.count(ProviderCall.run_id.distinct()).label("runs"),
+            func.count(ProviderCall.id).label("calls"),
+            func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
+        ).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= t_from - duration,
+            ProviderCall.created_at < t_from,
+            ProviderCall.status == "success",
+        )
+    )
+    prev_row = prev.one()
+
+    def _pct(cur_val: Decimal, prev_val: Decimal) -> Decimal | None:
+        if prev_val and prev_val > 0:
+            return (cur_val - prev_val) / prev_val * Decimal(100)
+        return None
+
+    return TrendsResponse(
+        points=[
+            TrendPoint(
+                period=str(r.period),
+                cost_usd=r.cost,
+                run_count=r.runs,
+                call_count=r.calls,
+                tokens=r.tokens,
+                avg_latency_ms=Decimal(str(round(r.latency, 1))) if r.latency else None,
+                savings_usd=r.savings,
+            )
+            for r in rows
+        ],
+        metrics=[
+            TrendMetric(name="cost_usd", current=cur_row.cost, previous=prev_row.cost, change_pct=_pct(cur_row.cost, prev_row.cost)),
+            TrendMetric(name="run_count", current=Decimal(cur_row.runs), previous=Decimal(prev_row.runs), change_pct=_pct(Decimal(cur_row.runs), Decimal(prev_row.runs))),
+            TrendMetric(name="call_count", current=Decimal(cur_row.calls), previous=Decimal(prev_row.calls), change_pct=_pct(Decimal(cur_row.calls), Decimal(prev_row.calls))),
+            TrendMetric(name="savings_usd", current=cur_row.savings, previous=prev_row.savings, change_pct=_pct(cur_row.savings, prev_row.savings)),
+        ],
+        granularity=granularity,
+    )
+
+
+# ── Phase 3: Request explorer ───────────────────────────────────────────────
+
+
+@router.get("/request-explorer", response_model=RequestExplorerResponse)
+async def request_explorer(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+    model: Annotated[str | None, Query()] = None,
+    provider: Annotated[str | None, Query()] = None,
+    intent: Annotated[str | None, Query()] = None,
+    optimization: Annotated[str | None, Query()] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> RequestExplorerResponse:
+    """Paginated request explorer with filtering by model, provider, intent, and optimization."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+
+    filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+    ]
+    if model:
+        filters.append(ProviderCall.model == model)
+    if provider:
+        filters.append(ProviderCall.provider == provider)
+    if optimization:
+        filters.append(ProviderCall.optimization_applied == optimization)
+
+    # Join with AgentRun for intent filtering
+    query = (
+        select(
+            ProviderCall.id,
+            ProviderCall.run_id,
+            ProviderCall.provider,
+            ProviderCall.model,
+            AgentRun.intent,
+            ProviderCall.cost_usd,
+            ProviderCall.baseline_cost_usd,
+            ProviderCall.savings_usd,
+            ProviderCall.optimization_applied,
+            ProviderCall.input_tokens,
+            ProviderCall.output_tokens,
+            ProviderCall.latency_ms,
+            ProviderCall.status,
+            ProviderCall.created_at,
+        )
+        .join(AgentRun, AgentRun.id == ProviderCall.run_id)
+        .where(*filters)
+    )
+    if intent:
+        query = query.where(AgentRun.intent == intent)
+
+    count_q = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_q)).scalar_one()
+
+    rows = (
+        await db.execute(
+            query.order_by(ProviderCall.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+
+    return RequestExplorerResponse(
+        items=[
+            RequestRecord(
+                id=str(r.id),
+                run_id=str(r.run_id),
+                provider=r.provider,
+                model=r.model,
+                intent=r.intent,
+                cost_usd=r.cost_usd,
+                baseline_cost_usd=r.baseline_cost_usd,
+                savings_usd=r.savings_usd,
+                optimization_applied=r.optimization_applied,
+                input_tokens=r.input_tokens,
+                output_tokens=r.output_tokens,
+                latency_ms=r.latency_ms,
+                status=r.status,
+                created_at=str(r.created_at),
+            )
+            for r in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+# ── Phase 8: Engineering metrics ─────────────────────────────────────────────
+
+
+@router.get("/engineering", response_model=EngineeringMetrics)
+async def engineering_metrics(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    from_dt: Annotated[str | None, Query(alias="from")] = None,
+    to_dt: Annotated[str | None, Query(alias="to")] = None,
+) -> EngineeringMetrics:
+    """Engineering dashboard: latency, errors, retries, cache, cost breakdowns, quality funnel."""
+    t_from = _parse_dt(from_dt, _default_from())
+    t_to = _parse_dt(to_dt, _default_to())
+
+    base = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+    ]
+
+    # Core metrics
+    agg = (
+        await db.execute(
+            select(
+                func.count(ProviderCall.id).label("total"),
+                func.avg(ProviderCall.latency_ms).label("avg_lat"),
+                func.percentile_cont(0.95).within_group(ProviderCall.latency_ms).label("p95_lat"),
+                func.count(case((ProviderCall.status == "error", 1))).label("errors"),
+                func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("inp"),
+                func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("out"),
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+                func.count(case((ProviderCall.cached_input_tokens > 0, 1))).label("cached"),
+            ).where(*base)
+        )
+    ).one()
+
+    total = agg.total or 1
+    total_tokens = agg.inp + agg.out
+
+    # Retry count: spans with parent_span_id that are LLM type (re-attempts)
+    retry_count = (
+        await db.execute(
+            select(func.count(Span.id)).where(
+                Span.workspace_id == workspace.id,
+                Span.started_at >= t_from,
+                Span.started_at < t_to,
+                Span.span_type == "llm",
+                Span.parent_span_id.isnot(None),
+            )
+        )
+    ).scalar_one()
+
+    # Cost by feature_tag
+    feature_rows = (
+        await db.execute(
+            select(
+                AgentRun.feature_tag,
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+                func.count(ProviderCall.id).label("calls"),
+            )
+            .join(AgentRun, AgentRun.id == ProviderCall.run_id)
+            .where(*base)
+            .group_by(AgentRun.feature_tag)
+            .order_by(func.sum(ProviderCall.cost_usd).desc())
+            .limit(10)
+        )
+    ).all()
+
+    # Cost by model
+    model_rows = (
+        await db.execute(
+            select(
+                ProviderCall.model,
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+                func.count(ProviderCall.id).label("calls"),
+            )
+            .where(*base)
+            .group_by(ProviderCall.model)
+            .order_by(func.sum(ProviderCall.cost_usd).desc())
+            .limit(10)
+        )
+    ).all()
+
+    # Cost by tool
+    tool_rows = (
+        await db.execute(
+            select(
+                ToolCall.tool_name,
+                func.count(ToolCall.id).label("calls"),
+            )
+            .where(
+                ToolCall.workspace_id == workspace.id,
+                ToolCall.created_at >= t_from,
+                ToolCall.created_at < t_to,
+            )
+            .group_by(ToolCall.tool_name)
+            .order_by(func.count(ToolCall.id).desc())
+            .limit(10)
+        )
+    ).all()
+
+    # Quality funnel
+    run_base = [
+        AgentRun.workspace_id == workspace.id,
+        AgentRun.started_at >= t_from,
+        AgentRun.started_at < t_to,
+    ]
+    total_runs = (await db.execute(select(func.count(AgentRun.id)).where(*run_base))).scalar_one()
+    succeeded_runs = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(*run_base, AgentRun.status == "succeeded")
+        )
+    ).scalar_one()
+
+    # Gateway-routed count
+    from runledger_api.models.gateway import GatewayRequest
+
+    routed = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= t_from,
+                GatewayRequest.created_at < t_to,
+            )
+        )
+    ).scalar_one()
+
+    cache_hits = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= t_from,
+                GatewayRequest.created_at < t_to,
+                GatewayRequest.cache_hit.is_(True),
+            )
+        )
+    ).scalar_one()
+
+    with_outcome = (
+        await db.execute(
+            select(func.count(OutcomeEvent.run_id.distinct())).where(
+                OutcomeEvent.created_at >= t_from,
+                OutcomeEvent.created_at < t_to,
+            )
+        )
+    ).scalar_one()
+
+    positive_outcome = (
+        await db.execute(
+            select(func.count(OutcomeEvent.id)).where(
+                OutcomeEvent.created_at >= t_from,
+                OutcomeEvent.created_at < t_to,
+                OutcomeEvent.success.is_(True),
+            )
+        )
+    ).scalar_one()
+
+    # Lifecycle stages
+    stages = [
+        LifecycleStage(stage="Received", count=total_runs, pct=Decimal(100)),
+        LifecycleStage(stage="Routed", count=routed, pct=Decimal(round(routed / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
+        LifecycleStage(stage="Cached", count=cache_hits, pct=Decimal(round(cache_hits / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
+        LifecycleStage(stage="Completed", count=succeeded_runs, pct=Decimal(round(succeeded_runs / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
+        LifecycleStage(stage="With outcome", count=with_outcome, pct=Decimal(round(with_outcome / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
+        LifecycleStage(stage="Positive", count=positive_outcome, pct=Decimal(round(positive_outcome / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
+    ]
+
+    return EngineeringMetrics(
+        avg_latency_ms=Decimal(str(round(agg.avg_lat, 1))) if agg.avg_lat else None,
+        p95_latency_ms=Decimal(str(round(agg.p95_lat, 1))) if agg.p95_lat else None,
+        error_pct=Decimal(str(round(agg.errors / total * 100, 2))),
+        retry_pct=Decimal(str(round(retry_count / total * 100, 2))),
+        cache_pct=Decimal(str(round(agg.cached / total * 100, 2))),
+        total_requests=agg.total,
+        total_tokens=total_tokens,
+        avg_cost_per_request=agg.cost / agg.total if agg.total > 0 else None,
+        cost_by_feature=[
+            CostByDimension(name=r.feature_tag or "Untagged", cost_usd=r.cost, call_count=r.calls)
+            for r in feature_rows
+        ],
+        cost_by_model=[
+            CostByDimension(name=r.model, cost_usd=r.cost, call_count=r.calls)
+            for r in model_rows
+        ],
+        cost_by_tool=[
+            CostByDimension(name=r.tool_name, cost_usd=Decimal(0), call_count=r.calls)
+            for r in tool_rows
+        ],
+        quality_funnel=QualityFunnel(
+            total_requests=total_runs,
+            successful=succeeded_runs,
+            routed=routed,
+            cached=cache_hits,
+            with_outcome=with_outcome,
+            positive_outcome=positive_outcome,
+        ),
+        lifecycle_stages=stages,
+    )
+
+
+# ── Optimization Simulator ────────────────────────────────────────────────────
+
+MODEL_COST_RATIOS: dict[str, float] = {
+    "gpt-4o": 1.0,
+    "gpt-4o-mini": 0.15,
+    "gpt-4.1": 1.0,
+    "gpt-4.1-mini": 0.18,
+    "gpt-4.1-nano": 0.05,
+    "gpt-5": 2.5,
+    "o3": 3.0,
+    "o4-mini": 0.55,
+    "claude-sonnet-4": 0.6,
+    "claude-opus-4": 1.5,
+    "claude-haiku-3.5": 0.08,
+    "claude-3-haiku": 0.05,
+    "gemini-2.5-pro": 0.5,
+    "gemini-2.5-flash": 0.08,
+    "deepseek-v3": 0.07,
+    "deepseek-r1": 0.22,
+    "llama-3.3-70b": 0.04,
+    "llama-4-scout": 0.06,
+    "llama-4-maverick": 0.12,
+    "qwen-3-235b": 0.08,
+    "local/ollama": 0.0,
+}
+
+MODEL_LATENCY_MS: dict[str, float] = {
+    "gpt-4o": 800,
+    "gpt-4o-mini": 400,
+    "gpt-4.1": 900,
+    "gpt-4.1-mini": 350,
+    "gpt-4.1-nano": 180,
+    "gpt-5": 1400,
+    "o3": 5000,
+    "o4-mini": 2000,
+    "claude-sonnet-4": 700,
+    "claude-opus-4": 1200,
+    "claude-haiku-3.5": 250,
+    "claude-3-haiku": 200,
+    "gemini-2.5-pro": 600,
+    "gemini-2.5-flash": 250,
+    "deepseek-v3": 500,
+    "deepseek-r1": 1800,
+    "llama-3.3-70b": 300,
+    "llama-4-scout": 280,
+    "llama-4-maverick": 450,
+    "qwen-3-235b": 600,
+    "local/ollama": 600,
+}
+
+QUALITY_RISK_MAP: dict[str, str] = {
+    "gpt-4o": "low",
+    "gpt-4o-mini": "medium",
+    "gpt-4.1": "low",
+    "gpt-4.1-mini": "medium",
+    "gpt-4.1-nano": "high",
+    "gpt-5": "low",
+    "o3": "low",
+    "o4-mini": "low",
+    "claude-sonnet-4": "low",
+    "claude-opus-4": "low",
+    "claude-haiku-3.5": "medium",
+    "claude-3-haiku": "high",
+    "gemini-2.5-pro": "low",
+    "gemini-2.5-flash": "medium",
+    "deepseek-v3": "medium",
+    "deepseek-r1": "low",
+    "llama-3.3-70b": "medium",
+    "llama-4-scout": "medium",
+    "llama-4-maverick": "low",
+    "qwen-3-235b": "medium",
+    "local/ollama": "high",
+}
+
+
+def _match_model_key(model_name: str | None) -> str | None:
+    if not model_name:
+        return None
+    normalized = model_name.lower().strip()
+    for key in MODEL_COST_RATIOS:
+        if key in normalized or normalized in key:
+            return key
+    return None
+
+
+@router.post("/simulate-optimization", response_model=SimulationResult)
+async def simulate_optimization(
+    body: SimulationRequest,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SimulationResult:
+    """Simulate savings from a proposed route/model/cache/compression change."""
+    t_from = _parse_dt(
+        body.from_dt.isoformat() if body.from_dt else None,
+        _default_from(),
+    )
+    t_to = _parse_dt(
+        body.to_dt.isoformat() if body.to_dt else None,
+        _default_to(),
+    )
+
+    filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+    ]
+    if body.intent:
+        run_ids_q = select(AgentRun.id).where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.intent == body.intent,
+        )
+        filters.append(ProviderCall.run_id.in_(run_ids_q))
+    if body.current_model:
+        filters.append(func.lower(ProviderCall.model).contains(body.current_model.lower()))
+    if body.current_provider:
+        filters.append(func.lower(ProviderCall.provider).contains(body.current_provider.lower()))
+
+    q = select(
+        func.count().label("total"),
+        func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+        func.avg(ProviderCall.latency_ms).label("avg_lat"),
+        func.sum(ProviderCall.input_tokens).label("in_tok"),
+        func.sum(ProviderCall.output_tokens).label("out_tok"),
+        func.sum(
+            case((ProviderCall.cached_input_tokens > 0, 1), else_=0)
+        ).label("cached"),
+    ).where(*filters)
+
+    row = (await db.execute(q)).one()
+
+    affected = row.total or 0
+    current_cost = Decimal(str(row.cost or 0))
+    current_lat = float(row.avg_lat) if row.avg_lat else None
+    cached_count = row.cached or 0
+
+    if affected == 0:
+        return SimulationResult(
+            affected_requests=0,
+            current_cost_usd=Decimal(0),
+            projected_cost_usd=Decimal(0),
+            projected_savings_usd=Decimal(0),
+            savings_pct=Decimal(0),
+            current_avg_latency_ms=None,
+            projected_latency_ms=None,
+            latency_delta_pct=None,
+            quality_risk="unknown",
+            confidence="low",
+            impacts=[],
+            description="No matching requests found for the given filters.",
+        )
+
+    current_key = _match_model_key(body.current_model)
+    proposed_key = _match_model_key(body.proposed_model)
+
+    model_cost_ratio = Decimal(1)
+    if current_key and proposed_key:
+        cur_ratio = MODEL_COST_RATIOS.get(current_key, 1.0)
+        new_ratio = MODEL_COST_RATIOS.get(proposed_key, 1.0)
+        if cur_ratio > 0:
+            model_cost_ratio = Decimal(str(round(new_ratio / cur_ratio, 4)))
+
+    cache_savings_pct = Decimal(0)
+    if body.enable_cache:
+        current_cache_rate = cached_count / affected if affected > 0 else 0
+        target_cache_rate = max(current_cache_rate, 0.40)
+        cache_savings_pct = Decimal(str(round((target_cache_rate - current_cache_rate) * 0.50, 4)))
+
+    compression_pct = Decimal("0.15") if body.enable_compression else Decimal(0)
+
+    projected_cost = current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
+    projected_savings = current_cost - projected_cost
+    savings_pct = (projected_savings / current_cost * 100) if current_cost > 0 else Decimal(0)
+
+    proposed_lat = None
+    lat_delta = None
+    if current_lat and proposed_key:
+        proposed_lat_est = MODEL_LATENCY_MS.get(proposed_key)
+        if proposed_lat_est:
+            proposed_lat = Decimal(str(round(proposed_lat_est, 1)))
+            if current_lat > 0:
+                lat_delta = Decimal(str(round((proposed_lat_est - current_lat) / current_lat * 100, 1)))
+
+    quality_risk = "low"
+    if proposed_key:
+        quality_risk = QUALITY_RISK_MAP.get(proposed_key, "medium")
+
+    confidence = "high" if affected >= 100 else "medium" if affected >= 20 else "directional"
+
+    impacts: list[SimulationImpact] = []
+    if body.proposed_model and body.current_model:
+        impacts.append(SimulationImpact(
+            label="Model change",
+            current_value=body.current_model,
+            projected_value=body.proposed_model,
+            delta_pct=Decimal(str(round((float(model_cost_ratio) - 1) * 100, 1))),
+        ))
+    if body.enable_cache:
+        impacts.append(SimulationImpact(
+            label="Cache policy",
+            current_value=f"{round(cached_count / affected * 100)}% hit rate" if affected > 0 else "0%",
+            projected_value=f"~{round(float(cache_savings_pct) * 100 + cached_count / affected * 100)}% hit rate" if affected > 0 else "40%",
+            delta_pct=Decimal(str(round(float(cache_savings_pct) * -100, 1))),
+        ))
+    if body.enable_compression:
+        impacts.append(SimulationImpact(
+            label="Prompt compression",
+            current_value="Disabled",
+            projected_value="Enabled (~15% token reduction)",
+            delta_pct=Decimal("-15"),
+        ))
+
+    parts: list[str] = []
+    if body.proposed_model:
+        parts.append(f"route from {body.current_model or 'current'} to {body.proposed_model}")
+    if body.enable_cache:
+        parts.append("enable caching")
+    if body.enable_compression:
+        parts.append("enable compression")
+    desc = (
+        f"Simulating: {', '.join(parts) or 'no changes'}. "
+        f"Affects {affected:,} requests with ${float(current_cost):.4f} current spend. "
+        f"Projected savings: ${float(projected_savings):.4f} ({float(savings_pct):.1f}%)."
+    )
+
+    return SimulationResult(
+        affected_requests=affected,
+        current_cost_usd=current_cost,
+        projected_cost_usd=projected_cost,
+        projected_savings_usd=projected_savings,
+        savings_pct=savings_pct,
+        current_avg_latency_ms=Decimal(str(round(current_lat, 1))) if current_lat else None,
+        projected_latency_ms=proposed_lat,
+        latency_delta_pct=lat_delta,
+        quality_risk=quality_risk,
+        confidence=confidence,
+        impacts=impacts,
+        description=desc,
+    )

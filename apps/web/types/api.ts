@@ -1556,3 +1556,192 @@ export interface GithubSyncResult {
   errors: string[]
   synced_at: string
 }
+
+// ── Phase 3: Scoped summary ─────────────────────────────────────────────────
+
+export interface IntentCount {
+  intent: string
+  count: number
+  cost_usd: string
+}
+
+export interface ScopedSummary {
+  scope: string
+  total_cost_usd: string
+  total_savings_usd: string
+  total_input_tokens: number
+  total_output_tokens: number
+  run_count: number
+  call_count: number
+  workspace_count: number
+  active_users: number
+  avg_cost_per_run: string | null
+  top_intents: IntentCount[]
+  top_models: ModelSpend[]
+  cost_delta_pct: string | null
+}
+
+// ── Phase 3: Savings analytics ──────────────────────────────────────────────
+
+export interface SavingsByCategory {
+  category: string
+  savings_usd: string
+  call_count: number
+}
+
+export interface SavingsTimeline {
+  period: string
+  savings_usd: string
+  baseline_cost_usd: string
+  actual_cost_usd: string
+}
+
+export interface SavingsResponse {
+  total_savings_usd: string
+  total_baseline_usd: string
+  total_actual_usd: string
+  savings_rate_pct: string | null
+  by_category: SavingsByCategory[]
+  timeline: SavingsTimeline[]
+}
+
+// ── Phase 3: Optimization opportunities ─────────────────────────────────────
+
+export interface OptimizationOpportunity {
+  optimization_type: string
+  potential_savings_usd: string
+  affected_calls: number
+  description: string
+}
+
+export interface OptimizationOpportunitiesResponse {
+  items: OptimizationOpportunity[]
+  total_potential_savings_usd: string
+}
+
+// ── Phase 3: Trends ─────────────────────────────────────────────────────────
+
+export interface TrendPoint {
+  period: string
+  cost_usd: string
+  run_count: number
+  call_count: number
+  tokens: number
+  avg_latency_ms: string | null
+  savings_usd: string
+}
+
+export interface TrendMetric {
+  name: string
+  current: string
+  previous: string
+  change_pct: string | null
+}
+
+export interface TrendsResponse {
+  points: TrendPoint[]
+  metrics: TrendMetric[]
+  granularity: string
+}
+
+// ── Phase 3: Request explorer ───────────────────────────────────────────────
+
+export interface RequestRecord {
+  id: string
+  run_id: string
+  provider: string
+  model: string
+  intent: string | null
+  cost_usd: string | null
+  baseline_cost_usd: string | null
+  savings_usd: string | null
+  optimization_applied: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  latency_ms: number | null
+  status: string
+  created_at: string
+}
+
+export interface RequestExplorerResponse {
+  items: RequestRecord[]
+  total: number
+  page: number
+  page_size: number
+}
+
+// ── Phase 8: Engineering metrics ────────────────────────────────────────────
+
+export interface CostByDimension {
+  name: string
+  cost_usd: string
+  call_count: number
+}
+
+export interface QualityFunnel {
+  total_requests: number
+  successful: number
+  routed: number
+  cached: number
+  with_outcome: number
+  positive_outcome: number
+}
+
+export interface LifecycleStage {
+  stage: string
+  count: number
+  pct: string
+}
+
+export interface EngineeringMetrics {
+  avg_latency_ms: string | null
+  p95_latency_ms: string | null
+  error_pct: string
+  retry_pct: string
+  cache_pct: string
+  total_requests: number
+  total_tokens: number
+  avg_cost_per_request: string | null
+  cost_by_feature: CostByDimension[]
+  cost_by_model: CostByDimension[]
+  cost_by_tool: CostByDimension[]
+  quality_funnel: QualityFunnel
+  lifecycle_stages: LifecycleStage[]
+}
+
+// ── Optimization Simulator ────────────────────────────────────────────────────
+
+export interface SimulationRequest {
+  intent?: string | null
+  current_model?: string | null
+  proposed_model?: string | null
+  current_provider?: string | null
+  proposed_provider?: string | null
+  enable_cache?: boolean
+  enable_compression?: boolean
+  workspace_id?: string | null
+  from_dt?: string | null
+  to_dt?: string | null
+}
+
+export interface SimulationImpact {
+  label: string
+  current_value: string
+  projected_value: string
+  delta_pct: string | null
+}
+
+export interface SimulationResult {
+  affected_requests: number
+  current_cost_usd: string
+  projected_cost_usd: string
+  projected_savings_usd: string
+  savings_pct: string
+  current_avg_latency_ms: string | null
+  projected_latency_ms: string | null
+  latency_delta_pct: string | null
+  quality_risk: string
+  confidence: string
+  impacts: SimulationImpact[]
+  description: string
+}

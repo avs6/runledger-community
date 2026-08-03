@@ -137,6 +137,29 @@ PROMPT_DEFS = [
 
 END_USERS = [f"user_{i:03d}" for i in range(1, 16)]
 
+INTENTS = [
+    "reasoning",
+    "code_generation",
+    "search",
+    "translation",
+    "email",
+    "summarization",
+    "chat",
+    "planning",
+    "research",
+    "classification",
+    "vision",
+    "workflow",
+]
+
+OPTIMIZATION_TYPES = [
+    ("cache_hit", "prompt_caching", 0.50),
+    ("model_routing", "model_downgrade", 0.30),
+    ("compression", "context_compression", 0.15),
+    (None, None, 0.0),
+    (None, None, 0.0),
+]
+
 
 def ts(days_back: int, hour_jitter: bool = True) -> str:
     """ISO timestamp N days ago."""
@@ -552,6 +575,11 @@ async def seed_workspace(ctx: dict) -> None:
                 feature = random.choice(FEATURE_TAGS)
                 version = f"v{random.randint(1, 4)}.{random.randint(0, 9)}"
                 tool_name, _, _, _ = random.choice(TOOL_DEFS)
+                intent = random.choice(INTENTS)
+
+                opt_category, opt_applied, opt_rate = random.choice(OPTIMIZATION_TYPES)
+                baseline_cost = round(cost / (1 - opt_rate), 8) if opt_rate > 0 else cost
+                savings = round(baseline_cost - cost, 8) if opt_rate > 0 else 0
 
                 events = [
                     {
@@ -563,6 +591,7 @@ async def seed_workspace(ctx: dict) -> None:
                         "deployment_version": version,
                         "started_at": started,
                         "metadata": {"sdk": "runledger-sdk@2.1.0"},
+                        "intent": intent,
                     },
                     {
                         "event_type": "span_start",
@@ -584,6 +613,11 @@ async def seed_workspace(ctx: dict) -> None:
                         "cost_usd": cost,
                         "status": "success" if status == "succeeded" else "error",
                         "error_type": None if status == "succeeded" else "RateLimitError",
+                        "baseline_cost_usd": float(baseline_cost) if opt_rate > 0 else None,
+                        "optimization_applied": opt_applied,
+                        "savings_usd": float(savings) if savings > 0 else None,
+                        "savings_category": opt_category,
+                        "savings_reason": f"RunLedger {opt_applied} optimization" if opt_applied else None,
                     },
                 ]
 

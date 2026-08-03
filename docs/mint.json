@@ -118,6 +118,9 @@
         "observability/runs",
         "observability/sessions",
         "observability/analytics",
+        "observability/engineering",
+        "observability/request-explorer",
+        "observability/optimization-simulator",
         "observability/product-tour"
       ]
     },

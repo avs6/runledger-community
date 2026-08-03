@@ -1,0 +1,65 @@
+---
+title: "Optimization Simulator"
+description: "What-if analysis for model swaps, caching, and compression — estimate savings before making changes."
+---
+
+The Optimization Simulator lets you model the cost and latency impact of switching models, enabling caching, or turning on prompt compression — all based on your real production telemetry.
+
+## How it works
+
+1. **Select a scenario** — pick a current model/provider and a proposed replacement
+2. **Filter scope** — optionally narrow to a specific intent or time range
+3. **Toggle optimizations** — enable semantic cache and/or prompt compression
+4. **View projections** — see estimated cost savings, latency changes, quality risk, and per-dimension impact
+
+The simulator queries your actual `provider_calls` data, applies cost and latency ratios from a built-in model catalog (21 models), and returns projected outcomes with a confidence score.
+
+## Key outputs
+
+| Metric | Description |
+|--------|-------------|
+| Affected Requests | How many calls match your filters |
+| Current Cost | Actual spend for matched requests |
+| Projected Cost | Estimated spend after the proposed change |
+| Savings | Dollar and percentage reduction |
+| Latency Impact | Estimated latency change from the model swap |
+| Quality Risk | Low / Medium / High / Very High based on model tier change |
+| Confidence | How reliable the projection is (based on sample size) |
+| Impact Breakdown | Per-dimension deltas (model cost, cache savings, compression savings) |
+
+## API
+
+```
+POST /analytics/simulate-optimization
+```
+
+**Request body:**
+
+```json
+{
+  "intent": "code_generation",
+  "current_model": "gpt-4o",
+  "proposed_model": "gpt-4o-mini",
+  "current_provider": "openai",
+  "proposed_provider": "openai",
+  "enable_cache": true,
+  "enable_compression": false,
+  "from_dt": "2026-07-01T00:00:00Z",
+  "to_dt": "2026-08-01T00:00:00Z"
+}
+```
+
+All fields are optional — omit filters to simulate across all traffic.
+
+Returns `SimulationResult` with cost projections, latency estimates, quality risk, confidence, impact breakdown, and a human-readable description.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Optimization Opportunities" icon="lightbulb" href="/observability/analytics">
+    Auto-detected opportunities from your request patterns.
+  </Card>
+  <Card title="Intelligent Routing" icon="route" href="/optimization/intelligent-routing">
+    Let the gateway apply model-tier decisions automatically.
+  </Card>
+</CardGroup>

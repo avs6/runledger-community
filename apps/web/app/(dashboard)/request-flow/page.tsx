@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
-import { ArrowRight, GitBranch, Layers3, Route, ShieldCheck } from 'lucide-react'
+import { ArrowRight, GitBranch, Layers3, Route as RouteIcon, ShieldCheck } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
@@ -102,24 +102,34 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        {[
-          { label: 'Runs sampled', value: items.length.toLocaleString(), icon: GitBranch },
-          { label: 'Intent groups', value: uniqueIntents.toLocaleString(), icon: Layers3 },
-          { label: 'Models observed', value: uniqueModels.toLocaleString(), icon: Route },
-          { label: 'Success rate', value: pct(succeeded, items.length), icon: ShieldCheck },
-        ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{label}</p>
-              <Icon className="h-4 w-4 text-teal-600 dark:text-teal-300" />
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-slate-950 dark:text-white">{value}</p>
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-20 text-center dark:border-slate-700 dark:bg-slate-950/30">
+          <RouteIcon className="h-10 w-10 text-slate-400 dark:text-slate-500" />
+          <h2 className="mt-4 text-lg font-semibold text-slate-700 dark:text-slate-300">No request flow data yet</h2>
+          <p className="mt-1.5 max-w-md text-sm text-slate-500 dark:text-slate-400">
+            Send AI requests through the RunLedger gateway to see traffic flow visualized here. The Sankey diagram will show how requests route through intents, models, and outcomes.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-4">
+            {[
+              { label: 'Runs sampled', value: items.length.toLocaleString(), icon: GitBranch },
+              { label: 'Intent groups', value: uniqueIntents.toLocaleString(), icon: Layers3 },
+              { label: 'Models observed', value: uniqueModels.toLocaleString(), icon: RouteIcon },
+              { label: 'Success rate', value: pct(succeeded, items.length), icon: ShieldCheck },
+            ].map(({ label, value, icon: Icon }) => (
+              <div key={label} className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{label}</p>
+                  <Icon className="h-4 w-4 text-teal-600 dark:text-teal-300" />
+                </div>
+                <p className="mt-3 text-2xl font-semibold text-slate-950 dark:text-white">{value}</p>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <RequestFlowSankey
+          <RequestFlowSankey
         flow={flow}
         scope={scope}
         mode={mode}
@@ -129,12 +139,14 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         collapseSmall={collapseSmall}
       />
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/35 dark:text-slate-300">
-        <p className="font-semibold text-slate-950 dark:text-white">Scope note</p>
-        <p className="mt-1">
-          This page uses the backend flow aggregate API. Workspace scope is available to workspace access; org scope requires org admin; platform scope requires platform admin.
-        </p>
-      </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/35 dark:text-slate-300">
+            <p className="font-semibold text-slate-950 dark:text-white">Scope note</p>
+            <p className="mt-1">
+              This page uses the backend flow aggregate API. Workspace scope is available to workspace access; org scope requires org admin; platform scope requires platform admin.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   )
 }

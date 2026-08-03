@@ -11,7 +11,7 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger-community)
 
-[Documentation](docs/introduction.mdx) · [AI Ops Dashboards](docs/observability/ai-ops-dashboards.mdx) · [MCP Integrations](docs/integration-options-mcp.md) · [Kafka Export](docs/integrations/kafka-export.mdx) · [Quickstart](#quickstart) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
+[Documentation](docs/introduction.mdx) · [AI Ops Dashboards](docs/observability/ai-ops-dashboards.mdx) · [Engineering](docs/observability/engineering.mdx) · [MCP Integrations](docs/integration-options-mcp.md) · [Kafka Export](docs/integrations/kafka-export.mdx) · [Quickstart](#quickstart) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
 
 </div>
 
@@ -96,6 +96,9 @@ Everything below is **available today** in RunLedger Community. Click through fo
 - [Sessions](docs/observability/sessions.mdx)
 - [Analytics](docs/observability/analytics.mdx)
 - Request Flow / Sankey for prompt -> intent -> agent -> model -> tool -> result
+- [Engineering dashboard](docs/observability/engineering.mdx) — latency, errors, cache hit rates, quality funnel
+- [Request Explorer](docs/observability/request-explorer.mdx) — filterable paginated request log
+- [Optimization Simulator](docs/observability/optimization-simulator.mdx) — what-if analysis for model/cache/compression changes
 - [Product tour](docs/observability/product-tour.mdx) 📸
 
 </td>
@@ -247,7 +250,8 @@ RunLedger fits your stack however matches your latency, enforcement, and code-ch
 | OTLP / OpenTelemetry ingestion | ✅ | ✅ |
 | Core metering + pricing engine | ✅ | ✅ |
 | Budgets + spend guardrails | ✅ | ✅ |
-| Analytics + dashboards | ✅ | ✅ |
+| Analytics + dashboards + engineering metrics | ✅ | ✅ |
+| Optimization simulator (what-if analysis) | ✅ | ✅ |
 | Model gateway + prompt caching + semantic cache | ✅ | ✅ |
 | Advanced routing policies (cost · latency · quality · outcome · weighted · canary · budget-aware · complexity) | ✅ | ✅ |
 | Intelligent routing (complexity × risk → model tier) | ✅ | ✅ |

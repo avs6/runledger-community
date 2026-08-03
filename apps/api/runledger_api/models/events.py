@@ -73,6 +73,7 @@ class AgentRun(Base):
     total_input_tokens: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
     total_output_tokens: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
     run_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
+    intent: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
 
     # OTLP source-provenance fields (migration 026)
     source_type: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
@@ -164,6 +165,8 @@ class ProviderCall(Base):
     savings_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
     savings_category: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
     savings_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    baseline_cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
+    optimization_applied: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
 
 
 class ToolCall(Base):
