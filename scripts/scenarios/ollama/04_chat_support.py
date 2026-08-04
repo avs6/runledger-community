@@ -230,3 +230,45 @@ def run(sim: Sim) -> None:
         ws.score(r, "csat", round(random.uniform(0.68, 0.98), 2))
 
     ws.add_alert("Support budget breach", "spend_velocity", "gt", 5.0)
+
+    # ── Phase 13: governance & finops ───────────────────────────────────────
+    ws.create_approval_request(
+        "budget_increase",
+        "Black Friday traffic — raise daily cap to $20",
+        metadata={"current_limit": 4, "requested_limit": 20},
+    )
+    ws.create_approval_request(
+        "premium_model_use",
+        "Need deepseek-r1:14b for escalation reviews",
+        metadata={"model": "deepseek-r1:14b", "duration": "7d"},
+    )
+    ws.create_approval_request(
+        "external_mcp_tool",
+        "Connect Slack MCP for real-time ticket alerts",
+    )
+    ws.add_auto_approval_policy(
+        "budget_increase",
+        max_amount=10.0,
+        conditions={"scope": "workspace", "period_type": "daily"},
+    )
+
+    ws.add_chargeback_rule(
+        "Support team — all chat",
+        "feature_tag", "support-chat",
+        "SUPPORT-OPS",
+    )
+    ws.add_chargeback_rule(
+        "Billing team — refund + billing",
+        "feature_tag", "billing-help",
+        "BILLING-OPS",
+        split_percent=80.0,
+    )
+    ws.add_chargeback_rule(
+        "Trust team — fraud checks",
+        "feature_tag", "fraud-check",
+        "TRUST-SAFETY",
+    )
+
+    for r in ws.sample(runs, 8):
+        if r.cost > 0.001:
+            ws.generate_runbook(r)

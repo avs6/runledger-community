@@ -96,11 +96,16 @@ bake-off. No production traffic is touched.
 3. **Run** it → RunLedger projects the cost. No models are called; it's arithmetic over the
    recorded token counts and the pricing catalog.
 
+4. On the results table, click **Recommend Route** on a config row to create a route
+   recommendation. This feeds back into the Gateway routing decisions.
+
 🔎 Replay answers cost questions retrospectively. Pair it with Experiments (which proves the
 cheaper model is *good enough*) to justify a switch: *"good enough" (Experiment) **and**
-"X% cheaper across last month's traffic" (Replay).*
+"X% cheaper across last month's traffic" (Replay).* The **Recommend Route** button closes the
+loop — evidence-based model switching from replay to production.
 
 ---
 
 ✅ **End of Part 3.** You can version prompts, auto-grade live runs, bake off models on a
-dataset, and project the cost of a change. Next: **[Part 4 · Optimization layer](./part4_optimization.md)**.
+dataset, project the cost of a change, and recommend routes from evidence. Next:
+**[Part 4 · Optimization layer](./part4_optimization.md)**.

@@ -40,7 +40,7 @@ uv run python scripts/full_simulate.py --scenario-set hosted
 | `ollama/01_coding_assistant` | Acme Dev Tools / Coding Assistant | `qwen2.5-coder:14b`, `deepseek-r1:14b`, `deepseek-r1:8b` | Priced local coding/reasoning, semantic cache, compiler, tool filtering, intelligent routing, budgets, alerts |
 | `ollama/02_local_rag` | DataCo / Knowledge Base | `llama3.1:8b`, `nomic-embed-text` | RAG generation vs embedding cost, relevance and faithfulness scores, helpful-answer outcomes |
 | `ollama/03_reasoning_agent` | ThinkLocal / Reasoning | `deepseek-r1:14b`, `deepseek-r1:8b` | Output-heavy reasoning spend, cost vs quality comparisons, decision-supported outcomes |
-| `ollama/04_chat_support` | HelpDesk Local / Support Bot | `llama3.2`, `gemma3:latest` | High-volume support traffic, local ticket outcomes, daily and monthly spend controls |
+| `ollama/04_chat_support` | HelpDesk Local / Support Bot | `llama3.2`, `gemma3:latest` | High-volume support traffic, local ticket outcomes, daily/monthly budgets, approval requests, auto-approval policies, chargeback rules, runbook generation |
 
 ## Hosted scenarios
 
@@ -105,8 +105,17 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | Method | Populates |
 |---|---|
 | `ingest_runs(n, models=, features=, users=, days=, success_rate=, sessions=)` | Runs, spans, and provider calls via `/ingest/v1/batch`; run count is multiplied by `--traffic-multiplier` |
+| `ingest_rich_runs(n, models=, workflows=, users=, days=, success_rate=, sessions=)` | Runs with workflow metadata (agent, skill, tool, team, route, prompt) |
+| `ingest_otlp_traces(n, models=, workflows=)` | OTLP traces with agent→LLM→tool span trees |
+| `seed_prompt_eval_assets(prompts=, dataset_name=, models=)` | Prompt versions, evaluation datasets, and experiment records |
 | `add_route(alias, model, priority=, **flags)` | Gateway routes, including Ollama `base_url`, cache, compiler, routing, and policy flags |
 | `add_budget(scope_type, limit_usd, period_type=, action=, scope_id=)` | Workspace, feature, or user budgets |
 | `record_outcome(run, outcome_type, success=, value_usd=, labels=)` | Business outcomes for ROI dashboards |
 | `score(run, metric_name, value, label=)` | Evaluation score events |
 | `add_alert(name, metric, operator, threshold)` | Alert rules |
+| `create_approval_request(request_type, reason, metadata=)` | Approval requests (budget increase, premium model use, etc.) |
+| `add_auto_approval_policy(request_type, max_amount=, conditions=)` | Auto-approval policies for low-risk requests |
+| `add_chargeback_rule(name, match_field, match_value, cost_center, split_percent=)` | Chargeback rules for cost attribution to business units |
+| `generate_runbook(run)` | Incident-style runbook for a run |
+| `create_route_recommendation(experiment_id, config_index, reason)` | Route recommendations from replay experiments |
+| `get_governance_audit_pack()` | Governance audit pack (compliance evidence export) |

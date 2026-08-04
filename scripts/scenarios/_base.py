@@ -623,6 +623,100 @@ class Workspace:
             f"alert {name}",
         )
 
+    def create_approval_request(
+        self,
+        request_type: str,
+        reason: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"request_type": request_type, "reason": reason}
+        if metadata:
+            body["metadata"] = metadata
+        return self.sim.post(
+            "/approvals",
+            body,
+            key=self.admin_key or self.key,
+            label=f"approval {request_type}",
+            expect=(200, 201, 401, 403),
+        )
+
+    def add_auto_approval_policy(
+        self,
+        request_type: str,
+        *,
+        max_amount: float | None = None,
+        conditions: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"request_type": request_type}
+        if max_amount is not None:
+            body["max_amount"] = max_amount
+        if conditions:
+            body["conditions"] = conditions
+        return self.sim.post(
+            "/approvals/auto-policies",
+            body,
+            key=self.admin_key or self.key,
+            label=f"auto-approval {request_type}",
+            expect=(200, 201, 401, 403),
+        )
+
+    def add_chargeback_rule(
+        self,
+        name: str,
+        match_field: str,
+        match_value: str,
+        cost_center: str,
+        *,
+        split_percent: float = 100.0,
+    ) -> dict[str, Any]:
+        return self.sim.post(
+            "/billing/chargeback-rules",
+            {
+                "name": name,
+                "match_field": match_field,
+                "match_value": match_value,
+                "cost_center": cost_center,
+                "split_percent": split_percent,
+            },
+            key=self.admin_key or self.key,
+            label=f"chargeback rule {name}",
+            expect=(200, 201, 401, 403),
+        )
+
+    def generate_runbook(self, run: RunRef) -> dict[str, Any]:
+        return self.sim.post(
+            f"/runs/{run.run_id}/runbook",
+            {},
+            key=self.key,
+            label=f"runbook for {run.run_id[:8]}",
+            expect=(200, 201, 404, 422),
+        )
+
+    def create_route_recommendation(
+        self,
+        experiment_id: str,
+        config_index: int,
+        reason: str,
+    ) -> dict[str, Any]:
+        return self.sim.post(
+            "/gateway/route-recommendations",
+            {
+                "experiment_id": experiment_id,
+                "config_index": config_index,
+                "reason": reason,
+            },
+            key=self.admin_key or self.key,
+            label=f"route recommendation",
+            expect=(200, 201, 401, 403, 404, 422),
+        )
+
+    def get_governance_audit_pack(self) -> dict[str, Any]:
+        return self.sim.get(
+            "/governance/audit-pack",
+            key=self.admin_key or self.key,
+        ) or {}
+
 
 class Sim:
     """Platform-level client: bootstrap the admin, then mint per-scenario workspaces."""

@@ -59,7 +59,7 @@ If an MCP client is not handy, use the generated Postman collection's direct ser
 
 ---
 
-## 7.4 - Data Capture
+## 7.4 - Data Capture & Capture Policy Studio
 
 **Goal:** control how much of each prompt/response RunLedger stores.
 
@@ -71,6 +71,16 @@ Open **Control Plane -> Data Capture**. Set the **privacy mode**:
 | `errors_only` | payloads only for failed runs |
 | `sampled` | a percentage of payloads (set the sample rate) |
 | `full` | every prompt and response |
+
+**Data Capture Policy Studio** — scope capture rules per workspace, feature, or model:
+
+1. Open the **Scoped Policies** tab on the Data Capture page.
+2. Add a scope: e.g. `feature_tag = support-chat` → `full` capture (you want every support
+   interaction stored for compliance), but `feature_tag = internal-test` → `metadata_only`.
+3. Test PII redaction: paste a sample prompt containing an email or phone number and click
+   **Test PII** — the preview shows what would be redacted before storage.
+4. Review the **retention preview** to see how the current capture policy affects storage
+   volume over time.
 
 ---
 

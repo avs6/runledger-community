@@ -118,7 +118,14 @@ def main() -> None:
         except Exception as exc:  # noqa: BLE001 — one scenario shouldn't sink the rest
             say(f"  ! scenario {mod.NAME} failed: {exc}", "y")
 
-    # 4. Summary.
+    # 4. Phase 13 governance & finops seeding (cross-workspace).
+    say("\n→ seeding Phase 13 governance & finops features", "b")
+    for ws in sim.workspaces:
+        if not ws.key:
+            continue
+        ws.get_governance_audit_pack()
+
+    # 5. Summary.
     say("\n" + "═" * 60, "d")
     say("Simulation complete.", "g")
     total_runs = sum(len(w.runs) for w in sim.workspaces)

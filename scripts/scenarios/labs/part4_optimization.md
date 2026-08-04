@@ -226,5 +226,34 @@ are satisfied.
 
 ---
 
+## 4.10 - Optimization Simulator (what-if analysis)
+
+**Goal:** model the cost/latency impact of optimization changes before applying them.
+
+1. Open **Observability → Optimization Simulator**.
+2. Select a workspace and time range with enough traffic.
+3. Adjust the sliders:
+   - **Cache hit rate** — what if semantic cache caught 40% instead of 20%?
+   - **Compression rate** — what if prompt compression saved 30% more tokens?
+   - **Model swap** — what if you moved from a $3/M model to a $0.50/M model?
+4. The simulator projects cost savings and latency changes based on your real traffic.
+
+🔎 The simulator is the planning tool before you commit to a change. Combine it with
+**Policy Dry Run** (Part 5.8) for the full before/after picture.
+
+---
+
+## 4.11 - Cost & Savings Dashboard
+
+**Goal:** see where your savings are coming from.
+
+Open **FinOps → Cost & Savings**. The dashboard shows realized savings by category
+(cache hits, compression, routing to cheaper models) with time-series trends.
+
+🔎 This is the ROI proof for your optimization investment — how much you're actually saving.
+
+---
+
 End of Part 4. You've exercised cache, compiler, compression, routing, tool filtering, MCP
-optimization tools, and the flywheel. Next: **[Part 5 - Governance & Control](./part5_governance.md)**.
+optimization tools, the flywheel, the optimization simulator, and the savings dashboard.
+Next: **[Part 5 - Governance & Control](./part5_governance.md)**.

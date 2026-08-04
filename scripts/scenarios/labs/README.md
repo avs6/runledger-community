@@ -104,7 +104,7 @@ linked guides.
 | **[Part 2 · Observe & Investigate](./part2_observe.md)** | Runs · Sessions · Analytics · Monitoring/Alerts · Audit Logs |
 | **[Part 3 · Quality & Experiments](./part3_quality.md)** | Prompts · **Evaluation vs Experiments vs Replay** · Datasets |
 | **[Part 4 · Optimization layer](./part4_optimization.md)** | Exact cache · semantic cache · compiler · compression · routing · MCP tool filtering · flywheel |
-| **[Part 5 · Governance & Control](./part5_governance.md)** | Gateway guardrails · Tool Registry · Approvals |
+| **[Part 5 · Governance & Control](./part5_governance.md)** | Gateway guardrails · Tool Registry · Approvals · Auto-approval policies · Chargeback · Runbooks · Model Scorecards · Policy Dry Run · Governance Audit Pack |
 | **[Part 6 · Operations](./part6_operations.md)** | Add workspace · local backup · Qdrant snapshots · restore drills · ledger integrity · S3 restore |
 | **[Part 7 - Control Plane & Platform Settings](./part7_settings.md)** | OTLP · MCP · Integrations · Data Capture · Compliance · Retention · Email |
 | **[Part 8 · Integrating an existing stack](./part8_integrating_existing_stack.md)** | How customers adopt RunLedger beside an existing AI stack (hub instrumentation, gateway, SDK) |
@@ -379,7 +379,7 @@ labs/
   part2_observe.md                ← Runs · Sessions · Analytics · Monitoring · Audit
   part3_quality.md                ← Prompts · Evaluation · Datasets · Experiments · Replay
   part4_optimization.md           ← cache · compiler · compression · routing · tool filtering · MCP · flywheel
-  part5_governance.md             ← gateway guardrails · Tool Registry · Approvals
+  part5_governance.md             ← gateway guardrails · Tool Registry · Approvals · Auto-approval · Chargeback · Runbooks · Scorecards · Dry Run · Audit Pack
   part6_operations.md             ← add workspace · backup · snapshots · restore drills
   part7_settings.md               ← OTLP · MCP · Integrations · Data Capture · Retention · Email
   part8_integrating_existing_stack.md  ← adopt RunLedger beside an existing AI stack
