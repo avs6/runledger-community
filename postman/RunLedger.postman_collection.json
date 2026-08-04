@@ -10431,6 +10431,597 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Billing - Chargeback Rules",
+      "item": [
+        {
+          "name": "List Chargeback Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-rules",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "chargeback-rules"]
+            },
+            "description": "List chargeback allocation rules for this workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Chargeback Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-rules",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "chargeback-rules"]
+            },
+            "description": "Create a chargeback allocation rule.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dimension\": \"workspace\",\n  \"split_mode\": \"proportional\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Chargeback Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-rules/:rule_id",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "chargeback-rules", ":rule_id"],
+              "variable": [{ "key": "rule_id", "value": "{{chargeback_rule_id}}" }]
+            },
+            "description": "Delete a chargeback allocation rule."
+          },
+          "response": []
+        }
+      ],
+      "description": "Chargeback allocation rules — define how shared AI costs are split across dimensions."
+    },
+    {
+      "name": "Billing - Subscription & Checkout",
+      "item": [
+        {
+          "name": "Get Subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/subscription",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "subscription"]
+            },
+            "description": "Get the current subscription status."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Checkout Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/checkout",
+              "host": ["{{base_url}}"],
+              "path": ["billing", "checkout"]
+            },
+            "description": "Create a checkout session for plan upgrade.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"enterprise\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Subscription and checkout endpoints."
+    },
+    {
+      "name": "Budgets - Rollup",
+      "item": [
+        {
+          "name": "Budget Rollup",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budgets/rollup?scope=workspace",
+              "host": ["{{base_url}}"],
+              "path": ["budgets", "rollup"],
+              "query": [{ "key": "scope", "value": "workspace" }]
+            },
+            "description": "Get aggregated budget rollup for a given scope (workspace, org, or global)."
+          },
+          "response": []
+        }
+      ],
+      "description": "Budget rollup — aggregated budget status across a scope."
+    },
+    {
+      "name": "Warehouse Export",
+      "item": [
+        {
+          "name": "List Warehouse Destinations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/destinations",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "destinations"]
+            },
+            "description": "List configured warehouse export destinations (S3, GCS, R2, etc.)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Warehouse Destination",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/destinations",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "destinations"]
+            },
+            "description": "Create a new warehouse export destination.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"s3-analytics\",\n  \"type\": \"s3\",\n  \"config\": {\n    \"bucket\": \"my-analytics-bucket\",\n    \"region\": \"us-east-1\",\n    \"prefix\": \"runledger/\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Warehouse Destination",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/destinations/:dest_id",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "destinations", ":dest_id"],
+              "variable": [{ "key": "dest_id", "value": "{{warehouse_dest_id}}" }]
+            },
+            "description": "Update a warehouse export destination.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"s3-analytics-v2\",\n  \"config\": {\n    \"bucket\": \"my-analytics-bucket\",\n    \"region\": \"us-west-2\",\n    \"prefix\": \"runledger/v2/\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Warehouse Destination",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/destinations/:dest_id",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "destinations", ":dest_id"],
+              "variable": [{ "key": "dest_id", "value": "{{warehouse_dest_id}}" }]
+            },
+            "description": "Delete a warehouse export destination."
+          },
+          "response": []
+        },
+        {
+          "name": "Test Warehouse Destination",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/destinations/:dest_id/test",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "destinations", ":dest_id", "test"],
+              "variable": [{ "key": "dest_id", "value": "{{warehouse_dest_id}}" }]
+            },
+            "description": "Test connectivity to a warehouse destination."
+          },
+          "response": []
+        },
+        {
+          "name": "List Export Jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/jobs",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "jobs"]
+            },
+            "description": "List warehouse export jobs."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Export Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/jobs",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "jobs"]
+            },
+            "description": "Create a new warehouse export job.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destination_id\": \"{{warehouse_dest_id}}\",\n  \"data_types\": [\"runs\", \"spans\"],\n  \"from\": \"2026-07-01\",\n  \"to\": \"2026-07-31\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Export Job",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/warehouse/jobs/:job_id",
+              "host": ["{{base_url}}"],
+              "path": ["warehouse", "jobs", ":job_id"],
+              "variable": [{ "key": "job_id", "value": "{{warehouse_job_id}}" }]
+            },
+            "description": "Get status and details of a warehouse export job."
+          },
+          "response": []
+        }
+      ],
+      "description": "Warehouse export — S3/GCS/R2 data export destinations and jobs."
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["invoices"],
+              "query": [
+                { "key": "limit", "value": "50", "disabled": true },
+                { "key": "offset", "value": "0", "disabled": true }
+              ]
+            },
+            "description": "List provider invoices for reconciliation."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/:invoice_id",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", ":invoice_id"],
+              "variable": [{ "key": "invoice_id", "value": "{{invoice_id}}" }]
+            },
+            "description": "Get reconciliation summary for a specific invoice."
+          },
+          "response": []
+        },
+        {
+          "name": "Reconcile Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/:invoice_id/reconcile",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", ":invoice_id", "reconcile"],
+              "variable": [{ "key": "invoice_id", "value": "{{invoice_id}}" }]
+            },
+            "description": "Run reconciliation against RunLedger metered data for this invoice."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Invoice",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/:invoice_id",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", ":invoice_id"],
+              "variable": [{ "key": "invoice_id", "value": "{{invoice_id}}" }]
+            },
+            "description": "Delete an uploaded invoice."
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoice Lines",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/:invoice_id/lines",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", ":invoice_id", "lines"],
+              "variable": [{ "key": "invoice_id", "value": "{{invoice_id}}" }]
+            },
+            "description": "List line items for an invoice."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Invoice Line",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invoices/:invoice_id/lines",
+              "host": ["{{base_url}}"],
+              "path": ["invoices", ":invoice_id", "lines"],
+              "variable": [{ "key": "invoice_id", "value": "{{invoice_id}}" }]
+            },
+            "description": "Add a line item to an invoice.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"amount_usd\": \"125.50\",\n  \"description\": \"July usage\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Provider invoice reconciliation — upload, reconcile, and manage invoices against RunLedger metered data."
+    },
+    {
+      "name": "Pricing Sync",
+      "item": [
+        {
+          "name": "Sync Pricing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/pricing/sync",
+              "host": ["{{base_url}}"],
+              "path": ["pricing", "sync"]
+            },
+            "description": "Sync pricing data from provider APIs."
+          },
+          "response": []
+        }
+      ],
+      "description": "Pricing sync — pull latest model pricing from provider APIs."
+    },
+    {
+      "name": "Settings - Onboarding & Demo",
+      "item": [
+        {
+          "name": "Get Onboarding Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/onboarding-status",
+              "host": ["{{base_url}}"],
+              "path": ["settings", "onboarding-status"]
+            },
+            "description": "Get onboarding checklist status for the current workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Seed Demo Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/demo-seed",
+              "host": ["{{base_url}}"],
+              "path": ["settings", "demo-seed"]
+            },
+            "description": "Seed the workspace with demo data for evaluation or demos."
+          },
+          "response": []
+        }
+      ],
+      "description": "Onboarding status and demo data seeding."
+    },
+    {
+      "name": "Analytics - Model Scorecards",
+      "item": [
+        {
+          "name": "List Model Scorecards",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/model-scorecards",
+              "host": ["{{base_url}}"],
+              "path": ["analytics", "model-scorecards"],
+              "query": [
+                { "key": "from", "value": "", "disabled": true },
+                { "key": "to", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Get model quality scorecards with cost, latency, error rate, acceptance, hallucinations, retries, feedback, and eval scores."
+          },
+          "response": []
+        }
+      ],
+      "description": "Model quality scorecards — per-model quality and cost metrics."
+    },
+    {
+      "name": "Gateway - Routing Policies",
+      "item": [
+        {
+          "name": "List Routing Policies",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/policies",
+              "host": ["{{base_url}}"],
+              "path": ["gateway", "policies"]
+            },
+            "description": "List gateway routing policies."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Routing Policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/policies",
+              "host": ["{{base_url}}"],
+              "path": ["gateway", "policies"]
+            },
+            "description": "Create a gateway routing policy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"cost-optimize\",\n  \"strategy\": \"cost\",\n  \"conditions\": {}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Routing Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/policies/:policy_id",
+              "host": ["{{base_url}}"],
+              "path": ["gateway", "policies", ":policy_id"],
+              "variable": [{ "key": "policy_id", "value": "{{routing_policy_id}}" }]
+            },
+            "description": "Update a gateway routing policy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"cost-optimize-v2\",\n  \"strategy\": \"cost\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Routing Policy",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/policies/:policy_id",
+              "host": ["{{base_url}}"],
+              "path": ["gateway", "policies", ":policy_id"],
+              "variable": [{ "key": "policy_id", "value": "{{routing_policy_id}}" }]
+            },
+            "description": "Delete a gateway routing policy."
+          },
+          "response": []
+        }
+      ],
+      "description": "Gateway routing policies — create and manage model routing strategies."
     }
   ]
 }

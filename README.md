@@ -61,6 +61,8 @@ Everything below is **available today** in RunLedger Community. Click through fo
 - [Budgets](docs/finops/budgets.mdx)
 - [Outcomes & ROI](docs/finops/outcomes.mdx)
 - [Tamper-evident ledger](docs/finops/ledger.mdx)
+- [Cost & savings](docs/finops/cost-savings.mdx) — realized savings by category with trends
+- [Chargeback & showback](docs/finops/chargeback.mdx) — monthly finance-ready reports with variance
 
 </td>
 </tr>
@@ -94,18 +96,19 @@ Everything below is **available today** in RunLedger Community. Click through fo
 <td width="33%" valign="top">
 
 ### 📊 Observability
-- [AI Ops dashboards](docs/observability/ai-ops-dashboards.mdx) - global, org, and workspace views
+- [AI Ops dashboards](docs/observability/ai-ops-dashboards.mdx) — global, org, and workspace views
 - [Run Explorer](docs/observability/runs.mdx)
 - [Sessions](docs/observability/sessions.mdx)
 - [Analytics](docs/observability/analytics.mdx)
-- Request Flow / Sankey for prompt -> intent -> agent -> model -> tool -> result
+- [Request Flow](docs/observability/request-flow.mdx) — interactive Sankey for prompt → intent → agent → model → tool → result
 - [Engineering dashboard](docs/observability/engineering.mdx) — latency, errors, cache hit rates, quality funnel
 - [Request Explorer](docs/observability/request-explorer.mdx) — filterable paginated request log
+- [Model usage](docs/observability/model-usage.mdx) — per-model request counts, tokens, cost, and error rates
 - [Optimization Simulator](docs/observability/optimization-simulator.mdx) — what-if analysis for model/cache/compression changes
 - [Agent runbooks](docs/observability/runbooks.mdx) — incident-style summaries with export
 - [Model scorecards](docs/observability/model-scorecards.mdx) — quality trends, routing recommendations
 - [Replay lab](docs/observability/replay-lab.mdx) — replay requests through alternate routes and compare
-- [Chargeback & showback](docs/finops/chargeback.mdx) — monthly finance-ready reports with variance
+- [Onboarding wizard](docs/observability/onboarding.mdx) — guided setup for 9 integrations with health badges
 - [Product tour](docs/observability/product-tour.mdx) 📸
 
 </td>

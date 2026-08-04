@@ -75,7 +75,8 @@
         "finops/budgets",
         "finops/outcomes",
         "finops/ledger",
-        "finops/chargeback"
+        "finops/chargeback",
+        "finops/cost-savings"
       ]
     },
     {
@@ -123,11 +124,14 @@
         "observability/sessions",
         "observability/analytics",
         "observability/engineering",
+        "observability/request-flow",
         "observability/request-explorer",
+        "observability/model-usage",
         "observability/optimization-simulator",
         "observability/runbooks",
         "observability/model-scorecards",
         "observability/replay-lab",
+        "observability/onboarding",
         "observability/product-tour"
       ]
     },

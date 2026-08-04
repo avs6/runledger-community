@@ -1,0 +1,37 @@
+---
+title: "Request Flow"
+description: "Interactive Sankey diagram tracing AI requests from prompt through intent, agent, model, tool, and result — with focus mode, export, and zoom."
+---
+
+The Request Flow dashboard renders an interactive Sankey diagram that traces every AI request through its full lifecycle: prompt, intent classification, agent assignment, model selection, tool invocations, and final result.
+
+## Key features
+
+- **End-to-end visibility** — see how requests flow from user prompt to model response to tool calls.
+- **Interactive Sankey** — click any node or link to filter and highlight the flow path.
+- **Focus mode** — drill into a specific node to see only its upstream and downstream connections.
+- **Export** — download the Sankey as SVG or export the underlying data as CSV.
+- **Zoom and pan** — navigate large flow graphs with scroll zoom and drag panning.
+- **Scoped views** — filter by time range, workspace, or model using the dashboard scope bar.
+
+## Flow stages
+
+| Stage | What it shows |
+|---|---|
+| Prompt | Incoming user or agent prompt |
+| Intent | Classified intent (summarization, code generation, etc.) |
+| Agent | Which agent or workflow handled the request |
+| Model | Which model was selected by routing |
+| Tool | Any tool calls made during execution |
+| Result | Final outcome (success, error, timeout, etc.) |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Run Explorer" icon="list" href="/observability/runs">
+    Browse individual runs that make up the flow.
+  </Card>
+  <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
+    Filterable request log with full detail.
+  </Card>
+</CardGroup>
