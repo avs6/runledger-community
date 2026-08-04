@@ -3,9 +3,26 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { BookOpen, ChevronDown, ChevronUp, AlertTriangle, AlertCircle, Info } from 'lucide-react'
-import { listRunbooks } from '@/lib/api'
+import Link from 'next/link'
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+  Download,
+  FileJson,
+  FileText,
+  Plus,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
+import { listRunbooks, generateRunbook, exportRunbook } from '@/lib/api'
 import type { RunbookResponse } from '@/types/api'
+
+const PAGE_SIZE = 20
 
 const SEVERITY_STYLE: Record<string, string> = {
   info: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -36,33 +53,160 @@ export default function RunbooksPage() {
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
   const [runbooks, setRunbooks] = useState<RunbookResponse[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [severity, setSeverity] = useState<string>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+
+  // Generate form state
+  const [showGenerate, setShowGenerate] = useState(false)
+  const [generateRunId, setGenerateRunId] = useState('')
+  const [generating, setGenerating] = useState(false)
 
   useEffect(() => {
     if (!apiKey) return
     setLoading(true)
-    listRunbooks(apiKey, { severity: severity === 'all' ? undefined : severity, limit: 100 })
-      .then((res) => setRunbooks(res.items))
+    listRunbooks(apiKey, {
+      severity: severity === 'all' ? undefined : severity,
+      limit: PAGE_SIZE,
+      offset: page * PAGE_SIZE,
+    })
+      .then((res) => {
+        setRunbooks(res.items)
+        setTotal(res.total)
+      })
       .catch((err) => toast.error(err.message ?? 'Failed to load runbooks'))
       .finally(() => setLoading(false))
-  }, [apiKey, severity])
+  }, [apiKey, severity, page])
+
+  // Reset page when severity filter changes
+  useEffect(() => {
+    setPage(0)
+  }, [severity])
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // Severity breakdown from current data
+  const severityCounts = runbooks.reduce<Record<string, number>>((acc, rb) => {
+    acc[rb.severity] = (acc[rb.severity] ?? 0) + 1
+    return acc
+  }, {})
+
+  async function handleGenerate() {
+    if (!generateRunId.trim()) {
+      toast.error('Please enter a run ID')
+      return
+    }
+    setGenerating(true)
+    try {
+      const newRb = await generateRunbook(apiKey, generateRunId.trim())
+      setRunbooks((prev) => [newRb, ...prev])
+      setTotal((prev) => prev + 1)
+      setGenerateRunId('')
+      setShowGenerate(false)
+      toast.success('Runbook generated')
+    } catch (err: unknown) {
+      toast.error((err as Error).message ?? 'Failed to generate runbook')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleExport(rb: RunbookResponse, format: 'markdown' | 'json') {
+    try {
+      const content = await exportRunbook(apiKey, rb.id, format)
+      const ext = format === 'json' ? 'json' : 'md'
+      const mimeType = format === 'json' ? 'application/json' : 'text/markdown'
+      const blob = new Blob([content], { type: mimeType })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `runbook-${rb.run_id.slice(0, 8)}-${new Date(rb.generated_at).toISOString().slice(0, 10)}.${ext}`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`Runbook exported as ${format.toUpperCase()}`)
+    } catch (err: unknown) {
+      toast.error((err as Error).message ?? 'Export failed')
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <BookOpen className="h-7 w-7 text-slate-600 dark:text-slate-400" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
-            Agent Runbooks
-          </h1>
-          <p className="text-sm text-slate-500">Auto-generated post-mortem summaries for agent runs</p>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <BookOpen className="h-7 w-7 text-slate-600 dark:text-slate-400" />
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
+              Agent Runbooks
+            </h1>
+            <p className="text-sm text-slate-500">Auto-generated post-mortem summaries for agent runs</p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowGenerate(!showGenerate)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <Plus className="h-4 w-4" />
+          Generate Runbook
+        </button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Severity</label>
+      {/* Generate form */}
+      {showGenerate && (
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label htmlFor="run-id-input" className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                Run ID
+              </label>
+              <input
+                id="run-id-input"
+                type="text"
+                value={generateRunId}
+                onChange={(e) => setGenerateRunId(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                placeholder="Enter run ID..."
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              {generating ? 'Generating...' : 'Generate'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowGenerate(false)}
+              className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Summary stats and severity filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+          {total} runbook{total !== 1 ? 's' : ''}
+        </span>
+        <span className="text-slate-300 dark:text-slate-600">|</span>
+        {['info', 'warning', 'critical'].map((sev) => (
+          <span
+            key={sev}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLE[sev]}`}
+          >
+            {sev}: {severityCounts[sev] ?? 0}
+          </span>
+        ))}
+        <span className="text-slate-300 dark:text-slate-600">|</span>
+        <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Filter</label>
         <select
           value={severity}
           onChange={(e) => setSeverity(e.target.value)}
@@ -75,6 +219,7 @@ export default function RunbooksPage() {
         </select>
       </div>
 
+      {/* Runbook list */}
       {loading ? (
         <div className="py-12 text-center text-sm text-slate-500">Loading runbooks...</div>
       ) : runbooks.length === 0 ? (
@@ -130,6 +275,35 @@ export default function RunbooksPage() {
 
                 {isOpen && (
                   <div className="mt-4 space-y-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    {/* Action bar: export + view run */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleExport(rb, 'markdown')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                        title="Export as Markdown"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Markdown
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExport(rb, 'json')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                        title="Export as JSON"
+                      >
+                        <FileJson className="h-3.5 w-3.5" />
+                        JSON
+                      </button>
+                      <Link
+                        href={`/runs/${rb.run_id}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:border-slate-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View Run
+                      </Link>
+                    </div>
+
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         What Happened
@@ -204,6 +378,33 @@ export default function RunbooksPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous
+          </button>
+          <span className="text-sm text-slate-500">
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>

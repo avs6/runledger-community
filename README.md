@@ -82,10 +82,13 @@ Everything below is **available today** in RunLedger Community. Click through fo
 ### 🛡️ Quality & Governance
 - [Evaluations & experiments](docs/governance/evaluations.mdx)
 - [Prompt registry](docs/governance/prompts.mdx)
-- [Approvals](docs/governance/approvals.mdx)
+- [Approvals & auto-approval policies](docs/governance/approvals.mdx)
 - [RBAC & multi-tenancy](docs/governance/rbac.mdx)
 - [Alerts](docs/governance/alerts.mdx)
 - [Data retention](docs/governance/retention.mdx)
+- [Policy dry run](docs/governance/policy-dry-run.mdx) — test policies before enforcement
+- [Governance audit pack](docs/governance/governance-audit-pack.mdx) — exportable compliance evidence
+- [Data capture policy studio](docs/governance/data-capture-studio.mdx) — scoped capture, PII redaction testing
 
 </td>
 <td width="33%" valign="top">
@@ -99,6 +102,10 @@ Everything below is **available today** in RunLedger Community. Click through fo
 - [Engineering dashboard](docs/observability/engineering.mdx) — latency, errors, cache hit rates, quality funnel
 - [Request Explorer](docs/observability/request-explorer.mdx) — filterable paginated request log
 - [Optimization Simulator](docs/observability/optimization-simulator.mdx) — what-if analysis for model/cache/compression changes
+- [Agent runbooks](docs/observability/runbooks.mdx) — incident-style summaries with export
+- [Model scorecards](docs/observability/model-scorecards.mdx) — quality trends, routing recommendations
+- [Replay lab](docs/observability/replay-lab.mdx) — replay requests through alternate routes and compare
+- [Chargeback & showback](docs/finops/chargeback.mdx) — monthly finance-ready reports with variance
 - [Product tour](docs/observability/product-tour.mdx) 📸
 
 </td>

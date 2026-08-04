@@ -21,12 +21,16 @@ import type {
   BillingPeriod,
   BillingPeriodList,
   BreachList,
+  ChargebackReportList,
   ChargebackRuleList,
   ChargebackRuleResponse,
   Budget,
   BudgetList,
   BudgetRollupResponse,
   CapturePolicyResponse,
+  CapturePolicyScope,
+  RetentionPreview,
+  PiiTestResult,
   CohortList,
   DatasetList,
   DatasetResponse,
@@ -101,9 +105,11 @@ import type {
   SimulationRequest,
   SimulationResult,
   PolicyCheckResponse,
+  PolicyDryRunReport,
   RunbookList,
   RunbookResponse,
   ModelScorecardList,
+  ModelScoreTrendList,
   OnboardingStatus,
 } from '@/types/api'
 
@@ -656,6 +662,41 @@ export async function upsertCapturePolicy(
   return apiFetch<CapturePolicyResponse>('/privacy/capture-policy', apiKey, {
     method: 'PUT',
     body: JSON.stringify(body),
+  })
+}
+
+// ── Phase 13 — Data Capture Policy Studio helpers ──────────────────────────────
+
+export async function getRetentionPreview(
+  apiKey: string,
+  privacyMode: string
+): Promise<RetentionPreview> {
+  return apiFetch<RetentionPreview>(`/settings/capture-policy/retention-preview?privacy_mode=${encodeURIComponent(privacyMode)}`, apiKey)
+}
+
+export async function testPiiRedaction(
+  apiKey: string,
+  text: string
+): Promise<PiiTestResult> {
+  return apiFetch<PiiTestResult>('/settings/capture-policy/test-pii', apiKey, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  })
+}
+
+export async function listCapturePolicyScopes(
+  apiKey: string
+): Promise<{ items: CapturePolicyScope[] }> {
+  return apiFetch<{ items: CapturePolicyScope[] }>('/settings/capture-policy/scopes', apiKey)
+}
+
+export async function upsertCapturePolicyScope(
+  apiKey: string,
+  scope: { scope_type: string; scope_id: string; privacy_mode: string; sampled_rate: number | null }
+): Promise<CapturePolicyScope> {
+  return apiFetch<CapturePolicyScope>('/settings/capture-policy/scopes', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(scope),
   })
 }
 
@@ -1670,6 +1711,31 @@ export async function cancelApproval(
   })
 }
 
+// ── Phase 13: Auto-Approval Policies ────────────────────────────────────────
+
+export async function listAutoApprovalPolicies(
+  apiKey: string
+): Promise<import('@/types/api').AutoApprovalPolicyList> {
+  return apiFetch<import('@/types/api').AutoApprovalPolicyList>('/approvals/auto-policies', apiKey)
+}
+
+export async function createAutoApprovalPolicy(
+  apiKey: string,
+  body: { request_type: string; condition: string }
+): Promise<import('@/types/api').AutoApprovalPolicy> {
+  return apiFetch<import('@/types/api').AutoApprovalPolicy>('/approvals/auto-policies', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteAutoApprovalPolicy(
+  apiKey: string,
+  policyId: string
+): Promise<void> {
+  await apiFetch<void>(`/approvals/auto-policies/${policyId}`, apiKey, { method: 'DELETE' })
+}
+
 // ── OTLP ──────────────────────────────────────────────────────────────────────
 
 export async function getOtlpStats(apiKey: string): Promise<OtlpStats> {
@@ -2181,6 +2247,28 @@ export async function policyDryRun(
   })
 }
 
+export async function getPolicyDryRunReport(
+  apiKey: string,
+  params?: { from?: string; to?: string; limit?: number }
+): Promise<PolicyDryRunReport> {
+  const q = new URLSearchParams()
+  if (params?.from) q.set('from', params.from)
+  if (params?.to) q.set('to', params.to)
+  if (params?.limit) q.set('limit', String(params.limit))
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<PolicyDryRunReport>(`/policies/dry-run-report${qs}`, apiKey)
+}
+
+export async function promotePolicy(
+  apiKey: string,
+  body: { policy_type: string; enforce: boolean }
+): Promise<{ status: string; message: string }> {
+  return apiFetch<{ status: string; message: string }>('/policies/promote', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 // ── Phase 13: Runbooks ───────────────────────────────────────────────────────
 
 export async function generateRunbook(
@@ -2204,6 +2292,22 @@ export async function listRunbooks(
   return apiFetch<RunbookList>(`/runs/runbooks/list${qs}`, apiKey)
 }
 
+export async function exportRunbook(
+  apiKey: string,
+  runbookId: string,
+  format: 'markdown' | 'json' = 'markdown'
+): Promise<string> {
+  const API = typeof window === 'undefined'
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+  const res = await fetch(`${API}/runs/runbooks/${runbookId}/export?format=${format}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+  return res.text()
+}
+
 // ── Phase 13: Model Scorecards ───────────────────────────────────────────────
 
 export async function getModelScorecards(
@@ -2214,6 +2318,17 @@ export async function getModelScorecards(
     `/analytics/model-scorecards${_analyticsQs(window)}`,
     apiKey
   )
+}
+
+export async function getModelScoreTrends(
+  apiKey: string,
+  model: string,
+  window: TimeWindow = {}
+): Promise<ModelScoreTrendList> {
+  const q = new URLSearchParams({ model })
+  if (window.from) q.set('from', window.from)
+  if (window.to) q.set('to', window.to)
+  return apiFetch<ModelScoreTrendList>(`/analytics/model-score-trends?${q}`, apiKey)
 }
 
 // ── Phase 13: Onboarding & Demo ──────────────────────────────────────────────
@@ -2237,4 +2352,78 @@ export async function deleteChargebackRule(
   ruleId: string
 ): Promise<void> {
   await apiFetch<void>(`/billing/chargeback-rules/${ruleId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getChargebackReport(
+  apiKey: string,
+  params?: { period?: string; dimension?: string; format?: 'json' | 'csv' }
+): Promise<ChargebackReportList> {
+  const q = new URLSearchParams()
+  if (params?.period) q.set('period', params.period)
+  if (params?.dimension) q.set('dimension', params.dimension)
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<ChargebackReportList>(`/billing/chargeback-report${qs}`, apiKey)
+}
+
+export async function exportChargebackReport(
+  apiKey: string,
+  params?: { period?: string; dimension?: string; format?: 'csv' | 'json' }
+): Promise<string> {
+  const q = new URLSearchParams({ format: params?.format ?? 'csv' })
+  if (params?.period) q.set('period', params.period)
+  if (params?.dimension) q.set('dimension', params.dimension)
+  const API = typeof window === 'undefined'
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+  const res = await fetch(`${API}/billing/chargeback-report/export?${q}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+  return res.text()
+}
+
+// ── Phase 13: Route Recommendations ─────────────────────────────────────────
+
+export async function createRouteRecommendation(
+  apiKey: string,
+  body: { experiment_id: string; config_index: number; reason: string }
+): Promise<{ status: string; recommendation_id: string }> {
+  return apiFetch<{ status: string; recommendation_id: string }>('/gateway/route-recommendations', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+// ── Phase 13: Governance Audit Pack ─────────────────────────────────────────
+
+export async function getGovernanceAuditPack(
+  apiKey: string,
+  params?: { from?: string; to?: string; org_id?: string; workspace_id?: string }
+): Promise<import('@/types/api').GovernanceAuditPack> {
+  const q = new URLSearchParams()
+  if (params?.from) q.set('from', params.from)
+  if (params?.to) q.set('to', params.to)
+  if (params?.org_id) q.set('org_id', params.org_id)
+  if (params?.workspace_id) q.set('workspace_id', params.workspace_id)
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<import('@/types/api').GovernanceAuditPack>(`/governance/audit-pack${qs}`, apiKey)
+}
+
+export async function exportGovernanceAuditPack(
+  apiKey: string,
+  params?: { from?: string; to?: string; format?: 'json' | 'csv' }
+): Promise<string> {
+  const q = new URLSearchParams({ format: params?.format ?? 'json' })
+  if (params?.from) q.set('from', params.from)
+  if (params?.to) q.set('to', params.to)
+  const API = typeof window === 'undefined'
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+  const res = await fetch(`${API}/governance/audit-pack/export?${q}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+  return res.text()
 }

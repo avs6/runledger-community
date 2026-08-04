@@ -74,7 +74,8 @@
         "finops/attribution",
         "finops/budgets",
         "finops/outcomes",
-        "finops/ledger"
+        "finops/ledger",
+        "finops/chargeback"
       ]
     },
     {
@@ -98,7 +99,10 @@
         "governance/prompts",
         "governance/approvals",
         "governance/alerts",
-        "governance/retention"
+        "governance/retention",
+        "governance/policy-dry-run",
+        "governance/governance-audit-pack",
+        "governance/data-capture-studio"
       ]
     },
     {
@@ -121,6 +125,9 @@
         "observability/engineering",
         "observability/request-explorer",
         "observability/optimization-simulator",
+        "observability/runbooks",
+        "observability/model-scorecards",
+        "observability/replay-lab",
         "observability/product-tour"
       ]
     },

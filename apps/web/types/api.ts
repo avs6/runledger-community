@@ -1147,6 +1147,11 @@ export type ApprovalRequestType =
   | 'tool_allow'
   | 'capture_policy_full'
   | 'shadow_routing'
+  | 'premium_model_use'
+  | 'external_mcp_tool'
+  | 'long_agent_session'
+  | 'sensitive_export'
+  | 'route_policy_change'
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'cancelled'
 
@@ -1766,6 +1771,26 @@ export interface PolicyCheckResponse {
   detail: PolicyDryRunDetail | null
 }
 
+export interface PolicyDryRunReport {
+  id: string
+  workspace_id: string
+  total_checked: number
+  would_block: number
+  would_allow: number
+  would_reroute: number
+  items: PolicyDryRunReportItem[]
+  created_at: string
+}
+
+export interface PolicyDryRunReportItem {
+  request_id: string
+  action: 'block' | 'allow' | 'reroute'
+  reasons: string[]
+  model: string | null
+  end_user_id: string | null
+  cost_usd: string | null
+}
+
 // ── Phase 13: Runbooks ───────────────────────────────────────────────────────
 
 export interface RunbookResponse {
@@ -1797,12 +1822,31 @@ export interface ModelScorecard {
   avg_quality_score: string | null
   input_tokens: number
   output_tokens: number
+  acceptance_rate: string | null
+  hallucination_flags: number | null
+  retry_rate: string | null
+  user_feedback_score: string | null
+  eval_score: string | null
+  recommendation: string | null
 }
 
 export interface ModelScorecardList {
   items: ModelScorecard[]
   from_dt: string | null
   to_dt: string | null
+}
+
+export interface ModelScoreTrend {
+  date: string
+  model: string
+  avg_quality_score: string | null
+  error_rate: string
+  avg_latency_ms: string | null
+  cost_usd: string
+}
+
+export interface ModelScoreTrendList {
+  items: ModelScoreTrend[]
 }
 
 // ── Phase 13: Onboarding ─────────────────────────────────────────────────────
@@ -1818,4 +1862,132 @@ export interface OnboardingStatus {
   completed: number
   total: number
   pct: number
+}
+
+// ── Phase 13: Chargeback Reports ────────────────────────────────────────────
+
+export interface ChargebackReport {
+  period: string
+  total_cost_usd: string
+  breakdown: ChargebackBreakdownItem[]
+}
+
+export interface ChargebackBreakdownItem {
+  dimension: string
+  dimension_value: string
+  cost_usd: string
+  pct_of_total: string
+  budget_usd: string | null
+  variance_usd: string | null
+}
+
+export interface ChargebackReportList {
+  items: ChargebackReport[]
+}
+
+// ── Phase 13: Data Capture Policy Studio ────────────────────────────────────
+
+export interface CapturePolicyScope {
+  scope_type: 'org' | 'workspace' | 'api_key' | 'model_route' | 'user' | 'intent' | 'agent'
+  scope_id: string
+  privacy_mode: string
+  sampled_rate: string | null
+}
+
+export interface RetentionPreview {
+  privacy_mode: string
+  estimated_storage_mb_per_month: string
+  fields_captured: string[]
+  fields_redacted: string[]
+  compliance_notes: string[]
+}
+
+export interface PiiTestResult {
+  input_text: string
+  detected_pii: PiiDetection[]
+  redacted_text: string
+}
+
+export interface PiiDetection {
+  type: string
+  value: string
+  start: number
+  end: number
+  confidence: string
+}
+
+// ── Phase 13: Auto-Approval Policies ────────────────────────────────────────
+
+export interface AutoApprovalPolicy {
+  id: string
+  request_type: ApprovalRequestType
+  condition: string
+  created_at: string
+  created_by: string | null
+}
+
+export interface AutoApprovalPolicyList {
+  items: AutoApprovalPolicy[]
+}
+
+// ── Phase 13: Governance Audit Pack ─────────────────────────────────────────
+
+export interface GovernanceAuditPack {
+  generated_at: string
+  period_from: string
+  period_to: string
+  summary: GovernanceAuditSummary
+  model_usage: GovernanceModelUsage[]
+  policy_enforcements: GovernancePolicyAction[]
+  approvals: GovernanceApprovalRecord[]
+  data_capture_policies: GovernanceCapturePolicy[]
+  budget_alerts: GovernanceBudgetAlert[]
+}
+
+export interface GovernanceAuditSummary {
+  total_requests: number
+  total_cost_usd: string
+  models_used: number
+  users_active: number
+  policies_enforced: number
+  approvals_processed: number
+  alerts_fired: number
+}
+
+export interface GovernanceModelUsage {
+  model: string
+  provider: string | null
+  request_count: number
+  cost_usd: string
+  first_used: string
+  last_used: string
+}
+
+export interface GovernancePolicyAction {
+  policy_type: string
+  action: string
+  count: number
+  last_triggered: string
+}
+
+export interface GovernanceApprovalRecord {
+  request_type: string
+  status: string
+  requested_by: string | null
+  decided_by: string | null
+  created_at: string
+}
+
+export interface GovernanceCapturePolicy {
+  scope: string
+  privacy_mode: string
+  retention_days: number | null
+}
+
+export interface GovernanceBudgetAlert {
+  budget_name: string
+  threshold_pct: number
+  triggered_at: string
+  current_spend_usd: string
+  limit_usd: string
 }

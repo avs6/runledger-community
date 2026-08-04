@@ -1,0 +1,34 @@
+---
+title: "Data Capture Policy Studio"
+description: "Define what RunLedger stores per scope — global and scoped capture policies, retention previews, PII redaction testing, and compliance explanations."
+---
+
+The data capture policy studio gives you fine-grained control over what RunLedger stores, with per-scope overrides, retention previews, and a built-in PII testing sandbox.
+
+## Capture modes
+
+| Mode | What's stored |
+|---|---|
+| `full` | Full prompt and response payloads |
+| `redacted` | Payloads with PII redacted |
+| `metadata_only` | Token counts, cost, timing — no content |
+| `none` | No body capture at all |
+
+## Key features
+
+- **Global policy** — set the default capture mode for your workspace.
+- **Scoped overrides** — override capture per org, workspace, API key, model route, user, intent, or agent.
+- **Retention preview** — see estimated storage, fields captured vs redacted, and compliance notes before applying.
+- **PII redaction testing** — paste sample text and see detected PII types (email, phone, SSN, etc.) with confidence scores and redacted output.
+- **Compliance explanations** — each mode shows what data is stored and regulatory implications.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Data retention" icon="clock" href="/governance/retention">
+    Retention policies and pruning schedules.
+  </Card>
+  <Card title="Governance audit pack" icon="file-check" href="/governance/governance-audit-pack">
+    Export capture policies as part of compliance evidence.
+  </Card>
+</CardGroup>

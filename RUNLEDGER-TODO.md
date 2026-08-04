@@ -2079,21 +2079,21 @@ These ideas should help customers answer:
 
 ### Policy Dry Run Mode
 
-- [ ] Add dry-run mode for budgets, model routing, tool filtering, and data capture.
-- [ ] Show what would have been blocked without actually blocking it.
-- [ ] Support dry-run reports:
+- [x] Add dry-run mode for budgets, model routing, tool filtering, and data capture.
+- [x] Show what would have been blocked without actually blocking it.
+- [x] Support dry-run reports:
   - requests that would be rejected
   - agents that would need approval
   - MCP tools that would be blocked
   - models that would be rerouted
   - expected savings
-- [ ] Add "promote to enforcement" after review.
-- [ ] Add audit log entries for dry-run policy decisions.
+- [x] Add "promote to enforcement" after review.
+- [x] Add audit log entries for dry-run policy decisions.
 
 ### AI Request Replay Lab
 
-- [ ] Add a lab to replay past requests through alternate routes.
-- [ ] Compare:
+- [x] Add a lab to replay past requests through alternate routes.
+- [x] Compare:
   - model
   - provider
   - prompt compression
@@ -2101,20 +2101,20 @@ These ideas should help customers answer:
   - local model
   - reasoning on/off
   - tool availability
-- [ ] Show side-by-side:
+- [x] Show side-by-side:
   - response quality
   - cost
   - tokens
   - latency
   - tool usage
   - outcome score
-- [ ] Allow replay results to create an experiment.
-- [ ] Allow winning replay config to become a Gateway route recommendation.
+- [x] Allow replay results to create an experiment.
+- [x] Allow winning replay config to become a Gateway route recommendation.
 
 ### Agent Runbooks
 
-- [ ] Auto-generate incident-style summaries for expensive, failed, or risky agent runs.
-- [ ] Include:
+- [x] Auto-generate incident-style summaries for expensive, failed, or risky agent runs.
+- [x] Include:
   - what happened
   - why it cost so much
   - which model was selected
@@ -2122,11 +2122,11 @@ These ideas should help customers answer:
   - which policy decisions occurred
   - what failed
   - what to change next
-- [ ] Add runbook export for:
+- [x] Add runbook export for:
   - markdown
   - PDF later
   - Slack/email summary
-- [ ] Link runbooks from Request Explorer and Agent Dependency Graph.
+- [x] Link runbooks from Request Explorer and Agent Dependency Graph.
 
 ### Cost Anomaly Detection
 
@@ -2134,7 +2134,7 @@ These ideas should help customers answer:
 
 ### Chargeback And Showback Reports
 
-- [ ] Add monthly finance-ready reports by:
+- [x] Add monthly finance-ready reports by:
   - org
   - workspace
   - team
@@ -2144,41 +2144,41 @@ These ideas should help customers answer:
   - agent
   - provider
   - cost center
-- [ ] Support:
+- [x] Support:
   - CSV export
   - JSON export
   - email schedule
   - PDF later
-- [ ] Add allocation rules:
+- [x] Add allocation rules:
   - by workspace
   - by user
   - by app tag
   - by agent tag
   - by API key
-- [ ] Add variance vs budget.
+- [x] Add variance vs budget.
 
 ### Approval Workflows
 
-- [ ] Add approvals for expensive or risky AI actions.
-- [ ] Require approval before:
+- [x] Add approvals for expensive or risky AI actions.
+- [x] Require approval before:
   - exceeding task budget
   - using premium reasoning model
   - calling external MCP tool
   - running long autonomous agent session
   - exporting sensitive data
   - changing Gateway route policy
-- [ ] Support approval channels:
+- [x] Support approval channels:
   - RunLedger UI
   - email
   - Slack
   - Teams later
-- [ ] Add approval audit trail.
-- [ ] Add auto-approval policies for trusted users/workspaces.
+- [x] Add approval audit trail.
+- [x] Add auto-approval policies for trusted users/workspaces.
 
 ### Model Quality Scorecards
 
-- [ ] Add scorecards by model and provider.
-- [ ] Compare:
+- [x] Add scorecards by model and provider.
+- [x] Compare:
   - cost
   - latency
   - error rate
@@ -2188,13 +2188,13 @@ These ideas should help customers answer:
   - cache compatibility
   - user feedback
   - eval score
-- [ ] Use scorecards to justify routing recommendations.
-- [ ] Add model score trend over time.
+- [x] Use scorecards to justify routing recommendations.
+- [x] Add model score trend over time.
 
 ### Customer Onboarding Wizard
 
-- [ ] Add "Connect your first AI app" guided flow.
-- [ ] Steps:
+- [x] Add "Connect your first AI app" guided flow.
+- [x] Steps:
   - create org
   - create workspace
   - choose integration
@@ -2203,7 +2203,7 @@ These ideas should help customers answer:
   - send test request
   - view first run
   - enable budget alert
-- [ ] Add paths for:
+- [x] Add paths for:
   - LiteLLM
   - Open WebUI
   - OpenHands
@@ -2213,18 +2213,18 @@ These ideas should help customers answer:
   - Cursor
   - Windsurf
   - Devin
-- [ ] Show completion checklist and health status.
+- [x] Show completion checklist and health status.
 
 ### Data Capture Policy Studio
 
-- [ ] Add UI to define what RunLedger stores.
-- [ ] Support capture modes:
+- [x] Add UI to define what RunLedger stores.
+- [x] Support capture modes:
   - full prompt and response
   - redacted prompt and response
   - prompt metadata only
   - response metadata only
   - no body capture
-- [ ] Support policies by:
+- [x] Support policies by:
   - org
   - workspace
   - API key
@@ -2232,14 +2232,14 @@ These ideas should help customers answer:
   - user
   - intent
   - agent
-- [ ] Add retention policy preview.
-- [ ] Add PII redaction testing.
-- [ ] Add compliance/audit explanation for each policy.
+- [x] Add retention policy preview.
+- [x] Add PII redaction testing.
+- [x] Add compliance/audit explanation for each policy.
 
 ### AI Governance Audit Pack
 
-- [ ] Add exportable governance evidence bundle.
-- [ ] Include:
+- [x] Add exportable governance evidence bundle.
+- [x] Include:
   - who used which model
   - when it was used
   - what route was selected
@@ -2249,14 +2249,14 @@ These ideas should help customers answer:
   - which approvals happened
   - which budget alerts fired
   - which retention policy applies
-- [ ] Support export by:
+- [x] Support export by:
   - org
   - workspace
   - user
   - date range
   - model
   - agent
-- [ ] Add compliance-friendly summary page.
+- [x] Add compliance-friendly summary page.
 
 ### RunLedger Demo Mode
 
@@ -2280,11 +2280,11 @@ These ideas should help customers answer:
 
 ### Acceptance Criteria
 
-- [ ] RunLedger explains what happened, why it happened, what it cost, and what to optimize next.
-- [ ] Customers can safely try policy enforcement through dry-run mode.
-- [ ] Finance users can produce chargeback/showback reports.
-- [ ] Engineers can replay and compare requests.
-- [ ] Executives can see savings and governance evidence.
+- [x] RunLedger explains what happened, why it happened, what it cost, and what to optimize next.
+- [x] Customers can safely try policy enforcement through dry-run mode.
+- [x] Finance users can produce chargeback/showback reports.
+- [x] Engineers can replay and compare requests.
+- [x] Executives can see savings and governance evidence.
 - [ ] Demo mode tells a complete enterprise story without needing live customer data.
 
 ---

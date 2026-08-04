@@ -4,9 +4,17 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { Rocket, CheckCircle2, Circle } from 'lucide-react'
+import {
+  Rocket, CheckCircle2, Circle, Network, Globe, Code,
+  GitBranch, Bot, Terminal, MousePointer, Wind, Cpu,
+  Copy, Check, ChevronDown, ChevronUp,
+} from 'lucide-react'
 import { getOnboardingStatus, triggerDemoSeed } from '@/lib/api'
 import type { OnboardingStatus } from '@/types/api'
+
+/* ------------------------------------------------------------------ */
+/*  Steps checklist (unchanged)                                       */
+/* ------------------------------------------------------------------ */
 
 const STEPS: { key: keyof OnboardingStatus; label: string; description: string; href: string }[] = [
   { key: 'has_org', label: 'Create Organization', description: 'Set up your organization to manage teams and billing', href: '/organization' },
@@ -18,11 +26,230 @@ const STEPS: { key: keyof OnboardingStatus; label: string; description: string; 
   { key: 'has_alert_rule', label: 'Create Alert Rule', description: 'Get notified when costs or usage cross a threshold', href: '/alert-rules' },
 ]
 
+/* ------------------------------------------------------------------ */
+/*  Integration definitions                                           */
+/* ------------------------------------------------------------------ */
+
+interface Integration {
+  id: string
+  name: string
+  subtitle: string
+  icon: React.ComponentType<{ className?: string }>
+  steps: string[]
+  configTitle: string
+  configSnippet: string
+}
+
+const INTEGRATIONS: Integration[] = [
+  {
+    id: 'litellm',
+    name: 'LiteLLM',
+    subtitle: 'LLM proxy gateway',
+    icon: Network,
+    steps: [
+      'Install the RunLedger callback package: pip install runledger-litellm',
+      'Add the RunLedger callback to your LiteLLM proxy config file.',
+      'Restart the LiteLLM proxy and verify the connection on the Gateway page.',
+    ],
+    configTitle: 'litellm_settings (config.yaml)',
+    configSnippet: `litellm_settings:
+  success_callback: ["runledger"]
+  runledger_api_key: "rl_YOUR_API_KEY"
+  runledger_api_base: "https://api.runledger.app"`,
+  },
+  {
+    id: 'openwebui',
+    name: 'Open WebUI',
+    subtitle: 'Chat interface',
+    icon: Globe,
+    steps: [
+      'Navigate to Admin > Settings > Connections in Open WebUI.',
+      'Set the OpenAI-compatible API base URL to your RunLedger gateway endpoint.',
+      'Enter your RunLedger API key and save.',
+    ],
+    configTitle: 'Open WebUI Connection Settings',
+    configSnippet: `API Base URL: https://gateway.runledger.app/v1
+API Key:      rl_YOUR_API_KEY
+Model Filter: (leave empty to proxy all models)`,
+  },
+  {
+    id: 'openhands',
+    name: 'OpenHands',
+    subtitle: 'AI coding agent',
+    icon: Code,
+    steps: [
+      'Set the LLM base URL environment variable to your RunLedger gateway.',
+      'Export your RunLedger API key as the provider key.',
+      'Launch the OpenHands agent - all calls are now routed through RunLedger.',
+    ],
+    configTitle: 'Environment Variables',
+    configSnippet: `export LLM_BASE_URL="https://gateway.runledger.app/v1"
+export LLM_API_KEY="rl_YOUR_API_KEY"
+export LLM_MODEL="gpt-4o"`,
+  },
+  {
+    id: 'langgraph',
+    name: 'LangGraph',
+    subtitle: 'Agent orchestration',
+    icon: GitBranch,
+    steps: [
+      'Install the RunLedger LangChain integration: pip install runledger-langchain',
+      'Add the RunLedger callback handler to your LangGraph agent.',
+      'Run your graph - each node invocation is tracked automatically.',
+    ],
+    configTitle: 'Python Agent Code',
+    configSnippet: `from runledger_langchain import RunLedgerCallbackHandler
+
+handler = RunLedgerCallbackHandler(
+    api_key="rl_YOUR_API_KEY",
+)
+
+# Pass to your LangGraph agent
+app.invoke(input, config={"callbacks": [handler]})`,
+  },
+  {
+    id: 'claude-code',
+    name: 'Claude Code',
+    subtitle: 'Anthropic CLI agent',
+    icon: Bot,
+    steps: [
+      'Add the RunLedger MCP server to your Claude Code configuration.',
+      'Restart Claude Code to pick up the new MCP server.',
+      'All Claude Code sessions will now report usage to RunLedger.',
+    ],
+    configTitle: 'MCP Configuration (~/.claude.json)',
+    configSnippet: `{
+  "mcpServers": {
+    "runledger": {
+      "command": "npx",
+      "args": ["-y", "runledger-mcp"],
+      "env": {
+        "RUNLEDGER_API_KEY": "rl_YOUR_API_KEY"
+      }
+    }
+  }
+}`,
+  },
+  {
+    id: 'codex',
+    name: 'Codex',
+    subtitle: 'OpenAI CLI agent',
+    icon: Terminal,
+    steps: [
+      'Set your API base URL to the RunLedger gateway.',
+      'Use your RunLedger API key in place of the OpenAI key.',
+      'Run Codex as usual - requests are proxied and tracked.',
+    ],
+    configTitle: 'Environment Variables',
+    configSnippet: `export OPENAI_BASE_URL="https://gateway.runledger.app/v1"
+export OPENAI_API_KEY="rl_YOUR_API_KEY"`,
+  },
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    subtitle: 'AI-powered IDE',
+    icon: MousePointer,
+    steps: [
+      'Create or edit the MCP config file in your project.',
+      'Add the RunLedger MCP server entry.',
+      'Restart Cursor to enable the integration.',
+    ],
+    configTitle: '.cursor/mcp.json',
+    configSnippet: `{
+  "mcpServers": {
+    "runledger": {
+      "command": "npx",
+      "args": ["-y", "runledger-mcp"],
+      "env": {
+        "RUNLEDGER_API_KEY": "rl_YOUR_API_KEY"
+      }
+    }
+  }
+}`,
+  },
+  {
+    id: 'windsurf',
+    name: 'Windsurf',
+    subtitle: 'AI-powered IDE',
+    icon: Wind,
+    steps: [
+      'Open Windsurf settings and navigate to the AI provider section.',
+      'Set the API base URL to your RunLedger gateway endpoint.',
+      'Enter your RunLedger API key and select your preferred model.',
+    ],
+    configTitle: 'Windsurf Settings (settings.json)',
+    configSnippet: `{
+  "ai.provider": {
+    "baseUrl": "https://gateway.runledger.app/v1",
+    "apiKey": "rl_YOUR_API_KEY",
+    "model": "gpt-4o"
+  }
+}`,
+  },
+  {
+    id: 'devin',
+    name: 'Devin',
+    subtitle: 'Autonomous coding agent',
+    icon: Cpu,
+    steps: [
+      'In the Devin dashboard, go to Settings > API Configuration.',
+      'Set the LLM proxy URL to your RunLedger gateway.',
+      'Save and re-launch your Devin session to apply.',
+    ],
+    configTitle: 'Devin API Configuration',
+    configSnippet: `LLM Proxy URL: https://gateway.runledger.app/v1
+API Key:       rl_YOUR_API_KEY
+Workspace:     default`,
+  },
+]
+
+/* ------------------------------------------------------------------ */
+/*  Code snippet with copy button                                     */
+/* ------------------------------------------------------------------ */
+
+function CodeBlock({ title, code }: { title: string; code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      toast.success('Copied to clipboard')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Failed to copy')
+    }
+  }
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between bg-slate-100 px-4 py-2 dark:bg-slate-800">
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{title}</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main page                                                         */
+/* ------------------------------------------------------------------ */
+
 export default function OnboardingPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
   const [status, setStatus] = useState<OnboardingStatus | null>(null)
   const [seeding, setSeeding] = useState(false)
+  const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null)
 
   useEffect(() => {
     if (!apiKey) return
@@ -51,8 +278,11 @@ export default function OnboardingPage() {
     )
   }
 
+  const active = INTEGRATIONS.find((i) => i.id === selectedIntegration)
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-10">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <Rocket className="h-8 w-8 text-blue-500" />
         <div>
@@ -61,6 +291,7 @@ export default function OnboardingPage() {
         </div>
       </div>
 
+      {/* Progress bar */}
       <div className="space-y-2">
         <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
           <div
@@ -79,6 +310,57 @@ export default function OnboardingPage() {
         </div>
       )}
 
+      {/* ---- Integration Path Selector ---- */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold tracking-tight">Choose Your Integration</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Select the tool you want to connect to RunLedger for tailored setup instructions.
+        </p>
+        <div className="grid grid-cols-3 gap-3">
+          {INTEGRATIONS.map((integration) => {
+            const Icon = integration.icon
+            const isSelected = selectedIntegration === integration.id
+            return (
+              <button
+                key={integration.id}
+                onClick={() => setSelectedIntegration(isSelected ? null : integration.id)}
+                className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50 shadow-md dark:border-blue-400 dark:bg-blue-950/40'
+                    : 'border-slate-200 bg-white/90 shadow-sm hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-600 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Icon className={`h-6 w-6 ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                <span className={`text-sm font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : ''}`}>{integration.name}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{integration.subtitle}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ---- Integration-specific instructions ---- */}
+      {active && (
+        <div className="rounded-2xl border border-blue-200 bg-white/90 p-6 shadow-sm dark:border-blue-800 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Connect {active.name} to RunLedger</h3>
+            <button
+              onClick={() => setSelectedIntegration(null)}
+              className="text-sm text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              <ChevronUp className="h-5 w-5" />
+            </button>
+          </div>
+          <ol className="mb-4 list-inside list-decimal space-y-2 text-sm text-slate-700 dark:text-slate-300">
+            {active.steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          <CodeBlock title={active.configTitle} code={active.configSnippet} />
+        </div>
+      )}
+
+      {/* ---- Steps checklist ---- */}
       <div className="space-y-3">
         {STEPS.map((step) => {
           const done = !!status[step.key]
@@ -94,12 +376,22 @@ export default function OnboardingPage() {
                   <p className={`font-medium ${done ? 'text-slate-400 line-through dark:text-slate-500' : ''}`}>{step.label}</p>
                   <p className="text-sm text-slate-500 dark:text-slate-400">{step.description}</p>
                 </div>
+                {done ? (
+                  <span className="shrink-0 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-400">
+                    Connected
+                  </span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    Pending
+                  </span>
+                )}
               </div>
             </Link>
           )
         })}
       </div>
 
+      {/* ---- Demo seed ---- */}
       <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h2 className="mb-1 font-semibold">Seed Demo Data</h2>
         <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">Populate your account with sample data to explore RunLedger features.</p>

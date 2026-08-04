@@ -1,0 +1,38 @@
+---
+title: "Model Quality Scorecards"
+description: "Compare models across cost, latency, error rate, acceptance, hallucinations, retries, user feedback, and eval scores — with trend charts and routing recommendations."
+---
+
+Model scorecards give you a single view to compare every model and provider across quality, cost, and reliability metrics. Use them to justify routing decisions and spot regressions over time.
+
+## Metrics
+
+| Metric | Description |
+|---|---|
+| Cost | Average cost per request |
+| Latency | p50/p95 response times |
+| Error rate | Percentage of failed requests |
+| Acceptance rate | How often outputs are accepted by users |
+| Hallucination flags | Count of flagged hallucinations |
+| Retry rate | How often requests needed retries |
+| User feedback | Average user feedback score |
+| Eval score | Automated evaluation score |
+| Cache compatibility | How well the model works with caching |
+
+## Key features
+
+- **Expandable detail rows** — click any model to see its routing recommendation and trend chart.
+- **Score trends** — dual-axis chart showing quality score and error rate over time.
+- **Time range filter** — 7d, 30d, or 90d views.
+- **Routing recommendations** — each scorecard includes a recommendation for routing decisions.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Intelligent routing" icon="route" href="/optimization/intelligent-routing">
+    Use scorecard data to drive routing.
+  </Card>
+  <Card title="Replay Lab" icon="beaker" href="/observability/replay-lab">
+    Compare models by replaying real requests.
+  </Card>
+</CardGroup>

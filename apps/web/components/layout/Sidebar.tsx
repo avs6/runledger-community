@@ -40,6 +40,7 @@ import {
   Trophy,
   Users,
   Wallet,
+  FileCheck,
   Wrench,
 } from 'lucide-react'
 import RunLedgerLogo from '@/components/brand/RunLedgerLogo'
@@ -207,6 +208,7 @@ export default function Sidebar() {
             <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />
             <NavLink href="/audit" label="Audit Log" icon={ScrollText} />
             <NavLink href="/policy-dry-run" label="Policy Dry Run" icon={Shield} />
+            <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />
           </Section>
         )}
       </nav>

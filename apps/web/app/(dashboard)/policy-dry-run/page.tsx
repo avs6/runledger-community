@@ -3,12 +3,28 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Shield, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
-import { policyDryRun } from '@/lib/api'
-import type { PolicyCheckResponse } from '@/types/api'
+import {
+  Shield,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  FileText,
+  ArrowUpCircle,
+  ExternalLink,
+  AlertTriangle,
+  RotateCcw,
+} from 'lucide-react'
+import { policyDryRun, getPolicyDryRunReport, promotePolicy } from '@/lib/api'
+import type { PolicyCheckResponse, PolicyDryRunReport } from '@/types/api'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+
+const cardCls =
+  'rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900'
+
+const sectionLabel =
+  'text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500'
 
 const fields = [
   { key: 'end_user_id', label: 'End User ID', placeholder: 'e.g. user_abc123' },
@@ -38,10 +54,21 @@ function formatValue(v: unknown): string {
   return String(v)
 }
 
+const actionBadge: Record<string, string> = {
+  block: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  allow: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  reroute: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+}
+
+type Tab = 'single' | 'report'
+
 export default function PolicyDryRunPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
 
+  const [tab, setTab] = useState<Tab>('single')
+
+  // ── Single Check state ──
   const [form, setForm] = useState<Record<FormKeys, string>>({
     end_user_id: '',
     feature_tag: '',
@@ -50,6 +77,12 @@ export default function PolicyDryRunPage() {
   })
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PolicyCheckResponse | null>(null)
+  const [promoting, setPromoting] = useState(false)
+
+  // ── Report state ──
+  const [report, setReport] = useState<PolicyDryRunReport | null>(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportPromoting, setReportPromoting] = useState(false)
 
   function updateField(key: FormKeys, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -77,8 +110,51 @@ export default function PolicyDryRunPage() {
     }
   }
 
+  async function handlePromote(policyType: string) {
+    if (!apiKey) return
+    setPromoting(true)
+    try {
+      const res = await promotePolicy(apiKey, { policy_type: policyType, enforce: true })
+      toast.success(res.message || 'Policy promoted to enforcement')
+    } catch {
+      toast.error('Failed to promote policy')
+    } finally {
+      setPromoting(false)
+    }
+  }
+
+  async function loadReport() {
+    if (!apiKey) {
+      toast.error('No API key found in session')
+      return
+    }
+    setReportLoading(true)
+    try {
+      const data = await getPolicyDryRunReport(apiKey, { limit: 100 })
+      setReport(data)
+    } catch {
+      toast.error('Failed to load dry-run report')
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
+  async function handleReportPromote(policyType: string) {
+    if (!apiKey) return
+    setReportPromoting(true)
+    try {
+      const res = await promotePolicy(apiKey, { policy_type: policyType, enforce: true })
+      toast.success(res.message || 'Policy promoted to enforcement')
+    } catch {
+      toast.error('Failed to promote policy')
+    } finally {
+      setReportPromoting(false)
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40">
           <Shield className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
@@ -89,93 +165,287 @@ export default function PolicyDryRunPage() {
         </div>
       </div>
 
-      <form onSubmit={handleRun} className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Check Parameters</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {fields.map((f) => (
-            <label key={f.key} className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">{f.label}</span>
-              <input
-                type="text"
-                className={inputCls}
-                placeholder={f.placeholder}
-                value={form[f.key]}
-                onChange={(e) => updateField(f.key, e.target.value)}
-              />
-            </label>
-          ))}
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-          Run Check
-        </button>
-      </form>
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+        {([
+          { id: 'single' as Tab, label: 'Single Check', icon: Shield },
+          { id: 'report' as Tab, label: 'Dry-Run Report', icon: FileText },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => {
+              setTab(t.id)
+              if (t.id === 'report' && !report) loadReport()
+            }}
+            className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition ${
+              tab === t.id
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <t.icon className="h-4 w-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {result && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex items-center gap-3">
-              {result.allowed ? (
-                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-              ) : (
-                <XCircle className="h-10 w-10 text-red-500" />
-              )}
-              <div>
-                <span
-                  className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
-                    result.allowed
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                  }`}
-                >
-                  {result.allowed ? 'Allowed' : 'Blocked'}
-                </span>
-              </div>
+      {/* ── Single Check Tab ── */}
+      {tab === 'single' && (
+        <>
+          <form onSubmit={handleRun} className={cardCls}>
+            <p className={`mb-4 ${sectionLabel}`}>Check Parameters</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {fields.map((f) => (
+                <label key={f.key} className="block">
+                  <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">{f.label}</span>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    placeholder={f.placeholder}
+                    value={form[f.key]}
+                    onChange={(e) => updateField(f.key, e.target.value)}
+                  />
+                </label>
+              ))}
             </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+              Run Check
+            </button>
+          </form>
 
-            {result.reasons.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Reasons</p>
-                <div className="flex flex-wrap gap-2">
-                  {result.reasons.map((r, i) => (
+          {result && (
+            <div className="space-y-4">
+              <div className={cardCls}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {result.allowed ? (
+                      <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+                    ) : (
+                      <XCircle className="h-10 w-10 text-red-500" />
+                    )}
                     <span
-                      key={i}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${
+                        result.allowed
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                      }`}
                     >
-                      {r}
+                      {result.allowed ? 'Allowed' : 'Blocked'}
                     </span>
-                  ))}
+                  </div>
+
+                  {/* Promote button */}
+                  <button
+                    onClick={() => {
+                      const policyType = form.feature_tag.trim() || form.tool_name.trim() || 'default'
+                      handlePromote(policyType)
+                    }}
+                    disabled={promoting}
+                    className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {promoting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowUpCircle className="h-4 w-4" />
+                    )}
+                    Promote to Enforcement
+                  </button>
+                </div>
+
+                {result.reasons.length > 0 && (
+                  <div className="mt-4">
+                    <p className={`mb-2 ${sectionLabel}`}>Reasons</p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.reasons.map((r, i) => (
+                        <span
+                          key={i}
+                          className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {result.detail && (
+                <div className={cardCls}>
+                  <p className={`mb-4 ${sectionLabel}`}>Detail Breakdown</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {detailLabels.map(({ key, label, good }) => {
+                      const raw = (result.detail as unknown as Record<string, unknown>)?.[key]
+                      const display = formatValue(raw)
+                      const isNull = raw === null || raw === undefined
+                      const colorCls = isNull
+                        ? 'text-slate-400'
+                        : good(raw)
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-red-600 dark:text-red-400'
+                      return (
+                        <div key={key} className="flex items-baseline justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
+                          <span className="text-xs text-slate-500">{label}</span>
+                          <span className={`text-sm font-medium ${colorCls}`}>{display}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Audit log link */}
+              <div className={cardCls}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={sectionLabel}>Audit Trail</p>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                      View all dry-run policy decisions in the audit log
+                    </p>
+                  </div>
+                  <a
+                    href="/audit?action=policy.dry_run"
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View Audit Log
+                  </a>
                 </div>
               </div>
-            )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Dry-Run Report Tab ── */}
+      {tab === 'report' && (
+        <div className="space-y-4">
+          {/* Actions bar */}
+          <div className={`${cardCls} flex flex-wrap items-center justify-between gap-4`}>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleReportPromote('all')}
+                disabled={reportPromoting || !report}
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+              >
+                {reportPromoting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowUpCircle className="h-4 w-4" />
+                )}
+                Promote to Enforcement
+              </button>
+              <button
+                onClick={loadReport}
+                disabled={reportLoading}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Refresh
+              </button>
+            </div>
+            <a
+              href="/audit?action=policy.dry_run"
+              className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Audit Log
+            </a>
           </div>
 
-          {result.detail && (
-            <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Detail Breakdown</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {detailLabels.map(({ key, label, good }) => {
-                  const raw = (result.detail as unknown as Record<string, unknown>)?.[key]
-                  const display = formatValue(raw)
-                  const isNull = raw === null || raw === undefined
-                  const colorCls = isNull
-                    ? 'text-slate-400'
-                    : good(raw)
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-red-600 dark:text-red-400'
-                  return (
-                    <div key={key} className="flex items-baseline justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
-                      <span className="text-xs text-slate-500">{label}</span>
-                      <span className={`text-sm font-medium ${colorCls}`}>{display}</span>
-                    </div>
-                  )
-                })}
-              </div>
+          {reportLoading && !report && (
+            <div className={`${cardCls} flex items-center justify-center py-12`}>
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              <span className="ml-3 text-sm text-slate-500">Loading report...</span>
             </div>
+          )}
+
+          {report && (
+            <>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {([
+                  { label: 'Total Checked', value: report.total_checked, color: 'text-slate-900 dark:text-white' },
+                  { label: 'Would Block', value: report.would_block, color: 'text-red-600 dark:text-red-400' },
+                  { label: 'Would Allow', value: report.would_allow, color: 'text-emerald-600 dark:text-emerald-400' },
+                  { label: 'Would Reroute', value: report.would_reroute, color: 'text-amber-600 dark:text-amber-400' },
+                ] as const).map((kpi) => (
+                  <div key={kpi.label} className={cardCls}>
+                    <p className={sectionLabel}>{kpi.label}</p>
+                    <p className={`mt-2 text-2xl font-bold ${kpi.color}`}>{kpi.value.toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Items table */}
+              <div className={cardCls}>
+                <p className={`mb-4 ${sectionLabel}`}>Dry-Run Items</p>
+                {report.items.length === 0 ? (
+                  <div className="flex flex-col items-center py-10 text-slate-400">
+                    <AlertTriangle className="h-8 w-8 mb-2" />
+                    <p className="text-sm">No dry-run items found</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-700">
+                          <th className="pb-2 text-left font-medium text-slate-500">Request ID</th>
+                          <th className="pb-2 text-left font-medium text-slate-500">Action</th>
+                          <th className="pb-2 text-left font-medium text-slate-500">Model</th>
+                          <th className="pb-2 text-left font-medium text-slate-500">End User</th>
+                          <th className="pb-2 text-right font-medium text-slate-500">Cost</th>
+                          <th className="pb-2 text-left font-medium text-slate-500">Reasons</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {report.items.map((item) => (
+                          <tr key={item.request_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="py-2 pr-3 font-mono text-xs text-slate-600 dark:text-slate-400">
+                              {item.request_id.slice(0, 12)}...
+                            </td>
+                            <td className="py-2 pr-3">
+                              <span
+                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  actionBadge[item.action] ?? ''
+                                }`}
+                              >
+                                {item.action}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-3 text-slate-700 dark:text-slate-300">
+                              {item.model ?? '—'}
+                            </td>
+                            <td className="py-2 pr-3 text-slate-700 dark:text-slate-300">
+                              {item.end_user_id ?? '—'}
+                            </td>
+                            <td className="py-2 pr-3 text-right font-mono text-slate-700 dark:text-slate-300">
+                              {item.cost_usd ? `$${item.cost_usd}` : '—'}
+                            </td>
+                            <td className="py-2">
+                              <div className="flex flex-wrap gap-1">
+                                {item.reasons.map((r, i) => (
+                                  <span
+                                    key={i}
+                                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                  >
+                                    {r}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

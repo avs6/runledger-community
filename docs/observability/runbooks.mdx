@@ -1,0 +1,36 @@
+---
+title: "Agent Runbooks"
+description: "Auto-generated incident-style summaries for expensive, failed, or risky agent runs — with markdown and JSON export."
+---
+
+RunLedger auto-generates runbooks for agent runs that are expensive, failed, or triggered policy actions. Each runbook answers: what happened, why it cost so much, which model and tools were used, what failed, and what to change next.
+
+## Key features
+
+- **Auto-generated summaries** — created for expensive, failed, or risky runs.
+- **Severity classification** — critical, warning, and info levels.
+- **Export** — download as markdown or JSON.
+- **Generate from run ID** — create a runbook for any specific run on demand.
+- **Linked navigation** — jump to the run in [Request Explorer](/observability/request-explorer) or view the full run detail.
+
+## Runbook contents
+
+Each runbook includes:
+- What happened (timeline and outcome)
+- Cost breakdown and why it was expensive
+- Model selection and routing decisions
+- Tools used and their results
+- Policy decisions that occurred
+- What failed and root cause
+- Recommended next steps
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Run Explorer" icon="list" href="/observability/runs">
+    Browse and filter all agent runs.
+  </Card>
+  <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
+    Filterable request log linked from runbooks.
+  </Card>
+</CardGroup>

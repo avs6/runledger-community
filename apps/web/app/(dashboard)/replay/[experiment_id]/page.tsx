@@ -13,10 +13,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { getExperimentResults } from '@/lib/api'
+import { getExperimentResults, createRouteRecommendation } from '@/lib/api'
 import type { ExperimentResults } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChevronLeft, Loader2 } from 'lucide-react'
+import { ChevronLeft, Loader2, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function ExperimentResultsPage() {
   const { data: session } = useSession()
@@ -24,6 +25,25 @@ export default function ExperimentResultsPage() {
   const experimentId = params.experiment_id as string
   const [results, setResults] = useState<ExperimentResults | null>(null)
   const [loading, setLoading] = useState(true)
+  const [recommending, setRecommending] = useState<number | null>(null)
+
+  const handleRecommendRoute = async (configIndex: number, model: string) => {
+    const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
+    if (!apiKey) return
+    setRecommending(configIndex)
+    try {
+      await createRouteRecommendation(apiKey, {
+        experiment_id: experimentId,
+        config_index: configIndex,
+        reason: `Replay Lab: recommend ${model} based on experiment ${experimentId}`,
+      })
+      toast.success('Route recommendation created')
+    } catch {
+      toast.error('Failed to create route recommendation')
+    } finally {
+      setRecommending(null)
+    }
+  }
 
   useEffect(() => {
     if (!session?.apiKey || !experimentId) return
@@ -152,7 +172,8 @@ export default function ExperimentResultsPage() {
                 <th className="pb-2 pr-3">Output tokens</th>
                 <th className="pb-2 pr-3">Avg cost/run</th>
                 <th className="pb-2 pr-3">Total cost</th>
-                <th className="pb-2">Pricing</th>
+                <th className="pb-2 pr-3">Pricing</th>
+                <th className="pb-2" />
               </tr>
             </thead>
             <tbody>
@@ -193,6 +214,16 @@ export default function ExperimentResultsPage() {
                         ⚠ No pricing data
                       </span>
                     )}
+                  </td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => handleRecommendRoute(i, c.model)}
+                      disabled={recommending === i}
+                      className="flex items-center gap-1 rounded-lg border border-indigo-300 px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {recommending === i ? 'Saving…' : 'Recommend Route'}
+                    </button>
                   </td>
                 </tr>
               ))}

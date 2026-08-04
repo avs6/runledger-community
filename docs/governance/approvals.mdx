@@ -1,6 +1,6 @@
 ---
 title: "Approvals & Governance"
-description: "A human-in-the-loop approval queue for sensitive actions — request, review, approve or reject, with a full audit trail."
+description: "A human-in-the-loop approval queue for sensitive actions — request, review, approve or reject, with a full audit trail and auto-approval policies."
 ---
 
 Some actions shouldn't happen without a human. The approvals workflow puts sensitive operations behind a
@@ -16,23 +16,44 @@ review queue, with a full audit trail of who requested, who decided, and when.
 - **Review queue** — approvers see pending items, approve or reject with a note.
 - **Audit trail** — every request and decision is recorded immutably.
 - **Scoped by role** — who can approve is governed by [RBAC](/governance/rbac).
+- **Auto-approval policies** — define conditions under which requests are approved automatically.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  act[Sensitive action] --> req[Approval request · pending]
+  act[Sensitive action] --> check{Auto-approval policy match?}
+  check -- yes --> exec[Action proceeds · logged]
+  check -- no --> req[Approval request · pending]
   req --> review{Approver decision}
-  review -- approve --> exec[Action proceeds]
+  review -- approve --> exec
   review -- reject --> stop[Blocked · logged]
   exec & stop --> audit[Audit event]
 ```
 
-## Typical uses
+## Supported request types
 
-- Promoting a prompt to production.
-- Raising a budget or disabling a guardrail.
-- Any workflow you tag as requiring sign-off.
+| Type | Description |
+|---|---|
+| `budget_increase` | Raise a budget limit |
+| `prompt_promote` | Promote a prompt version to production |
+| `tool_allow` | Allow a privileged tool |
+| `capture_policy_full` | Enable full payload capture |
+| `shadow_routing` | Enable shadow routing |
+| `premium_model_use` | Use a premium/reasoning model |
+| `external_mcp_tool` | Call an external MCP tool |
+| `long_agent_session` | Run a long autonomous agent session |
+| `sensitive_export` | Export sensitive data |
+| `route_policy_change` | Change a Gateway route policy |
+
+## Auto-approval policies
+
+Auto-approval policies let you skip the review queue for trusted combinations of request type and condition. For example, auto-approve `budget_increase` for `workspace:engineering` or `premium_model_use` for `user:admin@*`.
+
+Manage policies from the Approvals page or via the API:
+- `GET /approvals/auto-policies` — list policies
+- `POST /approvals/auto-policies` — create a policy
+- `DELETE /approvals/auto-policies/:id` — delete a policy
 
 ## Related
 
@@ -42,6 +63,12 @@ flowchart LR
   </Card>
   <Card title="Prompt registry" icon="code-branch" href="/governance/prompts">
     Gate promotions behind approval.
+  </Card>
+  <Card title="Policy dry run" icon="shield" href="/governance/policy-dry-run">
+    Test policies before enforcement.
+  </Card>
+  <Card title="Governance audit pack" icon="file-check" href="/governance/governance-audit-pack">
+    Export approval records as compliance evidence.
   </Card>
 </CardGroup>
 

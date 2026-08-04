@@ -3531,6 +3531,755 @@
       "description": "RunLedger Governance - Approvals endpoints"
     },
     {
+      "name": "Governance - Auto-Approval Policies",
+      "item": [
+        {
+          "name": "List Auto-Approval Policies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies"
+              ]
+            },
+            "description": "List all auto-approval policies for this workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Auto-Approval Policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies"
+              ]
+            },
+            "description": "Create a new auto-approval policy. Matching requests are approved automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_type\": \"budget_increase\",\n  \"condition\": \"workspace:engineering\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Auto-Approval Policy",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies/:policy_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies",
+                ":policy_id"
+              ],
+              "variable": [
+                {
+                  "key": "policy_id",
+                  "value": "{{auto_policy_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete an auto-approval policy by ID."
+          },
+          "response": []
+        }
+      ],
+      "description": "Auto-approval policies — automatically approve requests matching conditions."
+    },
+    {
+      "name": "Governance - Policy Dry Run",
+      "item": [
+        {
+          "name": "Get Dry-Run Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/policies/dry-run-report",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "policies",
+                "dry-run-report"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "ISO date start",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "ISO date end",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Max items",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Fetch a dry-run report showing what policies would have blocked, rerouted, or allowed."
+          },
+          "response": []
+        },
+        {
+          "name": "Promote Policy to Enforcement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/policies/promote",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "policies",
+                "promote"
+              ]
+            },
+            "description": "Promote a dry-run policy to active enforcement.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"policy_type\": \"budget\",\n  \"enforce\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Policy dry-run mode — test policies before enforcement."
+    },
+    {
+      "name": "Governance - Audit Pack",
+      "item": [
+        {
+          "name": "Get Governance Audit Pack",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/governance/audit-pack",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "governance",
+                "audit-pack"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "org_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "workspace_id",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Generate a governance audit evidence pack — model usage, policy enforcements, approvals, data capture policies, budget alerts, and compliance summary."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Governance Audit Pack",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/governance/audit-pack/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "governance",
+                "audit-pack",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "format",
+                  "value": "json",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Export the governance audit pack as JSON or CSV."
+          },
+          "response": []
+        }
+      ],
+      "description": "Governance audit pack — exportable compliance evidence bundle."
+    },
+    {
+      "name": "Data Capture Policy Studio",
+      "item": [
+        {
+          "name": "Get Retention Preview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/capture-policy/retention-preview?privacy_mode=redacted",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "capture-policy",
+                "retention-preview"
+              ],
+              "query": [
+                {
+                  "key": "privacy_mode",
+                  "value": "redacted"
+                }
+              ]
+            },
+            "description": "Preview retention and storage estimates for a given privacy mode."
+          },
+          "response": []
+        },
+        {
+          "name": "Test PII Redaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/capture-policy/test-pii",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "capture-policy",
+                "test-pii"
+              ]
+            },
+            "description": "Test PII detection and redaction against sample text.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"My email is john@example.com and SSN is 123-45-6789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Capture Policy Scopes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/capture-policy/scopes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "capture-policy",
+                "scopes"
+              ]
+            },
+            "description": "List per-scope capture policy overrides."
+          },
+          "response": []
+        },
+        {
+          "name": "Upsert Capture Policy Scope",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/capture-policy/scopes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "capture-policy",
+                "scopes"
+              ]
+            },
+            "description": "Create or update a scoped capture policy override.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope_type\": \"workspace\",\n  \"scope_id\": \"ws_123\",\n  \"privacy_mode\": \"redacted\",\n  \"sample_rate\": 0.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Data capture policy studio — scoped capture policies, retention preview, PII redaction testing."
+    },
+    {
+      "name": "Chargeback Reports",
+      "item": [
+        {
+          "name": "Get Chargeback Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-report",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "chargeback-report"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "2026-07",
+                  "description": "YYYY-MM period"
+                },
+                {
+                  "key": "dimension",
+                  "value": "",
+                  "description": "Breakdown dimension (org, workspace, team, user, model, agent, provider, app, cost_center, api_key)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get a monthly chargeback/showback report with breakdown and budget variance."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Chargeback Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-report/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "chargeback-report",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "2026-07"
+                },
+                {
+                  "key": "format",
+                  "value": "csv",
+                  "description": "csv or json"
+                }
+              ]
+            },
+            "description": "Export a chargeback report as CSV or JSON."
+          },
+          "response": []
+        }
+      ],
+      "description": "Chargeback & showback reports — monthly finance-ready reports with variance vs budget."
+    },
+    {
+      "name": "Model Score Trends",
+      "item": [
+        {
+          "name": "Get Model Score Trends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/model-score-trends",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "model-score-trends"
+              ],
+              "query": [
+                {
+                  "key": "model",
+                  "value": "gpt-4o",
+                  "description": "Model to query trends for"
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get quality score and error rate trends over time for a model."
+          },
+          "response": []
+        }
+      ],
+      "description": "Model quality scorecard trends — score and error rate over time."
+    },
+    {
+      "name": "Route Recommendations",
+      "item": [
+        {
+          "name": "Create Route Recommendation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/gateway/route-recommendations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "gateway",
+                "route-recommendations"
+              ]
+            },
+            "description": "Create a route recommendation from a replay experiment result.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"experiment_id\": \"exp_abc123\",\n  \"config_index\": 0,\n  \"reason\": \"Replay Lab: model showed 30% cost reduction with equivalent quality\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Route recommendations from Replay Lab experiments."
+    },
+    {
+      "name": "Runbooks",
+      "item": [
+        {
+          "name": "List Runbooks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/runs/runbooks/list",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                "runbooks",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": true
+                },
+                {
+                  "key": "severity",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List auto-generated agent runbooks with pagination and severity filter."
+          },
+          "response": []
+        },
+        {
+          "name": "Export Runbook",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/runs/runbooks/:runbook_id/export?format=markdown",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                "runbooks",
+                ":runbook_id",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "markdown",
+                  "description": "markdown or json"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "runbook_id",
+                  "value": "{{runbook_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Export a runbook as markdown or JSON."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Runbook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/runs/runbooks/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                "runbooks",
+                "generate"
+              ]
+            },
+            "description": "Generate a runbook from a specific run ID.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_id\": \"run_abc123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Agent runbooks — incident-style summaries for expensive, failed, or risky runs."
+    },
+    {
       "name": "Model Gateway",
       "item": [
         {

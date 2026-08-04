@@ -1,0 +1,36 @@
+---
+title: "Chargeback & Showback Reports"
+description: "Monthly finance-ready reports by org, workspace, team, user, model, agent, provider, and more — with CSV/JSON export and variance vs budget."
+---
+
+Chargeback reports turn raw AI spend into finance-ready monthly summaries that can be attributed to any dimension in your organization. Export as CSV or JSON, and compare actual spend against budgets.
+
+## Key features
+
+- **Monthly reports** — generate reports for any past month.
+- **10 breakdown dimensions** — org, workspace, team, user, app, model, agent, provider, cost center, API key.
+- **Variance vs budget** — each line item shows actual spend, budgeted amount, and the variance.
+- **Export** — CSV and JSON formats for finance systems.
+- **Allocation rules** — define how shared costs are split across dimensions.
+
+## Report contents
+
+| Field | Description |
+|---|---|
+| Dimension label | The entity being charged (team name, user, model, etc.) |
+| Total cost | Actual spend for the period |
+| Request count | Number of requests |
+| Token count | Total tokens consumed |
+| Budget | Budgeted amount (if set) |
+| Variance | Difference between actual and budget |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Budgets" icon="wallet" href="/finops/budgets">
+    Set budgets that feed variance calculations.
+  </Card>
+  <Card title="Cost attribution" icon="receipt" href="/finops/attribution">
+    How costs are attributed to dimensions.
+  </Card>
+</CardGroup>
