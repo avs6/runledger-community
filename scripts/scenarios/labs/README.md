@@ -108,6 +108,7 @@ linked guides.
 | **[Part 6 · Operations](./part6_operations.md)** | Add workspace · local backup · Qdrant snapshots · restore drills · ledger integrity · S3 restore |
 | **[Part 7 - Control Plane & Platform Settings](./part7_settings.md)** | OTLP · MCP · Integrations · Data Capture · Compliance · Retention · Email |
 | **[Part 8 · Integrating an existing stack](./part8_integrating_existing_stack.md)** | How customers adopt RunLedger beside an existing AI stack (hub instrumentation, gateway, SDK) |
+| **[Part 9 · Guardrails & Content Safety](./part9_guardrails.md)** | Built-in content filters · custom guardrails · templates · partner integrations · test playground · regression testing · gateway enforcement · monitor |
 
 ---
 
@@ -383,6 +384,7 @@ labs/
   part6_operations.md             ← add workspace · backup · snapshots · restore drills
   part7_settings.md               ← OTLP · MCP · Integrations · Data Capture · Retention · Email
   part8_integrating_existing_stack.md  ← adopt RunLedger beside an existing AI stack
+  part9_guardrails.md             ← content filters · custom guardrails · templates · partners · test playground
   pricing.sample.yaml             ← upload in Provider Profiles (Module 2)
   samples/                        ← ready-to-load GUI assets
     dataset_support_faq.json      ← import in Datasets

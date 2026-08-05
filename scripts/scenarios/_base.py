@@ -717,6 +717,138 @@ class Workspace:
             key=self.admin_key or self.key,
         ) or {}
 
+    # ── Phase 14: Guardrails ─────────────────────────────────────────────────
+
+    def create_guardrail_rule(
+        self,
+        name: str,
+        mode: str = "pre_call",
+        rule_type: str = "custom",
+        logic: str | None = None,
+        config: dict[str, Any] | None = None,
+        severity: str = "medium",
+        priority: int = 100,
+        status: str = "active",
+        template_id: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "name": name,
+            "mode": mode,
+            "rule_type": rule_type,
+            "severity": severity,
+            "priority": priority,
+            "status": status,
+        }
+        if logic:
+            body["logic"] = logic
+        if config:
+            body["config"] = config
+        if template_id:
+            body["template_id"] = template_id
+        if description:
+            body["description"] = description
+        return self._manage_post("/guardrails", body, f"guardrail rule '{name}'")
+
+    def activate_content_filters(
+        self,
+        filters: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        return self.sim.put(
+            "/guardrails/filters",
+            {"filters": filters},
+            key=self.admin_key or self.key,
+            label="content filters",
+        )
+
+    def create_partner_guardrail(
+        self,
+        provider: str,
+        name: str,
+        mode: str = "pre_call",
+        endpoint_url: str | None = None,
+        config: dict[str, Any] | None = None,
+        timeout_ms: int = 2000,
+        fallback_action: str = "allow",
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "provider": provider,
+            "name": name,
+            "mode": mode,
+            "timeout_ms": timeout_ms,
+            "fallback_action": fallback_action,
+        }
+        if endpoint_url:
+            body["endpoint_url"] = endpoint_url
+        if config:
+            body["config"] = config
+        return self._manage_post("/guardrails/partners", body, f"partner guardrail '{name}'")
+
+    def test_guardrail(
+        self,
+        guardrail_id: str,
+        texts: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"texts": texts}
+        if metadata:
+            body["metadata"] = metadata
+        return self._manage_post(
+            f"/guardrails/{guardrail_id}/test",
+            body,
+            "guardrail test",
+        )
+
+    def test_all_guardrails(
+        self,
+        texts: list[str],
+        model: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"texts": texts}
+        if model:
+            body["model"] = model
+        if metadata:
+            body["metadata"] = metadata
+        return self._manage_post("/guardrails/test", body, "guardrails test all")
+
+    def create_guardrail_test_case(
+        self,
+        guardrail_rule_id: str,
+        name: str,
+        input_text: str,
+        expected_decision: str,
+        input_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "guardrail_rule_id": guardrail_rule_id,
+            "name": name,
+            "input_text": input_text,
+            "expected_decision": expected_decision,
+        }
+        if input_metadata:
+            body["input_metadata"] = input_metadata
+        return self._manage_post("/guardrails/test-cases", body, f"test case '{name}'")
+
+    def run_guardrail_regression(self, guardrail_id: str) -> dict[str, Any]:
+        return self._manage_post(
+            f"/guardrails/{guardrail_id}/regression",
+            {},
+            "guardrail regression",
+        )
+
+    def get_guardrail_stats(self, hours: int = 24) -> dict[str, Any]:
+        return self.sim.get(
+            f"/guardrails/stats?hours={hours}",
+            key=self.admin_key or self.key,
+        ) or {}
+
+    def list_guardrail_events(self, limit: int = 20) -> dict[str, Any]:
+        return self.sim.get(
+            f"/guardrails/events?limit={limit}",
+            key=self.admin_key or self.key,
+        ) or {}
+
 
 class Sim:
     """Platform-level client: bootstrap the admin, then mint per-scenario workspaces."""

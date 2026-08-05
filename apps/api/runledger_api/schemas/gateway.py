@@ -137,6 +137,10 @@ class GatewayCompletionRequest(BaseModel):
         None,
         description="Override reasoning effort (low|medium|high) passed to reasoning models.",
     )
+    guardrails: list[str] | None = Field(
+        None,
+        description="Optional list of guardrail rule IDs to run. If omitted, all active guardrails run.",
+    )
 
 
 # ── Stats schema ───────────────────────────────────────────────────────────────

@@ -30,9 +30,10 @@ Step by step:
 1. **Reset** - truncates all data by default (preserves admin + provider pricing), or `--hard-clean` wipes every volume.
 2. **Bootstrap** - creates / promotes the platform admin (`admin@runledger.local` / `runledger`).
 3. **Import pricing** - uploads [`pricing.yaml`](./pricing.yaml) to the provider-pricing catalog, so cost is tracked - including for local Ollama models.
-4. **Run local scenarios** - discovers the [`scenarios/ollama`](./scenarios/ollama) scenarios by default and runs them with a 3x traffic multiplier. Each scenario creates its own org via `/org/tenants`, logs in as the seeded org admin for management actions, mints a workspace API key from `/settings/api-keys`, and fills the workspace via the API: gateway routes, runs (`/ingest/v1/batch`), budgets, outcomes, scores, alerts, approval requests, chargeback rules, auto-approval policies, and runbooks.
+4. **Run local scenarios** - discovers the [`scenarios/ollama`](./scenarios/ollama) scenarios by default and runs them with a 3x traffic multiplier. Each scenario creates its own org via `/org/tenants`, logs in as the seeded org admin for management actions, mints a workspace API key from `/settings/api-keys`, and fills the workspace via the API: gateway routes, runs (`/ingest/v1/batch`), budgets, outcomes, scores, alerts, approval requests, chargeback rules, auto-approval policies, runbooks, and guardrails.
 5. **Seed governance & finops** - triggers a governance audit pack export across all workspaces.
-6. **Summary** - prints each workspace, its API key, and run count.
+6. **Seed guardrails** - activates baseline content filters (code injection, data exfiltration, toxicity, violence, self-harm, child safety) across all workspaces.
+7. **Summary** - prints each workspace, its API key, and run count.
 
 Everything goes through the **public REST API** exactly as a real client would - no direct database writes - so it exercises the real ingest / metering / budgets / outcomes paths. Cost enrichment and rollups run on Celery, so give analytics ~60s to populate.
 

@@ -41,6 +41,7 @@ uv run python scripts/full_simulate.py --scenario-set hosted
 | `ollama/02_local_rag` | DataCo / Knowledge Base | `llama3.1:8b`, `nomic-embed-text` | RAG generation vs embedding cost, relevance and faithfulness scores, helpful-answer outcomes |
 | `ollama/03_reasoning_agent` | ThinkLocal / Reasoning | `deepseek-r1:14b`, `deepseek-r1:8b` | Output-heavy reasoning spend, cost vs quality comparisons, decision-supported outcomes |
 | `ollama/04_chat_support` | HelpDesk Local / Support Bot | `llama3.2`, `gemma3:latest` | High-volume support traffic, local ticket outcomes, daily/monthly budgets, approval requests, auto-approval policies, chargeback rules, runbook generation |
+| `ollama/05_guardrails` | SafeGuard AI / Content Safety | (API-only, no model traffic) | Custom guardrails, 13 built-in content filters, PII detection, prompt injection guard, partner integrations (Presidio, Lakera, OpenAI Moderation), test playground, regression testing |
 
 ## Hosted scenarios
 
@@ -119,3 +120,12 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `generate_runbook(run)` | Incident-style runbook for a run |
 | `create_route_recommendation(experiment_id, config_index, reason)` | Route recommendations from replay experiments |
 | `get_governance_audit_pack()` | Governance audit pack (compliance evidence export) |
+| `create_guardrail_rule(name, mode, rule_type, logic, ...)` | Custom/template guardrail rule |
+| `activate_content_filters(filters)` | Activate built-in content filters with severity |
+| `create_partner_guardrail(provider, name, mode, ...)` | Partner guardrail integration |
+| `test_guardrail(guardrail_id, texts, metadata)` | Test a single guardrail |
+| `test_all_guardrails(texts, model, metadata)` | Test all active guardrails |
+| `create_guardrail_test_case(rule_id, name, input_text, expected)` | Regression test case |
+| `run_guardrail_regression(guardrail_id)` | Run regression test suite |
+| `get_guardrail_stats(hours)` | Guardrail monitoring stats |
+| `list_guardrail_events(limit)` | Guardrail event log |

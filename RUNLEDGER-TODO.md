@@ -24,7 +24,7 @@ Use this as the top-level checklist. Update the status checkbox when a phase is 
 | [ ] | Phase 11 - Demo Data, Labs, And Scenarios | M | H | Seed realistic enterprise demos showing savings, routing, alerts, MCP filtering, and optimization impact. |
 | [x] | Phase 12 - Implementation Order | S | M | Roadmap has been converted into a practical PR sequence with validation checkpoints. |
 | [x] | Phase 13 - Product Differentiators And Advanced Roadmap | L | H | All items shipped: audit export, policy dry run, replay lab, runbooks, chargeback, model scorecards, onboarding wizard, demo mode. |
-| [ ] | Phase 14 - Guardrails, Content Safety And Policy Engine | XL | H | Custom guardrails with Python logic, pre-built content filters, partner guardrail integrations, guardrails monitor, and policy dry-run. |
+| [x] | Phase 14 - Guardrails, Content Safety And Policy Engine | XL | H | Custom guardrails with Python logic, pre-built content filters, partner guardrail integrations, guardrails monitor, and policy dry-run. |
 | [ ] | Phase 15 - Traditional AI/ML Intelligence Layer | XL | H | Anomaly detection, cost/token forecasting, top-K analysis, usage prediction, pattern recognition, and intelligent alerting. |
 | [ ] | Phase 16 - Agentic Operations And Developer Experience | L | H | Agent lifecycle management, workflow runs, agent memory, API playground, vector store management, and tag management. |
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | High-perf Rust gateway, advanced routing (tag-based, A/B test, traffic mirror), fallback chains, pass-through endpoints, multi-region, DB read replicas. |
@@ -73,7 +73,7 @@ Use this to find low-hanging fruit and sequence work.
 | [x] | Phase 3 - Data Model And Analytics API | XL | H | Required for durable analytics but touches backend, migrations, APIs, and rollups. |
 | [ ] | Phase 3A - Supporting Infrastructure Backbone | XL | H | Important for production readiness but spans S3, SMTP, OTEL, logs, metrics, secrets, and deployment profiles. |
 | [x] | Phase 13 - Product Differentiators | L | H | All items shipped: audit export, policy dry run, replay lab, runbooks, chargeback, model scorecards, onboarding wizard, demo mode. |
-| [ ] | Phase 14 - Guardrails And Content Safety | XL | H | Major competitive gap vs LiteLLM; custom guardrails, content filters, and partner integrations are table stakes. |
+| [x] | Phase 14 - Guardrails And Content Safety | XL | H | Major competitive gap vs LiteLLM; custom guardrails, content filters, and partner integrations are table stakes. |
 | [ ] | Phase 15 - AI/ML Intelligence Layer | XL | H | Transforms RunLedger from reporting to prediction; anomaly detection, forecasting, and pattern recognition. |
 | [ ] | Phase 16 - Agentic Operations And DX | L | H | Agent lifecycle, workflow runs, memory, and playground close the gap with LiteLLM Agentic features. |
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | Rust gateway, advanced routing, multi-region, and pass-through endpoints match LiteLLM's core gateway. |
@@ -2297,7 +2297,7 @@ Add a guardrails system that lets customers define, test, and enforce content sa
 
 ### Custom Guardrails Engine
 
-- [ ] Add custom guardrail definition with Python-like logic:
+- [x] Add custom guardrail definition with Python-like logic:
   - guardrail name
   - mode: `pre_call` (request), `post_call` (response), `both`
   - Python logic editor with restricted environment (no imports)
@@ -2305,20 +2305,20 @@ Add a guardrails system that lets customers define, test, and enforce content sa
   - available request data: `model`, `user_id`, `team_id`, `end_user_id`, `metadata`
   - return values: `allow()`, `block(reason)`, `modify(texts=[], images=[], tool_calls=[])`
   - default on/off toggle
-- [ ] Add guardrail CRUD API:
+- [x] Add guardrail CRUD API:
   - `POST /guardrails` — create guardrail
   - `GET /guardrails` — list guardrails
   - `GET /guardrails/{id}` — get guardrail
   - `PUT /guardrails/{id}` — update guardrail
   - `DELETE /guardrails/{id}` — delete guardrail
   - `POST /guardrails/{id}/test` — test guardrail against sample input
-- [ ] Add guardrail execution engine:
+- [x] Add guardrail execution engine:
   - sandboxed Python execution (RestrictedPython or similar)
   - timeout enforcement (max 500ms per guardrail)
   - error handling (guardrail crash does not block request)
   - execution order and priority
   - short-circuit on first `block()`
-- [ ] Add guardrail templates:
+- [x] Add guardrail templates:
   - PII detection (email, phone, SSN, credit card)
   - prompt injection detection
   - topic restriction
@@ -2329,7 +2329,7 @@ Add a guardrails system that lets customers define, test, and enforce content sa
 
 ### Built-In Content Filters (Guardrail Garden)
 
-- [ ] Add zero-config content filters (no external dependencies):
+- [x] Add zero-config content filters (no external dependencies):
   - Denied Financial Advice — block personalized investment/financial advice
   - Health And Personal Advice — detect health-related advice requests
   - Denied Legal Advice — block unauthorized legal advice
@@ -2343,13 +2343,13 @@ Add a guardrails system that lets customers define, test, and enforce content sa
   - Toxicity — detect toxic language and harassment
   - Code Injection — detect attempts to inject executable code
   - Data Exfiltration — detect attempts to extract sensitive data
-- [ ] Use keyword + regex + heuristic scoring (no ML dependency for built-in filters)
-- [ ] Allow severity thresholds: `off`, `low`, `medium`, `high`, `strict`
-- [ ] Add per-workspace and per-org activation
+- [x] Use keyword + regex + heuristic scoring (no ML dependency for built-in filters)
+- [x] Allow severity thresholds: `off`, `low`, `medium`, `high`, `strict`
+- [x] Add per-workspace and per-org activation
 
 ### Partner Guardrail Integrations
 
-- [ ] Add integration framework for third-party guardrail providers:
+- [x] Add integration framework for third-party guardrail providers:
   - Presidio (Microsoft PII detection)
   - AWS Bedrock Guardrails
   - Lakera Guard (prompt injection, data leakage)
@@ -2358,18 +2358,18 @@ Add a guardrails system that lets customers define, test, and enforce content sa
   - Guardrails AI (open-source framework)
   - Prompt Security
   - Lasso Guardrail
-- [ ] Add partner guardrail configuration:
+- [x] Add partner guardrail configuration:
   - API key / credentials
   - endpoint URL
   - timeout
   - fallback behavior (allow/block on error)
   - mode (pre_call / post_call / both)
-- [ ] Add partner health monitoring
-- [ ] Add cost tracking for paid partner guardrail API calls
+- [x] Add partner health monitoring
+- [x] Add cost tracking for paid partner guardrail API calls
 
 ### Guardrails Monitor
 
-- [ ] Add real-time guardrails monitoring dashboard:
+- [x] Add real-time guardrails monitoring dashboard:
   - total evaluations
   - blocks
   - modifications
@@ -2379,7 +2379,7 @@ Add a guardrails system that lets customers define, test, and enforce content sa
   - top triggered guardrails
   - top blocked content categories
   - block rate by model/user/workspace
-- [ ] Add guardrail event log:
+- [x] Add guardrail event log:
   - timestamp
   - guardrail name
   - mode (pre/post)
@@ -2387,7 +2387,7 @@ Add a guardrails system that lets customers define, test, and enforce content sa
   - reason
   - request metadata
   - latency added
-- [ ] Add guardrail alerts:
+- [x] Add guardrail alerts:
   - block rate spike
   - guardrail error rate
   - guardrail latency degradation
@@ -2395,51 +2395,51 @@ Add a guardrails system that lets customers define, test, and enforce content sa
 
 ### Guardrail Test Playground
 
-- [ ] Add interactive test interface:
+- [x] Add interactive test interface:
   - input text/prompt
   - select guardrails to test
   - see decision: allow/block/modify
   - see reason and matched rules
   - see latency per guardrail
   - iterate and refine guardrail logic
-- [ ] Add batch testing:
+- [x] Add batch testing:
   - upload CSV of test cases
   - run all guardrails
   - export results with pass/fail per case
-- [ ] Add regression test sets:
+- [x] Add regression test sets:
   - save test cases per guardrail
   - run on guardrail update to catch regressions
 
 ### Gateway Integration
 
-- [ ] Add guardrail execution hooks into model gateway:
+- [x] Add guardrail execution hooks into model gateway:
   - pre-request: run pre_call guardrails before routing
   - post-response: run post_call guardrails before returning
   - modify: apply text/tool_call modifications inline
-- [ ] Add guardrail bypass for trusted workspaces/API keys
-- [ ] Add per-key guardrail toggling (keys can enable/disable specific guardrails)
-- [ ] Add per-request guardrail override via request body (`"guardrails": ["pii-guard", "toxicity"]`)
-- [ ] Add guardrail execution modes:
+- [x] Add guardrail bypass for trusted workspaces/API keys
+- [x] Add per-key guardrail toggling (keys can enable/disable specific guardrails)
+- [x] Add per-request guardrail override via request body (`"guardrails": ["pii-guard", "toxicity"]`)
+- [x] Add guardrail execution modes:
   - `pre_call` — run before LLM call on input
   - `post_call` — run after LLM call on input + output
   - `during_call` — run in parallel with LLM call
   - configurable per guardrail
-- [ ] Add guardrail load balancing:
+- [x] Add guardrail load balancing:
   - distribute guardrail requests across multiple accounts/regions
   - weighted distribution across guardrail instances
   - multi-region guardrail deployments (for latency)
-- [ ] Add system message skip option per guardrail (exclude `role: system` from scanning)
-- [ ] Add guardrail metrics to engineering dashboard
-- [ ] Add guardrail cost attribution (latency overhead per request)
+- [x] Add system message skip option per guardrail (exclude `role: system` from scanning)
+- [x] Add guardrail metrics to engineering dashboard
+- [x] Add guardrail cost attribution (latency overhead per request)
 
 ### Acceptance Criteria
 
-- [ ] Customers can create custom guardrails without deploying code
-- [ ] Built-in content filters work out of the box with zero external dependencies
-- [ ] Partner guardrails can be connected through configuration
-- [ ] Guardrail decisions are visible in request explorer and engineering dashboard
-- [ ] Guardrail latency overhead is measurable and attributable
-- [ ] Test playground allows iterative guardrail development
+- [x] Customers can create custom guardrails without deploying code
+- [x] Built-in content filters work out of the box with zero external dependencies
+- [x] Partner guardrails can be connected through configuration
+- [x] Guardrail decisions are visible in request explorer and engineering dashboard
+- [x] Guardrail latency overhead is measurable and attributable
+- [x] Test playground allows iterative guardrail development
 
 ---
 

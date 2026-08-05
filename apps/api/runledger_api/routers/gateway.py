@@ -57,6 +57,7 @@ from runledger_api.services.gateway import (
 )
 from runledger_api.services.gateway_controls import check_cost_cap, check_per_user_rpm
 from runledger_api.services.gateway_redact import redact_messages
+from runledger_api.services.guardrails import evaluate_guardrails
 
 log = logging.getLogger(__name__)
 
@@ -274,6 +275,29 @@ async def gateway_chat_completions(
                 redis, workspace.id, x_runledger_end_user_id, route.id, route.per_user_rpm_limit
             )
 
+        # Guardrails — pre_call
+        guardrail_ids = [uuid.UUID(g) for g in body.guardrails] if body.guardrails else None
+        pre_texts = [m.get("content", "") for m in messages if m.get("content")]
+        gr_decision, gr_results, gr_latency = await evaluate_guardrails(
+            db, workspace.id, "pre_call",
+            texts=pre_texts,
+            structured_messages=messages,
+            model=body.model,
+            end_user_id=x_runledger_end_user_id,
+            guardrail_ids=guardrail_ids,
+        )
+        if gr_decision == "block":
+            blocked_reason = next(
+                (r["reason"] for r in gr_results if r["decision"] == "block"), "Blocked by guardrail"
+            )
+            raise HTTPException(status_code=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, detail=blocked_reason)
+        if gr_decision == "modify":
+            for r in gr_results:
+                if r.get("modified_texts") and r["decision"] == "modify":
+                    for i, m in enumerate(messages):
+                        if m.get("content") and i < len(r["modified_texts"]):
+                            messages[i]["content"] = r["modified_texts"][i]
+
         fwd_messages = redact_messages(messages) if route.pii_redaction_enabled else messages
 
         async def _sse_gen() -> AsyncGenerator[bytes]:
@@ -373,6 +397,27 @@ async def gateway_chat_completions(
             winning_route.id,
             winning_route.per_user_rpm_limit,
         )
+
+    # Guardrails — post_call
+    response_content = ""
+    choices = response_json.get("choices", [])
+    if choices:
+        msg = choices[0].get("message", {})
+        response_content = msg.get("content", "") or ""
+    if response_content:
+        post_decision, post_results, _ = await evaluate_guardrails(
+            db, workspace.id, "post_call",
+            texts=[response_content],
+            structured_messages=messages,
+            model=body.model,
+            end_user_id=x_runledger_end_user_id,
+        )
+        if post_decision == "block":
+            blocked_reason = next(
+                (r["reason"] for r in post_results if r["decision"] == "block"),
+                "Response blocked by guardrail",
+            )
+            raise HTTPException(status_code=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, detail=blocked_reason)
 
     usage = response_json.get("usage") or {}
     input_tokens = usage.get("prompt_tokens")

@@ -2427,3 +2427,192 @@ export async function exportGovernanceAuditPack(
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()
 }
+
+// -- Phase 14: Guardrails, Content Safety & Policy Engine --
+
+export async function listGuardrailRules(
+  apiKey: string,
+  params?: { rule_type?: string; status?: string; mode?: string; limit?: number; offset?: number }
+): Promise<import('@/types/api').GuardrailRuleList> {
+  const q = new URLSearchParams()
+  if (params?.rule_type) q.set('rule_type', params.rule_type)
+  if (params?.status) q.set('status', params.status)
+  if (params?.mode) q.set('mode', params.mode)
+  if (params?.limit) q.set('limit', String(params.limit))
+  if (params?.offset) q.set('offset', String(params.offset))
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<import('@/types/api').GuardrailRuleList>(`/guardrails${qs}`, apiKey)
+}
+
+export async function createGuardrailRule(
+  apiKey: string,
+  body: import('@/types/api').GuardrailRuleCreate
+): Promise<import('@/types/api').GuardrailRuleResponse> {
+  return apiFetch<import('@/types/api').GuardrailRuleResponse>('/guardrails', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getGuardrailRule(
+  apiKey: string,
+  id: string
+): Promise<import('@/types/api').GuardrailRuleResponse> {
+  return apiFetch<import('@/types/api').GuardrailRuleResponse>(`/guardrails/${id}`, apiKey)
+}
+
+export async function updateGuardrailRule(
+  apiKey: string,
+  id: string,
+  body: import('@/types/api').GuardrailRuleUpdate
+): Promise<import('@/types/api').GuardrailRuleResponse> {
+  return apiFetch<import('@/types/api').GuardrailRuleResponse>(`/guardrails/${id}`, apiKey, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteGuardrailRule(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/guardrails/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function testGuardrailRule(
+  apiKey: string,
+  id: string,
+  body: import('@/types/api').GuardrailTestInput
+): Promise<import('@/types/api').GuardrailTestResponse> {
+  return apiFetch<import('@/types/api').GuardrailTestResponse>(`/guardrails/${id}/test`, apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function testAllGuardrails(
+  apiKey: string,
+  body: import('@/types/api').GuardrailTestInput
+): Promise<import('@/types/api').GuardrailTestResponse> {
+  return apiFetch<import('@/types/api').GuardrailTestResponse>('/guardrails/test', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listGuardrailTemplates(
+  apiKey: string
+): Promise<import('@/types/api').GuardrailTemplate[]> {
+  return apiFetch<import('@/types/api').GuardrailTemplate[]>('/guardrails/templates', apiKey)
+}
+
+export async function listContentFilters(
+  apiKey: string
+): Promise<import('@/types/api').ContentFilterListResponse> {
+  return apiFetch<import('@/types/api').ContentFilterListResponse>('/guardrails/filters', apiKey)
+}
+
+export async function activateContentFilters(
+  apiKey: string,
+  body: { filters: import('@/types/api').ContentFilterConfig[] }
+): Promise<import('@/types/api').ContentFilterListResponse> {
+  return apiFetch<import('@/types/api').ContentFilterListResponse>('/guardrails/filters', apiKey, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getGuardrailStats(
+  apiKey: string,
+  hours?: number
+): Promise<import('@/types/api').GuardrailStats> {
+  const qs = hours ? `?hours=${hours}` : ''
+  return apiFetch<import('@/types/api').GuardrailStats>(`/guardrails/stats${qs}`, apiKey)
+}
+
+export async function listGuardrailEvents(
+  apiKey: string,
+  params?: { decision?: string; guardrail_name?: string; limit?: number; offset?: number }
+): Promise<import('@/types/api').GuardrailEventList> {
+  const q = new URLSearchParams()
+  if (params?.decision) q.set('decision', params.decision)
+  if (params?.guardrail_name) q.set('guardrail_name', params.guardrail_name)
+  if (params?.limit) q.set('limit', String(params.limit))
+  if (params?.offset) q.set('offset', String(params.offset))
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<import('@/types/api').GuardrailEventList>(`/guardrails/events${qs}`, apiKey)
+}
+
+export async function listPartnerGuardrails(
+  apiKey: string,
+  params?: { provider?: string }
+): Promise<import('@/types/api').PartnerGuardrailList> {
+  const q = new URLSearchParams()
+  if (params?.provider) q.set('provider', params.provider)
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<import('@/types/api').PartnerGuardrailList>(`/guardrails/partners${qs}`, apiKey)
+}
+
+export async function createPartnerGuardrail(
+  apiKey: string,
+  body: Record<string, unknown>
+): Promise<import('@/types/api').PartnerGuardrailResponse> {
+  return apiFetch<import('@/types/api').PartnerGuardrailResponse>('/guardrails/partners', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deletePartnerGuardrail(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/guardrails/partners/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function healthCheckPartner(
+  apiKey: string,
+  id: string
+): Promise<import('@/types/api').PartnerGuardrailResponse> {
+  return apiFetch<import('@/types/api').PartnerGuardrailResponse>(
+    `/guardrails/partners/${id}/health`,
+    apiKey,
+    { method: 'POST' }
+  )
+}
+
+export async function listGuardrailTestCases(
+  apiKey: string,
+  params?: { guardrail_rule_id?: string }
+): Promise<import('@/types/api').GuardrailTestCaseList> {
+  const q = new URLSearchParams()
+  if (params?.guardrail_rule_id) q.set('guardrail_rule_id', params.guardrail_rule_id)
+  const qs = q.toString() ? `?${q}` : ''
+  return apiFetch<import('@/types/api').GuardrailTestCaseList>(`/guardrails/test-cases${qs}`, apiKey)
+}
+
+export async function createGuardrailTestCase(
+  apiKey: string,
+  body: Record<string, unknown>
+): Promise<import('@/types/api').GuardrailTestCaseResponse> {
+  return apiFetch<import('@/types/api').GuardrailTestCaseResponse>('/guardrails/test-cases', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteGuardrailTestCase(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/guardrails/test-cases/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function runGuardrailRegression(
+  apiKey: string,
+  guardrailId: string
+): Promise<import('@/types/api').GuardrailRegressionReport> {
+  return apiFetch<import('@/types/api').GuardrailRegressionReport>(
+    `/guardrails/${guardrailId}/regression`,
+    apiKey,
+    { method: 'POST' }
+  )
+}

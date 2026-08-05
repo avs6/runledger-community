@@ -1991,3 +1991,200 @@ export interface GovernanceBudgetAlert {
   current_spend_usd: string
   limit_usd: string
 }
+
+// -- Phase 14: Guardrails, Content Safety & Policy Engine --
+
+export interface GuardrailRuleResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  mode: string
+  rule_type: string
+  logic: string | null
+  config: Record<string, unknown>
+  severity: string
+  priority: number
+  status: string
+  template_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GuardrailRuleList {
+  items: GuardrailRuleResponse[]
+  total: number
+}
+
+export interface GuardrailRuleCreate {
+  name: string
+  description?: string | null
+  mode?: string
+  rule_type?: string
+  logic?: string | null
+  config?: Record<string, unknown>
+  severity?: string
+  priority?: number
+  status?: string
+  template_id?: string | null
+}
+
+export interface GuardrailRuleUpdate {
+  name?: string | null
+  description?: string | null
+  mode?: string | null
+  logic?: string | null
+  config?: Record<string, unknown> | null
+  severity?: string | null
+  priority?: number | null
+  status?: string | null
+}
+
+export interface GuardrailTestInput {
+  texts: string[]
+  images?: string[]
+  tools?: Record<string, unknown>[]
+  tool_calls?: Record<string, unknown>[]
+  structured_messages?: Record<string, unknown>[]
+  model?: string | null
+  user_id?: string | null
+  team_id?: string | null
+  end_user_id?: string | null
+  metadata?: Record<string, unknown>
+}
+
+export interface GuardrailTestResult {
+  guardrail_id: string
+  guardrail_name: string
+  decision: string
+  reason: string | null
+  latency_ms: number
+  modified_texts: string[] | null
+  modified_images: string[] | null
+  modified_tool_calls: Record<string, unknown>[] | null
+  error: string | null
+}
+
+export interface GuardrailTestResponse {
+  results: GuardrailTestResult[]
+  overall_decision: string
+  total_latency_ms: number
+}
+
+export interface GuardrailEventResponse {
+  id: string
+  workspace_id: string
+  guardrail_rule_id: string
+  guardrail_name: string
+  mode: string
+  decision: string
+  reason: string | null
+  latency_ms: number
+  request_metadata: Record<string, unknown>
+  gateway_request_id: string | null
+  created_at: string
+}
+
+export interface GuardrailEventList {
+  items: GuardrailEventResponse[]
+  total: number
+}
+
+export interface GuardrailStats {
+  total_evaluations: number
+  total_blocks: number
+  total_modifications: number
+  total_allows: number
+  block_rate: number
+  avg_latency_ms: number
+  top_triggered: { name: string; count: number }[]
+  by_decision: Record<string, number>
+}
+
+export interface ContentFilterStatus {
+  filter_name: string
+  description: string
+  severity: string
+  enabled: boolean
+  category: string
+}
+
+export interface ContentFilterListResponse {
+  filters: ContentFilterStatus[]
+}
+
+export interface ContentFilterConfig {
+  filter_name: string
+  severity?: string
+  enabled?: boolean
+}
+
+export interface GuardrailTemplate {
+  template_id: string
+  name: string
+  description: string
+  mode: string
+  default_logic: string
+  default_config: Record<string, unknown>
+  category: string
+}
+
+export interface PartnerGuardrailResponse {
+  id: string
+  workspace_id: string
+  provider: string
+  name: string
+  mode: string
+  endpoint_url: string | null
+  config: Record<string, unknown>
+  timeout_ms: number
+  fallback_action: string
+  priority: number
+  status: string
+  last_health_check: string | null
+  health_status: string | null
+  total_calls: number
+  total_cost_usd: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PartnerGuardrailList {
+  items: PartnerGuardrailResponse[]
+  total: number
+}
+
+export interface GuardrailTestCaseResponse {
+  id: string
+  workspace_id: string
+  guardrail_rule_id: string
+  name: string
+  input_text: string
+  input_metadata: Record<string, unknown>
+  expected_decision: string
+  created_at: string
+}
+
+export interface GuardrailTestCaseList {
+  items: GuardrailTestCaseResponse[]
+  total: number
+}
+
+export interface GuardrailRegressionResult {
+  test_case_id: string
+  test_case_name: string
+  expected_decision: string
+  actual_decision: string
+  passed: boolean
+  latency_ms: number
+  reason: string | null
+}
+
+export interface GuardrailRegressionReport {
+  guardrail_rule_id: string
+  guardrail_name: string
+  total_cases: number
+  passed: number
+  failed: number
+  results: GuardrailRegressionResult[]
+}

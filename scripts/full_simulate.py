@@ -125,7 +125,26 @@ def main() -> None:
             continue
         ws.get_governance_audit_pack()
 
-    # 5. Summary.
+    # 5. Phase 14 guardrails seeding (cross-workspace baseline content filters).
+    say("\n→ seeding Phase 14 guardrails across all workspaces", "b")
+    baseline_filters = [
+        {"filter_name": "code_injection", "severity": "high", "enabled": True},
+        {"filter_name": "data_exfiltration", "severity": "high", "enabled": True},
+        {"filter_name": "toxicity", "severity": "medium", "enabled": True},
+        {"filter_name": "harmful_violence", "severity": "strict", "enabled": True},
+        {"filter_name": "harmful_self_harm", "severity": "strict", "enabled": True},
+        {"filter_name": "harmful_child_safety", "severity": "strict", "enabled": True},
+    ]
+    for ws in sim.workspaces:
+        if not ws.key:
+            continue
+        try:
+            ws.activate_content_filters(baseline_filters)
+            ws.get_guardrail_stats(hours=1)
+        except Exception:  # noqa: BLE001
+            pass
+
+    # 6. Summary.
     say("\n" + "═" * 60, "d")
     say("Simulation complete.", "g")
     total_runs = sum(len(w.runs) for w in sim.workspaces)
