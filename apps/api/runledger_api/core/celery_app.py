@@ -153,6 +153,11 @@ celery_app.conf.update(
             "task": "ml.complexity_retraining",
             "schedule": 604800.0,
         },
+        # Isolation Forest retraining: weekly
+        "ml-isolation-forest-weekly": {
+            "task": "ml.isolation_forest_training",
+            "schedule": 604800.0,
+        },
         "budget-overrides-expire-5m": {
             "task": "budgets.expire_overrides",
             "schedule": 300.0,

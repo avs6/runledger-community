@@ -18,7 +18,7 @@ AnomalyType = Literal[
 
 AnomalySeverity = Literal["low", "medium", "high", "critical"]
 
-DetectionMethod = Literal["zscore", "ewma"]
+DetectionMethod = Literal["zscore", "ewma", "isolation_forest"]
 
 
 class AnomalyResponse(BaseModel):

@@ -146,6 +146,7 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `get_complexity_scores(hours=)` | Recent request complexity scores |
 | `get_feature_importances()` | Complexity model feature importances |
 | `get_adaptive_suggestions()` | Adaptive alert threshold suggestions |
+| `train_isolation_forest(days=)` | Train Isolation Forest for multivariate anomaly detection |
 | `get_ml_dashboard()` | ML observability dashboard |
 | `create_budget_tier(name, max_spend_usd=, rpm_limit=, tpm_limit=, allowed_models=, is_default=)` | Budget tiers with RPM/TPM/spend/model-access limits |
 | `assign_tier_to_key(key_id, tier_id=)` | Assign or unassign a budget tier to an API key |

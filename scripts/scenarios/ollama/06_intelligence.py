@@ -72,5 +72,8 @@ def run(sim: Sim) -> None:
     # ── 13. Adaptive alert suggestions ─────────────────────────────────
     ws.get_adaptive_suggestions()
 
-    # ── 14. ML dashboard ───────────────────────────────────────────────
+    # ── 14. Train Isolation Forest for multivariate anomaly detection ─
+    ws.train_isolation_forest(days=30)
+
+    # ── 15. ML dashboard ───────────────────────────────────────────────
     ws.get_ml_dashboard()

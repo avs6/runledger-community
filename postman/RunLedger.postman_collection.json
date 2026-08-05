@@ -11517,6 +11517,25 @@
           "response": []
         },
         {
+          "name": "Train Isolation Forest",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/anomalies/train-isolation-forest?days=60",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "anomalies", "train-isolation-forest"],
+              "query": [
+                { "key": "days", "value": "60" }
+              ]
+            },
+            "description": "Train or retrain the Isolation Forest model for multivariate anomaly detection. Uses all 5 feature dimensions (cost, latency, error_rate, tokens, cache_hit_rate)."
+          },
+          "response": []
+        },
+        {
           "name": "Get Cost Forecast",
           "request": {
             "method": "GET",

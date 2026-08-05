@@ -172,6 +172,20 @@ async def acknowledge_anomaly(
     return _anomaly_to_response(anomaly)
 
 
+@router.post("/anomalies/train-isolation-forest")
+async def train_isolation_forest_endpoint(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    days: int = Query(60, ge=14, le=365),
+) -> dict[str, Any]:
+    """Train (or retrain) the Isolation Forest model for multivariate anomaly detection."""
+    from runledger_api.services.ml.anomaly import train_isolation_forest
+
+    result = await train_isolation_forest(db, workspace.id, days=days)
+    await db.commit()
+    return result
+
+
 # ── Forecast endpoints ──────────────────────────────────────────────────
 
 

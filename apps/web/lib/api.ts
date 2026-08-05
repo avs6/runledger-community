@@ -2706,6 +2706,13 @@ export async function acknowledgeAnomaly(
   )
 }
 
+export async function trainIsolationForest(
+  apiKey: string,
+  days: number = 60
+): Promise<{ status: string; sample_count?: number; features?: number; reason?: string }> {
+  return apiFetch(`/intelligence/anomalies/train-isolation-forest?days=${days}`, apiKey, { method: 'POST' })
+}
+
 export async function getCostForecast(
   apiKey: string
 ): Promise<import('@/types/api').ForecastResponse | null> {

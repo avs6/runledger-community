@@ -922,6 +922,9 @@ class Workspace:
     def acknowledge_anomaly(self, anomaly_id: str) -> dict[str, Any]:
         return self._manage_post(f"/intelligence/anomalies/{anomaly_id}/acknowledge", {}, "acknowledge anomaly")
 
+    def train_isolation_forest(self, days: int = 60) -> dict[str, Any]:
+        return self._manage_post(f"/intelligence/anomalies/train-isolation-forest?days={days}", {}, "train isolation forest")
+
     def get_cost_forecast(self) -> dict[str, Any]:
         return self._analytics_get("/intelligence/forecasts/cost", "cost forecast")
 

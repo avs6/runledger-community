@@ -1,24 +1,24 @@
-"""Celery worker: hourly ML anomaly detection.
+"""Celery worker: hourly ML anomaly detection + weekly Isolation Forest training.
 
 For each workspace with recent activity, materialises daily features
-then runs Z-score + EWMA anomaly detection across cost, latency,
-error rate, token usage, and cache hit rate dimensions.
+then runs Z-score + EWMA + Isolation Forest anomaly detection across cost,
+latency, error rate, token usage, and cache hit rate dimensions.
 """
 
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import ProviderCall
-from runledger_api.services.ml.anomaly import run_anomaly_detection
+from runledger_api.services.ml.anomaly import run_anomaly_detection, train_isolation_forest
 from runledger_api.services.ml.features import materialize_daily_features
 
 log = structlog.get_logger()
@@ -27,6 +27,17 @@ log = structlog.get_logger()
 def _make_session_factory() -> async_sessionmaker[AsyncSession]:
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+async def _get_active_workspaces(factory: async_sessionmaker[AsyncSession]) -> list:
+    async with factory() as db:
+        cutoff = datetime.now(UTC) - timedelta(days=1)
+        result = await db.execute(
+            select(ProviderCall.workspace_id)
+            .where(ProviderCall.created_at >= cutoff)
+            .group_by(ProviderCall.workspace_id)
+        )
+        return [row[0] for row in result.all()]
 
 
 @celery_app.task(name="ml.anomaly_detection", max_retries=1)
@@ -41,14 +52,7 @@ async def _run() -> dict[str, int]:
     workspaces_checked = 0
     anomalies_found = 0
 
-    async with factory() as db:
-        cutoff = datetime.now(UTC) - timedelta(days=1)
-        result = await db.execute(
-            select(ProviderCall.workspace_id)
-            .where(ProviderCall.created_at >= cutoff)
-            .group_by(ProviderCall.workspace_id)
-        )
-        workspace_ids = [row[0] for row in result.all()]
+    workspace_ids = await _get_active_workspaces(factory)
 
     for ws_id in workspace_ids:
         async with factory() as db:
@@ -64,3 +68,29 @@ async def _run() -> dict[str, int]:
 
     log.info("ml_anomaly_complete", workspaces=workspaces_checked, anomalies=anomalies_found)
     return {"workspaces_checked": workspaces_checked, "anomalies_found": anomalies_found}
+
+
+@celery_app.task(name="ml.isolation_forest_training", max_retries=1)
+def ml_isolation_forest_training_worker() -> dict[str, int]:
+    """Train Isolation Forest models for all active workspaces."""
+    return asyncio.run(_run_training())
+
+
+async def _run_training() -> dict[str, int]:
+    factory = _make_session_factory()
+    workspace_ids = await _get_active_workspaces(factory)
+    trained = 0
+
+    for ws_id in workspace_ids:
+        async with factory() as db:
+            try:
+                result = await train_isolation_forest(db, ws_id)
+                if result.get("status") == "trained":
+                    trained += 1
+                await db.commit()
+            except Exception:
+                log.exception("isolation_forest_training_error", workspace_id=str(ws_id))
+                await db.rollback()
+
+    log.info("isolation_forest_training_complete", workspaces=len(workspace_ids), trained=trained)
+    return {"workspaces_checked": len(workspace_ids), "models_trained": trained}

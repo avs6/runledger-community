@@ -1,15 +1,19 @@
-"""Anomaly detection using Z-score and EWMA methods.
+"""Anomaly detection using Z-score, EWMA, and Isolation Forest methods.
 
-Both detectors operate on a time-series of scalar values (e.g. daily cost)
-and return anomaly results for the most recent observation.
+Z-score and EWMA are univariate detectors that operate on a time-series of
+scalar values per dimension. Isolation Forest is a multivariate detector
+that considers all dimensions simultaneously to catch correlated anomalies
+that univariate methods miss.
 """
 
 from __future__ import annotations
 
+import pickle
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import numpy as np
 import structlog
@@ -17,7 +21,8 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.ml import MLAnomaly
-from runledger_api.services.ml.features import load_feature_series, materialize_daily_features
+from runledger_api.services.ml.features import load_feature_series
+from runledger_api.services.ml.registry import load_model, save_model
 
 log = structlog.get_logger()
 
@@ -129,6 +134,141 @@ def detect_ewma(
     )
 
 
+async def _build_multivariate_matrix(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    days: int = 30,
+) -> tuple[np.ndarray, list[date]]:
+    """Load all dimension features and align into a (days x dims) matrix.
+
+    Returns the feature matrix and the list of dates for each row.
+    """
+    all_series: dict[str, dict[date, float]] = {}
+    for dim in _DIMENSIONS:
+        series = await load_feature_series(db, workspace_id, dim, days=days)
+        all_series[dim] = {row["date"]: row["features"].get("value", 0.0) for row in series}
+
+    all_dates = sorted(set().union(*(s.keys() for s in all_series.values())))
+    if not all_dates:
+        return np.empty((0, len(_DIMENSIONS))), []
+
+    matrix = np.zeros((len(all_dates), len(_DIMENSIONS)), dtype=np.float64)
+    for j, dim in enumerate(_DIMENSIONS):
+        for i, d in enumerate(all_dates):
+            matrix[i, j] = all_series[dim].get(d, 0.0)
+
+    return matrix, all_dates
+
+
+async def train_isolation_forest(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    days: int = 60,
+    contamination: float = 0.05,
+    n_estimators: int = 100,
+) -> dict[str, Any]:
+    """Train an Isolation Forest on multivariate daily features and save it."""
+    from sklearn.ensemble import IsolationForest
+    from sklearn.preprocessing import StandardScaler
+
+    matrix, dates = await _build_multivariate_matrix(db, workspace_id, days=days)
+    if matrix.shape[0] < 14:
+        return {"status": "skipped", "reason": "insufficient_data", "rows": matrix.shape[0]}
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(matrix)
+
+    model = IsolationForest(
+        n_estimators=n_estimators,
+        contamination=contamination,
+        random_state=42,
+    )
+    model.fit(X_scaled)
+
+    artifact = pickle.dumps({"model": model, "scaler": scaler, "dimensions": _DIMENSIONS})
+
+    await save_model(
+        db,
+        workspace_id,
+        model_type="isolation_forest",
+        dimension="multivariate",
+        artifact_bytes=artifact,
+        hyperparams={
+            "n_estimators": n_estimators,
+            "contamination": contamination,
+            "days": days,
+        },
+        metrics={"sample_count": matrix.shape[0], "features": len(_DIMENSIONS)},
+        sample_count=matrix.shape[0],
+    )
+    return {"status": "trained", "sample_count": matrix.shape[0], "features": len(_DIMENSIONS)}
+
+
+async def detect_isolation_forest(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+) -> list[AnomalyResult]:
+    """Run Isolation Forest on today's multivariate feature vector.
+
+    Returns anomaly results for each dimension that contributed most to the
+    anomaly score, if the overall point is flagged as anomalous.
+    """
+    stored = await load_model(db, workspace_id, "isolation_forest", "multivariate")
+    if stored is None or stored.artifact is None:
+        return []
+
+    artifact = pickle.loads(stored.artifact)  # noqa: S301
+    model = artifact["model"]
+    scaler = artifact["scaler"]
+    dims = artifact["dimensions"]
+
+    matrix, dates = await _build_multivariate_matrix(db, workspace_id, days=30)
+    if matrix.shape[0] < 7:
+        return []
+
+    X_scaled = scaler.transform(matrix)
+    last_point = X_scaled[-1:]
+    prediction = model.predict(last_point)
+
+    if prediction[0] != -1:
+        return []
+
+    score = float(model.decision_function(last_point)[0])
+    deviation = abs(score) / max(abs(model.offset_), 1e-10) * 3.0
+
+    results: list[AnomalyResult] = []
+    last_raw = matrix[-1]
+    history = matrix[:-1]
+    means = history.mean(axis=0)
+    stds = history.std(axis=0, ddof=1)
+
+    for j, dim in enumerate(dims):
+        std_j = stds[j] if stds[j] > 1e-10 else 1.0
+        dim_z = abs((last_raw[j] - means[j]) / std_j)
+        if dim_z < 1.5:
+            continue
+        results.append(AnomalyResult(
+            anomaly_type=_anomaly_type_for_dimension(dim),
+            dimension=dim,
+            dimension_key=None,
+            current_value=float(last_raw[j]),
+            expected_value=float(means[j]),
+            deviation_score=round(deviation, 4),
+            severity=classify_severity(deviation),
+            detection_method="isolation_forest",
+            context={
+                "if_anomaly_score": round(score, 6),
+                "dimension_z_score": round(dim_z, 4),
+                "contributing_dimensions": [
+                    dims[k] for k in range(len(dims))
+                    if stds[k] > 1e-10 and abs((last_raw[k] - means[k]) / stds[k]) >= 1.5
+                ],
+            },
+        ))
+
+    return results
+
+
 def _anomaly_type_for_dimension(dimension: str) -> str:
     mapping = {
         "cost": "cost_spike",
@@ -198,6 +338,34 @@ async def run_anomaly_detection(
 
         is_suppressed = await _is_flood_suppressed(db, workspace_id, dimension)
 
+        anomaly = MLAnomaly(
+            workspace_id=workspace_id,
+            anomaly_type=result.anomaly_type,
+            dimension=result.dimension,
+            dimension_key=result.dimension_key,
+            severity=result.severity,
+            detection_method=result.detection_method,
+            current_value=Decimal(str(result.current_value)),
+            expected_value=Decimal(str(result.expected_value)),
+            deviation_score=Decimal(str(round(result.deviation_score, 4))),
+            context=result.context,
+            is_suppressed=is_suppressed,
+            suppressed_reason="flood_suppression" if is_suppressed else None,
+        )
+        db.add(anomaly)
+        anomalies.append(anomaly)
+
+    # ── Isolation Forest (multivariate) ────────────────────────────────
+    if_results = await detect_isolation_forest(db, workspace_id)
+    for result in if_results:
+        already_flagged = any(
+            a.dimension == result.dimension and a.detection_method != "isolation_forest"
+            for a in anomalies
+        )
+        if already_flagged:
+            continue
+
+        is_suppressed = await _is_flood_suppressed(db, workspace_id, result.dimension)
         anomaly = MLAnomaly(
             workspace_id=workspace_id,
             anomaly_type=result.anomaly_type,
