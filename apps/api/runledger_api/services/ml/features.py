@@ -8,8 +8,7 @@ anomaly detection, forecasting, and pattern recognition.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 from typing import Any
 
 import structlog
@@ -17,7 +16,7 @@ from sqlalchemy import Date, and_, cast, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.events import ProviderCall
 from runledger_api.models.ml import MLFeatureDaily
 
 log = structlog.get_logger()

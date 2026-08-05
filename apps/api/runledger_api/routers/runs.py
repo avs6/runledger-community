@@ -19,13 +19,13 @@ from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
     ProviderCall,
+    RunbookEntry,
     RunStatusEnum,
     Span,
     ToolCall,
 )
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
-from runledger_api.models.events import RunbookEntry
 from runledger_api.schemas.runs import (
     GraphEdge,
     GraphNode,

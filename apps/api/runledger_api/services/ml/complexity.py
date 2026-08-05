@@ -13,10 +13,10 @@ from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import structlog
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.models.events import AgentRun, ProviderCall, ToolCall
+from runledger_api.models.events import ProviderCall, ToolCall
 from runledger_api.models.ml import MLModel
 from runledger_api.schemas.ml import (
     ComplexityScore,
@@ -97,7 +97,6 @@ async def train_complexity_model(
     y_arr = np.array(y, dtype=np.float64)
 
     from sklearn.ensemble import GradientBoostingRegressor
-    from sklearn.model_selection import cross_val_score
 
     model = GradientBoostingRegressor(
         n_estimators=100,
@@ -114,7 +113,7 @@ async def train_complexity_model(
         mape = float(np.mean(np.where(y_arr != 0, np.abs(residuals / y_arr), 0)))
     r2 = float(model.score(X_arr, y_arr))
 
-    importances = {name: round(float(imp), 4) for name, imp in zip(_FEATURE_NAMES, model.feature_importances_)}
+    importances = {name: round(float(imp), 4) for name, imp in zip(_FEATURE_NAMES, model.feature_importances_, strict=False)}
 
     artifact_bytes = pickle.dumps(model)
 

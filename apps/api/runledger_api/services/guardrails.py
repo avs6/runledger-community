@@ -386,7 +386,7 @@ def evaluate_builtin_filter(
     for pat in filter_def.get("patterns", []):
         if re.search(pat, " ".join(texts)):
             hit_count += 1
-            matched_reasons.append(f"pattern match")
+            matched_reasons.append("pattern match")
 
     if hit_count >= threshold:
         return block(
@@ -617,23 +617,7 @@ async def evaluate_guardrails(
                 eval_texts,
                 rule.severity,
             )
-        elif rule.rule_type == "custom" and rule.logic:
-            gr = execute_custom_logic(
-                rule.logic,
-                eval_texts,
-                _images,
-                _tools,
-                _tool_calls,
-                _msgs,
-                model,
-                user_id,
-                team_id,
-                end_user_id,
-                {**_meta, **rule.config},
-            )
-            if gr.reason and gr.reason.startswith("Execution error:"):
-                error_str = gr.reason
-        elif rule.rule_type == "template" and rule.logic:
+        elif rule.rule_type == "custom" and rule.logic or rule.rule_type == "template" and rule.logic:
             gr = execute_custom_logic(
                 rule.logic,
                 eval_texts,
@@ -718,6 +702,7 @@ async def evaluate_guardrail_alerts(
     - latency_degradation: avg latency > 2x baseline latency
     """
     from datetime import timedelta  # noqa: PLC0415
+
     from runledger_api.models.guardrails import GuardrailAlert  # noqa: PLC0415
 
     now = datetime.now(UTC)

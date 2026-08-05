@@ -11,33 +11,29 @@ from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.ml import (
-    ForecastAccuracy,
     MLAnomaly,
     MLForecast,
-    MLModel,
     MLPattern,
 )
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.ml import (
     AdaptiveThresholdList,
-    AnomalyAcknowledge,
     AnomalyList,
     AnomalyResponse,
     AnomalySummary,
+    ComplexityScoreList,
     CorrelatedAnomalyGroup,
     CorrelatedGroupList,
     CostOutcomeResponse,
-    ComplexityScoreList,
     FeatureImportanceList,
     ForecastGenerateRequest,
-    ForecastList,
     ForecastResponse,
     MLDashboard,
     ModelHealth,

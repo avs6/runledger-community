@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
-
 from runledger_api.core.deps import get_current_user
 from runledger_api.main import app
 

@@ -13,7 +13,7 @@ from decimal import Decimal
 import numpy as np
 import structlog
 from scipy import stats as sp_stats
-from sqlalchemy import and_, delete
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.ml import MLPattern

@@ -1,10 +1,9 @@
 # noqa: F401 — import all models so Alembic autogenerate sees them
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.annotations import Annotation
+from runledger_api.models.audit import AuditEvent
 from runledger_api.models.budget_overrides import BudgetOverride
 from runledger_api.models.budget_tiers import BudgetTier
-from runledger_api.models.model_budgets import ModelBudget
-from runledger_api.models.audit import AuditEvent
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment, PromptGithubConfig
 from runledger_api.models.events import (
@@ -31,6 +30,12 @@ from runledger_api.models.ledger import (
     SecurityEvent,
     ToolRegistry,
 )
+from runledger_api.models.metering import (
+    DataQualityIssue,
+    ProviderPricing,
+    UsageDaily,
+    UsageHourly,
+)
 from runledger_api.models.ml import (
     ForecastAccuracy,
     MLAnomaly,
@@ -39,12 +44,7 @@ from runledger_api.models.ml import (
     MLModel,
     MLPattern,
 )
-from runledger_api.models.metering import (
-    DataQualityIssue,
-    ProviderPricing,
-    UsageDaily,
-    UsageHourly,
-)
+from runledger_api.models.model_budgets import ModelBudget
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAnomaly
 from runledger_api.models.retention import RetentionPolicy

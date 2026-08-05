@@ -10,9 +10,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-import numpy as np
 import structlog
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall

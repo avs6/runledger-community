@@ -10,7 +10,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -65,8 +64,8 @@ def forecast_linear(
     for d in range(1, horizon_days + 1):
         future_x = n + d - 1
         predicted = slope * future_x + intercept
-        margin_80 = 1.28 * residual_std * np.sqrt(1 + 1 / n + (future_x - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
-        margin_95 = 1.96 * residual_std * np.sqrt(1 + 1 / n + (future_x - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
+        prediction_var = 1 + 1 / n + (future_x - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2)
+        margin_95 = 1.96 * residual_std * np.sqrt(prediction_var)
         points.append({
             "date": str(last_date + timedelta(days=d)),
             "predicted": round(max(predicted, 0), 4),
@@ -158,11 +157,7 @@ async def run_forecast(
     linear_result = forecast_linear(dates, values, horizon_days)
     hw_result = forecast_holt_winters(values, horizon_days, last_date=dates[-1])
 
-    best: ForecastResult
-    if hw_result and hw_result.mape < linear_result.mape:
-        best = hw_result
-    else:
-        best = linear_result
+    best = hw_result if hw_result and hw_result.mape < linear_result.mape else linear_result
 
     forecast = MLForecast(
         workspace_id=workspace_id,

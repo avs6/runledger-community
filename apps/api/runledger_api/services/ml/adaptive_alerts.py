@@ -7,11 +7,10 @@ confidence intervals per metric, and suggests threshold adjustments.
 from __future__ import annotations
 
 import uuid
-from datetime import date, timedelta
 
 import numpy as np
 import structlog
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.alerts import AlertRule

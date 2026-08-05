@@ -12,12 +12,16 @@ All models run locally using classical ML/stats — no GPU or LLM dependency.
 
 **Goal:** detect cost spikes, latency regressions, error rate spikes, and cache hit drops.
 
-The anomaly detection worker runs hourly and uses two methods:
+The anomaly detection worker runs hourly and uses four methods:
 
 - **Z-score** — flags values >3σ from the rolling mean
 - **EWMA** — exponentially weighted moving average, more responsive to recent shifts
+- **STL (Seasonal-Trend decomposition)** — strips weekly seasonality and trend via LOESS, then flags residuals >3σ; requires ≥15 days of data
+- **Isolation Forest (multivariate)** — considers all 5 dimensions (cost, latency, error_rate, tokens, cache_hit_rate) simultaneously to catch correlated anomalies that univariate methods miss
 
-Both run on each dimension; the more severe result wins.
+For univariate detectors (Z-score, EWMA, STL), all three run on each dimension and the most severe result wins. Then Isolation Forest runs on the full multivariate feature vector and adds any dimensions not already flagged.
+
+**Correlated anomaly grouping:** when 2+ anomalies fire in the same detection run, they are assigned a shared `correlation_group_id` and each anomaly's context includes the list of `correlated_dimensions`.
 
 ```bash
 # List detected anomalies
@@ -31,10 +35,25 @@ curl -s "http://localhost:8201/intelligence/anomalies/summary?hours=24" \
 # Acknowledge an anomaly
 curl -s "http://localhost:8201/intelligence/anomalies/<anomaly_id>/acknowledge" \
   -H "Authorization: Bearer $KEY" -X POST | python -m json.tool
+
+# Train the Isolation Forest model (needs ≥14 days of data)
+curl -s "http://localhost:8201/intelligence/anomalies/train-isolation-forest" \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"days": 60, "contamination": 0.05}' \
+  -X POST | python -m json.tool
+
+# List correlated anomaly groups
+curl -s "http://localhost:8201/intelligence/anomalies/correlated?hours=168" \
+  -H "Authorization: Bearer $KEY" | python -m json.tool
 ```
 
 Severity levels: `low` (3-4σ), `medium` (3-4σ), `high` (4-5σ), `critical` (5+σ).
 Flood suppression: >5 anomalies in 24h for the same dimension are auto-suppressed.
+
+**Isolation Forest retraining** runs automatically via a weekly Celery beat task.
+You can also trigger it manually via the endpoint above. The model is stored in
+the ML model registry and versioned.
 
 ---
 

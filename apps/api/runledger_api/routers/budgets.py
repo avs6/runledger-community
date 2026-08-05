@@ -47,9 +47,9 @@ from runledger_api.schemas.budgets import (
     BudgetCheckResponse,
     BudgetCreate,
     BudgetList,
+    BudgetResponse,
     BudgetRollupResponse,
     BudgetRollupWorkspace,
-    BudgetResponse,
     NotificationCreate,
     NotificationList,
     NotificationResponse,
@@ -234,9 +234,9 @@ async def billing_summary(
     months: Annotated[int, Query(ge=1, le=12)] = 3,
 ) -> BillingSummaryResponse:
     """Billing summary with billable vs non-billable cost per period."""
-    from runledger_api.models.metering import UsageDaily  # noqa: PLC0415
-
     from sqlalchemy import func as sa_func  # noqa: PLC0415
+
+    from runledger_api.models.metering import UsageDaily  # noqa: PLC0415
 
     result = await db.execute(
         select(

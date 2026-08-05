@@ -21,7 +21,8 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import status as http_status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,17 +42,26 @@ from runledger_api.schemas.analytics import (
     AnomalyList,
     CohortList,
     CohortSummary,
+    CostByDimension,
+    EngineeringMetrics,
     FeatureSpend,
     IntentCount,
+    LifecycleStage,
+    ModelScorecard,
+    ModelScorecardList,
     ModelSpend,
     OptimizationOpportunitiesResponse,
     OptimizationOpportunity,
+    QualityFunnel,
     RequestExplorerResponse,
     RequestRecord,
     SavingsByCategory,
     SavingsResponse,
     SavingsTimeline,
     ScopedSummary,
+    SimulationImpact,
+    SimulationRequest,
+    SimulationResult,
     SpendByFeature,
     SpendByModel,
     SpendByUser,
@@ -62,15 +72,6 @@ from runledger_api.schemas.analytics import (
     TrendsResponse,
     UserSpend,
     UserSpendDetail,
-    CostByDimension,
-    EngineeringMetrics,
-    LifecycleStage,
-    QualityFunnel,
-    ModelScorecard,
-    ModelScorecardList,
-    SimulationImpact,
-    SimulationRequest,
-    SimulationResult,
 )
 from runledger_api.schemas.economics import (
     AnnotationCreate,

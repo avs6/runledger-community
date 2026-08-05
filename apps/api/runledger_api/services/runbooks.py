@@ -64,9 +64,7 @@ async def generate_runbook(
     providers_used = list({c.provider for c in provider_calls})
     tools_used = list({t.tool_name for t in tool_calls})
 
-    if run.status == "failed":
-        severity = "critical"
-    elif cost_ratio > 3.0:
+    if run.status == "failed" or cost_ratio > 3.0:
         severity = "critical"
     elif cost_ratio > 2.0 or len(failed_calls) > 0:
         severity = "warning"

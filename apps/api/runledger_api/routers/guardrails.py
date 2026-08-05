@@ -51,7 +51,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_api_key, get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import (
+    get_current_api_key,
+    get_current_workspace,
+    require_workspace_admin,
+)
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.guardrails import (
     GuardrailAlert,
@@ -64,10 +68,9 @@ from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.guardrails import (
     BatchTestResponse,
     BatchTestResult,
-    ContentFilterListResponse,
     ContentFilterActivation,
+    ContentFilterListResponse,
     ContentFilterStatus,
-    GuardrailAlertCreate,
     GuardrailAlertList,
     GuardrailAlertResponse,
     GuardrailEventList,
@@ -95,7 +98,6 @@ from runledger_api.schemas.guardrails import (
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.guardrails import (
     BUILTIN_FILTERS,
-    GUARDRAIL_TEMPLATES,
     allow,
     evaluate_builtin_filter,
     evaluate_guardrail_alerts,

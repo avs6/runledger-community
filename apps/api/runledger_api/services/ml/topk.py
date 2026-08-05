@@ -7,7 +7,7 @@ dimensions by cost, tokens, call count, latency P95, or error rate.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import structlog
 from sqlalchemy import func, select

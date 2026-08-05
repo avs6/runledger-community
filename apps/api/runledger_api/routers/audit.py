@@ -16,6 +16,7 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,8 +25,6 @@ from runledger_api.core.deps import get_current_workspace, require_workspace_adm
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.tenant import Workspace
-from fastapi.responses import StreamingResponse
-
 from runledger_api.schemas.audit import AuditEventList, AuditEventResponse
 
 router = APIRouter(

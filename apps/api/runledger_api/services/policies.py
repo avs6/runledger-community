@@ -5,13 +5,17 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.gateway import GatewayRoute
 from runledger_api.models.ledger import SecurityEvent, ToolRegistry
 from runledger_api.models.scores import ScoreEvent
-from runledger_api.schemas.policies import PolicyCheckRequest, PolicyCheckResponse, PolicyDryRunDetail
+from runledger_api.schemas.policies import (
+    PolicyCheckRequest,
+    PolicyCheckResponse,
+    PolicyDryRunDetail,
+)
 from runledger_api.services.budgets import check_budgets
 
 try:

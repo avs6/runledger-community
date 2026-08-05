@@ -113,6 +113,22 @@ Everything below is **available today** in RunLedger Community. Click through fo
 
 </td>
 </tr>
+<tr>
+<td width="33%" valign="top">
+
+### 🧠 ML Intelligence
+- Anomaly detection — Z-score, EWMA, STL seasonal decomposition, Isolation Forest (multivariate)
+- Correlated anomaly grouping — co-occurring anomalies linked by correlation group
+- Cost forecasting — linear regression + Holt-Winters with confidence intervals
+- Top-K analysis — most expensive models, users, intents with change detection
+- Pattern recognition — steady, growing, declining, spiky, seasonal, one-shot
+- Complexity scoring — gradient boosting on observable features
+- Cost-per-outcome — Pareto frontier for quality vs cost
+- Adaptive alert thresholds — EWMA-derived baselines
+- ML model registry & dashboard
+
+</td>
+</tr>
 </table>
 
 📖 **[Browse the full documentation →](docs/introduction.mdx)**  
@@ -267,6 +283,7 @@ RunLedger fits your stack however matches your latency, enforcement, and code-ch
 | Intelligent routing (complexity × risk → model tier) | ✅ | ✅ |
 | Token optimization (compiler, compression, routing, flywheel) | ✅ | ✅ |
 | Self-hosted & local model routing | ✅ | ✅ |
+| ML intelligence (anomalies, forecasts, Top-K, patterns, complexity) | ✅ | ✅ |
 | Evaluations, prompt registry, outcomes & ROI | ✅ | ✅ |
 | Approvals, multi-tenant RBAC, alerts, retention | ✅ | ✅ |
 | Kubernetes Helm chart + HA + backup/restore | ✅ | ✅ |
@@ -281,7 +298,7 @@ Enterprise features are available separately — [contact for details](mailto:ab
 
 ## Tech Stack
 
-Python 3.13 · FastAPI (async) · PostgreSQL 16 · Redis 7 · Qdrant · Celery · Next.js 14 (App Router, Tailwind, shadcn/ui, Recharts) · Alembic · uv workspaces · Docker Compose / Helm. Python (`runledger-sdk`) + TypeScript (`@runledger/sdk`) SDKs.
+Python 3.13 · FastAPI (async) · PostgreSQL 16 · Redis 7 · Qdrant · Celery · scikit-learn · statsmodels · Next.js 14 (App Router, Tailwind, shadcn/ui, Recharts) · Alembic · uv workspaces · Docker Compose / Helm. Python (`runledger-sdk`) + TypeScript (`@runledger/sdk`) SDKs.
 
 ## Contributing
 
