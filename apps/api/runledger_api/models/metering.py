@@ -212,6 +212,10 @@ class UsageDaily(Base):
     cost_usd: Mapped[Decimal] = mapped_column(sa.Numeric(18, 8), nullable=False, default=Decimal(0))
     run_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
     call_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+    billable_cost_usd: Mapped[Decimal] = mapped_column(
+        sa.Numeric(18, 8), nullable=False, default=Decimal(0),
+        server_default=sa.text("0"),
+    )
     computed_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

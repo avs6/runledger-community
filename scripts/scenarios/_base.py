@@ -978,6 +978,96 @@ class Workspace:
     def list_ml_models(self) -> dict[str, Any]:
         return self._analytics_get("/intelligence/models", "ML models")
 
+    # ── Advanced Budget Engine helpers ──────────────────────────────────
+
+    def create_budget_tier(
+        self,
+        name: str,
+        *,
+        max_spend_usd: float | None = None,
+        period_type: str = "monthly",
+        rpm_limit: int | None = None,
+        tpm_limit: int | None = None,
+        allowed_models: list[str] | None = None,
+        is_default: bool = False,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"name": name, "period_type": period_type, "is_default": is_default}
+        if max_spend_usd is not None:
+            body["max_spend_usd"] = max_spend_usd
+        if rpm_limit is not None:
+            body["rpm_limit"] = rpm_limit
+        if tpm_limit is not None:
+            body["tpm_limit"] = tpm_limit
+        if allowed_models:
+            body["allowed_models"] = allowed_models
+        return self._manage_post("/budget-tiers", body, f"budget tier '{name}'")
+
+    def assign_tier_to_key(self, key_id: str, tier_id: str | None = None) -> dict[str, Any]:
+        qs = f"?tier_id={tier_id}" if tier_id else ""
+        return self.sim.put(
+            f"/budget-tiers/assign/{key_id}{qs}",
+            {},
+            key=self.admin_key or self.key,
+            label=f"assign tier to key",
+        )
+
+    def create_model_budget(
+        self,
+        key_id: str,
+        model_pattern: str,
+        *,
+        max_spend_usd: float | None = None,
+        period_type: str = "monthly",
+        rpm_limit: int | None = None,
+        tpm_limit: int | None = None,
+        action: str = "notify",
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"model_pattern": model_pattern, "period_type": period_type, "action": action}
+        if max_spend_usd is not None:
+            body["max_spend_usd"] = max_spend_usd
+        if rpm_limit is not None:
+            body["rpm_limit"] = rpm_limit
+        if tpm_limit is not None:
+            body["tpm_limit"] = tpm_limit
+        return self._manage_post(f"/api-keys/{key_id}/model-budgets", body, f"model budget '{model_pattern}'")
+
+    def create_budget_override(
+        self,
+        budget_id: str,
+        override_limit_usd: float,
+        starts_at: str,
+        expires_at: str,
+        *,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "override_limit_usd": override_limit_usd,
+            "starts_at": starts_at,
+            "expires_at": expires_at,
+        }
+        if reason:
+            body["reason"] = reason
+        return self._manage_post(f"/budgets/{budget_id}/override", body, "budget override")
+
+    def list_budget_overrides(self, budget_id: str) -> dict[str, Any]:
+        return self.sim.get(
+            f"/budgets/{budget_id}/overrides",
+            key=self.admin_key or self.key,
+        ) or {}
+
+    def revoke_budget_override(self, budget_id: str, override_id: str) -> dict[str, Any]:
+        return self._manage_post(
+            f"/budgets/{budget_id}/override/{override_id}/revoke",
+            {},
+            "revoke override",
+        )
+
+    def get_billing_summary(self, months: int = 3) -> dict[str, Any]:
+        return self.sim.get(
+            f"/budgets/billing-summary?months={months}",
+            key=self.admin_key or self.key,
+        ) or {}
+
 
 class Sim:
     """Platform-level client: bootstrap the admin, then mint per-scenario workspaces."""

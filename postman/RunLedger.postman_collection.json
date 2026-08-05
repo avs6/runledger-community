@@ -11738,6 +11738,193 @@
         }
       ],
       "description": "ML Intelligence Layer — anomaly detection, cost/token forecasting, Top-K analysis, pattern recognition, complexity scoring, cost-per-outcome optimization, adaptive alerts, and ML observability."
+    },
+    {
+      "name": "Advanced Budget Engine",
+      "item": [
+        {
+          "name": "Create Budget Tier",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Free\",\n  \"max_spend_usd\": 10,\n  \"period_type\": \"monthly\",\n  \"rpm_limit\": 30,\n  \"tpm_limit\": 50000,\n  \"allowed_models\": [\"llama3.2\", \"gemma3:latest\"],\n  \"is_default\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/budget-tiers",
+              "host": ["{{base_url}}"],
+              "path": ["budget-tiers"]
+            },
+            "description": "Create a named budget tier with spend, RPM, TPM, and model-access limits."
+          },
+          "response": []
+        },
+        {
+          "name": "List Budget Tiers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budget-tiers",
+              "host": ["{{base_url}}"],
+              "path": ["budget-tiers"]
+            },
+            "description": "List all budget tiers in the current workspace with assigned key counts."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Budget Tier",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budget-tiers/{{tier_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["budget-tiers", "{{tier_id}}"]
+            },
+            "description": "Delete a budget tier (unassigns all keys first)."
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Tier to API Key",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budget-tiers/assign/{{key_id}}?tier_id={{tier_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["budget-tiers", "assign", "{{key_id}}"],
+              "query": [
+                { "key": "tier_id", "value": "{{tier_id}}" }
+              ]
+            },
+            "description": "Assign a budget tier to an API key. Omit tier_id to unassign."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Model Budget",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model_pattern\": \"deepseek-r1:*\",\n  \"max_spend_usd\": 25,\n  \"period_type\": \"monthly\",\n  \"rpm_limit\": 20,\n  \"action\": \"throttle\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-keys/{{key_id}}/model-budgets",
+              "host": ["{{base_url}}"],
+              "path": ["api-keys", "{{key_id}}", "model-budgets"]
+            },
+            "description": "Create a per-model budget on an API key. Supports trailing * wildcards (e.g. gpt-4*)."
+          },
+          "response": []
+        },
+        {
+          "name": "List Model Budgets",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api-keys/{{key_id}}/model-budgets",
+              "host": ["{{base_url}}"],
+              "path": ["api-keys", "{{key_id}}", "model-budgets"]
+            },
+            "description": "List all model-specific budgets for an API key."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Budget Override",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"override_limit_usd\": 200,\n  \"starts_at\": \"2025-01-15T00:00:00Z\",\n  \"expires_at\": \"2025-01-16T00:00:00Z\",\n  \"reason\": \"Product launch traffic spike\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/budgets/{{budget_id}}/override",
+              "host": ["{{base_url}}"],
+              "path": ["budgets", "{{budget_id}}", "override"]
+            },
+            "description": "Create a temporary budget increase with auto-expiry."
+          },
+          "response": []
+        },
+        {
+          "name": "List Budget Overrides",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budgets/{{budget_id}}/overrides",
+              "host": ["{{base_url}}"],
+              "path": ["budgets", "{{budget_id}}", "overrides"]
+            },
+            "description": "List all overrides (active, expired, revoked) for a budget."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Budget Override",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budgets/{{budget_id}}/override/{{override_id}}/revoke",
+              "host": ["{{base_url}}"],
+              "path": ["budgets", "{{budget_id}}", "override", "{{override_id}}", "revoke"]
+            },
+            "description": "Revoke an active budget override immediately."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budgets/billing-summary?months=3",
+              "host": ["{{base_url}}"],
+              "path": ["budgets", "billing-summary"],
+              "query": [
+                { "key": "months", "value": "3" }
+              ]
+            },
+            "description": "Get billable vs non-billable cost breakdown by period."
+          },
+          "response": []
+        }
+      ],
+      "description": "Advanced Budget & Rate Limit Engine — budget tiers, model-specific budgets, temporary overrides with auto-expiry, throttle/fallback enforcement, rate limit headers, and billable metering."
     }
   ]
 }

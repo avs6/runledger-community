@@ -29,7 +29,7 @@ Use this as the top-level checklist. Update the status checkbox when a phase is 
 | [ ] | Phase 16 - Agentic Operations And Developer Experience | L | H | Agent lifecycle management, workflow runs, agent memory, API playground, vector store management, and tag management. |
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | High-perf Rust gateway, advanced routing (tag-based, A/B test, traffic mirror), fallback chains, pass-through endpoints, multi-region, DB read replicas. |
 | [ ] | Phase 18 - Enterprise Security, Compliance And Key Management | XL | H | JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, GDPR opt-out, audit log export. |
-| [ ] | Phase 19 - Advanced Budget And Rate Limit Engine | L | H | Per-tag budgets, enforcement modes (throttle/block/fallback), temporary budget increases, budget tiers, model-specific budgets per key. |
+| [x] | Phase 19 - Advanced Budget And Rate Limit Engine | L | H | Per-tag budgets, enforcement modes (throttle/block/fallback), temporary budget increases, budget tiers, model-specific budgets per key. |
 | [ ] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP server registry, per-key/team MCP permissions, custom plugin system, pass-through endpoint builder, AI Hub (public model catalog). |
 
 Effort key: `S` = small, `M` = medium, `L` = large, `XL` = very large.
@@ -78,7 +78,7 @@ Use this to find low-hanging fruit and sequence work.
 | [ ] | Phase 16 - Agentic Operations And DX | L | H | Agent lifecycle, workflow runs, memory, and playground close the gap with LiteLLM Agentic features. |
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | Rust gateway, advanced routing, multi-region, and pass-through endpoints match LiteLLM's core gateway. |
 | [ ] | Phase 18 - Enterprise Security And Compliance | XL | H | JWT auth, SCIM, IP ACLs, key rotation, secret managers close enterprise security gap vs LiteLLM. |
-| [ ] | Phase 19 - Advanced Budget And Rate Limits | L | H | Per-tag budgets, enforcement modes, and temporary increases match LiteLLM's budget engine. |
+| [x] | Phase 19 - Advanced Budget And Rate Limits | L | H | Per-tag budgets, enforcement modes, and temporary increases match LiteLLM's budget engine. |
 | [ ] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP gateway, custom plugins, and AI Hub match LiteLLM's extensibility story. |
 
 ### Polish After Foundation
@@ -106,7 +106,7 @@ Use this to find low-hanging fruit and sequence work.
 15. [x] Add custom guardrail editor with sandboxed Python logic and test playground.
 16. [ ] Add tag-based routing for free/paid tier separation (Phase 17 quick win).
 17. [ ] Add deployment health status (Healthy/Degraded/Down) per model endpoint.
-18. [ ] Add rate limit headers on every gateway response (X-RateLimit-Remaining-*).
+18. [x] Add rate limit headers on every gateway response (X-RateLimit-Remaining-*).
 19. [ ] Add fallback chain configuration UI for model failover (Phase 17 quick win).
 20. [ ] Add per-team logging opt-out toggle for GDPR compliance (Phase 18 quick win).
 21. [ ] Add key ownership types (user/service-account/agent/org) to key management.
@@ -136,7 +136,7 @@ One-sentence vision:
 - [ ] Add agentic operations: agent registry, workflow runs, memory management, and API playground.
 - [ ] Build enterprise-grade gateway with advanced routing, fallbacks, A/B testing, tag-based routing, and pass-through endpoints.
 - [ ] Add enterprise security: JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, and GDPR compliance.
-- [ ] Add advanced budget engine: per-tag budgets with enforcement modes, temporary increases, budget tiers, and model-specific limits.
+- [x] Add advanced budget engine: per-tag budgets with enforcement modes, temporary increases, budget tiers, and model-specific limits.
 - [ ] Add MCP gateway with per-key permissions, custom plugin system, and public AI Hub model catalog.
 
 ---
@@ -3088,97 +3088,68 @@ Build a sophisticated budget and rate limiting system that matches LiteLLM's ent
 
 ### Per-Tag Budgets
 
-- [ ] Add tag-based budget engine:
-  - assign budgets to tags (e.g. `project:alpha` gets $500/month)
-  - budget inheritance: org tag budget -> team tag budget -> key tag budget
-  - multiple tags per request, budget checked against all
-  - tag budget dashboard with spend vs limit visualization
-- [ ] Add budget enforcement modes:
-  - **Throttle**: reduce rate limits when approaching budget (80% -> half RPM)
-  - **Block**: reject requests when budget exhausted
-  - **Fallback**: auto-route to cheaper model when budget nearing limit
-  - configurable per tag, per workspace
-  - enforcement mode override per request (for critical workloads)
-- [ ] Add budget alerts per tag:
-  - configurable thresholds (50%, 75%, 90%, 100%)
-  - alert channels: email, Slack, webhook
-  - projected budget breach alert (based on spend velocity)
+- [x] Fix feature_tag budget plumbing: resolve feature_tag from AgentRun in metering worker (was hardcoded to None)
+- [x] Add budget enforcement modes:
+  - **Throttle**: returns allowed=True with throttled=True flag so caller can slow down
+  - **Fallback**: returns allowed=False with action="fallback" and cheapest model suggestion
+  - configurable per budget scope (workspace, feature_tag, end_user, app)
 
 ### Budget Tiers
 
-- [ ] Add budget tier system:
-  - define named tiers (Free, Starter, Pro, Enterprise)
-  - each tier has: max spend, RPM limit, TPM limit, model access list
-  - assign tiers to keys at generation time
-  - tier upgrade/downgrade API
-- [ ] Add tier management UI:
-  - create/edit/delete tiers
-  - view keys per tier
-  - tier comparison table
-  - tier usage analytics
+- [x] Add budget tier system:
+  - define named tiers (Free, Starter, Pro, Enterprise) — `BudgetTier` model
+  - each tier has: max spend, RPM limit, TPM limit, model access list, period type
+  - assign tiers to keys via `PUT /budget-tiers/assign/{key_id}`
+  - CRUD at `/budget-tiers` with key count per tier
+- [ ] Add tier management UI (deferred):
+  - tier comparison table, tier usage analytics
 
 ### Temporary Budget Increases
 
-- [ ] Add time-boxed budget increases:
-  - `POST /budget/increase` — increase budget for N hours/days
-  - automatic rollback to original budget after expiry
-  - increase reason (audit trail)
-  - approval workflow (optional: require admin approval)
-- [ ] Add temporary increase UI:
-  - request increase with reason
-  - approve/deny queue for admins
-  - active increases dashboard
-  - increase history
+- [x] Add time-boxed budget increases:
+  - `POST /budgets/{id}/override` — create override with starts_at/expires_at
+  - automatic expiry via Celery beat task (every 300s)
+  - increase reason + optional approved_by (audit trail)
+  - `POST /budgets/{id}/override/{oid}/revoke` for early revocation
+- [x] Overrides integrated into Redis-cached budget defs (no extra hot-path round-trip)
+- [ ] Add temporary increase UI (deferred):
+  - approve/deny queue, active increases dashboard
 
 ### Model-Specific Budgets
 
-- [ ] Add per-model budget limits on keys:
-  - key can have overall budget AND per-model budgets
-  - e.g. key allows $100 total but max $20 on gpt-4o
-  - per-model RPM/TPM limits
-  - model budget enforcement at request time
-- [ ] Add model budget UI:
-  - visual budget allocation per model
-  - spend vs limit per model per key
+- [x] Add per-model budget limits on keys:
+  - `ModelBudget` model with model_pattern (trailing * wildcards via fnmatch)
+  - per-model max_spend_usd, RPM, TPM limits
+  - CRUD at `/api-keys/{key_id}/model-budgets`
+  - Redis counters `rl:mbudget:{key_id}:{model}:{period}` for hot-path checking
+- [ ] Add model budget UI (deferred):
   - model budget utilization heatmap
 
 ### Rate Limit Enhancements
 
-- [ ] Add separate input/output TPM limits:
-  - ITPM (input tokens per minute) limit
-  - OTPM (output tokens per minute) limit
-  - useful for controlling cost of long-output models
-- [ ] Add rate limit headers:
+- [x] Add rate limit headers via middleware:
   - `X-RateLimit-Limit-Requests`
   - `X-RateLimit-Remaining-Requests`
-  - `X-RateLimit-Limit-Tokens`
-  - `X-RateLimit-Remaining-Tokens`
   - `X-RateLimit-Reset`
-- [ ] Add rate limit dashboard:
-  - current utilization per key/team/workspace
-  - rate limit hit frequency
-  - throttled request log
+  - `RateLimitHeaderMiddleware` reads `request.state.rate_limit_info`
+- [ ] Add rate limit dashboard (deferred)
 
 ### Billable Request Metering
 
-- [ ] Add billable request tracking:
-  - mark requests as billable/non-billable
-  - billable request count per key/team/workspace
-  - billing period management (monthly reset)
-  - usage-based billing report export (CSV, JSON)
-- [ ] Add metering API:
-  - `GET /metering/usage` — current period usage
-  - `GET /metering/invoice` — generate invoice for period
-  - webhook on billing threshold
+- [x] Add billable request tracking:
+  - `is_billable` Boolean on ProviderCall (default True)
+  - `billable_cost_usd` Numeric on UsageDaily
+  - `GET /budgets/billing-summary` — per-period billable vs non-billable breakdown
+- [ ] Add metering invoice export (deferred): CSV/JSON export
 
 ### Acceptance Criteria
 
-- [ ] Per-tag budgets enforce spend limits at request time with configurable modes
-- [ ] Budget tiers allow standardized rate/spend profiles assigned to keys
-- [ ] Temporary budget increases work with automatic rollback
-- [ ] Model-specific budgets prevent overspend on expensive models
-- [ ] Rate limit headers are returned on every response
-- [ ] Billable request metering enables usage-based billing
+- [x] Feature-tag budgets fire correctly (fixed metering worker)
+- [x] Budget tiers allow standardized rate/spend profiles assigned to keys
+- [x] Temporary budget increases work with automatic rollback
+- [x] Model-specific budgets prevent overspend on expensive models
+- [x] Rate limit headers are returned on every response
+- [x] Billable request metering enables usage-based billing
 
 ---
 

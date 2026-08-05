@@ -173,6 +173,9 @@ class ApiKey(Base):
     guardrail_config: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )
+    budget_tier_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
 
     workspace: Mapped["Workspace"] = relationship(back_populates="api_keys")
 

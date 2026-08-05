@@ -31,9 +31,17 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_user, get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
+from runledger_api.models.budget_overrides import BudgetOverride
 from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
 from runledger_api.models.tenant import TenantRoleEnum, TenantUser, Workspace
+from runledger_api.schemas.budget_overrides import (
+    BudgetOverrideCreate,
+    BudgetOverrideList,
+    BudgetOverrideResponse,
+)
 from runledger_api.schemas.budgets import (
+    BillingPeriodSummary,
+    BillingSummaryResponse,
     BreachList,
     BreachResponse,
     BudgetCheckResponse,
@@ -214,6 +222,54 @@ async def list_budgets(
         )
 
     return BudgetList(items=items)
+
+
+# ── GET /budgets/billing-summary ──────────────────────────────────────────────
+
+
+@router.get("/billing-summary", response_model=BillingSummaryResponse)
+async def billing_summary(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    months: Annotated[int, Query(ge=1, le=12)] = 3,
+) -> BillingSummaryResponse:
+    """Billing summary with billable vs non-billable cost per period."""
+    from runledger_api.models.metering import UsageDaily  # noqa: PLC0415
+
+    from sqlalchemy import func as sa_func  # noqa: PLC0415
+
+    result = await db.execute(
+        select(
+            sa_func.to_char(UsageDaily.day, "YYYY-MM").label("period"),
+            sa_func.coalesce(sa_func.sum(UsageDaily.cost_usd), 0).label("total_cost"),
+            sa_func.coalesce(sa_func.sum(UsageDaily.billable_cost_usd), 0).label("billable_cost"),
+            sa_func.coalesce(sa_func.sum(UsageDaily.call_count), 0).label("total_calls"),
+        )
+        .where(
+            UsageDaily.workspace_id == workspace.id,
+            UsageDaily.day >= sa_func.current_date() - months * 31,
+        )
+        .group_by("period")
+        .order_by("period")
+    )
+    periods = []
+    for row in result.all():
+        total = Decimal(str(row.total_cost))
+        billable = Decimal(str(row.billable_cost))
+        periods.append(
+            BillingPeriodSummary(
+                period=row.period,
+                total_cost_usd=total,
+                billable_cost_usd=billable,
+                non_billable_cost_usd=total - billable,
+                total_calls=int(row.total_calls),
+                billable_calls=int(row.total_calls),
+            )
+        )
+    return BillingSummaryResponse(
+        workspace_id=str(workspace.id),
+        periods=periods,
+    )
 
 
 # ── GET /budgets/check ────────────────────────────────────────────────────────
@@ -537,3 +593,167 @@ async def delete_budget(
     await invalidate_workspace_budgets_cache(redis, workspace.id)
 
     log.info("budget_deactivated", budget_id=str(budget_id))
+
+
+# ── POST /budgets/{id}/override ──────────────────────────────────────────────
+
+
+@router.post(
+    "/{budget_id}/override",
+    response_model=BudgetOverrideResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_override(
+    budget_id: uuid.UUID,
+    body: BudgetOverrideCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> BudgetOverrideResponse:
+    """Create a time-boxed budget increase."""
+    workspace: Workspace = auth[0]
+
+    budget_result = await db.execute(
+        select(Budget).where(Budget.id == budget_id, Budget.workspace_id == workspace.id)
+    )
+    budget = budget_result.scalar_one_or_none()
+    if budget is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget not found")
+
+    if body.expires_at <= body.starts_at:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "expires_at must be after starts_at",
+        )
+
+    override = BudgetOverride(
+        budget_id=budget_id,
+        original_limit_usd=budget.limit_usd,
+        override_limit_usd=body.override_limit_usd,
+        starts_at=body.starts_at,
+        expires_at=body.expires_at,
+        reason=body.reason,
+        status="active",
+    )
+    db.add(override)
+    await db.commit()
+    await db.refresh(override)
+    await invalidate_workspace_budgets_cache(redis, workspace.id)
+
+    log.info(
+        "budget_override_created",
+        override_id=str(override.id),
+        budget_id=str(budget_id),
+        override_limit=str(override.override_limit_usd),
+    )
+    return BudgetOverrideResponse(
+        id=str(override.id),
+        budget_id=str(override.budget_id),
+        original_limit_usd=override.original_limit_usd,
+        override_limit_usd=override.override_limit_usd,
+        starts_at=override.starts_at,
+        expires_at=override.expires_at,
+        reason=override.reason,
+        approved_by=str(override.approved_by) if override.approved_by else None,
+        status=override.status,
+        created_at=override.created_at,
+    )
+
+
+# ── GET /budgets/{id}/overrides ──────────────────────────────────────────────
+
+
+@router.get("/{budget_id}/overrides", response_model=BudgetOverrideList)
+async def list_overrides(
+    budget_id: uuid.UUID,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> BudgetOverrideList:
+    """List overrides for a budget."""
+    budget_result = await db.execute(
+        select(Budget).where(Budget.id == budget_id, Budget.workspace_id == workspace.id)
+    )
+    if budget_result.scalar_one_or_none() is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget not found")
+
+    result = await db.execute(
+        select(BudgetOverride)
+        .where(BudgetOverride.budget_id == budget_id)
+        .order_by(BudgetOverride.created_at.desc())
+        .limit(limit)
+    )
+    overrides = list(result.scalars())
+    return BudgetOverrideList(
+        items=[
+            BudgetOverrideResponse(
+                id=str(o.id),
+                budget_id=str(o.budget_id),
+                original_limit_usd=o.original_limit_usd,
+                override_limit_usd=o.override_limit_usd,
+                starts_at=o.starts_at,
+                expires_at=o.expires_at,
+                reason=o.reason,
+                approved_by=str(o.approved_by) if o.approved_by else None,
+                status=o.status,
+                created_at=o.created_at,
+            )
+            for o in overrides
+        ]
+    )
+
+
+# ── POST /budgets/{id}/override/{oid}/revoke ─────────────────────────────────
+
+
+@router.post("/{budget_id}/override/{override_id}/revoke", response_model=BudgetOverrideResponse)
+async def revoke_override(
+    budget_id: uuid.UUID,
+    override_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> BudgetOverrideResponse:
+    """Revoke an active budget override."""
+    workspace: Workspace = auth[0]
+
+    budget_result = await db.execute(
+        select(Budget).where(Budget.id == budget_id, Budget.workspace_id == workspace.id)
+    )
+    if budget_result.scalar_one_or_none() is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget not found")
+
+    result = await db.execute(
+        select(BudgetOverride).where(
+            BudgetOverride.id == override_id,
+            BudgetOverride.budget_id == budget_id,
+        )
+    )
+    override = result.scalar_one_or_none()
+    if override is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Override not found")
+    if override.status != "active":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Override is not active")
+
+    await db.execute(
+        update(BudgetOverride)
+        .where(BudgetOverride.id == override_id)
+        .values(status="revoked")
+    )
+    await db.commit()
+    await invalidate_workspace_budgets_cache(redis, workspace.id)
+    override.status = "revoked"
+
+    log.info("budget_override_revoked", override_id=str(override_id))
+    return BudgetOverrideResponse(
+        id=str(override.id),
+        budget_id=str(override.budget_id),
+        original_limit_usd=override.original_limit_usd,
+        override_limit_usd=override.override_limit_usd,
+        starts_at=override.starts_at,
+        expires_at=override.expires_at,
+        reason=override.reason,
+        approved_by=str(override.approved_by) if override.approved_by else None,
+        status=override.status,
+        created_at=override.created_at,
+    )

@@ -2799,3 +2799,80 @@ export async function listMLModels(
 ): Promise<import('@/types/api').ModelHealth[]> {
   return apiFetch<import('@/types/api').ModelHealth[]>(`/intelligence/models`, apiKey)
 }
+
+// ── Advanced Budget Engine ──────────────────────────────────────────────────
+
+export async function listBudgetTiers(
+  apiKey: string
+): Promise<import('@/types/api').BudgetTierList> {
+  return apiFetch<import('@/types/api').BudgetTierList>(`/budget-tiers`, apiKey)
+}
+
+export async function createBudgetTier(
+  apiKey: string,
+  body: { name: string; max_spend_usd?: number; period_type?: string; rpm_limit?: number; tpm_limit?: number; allowed_models?: string[]; is_default?: boolean }
+): Promise<import('@/types/api').BudgetTier> {
+  return apiFetch<import('@/types/api').BudgetTier>(`/budget-tiers`, apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function deleteBudgetTier(
+  apiKey: string,
+  tierId: string
+): Promise<void> {
+  await apiFetch<void>(`/budget-tiers/${tierId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function assignTierToKey(
+  apiKey: string,
+  keyId: string,
+  tierId: string | null
+): Promise<{ key_id: string; budget_tier_id: string | null }> {
+  const qs = tierId ? `?tier_id=${tierId}` : ''
+  return apiFetch(`/budget-tiers/assign/${keyId}${qs}`, apiKey, { method: 'PUT' })
+}
+
+export async function listModelBudgets(
+  apiKey: string,
+  keyId: string
+): Promise<import('@/types/api').ModelBudgetList> {
+  return apiFetch<import('@/types/api').ModelBudgetList>(`/api-keys/${keyId}/model-budgets`, apiKey)
+}
+
+export async function createModelBudget(
+  apiKey: string,
+  keyId: string,
+  body: { model_pattern: string; max_spend_usd?: number; period_type?: string; rpm_limit?: number; tpm_limit?: number; action?: string }
+): Promise<import('@/types/api').ModelBudget> {
+  return apiFetch<import('@/types/api').ModelBudget>(`/api-keys/${keyId}/model-budgets`, apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function createBudgetOverride(
+  apiKey: string,
+  budgetId: string,
+  body: { override_limit_usd: number; starts_at: string; expires_at: string; reason?: string }
+): Promise<import('@/types/api').BudgetOverride> {
+  return apiFetch<import('@/types/api').BudgetOverride>(`/budgets/${budgetId}/override`, apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function listBudgetOverrides(
+  apiKey: string,
+  budgetId: string
+): Promise<import('@/types/api').BudgetOverrideList> {
+  return apiFetch<import('@/types/api').BudgetOverrideList>(`/budgets/${budgetId}/overrides`, apiKey)
+}
+
+export async function revokeBudgetOverride(
+  apiKey: string,
+  budgetId: string,
+  overrideId: string
+): Promise<import('@/types/api').BudgetOverride> {
+  return apiFetch<import('@/types/api').BudgetOverride>(`/budgets/${budgetId}/override/${overrideId}/revoke`, apiKey, { method: 'POST' })
+}
+
+export async function getBillingSummary(
+  apiKey: string,
+  months?: number
+): Promise<import('@/types/api').BillingSummaryResponse> {
+  const qs = months ? `?months=${months}` : ''
+  return apiFetch<import('@/types/api').BillingSummaryResponse>(`/budgets/billing-summary${qs}`, apiKey)
+}

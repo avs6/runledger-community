@@ -33,7 +33,9 @@ from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import flywheel as flywheel_router
 from runledger_api.routers import gateway as gateway_router
 from runledger_api.routers import guardrails as guardrails_router
+from runledger_api.routers import budget_tiers as budget_tiers_router
 from runledger_api.routers import intelligence as intelligence_router
+from runledger_api.routers import model_budgets as model_budgets_router
 from runledger_api.routers import integrations as integrations_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
@@ -76,6 +78,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from runledger_api.core.ratelimit_middleware import RateLimitHeaderMiddleware  # noqa: E402
+
+app.add_middleware(RateLimitHeaderMiddleware)
+
 app.include_router(health.router)
 app.include_router(ingest.router)
 app.include_router(auth.router)
@@ -108,6 +114,8 @@ app.include_router(otlp_router.router)
 app.include_router(eval_experiments_router.router)
 app.include_router(guardrails_router.router)
 app.include_router(intelligence_router.router)
+app.include_router(budget_tiers_router.router)
+app.include_router(model_budgets_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

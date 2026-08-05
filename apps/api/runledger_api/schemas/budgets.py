@@ -17,7 +17,7 @@ class BudgetCreate(BaseModel):
     scope_id: str | None = None
     period_type: str = Field(..., pattern="^(daily|monthly|total)$")
     limit_usd: Decimal = Field(..., gt=0)
-    action: str = Field(..., pattern="^(notify|block|downgrade)$")
+    action: str = Field(..., pattern="^(notify|block|downgrade|throttle|fallback)$")
     downgrade_to_model: str | None = None
 
 
@@ -76,6 +76,8 @@ class BudgetCheckResponse(BaseModel):
     action: str | None = None
     budget_id: str | None = None
     downgrade_model: str | None = None
+    throttled: bool = False
+    fallback_model: str | None = None
 
 
 # ── Breach ────────────────────────────────────────────────────────────────────
@@ -118,3 +120,20 @@ class NotificationResponse(BaseModel):
 
 class NotificationList(BaseModel):
     items: list[NotificationResponse]
+
+
+# ── Billing summary ──────────────────────────────────────────────────────────
+
+
+class BillingPeriodSummary(BaseModel):
+    period: str
+    total_cost_usd: Decimal
+    billable_cost_usd: Decimal
+    non_billable_cost_usd: Decimal
+    total_calls: int
+    billable_calls: int
+
+
+class BillingSummaryResponse(BaseModel):
+    workspace_id: str
+    periods: list[BillingPeriodSummary]

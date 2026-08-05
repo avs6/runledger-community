@@ -109,6 +109,23 @@ async def get_workspace_budgets_cached(
     )
     budgets: list[Budget] = list(result.scalars())
 
+    from runledger_api.models.budget_overrides import BudgetOverride  # noqa: PLC0415
+
+    now = datetime.now(UTC)
+    budget_ids = [b.id for b in budgets]
+    overrides_map: dict[uuid.UUID, Decimal] = {}
+    if budget_ids:
+        override_result = await db.execute(
+            select(BudgetOverride.budget_id, BudgetOverride.override_limit_usd).where(
+                BudgetOverride.budget_id.in_(budget_ids),
+                BudgetOverride.status == "active",
+                BudgetOverride.starts_at <= now,
+                BudgetOverride.expires_at > now,
+            )
+        )
+        for row in override_result.all():
+            overrides_map[row[0]] = row[1]
+
     serialised = [
         {
             "id": str(b.id),
@@ -116,7 +133,7 @@ async def get_workspace_budgets_cached(
             "scope_type": b.scope_type,
             "scope_id": b.scope_id,
             "period_type": b.period_type,
-            "limit_usd": str(b.limit_usd),
+            "limit_usd": str(overrides_map.get(b.id, b.limit_usd)),
             "action": b.action,
             "downgrade_to_model": b.downgrade_to_model,
         }
@@ -182,6 +199,9 @@ async def check_budgets(
     budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
     matched = _matching_budgets(budgets, end_user_id, feature_tag)
 
+    throttled = False
+    throttle_budget_id: str | None = None
+
     for b in matched:
         budget_id = uuid.UUID(b["id"])
         spend = await get_budget_spend(redis, budget_id, b["period_type"])
@@ -202,15 +222,121 @@ async def check_budgets(
                     budget_id=b["id"],
                     downgrade_model=b.get("downgrade_to_model"),
                 )
-            # action == "notify" — log but don't block
-            log.info(
-                "budget_notify_threshold_exceeded",
-                budget_id=b["id"],
-                spend=str(spend),
-                limit=str(limit),
-            )
+            if action == "fallback":
+                return BudgetCheckResponse(
+                    allowed=False,
+                    action="fallback",
+                    budget_id=b["id"],
+                    fallback_model=b.get("downgrade_to_model"),
+                )
+            if action == "throttle":
+                throttled = True
+                throttle_budget_id = b["id"]
+            else:
+                log.info(
+                    "budget_notify_threshold_exceeded",
+                    budget_id=b["id"],
+                    spend=str(spend),
+                    limit=str(limit),
+                )
+
+    if throttled:
+        return BudgetCheckResponse(
+            allowed=True,
+            action="throttle",
+            budget_id=throttle_budget_id,
+            throttled=True,
+        )
 
     return BudgetCheckResponse(allowed=True)
+
+
+# ── Model-specific budget check ──────────────────────────────────────────────
+
+
+def _model_spend_key(key_id: str, model: str, period_key: str) -> str:
+    return f"rl:mbudget:{key_id}:{model}:{period_key}"
+
+
+def _model_matches(pattern: str, model: str) -> bool:
+    """Simple glob matching: supports trailing * only (e.g. 'gpt-4*')."""
+    if pattern.endswith("*"):
+        return model.startswith(pattern[:-1])
+    return pattern == model
+
+
+async def check_model_budgets(
+    redis: Redis,
+    db: AsyncSession,
+    api_key_id: uuid.UUID,
+    model: str,
+) -> BudgetCheckResponse:
+    from runledger_api.models.model_budgets import ModelBudget  # noqa: PLC0415
+
+    cache_key = f"rl:mbudgets:{api_key_id}"
+    cached = await redis.get(cache_key)
+    if cached is not None:
+        budgets = json.loads(cached)
+    else:
+        result = await db.execute(
+            select(ModelBudget).where(
+                ModelBudget.api_key_id == api_key_id,
+                ModelBudget.is_active.is_(True),
+            )
+        )
+        rows = list(result.scalars())
+        budgets = [
+            {
+                "id": str(mb.id),
+                "model_pattern": mb.model_pattern,
+                "max_spend_usd": str(mb.max_spend_usd) if mb.max_spend_usd else None,
+                "period_type": mb.period_type,
+                "action": mb.action,
+            }
+            for mb in rows
+        ]
+        await redis.set(cache_key, json.dumps(budgets), ex=_BUDGET_CACHE_TTL)
+
+    for b in budgets:
+        if not _model_matches(b["model_pattern"], model):
+            continue
+        if b["max_spend_usd"] is None:
+            continue
+
+        pk = _period_key(b["period_type"], datetime.now(UTC))
+        key = _model_spend_key(str(api_key_id), model, pk)
+        raw = await redis.get(key)
+        spend = Decimal(str(raw)) if raw else Decimal(0)
+        limit = Decimal(b["max_spend_usd"])
+
+        if spend >= limit:
+            action = b["action"]
+            if action == "block":
+                return BudgetCheckResponse(
+                    allowed=False, action="block", budget_id=b["id"]
+                )
+            if action in ("downgrade", "fallback"):
+                return BudgetCheckResponse(
+                    allowed=False, action=action, budget_id=b["id"]
+                )
+
+    return BudgetCheckResponse(allowed=True)
+
+
+async def incr_model_budget_spend(
+    redis: Redis,
+    api_key_id: uuid.UUID,
+    model: str,
+    period_type: str,
+    cost_usd: Decimal,
+) -> None:
+    pk = _period_key(period_type, datetime.now(UTC))
+    key = _model_spend_key(str(api_key_id), model, pk)
+    await redis.incrbyfloat(key, float(cost_usd))
+    if period_type == "daily":
+        await redis.expire(key, 86400 * 2)
+    elif period_type == "monthly":
+        await redis.expire(key, 86400 * 35)
 
 
 # ── Breach recording + notification dispatch ──────────────────────────────────

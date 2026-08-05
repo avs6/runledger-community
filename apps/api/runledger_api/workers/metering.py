@@ -43,7 +43,7 @@ from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
-from runledger_api.models.events import ProviderCall
+from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import DataQualityIssue, UsageDaily, UsageHourly
 from runledger_api.services.budgets import (
     _matching_budgets,
@@ -122,11 +122,17 @@ async def _run_cost_enrichment() -> dict[str, int]:
 
                 # Increment Redis budget spend counters for matching budgets
                 try:
+                    # Resolve feature_tag from the parent AgentRun
+                    ft_result = await session.execute(
+                        select(AgentRun.feature_tag).where(AgentRun.id == pc.run_id)
+                    )
+                    feature_tag = ft_result.scalar_one_or_none()
+
                     budgets = await get_workspace_budgets_cached(redis, session, pc.workspace_id)
                     matched = _matching_budgets(
                         budgets,
                         end_user_id=pc.end_user_id,
-                        feature_tag=None,  # feature_tag is on agent_run, not pc
+                        feature_tag=feature_tag,
                     )
                     import uuid  # noqa: PLC0415
 

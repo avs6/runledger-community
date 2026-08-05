@@ -43,6 +43,7 @@ uv run python scripts/full_simulate.py --scenario-set hosted
 | `ollama/04_chat_support` | HelpDesk Local / Support Bot | `llama3.2`, `gemma3:latest` | High-volume support traffic, local ticket outcomes, daily/monthly budgets, approval requests, auto-approval policies, chargeback rules, runbook generation |
 | `ollama/05_guardrails` | SafeGuard AI / Content Safety | (API-only, no model traffic) | Custom guardrails, 13 built-in content filters, PII detection, prompt injection guard, partner integrations (Presidio, Lakera, OpenAI Moderation), test playground, regression testing |
 | `ollama/06_intelligence` | IntelliOps / ML Intelligence | `qwen2.5-coder:14b`, `deepseek-r1:14b`, `llama3.2` | Anomaly detection, cost/token forecasting, Top-K analysis, pattern recognition, complexity scoring, cost-per-outcome, adaptive alerts, ML dashboard |
+| `ollama/07_advanced_budgets` | BudgetLabs / Advanced Budgets | `qwen2.5-coder:14b`, `deepseek-r1:14b`, `llama3.2` | Budget tiers (Free/Starter/Pro/Enterprise), model-specific budgets with wildcards, temporary overrides with auto-expiry, throttle/fallback enforcement, billing summary |
 
 ## Hosted scenarios
 
@@ -146,3 +147,10 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `get_feature_importances()` | Complexity model feature importances |
 | `get_adaptive_suggestions()` | Adaptive alert threshold suggestions |
 | `get_ml_dashboard()` | ML observability dashboard |
+| `create_budget_tier(name, max_spend_usd=, rpm_limit=, tpm_limit=, allowed_models=, is_default=)` | Budget tiers with RPM/TPM/spend/model-access limits |
+| `assign_tier_to_key(key_id, tier_id=)` | Assign or unassign a budget tier to an API key |
+| `create_model_budget(key_id, model_pattern, max_spend_usd=, rpm_limit=, tpm_limit=, action=)` | Per-model spend/rate limits with trailing * wildcards |
+| `create_budget_override(budget_id, override_limit_usd, starts_at, expires_at, reason=)` | Temporary budget increases with auto-expiry |
+| `list_budget_overrides(budget_id)` | List overrides for a budget |
+| `revoke_budget_override(budget_id, override_id)` | Revoke an active override immediately |
+| `get_billing_summary(months=)` | Billable vs non-billable cost breakdown by period |

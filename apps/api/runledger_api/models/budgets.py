@@ -34,6 +34,8 @@ class ActionEnum(enum.StrEnum):
     notify = "notify"
     block = "block"
     downgrade = "downgrade"
+    throttle = "throttle"
+    fallback = "fallback"
 
 
 class ChannelEnum(enum.StrEnum):

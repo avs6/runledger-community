@@ -193,6 +193,9 @@ class ProviderCall(Base):
     savings_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     baseline_cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
     optimization_applied: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    is_billable: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
 
 
 class ToolCall(Base):

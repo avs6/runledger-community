@@ -24,6 +24,7 @@ celery_app = Celery(
         "runledger_api.workers.ml_anomaly",
         "runledger_api.workers.ml_forecast",
         "runledger_api.workers.ml_complexity",
+        "runledger_api.workers.budget_overrides",
     ],
 )
 
@@ -151,6 +152,10 @@ celery_app.conf.update(
         "ml-complexity-retraining-weekly": {
             "task": "ml.complexity_retraining",
             "schedule": 604800.0,
+        },
+        "budget-overrides-expire-5m": {
+            "task": "budgets.expire_overrides",
+            "schedule": 300.0,
         },
     },
 )

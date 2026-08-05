@@ -2414,3 +2414,79 @@ export interface MLDashboard {
   last_anomaly_run: string | null
   last_forecast_run: string | null
 }
+
+// ── Advanced Budget Engine ──────────────────────────────────────────────────
+
+export interface BudgetTier {
+  id: string
+  name: string
+  max_spend_usd: number | null
+  period_type: 'daily' | 'monthly' | 'total'
+  rpm_limit: number | null
+  tpm_limit: number | null
+  allowed_models: string[] | null
+  is_default: boolean
+  is_active: boolean
+  created_at: string
+  key_count: number
+}
+
+export interface BudgetTierList {
+  items: BudgetTier[]
+}
+
+export interface ModelBudget {
+  id: string
+  api_key_id: string
+  model_pattern: string
+  max_spend_usd: number | null
+  period_type: 'daily' | 'monthly' | 'total'
+  rpm_limit: number | null
+  tpm_limit: number | null
+  action: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface ModelBudgetList {
+  items: ModelBudget[]
+}
+
+export interface BudgetOverride {
+  id: string
+  budget_id: string
+  original_limit_usd: number
+  override_limit_usd: number
+  starts_at: string
+  expires_at: string
+  reason: string | null
+  approved_by: string | null
+  status: 'pending' | 'active' | 'expired' | 'revoked'
+  created_at: string
+}
+
+export interface BudgetOverrideList {
+  items: BudgetOverride[]
+}
+
+export interface BillingPeriodSummary {
+  period: string
+  total_cost_usd: number
+  billable_cost_usd: number
+  non_billable_cost_usd: number
+  total_calls: number
+  billable_calls: number
+}
+
+export interface BillingSummaryResponse {
+  workspace_id: string
+  periods: BillingPeriodSummary[]
+}
+
+export interface RateLimitInfo {
+  limit_requests: number
+  remaining_requests: number
+  limit_tokens?: number
+  remaining_tokens?: number
+  reset: number
+}

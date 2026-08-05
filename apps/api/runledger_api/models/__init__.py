@@ -1,6 +1,9 @@
 # noqa: F401 — import all models so Alembic autogenerate sees them
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.annotations import Annotation
+from runledger_api.models.budget_overrides import BudgetOverride
+from runledger_api.models.budget_tiers import BudgetTier
+from runledger_api.models.model_budgets import ModelBudget
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment, PromptGithubConfig
@@ -119,4 +122,7 @@ __all__ = [
     "MLForecast",
     "MLPattern",
     "ForecastAccuracy",
+    "BudgetTier",
+    "ModelBudget",
+    "BudgetOverride",
 ]

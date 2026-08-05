@@ -4,6 +4,9 @@ Tiered Redis sliding-window rate limiter.
 Key format: rl:ratelimit:{tier}:{token[:16]}:{epoch_minute}
 
 Fail open: any Redis exception is caught and the request is allowed through.
+
+Rate limit info is stored on request.state for the RateLimitHeaderMiddleware
+to inject X-RateLimit-* response headers.
 """
 
 from __future__ import annotations
@@ -43,11 +46,21 @@ async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
     epoch_minute = int(time.time() // 60)
     key = f"rl:ratelimit:{tier}:{token_key}:{epoch_minute}"
     limit = _LIMITS[tier]
+    reset_at = (epoch_minute + 1) * 60
 
     try:
         count = await redis.incr(key)
         if count == 1:
             await redis.expire(key, 60)
+
+        if not hasattr(request.state, "rate_limit_info"):
+            request.state.rate_limit_info = {}
+        request.state.rate_limit_info.update({
+            "limit_requests": limit,
+            "remaining_requests": limit - count,
+            "reset": reset_at,
+        })
+
         if count > limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -58,7 +71,6 @@ async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
         raise
     except Exception as exc:
         log.warning("rate_limit_redis_error", tier=tier, error=str(exc))
-        # Fail open — do not block the request on Redis failure
 
 
 async def ingest_rate_limit(
