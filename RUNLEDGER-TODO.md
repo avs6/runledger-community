@@ -132,7 +132,7 @@ One-sentence vision:
 - [~] Make the dashboards feel like an AI Operations Center, not a token-counting invoice page.
 - [x] Give executives a 30-second summary and engineers a full request-level debugging path.
 - [x] Add guardrails and content safety engine competitive with LiteLLM's Guardrail Garden and custom guardrails.
-- [ ] Add traditional AI/ML intelligence: anomaly detection, cost forecasting, top-K analysis, and pattern recognition.
+- [x] Add traditional AI/ML intelligence: anomaly detection, cost forecasting, top-K analysis, and pattern recognition.
 - [ ] Add agentic operations: agent registry, workflow runs, memory management, and API playground.
 - [ ] Build enterprise-grade gateway with advanced routing, fallbacks, A/B testing, tag-based routing, and pass-through endpoints.
 - [ ] Add enterprise security: JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, and GDPR compliance.
