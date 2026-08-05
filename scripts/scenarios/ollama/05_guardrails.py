@@ -237,6 +237,26 @@ def run(sim: Sim) -> None:
 
         ws.run_guardrail_regression(injection_rule["id"])
 
-    # ── 8. Check monitoring stats ────────────────────────────────────────────
+    # ── 8. Create a during_call guardrail with system message skip ─────────
+    ws.create_guardrail_rule(
+        name="Response Quality Gate",
+        description="Run in parallel with LLM call — checks output for quality signals",
+        mode="during_call",
+        rule_type="custom",
+        logic=(
+            'combined = " ".join(texts).lower()\n'
+            'if "i cannot" in combined and "sorry" in combined:\n'
+            '    result = block("Low-quality refusal response detected")\n'
+            "else:\n"
+            "    result = allow()\n"
+        ),
+        severity="low",
+        priority=200,
+        skip_system_messages=True,
+    )
+
+    # ── 9. Check monitoring stats and trigger alert evaluation ──────────────
     ws.get_guardrail_stats(hours=1)
     ws.list_guardrail_events(limit=10)
+    ws.evaluate_guardrail_alerts(window_hours=1, baseline_hours=24)
+    ws.list_guardrail_alerts()

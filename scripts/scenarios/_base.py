@@ -731,6 +731,7 @@ class Workspace:
         status: str = "active",
         template_id: str | None = None,
         description: str | None = None,
+        skip_system_messages: bool = False,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "name": name,
@@ -739,6 +740,7 @@ class Workspace:
             "severity": severity,
             "priority": priority,
             "status": status,
+            "skip_system_messages": skip_system_messages,
         }
         if logic:
             body["logic"] = logic
@@ -848,6 +850,55 @@ class Workspace:
             f"/guardrails/events?limit={limit}",
             key=self.admin_key or self.key,
         ) or {}
+
+    def submit_guardrail_feedback(
+        self,
+        event_id: str,
+        is_false_positive: bool = True,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"is_false_positive": is_false_positive}
+        if reason:
+            body["reason"] = reason
+        return self._manage_post(
+            f"/guardrails/events/{event_id}/feedback",
+            body,
+            "guardrail feedback",
+        )
+
+    def evaluate_guardrail_alerts(
+        self,
+        window_hours: int = 1,
+        baseline_hours: int = 24,
+    ) -> list[dict[str, Any]]:
+        return self._manage_post(
+            f"/guardrails/alerts/evaluate?window_hours={window_hours}&baseline_hours={baseline_hours}",
+            {},
+            "guardrail alert evaluation",
+        )
+
+    def list_guardrail_alerts(
+        self,
+        alert_type: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        params = f"?limit={limit}"
+        if alert_type:
+            params += f"&alert_type={alert_type}"
+        if status:
+            params += f"&status={status}"
+        return self.sim.get(
+            f"/guardrails/alerts{params}",
+            key=self.admin_key or self.key,
+        ) or {}
+
+    def acknowledge_guardrail_alert(self, alert_id: str) -> dict[str, Any]:
+        return self._manage_post(
+            f"/guardrails/alerts/{alert_id}/acknowledge",
+            {},
+            "guardrail alert acknowledge",
+        )
 
 
 class Sim:

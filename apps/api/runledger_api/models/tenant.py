@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -107,6 +107,9 @@ class Workspace(Base):
     is_restricted: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
+    guardrail_bypass: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )
@@ -167,6 +170,9 @@ class ApiKey(Base):
         sa.Boolean, server_default=sa.text("false"), nullable=False
     )
     created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    guardrail_config: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
 
     workspace: Mapped["Workspace"] = relationship(back_populates="api_keys")
 

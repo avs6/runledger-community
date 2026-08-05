@@ -2007,6 +2007,7 @@ export interface GuardrailRuleResponse {
   priority: number
   status: string
   template_id: string | null
+  skip_system_messages: boolean
   created_at: string
   updated_at: string
 }
@@ -2027,6 +2028,7 @@ export interface GuardrailRuleCreate {
   priority?: number
   status?: string
   template_id?: string | null
+  skip_system_messages?: boolean
 }
 
 export interface GuardrailRuleUpdate {
@@ -2038,6 +2040,7 @@ export interface GuardrailRuleUpdate {
   severity?: string | null
   priority?: number | null
   status?: string | null
+  skip_system_messages?: boolean | null
 }
 
 export interface GuardrailTestInput {
@@ -2082,6 +2085,11 @@ export interface GuardrailEventResponse {
   latency_ms: number
   request_metadata: Record<string, unknown>
   gateway_request_id: string | null
+  model: string | null
+  user_id: string | null
+  error: string | null
+  is_false_positive: boolean
+  feedback_reason: string | null
   created_at: string
 }
 
@@ -2095,10 +2103,16 @@ export interface GuardrailStats {
   total_blocks: number
   total_modifications: number
   total_allows: number
+  total_errors: number
   block_rate: number
+  false_positive_rate: number
   avg_latency_ms: number
+  total_latency_overhead_ms: number
   top_triggered: { name: string; count: number }[]
   by_decision: Record<string, number>
+  by_model: { model: string; total: number; blocks: number; block_rate: number }[]
+  by_user: { user_id: string; total: number; blocks: number; block_rate: number }[]
+  by_guardrail: { name: string; total: number; blocks: number; avg_latency_ms: number }[]
 }
 
 export interface ContentFilterStatus {
@@ -2187,4 +2201,31 @@ export interface GuardrailRegressionReport {
   passed: number
   failed: number
   results: GuardrailRegressionResult[]
+}
+
+export interface GuardrailFeedbackInput {
+  is_false_positive: boolean
+  reason?: string | null
+}
+
+export interface GuardrailAlertResponse {
+  id: string
+  workspace_id: string
+  alert_type: string
+  severity: string
+  title: string
+  description: string | null
+  metric_value: number | null
+  threshold_value: number | null
+  guardrail_rule_id: string | null
+  guardrail_name: string | null
+  alert_metadata: Record<string, unknown>
+  status: string
+  acknowledged_at: string | null
+  created_at: string
+}
+
+export interface GuardrailAlertList {
+  items: GuardrailAlertResponse[]
+  total: number
 }

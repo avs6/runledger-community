@@ -11378,9 +11378,89 @@
             "description": "Batch test multiple inputs against all active guardrails."
           },
           "response": []
+        },
+        {
+          "name": "Submit Event Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_false_positive\": true,\n  \"reason\": \"This was a legitimate query, not an injection attempt\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/guardrails/events/:event_id/feedback",
+              "host": ["{{base_url}}"],
+              "path": ["guardrails", "events", ":event_id", "feedback"],
+              "variable": [{ "key": "event_id", "value": "" }]
+            },
+            "description": "Mark a guardrail event as a false positive and provide feedback."
+          },
+          "response": []
+        },
+        {
+          "name": "List Guardrail Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/guardrails/alerts?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["guardrails", "alerts"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "alert_type", "value": "", "disabled": true },
+                { "key": "status", "value": "active", "disabled": true }
+              ]
+            },
+            "description": "List guardrail alerts (block rate spikes, error rates, latency degradation)."
+          },
+          "response": []
+        },
+        {
+          "name": "Evaluate Guardrail Alerts",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/guardrails/alerts/evaluate?window_hours=1&baseline_hours=24",
+              "host": ["{{base_url}}"],
+              "path": ["guardrails", "alerts", "evaluate"],
+              "query": [
+                { "key": "window_hours", "value": "1" },
+                { "key": "baseline_hours", "value": "24" }
+              ]
+            },
+            "description": "Trigger alert evaluation — checks guardrail metrics against thresholds and generates alerts."
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge Guardrail Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/guardrails/alerts/:alert_id/acknowledge",
+              "host": ["{{base_url}}"],
+              "path": ["guardrails", "alerts", ":alert_id", "acknowledge"],
+              "variable": [{ "key": "alert_id", "value": "" }]
+            },
+            "description": "Acknowledge a guardrail alert."
+          },
+          "response": []
         }
       ],
-      "description": "Guardrails, Content Safety & Policy Engine — custom guardrail rules, built-in content filters, partner integrations, test playground, regression testing, and monitoring."
+      "description": "Guardrails, Content Safety & Policy Engine — custom guardrail rules, built-in content filters, partner integrations, test playground, regression testing, alerts, false positive feedback, and monitoring."
     }
   ]
 }

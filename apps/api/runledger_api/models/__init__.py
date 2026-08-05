@@ -14,6 +14,7 @@ from runledger_api.models.events import (
 from runledger_api.models.flywheel import FlywheelRecommendation, FlywheelSettings
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute, PromptCache
 from runledger_api.models.guardrails import (
+    GuardrailAlert,
     GuardrailEvent,
     GuardrailRule,
     GuardrailTestCase,
@@ -103,4 +104,5 @@ __all__ = [
     "GuardrailEvent",
     "GuardrailTestCase",
     "PartnerGuardrail",
+    "GuardrailAlert",
 ]

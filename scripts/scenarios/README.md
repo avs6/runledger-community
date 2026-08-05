@@ -129,3 +129,7 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `run_guardrail_regression(guardrail_id)` | Run regression test suite |
 | `get_guardrail_stats(hours)` | Guardrail monitoring stats |
 | `list_guardrail_events(limit)` | Guardrail event log |
+| `submit_guardrail_feedback(event_id, is_false_positive, reason)` | Mark event as false positive |
+| `evaluate_guardrail_alerts(window_hours, baseline_hours)` | Trigger alert evaluation |
+| `list_guardrail_alerts(alert_type, status, limit)` | List guardrail alerts |
+| `acknowledge_guardrail_alert(alert_id)` | Acknowledge a guardrail alert |

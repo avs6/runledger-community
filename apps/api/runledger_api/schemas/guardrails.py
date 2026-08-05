@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-GuardrailMode = Literal["pre_call", "post_call", "both"]
+GuardrailMode = Literal["pre_call", "post_call", "during_call", "both"]
 GuardrailRuleType = Literal["custom", "template", "builtin_filter", "partner"]
 GuardrailStatus = Literal["active", "disabled", "draft"]
 GuardrailSeverity = Literal["off", "low", "medium", "high", "strict"]
@@ -41,6 +41,7 @@ class GuardrailRuleCreate(BaseModel):
     priority: int = Field(100, ge=0, le=10000)
     status: GuardrailStatus = "active"
     template_id: str | None = None
+    skip_system_messages: bool = False
 
 
 class GuardrailRuleUpdate(BaseModel):
@@ -52,6 +53,7 @@ class GuardrailRuleUpdate(BaseModel):
     severity: GuardrailSeverity | None = None
     priority: int | None = Field(None, ge=0, le=10000)
     status: GuardrailStatus | None = None
+    skip_system_messages: bool | None = None
 
 
 class GuardrailRuleResponse(BaseModel):
@@ -67,6 +69,7 @@ class GuardrailRuleResponse(BaseModel):
     priority: int
     status: str
     template_id: str | None
+    skip_system_messages: bool
     created_at: datetime
     updated_at: datetime
 
@@ -126,6 +129,11 @@ class GuardrailEventResponse(BaseModel):
     latency_ms: float
     request_metadata: dict[str, Any]
     gateway_request_id: uuid.UUID | None
+    model: str | None = None
+    user_id: str | None = None
+    error: str | None = None
+    is_false_positive: bool = False
+    feedback_reason: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -141,10 +149,16 @@ class GuardrailStats(BaseModel):
     total_blocks: int
     total_modifications: int
     total_allows: int
+    total_errors: int = 0
     block_rate: float
+    false_positive_rate: float = 0.0
     avg_latency_ms: float
+    total_latency_overhead_ms: float = 0.0
     top_triggered: list[dict[str, Any]]
     by_decision: dict[str, int]
+    by_model: list[dict[str, Any]] = []
+    by_user: list[dict[str, Any]] = []
+    by_guardrail: list[dict[str, Any]] = []
 
 
 # ── Partner Guardrails ───────────────────────────────────────────────────────
@@ -303,3 +317,56 @@ class GuardrailTemplate(BaseModel):
     default_logic: str
     default_config: dict[str, Any]
     category: str
+
+
+# ── Feedback ────────────────────────────────────────────────────────────────
+
+
+class GuardrailFeedbackInput(BaseModel):
+    is_false_positive: bool = True
+    reason: str | None = Field(None, max_length=500)
+
+
+# ── Guardrail Alerts ────────────────────────────────────────────────────────
+
+GuardrailAlertType = Literal[
+    "block_rate_spike", "error_rate", "latency_degradation", "new_content_pattern"
+]
+GuardrailAlertSeverity = Literal["info", "warning", "critical"]
+GuardrailAlertStatus = Literal["active", "acknowledged", "resolved"]
+
+
+class GuardrailAlertResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    alert_type: str
+    severity: str
+    title: str
+    description: str | None
+    metric_value: float | None
+    threshold_value: float | None
+    guardrail_rule_id: uuid.UUID | None
+    guardrail_name: str | None
+    alert_metadata: dict[str, Any]
+    status: str
+    acknowledged_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GuardrailAlertList(BaseModel):
+    items: list[GuardrailAlertResponse]
+    total: int
+
+
+class GuardrailAlertCreate(BaseModel):
+    alert_type: GuardrailAlertType
+    severity: GuardrailAlertSeverity = "warning"
+    title: str = Field(..., max_length=200)
+    description: str | None = Field(None, max_length=2000)
+    metric_value: float | None = None
+    threshold_value: float | None = None
+    guardrail_rule_id: uuid.UUID | None = None
+    guardrail_name: str | None = None
+    alert_metadata: dict[str, Any] = Field(default_factory=dict)

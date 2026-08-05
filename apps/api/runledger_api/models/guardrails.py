@@ -54,6 +54,9 @@ class GuardrailRule(Base):
         sa.Text, nullable=False, server_default=sa.text("'active'")
     )
     template_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    skip_system_messages: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
@@ -92,6 +95,59 @@ class GuardrailEvent(Base):
     )
     gateway_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
+    )
+    model: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    is_false_positive: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    feedback_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+
+class GuardrailAlert(Base):
+    """
+    An alert generated when guardrail metrics cross thresholds.
+
+    alert_type values: block_rate_spike | error_rate | latency_degradation | new_content_pattern
+    severity values: info | warning | critical
+    status values: active | acknowledged | resolved
+    """
+
+    __tablename__ = "guardrail_alerts"
+    __table_args__ = (
+        sa.Index("ix_guardrail_alerts_workspace", "workspace_id"),
+        sa.Index("ix_guardrail_alerts_workspace_type", "workspace_id", "alert_type"),
+        sa.Index("ix_guardrail_alerts_created", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    alert_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    severity: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'warning'")
+    )
+    title: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    metric_value: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    threshold_value: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    guardrail_rule_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    guardrail_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    alert_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    status: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'active'")
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

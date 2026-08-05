@@ -222,7 +222,80 @@ curl -s "http://localhost:8201/guardrails/stats?hours=24" \
 
 ---
 
-## 9.9 - What Each Guardrail Type Is For
+## 9.9 - During-Call Mode And System Message Skip
+
+**Goal:** run guardrails in parallel with the LLM call and skip system messages.
+
+1. Create a guardrail with mode `during_call`:
+
+```bash
+curl -s http://localhost:8201/guardrails \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Response Quality Gate", "mode": "during_call", "rule_type": "custom", "skip_system_messages": true, "logic": "combined = \" \".join(texts).lower()\nif \"i cannot\" in combined and \"sorry\" in combined:\n    result = block(\"Low-quality refusal\")\nelse:\n    result = allow()", "severity": "low", "priority": 200}' \
+  | python -m json.tool
+```
+
+`during_call` guardrails execute concurrently with `post_call` on the response.
+`skip_system_messages: true` excludes `role: system` messages from scanning.
+
+---
+
+## 9.10 - Guardrail Bypass And Per-Key Config
+
+**Goal:** exempt trusted workspaces or API keys from guardrail checks.
+
+- **Workspace bypass**: set `guardrail_bypass: true` on a workspace to skip all guardrails.
+- **Per-key config**: set `guardrail_config` on an API key:
+  - `{"disabled": true}` — skip all guardrails for this key
+  - `{"guardrail_ids": ["uuid1", "uuid2"]}` — only run these guardrails
+
+---
+
+## 9.11 - False Positive Feedback
+
+**Goal:** mark guardrail blocks as false positives to improve metrics.
+
+```bash
+# List recent events and pick one to mark
+curl -s "http://localhost:8201/guardrails/events?decision=block&limit=5" \
+  -H "Authorization: Bearer $KEY" | python -m json.tool
+
+# Mark an event as a false positive
+curl -s http://localhost:8201/guardrails/events/<event_id>/feedback \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"is_false_positive": true, "reason": "Legitimate query, not an attack"}' \
+  | python -m json.tool
+```
+
+The false positive rate appears in `/guardrails/stats`.
+
+---
+
+## 9.12 - Guardrail Alerts
+
+**Goal:** detect anomalies in guardrail metrics.
+
+```bash
+# Trigger alert evaluation
+curl -s "http://localhost:8201/guardrails/alerts/evaluate?window_hours=1&baseline_hours=24" \
+  -H "Authorization: Bearer $KEY" -X POST | python -m json.tool
+
+# List alerts
+curl -s "http://localhost:8201/guardrails/alerts" \
+  -H "Authorization: Bearer $KEY" | python -m json.tool
+
+# Acknowledge an alert
+curl -s "http://localhost:8201/guardrails/alerts/<alert_id>/acknowledge" \
+  -H "Authorization: Bearer $KEY" -X POST | python -m json.tool
+```
+
+Alert types: `block_rate_spike`, `error_rate`, `latency_degradation`.
+
+---
+
+## 9.13 - What Each Guardrail Type Is For
 
 | Type | Use it when | Risk to watch |
 |---|---|---|
@@ -231,10 +304,13 @@ curl -s "http://localhost:8201/guardrails/stats?hours=24" \
 | Templates | You want a head start on common patterns | Default thresholds may need tuning |
 | Partner integrations | You need specialized detection (PII, injection) | Latency from external API calls |
 | Per-request override | Different routes need different guardrails | Accidentally bypassing critical guards |
+| During-call mode | You want guardrails concurrent with LLM call | Adds post-response latency |
+| System message skip | System prompts should be exempt from scanning | May miss injected system content |
 
 ---
 
 End of Part 9. You've configured content filters, created custom guardrails, tested them
-in the playground, set up regression tests, connected partner providers, and verified
-gateway enforcement. Next: review **[Part 5 - Governance](./part5_governance.md)** for
+in the playground, set up regression tests, connected partner providers, verified
+gateway enforcement, configured during-call mode, managed false positives, and set up
+guardrail alerts. Next: review **[Part 5 - Governance](./part5_governance.md)** for
 the broader governance framework that guardrails plug into.

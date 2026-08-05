@@ -31,6 +31,11 @@ GET    /guardrails/partners/{id}          Get partner guardrail
 PUT    /guardrails/partners/{id}          Update partner guardrail
 DELETE /guardrails/partners/{id}          Delete partner guardrail
 POST   /guardrails/partners/{id}/health   Health check a partner
+
+POST   /guardrails/events/{id}/feedback   Mark event as false positive
+GET    /guardrails/alerts                 List guardrail alerts
+POST   /guardrails/alerts/evaluate        Trigger alert evaluation
+POST   /guardrails/alerts/{id}/acknowledge  Acknowledge an alert
 """
 
 from __future__ import annotations
@@ -49,6 +54,7 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.guardrails import (
+    GuardrailAlert,
     GuardrailEvent,
     GuardrailRule,
     GuardrailTestCase,
@@ -61,8 +67,12 @@ from runledger_api.schemas.guardrails import (
     ContentFilterListResponse,
     ContentFilterActivation,
     ContentFilterStatus,
+    GuardrailAlertCreate,
+    GuardrailAlertList,
+    GuardrailAlertResponse,
     GuardrailEventList,
     GuardrailEventResponse,
+    GuardrailFeedbackInput,
     GuardrailRegressionReport,
     GuardrailRegressionResult,
     GuardrailRuleCreate,
@@ -88,6 +98,7 @@ from runledger_api.services.guardrails import (
     GUARDRAIL_TEMPLATES,
     allow,
     evaluate_builtin_filter,
+    evaluate_guardrail_alerts,
     evaluate_guardrails,
     execute_custom_logic,
     get_templates,
@@ -128,6 +139,7 @@ async def create_guardrail(
         priority=body.priority,
         status=body.status,
         template_id=body.template_id,
+        skip_system_messages=body.skip_system_messages,
     )
     db.add(rule)
     await db.flush()
@@ -291,16 +303,114 @@ async def guardrail_stats(
     )
     top_triggered = [{"name": row[0], "count": int(row[1])} for row in top_result.all()]
 
+    # Error count
+    error_count_result = await db.execute(
+        select(func.count(GuardrailEvent.id))
+        .where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.error.isnot(None),
+        )
+    )
+    total_errors = int(error_count_result.scalar() or 0)
+
+    # False positive count
+    fp_count_result = await db.execute(
+        select(func.count(GuardrailEvent.id))
+        .where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.is_false_positive.is_(True),
+        )
+    )
+    total_fp = int(fp_count_result.scalar() or 0)
+
+    # Total latency overhead
+    total_latency_result = await db.execute(
+        select(func.sum(GuardrailEvent.latency_ms))
+        .where(GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since)
+    )
+    total_latency_overhead = float(total_latency_result.scalar() or 0)
+
+    # Block rate by model
+    by_model_result = await db.execute(
+        select(
+            GuardrailEvent.model,
+            func.count(GuardrailEvent.id).label("total"),
+            func.count(GuardrailEvent.id).filter(GuardrailEvent.decision == "block").label("blocks"),
+        )
+        .where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.model.isnot(None),
+        )
+        .group_by(GuardrailEvent.model)
+        .order_by(func.count(GuardrailEvent.id).desc())
+        .limit(10)
+    )
+    by_model = [
+        {"model": row[0], "total": int(row[1]), "blocks": int(row[2]),
+         "block_rate": round(int(row[2]) / int(row[1]), 4) if int(row[1]) else 0}
+        for row in by_model_result.all()
+    ]
+
+    # Block rate by user
+    by_user_result = await db.execute(
+        select(
+            GuardrailEvent.user_id,
+            func.count(GuardrailEvent.id).label("total"),
+            func.count(GuardrailEvent.id).filter(GuardrailEvent.decision == "block").label("blocks"),
+        )
+        .where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.user_id.isnot(None),
+        )
+        .group_by(GuardrailEvent.user_id)
+        .order_by(func.count(GuardrailEvent.id).desc())
+        .limit(10)
+    )
+    by_user = [
+        {"user_id": row[0], "total": int(row[1]), "blocks": int(row[2]),
+         "block_rate": round(int(row[2]) / int(row[1]), 4) if int(row[1]) else 0}
+        for row in by_user_result.all()
+    ]
+
+    # Per-guardrail breakdown
+    by_guardrail_result = await db.execute(
+        select(
+            GuardrailEvent.guardrail_name,
+            func.count(GuardrailEvent.id).label("total"),
+            func.count(GuardrailEvent.id).filter(GuardrailEvent.decision == "block").label("blocks"),
+            func.avg(GuardrailEvent.latency_ms).label("avg_latency"),
+        )
+        .where(GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since)
+        .group_by(GuardrailEvent.guardrail_name)
+        .order_by(func.count(GuardrailEvent.id).desc())
+        .limit(20)
+    )
+    by_guardrail = [
+        {"name": row[0], "total": int(row[1]), "blocks": int(row[2]),
+         "avg_latency_ms": round(float(row[3] or 0), 2)}
+        for row in by_guardrail_result.all()
+    ]
+
     blocks = by_decision.get("block", 0)
     return GuardrailStats(
         total_evaluations=total,
         total_blocks=blocks,
         total_modifications=by_decision.get("modify", 0),
         total_allows=by_decision.get("allow", 0),
+        total_errors=total_errors,
         block_rate=round(blocks / total, 4) if total else 0,
+        false_positive_rate=round(total_fp / blocks, 4) if blocks else 0,
         avg_latency_ms=round(avg_latency, 2),
+        total_latency_overhead_ms=round(total_latency_overhead, 2),
         top_triggered=top_triggered,
         by_decision=by_decision,
+        by_model=by_model,
+        by_user=by_user,
+        by_guardrail=by_guardrail,
     )
 
 
@@ -791,3 +901,122 @@ async def health_check_partner(
     await db.commit()
     await db.refresh(pg)
     return PartnerGuardrailResponse.model_validate(pg)
+
+
+# ── Event Feedback (false positive marking) ────────────────────────────────
+
+
+@router.post(
+    "/events/{event_id}/feedback",
+    response_model=GuardrailEventResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def submit_event_feedback(
+    event_id: uuid.UUID,
+    body: GuardrailFeedbackInput,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> GuardrailEventResponse:
+    workspace = auth[0]
+    result = await db.execute(
+        select(GuardrailEvent).where(
+            GuardrailEvent.id == event_id,
+            GuardrailEvent.workspace_id == workspace.id,
+        )
+    )
+    event = result.scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail event not found")
+
+    event.is_false_positive = body.is_false_positive
+    event.feedback_reason = body.reason
+    await db.commit()
+    await db.refresh(event)
+
+    log.info(
+        "guardrail_feedback",
+        event_id=str(event_id),
+        is_false_positive=body.is_false_positive,
+    )
+    await emit_audit_event(
+        db, workspace.id, "guardrail.feedback",
+        target_type="guardrail_event", target_id=str(event_id),
+        after={"is_false_positive": body.is_false_positive, "reason": body.reason},
+    )
+    return GuardrailEventResponse.model_validate(event)
+
+
+# ── Guardrail Alerts ───────────────────────────────────────────────────────
+
+
+@router.get("/alerts", response_model=GuardrailAlertList, dependencies=[Depends(analytics_rate_limit)])
+async def list_guardrail_alerts(
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+    alert_type: Annotated[str | None, Query()] = None,
+    alert_status: Annotated[str | None, Query(alias="status")] = None,
+    limit: Annotated[int, Query(le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> GuardrailAlertList:
+    workspace = auth[0]
+    stmt = select(GuardrailAlert).where(GuardrailAlert.workspace_id == workspace.id)
+    if alert_type:
+        stmt = stmt.where(GuardrailAlert.alert_type == alert_type)
+    if alert_status:
+        stmt = stmt.where(GuardrailAlert.status == alert_status)
+
+    count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+    total = int(count_result.scalar() or 0)
+
+    stmt = stmt.order_by(GuardrailAlert.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return GuardrailAlertList(
+        items=[GuardrailAlertResponse.model_validate(a) for a in items],
+        total=total,
+    )
+
+
+@router.post(
+    "/alerts/evaluate",
+    response_model=list[dict[str, Any]],
+    dependencies=[Depends(management_rate_limit)],
+)
+async def trigger_alert_evaluation(
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+    window_hours: Annotated[int, Query(ge=1, le=24)] = 1,
+    baseline_hours: Annotated[int, Query(ge=1, le=168)] = 24,
+) -> list[dict[str, Any]]:
+    workspace = auth[0]
+    alerts = await evaluate_guardrail_alerts(db, workspace.id, window_hours, baseline_hours)
+    await db.commit()
+    return alerts
+
+
+@router.post(
+    "/alerts/{alert_id}/acknowledge",
+    response_model=GuardrailAlertResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def acknowledge_alert(
+    alert_id: uuid.UUID,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> GuardrailAlertResponse:
+    workspace = auth[0]
+    result = await db.execute(
+        select(GuardrailAlert).where(
+            GuardrailAlert.id == alert_id,
+            GuardrailAlert.workspace_id == workspace.id,
+        )
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail alert not found")
+
+    alert.status = "acknowledged"
+    alert.acknowledged_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(alert)
+    return GuardrailAlertResponse.model_validate(alert)

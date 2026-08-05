@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.guardrails import GuardrailEvent, GuardrailRule
@@ -599,16 +600,27 @@ async def evaluate_guardrails(
     for rule in rules:
         start = time.monotonic()
 
+        eval_texts = texts
+        if rule.skip_system_messages and _msgs:
+            eval_texts = [
+                m.get("content", "") for m in _msgs
+                if m.get("role") != "system" and m.get("content")
+            ]
+            if not eval_texts:
+                eval_texts = texts
+
+        error_str: str | None = None
+
         if rule.rule_type == "builtin_filter":
             gr = evaluate_builtin_filter(
                 rule.template_id or rule.name.lower().replace(" ", "_"),
-                texts,
+                eval_texts,
                 rule.severity,
             )
         elif rule.rule_type == "custom" and rule.logic:
             gr = execute_custom_logic(
                 rule.logic,
-                texts,
+                eval_texts,
                 _images,
                 _tools,
                 _tool_calls,
@@ -619,10 +631,12 @@ async def evaluate_guardrails(
                 end_user_id,
                 {**_meta, **rule.config},
             )
+            if gr.reason and gr.reason.startswith("Execution error:"):
+                error_str = gr.reason
         elif rule.rule_type == "template" and rule.logic:
             gr = execute_custom_logic(
                 rule.logic,
-                texts,
+                eval_texts,
                 _images,
                 _tools,
                 _tool_calls,
@@ -633,6 +647,8 @@ async def evaluate_guardrails(
                 end_user_id,
                 {**_meta, **rule.config},
             )
+            if gr.reason and gr.reason.startswith("Execution error:"):
+                error_str = gr.reason
         else:
             gr = allow()
 
@@ -648,6 +664,7 @@ async def evaluate_guardrails(
             "modified_texts": gr.modified_texts,
             "modified_images": gr.modified_images,
             "modified_tool_calls": gr.modified_tool_calls,
+            "error": error_str,
         }
         results.append(entry)
 
@@ -665,6 +682,9 @@ async def evaluate_guardrails(
                 "end_user_id": end_user_id,
             },
             gateway_request_id=gateway_request_id,
+            model=model,
+            user_id=user_id or end_user_id,
+            error=error_str,
         )
         db.add(event)
 
@@ -678,3 +698,154 @@ async def evaluate_guardrails(
 
     await db.flush()
     return overall_decision, results, round(total_latency, 2)
+
+
+# ── Guardrail alert evaluation ─────────────────────────────────────────────
+
+
+async def evaluate_guardrail_alerts(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    window_hours: int = 1,
+    baseline_hours: int = 24,
+) -> list[dict[str, Any]]:
+    """
+    Check guardrail metrics against thresholds and return any triggered alerts.
+
+    Evaluates:
+    - block_rate_spike: current block rate > 2x baseline block rate
+    - error_rate: guardrail execution errors > 5%
+    - latency_degradation: avg latency > 2x baseline latency
+    """
+    from datetime import timedelta  # noqa: PLC0415
+    from runledger_api.models.guardrails import GuardrailAlert  # noqa: PLC0415
+
+    now = datetime.now(UTC)
+    window_start = now - timedelta(hours=window_hours)
+    baseline_start = now - timedelta(hours=baseline_hours)
+
+    # Current window stats
+    cur_total_q = await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= window_start,
+        )
+    )
+    cur_total = int(cur_total_q.scalar() or 0)
+
+    if cur_total < 10:
+        return []
+
+    cur_blocks_q = await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= window_start,
+            GuardrailEvent.decision == "block",
+        )
+    )
+    cur_blocks = int(cur_blocks_q.scalar() or 0)
+
+    cur_errors_q = await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= window_start,
+            GuardrailEvent.error.isnot(None),
+        )
+    )
+    cur_errors = int(cur_errors_q.scalar() or 0)
+
+    cur_latency_q = await db.execute(
+        select(func.avg(GuardrailEvent.latency_ms)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= window_start,
+        )
+    )
+    cur_avg_latency = float(cur_latency_q.scalar() or 0)
+
+    # Baseline stats
+    base_total_q = await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= baseline_start,
+            GuardrailEvent.created_at < window_start,
+        )
+    )
+    base_total = int(base_total_q.scalar() or 0)
+
+    base_blocks_q = await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= baseline_start,
+            GuardrailEvent.created_at < window_start,
+            GuardrailEvent.decision == "block",
+        )
+    )
+    base_blocks = int(base_blocks_q.scalar() or 0)
+
+    base_latency_q = await db.execute(
+        select(func.avg(GuardrailEvent.latency_ms)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= baseline_start,
+            GuardrailEvent.created_at < window_start,
+        )
+    )
+    base_avg_latency = float(base_latency_q.scalar() or 0)
+
+    alerts: list[dict[str, Any]] = []
+
+    cur_block_rate = cur_blocks / cur_total if cur_total else 0
+    base_block_rate = base_blocks / base_total if base_total else 0
+
+    if base_block_rate > 0 and cur_block_rate > base_block_rate * 2:
+        severity = "critical" if cur_block_rate > base_block_rate * 5 else "warning"
+        alert = GuardrailAlert(
+            workspace_id=workspace_id,
+            alert_type="block_rate_spike",
+            severity=severity,
+            title=f"Block rate spike: {cur_block_rate:.1%} vs baseline {base_block_rate:.1%}",
+            description=(
+                f"Guardrail block rate in the last {window_hours}h is "
+                f"{cur_block_rate / base_block_rate:.1f}x the {baseline_hours}h baseline."
+            ),
+            metric_value=cur_block_rate,
+            threshold_value=base_block_rate * 2,
+        )
+        db.add(alert)
+        alerts.append({"type": "block_rate_spike", "severity": severity, "id": alert.id})
+
+    error_rate = cur_errors / cur_total if cur_total else 0
+    if error_rate > 0.05:
+        severity = "critical" if error_rate > 0.2 else "warning"
+        alert = GuardrailAlert(
+            workspace_id=workspace_id,
+            alert_type="error_rate",
+            severity=severity,
+            title=f"Guardrail error rate: {error_rate:.1%}",
+            description=f"{cur_errors} of {cur_total} evaluations produced errors in the last {window_hours}h.",
+            metric_value=error_rate,
+            threshold_value=0.05,
+        )
+        db.add(alert)
+        alerts.append({"type": "error_rate", "severity": severity, "id": alert.id})
+
+    if base_avg_latency > 0 and cur_avg_latency > base_avg_latency * 2:
+        severity = "critical" if cur_avg_latency > base_avg_latency * 5 else "warning"
+        alert = GuardrailAlert(
+            workspace_id=workspace_id,
+            alert_type="latency_degradation",
+            severity=severity,
+            title=f"Guardrail latency spike: {cur_avg_latency:.1f}ms vs baseline {base_avg_latency:.1f}ms",
+            description=(
+                f"Average guardrail latency in the last {window_hours}h is "
+                f"{cur_avg_latency / base_avg_latency:.1f}x the {baseline_hours}h baseline."
+            ),
+            metric_value=cur_avg_latency,
+            threshold_value=base_avg_latency * 2,
+        )
+        db.add(alert)
+        alerts.append({"type": "latency_degradation", "severity": severity, "id": alert.id})
+
+    if alerts:
+        await db.flush()
+
+    return alerts

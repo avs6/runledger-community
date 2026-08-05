@@ -2616,3 +2616,58 @@ export async function runGuardrailRegression(
     { method: 'POST' }
   )
 }
+
+export async function submitGuardrailFeedback(
+  apiKey: string,
+  eventId: string,
+  body: import('@/types/api').GuardrailFeedbackInput
+): Promise<import('@/types/api').GuardrailEventResponse> {
+  return apiFetch<import('@/types/api').GuardrailEventResponse>(
+    `/guardrails/events/${eventId}/feedback`,
+    apiKey,
+    { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }
+  )
+}
+
+export async function listGuardrailAlerts(
+  apiKey: string,
+  params?: { alert_type?: string; status?: string; limit?: number; offset?: number }
+): Promise<import('@/types/api').GuardrailAlertList> {
+  const sp = new URLSearchParams()
+  if (params?.alert_type) sp.set('alert_type', params.alert_type)
+  if (params?.status) sp.set('status', params.status)
+  if (params?.limit) sp.set('limit', String(params.limit))
+  if (params?.offset) sp.set('offset', String(params.offset))
+  const qs = sp.toString()
+  return apiFetch<import('@/types/api').GuardrailAlertList>(
+    `/guardrails/alerts${qs ? `?${qs}` : ''}`,
+    apiKey
+  )
+}
+
+export async function evaluateGuardrailAlerts(
+  apiKey: string,
+  windowHours?: number,
+  baselineHours?: number
+): Promise<Record<string, unknown>[]> {
+  const sp = new URLSearchParams()
+  if (windowHours) sp.set('window_hours', String(windowHours))
+  if (baselineHours) sp.set('baseline_hours', String(baselineHours))
+  const qs = sp.toString()
+  return apiFetch<Record<string, unknown>[]>(
+    `/guardrails/alerts/evaluate${qs ? `?${qs}` : ''}`,
+    apiKey,
+    { method: 'POST' }
+  )
+}
+
+export async function acknowledgeGuardrailAlert(
+  apiKey: string,
+  alertId: string
+): Promise<import('@/types/api').GuardrailAlertResponse> {
+  return apiFetch<import('@/types/api').GuardrailAlertResponse>(
+    `/guardrails/alerts/${alertId}/acknowledge`,
+    apiKey,
+    { method: 'POST' }
+  )
+}
