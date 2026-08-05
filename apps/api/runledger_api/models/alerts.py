@@ -47,6 +47,12 @@ class AlertRule(Base):
     email_enabled: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
+    use_adaptive: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    adaptive_baseline: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
+    adaptive_upper: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
+    adaptive_lower: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

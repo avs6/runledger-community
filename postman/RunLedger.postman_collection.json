@@ -11461,6 +11461,283 @@
         }
       ],
       "description": "Guardrails, Content Safety & Policy Engine — custom guardrail rules, built-in content filters, partner integrations, test playground, regression testing, alerts, false positive feedback, and monitoring."
+    },
+    {
+      "name": "ML Intelligence",
+      "item": [
+        {
+          "name": "List Anomalies",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/anomalies?severity=high",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "anomalies"],
+              "query": [{ "key": "severity", "value": "high" }]
+            },
+            "description": "List detected anomalies for the workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Anomaly Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/anomalies/summary?hours=24",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "anomalies", "summary"],
+              "query": [{ "key": "hours", "value": "24" }]
+            },
+            "description": "Get anomaly summary counts by severity and type."
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge Anomaly",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/anomalies/:anomaly_id/acknowledge",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "anomalies", ":anomaly_id", "acknowledge"],
+              "variable": [{ "key": "anomaly_id", "value": "" }]
+            },
+            "description": "Acknowledge an anomaly."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cost Forecast",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/forecasts/cost",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "forecasts", "cost"]
+            },
+            "description": "Get the latest cost forecast for the workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Token Forecast",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/forecasts/tokens",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "forecasts", "tokens"]
+            },
+            "description": "Get the latest token usage forecast."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Forecast",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"forecast_type\": \"cost_daily\", \"horizon_days\": 14}"
+            },
+            "url": {
+              "raw": "{{base_url}}/intelligence/forecasts/generate",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "forecasts", "generate"]
+            },
+            "description": "Generate an on-demand forecast."
+          },
+          "response": []
+        },
+        {
+          "name": "Top-K Analysis",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/top-k?dimension=model&metric=cost&k=10",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "top-k"],
+              "query": [
+                { "key": "dimension", "value": "model" },
+                { "key": "metric", "value": "cost" },
+                { "key": "k", "value": "10" }
+              ]
+            },
+            "description": "Top-K ranking across dimensions with change detection."
+          },
+          "response": []
+        },
+        {
+          "name": "List Patterns",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/patterns",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "patterns"]
+            },
+            "description": "List detected usage patterns (steady, growing, declining, spiky, seasonal, one_shot)."
+          },
+          "response": []
+        },
+        {
+          "name": "Complexity Scores",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/complexity/scores?hours=24",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "complexity", "scores"],
+              "query": [{ "key": "hours", "value": "24" }]
+            },
+            "description": "Get recent request complexity scores."
+          },
+          "response": []
+        },
+        {
+          "name": "Feature Importances",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/complexity/importances",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "complexity", "importances"]
+            },
+            "description": "Get feature importance ranking from the trained complexity model."
+          },
+          "response": []
+        },
+        {
+          "name": "Retrain Complexity Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/complexity/retrain",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "complexity", "retrain"]
+            },
+            "description": "Trigger complexity model retraining."
+          },
+          "response": []
+        },
+        {
+          "name": "Cost Per Outcome",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/cost-per-outcome",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "cost-per-outcome"]
+            },
+            "description": "Cost-per-outcome analysis with Pareto frontier."
+          },
+          "response": []
+        },
+        {
+          "name": "Adaptive Alert Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/alerts/adaptive-suggestions",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "alerts", "adaptive-suggestions"]
+            },
+            "description": "Get adaptive threshold suggestions for alert rules."
+          },
+          "response": []
+        },
+        {
+          "name": "Enable Adaptive Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/alerts/:rule_id/enable-adaptive",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "alerts", ":rule_id", "enable-adaptive"],
+              "variable": [{ "key": "rule_id", "value": "" }]
+            },
+            "description": "Enable adaptive thresholds on an alert rule."
+          },
+          "response": []
+        },
+        {
+          "name": "ML Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "dashboard"]
+            },
+            "description": "ML observability dashboard — model health, anomaly/forecast summaries."
+          },
+          "response": []
+        },
+        {
+          "name": "List ML Models",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/models",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "models"]
+            },
+            "description": "List all trained ML models with health status."
+          },
+          "response": []
+        }
+      ],
+      "description": "ML Intelligence Layer — anomaly detection, cost/token forecasting, Top-K analysis, pattern recognition, complexity scoring, cost-per-outcome optimization, adaptive alerts, and ML observability."
     }
   ]
 }

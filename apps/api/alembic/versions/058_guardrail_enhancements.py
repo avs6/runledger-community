@@ -1,7 +1,7 @@
 """Add guardrail enhancements — alerts, bypass, per-key config, system message skip, feedback.
 
-Revision ID: 050
-Revises: 049
+Revision ID: 058
+Revises: 057
 Create Date: 2026-08-04
 """
 
@@ -12,8 +12,8 @@ from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
-revision = "050"
-down_revision = "049"
+revision = "058"
+down_revision = "057"
 branch_labels = None
 depends_on = None
 

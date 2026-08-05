@@ -42,6 +42,7 @@ uv run python scripts/full_simulate.py --scenario-set hosted
 | `ollama/03_reasoning_agent` | ThinkLocal / Reasoning | `deepseek-r1:14b`, `deepseek-r1:8b` | Output-heavy reasoning spend, cost vs quality comparisons, decision-supported outcomes |
 | `ollama/04_chat_support` | HelpDesk Local / Support Bot | `llama3.2`, `gemma3:latest` | High-volume support traffic, local ticket outcomes, daily/monthly budgets, approval requests, auto-approval policies, chargeback rules, runbook generation |
 | `ollama/05_guardrails` | SafeGuard AI / Content Safety | (API-only, no model traffic) | Custom guardrails, 13 built-in content filters, PII detection, prompt injection guard, partner integrations (Presidio, Lakera, OpenAI Moderation), test playground, regression testing |
+| `ollama/06_intelligence` | IntelliOps / ML Intelligence | `qwen2.5-coder:14b`, `deepseek-r1:14b`, `llama3.2` | Anomaly detection, cost/token forecasting, Top-K analysis, pattern recognition, complexity scoring, cost-per-outcome, adaptive alerts, ML dashboard |
 
 ## Hosted scenarios
 
@@ -133,3 +134,15 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `evaluate_guardrail_alerts(window_hours, baseline_hours)` | Trigger alert evaluation |
 | `list_guardrail_alerts(alert_type, status, limit)` | List guardrail alerts |
 | `acknowledge_guardrail_alert(alert_id)` | Acknowledge a guardrail alert |
+| `list_anomalies(severity=)` | List detected ML anomalies |
+| `get_anomaly_summary(hours=)` | Anomaly summary counts by severity |
+| `generate_forecast(forecast_type=, horizon_days=)` | Generate on-demand cost/token forecast |
+| `get_cost_forecast()` | Get latest cost forecast |
+| `get_top_k(dimension=, metric=, k=)` | Top-K ranking with change detection |
+| `list_patterns()` | List detected usage patterns |
+| `get_cost_per_outcome()` | Cost-per-outcome with Pareto frontier |
+| `retrain_complexity()` | Trigger complexity model retraining |
+| `get_complexity_scores(hours=)` | Recent request complexity scores |
+| `get_feature_importances()` | Complexity model feature importances |
+| `get_adaptive_suggestions()` | Adaptive alert threshold suggestions |
+| `get_ml_dashboard()` | ML observability dashboard |

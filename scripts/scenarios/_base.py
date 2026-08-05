@@ -900,6 +900,84 @@ class Workspace:
             "guardrail alert acknowledge",
         )
 
+    # ── ML Intelligence helpers ─────────────────────────────────────────
+
+    def list_anomalies(
+        self,
+        anomaly_type: str | None = None,
+        severity: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"limit": limit}
+        if anomaly_type:
+            params["anomaly_type"] = anomaly_type
+        if severity:
+            params["severity"] = severity
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        return self._analytics_get(f"/intelligence/anomalies?{qs}", "list anomalies")
+
+    def get_anomaly_summary(self, hours: int = 24) -> dict[str, Any]:
+        return self._analytics_get(f"/intelligence/anomalies/summary?hours={hours}", "anomaly summary")
+
+    def acknowledge_anomaly(self, anomaly_id: str) -> dict[str, Any]:
+        return self._manage_post(f"/intelligence/anomalies/{anomaly_id}/acknowledge", {}, "acknowledge anomaly")
+
+    def get_cost_forecast(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/forecasts/cost", "cost forecast")
+
+    def get_token_forecast(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/forecasts/tokens", "token forecast")
+
+    def generate_forecast(
+        self,
+        forecast_type: str = "cost_daily",
+        horizon_days: int = 14,
+        dimension_key: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"forecast_type": forecast_type, "horizon_days": horizon_days}
+        if dimension_key:
+            body["dimension_key"] = dimension_key
+        return self._manage_post("/intelligence/forecasts/generate", body, "generate forecast")
+
+    def get_top_k(
+        self,
+        dimension: str = "model",
+        metric: str = "cost",
+        k: int = 10,
+    ) -> dict[str, Any]:
+        return self._analytics_get(
+            f"/intelligence/top-k?dimension={dimension}&metric={metric}&k={k}",
+            f"top-k {dimension}/{metric}",
+        )
+
+    def list_patterns(self, dimension: str | None = None) -> dict[str, Any]:
+        qs = f"?dimension={dimension}" if dimension else ""
+        return self._analytics_get(f"/intelligence/patterns{qs}", "list patterns")
+
+    def get_cost_per_outcome(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/cost-per-outcome", "cost per outcome")
+
+    def retrain_complexity(self) -> dict[str, Any]:
+        return self._manage_post("/intelligence/complexity/retrain", {}, "retrain complexity")
+
+    def get_complexity_scores(self, hours: int = 24) -> dict[str, Any]:
+        return self._analytics_get(f"/intelligence/complexity/scores?hours={hours}", "complexity scores")
+
+    def get_feature_importances(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/complexity/importances", "feature importances")
+
+    def get_adaptive_suggestions(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/alerts/adaptive-suggestions", "adaptive suggestions")
+
+    def enable_adaptive_alert(self, rule_id: str) -> dict[str, Any]:
+        return self._manage_post(f"/intelligence/alerts/{rule_id}/enable-adaptive", {}, "enable adaptive")
+
+    def get_ml_dashboard(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/dashboard", "ML dashboard")
+
+    def list_ml_models(self) -> dict[str, Any]:
+        return self._analytics_get("/intelligence/models", "ML models")
+
 
 class Sim:
     """Platform-level client: bootstrap the admin, then mint per-scenario workspaces."""

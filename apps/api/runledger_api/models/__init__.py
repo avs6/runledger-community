@@ -28,6 +28,14 @@ from runledger_api.models.ledger import (
     SecurityEvent,
     ToolRegistry,
 )
+from runledger_api.models.ml import (
+    ForecastAccuracy,
+    MLAnomaly,
+    MLFeatureDaily,
+    MLForecast,
+    MLModel,
+    MLPattern,
+)
 from runledger_api.models.metering import (
     DataQualityIssue,
     ProviderPricing,
@@ -105,4 +113,10 @@ __all__ = [
     "GuardrailTestCase",
     "PartnerGuardrail",
     "GuardrailAlert",
+    "MLModel",
+    "MLFeatureDaily",
+    "MLAnomaly",
+    "MLForecast",
+    "MLPattern",
+    "ForecastAccuracy",
 ]

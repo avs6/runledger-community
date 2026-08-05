@@ -21,6 +21,9 @@ celery_app = Celery(
         "runledger_api.workers.gateway_health",
         "runledger_api.workers.consolidation",
         "runledger_api.workers.flywheel",
+        "runledger_api.workers.ml_anomaly",
+        "runledger_api.workers.ml_forecast",
+        "runledger_api.workers.ml_complexity",
     ],
 )
 
@@ -133,6 +136,21 @@ celery_app.conf.update(
         "gateway-health-check-5m": {
             "task": "gateway.health_check",
             "schedule": 300.0,
+        },
+        # ML anomaly detection: hourly
+        "ml-anomaly-detection-hourly": {
+            "task": "ml.anomaly_detection",
+            "schedule": 3600.0,
+        },
+        # ML forecast retraining: daily
+        "ml-forecast-retraining-daily": {
+            "task": "ml.forecast_retraining",
+            "schedule": 86400.0,
+        },
+        # ML complexity scorer retraining: weekly
+        "ml-complexity-retraining-weekly": {
+            "task": "ml.complexity_retraining",
+            "schedule": 604800.0,
         },
     },
 )

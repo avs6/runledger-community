@@ -33,6 +33,7 @@ from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import flywheel as flywheel_router
 from runledger_api.routers import gateway as gateway_router
 from runledger_api.routers import guardrails as guardrails_router
+from runledger_api.routers import intelligence as intelligence_router
 from runledger_api.routers import integrations as integrations_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
@@ -106,6 +107,7 @@ app.include_router(retention_router.router)
 app.include_router(otlp_router.router)
 app.include_router(eval_experiments_router.router)
 app.include_router(guardrails_router.router)
+app.include_router(intelligence_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

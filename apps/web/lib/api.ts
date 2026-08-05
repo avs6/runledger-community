@@ -2671,3 +2671,131 @@ export async function acknowledgeGuardrailAlert(
     { method: 'POST' }
   )
 }
+
+// ── Phase 15: ML Intelligence Layer ────────────────────────────────────
+
+export async function listAnomalies(
+  apiKey: string,
+  params: { anomaly_type?: string; severity?: string; suppressed?: boolean } & TimeWindow = {}
+): Promise<import('@/types/api').MLAnomalyList> {
+  const qs = _analyticsQs(params)
+  const extra = [
+    params.anomaly_type ? `anomaly_type=${params.anomaly_type}` : '',
+    params.severity ? `severity=${params.severity}` : '',
+    params.suppressed !== undefined ? `suppressed=${params.suppressed}` : '',
+  ].filter(Boolean).join('&')
+  const sep = qs.includes('?') ? '&' : '?'
+  return apiFetch<import('@/types/api').MLAnomalyList>(`/intelligence/anomalies${qs}${extra ? sep + extra : ''}`, apiKey)
+}
+
+export async function getAnomalySummary(
+  apiKey: string,
+  hours: number = 24
+): Promise<import('@/types/api').MLAnomalySummary> {
+  return apiFetch<import('@/types/api').MLAnomalySummary>(`/intelligence/anomalies/summary?hours=${hours}`, apiKey)
+}
+
+export async function acknowledgeAnomaly(
+  apiKey: string,
+  anomalyId: string
+): Promise<import('@/types/api').MLAnomalyResponse> {
+  return apiFetch<import('@/types/api').MLAnomalyResponse>(
+    `/intelligence/anomalies/${anomalyId}/acknowledge`,
+    apiKey,
+    { method: 'POST' }
+  )
+}
+
+export async function getCostForecast(
+  apiKey: string
+): Promise<import('@/types/api').ForecastResponse | null> {
+  return apiFetch<import('@/types/api').ForecastResponse | null>(`/intelligence/forecasts/cost`, apiKey)
+}
+
+export async function getTokenForecast(
+  apiKey: string
+): Promise<import('@/types/api').ForecastResponse | null> {
+  return apiFetch<import('@/types/api').ForecastResponse | null>(`/intelligence/forecasts/tokens`, apiKey)
+}
+
+export async function generateForecast(
+  apiKey: string,
+  body: { forecast_type?: string; horizon_days?: number; dimension_key?: string | null }
+): Promise<{ status: string; forecast_id?: string }> {
+  return apiFetch<{ status: string; forecast_id?: string }>(
+    `/intelligence/forecasts/generate`,
+    apiKey,
+    { method: 'POST', body: JSON.stringify(body) }
+  )
+}
+
+export async function getTopK(
+  apiKey: string,
+  params: { dimension: string; metric?: string; k?: number } & TimeWindow
+): Promise<import('@/types/api').TopKResponse> {
+  const qs = _analyticsQs(params)
+  const extra = [
+    `dimension=${params.dimension}`,
+    params.metric ? `metric=${params.metric}` : '',
+    params.k ? `k=${params.k}` : '',
+  ].filter(Boolean).join('&')
+  const sep = qs.includes('?') ? '&' : '?'
+  return apiFetch<import('@/types/api').TopKResponse>(`/intelligence/top-k${qs}${extra ? sep + extra : ''}`, apiKey)
+}
+
+export async function listPatterns(
+  apiKey: string,
+  dimension?: string
+): Promise<import('@/types/api').PatternList> {
+  const qs = dimension ? `?dimension=${dimension}` : ''
+  return apiFetch<import('@/types/api').PatternList>(`/intelligence/patterns${qs}`, apiKey)
+}
+
+export async function getComplexityScores(
+  apiKey: string,
+  hours: number = 24
+): Promise<import('@/types/api').ComplexityScoreList> {
+  return apiFetch<import('@/types/api').ComplexityScoreList>(`/intelligence/complexity/scores?hours=${hours}`, apiKey)
+}
+
+export async function getFeatureImportances(
+  apiKey: string
+): Promise<import('@/types/api').FeatureImportanceList> {
+  return apiFetch<import('@/types/api').FeatureImportanceList>(`/intelligence/complexity/importances`, apiKey)
+}
+
+export async function getCostPerOutcome(
+  apiKey: string,
+  params: TimeWindow = {}
+): Promise<import('@/types/api').CostOutcomeResponse> {
+  return apiFetch<import('@/types/api').CostOutcomeResponse>(`/intelligence/cost-per-outcome${_analyticsQs(params)}`, apiKey)
+}
+
+export async function getAdaptiveSuggestions(
+  apiKey: string
+): Promise<import('@/types/api').AdaptiveThresholdList> {
+  return apiFetch<import('@/types/api').AdaptiveThresholdList>(`/intelligence/alerts/adaptive-suggestions`, apiKey)
+}
+
+export async function enableAdaptiveAlert(
+  apiKey: string,
+  ruleId: string
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/intelligence/alerts/${ruleId}/enable-adaptive`,
+    apiKey,
+    { method: 'POST' }
+  )
+}
+
+export async function getMLDashboard(
+  apiKey: string
+): Promise<import('@/types/api').MLDashboard> {
+  return apiFetch<import('@/types/api').MLDashboard>(`/intelligence/dashboard`, apiKey)
+}
+
+export async function listMLModels(
+  apiKey: string
+): Promise<import('@/types/api').ModelHealth[]> {
+  return apiFetch<import('@/types/api').ModelHealth[]>(`/intelligence/models`, apiKey)
+}

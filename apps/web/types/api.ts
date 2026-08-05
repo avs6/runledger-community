@@ -2229,3 +2229,188 @@ export interface GuardrailAlertList {
   items: GuardrailAlertResponse[]
   total: number
 }
+
+// ── Phase 15: ML Intelligence Layer ────────────────────────────────────
+
+export interface MLAnomalyResponse {
+  id: string
+  workspace_id: string
+  anomaly_type: string
+  dimension: string
+  dimension_key: string | null
+  detected_at: string
+  severity: string
+  detection_method: string
+  current_value: string
+  expected_value: string
+  deviation_score: string
+  context: Record<string, unknown>
+  is_suppressed: boolean
+  suppressed_reason: string | null
+  acknowledged_at: string | null
+  created_at: string
+}
+
+export interface MLAnomalyList {
+  items: MLAnomalyResponse[]
+  total: number
+}
+
+export interface MLAnomalySummary {
+  total: number
+  by_severity: Record<string, number>
+  by_type: Record<string, number>
+  suppressed: number
+  acknowledged: number
+}
+
+export interface ForecastPoint {
+  date: string
+  predicted: number
+  lower: number
+  upper: number
+}
+
+export interface BudgetOverlay {
+  budget_limit: string | null
+  projected_spend: number
+  days_to_exhaustion: number | null
+  exhaustion_date: string | null
+  breach_probability: number | null
+}
+
+export interface ForecastResponse {
+  id: string
+  workspace_id: string
+  forecast_type: string
+  dimension_key: string | null
+  method: string
+  horizon_days: number
+  forecast_from: string
+  points: ForecastPoint[]
+  accuracy_metrics: Record<string, unknown>
+  budget_overlay: BudgetOverlay | null
+  created_at: string
+}
+
+export interface TopKItem {
+  rank: number
+  key: string
+  current_value: number
+  previous_value: number | null
+  rank_change: number | null
+  pct_change: number | null
+}
+
+export interface TopKChange {
+  key: string
+  change_type: string
+  detail: string
+}
+
+export interface TopKResponse {
+  dimension: string
+  metric: string
+  k: number
+  period: Record<string, string>
+  items: TopKItem[]
+  significant_changes: TopKChange[]
+}
+
+export interface PatternResponse {
+  id: string
+  workspace_id: string
+  dimension: string
+  dimension_key: string | null
+  pattern: string
+  confidence: string
+  evidence: Record<string, unknown>
+  detected_at: string
+}
+
+export interface PatternList {
+  items: PatternResponse[]
+}
+
+export interface ComplexityScore {
+  run_id: string
+  score: number
+  predicted_cost: number
+  actual_cost: number
+  complexity_tier: string
+}
+
+export interface ComplexityScoreList {
+  items: ComplexityScore[]
+  distribution: Record<string, number>
+}
+
+export interface FeatureImportance {
+  feature: string
+  importance: number
+}
+
+export interface FeatureImportanceList {
+  items: FeatureImportance[]
+  model_version: number
+  trained_at: string | null
+  sample_count: number
+}
+
+export interface CostPerOutcome {
+  outcome_type: string
+  total_cost: number
+  outcome_count: number
+  cost_per_outcome: number
+  avg_quality_score: number | null
+  model: string | null
+}
+
+export interface ParetoPoint {
+  key: string
+  cost: number
+  quality: number
+  is_optimal: boolean
+}
+
+export interface CostOutcomeResponse {
+  items: CostPerOutcome[]
+  pareto_frontier: ParetoPoint[]
+}
+
+export interface AdaptiveThresholdSuggestion {
+  rule_id: string
+  rule_name: string
+  metric: string
+  current_threshold: string
+  suggested_upper: number
+  suggested_lower: number
+  baseline: number
+  confidence: number
+}
+
+export interface AdaptiveThresholdList {
+  items: AdaptiveThresholdSuggestion[]
+}
+
+export interface ModelHealth {
+  id: string
+  model_type: string
+  dimension: string
+  dimension_key: string | null
+  version: number
+  trained_at: string | null
+  sample_count: number
+  staleness_hours: number
+  metrics: Record<string, unknown>
+  status: string
+}
+
+export interface MLDashboard {
+  models: ModelHealth[]
+  anomaly_summary: MLAnomalySummary
+  total_forecasts: number
+  total_patterns: number
+  last_anomaly_run: string | null
+  last_forecast_run: string | null
+}
