@@ -2461,7 +2461,7 @@ Add traditional machine learning and statistical intelligence to RunLedger, tran
   - [x] Z-score with configurable sigma threshold (default 3.0σ)
   - [x] Exponential Weighted Moving Average (EWMA) for trend-adjusted detection
   - [x] Isolation Forest for multivariate anomalies (scikit-learn, trained weekly via Celery beat, stored in model registry)
-  - [ ] Seasonal decomposition (STL) (deferred to Phase 15.1)
+  - [x] Seasonal decomposition (STL) — LOESS-based trend+seasonal removal, anomalies on residual component (period=7 weekly)
 - [x] Add anomaly severity levels:
   - `low` — 3-4σ deviation
   - `medium` — 3-4σ deviation

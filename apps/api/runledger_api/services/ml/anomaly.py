@@ -1,9 +1,11 @@
-"""Anomaly detection using Z-score, EWMA, and Isolation Forest methods.
+"""Anomaly detection using Z-score, EWMA, STL, and Isolation Forest methods.
 
 Z-score and EWMA are univariate detectors that operate on a time-series of
-scalar values per dimension. Isolation Forest is a multivariate detector
-that considers all dimensions simultaneously to catch correlated anomalies
-that univariate methods miss.
+scalar values per dimension. STL (Seasonal-Trend decomposition using LOESS)
+strips out trend and weekly seasonality to detect anomalies in the residual
+component. Isolation Forest is a multivariate detector that considers all
+dimensions simultaneously to catch correlated anomalies that univariate
+methods miss.
 """
 
 from __future__ import annotations
@@ -130,6 +132,65 @@ def detect_ewma(
             "ewma_std": ewma_std,
             "deviation": deviation,
             "span": span,
+        },
+    )
+
+
+def detect_stl(
+    values: list[float],
+    period: int = 7,
+    threshold_sigma: float = 3.0,
+) -> AnomalyResult | None:
+    """STL seasonal decomposition — detects anomalies after removing trend and seasonality.
+
+    Requires at least 2 full seasonal cycles (2 * period observations).
+    Uses LOESS-based decomposition with weekly (period=7) seasonality by default.
+    """
+    min_obs = 2 * period + 1
+    if len(values) < min_obs:
+        return None
+
+    from statsmodels.tsa.seasonal import STL as _STL
+
+    arr = np.array(values, dtype=np.float64)
+    try:
+        decomposition = _STL(arr, period=period, robust=True).fit()
+    except Exception:
+        return None
+
+    residuals = decomposition.resid
+    resid_history = residuals[:-1]
+    resid_std = float(np.std(resid_history, ddof=1))
+    if resid_std < 1e-10:
+        return None
+
+    current_resid = float(residuals[-1])
+    deviation = current_resid / resid_std
+
+    if abs(deviation) < threshold_sigma:
+        return None
+
+    trend_last = float(decomposition.trend[-1])
+    seasonal_last = float(decomposition.seasonal[-1])
+    expected = trend_last + seasonal_last
+
+    return AnomalyResult(
+        anomaly_type="",
+        dimension="",
+        dimension_key=None,
+        current_value=values[-1],
+        expected_value=round(expected, 6),
+        deviation_score=round(deviation, 4),
+        severity=classify_severity(deviation),
+        detection_method="stl",
+        context={
+            "trend": round(trend_last, 6),
+            "seasonal": round(seasonal_last, 6),
+            "residual": round(current_resid, 6),
+            "residual_std": round(resid_std, 6),
+            "deviation": round(deviation, 4),
+            "period": period,
+            "window_size": len(values),
         },
     )
 
@@ -319,16 +380,12 @@ async def run_anomaly_detection(
 
         zscore_result = detect_zscore(values)
         ewma_result = detect_ewma(values)
+        stl_result = detect_stl(values)
 
+        candidates = [r for r in (zscore_result, ewma_result, stl_result) if r is not None]
         result: AnomalyResult | None = None
-        if zscore_result and ewma_result:
-            z_sev = _severity_rank(zscore_result.severity)
-            e_sev = _severity_rank(ewma_result.severity)
-            result = zscore_result if z_sev >= e_sev else ewma_result
-        elif zscore_result:
-            result = zscore_result
-        elif ewma_result:
-            result = ewma_result
+        if candidates:
+            result = max(candidates, key=lambda r: _severity_rank(r.severity))
 
         if result is None:
             continue
