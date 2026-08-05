@@ -84,6 +84,7 @@ class MLAnomaly(Base):
     context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=sa.text("'{}'"))
     is_suppressed: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("false"))
     suppressed_reason: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    correlation_group_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

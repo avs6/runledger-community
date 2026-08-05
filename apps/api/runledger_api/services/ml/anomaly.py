@@ -440,6 +440,17 @@ async def run_anomaly_detection(
         db.add(anomaly)
         anomalies.append(anomaly)
 
+    # ── Correlation grouping ────────────────────────────────────────────
+    if len(anomalies) >= 2:
+        group_id = uuid.uuid4()
+        correlated_dims = [a.dimension for a in anomalies]
+        for a in anomalies:
+            a.correlation_group_id = group_id
+            ctx = dict(a.context) if a.context else {}
+            ctx["correlation_group_id"] = str(group_id)
+            ctx["correlated_dimensions"] = correlated_dims
+            a.context = ctx
+
     if anomalies:
         await db.flush()
         log.info("anomalies_detected", workspace_id=str(workspace_id), count=len(anomalies))

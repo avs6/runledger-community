@@ -31,6 +31,8 @@ from runledger_api.schemas.ml import (
     AnomalyList,
     AnomalyResponse,
     AnomalySummary,
+    CorrelatedAnomalyGroup,
+    CorrelatedGroupList,
     CostOutcomeResponse,
     ComplexityScoreList,
     FeatureImportanceList,
@@ -184,6 +186,51 @@ async def train_isolation_forest_endpoint(
     result = await train_isolation_forest(db, workspace.id, days=days)
     await db.commit()
     return result
+
+
+@router.get("/anomalies/correlated", response_model=CorrelatedGroupList, dependencies=[Depends(analytics_rate_limit)])
+async def list_correlated_anomaly_groups(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    hours: int = Query(168, ge=1, le=720),
+    limit: int = Query(20, le=100),
+) -> CorrelatedGroupList:
+    """List correlated anomaly groups — sets of anomalies that fired together."""
+    cutoff = datetime.now(UTC) - timedelta(hours=hours)
+
+    result = await db.execute(
+        select(MLAnomaly)
+        .where(
+            MLAnomaly.workspace_id == workspace.id,
+            MLAnomaly.detected_at >= cutoff,
+            MLAnomaly.correlation_group_id.isnot(None),
+        )
+        .order_by(MLAnomaly.detected_at.desc())
+    )
+    rows = list(result.scalars().all())
+
+    groups: dict[str, list[MLAnomaly]] = {}
+    for a in rows:
+        gid = str(a.correlation_group_id)
+        groups.setdefault(gid, []).append(a)
+
+    severity_order = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+    items: list[CorrelatedAnomalyGroup] = []
+    for gid, members in sorted(
+        groups.items(),
+        key=lambda kv: max(m.detected_at for m in kv[1]),
+        reverse=True,
+    ):
+        max_sev = max(members, key=lambda m: severity_order.get(m.severity, 0)).severity
+        items.append(CorrelatedAnomalyGroup(
+            correlation_group_id=gid,
+            dimensions=[m.dimension for m in members],
+            max_severity=max_sev,
+            anomalies=[_anomaly_to_response(m) for m in members],
+            detected_at=max(m.detected_at for m in members),
+        ))
+
+    return CorrelatedGroupList(items=items[:limit], total=len(items))
 
 
 # ── Forecast endpoints ──────────────────────────────────────────────────
@@ -420,6 +467,7 @@ def _anomaly_to_response(a: MLAnomaly) -> AnomalyResponse:
         context=a.context,
         is_suppressed=a.is_suppressed,
         suppressed_reason=a.suppressed_reason,
+        correlation_group_id=str(a.correlation_group_id) if a.correlation_group_id else None,
         acknowledged_at=a.acknowledged_at,
         created_at=a.created_at,
     )

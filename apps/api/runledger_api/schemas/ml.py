@@ -36,6 +36,7 @@ class AnomalyResponse(BaseModel):
     context: dict[str, Any]
     is_suppressed: bool
     suppressed_reason: str | None
+    correlation_group_id: str | None = None
     acknowledged_at: datetime | None
     created_at: datetime
 
@@ -51,6 +52,19 @@ class AnomalySummary(BaseModel):
     by_type: dict[str, int]
     suppressed: int
     acknowledged: int
+
+
+class CorrelatedAnomalyGroup(BaseModel):
+    correlation_group_id: str
+    dimensions: list[str]
+    max_severity: str
+    anomalies: list[AnomalyResponse]
+    detected_at: datetime
+
+
+class CorrelatedGroupList(BaseModel):
+    items: list[CorrelatedAnomalyGroup]
+    total: int
 
 
 class AnomalyAcknowledge(BaseModel):

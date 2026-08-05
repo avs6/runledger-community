@@ -2478,8 +2478,10 @@ Add traditional machine learning and statistical intelligence to RunLedger, tran
   - error rate spike detection
   - cache hit rate drop detection
   - token usage spike detection
-- [ ] Add correlated anomaly grouping (deferred to Phase 15.1):
-  - if cost spike and latency spike happen together, group them
+- [x] Add correlated anomaly grouping:
+  - if 2+ anomalies fire in the same detection run, assign shared `correlation_group_id`
+  - `GET /intelligence/anomalies/correlated` lists groups with member anomalies
+  - each anomaly context includes `correlated_dimensions` list
 
 ### Cost And Token Forecasting
 

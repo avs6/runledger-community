@@ -11536,6 +11536,25 @@
           "response": []
         },
         {
+          "name": "List Correlated Anomaly Groups",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/intelligence/anomalies/correlated?hours=168",
+              "host": ["{{base_url}}"],
+              "path": ["intelligence", "anomalies", "correlated"],
+              "query": [
+                { "key": "hours", "value": "168" }
+              ]
+            },
+            "description": "List correlated anomaly groups — sets of anomalies across different dimensions that fired together in the same detection run."
+          },
+          "response": []
+        },
+        {
           "name": "Get Cost Forecast",
           "request": {
             "method": "GET",

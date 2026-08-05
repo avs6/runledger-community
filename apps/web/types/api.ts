@@ -2247,12 +2247,26 @@ export interface MLAnomalyResponse {
   context: Record<string, unknown>
   is_suppressed: boolean
   suppressed_reason: string | null
+  correlation_group_id: string | null
   acknowledged_at: string | null
   created_at: string
 }
 
 export interface MLAnomalyList {
   items: MLAnomalyResponse[]
+  total: number
+}
+
+export interface CorrelatedAnomalyGroup {
+  correlation_group_id: string
+  dimensions: string[]
+  max_severity: string
+  anomalies: MLAnomalyResponse[]
+  detected_at: string
+}
+
+export interface CorrelatedGroupList {
+  items: CorrelatedAnomalyGroup[]
   total: number
 }
 

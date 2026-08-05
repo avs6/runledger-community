@@ -2713,6 +2713,13 @@ export async function trainIsolationForest(
   return apiFetch(`/intelligence/anomalies/train-isolation-forest?days=${days}`, apiKey, { method: 'POST' })
 }
 
+export async function listCorrelatedAnomalyGroups(
+  apiKey: string,
+  hours: number = 168
+): Promise<import('@/types/api').CorrelatedGroupList> {
+  return apiFetch<import('@/types/api').CorrelatedGroupList>(`/intelligence/anomalies/correlated?hours=${hours}`, apiKey)
+}
+
 export async function getCostForecast(
   apiKey: string
 ): Promise<import('@/types/api').ForecastResponse | null> {
