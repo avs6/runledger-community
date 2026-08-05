@@ -193,3 +193,84 @@ logs:
 ## Tail API logs only (shows the generated API key on first start)
 logs-api:
 	docker compose logs -f runledger-api
+
+# ── Image Build, Tag, Push & Deploy ───────────────────────────────────────────
+# Usage:
+#   make build-images TAG=v2          # build all 15 images as abijith13/runledger-*:v2
+#   make push-images TAG=v2           # push all 15 images to Docker Hub
+#   make deploy TAG=v2                # recreate running containers with v2 images
+#   make deploy TAG=v1                # revert to v1 (no rebuild, just swap)
+#   make build-push TAG=v2            # build + push in one step
+#   make build-push-deploy TAG=v2     # build + push + deploy in one step
+#
+# The docker-compose.yml defaults to v1 via the image: tags. These Makefile
+# targets let you build, test, and deploy a new tag without editing compose.
+# To revert after a bad deploy: make deploy TAG=v1
+
+REGISTRY ?= abijith13
+TAG ?= v1
+
+## Build all 15 RunLedger images with TAG
+build-images:
+	@echo "═══ Building all RunLedger images as $(REGISTRY)/runledger-*:$(TAG) ═══"
+	docker build -t $(REGISTRY)/runledger-api:$(TAG)    -f apps/api/Dockerfile .
+	docker tag $(REGISTRY)/runledger-api:$(TAG) $(REGISTRY)/runledger-worker:$(TAG)
+	docker tag $(REGISTRY)/runledger-api:$(TAG) $(REGISTRY)/runledger-beat:$(TAG)
+	docker build -t $(REGISTRY)/runledger-web:$(TAG)    ./apps/web
+	docker build -t $(REGISTRY)/runledger-embedding-svc:$(TAG)       ./apps/embedding-svc
+	docker build -t $(REGISTRY)/runledger-semantic-cache-svc:$(TAG)  ./apps/semantic-cache-svc
+	docker build -t $(REGISTRY)/runledger-context-compiler:$(TAG)    ./apps/context-compiler-svc
+	docker build -t $(REGISTRY)/runledger-reranker:$(TAG)            ./apps/reranker-svc
+	docker build -t $(REGISTRY)/runledger-compression:$(TAG)         ./apps/compression-svc
+	docker build -t $(REGISTRY)/runledger-router:$(TAG)              ./apps/router-svc
+	docker build -t $(REGISTRY)/runledger-mcp-gateway:$(TAG)         ./apps/mcp-gateway
+	docker build -t $(REGISTRY)/runledger-memory-svc:$(TAG)          ./apps/memory-svc
+	docker build -t $(REGISTRY)/runledger-kg-svc:$(TAG)              ./apps/kg-svc
+	docker build -t $(REGISTRY)/runledger-skill-registry:$(TAG)      ./apps/skill-registry
+	docker build -t $(REGISTRY)/runledger-flywheel:$(TAG)            ./apps/flywheel-svc
+	@echo ""
+	@echo "✓ All 15 images built as $(REGISTRY)/runledger-*:$(TAG)"
+
+## Push all 15 RunLedger images to Docker Hub
+push-images:
+	@echo "═══ Pushing $(REGISTRY)/runledger-*:$(TAG) ═══"
+	@for svc in api worker beat web \
+		embedding-svc semantic-cache-svc context-compiler reranker compression \
+		router mcp-gateway memory-svc kg-svc skill-registry flywheel; do \
+		echo "  → $(REGISTRY)/runledger-$$svc:$(TAG)"; \
+		docker push $(REGISTRY)/runledger-$$svc:$(TAG); \
+	done
+	@echo ""
+	@echo "✓ All 15 images pushed"
+
+## Build + push all images
+build-push: build-images push-images
+
+## Deploy: recreate all RunLedger containers using the tagged images.
+## Infrastructure (postgres, redis, qdrant, letta, memory-db, otel-collector) is untouched.
+deploy:
+	@echo "═══ Deploying RunLedger with $(REGISTRY)/runledger-*:$(TAG) ═══"
+	@echo ""
+	@echo "── Stopping app containers ──"
+	@for svc in api worker beat web \
+		embedding-svc semantic-cache-svc context-compiler reranker compression \
+		router mcp-gateway memory-svc kg-svc skill-registry flywheel; do \
+		docker stop runledger-$$svc 2>/dev/null || true; \
+		docker rm   runledger-$$svc 2>/dev/null || true; \
+	done
+	@echo ""
+	@echo "── Starting containers from $(TAG) images ──"
+	RUNLEDGER_TAG=$(TAG) docker compose up -d --no-build
+	@echo ""
+	@echo "✓ Stack deployed with tag $(TAG)"
+	@echo "  Dashboard: http://localhost:3201"
+	@echo "  API:       http://localhost:8201"
+	@echo "  Revert:    make deploy TAG=v1"
+
+## Build, push, and deploy in one step
+build-push-deploy: build-images push-images deploy
+
+## List all RunLedger images with their tags
+list-images:
+	@echo "RunLedger images:"
+	@docker images --format "  {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}" | grep "$(REGISTRY)/runledger" | sort
