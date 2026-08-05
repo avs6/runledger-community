@@ -72,7 +72,7 @@ def upgrade() -> None:
         sa.Column("threshold_value", sa.Float, nullable=True),
         sa.Column("guardrail_rule_id", PGUUID(as_uuid=True), nullable=True),
         sa.Column("guardrail_name", sa.Text, nullable=True),
-        sa.Column("metadata", JSONB, server_default=sa.text("'{}'"), nullable=False),
+        sa.Column("alert_metadata", JSONB, server_default=sa.text("'{}'"), nullable=False),
         sa.Column("status", sa.Text, nullable=False, server_default=sa.text("'active'")),
         sa.Column("acknowledged_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
