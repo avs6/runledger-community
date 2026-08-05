@@ -98,12 +98,12 @@ Use this to find low-hanging fruit and sequence work.
 7. [x] Add request explorer MVP with prompt, model, cost, latency, route, tools, cache status, and outcome.
 8. [x] Add optimization recommendation cards using simple rules before ML-based recommendations.
 9. [~] Add Kafka export MVP for `run.completed`, `alert.fired`, and `budget.breached` events. Run lifecycle export MVP is built; alert and budget producers remain.
-10. [ ] Add built-in content filters (Guardrail Garden) — PII, prompt injection, bias, toxicity detection using keyword/regex (no ML dependency).
+10. [x] Add built-in content filters (Guardrail Garden) — PII, prompt injection, bias, toxicity detection using keyword/regex (no ML dependency).
 11. [ ] Add cost anomaly detection with Z-score + EWMA on rolling windows (Phase 15 quick win).
 12. [ ] Add cost forecasting (Holt-Winters) with budget-breach probability on workspace dashboard.
 13. [ ] Add Top-K analysis API with period-over-period change detection.
 14. [ ] Add API playground for interactive model testing through the gateway.
-15. [ ] Add custom guardrail editor with sandboxed Python logic and test playground.
+15. [x] Add custom guardrail editor with sandboxed Python logic and test playground.
 16. [ ] Add tag-based routing for free/paid tier separation (Phase 17 quick win).
 17. [ ] Add deployment health status (Healthy/Degraded/Down) per model endpoint.
 18. [ ] Add rate limit headers on every gateway response (X-RateLimit-Remaining-*).
@@ -131,7 +131,7 @@ One-sentence vision:
 - [x] Build Platform, Org, and Workspace dashboards that show AI usage, cost, routing, business impact, and savings.
 - [~] Make the dashboards feel like an AI Operations Center, not a token-counting invoice page.
 - [x] Give executives a 30-second summary and engineers a full request-level debugging path.
-- [ ] Add guardrails and content safety engine competitive with LiteLLM's Guardrail Garden and custom guardrails.
+- [x] Add guardrails and content safety engine competitive with LiteLLM's Guardrail Garden and custom guardrails.
 - [ ] Add traditional AI/ML intelligence: anomaly detection, cost forecasting, top-K analysis, and pattern recognition.
 - [ ] Add agentic operations: agent registry, workflow runs, memory management, and API playground.
 - [ ] Build enterprise-grade gateway with advanced routing, fallbacks, A/B testing, tag-based routing, and pass-through endpoints.
