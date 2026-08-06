@@ -2890,3 +2890,295 @@ export async function getBillingSummary(
   const qs = months ? `?months=${months}` : ''
   return apiFetch<import('@/types/api').BillingSummaryResponse>(`/budgets/billing-summary${qs}`, apiKey)
 }
+
+// ── Agent Registry ─────────────────────────────────────────────────────────
+
+export async function getAgents(
+  apiKey: string,
+  params: { status?: string; agent_type?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').AgentListResponse> {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.agent_type) qs.set('agent_type', params.agent_type)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').AgentListResponse>(`/agents${query}`, apiKey)
+}
+
+export async function getAgent(
+  apiKey: string,
+  agentId: string
+): Promise<import('@/types/api').AgentResponse> {
+  return apiFetch<import('@/types/api').AgentResponse>(`/agents/${agentId}`, apiKey)
+}
+
+export async function getAgentStats(
+  apiKey: string,
+  agentId: string
+): Promise<import('@/types/api').AgentStats> {
+  return apiFetch<import('@/types/api').AgentStats>(`/agents/${agentId}/stats`, apiKey)
+}
+
+export async function getAgentRuns(
+  apiKey: string,
+  agentId: string,
+  params: { status?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').WorkflowRunSummaryListResponse> {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').WorkflowRunSummaryListResponse>(`/agents/${agentId}/runs${query}`, apiKey)
+}
+
+export async function createAgent(
+  apiKey: string,
+  data: {
+    name: string
+    description?: string
+    agent_type?: string
+    owner?: string
+    default_model?: string
+    default_tools?: string[]
+    budget_envelope?: number
+    policy_profile?: string
+    config?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').AgentResponse> {
+  return apiFetch<import('@/types/api').AgentResponse>('/agents', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateAgent(
+  apiKey: string,
+  agentId: string,
+  data: Record<string, unknown>
+): Promise<import('@/types/api').AgentResponse> {
+  return apiFetch<import('@/types/api').AgentResponse>(`/agents/${agentId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function retireAgent(
+  apiKey: string,
+  agentId: string
+): Promise<void> {
+  return apiFetch<void>(`/agents/${agentId}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Workflow Definitions & Runs ────────────────────────────────────────────
+
+export async function getWorkflows(
+  apiKey: string,
+  params: { status?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').WorkflowDefinitionListResponse> {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').WorkflowDefinitionListResponse>(`/workflows${query}`, apiKey)
+}
+
+export async function getWorkflow(
+  apiKey: string,
+  workflowId: string
+): Promise<import('@/types/api').WorkflowDefinitionResponse> {
+  return apiFetch<import('@/types/api').WorkflowDefinitionResponse>(`/workflows/${workflowId}`, apiKey)
+}
+
+export async function getWorkflowRuns(
+  apiKey: string,
+  workflowId: string,
+  params: { status?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').WorkflowRunListResponse> {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').WorkflowRunListResponse>(`/workflows/${workflowId}/runs${query}`, apiKey)
+}
+
+export async function getWorkflowRun(
+  apiKey: string,
+  workflowId: string,
+  runId: string
+): Promise<import('@/types/api').WorkflowRunResponse> {
+  return apiFetch<import('@/types/api').WorkflowRunResponse>(`/workflows/${workflowId}/runs/${runId}`, apiKey)
+}
+
+export async function getWorkflowCost(
+  apiKey: string,
+  workflowId: string
+): Promise<import('@/types/api').WorkflowCostAttribution> {
+  return apiFetch<import('@/types/api').WorkflowCostAttribution>(`/workflows/${workflowId}/cost`, apiKey)
+}
+
+// ── Agent Memory ──────────────────────────────────────────────────────────
+
+export async function getAgentMemories(
+  apiKey: string,
+  agentId: string,
+  params: { memory_type?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').AgentMemoryListResponse> {
+  const qs = new URLSearchParams()
+  if (params.memory_type) qs.set('memory_type', params.memory_type)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').AgentMemoryListResponse>(`/agents/${agentId}/memory${query}`, apiKey)
+}
+
+export async function getAgentMemoryStats(
+  apiKey: string,
+  agentId: string
+): Promise<import('@/types/api').AgentMemoryStats> {
+  return apiFetch<import('@/types/api').AgentMemoryStats>(`/agents/${agentId}/memory/stats`, apiKey)
+}
+
+export async function getAgentMemoryAudit(
+  apiKey: string,
+  agentId: string,
+  params: { limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').AgentMemoryAuditListResponse> {
+  const qs = new URLSearchParams()
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').AgentMemoryAuditListResponse>(`/agents/${agentId}/memory/audit${query}`, apiKey)
+}
+
+export async function searchAgentMemory(
+  apiKey: string,
+  agentId: string,
+  data: { query: string; memory_type?: string; limit?: number }
+): Promise<import('@/types/api').AgentMemoryListResponse> {
+  return apiFetch<import('@/types/api').AgentMemoryListResponse>(`/agents/${agentId}/memory/search`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteAgentMemory(
+  apiKey: string,
+  agentId: string,
+  key: string
+): Promise<void> {
+  return apiFetch<void>(`/agents/${agentId}/memory/${encodeURIComponent(key)}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Vector Store Management ───────────────────────────────────────────────
+
+export async function getVectorCollections(
+  apiKey: string,
+  params: { status?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').VectorCollectionListResponse> {
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').VectorCollectionListResponse>(`/vector-stores${query}`, apiKey)
+}
+
+export async function getVectorCollection(
+  apiKey: string,
+  collectionId: string
+): Promise<import('@/types/api').VectorCollectionResponse> {
+  return apiFetch<import('@/types/api').VectorCollectionResponse>(`/vector-stores/${collectionId}`, apiKey)
+}
+
+export async function getVectorCollectionStats(
+  apiKey: string,
+  collectionId: string
+): Promise<import('@/types/api').VectorCollectionStats> {
+  return apiFetch<import('@/types/api').VectorCollectionStats>(`/vector-stores/${collectionId}/stats`, apiKey)
+}
+
+export async function getVectorQueries(
+  apiKey: string,
+  collectionId: string,
+  params: { limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').VectorQueryListResponse> {
+  const qs = new URLSearchParams()
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').VectorQueryListResponse>(`/vector-stores/${collectionId}/queries${query}`, apiKey)
+}
+
+export async function testVectorSearch(
+  apiKey: string,
+  collectionId: string,
+  data: { query: string; top_k?: number; threshold?: number }
+): Promise<import('@/types/api').VectorSearchTestResponse> {
+  return apiFetch<import('@/types/api').VectorSearchTestResponse>(`/vector-stores/${collectionId}/search-test`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+// ── API Playground ────────────────────────────────────────────────────────
+
+export async function getPlaygroundSessions(
+  apiKey: string,
+  params: { favorites_only?: boolean; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').PlaygroundSessionListResponse> {
+  const qs = new URLSearchParams()
+  if (params.favorites_only) qs.set('favorites_only', 'true')
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').PlaygroundSessionListResponse>(`/playground/sessions${query}`, apiKey)
+}
+
+export async function getPlaygroundHistory(
+  apiKey: string,
+  params: { session_id?: string; model?: string; limit?: number; offset?: number } = {}
+): Promise<import('@/types/api').PlaygroundRequestListResponse> {
+  const qs = new URLSearchParams()
+  if (params.session_id) qs.set('session_id', params.session_id)
+  if (params.model) qs.set('model', params.model)
+  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.offset) qs.set('offset', String(params.offset))
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').PlaygroundRequestListResponse>(`/playground/history${query}`, apiKey)
+}
+
+export async function sendPlaygroundRequest(
+  apiKey: string,
+  data: {
+    model: string
+    provider?: string
+    system_prompt?: string
+    user_prompt: string
+    session_id?: string
+    parameters?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').PlaygroundRequestResponse> {
+  return apiFetch<import('@/types/api').PlaygroundRequestResponse>('/playground/send', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function comparePlaygroundModels(
+  apiKey: string,
+  data: {
+    models: string[]
+    system_prompt?: string
+    user_prompt: string
+    parameters?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').PlaygroundCompareResponse> {
+  return apiFetch<import('@/types/api').PlaygroundCompareResponse>('/playground/compare', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}

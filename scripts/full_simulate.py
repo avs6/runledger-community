@@ -159,7 +159,69 @@ def main() -> None:
         except Exception:  # noqa: BLE001
             pass
 
-    # 7. Summary.
+    # 7. Phase 16 agentic operations seeding (agents, workflows, vector stores, playground).
+    say("\n→ seeding Phase 16 agentic operations", "b")
+    for ws in sim.workspaces:
+        if not ws.key:
+            continue
+        try:
+            agent = ws.register_agent(
+                f"{ws.name}-triage",
+                "autonomous",
+                default_model="gpt-4o",
+                budget_envelope=50.0,
+                owner="platform-team",
+            )
+            agent_id = agent.get("id")
+            if agent_id:
+                ws.store_agent_memory(agent_id, "system_config", '{"routing": "auto"}', "long_term", 90)
+                ws.store_agent_memory(agent_id, "user_prefs", '{"verbose": true}', "short_term")
+                ws.get_agent_memory_stats(agent_id)
+
+                wf = ws.create_workflow(
+                    f"{ws.name}-pipeline",
+                    description="Triage → research → draft",
+                    steps_schema=[
+                        {"name": "triage", "type": "agent", "model": "gpt-4o-mini"},
+                        {"name": "research", "type": "tool", "tool": "search-api"},
+                        {"name": "draft", "type": "agent", "model": "gpt-4o"},
+                    ],
+                )
+                wf_id = wf.get("id")
+                if wf_id:
+                    run = ws.create_workflow_run(wf_id, agent_id=agent_id, trigger="simulator")
+                    run_id = run.get("id")
+                    if run_id:
+                        ws.create_workflow_step(run_id, 0, "triage", "agent", model="gpt-4o-mini")
+                        ws.create_workflow_step(run_id, 1, "research", "tool")
+
+            coll = ws.register_vector_collection(
+                f"{ws.name}-kb",
+                f"{ws.name.lower().replace(' ', '_')}_v1",
+                embedding_model="bge-small-en-v1.5",
+                dimensions=384,
+                description=f"Knowledge base for {ws.name}",
+            )
+            coll_id = coll.get("id")
+            if coll_id:
+                ws.vector_search_test(coll_id, "how does billing work?")
+                ws.vector_search_test(coll_id, "what is the refund policy?")
+
+            session = ws.create_playground_session(
+                f"{ws.name} - model comparison",
+                mode="compare",
+                system_prompt="You are a helpful assistant.",
+            )
+            ws.playground_send("gpt-4o", "What is the capital of France?")
+            ws.playground_send("gpt-4o-mini", "Explain quantum computing in one sentence.")
+            ws.playground_compare(
+                ["gpt-4o", "gpt-4o-mini"],
+                "Summarize the benefits of RAG in three bullet points.",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    # 8. Summary.
     say("\n" + "═" * 60, "d")
     say("Simulation complete.", "g")
     total_runs = sum(len(w.runs) for w in sim.workspaces)

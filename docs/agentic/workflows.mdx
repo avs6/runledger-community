@@ -1,0 +1,115 @@
+---
+title: "Workflow Runs & Steps"
+description: "Define multi-step agent workflows, track runs with per-step cost attribution, and monitor execution in real time."
+---
+
+RunLedger Workflows model the multi-step execution plans your agents follow. Define a
+workflow template once, then track every execution as a **run** with fine-grained per-step
+cost and latency attribution.
+
+## Create a workflow
+
+```bash
+curl -X POST http://localhost:8201/workflows \
+  -H "Authorization: Bearer rl_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "customer-support-pipeline",
+    "description": "Triage → research → draft → review",
+    "steps_schema": [
+      {"name": "triage", "type": "agent", "model": "gpt-4o-mini"},
+      {"name": "research", "type": "tool", "tool": "search-api"},
+      {"name": "draft", "type": "agent", "model": "gpt-4o"},
+      {"name": "review", "type": "human"}
+    ]
+  }'
+```
+
+## List & manage workflows
+
+```bash
+# list all workflows
+curl http://localhost:8201/workflows?status=active \
+  -H "Authorization: Bearer rl_..."
+
+# get workflow detail
+curl http://localhost:8201/workflows/{workflow_id} \
+  -H "Authorization: Bearer rl_..."
+
+# update
+curl -X PUT http://localhost:8201/workflows/{workflow_id} \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"description": "Updated pipeline"}'
+
+# archive
+curl -X DELETE http://localhost:8201/workflows/{workflow_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+## Start a workflow run
+
+```bash
+curl -X POST http://localhost:8201/workflows/{workflow_id}/runs \
+  -H "Authorization: Bearer rl_..." \
+  -d '{
+    "agent_id": "...",
+    "trigger": "api",
+    "input_data": {"ticket_id": "T-1234"}
+  }'
+```
+
+## Track run progress
+
+```bash
+# list runs
+curl http://localhost:8201/workflows/{workflow_id}/runs \
+  -H "Authorization: Bearer rl_..."
+
+# get run detail (includes steps)
+curl http://localhost:8201/workflows/{workflow_id}/runs/{run_id} \
+  -H "Authorization: Bearer rl_..."
+
+# update run status
+curl -X PUT http://localhost:8201/workflows/{workflow_id}/runs/{run_id} \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"status": "completed", "total_cost": 0.045}'
+```
+
+## Record workflow steps
+
+```bash
+# add a step
+curl -X POST http://localhost:8201/workflows/runs/{run_id}/steps \
+  -H "Authorization: Bearer rl_..." \
+  -d '{
+    "step_index": 0,
+    "name": "triage",
+    "step_type": "agent",
+    "model": "gpt-4o-mini"
+  }'
+
+# update step with results
+curl -X PUT http://localhost:8201/workflows/runs/{run_id}/steps/{step_id} \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"status": "completed", "cost": 0.002, "tokens": 450, "duration_ms": 1200}'
+```
+
+Step types: `agent`, `model`, `tool`, `human`, `condition`, `parallel`.
+
+## Cost attribution
+
+```bash
+curl http://localhost:8201/workflows/{workflow_id}/cost \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns per-step cost breakdown: `total_runs`, `total_cost`, `avg_cost_per_run`, and
+`cost_by_step` (each step's total cost, average cost, and invocation count).
+
+---
+
+## Dashboard
+
+The **Workflows** page shows all workflow definitions with run counts, costs, and status.
+The **Workflow Runs** page lists executions with status badges, cost, duration, and
+drill-down to the step-by-step execution timeline.

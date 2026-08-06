@@ -1,0 +1,111 @@
+---
+title: "API Playground"
+description: "Send requests through the RunLedger gateway, compare models side-by-side, and track prompt cost and latency."
+---
+
+The API Playground lets you send requests through the RunLedger gateway interactively,
+compare responses across models, and build up a history of prompt/response pairs with
+full cost tracking.
+
+## Sessions
+
+Sessions group related playground requests. Use them for multi-turn conversations or
+to organize experiments.
+
+```bash
+# create a session
+curl -X POST http://localhost:8201/playground/sessions \
+  -H "Authorization: Bearer rl_..." \
+  -d '{
+    "name": "Pricing Q&A experiment",
+    "mode": "conversation",
+    "system_prompt": "You are a helpful assistant."
+  }'
+
+# list sessions
+curl http://localhost:8201/playground/sessions \
+  -H "Authorization: Bearer rl_..."
+
+# list favorites only
+curl "http://localhost:8201/playground/sessions?favorites_only=true" \
+  -H "Authorization: Bearer rl_..."
+
+# get session detail
+curl http://localhost:8201/playground/sessions/{session_id} \
+  -H "Authorization: Bearer rl_..."
+
+# update (rename, favorite, change system prompt)
+curl -X PUT http://localhost:8201/playground/sessions/{session_id} \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"is_favorite": true}'
+
+# delete
+curl -X DELETE http://localhost:8201/playground/sessions/{session_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+Session modes: `single`, `conversation`, `compare`.
+
+## Send a request
+
+```bash
+curl -X POST http://localhost:8201/playground/send \
+  -H "Authorization: Bearer rl_..." \
+  -d '{
+    "model": "gpt-4o",
+    "user_prompt": "Explain quantum computing in one sentence.",
+    "parameters": {"temperature": 0.7, "max_tokens": 100},
+    "session_id": "optional-session-uuid"
+  }'
+```
+
+The response includes `model`, `user_prompt`, `response_text`, `input_tokens`,
+`output_tokens`, `cost_usd`, `latency_ms`, `status`, and `route_decision`.
+
+<Note>
+Gateway integration is pending — requests are currently recorded with a stub response.
+Once wired, requests route through the full RunLedger gateway with caching, routing, and
+budget enforcement.
+</Note>
+
+## Compare models
+
+Send the same prompt to multiple models and compare responses side-by-side:
+
+```bash
+curl -X POST http://localhost:8201/playground/compare \
+  -H "Authorization: Bearer rl_..." \
+  -d '{
+    "models": ["gpt-4o", "claude-sonnet-4-20250514", "gemini-1.5-pro"],
+    "user_prompt": "What is the capital of France?",
+    "parameters": {"temperature": 0}
+  }'
+```
+
+Returns a `results` array with one response per model. Min 2, max 5 models.
+
+## Request history
+
+```bash
+# list all requests (with optional filters)
+curl "http://localhost:8201/playground/history?model=gpt-4o&limit=50" \
+  -H "Authorization: Bearer rl_..."
+
+# get request detail
+curl http://localhost:8201/playground/history/{request_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+Filter by `session_id` or `model`.
+
+---
+
+## Dashboard
+
+The **Playground** page shows:
+
+- **Quick Send** — API usage examples for the send and compare endpoints.
+- **Sessions** — card grid with mode badges, favorite stars, system prompt preview, and
+  last-updated timestamps.
+- **Request History** — table with model, prompt preview, response preview, status badge,
+  cost, token counts, latency, and timestamps.

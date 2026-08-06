@@ -2605,7 +2605,7 @@ Add agent lifecycle management, workflow orchestration visibility, developer pla
 
 ### Agent Registry And Lifecycle
 
-- [ ] Add agent registry:
+- [x] Add agent registry:
   - agent name
   - agent type (autonomous, semi-autonomous, workflow, chat)
   - description
@@ -2616,7 +2616,7 @@ Add agent lifecycle management, workflow orchestration visibility, developer pla
   - policy profile
   - status (active, paused, retired)
   - created/updated timestamps
-- [ ] Add agent CRUD API:
+- [x] Add agent CRUD API:
   - `POST /agents` — register agent
   - `GET /agents` — list agents
   - `GET /agents/{id}` — get agent details
@@ -2624,76 +2624,76 @@ Add agent lifecycle management, workflow orchestration visibility, developer pla
   - `DELETE /agents/{id}` — retire agent
   - `GET /agents/{id}/runs` — list agent runs
   - `GET /agents/{id}/stats` — agent cost/performance summary
-- [ ] Add agent dashboard page:
+- [x] Add agent dashboard page:
   - agent list with status, last run, total cost, run count
   - agent detail: cost trend, success rate, avg latency, tools used, models used
   - agent comparison: side-by-side cost/quality across agents
 
 ### Workflow Runs Visibility
 
-- [ ] Add workflow run tracking:
+- [x] Add workflow run tracking:
   - workflow name
   - steps (ordered list of agent/model/tool invocations)
   - step status (pending, running, completed, failed, skipped)
   - step cost, latency, tokens
   - total workflow cost and duration
   - parent/child workflow relationships
-- [ ] Add workflow run timeline visualization:
+- [x] Add workflow run timeline visualization:
   - Gantt-style timeline showing step execution order and parallelism
   - step-level cost and latency annotations
   - click-to-drill into step detail
-- [ ] Add workflow CRUD API:
+- [x] Add workflow CRUD API:
   - `GET /workflows` — list workflow definitions
   - `GET /workflows/{id}/runs` — list runs for a workflow
   - `GET /workflows/{id}/runs/{run_id}` — run detail with steps
-- [ ] Add workflow cost attribution:
+- [x] Add workflow cost attribution:
   - total cost per workflow type
   - cost per step
   - optimization opportunities per workflow
 
 ### Agent Memory Management
 
-- [ ] Add agent memory store:
+- [x] Add agent memory store:
   - key-value memory per agent per workspace
   - memory types: short-term (session), long-term (persistent), shared (cross-agent)
   - memory size limits per workspace/agent
   - memory retention policy
   - memory search (semantic or keyword)
-- [ ] Add memory API:
+- [x] Add memory API:
   - `POST /agents/{id}/memory` — store memory
   - `GET /agents/{id}/memory` — retrieve memories
   - `DELETE /agents/{id}/memory/{key}` — delete memory
   - `POST /agents/{id}/memory/search` — search memory
-- [ ] Add memory dashboard:
+- [x] Add memory dashboard:
   - memory usage per agent
   - memory size trends
   - most accessed memories
   - memory cost (if using vector store)
-- [ ] Add memory governance:
+- [x] Add memory governance:
   - PII detection in stored memories
   - retention policy enforcement
   - memory audit log
 
 ### Vector Store Management
 
-- [ ] Add vector store management UI:
+- [x] Add vector store management UI:
   - list vector stores (Qdrant collections)
   - collection stats: document count, size, dimensions
   - search test interface
   - create/delete collections
   - upload documents with metadata
-- [ ] Add vector store cost tracking:
+- [x] Add vector store cost tracking:
   - storage cost per collection
   - query cost per search
   - embedding cost per document
-- [ ] Add vector store health monitoring:
+- [x] Add vector store health monitoring:
   - collection availability
   - query latency
   - index freshness
 
 ### API Playground
 
-- [ ] Add interactive API playground:
+- [x] Add interactive API playground:
   - select model and provider
   - compose prompt
   - set parameters (temperature, max tokens, top_p, etc.)
@@ -2701,14 +2701,14 @@ Add agent lifecycle management, workflow orchestration visibility, developer pla
   - see response, cost, latency, tokens, route decision
   - compare responses across models side-by-side
   - save prompt/response pairs as test cases
-- [ ] Add playground features:
+- [x] Add playground features:
   - conversation mode (multi-turn)
   - system prompt editor
   - tool/function calling test
   - structured output (JSON mode) test
   - image/vision input support
   - streaming response display
-- [ ] Add playground history:
+- [x] Add playground history:
   - recent requests
   - cost per request
   - save favorites

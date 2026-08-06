@@ -2504,3 +2504,318 @@ export interface RateLimitInfo {
   remaining_tokens?: number
   reset: number
 }
+
+// ── Agent Registry ─────────────────────────────────────────────────────────
+
+export interface AgentResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  agent_type: string
+  owner: string | null
+  default_model: string | null
+  default_tools: string[]
+  budget_envelope: number | null
+  policy_profile: string | null
+  status: string
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentListResponse {
+  agents: AgentResponse[]
+  total: number
+}
+
+export interface AgentStats {
+  agent_id: string
+  total_runs: number
+  completed_runs: number
+  failed_runs: number
+  total_cost: number
+  total_tokens: number
+  avg_duration_ms: number | null
+  success_rate: number | null
+  last_run_at: string | null
+  models_used: string[]
+  tools_used: string[]
+}
+
+// ── Workflow Definitions & Runs ────────────────────────────────────────────
+
+export interface WorkflowDefinitionResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  steps_schema: Record<string, unknown>[]
+  status: string
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkflowDefinitionListResponse {
+  workflows: WorkflowDefinitionResponse[]
+  total: number
+}
+
+export interface WorkflowStepResponse {
+  id: string
+  run_id: string
+  step_index: number
+  name: string
+  step_type: string
+  agent_id: string | null
+  model: string | null
+  tool: string | null
+  status: string
+  cost: number
+  tokens: number
+  duration_ms: number | null
+  input_data: Record<string, unknown> | null
+  output_data: Record<string, unknown> | null
+  error: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export interface WorkflowRunResponse {
+  id: string
+  workspace_id: string
+  workflow_id: string
+  agent_id: string | null
+  parent_run_id: string | null
+  status: string
+  total_cost: number
+  total_tokens: number
+  total_duration_ms: number | null
+  trigger: string | null
+  input_data: Record<string, unknown>
+  output_data: Record<string, unknown> | null
+  error: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+  steps: WorkflowStepResponse[]
+}
+
+export interface WorkflowRunListResponse {
+  runs: WorkflowRunResponse[]
+  total: number
+}
+
+export interface WorkflowRunSummary {
+  id: string
+  workspace_id: string
+  workflow_id: string
+  agent_id: string | null
+  parent_run_id: string | null
+  status: string
+  total_cost: number
+  total_tokens: number
+  total_duration_ms: number | null
+  trigger: string | null
+  error: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export interface WorkflowRunSummaryListResponse {
+  runs: WorkflowRunSummary[]
+  total: number
+}
+
+export interface StepCostBreakdown {
+  step_name: string
+  step_type: string
+  total_cost: number
+  avg_cost: number
+  invocation_count: number
+}
+
+export interface WorkflowCostAttribution {
+  workflow_id: string
+  workflow_name: string
+  total_runs: number
+  total_cost: number
+  avg_cost_per_run: number
+  cost_by_step: StepCostBreakdown[]
+}
+
+// ── Agent Memory ──────────────────────────────────────────────────────────
+
+export interface AgentMemoryResponse {
+  id: string
+  workspace_id: string
+  agent_id: string
+  key: string
+  value: string
+  memory_type: string
+  metadata: Record<string, unknown>
+  size_bytes: number
+  access_count: number
+  has_pii: boolean
+  retention_days: number | null
+  expires_at: string | null
+  last_accessed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentMemoryListResponse {
+  memories: AgentMemoryResponse[]
+  total: number
+}
+
+export interface AgentMemoryStats {
+  agent_id: string
+  total_memories: number
+  total_size_bytes: number
+  by_type: Record<string, number>
+  pii_count: number
+  expired_count: number
+  most_accessed: AgentMemoryResponse[]
+}
+
+export interface AgentMemoryAuditResponse {
+  id: string
+  workspace_id: string
+  agent_id: string
+  memory_id: string | null
+  action: string
+  key: string | null
+  details: Record<string, unknown>
+  actor: string | null
+  created_at: string
+}
+
+export interface AgentMemoryAuditListResponse {
+  events: AgentMemoryAuditResponse[]
+  total: number
+}
+
+// ── Vector Store Management ───────────────────────────────────────────────
+
+export interface VectorCollectionResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  qdrant_collection: string
+  embedding_model: string | null
+  dimensions: number | null
+  distance_metric: string
+  document_count: number
+  size_bytes: number
+  total_queries: number
+  total_query_cost: number
+  total_embed_cost: number
+  status: string
+  config: Record<string, unknown>
+  last_queried_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface VectorCollectionListResponse {
+  collections: VectorCollectionResponse[]
+  total: number
+}
+
+export interface VectorCollectionStats {
+  collection_id: string
+  name: string
+  document_count: number
+  size_bytes: number
+  total_queries: number
+  total_query_cost: number
+  total_embed_cost: number
+  total_cost: number
+  avg_query_latency_ms: number | null
+  avg_results_per_query: number | null
+}
+
+export interface VectorQueryResponse {
+  id: string
+  workspace_id: string
+  collection_id: string
+  query_text: string
+  top_k: number
+  threshold: number | null
+  result_count: number
+  best_score: number | null
+  latency_ms: number | null
+  embed_cost: number
+  query_cost: number
+  results: Record<string, unknown>[] | null
+  created_at: string
+}
+
+export interface VectorQueryListResponse {
+  queries: VectorQueryResponse[]
+  total: number
+}
+
+export interface VectorSearchTestResponse {
+  query: string
+  results: { score: number; payload: Record<string, unknown> }[]
+  result_count: number
+  latency_ms: number | null
+  embed_cost: number
+  query_cost: number
+}
+
+// ── API Playground ────────────────────────────────────────────────────────
+
+export interface PlaygroundSessionResponse {
+  id: string
+  workspace_id: string
+  name: string | null
+  system_prompt: string | null
+  mode: string
+  is_favorite: boolean
+  config: Record<string, unknown>
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PlaygroundSessionListResponse {
+  sessions: PlaygroundSessionResponse[]
+  total: number
+}
+
+export interface PlaygroundRequestResponse {
+  id: string
+  workspace_id: string
+  session_id: string | null
+  model: string
+  provider: string | null
+  system_prompt: string | null
+  user_prompt: string
+  parameters: Record<string, unknown>
+  response_text: string | null
+  input_tokens: number | null
+  output_tokens: number | null
+  cost_usd: number | null
+  latency_ms: number | null
+  status: string
+  route_decision: string | null
+  error: string | null
+  gateway_request_id: string | null
+  created_at: string
+}
+
+export interface PlaygroundRequestListResponse {
+  requests: PlaygroundRequestResponse[]
+  total: number
+}
+
+export interface PlaygroundCompareResponse {
+  results: PlaygroundRequestResponse[]
+}

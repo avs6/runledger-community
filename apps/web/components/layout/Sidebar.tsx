@@ -9,12 +9,14 @@ import {
   Beaker,
   Bell,
   BookOpen,
+  Bot,
   Building2,
   ChevronDown,
   Cpu,
   Database,
   FileText,
   FlaskConical,
+  GitBranch,
   Key,
   Landmark,
   LayoutDashboard,
@@ -41,6 +43,7 @@ import {
   Users,
   Wallet,
   FileCheck,
+  Play,
   Wrench,
 } from 'lucide-react'
 import RunLedgerLogo from '@/components/brand/RunLedgerLogo'
@@ -70,6 +73,10 @@ const workspaceNav = [
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
+  { href: '/agents', label: 'Agents', icon: Bot },
+  { href: '/workflows', label: 'Workflows', icon: GitBranch },
+  { href: '/vector-stores', label: 'Vector Stores', icon: Database },
+  { href: '/playground', label: 'Playground', icon: Play },
   { href: '/runbooks', label: 'Runbooks', icon: BookOpen },
 ] as const
 

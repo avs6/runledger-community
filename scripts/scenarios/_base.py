@@ -900,6 +900,173 @@ class Workspace:
             "guardrail alert acknowledge",
         )
 
+    def _analytics_get(self, path: str, label: str) -> dict[str, Any]:
+        return self.sim.get(path, key=self.admin_key or self.key) or {}
+
+    # ── Phase 16: Agentic Operations ───────────────────────────────────
+
+    def register_agent(
+        self,
+        name: str,
+        agent_type: str = "autonomous",
+        *,
+        default_model: str | None = None,
+        budget_envelope: float | None = None,
+        owner: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"name": name, "agent_type": agent_type}
+        if default_model:
+            body["default_model"] = default_model
+        if budget_envelope is not None:
+            body["budget_envelope"] = budget_envelope
+        if owner:
+            body["owner"] = owner
+        if config:
+            body["config"] = config
+        return self._post("/agents", body, f"agent '{name}'")
+
+    def list_agents(self) -> dict[str, Any]:
+        return self.sim.get("/agents", key=self.key) or {}
+
+    def get_agent_stats(self, agent_id: str) -> dict[str, Any]:
+        return self.sim.get(f"/agents/{agent_id}/stats", key=self.key) or {}
+
+    def store_agent_memory(
+        self,
+        agent_id: str,
+        key: str,
+        value: str,
+        memory_type: str = "long_term",
+        retention_days: int | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"key": key, "value": value, "memory_type": memory_type}
+        if retention_days is not None:
+            body["retention_days"] = retention_days
+        return self._post(f"/agents/{agent_id}/memory", body, f"memory '{key}'")
+
+    def search_agent_memory(self, agent_id: str, query: str, limit: int = 10) -> dict[str, Any]:
+        return self._post(
+            f"/agents/{agent_id}/memory/search",
+            {"query": query, "limit": limit},
+            "memory search",
+        )
+
+    def get_agent_memory_stats(self, agent_id: str) -> dict[str, Any]:
+        return self.sim.get(f"/agents/{agent_id}/memory/stats", key=self.key) or {}
+
+    def create_workflow(
+        self,
+        name: str,
+        *,
+        description: str | None = None,
+        steps_schema: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"name": name}
+        if description:
+            body["description"] = description
+        if steps_schema:
+            body["steps_schema"] = steps_schema
+        return self._post("/workflows", body, f"workflow '{name}'")
+
+    def create_workflow_run(
+        self,
+        workflow_id: str,
+        *,
+        agent_id: str | None = None,
+        trigger: str = "api",
+        input_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"workflow_id": workflow_id, "trigger": trigger}
+        if agent_id:
+            body["agent_id"] = agent_id
+        if input_data:
+            body["input_data"] = input_data
+        return self._post(f"/workflows/{workflow_id}/runs", body, "workflow run")
+
+    def create_workflow_step(
+        self,
+        run_id: str,
+        step_index: int,
+        name: str,
+        step_type: str = "agent",
+        *,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"step_index": step_index, "name": name, "step_type": step_type}
+        if model:
+            body["model"] = model
+        return self._post(f"/workflows/runs/{run_id}/steps", body, f"step '{name}'")
+
+    def register_vector_collection(
+        self,
+        name: str,
+        qdrant_collection: str,
+        *,
+        embedding_model: str | None = None,
+        dimensions: int | None = None,
+        distance_metric: str = "cosine",
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "name": name,
+            "qdrant_collection": qdrant_collection,
+            "distance_metric": distance_metric,
+        }
+        if embedding_model:
+            body["embedding_model"] = embedding_model
+        if dimensions:
+            body["dimensions"] = dimensions
+        if description:
+            body["description"] = description
+        return self._post("/vector-stores", body, f"collection '{name}'")
+
+    def vector_search_test(self, collection_id: str, query: str, top_k: int = 5) -> dict[str, Any]:
+        return self._post(
+            f"/vector-stores/{collection_id}/search-test",
+            {"query": query, "top_k": top_k},
+            "vector search test",
+        )
+
+    def create_playground_session(
+        self,
+        name: str,
+        *,
+        mode: str = "single",
+        system_prompt: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"name": name, "mode": mode}
+        if system_prompt:
+            body["system_prompt"] = system_prompt
+        return self._post("/playground/sessions", body, f"playground session '{name}'")
+
+    def playground_send(
+        self,
+        model: str,
+        user_prompt: str,
+        *,
+        session_id: str | None = None,
+        parameters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"model": model, "user_prompt": user_prompt}
+        if session_id:
+            body["session_id"] = session_id
+        if parameters:
+            body["parameters"] = parameters
+        return self._post("/playground/send", body, f"playground send ({model})")
+
+    def playground_compare(
+        self,
+        models: list[str],
+        user_prompt: str,
+        *,
+        parameters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"models": models, "user_prompt": user_prompt}
+        if parameters:
+            body["parameters"] = parameters
+        return self._post("/playground/compare", body, "playground compare")
+
     # ── ML Intelligence helpers ─────────────────────────────────────────
 
     def list_anomalies(

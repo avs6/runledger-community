@@ -136,6 +136,15 @@
       ]
     },
     {
+      "group": "Agentic Operations",
+      "pages": [
+        "agentic/agents",
+        "agentic/workflows",
+        "agentic/vector-stores",
+        "agentic/playground"
+      ]
+    },
+    {
       "group": "Integrations",
       "pages": [
         "integration-options-mcp",

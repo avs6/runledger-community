@@ -11,6 +11,7 @@ from runledger_api.core.db import engine
 from runledger_api.core.logging import configure_logging
 from runledger_api.core.redis import redis_client
 from runledger_api.mcp_server import mcp as _mcp_server
+from runledger_api.routers import agents as agents_router
 from runledger_api.routers import alerts as alerts_router
 from runledger_api.routers import (
     analytics,
@@ -40,6 +41,7 @@ from runledger_api.routers import model_budgets as model_budgets_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
 from runledger_api.routers import outcomes as outcomes_router
+from runledger_api.routers import playground as playground_router
 from runledger_api.routers import policies as policies_router
 from runledger_api.routers import prompts as prompts_router
 from runledger_api.routers import providers as providers_router
@@ -47,6 +49,8 @@ from runledger_api.routers import retention as retention_router
 from runledger_api.routers import sessions as sessions_router
 from runledger_api.routers import settings as settings_router
 from runledger_api.routers import users as users_router
+from runledger_api.routers import vector_stores as vector_stores_router
+from runledger_api.routers import workflows as workflows_router
 
 configure_logging()
 log = structlog.get_logger()
@@ -116,6 +120,10 @@ app.include_router(guardrails_router.router)
 app.include_router(intelligence_router.router)
 app.include_router(budget_tiers_router.router)
 app.include_router(model_budgets_router.router)
+app.include_router(agents_router.router)
+app.include_router(workflows_router.router)
+app.include_router(vector_stores_router.router)
+app.include_router(playground_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

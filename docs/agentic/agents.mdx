@@ -1,0 +1,134 @@
+---
+title: "Agent Registry & Memory"
+description: "Register agents, track their lifecycle, store and govern per-agent memory with PII detection and audit logging."
+---
+
+RunLedger's Agent Registry is the identity layer for your AI agents. Every agent that touches
+the gateway gets a record — name, type, owner, default model, budget envelope, and config.
+Once registered, agents automatically accumulate run stats, cost attribution, and memory.
+
+## Register an agent
+
+```bash
+curl -X POST http://localhost:8201/agents \
+  -H "Authorization: Bearer rl_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "support-triage",
+    "agent_type": "autonomous",
+    "default_model": "gpt-4o",
+    "budget_envelope": 50.00,
+    "owner": "platform-team"
+  }'
+```
+
+Fields: `name` (required), `description`, `agent_type` (`autonomous | semi_autonomous | workflow | chat`),
+`owner`, `default_model`, `default_tools`, `budget_envelope`, `policy_profile`, `status`, `config`.
+
+## List & filter
+
+```bash
+# all active agents
+curl http://localhost:8201/agents?status=active \
+  -H "Authorization: Bearer rl_..."
+
+# single agent detail
+curl http://localhost:8201/agents/{agent_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+## Agent stats
+
+```bash
+curl http://localhost:8201/agents/{agent_id}/stats \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns `total_runs`, `completed_runs`, `failed_runs`, `total_cost`, `total_tokens`,
+`avg_duration_ms`, `success_rate`, `models_used`, `tools_used`.
+
+## Agent runs
+
+```bash
+curl http://localhost:8201/agents/{agent_id}/runs \
+  -H "Authorization: Bearer rl_..."
+```
+
+Lists all workflow runs associated with the agent, with pagination.
+
+## Retire an agent
+
+```bash
+curl -X DELETE http://localhost:8201/agents/{agent_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+Soft-deletes by setting `status = retired`.
+
+---
+
+## Agent Memory
+
+Each agent has a key-value memory store with PII detection, retention policies, and a full
+audit log. Memory is workspace-scoped — agents in different workspaces are isolated.
+
+### Store a memory
+
+```bash
+curl -X POST http://localhost:8201/agents/{agent_id}/memory \
+  -H "Authorization: Bearer rl_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "user_preferences",
+    "value": "{\"theme\": \"dark\", \"lang\": \"en\"}",
+    "memory_type": "long_term",
+    "retention_days": 90
+  }'
+```
+
+RunLedger automatically scans the value for PII patterns (emails, phone numbers, SSNs,
+credit cards, IP addresses). If detected, the memory is flagged `has_pii = true` and an
+audit event is logged.
+
+### List & search memories
+
+```bash
+# list all
+curl http://localhost:8201/agents/{agent_id}/memory \
+  -H "Authorization: Bearer rl_..."
+
+# full-text search
+curl -X POST http://localhost:8201/agents/{agent_id}/memory/search \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"query": "preferences", "limit": 10}'
+```
+
+### Memory stats
+
+```bash
+curl http://localhost:8201/agents/{agent_id}/memory/stats \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns `total_memories`, `total_size_bytes`, `by_type` breakdown, `pii_count`,
+`expired_count`, and the `most_accessed` memories.
+
+### Audit log
+
+```bash
+curl http://localhost:8201/agents/{agent_id}/memory/audit \
+  -H "Authorization: Bearer rl_..."
+```
+
+Every store, update, delete, and PII detection event is logged with timestamp, actor, and details.
+
+---
+
+## Dashboard
+
+The **Agents** page in the dashboard shows a card grid of all registered agents with type
+badges, status indicators, model info, run counts, and cost totals. Click through to the
+agent detail page which links to runs and memory.
+
+The **Memory** sub-page shows stat cards, a searchable memory table with PII flags, access
+counts, and retention info, plus the audit log.

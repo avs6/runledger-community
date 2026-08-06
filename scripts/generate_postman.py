@@ -55,6 +55,10 @@ TAG_ORDER = [
     ("intelligence", "ML Intelligence"),
     ("integrations", "Control Plane - MCP & Integrations"),
     ("Operations", "Operations"),
+    ("agents", "Agent Registry & Memory"),
+    ("workflows", "Workflows"),
+    ("vector-stores", "Vector Store Management"),
+    ("playground", "API Playground"),
 ]
 
 LEGACY_ADMIN_PREFIXES = (
@@ -1077,6 +1081,48 @@ environment = {
             "type": "default",
             "enabled": True,
             "description": "Replay dataset UUID.",
+        },
+        {
+            "key": "agent_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Agent UUID — set after registering an agent.",
+        },
+        {
+            "key": "workflow_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Workflow definition UUID — set after creating a workflow.",
+        },
+        {
+            "key": "step_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Workflow step UUID — set after creating a step.",
+        },
+        {
+            "key": "collection_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Vector store collection UUID — set after creating a collection.",
+        },
+        {
+            "key": "session_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Playground session UUID — set after creating a session.",
+        },
+        {
+            "key": "request_id",
+            "value": "",
+            "type": "default",
+            "enabled": True,
+            "description": "Playground request UUID — set after sending a request.",
         },
         {
             "key": "admin_secret",

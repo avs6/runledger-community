@@ -1,0 +1,105 @@
+---
+title: "Vector Store Management"
+description: "Track and monitor Qdrant vector store collections — document counts, query costs, latency, and search testing."
+---
+
+RunLedger's Vector Store Management tracks the metadata and economics of your Qdrant
+collections. Register collections, monitor document counts and storage, track per-query
+costs, and test searches — all from the same control plane that manages your agents.
+
+## Register a collection
+
+```bash
+curl -X POST http://localhost:8201/vector-stores \
+  -H "Authorization: Bearer rl_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "knowledge-base",
+    "qdrant_collection": "kb_v1",
+    "embedding_model": "bge-small-en-v1.5",
+    "dimensions": 384,
+    "distance_metric": "cosine"
+  }'
+```
+
+Fields: `name` (required), `qdrant_collection` (required), `description`, `embedding_model`,
+`dimensions`, `distance_metric` (`cosine | euclidean | dot`, default `cosine`), `config`.
+
+## List collections
+
+```bash
+# all collections
+curl http://localhost:8201/vector-stores \
+  -H "Authorization: Bearer rl_..."
+
+# filter by status
+curl "http://localhost:8201/vector-stores?status=active" \
+  -H "Authorization: Bearer rl_..."
+```
+
+## Collection detail
+
+```bash
+curl http://localhost:8201/vector-stores/{collection_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns full metadata: document count, size, query count, embedding/query costs, distance
+metric, dimensions, and timestamps.
+
+## Update a collection
+
+```bash
+curl -X PUT http://localhost:8201/vector-stores/{collection_id} \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"description": "Production knowledge base v2"}'
+```
+
+## Delete a collection
+
+```bash
+curl -X DELETE http://localhost:8201/vector-stores/{collection_id} \
+  -H "Authorization: Bearer rl_..."
+```
+
+Soft-deletes by setting `status = deleted`.
+
+## Collection stats
+
+```bash
+curl http://localhost:8201/vector-stores/{collection_id}/stats \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns `document_count`, `size_bytes`, `total_queries`, `total_query_cost`, `total_embed_cost`,
+`total_cost`, `avg_query_latency_ms`, and `avg_results_per_query`.
+
+## Query history
+
+```bash
+curl http://localhost:8201/vector-stores/{collection_id}/queries \
+  -H "Authorization: Bearer rl_..."
+```
+
+Lists recorded queries with text, top_k, result count, best score, latency, and costs.
+
+## Search test
+
+```bash
+curl -X POST http://localhost:8201/vector-stores/{collection_id}/search-test \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"query": "what is RAG?", "top_k": 5}'
+```
+
+Records the query and returns results. Full Qdrant search integration is routed through the
+`semantic-cache-svc` microservice.
+
+---
+
+## Dashboard
+
+The **Vector Stores** page shows a card grid of all collections with status badges, distance
+metric, embedding model, document counts, size, query counts, and total cost.
+
+Click a collection to see the detail page with stat cards (documents, size, queries, cost
+breakdown, avg latency) and a table of recent queries.

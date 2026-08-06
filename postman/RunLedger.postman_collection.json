@@ -11963,6 +11963,871 @@
         }
       ],
       "description": "Advanced Budget & Rate Limit Engine — budget tiers, model-specific budgets, temporary overrides with auto-expiry, throttle/fallback enforcement, rate limit headers, and billable metering."
+    },
+    {
+      "name": "Agent Registry & Memory",
+      "item": [
+        {
+          "name": "Register Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents",
+              "host": ["{{base_url}}"],
+              "path": ["agents"]
+            },
+            "description": "Register a new agent in the workspace.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"support-triage\",\n  \"agent_type\": \"autonomous\",\n  \"default_model\": \"gpt-4o\",\n  \"budget_envelope\": 50.00,\n  \"owner\": \"platform-team\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Agents",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents?status=active&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["agents"],
+              "query": [
+                { "key": "status", "value": "active" },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List agents in the workspace. Filter by status, agent_type."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Agent",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}"]
+            },
+            "description": "Get a single agent by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Agent",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}"]
+            },
+            "description": "Update an agent's name, model, budget, status, etc.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\",\n  \"budget_envelope\": 100.00\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Retire Agent",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}"]
+            },
+            "description": "Soft-delete an agent by setting status to retired."
+          },
+          "response": []
+        },
+        {
+          "name": "Agent Runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/runs?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "runs"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List workflow runs associated with this agent."
+          },
+          "response": []
+        },
+        {
+          "name": "Agent Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/stats",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "stats"]
+            },
+            "description": "Get aggregated stats for an agent: runs, cost, tokens, success rate."
+          },
+          "response": []
+        },
+        {
+          "name": "Store Memory",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory"]
+            },
+            "description": "Store a key-value memory for an agent. PII is auto-detected.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"user_preferences\",\n  \"value\": \"{\\\"theme\\\": \\\"dark\\\"}\",\n  \"memory_type\": \"long_term\",\n  \"retention_days\": 90\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Memories",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory?memory_type=long_term&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory"],
+              "query": [
+                { "key": "memory_type", "value": "long_term" },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List memories for an agent. Filter by memory_type."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Memory",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory/user_preferences",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory", "user_preferences"]
+            },
+            "description": "Update a memory by key.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"{\\\"theme\\\": \\\"light\\\"}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Memory",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory/user_preferences",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory", "user_preferences"]
+            },
+            "description": "Delete a memory by key."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Memories",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory/search",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory", "search"]
+            },
+            "description": "Full-text search across agent memories.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"preferences\",\n  \"limit\": 10\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Memory Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory/stats",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory", "stats"]
+            },
+            "description": "Get memory statistics: total count, size, PII count, by type."
+          },
+          "response": []
+        },
+        {
+          "name": "Memory Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/memory/audit?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["agents", "{{agent_id}}", "memory", "audit"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "View the memory audit log — store, update, delete, and PII events."
+          },
+          "response": []
+        }
+      ],
+      "description": "Agent Registry — register, track, and govern AI agents. Includes per-agent memory with PII detection, retention policies, and audit logging."
+    },
+    {
+      "name": "Workflows",
+      "item": [
+        {
+          "name": "Create Workflow",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows",
+              "host": ["{{base_url}}"],
+              "path": ["workflows"]
+            },
+            "description": "Create a workflow definition.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"support-pipeline\",\n  \"description\": \"Triage → research → draft → review\",\n  \"steps_schema\": [\n    {\"name\": \"triage\", \"type\": \"agent\"},\n    {\"name\": \"draft\", \"type\": \"model\"}\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Workflows",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows?status=active&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["workflows"],
+              "query": [
+                { "key": "status", "value": "active" },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List workflow definitions."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Workflow",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}"]
+            },
+            "description": "Get a single workflow definition."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Workflow",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}"]
+            },
+            "description": "Update a workflow definition.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated pipeline\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Archive Workflow",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}"]
+            },
+            "description": "Archive a workflow (sets status to archived)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Workflow Run",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}/runs",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}", "runs"]
+            },
+            "description": "Start a new workflow run.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"{{agent_id}}\",\n  \"trigger\": \"api\",\n  \"input_data\": {\"ticket_id\": \"T-1234\"}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Workflow Runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}/runs?status=completed&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}", "runs"],
+              "query": [
+                { "key": "status", "value": "completed" },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List runs for a workflow."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Workflow Run",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}/runs/{{run_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}", "runs", "{{run_id}}"]
+            },
+            "description": "Get a workflow run detail including steps."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Workflow Run",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}/runs/{{run_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}", "runs", "{{run_id}}"]
+            },
+            "description": "Update a workflow run (status, cost, output).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"total_cost\": 0.045,\n  \"total_tokens\": 1200\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Workflow Step",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/runs/{{run_id}}/steps",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "runs", "{{run_id}}", "steps"]
+            },
+            "description": "Add a step to a workflow run.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"step_index\": 0,\n  \"name\": \"triage\",\n  \"step_type\": \"agent\",\n  \"model\": \"gpt-4o-mini\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Workflow Step",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/runs/{{run_id}}/steps/{{step_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "runs", "{{run_id}}", "steps", "{{step_id}}"]
+            },
+            "description": "Update a workflow step with results.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"cost\": 0.002,\n  \"tokens\": 450,\n  \"duration_ms\": 1200\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Workflow Cost Attribution",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workflows/{{workflow_id}}/cost",
+              "host": ["{{base_url}}"],
+              "path": ["workflows", "{{workflow_id}}", "cost"]
+            },
+            "description": "Get per-step cost breakdown for a workflow."
+          },
+          "response": []
+        }
+      ],
+      "description": "Workflow Runs — define multi-step agent workflows, track runs with per-step cost attribution."
+    },
+    {
+      "name": "Vector Store Management",
+      "item": [
+        {
+          "name": "Create Collection",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores"]
+            },
+            "description": "Register a Qdrant vector store collection.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"knowledge-base\",\n  \"qdrant_collection\": \"kb_v1\",\n  \"embedding_model\": \"bge-small-en-v1.5\",\n  \"dimensions\": 384,\n  \"distance_metric\": \"cosine\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Collections",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores?status=active&limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores"],
+              "query": [
+                { "key": "status", "value": "active" },
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List vector store collections."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Collection",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores/{{collection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores", "{{collection_id}}"]
+            },
+            "description": "Get a single collection by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Collection",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores/{{collection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores", "{{collection_id}}"]
+            },
+            "description": "Update a collection's name, description, or status.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Production knowledge base v2\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Collection",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores/{{collection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores", "{{collection_id}}"]
+            },
+            "description": "Soft-delete a collection (sets status to deleted)."
+          },
+          "response": []
+        },
+        {
+          "name": "Collection Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores/{{collection_id}}/stats",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores", "{{collection_id}}", "stats"]
+            },
+            "description": "Get collection statistics: documents, size, queries, costs, avg latency."
+          },
+          "response": []
+        },
+        {
+          "name": "List Queries",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores/{{collection_id}}/queries?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores", "{{collection_id}}", "queries"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List recorded queries for a collection."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vector-stores/{{collection_id}}/search-test",
+              "host": ["{{base_url}}"],
+              "path": ["vector-stores", "{{collection_id}}", "search-test"]
+            },
+            "description": "Test a vector search query against a collection.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"what is RAG?\",\n  \"top_k\": 5\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Vector Store Management — track and monitor Qdrant collections, query costs, latency, and search testing."
+    },
+    {
+      "name": "API Playground",
+      "item": [
+        {
+          "name": "Create Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/sessions",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "sessions"]
+            },
+            "description": "Create a playground session.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pricing Q&A experiment\",\n  \"mode\": \"conversation\",\n  \"system_prompt\": \"You are a helpful assistant.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/sessions?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "sessions"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List playground sessions. Filter by favorites_only."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/sessions/{{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "sessions", "{{session_id}}"]
+            },
+            "description": "Get a playground session by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Session",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/sessions/{{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "sessions", "{{session_id}}"]
+            },
+            "description": "Update a session (rename, favorite, change system prompt).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Renamed session\",\n  \"is_favorite\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/sessions/{{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "sessions", "{{session_id}}"]
+            },
+            "description": "Delete a playground session."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/send",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "send"]
+            },
+            "description": "Send a request through the RunLedger gateway via the playground.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-4o\",\n  \"user_prompt\": \"Explain quantum computing in one sentence.\",\n  \"parameters\": {\"temperature\": 0.7, \"max_tokens\": 100}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Compare Models",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/compare",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "compare"]
+            },
+            "description": "Send the same prompt to 2-5 models and compare responses side-by-side.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"models\": [\"gpt-4o\", \"claude-sonnet-4-20250514\"],\n  \"user_prompt\": \"What is the capital of France?\",\n  \"parameters\": {\"temperature\": 0}\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Request History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/history?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "history"],
+              "query": [
+                { "key": "limit", "value": "50" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List playground request history. Filter by session_id or model."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Request Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/playground/history/{{request_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["playground", "history", "{{request_id}}"]
+            },
+            "description": "Get a single playground request by ID."
+          },
+          "response": []
+        }
+      ],
+      "description": "API Playground — send requests through the gateway, compare models side-by-side, and track prompt cost/latency."
     }
   ]
 }
