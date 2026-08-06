@@ -50,6 +50,11 @@ import {
   ArrowUpCircle,
   Crosshair,
   FileSpreadsheet,
+  Server,
+  Puzzle,
+  Store,
+  FolderKanban,
+  UsersRound,
 } from 'lucide-react'
 import RunLedgerLogo from '@/components/brand/RunLedgerLogo'
 import { useRole } from '@/components/rbac/useRole'
@@ -62,6 +67,7 @@ const defaultSections = {
   controlPlane: true,
   finance: true,
   governance: false,
+  ecosystem: true,
   organization: true,
   platform: true,
 } as const
@@ -217,6 +223,16 @@ export default function Sidebar() {
             <NavLink href="/billing-summary" label="Billing Summary" icon={FileSpreadsheet} />
             <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
             <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />
+          </Section>
+        )}
+
+        {canAccessOrgControl && (
+          <Section id="ecosystem" label="Ecosystem">
+            <NavLink href="/mcp-registry" label="MCP Registry" icon={Server} />
+            <NavLink href="/plugins" label="Plugins" icon={Puzzle} />
+            <NavLink href="/ai-hub" label="AI Hub" icon={Store} />
+            <NavLink href="/projects" label="Projects" icon={FolderKanban} />
+            <NavLink href="/team-models" label="Team Models" icon={UsersRound} />
           </Section>
         )}
 

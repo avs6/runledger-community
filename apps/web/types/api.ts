@@ -2819,3 +2819,196 @@ export interface PlaygroundRequestListResponse {
 export interface PlaygroundCompareResponse {
   results: PlaygroundRequestResponse[]
 }
+
+// ── MCP Server Registry ──────────────────────────────────────────────────
+
+export interface McpServerResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  transport: string
+  url: string | null
+  command: string | null
+  args: string[]
+  env: Record<string, string>
+  auth_type: string | null
+  discovered_tools: Record<string, unknown>[]
+  discovered_resources: Record<string, unknown>[]
+  discovered_prompts: Record<string, unknown>[]
+  health_status: string
+  last_health_check: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  tool_count: number
+  resource_count: number
+  prompt_count: number
+}
+
+export interface McpServerList {
+  items: McpServerResponse[]
+}
+
+export interface McpPermissionResponse {
+  id: string
+  workspace_id: string
+  mcp_server_id: string
+  scope_type: string
+  scope_id: string
+  allowed_tools: string[]
+  created_at: string
+}
+
+export interface McpPermissionList {
+  items: McpPermissionResponse[]
+}
+
+export interface McpToolCallResponse {
+  id: string
+  mcp_server_id: string
+  tool_name: string
+  arguments: Record<string, unknown>
+  result: unknown
+  cost_usd: number | null
+  latency_ms: number | null
+  status: string
+  error: string | null
+  created_at: string
+}
+
+export interface McpToolCallList {
+  items: McpToolCallResponse[]
+}
+
+export interface McpToolListItem {
+  server_id: string
+  server_name: string
+  tool_name: string
+  description: string | null
+}
+
+export interface McpToolListResponse {
+  items: McpToolListItem[]
+}
+
+// ── Plugins ──────────────────────────────────────────────────────────────
+
+export interface PluginResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  plugin_type: string
+  hooks: string[]
+  config: Record<string, unknown>
+  priority: number
+  is_active: boolean
+  version: string | null
+  author: string | null
+  install_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PluginList {
+  items: PluginResponse[]
+}
+
+export interface PluginExecutionResponse {
+  id: string
+  plugin_id: string
+  hook: string
+  latency_ms: number | null
+  status: string
+  error: string | null
+  created_at: string
+}
+
+export interface PluginExecutionList {
+  items: PluginExecutionResponse[]
+}
+
+// ── AI Hub ───────────────────────────────────────────────────────────────
+
+export interface HubModelResponse {
+  id: string
+  workspace_id: string
+  name: string
+  provider: string
+  description: string | null
+  capabilities: string[]
+  context_window: number | null
+  input_cost_per_1k: number | null
+  output_cost_per_1k: number | null
+  tags: string[]
+  is_featured: boolean
+  is_deprecated: boolean
+  deprecation_notice: string | null
+  is_public: boolean
+  access_request_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface HubModelList {
+  items: HubModelResponse[]
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────
+
+export interface ProjectResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  owner: string | null
+  budget_usd: number | null
+  budget_period: string | null
+  is_active: boolean
+  config: Record<string, unknown>
+  key_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectList {
+  items: ProjectResponse[]
+}
+
+export interface ProjectKeyResponse {
+  id: string
+  project_id: string
+  api_key_id: string
+  created_at: string
+}
+
+export interface ProjectKeyList {
+  items: ProjectKeyResponse[]
+}
+
+// ── Team Models ──────────────────────────────────────────────────────────
+
+export interface TeamModelResponse {
+  id: string
+  workspace_id: string
+  team_name: string
+  model_name: string
+  provider: string
+  api_base_url: string | null
+  description: string | null
+  budget_usd: number | null
+  budget_period: string | null
+  is_active: boolean
+  health_status: string
+  last_health_check: string | null
+  total_calls: number
+  total_cost_usd: number
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface TeamModelList {
+  items: TeamModelResponse[]
+}

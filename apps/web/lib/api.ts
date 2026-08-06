@@ -3219,3 +3219,184 @@ export async function comparePlaygroundModels(
     body: JSON.stringify(data),
   })
 }
+
+// ── MCP Server Registry ──────────────────────────────────────────────────
+
+export async function registerMcpServer(
+  apiKey: string,
+  data: { name: string; transport: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; auth_type?: string; auth_config?: Record<string, unknown>; description?: string }
+): Promise<import('@/types/api').McpServerResponse> {
+  return apiFetch<import('@/types/api').McpServerResponse>('/mcp-registry', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listMcpServers(apiKey: string, includeInactive = false): Promise<import('@/types/api').McpServerList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<import('@/types/api').McpServerList>(`/mcp-registry${qs}`, apiKey)
+}
+
+export async function getMcpServer(apiKey: string, id: string): Promise<import('@/types/api').McpServerResponse> {
+  return apiFetch<import('@/types/api').McpServerResponse>(`/mcp-registry/${id}`, apiKey)
+}
+
+export async function updateMcpServer(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').McpServerResponse> {
+  return apiFetch<import('@/types/api').McpServerResponse>(`/mcp-registry/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export async function deleteMcpServer(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/mcp-registry/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listMcpTools(apiKey: string): Promise<import('@/types/api').McpToolListResponse> {
+  return apiFetch<import('@/types/api').McpToolListResponse>('/mcp-registry/tools', apiKey)
+}
+
+export async function callMcpTool(apiKey: string, data: { server_id: string; tool_name: string; arguments?: Record<string, unknown> }): Promise<import('@/types/api').McpToolCallResponse> {
+  return apiFetch<import('@/types/api').McpToolCallResponse>('/mcp-registry/tools/call', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listMcpToolCalls(apiKey: string, limit = 50): Promise<import('@/types/api').McpToolCallList> {
+  return apiFetch<import('@/types/api').McpToolCallList>(`/mcp-registry/tool-calls?limit=${limit}`, apiKey)
+}
+
+export async function grantMcpPermission(apiKey: string, data: { mcp_server_id: string; scope_type: string; scope_id: string; allowed_tools: string[] }): Promise<import('@/types/api').McpPermissionResponse> {
+  return apiFetch<import('@/types/api').McpPermissionResponse>('/mcp-registry/permissions', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listMcpPermissions(apiKey: string): Promise<import('@/types/api').McpPermissionList> {
+  return apiFetch<import('@/types/api').McpPermissionList>('/mcp-registry/permissions', apiKey)
+}
+
+export async function revokeMcpPermission(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/mcp-registry/permissions/${id}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Plugins ──────────────────────────────────────────────────────────────
+
+export async function createPlugin(
+  apiKey: string,
+  data: { name: string; plugin_type: string; hooks?: string[]; config?: Record<string, unknown>; priority?: number; version?: string; author?: string; description?: string }
+): Promise<import('@/types/api').PluginResponse> {
+  return apiFetch<import('@/types/api').PluginResponse>('/plugins', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listPlugins(apiKey: string, includeInactive = false): Promise<import('@/types/api').PluginList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<import('@/types/api').PluginList>(`/plugins${qs}`, apiKey)
+}
+
+export async function getPlugin(apiKey: string, id: string): Promise<import('@/types/api').PluginResponse> {
+  return apiFetch<import('@/types/api').PluginResponse>(`/plugins/${id}`, apiKey)
+}
+
+export async function updatePlugin(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').PluginResponse> {
+  return apiFetch<import('@/types/api').PluginResponse>(`/plugins/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export async function deletePlugin(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/plugins/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listPluginExecutions(apiKey: string, pluginId: string, limit = 50): Promise<import('@/types/api').PluginExecutionList> {
+  return apiFetch<import('@/types/api').PluginExecutionList>(`/plugins/${pluginId}/executions?limit=${limit}`, apiKey)
+}
+
+// ── AI Hub ───────────────────────────────────────────────────────────────
+
+export async function addHubModel(
+  apiKey: string,
+  data: { name: string; provider: string; description?: string; capabilities?: string[]; context_window?: number; input_cost_per_1k?: number; output_cost_per_1k?: number; tags?: string[]; is_featured?: boolean; is_public?: boolean }
+): Promise<import('@/types/api').HubModelResponse> {
+  return apiFetch<import('@/types/api').HubModelResponse>('/hub/models', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listHubModels(apiKey: string, params: { featured_only?: boolean; provider?: string; tag?: string } = {}): Promise<import('@/types/api').HubModelList> {
+  const qs = new URLSearchParams()
+  if (params.featured_only) qs.set('featured_only', 'true')
+  if (params.provider) qs.set('provider', params.provider)
+  if (params.tag) qs.set('tag', params.tag)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').HubModelList>(`/hub/models${query}`, apiKey)
+}
+
+export async function getHubModel(apiKey: string, id: string): Promise<import('@/types/api').HubModelResponse> {
+  return apiFetch<import('@/types/api').HubModelResponse>(`/hub/models/${id}`, apiKey)
+}
+
+export async function updateHubModel(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').HubModelResponse> {
+  return apiFetch<import('@/types/api').HubModelResponse>(`/hub/models/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export async function deleteHubModel(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/hub/models/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function requestHubAccess(apiKey: string, id: string): Promise<{ status: string; model_id: string; total_requests: number }> {
+  return apiFetch<{ status: string; model_id: string; total_requests: number }>(`/hub/models/${id}/request-access`, apiKey, { method: 'POST' })
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────
+
+export async function createProject(
+  apiKey: string,
+  data: { name: string; description?: string; owner?: string; budget_usd?: number; budget_period?: string; config?: Record<string, unknown> }
+): Promise<import('@/types/api').ProjectResponse> {
+  return apiFetch<import('@/types/api').ProjectResponse>('/projects', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listProjects(apiKey: string, includeInactive = false): Promise<import('@/types/api').ProjectList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<import('@/types/api').ProjectList>(`/projects${qs}`, apiKey)
+}
+
+export async function getProject(apiKey: string, id: string): Promise<import('@/types/api').ProjectResponse> {
+  return apiFetch<import('@/types/api').ProjectResponse>(`/projects/${id}`, apiKey)
+}
+
+export async function updateProject(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').ProjectResponse> {
+  return apiFetch<import('@/types/api').ProjectResponse>(`/projects/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export async function deleteProject(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/projects/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function assignProjectKey(apiKey: string, projectId: string, data: { api_key_id: string }): Promise<import('@/types/api').ProjectKeyResponse> {
+  return apiFetch<import('@/types/api').ProjectKeyResponse>(`/projects/${projectId}/keys`, apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listProjectKeys(apiKey: string, projectId: string): Promise<import('@/types/api').ProjectKeyList> {
+  return apiFetch<import('@/types/api').ProjectKeyList>(`/projects/${projectId}/keys`, apiKey)
+}
+
+export async function removeProjectKey(apiKey: string, projectId: string, keyId: string): Promise<void> {
+  await apiFetch<void>(`/projects/${projectId}/keys/${keyId}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Team Models ──────────────────────────────────────────────────────────
+
+export async function addTeamModel(
+  apiKey: string,
+  data: { team_name: string; model_name: string; provider: string; api_base_url?: string; description?: string; budget_usd?: number; budget_period?: string; config?: Record<string, unknown> }
+): Promise<import('@/types/api').TeamModelResponse> {
+  return apiFetch<import('@/types/api').TeamModelResponse>('/team-models', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listTeamModels(apiKey: string, params: { team_name?: string; include_inactive?: boolean } = {}): Promise<import('@/types/api').TeamModelList> {
+  const qs = new URLSearchParams()
+  if (params.team_name) qs.set('team_name', params.team_name)
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').TeamModelList>(`/team-models${query}`, apiKey)
+}
+
+export async function getTeamModel(apiKey: string, id: string): Promise<import('@/types/api').TeamModelResponse> {
+  return apiFetch<import('@/types/api').TeamModelResponse>(`/team-models/${id}`, apiKey)
+}
+
+export async function updateTeamModel(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').TeamModelResponse> {
+  return apiFetch<import('@/types/api').TeamModelResponse>(`/team-models/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+export async function deleteTeamModel(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/team-models/${id}`, apiKey, { method: 'DELETE' })
+}

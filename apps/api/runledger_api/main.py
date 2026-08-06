@@ -51,6 +51,10 @@ from runledger_api.routers import settings as settings_router
 from runledger_api.routers import users as users_router
 from runledger_api.routers import vector_stores as vector_stores_router
 from runledger_api.routers import workflows as workflows_router
+from runledger_api.routers import mcp_registry as mcp_registry_router
+from runledger_api.routers import plugins as plugins_router
+from runledger_api.routers import hub as hub_router
+from runledger_api.routers import projects as projects_router
 
 configure_logging()
 log = structlog.get_logger()
@@ -124,6 +128,11 @@ app.include_router(agents_router.router)
 app.include_router(workflows_router.router)
 app.include_router(vector_stores_router.router)
 app.include_router(playground_router.router)
+app.include_router(mcp_registry_router.router)
+app.include_router(plugins_router.router)
+app.include_router(hub_router.router)
+app.include_router(projects_router.project_router)
+app.include_router(projects_router.team_model_router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

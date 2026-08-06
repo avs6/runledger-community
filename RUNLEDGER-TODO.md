@@ -30,7 +30,7 @@ Use this as the top-level checklist. Update the status checkbox when a phase is 
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | High-perf Rust gateway, advanced routing (tag-based, A/B test, traffic mirror), fallback chains, pass-through endpoints, multi-region, DB read replicas. |
 | [ ] | Phase 18 - Enterprise Security, Compliance And Key Management | XL | H | JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, GDPR opt-out, audit log export. |
 | [x] | Phase 19 - Advanced Budget And Rate Limit Engine | L | H | Per-tag budgets, enforcement modes, temporary increases, budget tiers, model-specific budgets, rate limit dashboard, billing summary with CSV/JSON export. All backend + UI complete. |
-| [ ] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP server registry, per-key/team MCP permissions, custom plugin system, pass-through endpoint builder, AI Hub (public model catalog). |
+| [x] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP server registry, per-key/team MCP permissions, custom plugin system, pass-through endpoint builder, AI Hub (public model catalog). |
 
 Effort key: `S` = small, `M` = medium, `L` = large, `XL` = very large.
 
@@ -79,7 +79,7 @@ Use this to find low-hanging fruit and sequence work.
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | Rust gateway, advanced routing, multi-region, and pass-through endpoints match LiteLLM's core gateway. |
 | [ ] | Phase 18 - Enterprise Security And Compliance | XL | H | JWT auth, SCIM, IP ACLs, key rotation, secret managers close enterprise security gap vs LiteLLM. |
 | [x] | Phase 19 - Advanced Budget And Rate Limits | L | H | Per-tag budgets, enforcement modes, and temporary increases match LiteLLM's budget engine. |
-| [ ] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP gateway, custom plugins, and AI Hub match LiteLLM's extensibility story. |
+| [x] | Phase 20 - MCP Gateway And Plugin Ecosystem | M | H | MCP gateway, custom plugins, and AI Hub match LiteLLM's extensibility story. |
 
 ### Polish After Foundation
 
@@ -3166,29 +3166,29 @@ Build an MCP (Model Context Protocol) gateway that allows centralized MCP server
 
 ### MCP Server Registry
 
-- [ ] Add MCP server management:
+- [x] Add MCP server management:
   - register MCP servers (HTTP, SSE, stdio transports)
   - MCP server CRUD API
   - MCP server health monitoring
   - automatic tool discovery from registered servers
-- [ ] Add MCP permission management:
+- [x] Add MCP permission management:
   - per-key MCP server access (key A can use MCP servers X, Y but not Z)
   - per-team MCP server access
   - per-organization MCP server access
   - tool-level permissions within MCP servers
-- [ ] Add MCP gateway endpoints:
+- [x] Add MCP gateway endpoints:
   - `GET /mcp/tools/list` — list available tools (filtered by key permissions)
   - `POST /mcp/tools/call` — call a tool through RunLedger (with cost tracking)
   - `GET /mcp/prompts/list` — list available prompts
   - `GET /mcp/resources/list` — list available resources
-- [ ] Add MCP dashboard:
+- [x] Add MCP dashboard:
   - registered servers with status
   - tool usage analytics (calls, cost, latency per tool)
   - permission matrix (which keys/teams can access which servers)
 
 ### MCP Authentication
 
-- [ ] Add MCP auth flows:
+- [x] Add MCP auth flows:
   - OAuth 2.0 with PKCE for MCP servers requiring auth
   - AWS SigV4 for AWS-hosted MCP servers (Bedrock AgentCore)
   - API key injection for simple MCP servers
@@ -3196,18 +3196,18 @@ Build an MCP (Model Context Protocol) gateway that allows centralized MCP server
 
 ### Custom Plugin System
 
-- [ ] Add plugin framework:
+- [x] Add plugin framework:
   - lifecycle hooks: `pre_request`, `post_request`, `on_error`, `on_stream_chunk`
   - plugin configuration via API and config file
   - plugin ordering (priority chain)
   - plugin enable/disable per workspace
-- [ ] Add plugin types:
+- [x] Add plugin types:
   - request transformation plugins (modify headers, body, metadata)
   - response transformation plugins (post-process, filter, enrich)
   - logging plugins (custom log destinations)
   - routing plugins (custom routing logic)
   - cost plugins (custom cost calculation for non-standard models)
-- [ ] Add plugin management UI:
+- [x] Add plugin management UI:
   - plugin marketplace / registry
   - install/uninstall plugins
   - plugin configuration editor
@@ -3215,59 +3215,59 @@ Build an MCP (Model Context Protocol) gateway that allows centralized MCP server
 
 ### AI Hub (Public Model Catalog)
 
-- [ ] Add AI Hub — branded page of available models:
+- [x] Add AI Hub — branded page of available models:
   - public-facing page showing available models/agents
   - model cards: name, provider, capabilities, pricing, context window
   - model comparison tool
   - "Request Access" button (generates key request)
-- [ ] Add model catalog management:
+- [x] Add model catalog management:
   - admin curates which models appear on Hub
   - custom model descriptions and tags
   - featured models section
   - model deprecation notices
-- [ ] Add agent catalog:
+- [x] Add agent catalog:
   - list registered agents with capabilities
   - agent comparison
   - agent onboarding wizard
 
 ### Projects (Intermediate Grouping)
 
-- [ ] Add Projects as a grouping layer between teams and keys:
+- [x] Add Projects as a grouping layer between teams and keys:
   - project name, description, owner
   - group API keys by project/application
   - project-level budgets and rate limits
   - project-level analytics (spend, usage, models used)
-- [ ] Add project CRUD API:
+- [x] Add project CRUD API:
   - `POST /projects` — create project
   - `GET /projects` — list projects
   - `PUT /projects/{id}` — update project
   - `DELETE /projects/{id}` — delete project
   - `POST /projects/{id}/keys` — assign keys to project
-- [ ] Add project dashboard:
+- [x] Add project dashboard:
   - project spend overview
   - keys per project
   - project comparison
 
 ### Team-Managed Models
 
-- [ ] Add team-owned model deployments:
+- [x] Add team-owned model deployments:
   - teams can bring their own API keys / fine-tuned models
   - team-managed models visible only to that team
   - team model cost tracked separately from org models
   - team model health monitoring
-- [ ] Add team model management UI:
+- [x] Add team model management UI:
   - add/edit/remove team models
   - team model usage analytics
   - team model budget (separate from org budget)
 
 ### Acceptance Criteria
 
-- [ ] MCP servers are manageable via API and UI with per-key/team permissions
-- [ ] MCP tool calls are proxied through RunLedger with cost tracking
-- [ ] Custom plugins extend gateway behavior via lifecycle hooks
-- [ ] AI Hub provides a branded model catalog with comparison and access requests
-- [ ] Projects enable grouping keys by application with independent budgets
-- [ ] Team-managed models let teams bring their own deployments
+- [x] MCP servers are manageable via API and UI with per-key/team permissions
+- [x] MCP tool calls are proxied through RunLedger with cost tracking
+- [x] Custom plugins extend gateway behavior via lifecycle hooks
+- [x] AI Hub provides a branded model catalog with comparison and access requests
+- [x] Projects enable grouping keys by application with independent budgets
+- [x] Team-managed models let teams bring their own deployments
 
 ---
 
