@@ -53,6 +53,7 @@ python skills/shared/scripts/install_agent_instructions.py --client claude --rep
 python skills/shared/scripts/install_agent_instructions.py --client codex --repo /path/to/target-repo
 python skills/shared/scripts/install_agent_instructions.py --client cursor --repo /path/to/target-repo
 python skills/shared/scripts/install_agent_instructions.py --client devin --repo /path/to/target-repo
+python skills/shared/scripts/install_agent_instructions.py --client windsurf --repo /path/to/target-repo
 ```
 
 Generated files:
@@ -62,6 +63,7 @@ Generated files:
 | Claude | `CLAUDE.md` | Persistent Claude Desktop / Claude Code repo instructions. |
 | Codex | `AGENTS.md`, `.codex/runledger-hooks.template.json` | Codex and subagent instructions, plus disabled hook template. |
 | Cursor | `.cursor/rules/runledger.mdc` | Cursor agent rules for RunLedger budget/policy/outcome behavior. |
+| Windsurf | `.windsurf/rules/runledger.md` | Windsurf rule file generated from the shared policy template. |
 | Devin | `RUNLEDGER_AGENT.md` | Devin wrapper/session instructions and telemetry contract. |
 
 After generating instructions, configure MCP or Gateway where the client supports it. Client-specific setup notes live in each skill's `references/configuration.md`.

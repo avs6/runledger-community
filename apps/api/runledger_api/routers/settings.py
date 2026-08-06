@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,13 +27,17 @@ from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
+from runledger_api.schemas.backup_ops import BackupActionResult, BackupRunList, BackupRunResponse
 from runledger_api.schemas.email_prefs import (
     EmailLogList,
     EmailPreferenceResponse,
     EmailPreferenceUpdate,
 )
+from runledger_api.services import backup_ops
 from runledger_api.services.auth import generate_api_key
+from runledger_api.services.demo_mode import launch_demo_process, read_demo_state
 from runledger_api.services.email import send_email
+from runledger_api.services.email_utils import get_workspace_admin_users
 
 log = structlog.get_logger()
 
@@ -109,6 +113,8 @@ async def list_api_keys(auth: WorkspaceAdminDep, db: DbDep) -> list[dict[str, An
             "created_at": k.created_at,
             "created_by": k.created_by,
             "is_session": k.is_session,
+            "ownership_type": k.ownership_type,
+            "owner_reference": k.owner_reference,
         }
         for k in result.scalars().all()
     ]
@@ -134,6 +140,8 @@ async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep)
         name=body.name,
         scopes=body.scopes,
         created_by=user.email,
+        ownership_type=body.ownership_type,
+        owner_reference=body.owner_reference,
     )
     db.add(api_key)
     await db.flush()
@@ -154,6 +162,8 @@ async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep)
         "scopes": api_key.scopes,
         "created_at": api_key.created_at,
         "created_by": api_key.created_by,
+        "ownership_type": api_key.ownership_type,
+        "owner_reference": api_key.owner_reference,
         "key": raw_key,
     }
 
@@ -234,6 +244,11 @@ async def get_email_log(auth: PlatformAdminDep, db: DbDep) -> EmailLogList:
     return EmailLogList(items=items, total=total)  # type: ignore[arg-type]
 
 
+@router.get("/email/history", response_model=EmailLogList)
+async def get_email_history(auth: PlatformAdminDep, db: DbDep) -> EmailLogList:
+    return await get_email_log(auth=auth, db=db)
+
+
 @router.post("/email/test")
 async def test_email_send(
     auth: PlatformAdminDep,
@@ -291,6 +306,110 @@ async def test_email_send(
         return {"ok": True, "error": None}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+@router.post("/email/test-report")
+async def test_email_report(
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> dict[str, Any]:
+    workspace = auth[0]
+    if not app_settings.email_enabled:
+        return {"ok": False, "error": "Email delivery is disabled (EMAIL_ENABLED=false)"}
+    if not app_settings.smtp_user or not app_settings.smtp_password:
+        return {"ok": False, "error": "SMTP credentials are not configured"}
+
+    prefs = (
+        await db.execute(select(EmailPreference).where(EmailPreference.workspace_id == workspace.id))
+    ).scalar_one_or_none()
+    admins = await get_workspace_admin_users(db, workspace.id)
+    recipient = admins[0] if admins else None
+    if recipient is None:
+        return {"ok": False, "error": "No workspace admin email found"}
+
+    from runledger_api.services.email import send_analytics_report_email  # noqa: PLC0415
+
+    await send_analytics_report_email(
+        to_email=recipient.email,
+        full_name=recipient.full_name,
+        period_label="Test report",
+        rows=[
+            {
+                "date": datetime.now(UTC).date().isoformat(),
+                "provider": "openai",
+                "model": "gpt-5",
+                "cost_usd": "12.340000",
+                "input_tokens": 12345,
+                "output_tokens": 2345,
+                "call_count": 42,
+            }
+        ],
+        total_cost="12.340000",
+        workspace_name=workspace.name,
+        template=getattr(prefs, "report_template", "detailed"),
+    )
+    return {"ok": True, "recipient": recipient.email}
+
+
+@router.get("/backups/history", response_model=BackupRunList)
+async def get_backup_history(
+    auth: PlatformAdminDep,
+    db: DbDep,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> BackupRunList:
+    workspace = auth[0]
+    items, total = await backup_ops.list_backup_runs(db, workspace.id, limit=limit)
+    return BackupRunList(
+        items=[BackupRunResponse.model_validate(item) for item in items],
+        total=total,
+    )
+
+
+@router.post("/backups/run", response_model=BackupRunResponse)
+async def run_backup_now(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
+    workspace = auth[0]
+    if not app_settings.backup_enabled:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Backup execution is disabled for this deployment (BACKUP_ENABLED=false).",
+        )
+    actor = None
+    if len(auth) > 1 and getattr(auth[1], "email", None):
+        actor = auth[1].email
+    backup = await backup_ops.queue_backup_run(db, workspace.id, triggered_by=actor)
+    return BackupRunResponse.model_validate(backup)
+
+
+@router.post("/backups/test", response_model=BackupActionResult)
+async def test_backup_connection(auth: PlatformAdminDep) -> BackupActionResult:
+    _workspace = auth[0]
+    result = await backup_ops.test_backup_connection()
+    return BackupActionResult(
+        ok=bool(result["ok"]),
+        message=str(result["message"]),
+        details=result.get("details"),
+    )
+
+
+@router.post("/backups/restore-drill", response_model=BackupRunResponse)
+async def run_restore_drill(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
+    workspace = auth[0]
+    actor = None
+    if len(auth) > 1 and getattr(auth[1], "email", None):
+        actor = auth[1].email
+    backup = await backup_ops.queue_restore_drill(db, workspace.id, triggered_by=actor)
+    return BackupRunResponse.model_validate(backup)
+
+
+@router.get("/backups/status", response_model=BackupActionResult)
+async def get_backup_status(auth: PlatformAdminDep, db: DbDep) -> BackupActionResult:
+    workspace = auth[0]
+    status_payload = await backup_ops.backup_alert_status(db, workspace.id)
+    return BackupActionResult(
+        ok=not status_payload["has_alert"],
+        message=status_payload["message"],
+        details=status_payload,
+    )
 
 
 # ── Onboarding ───────────────────────────────────────────────────────────────
@@ -371,19 +490,25 @@ async def onboarding_status(
 # ── Demo seed ────────────────────────────────────────────────────────────────
 
 
+@router.get("/demo-status")
+async def get_demo_status(auth: PlatformAdminDep) -> dict[str, Any]:
+    """Return the most recent demo-mode task state."""
+    _workspace = auth[0]
+    return read_demo_state()
+
+
 @router.post("/demo-seed")
 async def trigger_demo_seed(
     auth: PlatformAdminDep,
-) -> dict[str, str]:
+    profile: str = Query(default="full"),
+) -> dict[str, Any]:
     """Trigger the demo data seeder (platform admin only)."""
-    import subprocess  # noqa: PLC0415, S404
-    import sys  # noqa: PLC0415
+    _workspace = auth[0]
+    return launch_demo_process("seed", profile=profile)
 
-    try:
-        subprocess.Popen(  # noqa: S603
-            [sys.executable, "-m", "scripts.seed_demo"],
-            cwd=str(__import__("pathlib").Path(__file__).resolve().parents[2]),
-        )
-        return {"status": "started", "message": "Demo seed started in background"}
-    except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+
+@router.post("/demo-reset")
+async def trigger_demo_reset(auth: PlatformAdminDep) -> dict[str, Any]:
+    """Reset demo data to a clean slate (platform admin only)."""
+    _workspace = auth[0]
+    return launch_demo_process("reset")

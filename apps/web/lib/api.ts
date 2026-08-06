@@ -88,6 +88,9 @@ import type {
   EmailPreference,
   EmailLogList,
   OpsFeatureStatus,
+  BackupRun,
+  BackupRunList,
+  BackupActionResult,
   EvalDataset,
   EvalDatasetList,
   EvalExperiment,
@@ -708,7 +711,7 @@ export async function listApiKeys(apiKey: string): Promise<ApiKeyResponse[]> {
 
 export async function createApiKey(
   apiKey: string,
-  body: { name?: string | null; workspace_id?: string; scopes?: string[] }
+  body: { name?: string | null; workspace_id?: string; scopes?: string[]; ownership_type?: string; owner_reference?: string | null }
 ): Promise<ApiKeyCreateResponse> {
   return apiFetch<ApiKeyCreateResponse>('/settings/api-keys', apiKey, {
     method: 'POST',
@@ -1265,6 +1268,14 @@ export async function createGatewayRoute(
     intelligent_routing_enabled?: boolean
     routing_config?: Record<string, unknown> | null
     per_user_rpm_limit?: number | null
+    fallback_config?: Record<string, unknown> | null
+    required_tags?: string[]
+    excluded_tags?: string[]
+    retry_count?: number
+    timeout_ms?: number | null
+    cooldown_seconds?: number
+    region?: string | null
+    mirror_config?: Record<string, unknown> | null
     health_auto_disable?: boolean
   }
 ): Promise<GatewayRoute> {
@@ -1290,6 +1301,16 @@ export async function updateGatewayRoute(
     context_compiler_config?: Record<string, unknown> | null
     intelligent_routing_enabled?: boolean
     routing_config?: Record<string, unknown> | null
+    per_user_rpm_limit?: number | null
+    fallback_config?: Record<string, unknown> | null
+    required_tags?: string[]
+    excluded_tags?: string[]
+    retry_count?: number
+    timeout_ms?: number | null
+    cooldown_seconds?: number
+    region?: string | null
+    mirror_config?: Record<string, unknown> | null
+    health_auto_disable?: boolean
   }
 ): Promise<GatewayRoute> {
   return apiFetch<GatewayRoute>(`/gateway/routes/${routeId}`, apiKey, {
@@ -1314,6 +1335,62 @@ export async function listGatewayRequests(
     Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
   ).toString() : ''
   return apiFetch<GatewayRequestList>(`/gateway/requests${qs}`, apiKey)
+}
+
+export async function listGatewayPassThroughEndpoints(
+  apiKey: string,
+  includeInactive = false
+): Promise<import('@/types/api').GatewayPassThroughEndpointList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<import('@/types/api').GatewayPassThroughEndpointList>(`/gateway/passthrough${qs}`, apiKey)
+}
+
+export async function createGatewayPassThroughEndpoint(
+  apiKey: string,
+  body: {
+    slug: string
+    path_prefix?: string
+    upstream_base_url: string
+    auth_type?: string | null
+    auth_config?: Record<string, unknown>
+    header_config?: Record<string, unknown>
+    default_query?: Record<string, unknown>
+    timeout_ms?: number
+    rate_limit_rpm?: number | null
+    cost_per_call_usd?: number | null
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').GatewayPassThroughEndpoint> {
+  return apiFetch<import('@/types/api').GatewayPassThroughEndpoint>('/gateway/passthrough', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateGatewayPassThroughEndpoint(
+  apiKey: string,
+  endpointId: string,
+  body: {
+    path_prefix?: string
+    upstream_base_url?: string
+    auth_type?: string | null
+    auth_config?: Record<string, unknown> | null
+    header_config?: Record<string, unknown> | null
+    default_query?: Record<string, unknown> | null
+    timeout_ms?: number | null
+    rate_limit_rpm?: number | null
+    cost_per_call_usd?: number | null
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').GatewayPassThroughEndpoint> {
+  return apiFetch<import('@/types/api').GatewayPassThroughEndpoint>(`/gateway/passthrough/${endpointId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteGatewayPassThroughEndpoint(apiKey: string, endpointId: string): Promise<void> {
+  await apiFetch<void>(`/gateway/passthrough/${endpointId}`, apiKey, { method: 'DELETE' })
 }
 
 // ── Routing policies ──────────────────────────────────────────────────────────
@@ -1347,6 +1424,144 @@ export async function updateRoutingPolicy(
 
 export async function deleteRoutingPolicy(apiKey: string, policyId: string): Promise<void> {
   await apiFetch<void>(`/gateway/policies/${policyId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getSecuritySettings(apiKey: string): Promise<import('@/types/api').WorkspaceSecuritySettings> {
+  return apiFetch<import('@/types/api').WorkspaceSecuritySettings>('/security/settings', apiKey)
+}
+
+export async function updateSecuritySettings(
+  apiKey: string,
+  body: {
+    required_metadata_fields?: string[]
+    required_metadata_mode?: string
+    data_residency_regions?: string[]
+    callback_config?: Record<string, unknown>
+    brand_config?: Record<string, unknown>
+    oidc_session_config?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').WorkspaceSecuritySettings> {
+  return apiFetch<import('@/types/api').WorkspaceSecuritySettings>('/security/settings', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listOidcProviders(apiKey: string): Promise<import('@/types/api').OIDCProviderList> {
+  return apiFetch<import('@/types/api').OIDCProviderList>('/security/oidc-providers', apiKey)
+}
+
+export async function createOidcProvider(
+  apiKey: string,
+  body: {
+    name: string
+    issuer_url: string
+    audience?: string | null
+    discovery_url?: string | null
+    jwks_uri?: string | null
+    claim_mappings?: Record<string, unknown>
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').OIDCProviderResponse> {
+  return apiFetch<import('@/types/api').OIDCProviderResponse>('/security/oidc-providers', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateOidcProvider(
+  apiKey: string,
+  providerId: string,
+  body: {
+    name?: string
+    issuer_url?: string
+    audience?: string | null
+    discovery_url?: string | null
+    jwks_uri?: string | null
+    claim_mappings?: Record<string, unknown> | null
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').OIDCProviderResponse> {
+  return apiFetch<import('@/types/api').OIDCProviderResponse>(`/security/oidc-providers/${providerId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteOidcProvider(apiKey: string, providerId: string): Promise<void> {
+  await apiFetch<void>(`/security/oidc-providers/${providerId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listIpAclRules(apiKey: string): Promise<import('@/types/api').IpAclRuleList> {
+  return apiFetch<import('@/types/api').IpAclRuleList>('/security/ip-acl', apiKey)
+}
+
+export async function createIpAclRule(
+  apiKey: string,
+  body: {
+    scope_type: string
+    api_key_id?: string | null
+    team_name?: string | null
+    cidr: string
+    action: string
+    priority?: number
+    description?: string | null
+  }
+): Promise<import('@/types/api').IpAclRuleResponse> {
+  return apiFetch<import('@/types/api').IpAclRuleResponse>('/security/ip-acl', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateIpAclRule(
+  apiKey: string,
+  ruleId: string,
+  body: {
+    api_key_id?: string | null
+    team_name?: string | null
+    cidr?: string
+    action?: string
+    priority?: number
+    description?: string | null
+  }
+): Promise<import('@/types/api').IpAclRuleResponse> {
+  return apiFetch<import('@/types/api').IpAclRuleResponse>(`/security/ip-acl/${ruleId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteIpAclRule(apiKey: string, ruleId: string): Promise<void> {
+  await apiFetch<void>(`/security/ip-acl/${ruleId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function testIpAcl(
+  apiKey: string,
+  body: { ip: string; api_key_id?: string | null; team_name?: string | null }
+): Promise<import('@/types/api').IpAclTestResponse> {
+  return apiFetch<import('@/types/api').IpAclTestResponse>('/security/ip-acl/test', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getApiKeyRotationHistory(
+  apiKey: string,
+  keyId: string
+): Promise<import('@/types/api').KeyRotationEventList> {
+  return apiFetch<import('@/types/api').KeyRotationEventList>(`/security/api-keys/${keyId}/rotation-history`, apiKey)
+}
+
+export async function rotateApiKey(
+  apiKey: string,
+  keyId: string,
+  graceHours = 24
+): Promise<import('@/types/api').RotateApiKeyResponse> {
+  return apiFetch<import('@/types/api').RotateApiKeyResponse>(`/security/api-keys/${keyId}/rotate`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify({ grace_hours: graceHours }),
+  })
 }
 
 export async function getRoutingRecommendation(
@@ -1929,6 +2144,38 @@ export async function getEmailLog(apiKey: string): Promise<EmailLogList> {
   return apiFetch<EmailLogList>('/settings/email/log', apiKey)
 }
 
+export async function getBackupHistory(apiKey: string, limit = 20): Promise<BackupRunList> {
+  return apiFetch<BackupRunList>(`/settings/backups/history?limit=${limit}`, apiKey)
+}
+
+export async function runBackupNow(apiKey: string): Promise<BackupRun> {
+  return apiFetch<BackupRun>('/settings/backups/run', apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function testBackupConnection(apiKey: string): Promise<BackupActionResult> {
+  return apiFetch<BackupActionResult>('/settings/backups/test', apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function runRestoreDrill(apiKey: string): Promise<BackupRun> {
+  return apiFetch<BackupRun>('/settings/backups/restore-drill', apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function getBackupStatus(apiKey: string): Promise<BackupActionResult> {
+  return apiFetch<BackupActionResult>('/settings/backups/status', apiKey)
+}
+
+export async function testEmailReport(apiKey: string): Promise<{ ok: boolean; recipient?: string; error?: string }> {
+  return apiFetch<{ ok: boolean; recipient?: string; error?: string }>('/settings/email/test-report', apiKey, {
+    method: 'POST',
+  })
+}
+
 export async function getOpsFeatureStatus(apiKey: string): Promise<OpsFeatureStatus> {
   return apiFetch<OpsFeatureStatus>('/settings/ops/status', apiKey)
 }
@@ -1957,6 +2204,12 @@ export async function createKafkaExportConfig(
     sasl_username?: string | null
     sasl_password?: string | null
     ssl_ca_cert?: string | null
+    single_topic_mode?: boolean
+    single_topic_name?: string | null
+    dead_letter_topic?: string | null
+    redaction_mode?: 'none' | 'metadata_only'
+    max_retries?: number
+    retry_backoff_seconds?: number
     event_types: string[]
   }
 ): Promise<KafkaExportConfig> {
@@ -1978,6 +2231,12 @@ export async function updateKafkaExportConfig(
     sasl_username: string | null
     sasl_password: string | null
     ssl_ca_cert: string | null
+    single_topic_mode: boolean
+    single_topic_name: string | null
+    dead_letter_topic: string | null
+    redaction_mode: 'none' | 'metadata_only'
+    max_retries: number
+    retry_backoff_seconds: number
     event_types: string[]
     enabled: boolean
   }>
@@ -2019,6 +2278,18 @@ export async function listKafkaExportDeliveries(
   return apiFetch<KafkaExportDeliveryList>(
     `/integrations/kafka/configs/${configId}/deliveries?limit=${limit}`,
     apiKey
+  )
+}
+
+export async function retryKafkaExportDelivery(
+  apiKey: string,
+  configId: string,
+  deliveryId: string
+): Promise<import('@/types/api').KafkaExportDelivery> {
+  return apiFetch<import('@/types/api').KafkaExportDelivery>(
+    `/integrations/kafka/configs/${configId}/deliveries/${deliveryId}/retry`,
+    apiKey,
+    { method: 'POST' }
   )
 }
 
@@ -2338,9 +2609,24 @@ export async function getOnboardingStatus(apiKey: string): Promise<OnboardingSta
 }
 
 export async function triggerDemoSeed(
+  apiKey: string,
+  profile: 'full' | 'quick' = 'full'
+): Promise<import('@/types/api').DemoModeTriggerResponse> {
+  return apiFetch<import('@/types/api').DemoModeTriggerResponse>(`/settings/demo-seed?profile=${profile}`, apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function getDemoModeStatus(
   apiKey: string
-): Promise<{ status: string; message: string }> {
-  return apiFetch<{ status: string; message: string }>('/settings/demo-seed', apiKey, {
+): Promise<import('@/types/api').DemoModeStatus> {
+  return apiFetch<import('@/types/api').DemoModeStatus>('/settings/demo-status', apiKey)
+}
+
+export async function triggerDemoReset(
+  apiKey: string
+): Promise<import('@/types/api').DemoModeTriggerResponse> {
+  return apiFetch<import('@/types/api').DemoModeTriggerResponse>('/settings/demo-reset', apiKey, {
     method: 'POST',
   })
 }
@@ -3376,7 +3662,7 @@ export async function removeProjectKey(apiKey: string, projectId: string, keyId:
 
 export async function addTeamModel(
   apiKey: string,
-  data: { team_name: string; model_name: string; provider: string; api_base_url?: string; description?: string; budget_usd?: number; budget_period?: string; config?: Record<string, unknown> }
+  data: { team_name: string; model_name: string; provider: string; api_base_url?: string; description?: string; budget_usd?: number; budget_period?: string; logging_opt_out?: boolean; config?: Record<string, unknown> }
 ): Promise<import('@/types/api').TeamModelResponse> {
   return apiFetch<import('@/types/api').TeamModelResponse>('/team-models', apiKey, { method: 'POST', body: JSON.stringify(data) })
 }
@@ -3399,4 +3685,132 @@ export async function updateTeamModel(apiKey: string, id: string, data: Record<s
 
 export async function deleteTeamModel(apiKey: string, id: string): Promise<void> {
   await apiFetch<void>(`/team-models/${id}`, apiKey, { method: 'DELETE' })
+}
+
+// Phase 16 deferred management surfaces
+
+export async function getTags(
+  apiKey: string,
+  params: { category?: string; include_inactive?: boolean } = {}
+): Promise<import('@/types/api').TagListResponse> {
+  const qs = new URLSearchParams()
+  if (params.category) qs.set('category', params.category)
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').TagListResponse>(`/tags${query}`, apiKey)
+}
+
+export async function getTagTree(
+  apiKey: string,
+  params: { category?: string } = {}
+): Promise<import('@/types/api').TagTreeResponse> {
+  const qs = new URLSearchParams()
+  if (params.category) qs.set('category', params.category)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').TagTreeResponse>(`/tags/tree${query}`, apiKey)
+}
+
+export async function getAutoTagRules(
+  apiKey: string
+): Promise<import('@/types/api').AutoTaggingRuleListResponse> {
+  return apiFetch<import('@/types/api').AutoTaggingRuleListResponse>('/tags/auto-rules', apiKey)
+}
+
+export async function simulateAutoTagging(
+  apiKey: string,
+  data: { fields: Record<string, string> }
+): Promise<import('@/types/api').AutoTaggingSimulationResponse> {
+  return apiFetch<import('@/types/api').AutoTaggingSimulationResponse>('/tags/auto-rules/simulate', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function getSearchTools(
+  apiKey: string,
+  params: { include_inactive?: boolean } = {}
+): Promise<import('@/types/api').SearchToolListResponse> {
+  const qs = new URLSearchParams()
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').SearchToolListResponse>(`/search-tools${query}`, apiKey)
+}
+
+export async function getSearchToolPolicies(
+  apiKey: string,
+  toolId: string
+): Promise<import('@/types/api').SearchToolPolicySummary> {
+  return apiFetch<import('@/types/api').SearchToolPolicySummary>(`/search-tools/${toolId}/policies`, apiKey)
+}
+
+export async function getToolPolicies(
+  apiKey: string,
+  params: { tool_name?: string; include_inactive?: boolean } = {}
+): Promise<import('@/types/api').ToolPolicyListResponse> {
+  const qs = new URLSearchParams()
+  if (params.tool_name) qs.set('tool_name', params.tool_name)
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').ToolPolicyListResponse>(`/tool-policies${query}`, apiKey)
+}
+
+export async function simulateToolPolicy(
+  apiKey: string,
+  data: {
+    tool_name: string
+    tool_type?: string
+    risk_score?: number
+    end_user_id?: string
+    feature_tag?: string
+    context?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').ToolPolicySimulationResponse> {
+  return apiFetch<import('@/types/api').ToolPolicySimulationResponse>('/tool-policies/simulate', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function getToolPolicyAnalytics(
+  apiKey: string,
+  limit = 500
+): Promise<import('@/types/api').ToolUsageAnalyticsResponse> {
+  return apiFetch<import('@/types/api').ToolUsageAnalyticsResponse>(`/tool-policies/analytics?limit=${limit}`, apiKey)
+}
+
+export async function getAccessGroups(
+  apiKey: string,
+  params: { include_inactive?: boolean } = {}
+): Promise<import('@/types/api').AccessGroupListResponse> {
+  const qs = new URLSearchParams()
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').AccessGroupListResponse>(`/access-groups${query}`, apiKey)
+}
+
+export async function getAccessGroupMembers(
+  apiKey: string,
+  groupId: string
+): Promise<import('@/types/api').AccessGroupMemberListResponse> {
+  return apiFetch<import('@/types/api').AccessGroupMemberListResponse>(`/access-groups/${groupId}/members`, apiKey)
+}
+
+export async function getAccessGroupDashboard(
+  apiKey: string,
+  groupId?: string
+): Promise<import('@/types/api').AccessGroupDashboardResponse> {
+  const query = groupId ? `?group_id=${encodeURIComponent(groupId)}` : ''
+  return apiFetch<import('@/types/api').AccessGroupDashboardResponse>(`/access-groups/dashboard${query}`, apiKey)
+}
+
+export async function getResponseCacheConfigs(
+  apiKey: string
+): Promise<import('@/types/api').ResponseCacheConfigListResponse> {
+  return apiFetch<import('@/types/api').ResponseCacheConfigListResponse>('/response-cache', apiKey)
+}
+
+export async function getResponseCacheStats(
+  apiKey: string
+): Promise<import('@/types/api').ResponseCacheStatsResponse> {
+  return apiFetch<import('@/types/api').ResponseCacheStatsResponse>('/response-cache/stats', apiKey)
 }

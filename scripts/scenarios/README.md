@@ -33,6 +33,10 @@ uv run python scripts/full_simulate.py --scenario-set all
 uv run python scripts/full_simulate.py --scenario-set hosted
 ```
 
+This is the primary automated demo profile surfaced by the dashboard's Phase 13
+`Demo Mode`. The manual labs remain separate on purpose, and the quick REST-only
+seed is available from `apps/api/scripts/seed_demo.py` when you want a lighter run.
+
 ## Bundled local scenarios
 
 | Scenario | Org / Workspace | Models | Demonstrates |

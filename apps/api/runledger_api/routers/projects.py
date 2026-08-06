@@ -194,7 +194,7 @@ def _team_to_response(m: TeamModel) -> TeamModelResponse:
         id=m.id, workspace_id=m.workspace_id, team_name=m.team_name,
         model_name=m.model_name, provider=m.provider, api_base_url=m.api_base_url,
         description=m.description, budget_usd=m.budget_usd, budget_period=m.budget_period,
-        is_active=m.is_active, health_status=m.health_status,
+        is_active=m.is_active, logging_opt_out=m.logging_opt_out, health_status=m.health_status,
         last_health_check=m.last_health_check, total_calls=m.total_calls,
         total_cost_usd=m.total_cost_usd, config=m.config or {},
         created_at=m.created_at, updated_at=m.updated_at,
@@ -208,7 +208,7 @@ async def add_team_model(body: TeamModelCreate, ws: WorkspaceDep, db: DbDep) -> 
         id=uuid.uuid4(), workspace_id=ws.id, team_name=body.team_name,
         model_name=body.model_name, provider=body.provider, api_base_url=body.api_base_url,
         description=body.description, budget_usd=body.budget_usd,
-        budget_period=body.budget_period, config=body.config,
+        budget_period=body.budget_period, logging_opt_out=body.logging_opt_out, config=body.config,
     )
     db.add(m)
     await db.commit()

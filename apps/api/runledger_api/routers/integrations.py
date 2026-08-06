@@ -30,6 +30,7 @@ from runledger_api.schemas.kafka import (
     KafkaTestResult,
 )
 from runledger_api.services import kafka_export
+from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.notifications import build_test_blocks, send_slack_message
 
 router = APIRouter(
@@ -123,12 +124,23 @@ async def create_kafka_export_config(
         sasl_username=body.sasl_username,
         sasl_password_secret=body.sasl_password,
         ssl_ca_cert=body.ssl_ca_cert,
+        single_topic_mode=body.single_topic_mode,
+        single_topic_name=body.single_topic_name,
         event_types=list(body.event_types),
         enabled=True,
     )
     db.add(config)
     await db.commit()
     await db.refresh(config)
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "kafka.config.created",
+        target_type="kafka_export_config",
+        target_id=str(config.id),
+        after={"label": config.label, "event_types": config.event_types},
+    )
+    await db.commit()
     return _response(config)
 
 
@@ -141,6 +153,12 @@ async def update_kafka_export_config(
 ) -> KafkaExportConfigResponse:
     workspace = auth[0]
     config = await _get_config(db, workspace.id, config_id)
+    before = {
+        "label": config.label,
+        "event_types": list(config.event_types or []),
+        "enabled": config.enabled,
+        "redaction_mode": getattr(config, "redaction_mode", "none"),
+    }
     data = body.model_dump(exclude_unset=True)
     if "sasl_password" in data:
         config.sasl_password_secret = data.pop("sasl_password")
@@ -151,6 +169,21 @@ async def update_kafka_export_config(
             setattr(config, key, value)
     await db.commit()
     await db.refresh(config)
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "kafka.config.updated",
+        target_type="kafka_export_config",
+        target_id=str(config.id),
+        before=before,
+        after={
+            "label": config.label,
+            "event_types": list(config.event_types or []),
+            "enabled": config.enabled,
+            "redaction_mode": getattr(config, "redaction_mode", "none"),
+        },
+    )
+    await db.commit()
     return _response(config)
 
 
@@ -162,7 +195,17 @@ async def delete_kafka_export_config(
 ) -> None:
     workspace = auth[0]
     config = await _get_config(db, workspace.id, config_id)
+    before = {"label": config.label, "event_types": list(config.event_types or [])}
     await db.delete(config)
+    await db.commit()
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "kafka.config.deleted",
+        target_type="kafka_export_config",
+        target_id=str(config_id),
+        before=before,
+    )
     await db.commit()
 
 
@@ -175,6 +218,15 @@ async def test_kafka_export_config(
     workspace = auth[0]
     config = await _get_config(db, workspace.id, config_id)
     ok, error, topic = await kafka_export.test_config(db, config)
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "kafka.config.tested",
+        target_type="kafka_export_config",
+        target_id=str(config.id),
+        after={"ok": ok, "topic": topic, "error": error},
+    )
+    await db.commit()
     return KafkaTestResult(ok=ok, error=error, topic=topic)
 
 
@@ -205,3 +257,31 @@ async def list_kafka_export_deliveries(
     return KafkaExportDeliveryList(
         items=[KafkaExportDeliveryResponse.model_validate(row) for row in rows]
     )
+
+
+@router.post(
+    "/kafka/configs/{config_id}/deliveries/{delivery_id}/retry",
+    response_model=KafkaExportDeliveryResponse,
+)
+async def retry_kafka_export_delivery(
+    config_id: uuid.UUID,
+    delivery_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> KafkaExportDeliveryResponse:
+    workspace = auth[0]
+    config = await _get_config(db, workspace.id, config_id)
+    delivery = await db.get(KafkaExportDelivery, delivery_id)
+    if delivery is None or delivery.workspace_id != workspace.id or delivery.config_id != config.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kafka export delivery not found")
+    delivery = await kafka_export.retry_delivery(db, config=config, delivery=delivery)
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "kafka.delivery.retried",
+        target_type="kafka_export_delivery",
+        target_id=str(delivery.id),
+        after={"status": delivery.status, "attempt": delivery.attempt},
+    )
+    await db.commit()
+    return KafkaExportDeliveryResponse.model_validate(delivery)

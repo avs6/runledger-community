@@ -378,6 +378,8 @@ async def send_approval_decision_email(
     decision_note: str | None,
     decided_by: str | None,
     workspace_name: str,
+    *,
+    template: str = "detailed",
 ) -> None:
     """Notify the requester of an approval decision (approved or denied)."""
     is_approved = decision == "approved"
@@ -534,21 +536,31 @@ async def send_analytics_report_email(
     rows: list[dict[str, object]],
     total_cost: str,
     workspace_name: str,
+    *,
+    template: str = "detailed",
 ) -> None:
     """Send a usage analytics report email."""
     name = full_name or to_email
     subject = f"RunLedger: Analytics Report — {period_label}"
 
+    template = template if template in {"executive", "summary", "detailed"} else "detailed"
+    row_limit = 10 if template == "executive" else 25 if template == "summary" else 50
+    intro_line = {
+        "executive": "A concise spend snapshot for fast review.",
+        "summary": "A balanced usage summary for operators and finance.",
+        "detailed": "A detailed usage breakdown for operations review.",
+    }[template]
+
     # Build plain-text table
     lines = [f"{'Date':<12} {'Provider':<16} {'Model':<28} {'Cost (USD)':>12} {'Calls':>8}"]
     lines.append("-" * 80)
-    for r in rows[:50]:  # cap at 50 rows in email
+    for r in rows[:row_limit]:
         lines.append(
             f"{str(r.get('date', '')):<12} {str(r.get('provider', '')):<16} "
             f"{str(r.get('model', '')):<28} {str(r.get('cost_usd', '0')):>12} "
             f"{str(r.get('call_count', '0')):>8}"
         )
-    if len(rows) > 50:
+    if len(rows) > row_limit:
         lines.append(f"  … and {len(rows) - 50} more rows — log in to export all data.")
     table_text = "\n".join(lines)
 
@@ -566,7 +578,7 @@ async def send_analytics_report_email(
 
     # Build HTML rows
     html_rows = ""
-    for i, r in enumerate(rows[:50]):
+    for i, r in enumerate(rows[:row_limit]):
         bg = "#0f172a" if i % 2 == 0 else "#111827"
         html_rows += (
             f'<tr style="background:{bg};">'

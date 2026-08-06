@@ -9,6 +9,8 @@ export interface RunStartEvent {
   session_id?: string
   feature_tag?: string
   deployment_version?: string
+  metadata?: Record<string, unknown>
+  intent?: string
   run_metadata?: Record<string, unknown>
 }
 
@@ -17,6 +19,7 @@ export interface RunEndEvent {
   run_id: string
   ended_at: string
   status: 'succeeded' | 'failed'
+  total_cost_usd?: number
   total_input_tokens?: number
   total_output_tokens?: number
 }
@@ -66,12 +69,33 @@ export interface ProviderCallEvent {
   error_type?: string
 }
 
+export interface ToolCallEvent {
+  event_type: 'tool_call'
+  run_id: string
+  span_id?: string
+  tool_name: string
+  tool_type?: 'read' | 'write' | 'privileged'
+  risk_score?: number
+  duration_ms?: number
+  status: 'success' | 'error' | 'succeeded' | 'failed'
+}
+
+export interface OutcomeEvent {
+  event_type: 'outcome'
+  run_id: string
+  outcome_type: string
+  success: boolean
+  labels?: Record<string, unknown>
+}
+
 export type RunLedgerEvent =
   | RunStartEvent
   | RunEndEvent
   | SpanStartEvent
   | SpanEndEvent
   | ProviderCallEvent
+  | ToolCallEvent
+  | OutcomeEvent
 
 // ── Context ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +120,8 @@ export interface RunLedgerOptions {
   budgetCheck?: boolean
   /** Privacy mode: 'metadata_only' | 'full' | 'errors_only' | 'sampled' */
   privacyMode?: 'metadata_only' | 'full' | 'errors_only' | 'sampled'
+  /** Default task metadata attached by fromEnv/task helpers. */
+  defaultTaskMetadata?: Record<string, unknown>
 }
 
 export interface ContextOptions {
@@ -104,4 +130,9 @@ export interface ContextOptions {
   sessionId?: string
   featureTag?: string
   deploymentVersion?: string
+}
+
+export interface TaskOptions extends ContextOptions {
+  intent?: string
+  metadata?: Record<string, unknown>
 }

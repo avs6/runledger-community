@@ -1,3 +1,4 @@
+from runledger_sdk.agent_helper import AgentTelemetryHelper
 from runledger_sdk.client import PrivacyMode, RunLedger
 from runledger_sdk.context import (
     RunLedgerContext,
@@ -12,12 +13,15 @@ from runledger_sdk.exceptions import RunLedgerBudgetExceededError, ToolBlockedEr
 from runledger_sdk.langchain import RunLedgerCallbackHandler
 from runledger_sdk.langgraph import RunLedgerNodeWrapper, instrument_graph
 from runledger_sdk.mcp import instrument_mcp_session
+from runledger_sdk.mcp_tools import RUNLEDGER_PUBLISHED_SKILL_TOOLS, published_skill_tool_markdown, published_skill_tool_names
 from runledger_sdk.otel_exporter import RunLedgerOTLPExporter
+from runledger_sdk.task import RunLedgerTask
 
 __all__ = [
     # Client
     "RunLedger",
     "PrivacyMode",
+    "AgentTelemetryHelper",
     # Context
     "RunLedgerContext",
     "get_run_id",
@@ -36,7 +40,12 @@ __all__ = [
     "instrument_graph",
     # MCP
     "instrument_mcp_session",
+    "RUNLEDGER_PUBLISHED_SKILL_TOOLS",
+    "published_skill_tool_names",
+    "published_skill_tool_markdown",
     # OTel
     "RunLedgerOTLPExporter",
+    # Task wrapper
+    "RunLedgerTask",
 ]
 __version__ = "0.7.0"

@@ -122,6 +122,8 @@ class ApiKeyCreate(BaseModel):
     environment: EnvironmentEnum = EnvironmentEnum.dev
     scopes: list[str] = []
     created_by: str | None = None
+    ownership_type: str = "user"
+    owner_reference: str | None = None
 
 
 class ApiKeyResponse(BaseModel):
@@ -134,6 +136,8 @@ class ApiKeyResponse(BaseModel):
     created_at: datetime
     created_by: str | None
     is_session: bool = False
+    ownership_type: str = "user"
+    owner_reference: str | None = None
 
     model_config = {"from_attributes": True}
 

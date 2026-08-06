@@ -59,6 +59,9 @@ class TeamModel(Base):
     budget_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     budget_period: Mapped[str | None] = mapped_column(sa.String(16), nullable=True)
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    logging_opt_out: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
     health_status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default=sa.text("'unknown'"))
     last_health_check: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     total_calls: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))

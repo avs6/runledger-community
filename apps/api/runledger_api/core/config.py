@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-change-in-production"
     # Admin secret for /admin/* endpoints.  If empty, falls back to secret_key.
     admin_secret: str = ""
+    # Shared secret used to verify HMAC-signed webhook ingest payloads.
+    ingest_signing_secret: str = ""
 
     # App
     environment: str = "development"
@@ -47,6 +49,9 @@ class Settings(BaseSettings):
 
     # Backup/restore — product-managed scheduler is opt-in while S3 setup matures.
     backup_enabled: bool = False
+    backup_command: str = ""
+    backup_target: str = ""
+    backup_timeout_seconds: int = 1800
 
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""
@@ -59,6 +64,11 @@ class Settings(BaseSettings):
     def effective_admin_secret(self) -> str:
         """Returns ADMIN_SECRET if set, otherwise falls back to SECRET_KEY."""
         return self.admin_secret or self.secret_key
+
+    @property
+    def effective_ingest_signing_secret(self) -> str:
+        """Returns INGEST_SIGNING_SECRET if set, otherwise falls back to effective_admin_secret."""
+        return self.ingest_signing_secret or self.effective_admin_secret
 
     @property
     def effective_metrics_token(self) -> str:

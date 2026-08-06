@@ -167,6 +167,48 @@ def test_runs_empty_workspace() -> None:
     assert "No runs" in result.output
 
 
+def test_task_start_returns_run_id() -> None:
+    mock_client = MagicMock()
+    mock_client.__enter__ = MagicMock(return_value=mock_client)
+    mock_client.__exit__ = MagicMock(return_value=None)
+    mock_client.post = MagicMock(return_value=_mock_response(202, {"accepted": 1}))
+
+    with patch("runledger_sdk.cli.httpx.Client", return_value=mock_client):
+        result = runner.invoke(
+            app,
+            ["task", "start", "--api-key", "rl_test_abc", "--task", "Fix failing tests"],
+        )
+
+    assert result.exit_code == 0
+    assert '"run_id"' in result.output
+
+
+def test_task_outcome_posts_batch() -> None:
+    mock_client = MagicMock()
+    mock_client.__enter__ = MagicMock(return_value=mock_client)
+    mock_client.__exit__ = MagicMock(return_value=None)
+    mock_client.post = MagicMock(return_value=_mock_response(202, {"accepted": 2}))
+
+    with patch("runledger_sdk.cli.httpx.Client", return_value=mock_client):
+        result = runner.invoke(
+            app,
+            [
+                "task",
+                "outcome",
+                "--api-key",
+                "rl_test_abc",
+                "--run-id",
+                "11111111-1111-1111-1111-111111111111",
+                "--result",
+                "completed",
+            ],
+        )
+
+    assert result.exit_code == 0
+    body = mock_client.post.call_args.kwargs["json"]
+    assert len(body["events"]) == 2
+
+
 # ── client.py propagation helpers ─────────────────────────────────────────────
 
 

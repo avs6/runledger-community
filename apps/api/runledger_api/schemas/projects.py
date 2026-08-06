@@ -71,6 +71,7 @@ class TeamModelCreate(BaseModel):
     description: str | None = None
     budget_usd: Decimal | None = None
     budget_period: str | None = None
+    logging_opt_out: bool = False
     config: dict[str, Any] = {}
 
 
@@ -82,6 +83,7 @@ class TeamModelUpdate(BaseModel):
     budget_usd: Decimal | None = None
     budget_period: str | None = None
     is_active: bool | None = None
+    logging_opt_out: bool | None = None
     config: dict[str, Any] | None = None
 
 
@@ -96,6 +98,7 @@ class TeamModelResponse(BaseModel):
     budget_usd: Decimal | None
     budget_period: str | None
     is_active: bool
+    logging_opt_out: bool
     health_status: str
     last_health_check: datetime | None
     total_calls: int

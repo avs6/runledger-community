@@ -171,6 +171,10 @@ class ApiKey(Base):
         sa.Boolean, server_default=sa.text("false"), nullable=False
     )
     created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    ownership_type: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'user'")
+    )
+    owner_reference: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     guardrail_config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )

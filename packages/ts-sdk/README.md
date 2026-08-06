@@ -47,6 +47,33 @@ const result = await rl.withContext(
 await rl.flush()  // call before process.exit()
 ```
 
+### One-line setup
+
+```typescript
+const rl = RunLedger.fromEnv({ agent: 'cursor', workspace: 'Desktop Agents' })
+```
+
+### Task wrapper API
+
+```typescript
+await rl.withTask(
+  'Fix failing tests',
+  { intent: 'code_generation', featureTag: 'ci-fix' },
+  async (task) => {
+    task.recordToolCall('npm test', { tool_type: 'read', status: 'success' })
+    task.recordModelCall({
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      status: 'success',
+      input_tokens: 1200,
+      output_tokens: 260,
+      latency_ms: 820,
+    })
+    task.recordOutcome('completed', { qualityScore: 0.92 })
+  },
+)
+```
+
 ### OpenAI-compatible providers
 
 Provider is auto-detected from `client.baseURL`:

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.tenant import ApiKey, EnvironmentEnum
@@ -36,6 +37,7 @@ async def verify_api_key(raw_key: str, db: AsyncSession) -> ApiKey | None:
         select(ApiKey).where(
             ApiKey.key_hash == key_hash,
             ApiKey.revoked_at.is_(None),
+            or_(ApiKey.expires_at.is_(None), ApiKey.expires_at > datetime.now(UTC)),
         )
     )
     return result.scalar_one_or_none()

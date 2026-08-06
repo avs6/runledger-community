@@ -10,8 +10,10 @@ import {
   createApiKey,
   revokeApiKey,
   listOrgWorkspaces,
+  getApiKeyRotationHistory,
+  rotateApiKey,
 } from '@/lib/api'
-import type { ApiKeyResponse } from '@/types/api'
+import type { ApiKeyResponse, KeyRotationEventResponse } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -32,6 +34,8 @@ export default function ApiKeysPage() {
   const [keyUserFilter, setKeyUserFilter] = useState('')
   const [newKeyName, setNewKeyName] = useState('')
   const [newKeyWs, setNewKeyWs] = useState('')
+  const [newOwnershipType, setNewOwnershipType] = useState('user')
+  const [newOwnerReference, setNewOwnerReference] = useState('')
   const [orgWorkspaces, setOrgWorkspaces] = useState<{ id: string; name: string }[]>([])
   const [creatingKey, setCreatingKey] = useState(false)
   const [newRawKey, setNewRawKey] = useState<string | null>(null)
@@ -65,11 +69,15 @@ export default function ApiKeysPage() {
         name: newKeyName.trim() || null,
         workspace_id: newKeyWs || undefined,
         scopes: [],
+        ownership_type: newOwnershipType,
+        owner_reference: newOwnerReference.trim() || null,
       })
       setNewRawKey(created.key)
       setCopied(false)
       setApiKeys((prev) => [created, ...prev])
       setNewKeyName('')
+      setNewOwnershipType('user')
+      setNewOwnerReference('')
       toast.success('API key created — save it now')
     } catch (err) {
       console.error(err)
@@ -181,6 +189,13 @@ export default function ApiKeysPage() {
           </p>
           <form onSubmit={handleCreateKey} className="flex flex-wrap gap-2">
             <input type="text" placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} className={inputCls} />
+            <select value={newOwnershipType} onChange={(e) => setNewOwnershipType(e.target.value)} className={inputCls}>
+              <option value="user">User</option>
+              <option value="service_account">Service account</option>
+              <option value="agent">Agent</option>
+              <option value="org">Org</option>
+            </select>
+            <input type="text" placeholder="Owner reference (optional)" value={newOwnerReference} onChange={(e) => setNewOwnerReference(e.target.value)} className={inputCls} />
             <select value={newKeyWs} onChange={(e) => setNewKeyWs(e.target.value)} disabled={!isOrgAdmin && !isPlatformAdmin} className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-60`}>
               <option value="">Current workspace ({workspaceName ?? 'default'})</option>
               {orgWorkspaces.map((w) => (
@@ -264,6 +279,7 @@ export default function ApiKeysPage() {
               <th className="px-4 py-2 text-left">Prefix</th>
               <th className="px-4 py-2 text-left">Name</th>
               <th className="px-4 py-2 text-left">Workspace</th>
+              <th className="px-4 py-2 text-left">Ownership</th>
               <th className="px-4 py-2 text-left">Created</th>
               <th className="px-4 py-2 text-left">Created By</th>
               <th className="px-4 py-2" />
@@ -271,7 +287,7 @@ export default function ApiKeysPage() {
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {filteredApiKeys.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                 {apiKeys.length === 0 ? 'No active API keys.' : 'No keys match your filters.'}
               </td></tr>
             ) : (
@@ -280,6 +296,10 @@ export default function ApiKeysPage() {
                   <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{k.key_prefix}…</td>
                   <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{k.name ?? '—'}</td>
                   <td className="px-4 py-2 text-xs text-violet-600 dark:text-violet-400">{k.workspace_name ?? '—'}</td>
+                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-medium">{k.ownership_type}</span>
+                    {k.owner_reference ? ` · ${k.owner_reference}` : ''}
+                  </td>
                   <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">{new Date(k.created_at).toLocaleString()}</td>
                   <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{k.created_by ?? '—'}</td>
                   <td className="px-4 py-2 text-right">
@@ -291,6 +311,133 @@ export default function ApiKeysPage() {
           </tbody>
         </table>
       </div>
+
+      {apiKey && canManageKeys && <KeyRotationPanel apiKey={apiKey} apiKeys={apiKeys} />}
+    </div>
+  )
+}
+
+function KeyRotationPanel({ apiKey, apiKeys }: { apiKey: string; apiKeys: ApiKeyResponse[] }) {
+  const [selectedKeyId, setSelectedKeyId] = useState('')
+  const [history, setHistory] = useState<KeyRotationEventResponse[]>([])
+  const [loading, setLoading] = useState(false)
+  const [rotating, setRotating] = useState(false)
+  const [graceHours, setGraceHours] = useState('24')
+  const [latestKey, setLatestKey] = useState<string | null>(null)
+
+  async function loadHistory(keyId: string) {
+    if (!keyId) {
+      setHistory([])
+      return
+    }
+    setLoading(true)
+    try {
+      const data = await getApiKeyRotationHistory(apiKey, keyId)
+      setHistory(data.items)
+    } catch {
+      toast.error('Failed to load rotation history')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleRotate() {
+    if (!selectedKeyId) return
+    setRotating(true)
+    try {
+      const result = await rotateApiKey(apiKey, selectedKeyId, parseInt(graceHours, 10) || 24)
+      setLatestKey(result.key)
+      await loadHistory(selectedKeyId)
+      toast.success(`Replacement key issued. Old key expires ${result.expires_old_at ? new Date(result.expires_old_at).toLocaleString() : 'immediately'}.`)
+    } catch {
+      toast.error('Failed to rotate API key')
+    } finally {
+      setRotating(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">Rotation Automation</h2>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Issue a replacement key with a grace period, then inspect the rotation chain for auditability.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={selectedKeyId}
+          onChange={(e) => {
+            const keyId = e.target.value
+            setSelectedKeyId(keyId)
+            void loadHistory(keyId)
+          }}
+          className={inputCls + ' min-w-[260px]'}
+        >
+          <option value="">Select a key...</option>
+          {apiKeys.map((key) => (
+            <option key={key.id} value={key.id}>
+              {key.key_prefix}... {key.name ?? 'unnamed'}{key.owner_reference ? ` · ${key.owner_reference}` : ''}
+            </option>
+          ))}
+        </select>
+        <input
+          value={graceHours}
+          onChange={(e) => setGraceHours(e.target.value)}
+          className={inputCls + ' w-32'}
+          placeholder="Grace hours"
+        />
+        <button
+          onClick={() => void handleRotate()}
+          disabled={!selectedKeyId || rotating}
+          className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {rotating ? 'Rotating...' : 'Rotate key'}
+        </button>
+      </div>
+
+      {latestKey && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950">
+          <p className="font-medium text-amber-800 dark:text-amber-200">New key material</p>
+          <code className="mt-2 block break-all rounded bg-white px-3 py-2 text-xs text-slate-800 dark:bg-slate-900 dark:text-slate-100">
+            {latestKey}
+          </code>
+        </div>
+      )}
+
+      {!selectedKeyId ? (
+        <p className="text-sm text-slate-400">Pick a key to inspect its rotation history.</p>
+      ) : loading ? (
+        <p className="text-sm text-slate-400">Loading history...</p>
+      ) : history.length === 0 ? (
+        <p className="text-sm text-slate-400">No rotation events recorded for this key yet.</p>
+      ) : (
+        <div className="overflow-x-auto rounded border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-sm">
+            <thead className="bg-white text-xs uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-2 text-left">Created</th>
+                <th className="px-4 py-2 text-left">From</th>
+                <th className="px-4 py-2 text-left">To</th>
+                <th className="px-4 py-2 text-left">Triggered By</th>
+                <th className="px-4 py-2 text-left">Grace Ends</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+              {history.map((event) => (
+                <tr key={event.id}>
+                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(event.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-2 font-mono text-xs dark:text-slate-200">{event.rotated_from_prefix}</td>
+                  <td className="px-4 py-2 font-mono text-xs dark:text-slate-200">{event.rotated_to_prefix}</td>
+                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{event.triggered_by ?? 'system'}</td>
+                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{event.grace_expires_at ? new Date(event.grace_expires_at).toLocaleString() : 'immediate'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

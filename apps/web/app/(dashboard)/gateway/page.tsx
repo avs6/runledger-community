@@ -14,12 +14,13 @@ import {
   deleteRoutingPolicy, listGatewayRequests, listProviderPricing, getRoutingRecommendation,
   getFlywheelSettings, updateFlywheelSettings, listFlywheelRecommendations,
   applyFlywheelRecommendation, dismissFlywheelRecommendation, runFlywheel,
+  listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint,
 } from '@/lib/api'
 import type {
   GatewayRoute, GatewayStats, GatewayRequestLog,
   RoutingPolicy, RoutingPolicyType, ProviderPricingResponse,
   RoutingRecommendationResponse,
-  FlywheelSettings, FlywheelRecommendation,
+  FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint,
 } from '@/types/api'
 
 const inputCls =
@@ -79,6 +80,7 @@ export default function GatewayPage() {
   )
   const [newRouteRoutingError, setNewRouteRoutingError] = useState('')
   const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
+  const [newRouteFallbackAliases, setNewRouteFallbackAliases] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
 
@@ -136,6 +138,25 @@ export default function GatewayPage() {
     )
   }
 
+  function getRouteFallbackAliases(route: GatewayRoute): string[] {
+    const aliases = route.fallback_config?.aliases
+    if (!Array.isArray(aliases)) return []
+    return aliases.filter((alias): alias is string => typeof alias === 'string' && alias.trim().length > 0)
+  }
+
+  function getDeploymentStatusTone(status: string): string {
+    switch (status) {
+      case 'healthy':
+        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+      case 'degraded':
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+      case 'down':
+        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+      default:
+        return 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+    }
+  }
+
   async function handleCreateRoute(e: React.FormEvent) {
     e.preventDefault()
     if (!apiKey || !newRouteAlias || !newRouteTargetModel) return
@@ -158,6 +179,10 @@ export default function GatewayPage() {
         return
       }
     }
+    const fallbackAliases = newRouteFallbackAliases
+      .split(',')
+      .map((alias) => alias.trim())
+      .filter(Boolean)
     setCreatingRoute(true)
     try {
       const route = await createGatewayRoute(apiKey, {
@@ -194,6 +219,7 @@ export default function GatewayPage() {
         intelligent_routing_enabled: newRouteIntelligent,
         routing_config: routingConfig,
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
+        fallback_config: fallbackAliases.length > 0 ? { aliases: fallbackAliases } : null,
       })
       setGatewayRoutes((prev) => [...prev, route])
       setNewRouteAlias('')
@@ -222,6 +248,7 @@ export default function GatewayPage() {
       setNewRouteIntelligent(false)
       setNewRouteRoutingError('')
       setNewRoutePerUserRpm('')
+      setNewRouteFallbackAliases('')
       setShowRouteForm(false)
       toast.success('Gateway route created')
     } catch {
@@ -531,6 +558,19 @@ export default function GatewayPage() {
                     <label className="text-xs text-gray-500 dark:text-gray-400">Per-User RPM Limit</label>
                     <input type="number" placeholder="e.g. 60" min="1" value={newRoutePerUserRpm} onChange={(e) => setNewRoutePerUserRpm(e.target.value)} className={inputCls} />
                   </div>
+                  <div className="flex flex-col gap-1 sm:col-span-2">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">Fallback Chain Aliases</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. gpt-4o-mini, gpt-4.1-mini"
+                      value={newRouteFallbackAliases}
+                      onChange={(e) => setNewRouteFallbackAliases(e.target.value)}
+                      className={inputCls}
+                    />
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      Comma-separated route aliases to try if this endpoint is unhealthy or fails.
+                    </p>
+                  </div>
                   <div className="flex items-center gap-2 mt-4">
                     <input
                       id="pii-redact"
@@ -695,6 +735,10 @@ export default function GatewayPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                 {gatewayRoutes.map((route) => (
                   <tr key={route.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    {(() => {
+                      const fallbackAliases = getRouteFallbackAliases(route)
+                      return (
+                        <>
                     <td className="px-4 py-2.5 font-mono text-sm font-semibold dark:text-slate-200">{route.alias}</td>
                     <td className="px-4 py-2.5 text-xs capitalize text-slate-600 dark:text-slate-300">{route.provider}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{route.target_model}</td>
@@ -704,14 +748,30 @@ export default function GatewayPage() {
                         <button
                           onClick={() => canManage && handleToggleRoute(route)}
                           disabled={!canManage}
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${route.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize transition-colors ${getDeploymentStatusTone(route.deployment_status)} ${canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
                           title={route.disabled_reason ?? undefined}
                         >
-                          {route.is_active ? 'Active' : 'Disabled'}
+                          {route.deployment_status}
                         </button>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          {route.is_active ? 'Route enabled' : 'Route disabled'}
+                        </span>
+                        {route.health_summary && (
+                          <span className="max-w-[160px] text-[11px] text-center text-slate-400 dark:text-slate-500" title={route.health_summary}>
+                            {route.health_summary}
+                          </span>
+                        )}
                         {route.disabled_reason && (
                           <span className="text-xs text-red-500 dark:text-red-400 max-w-[120px] truncate" title={route.disabled_reason}>
                             {route.disabled_reason}
+                          </span>
+                        )}
+                        {fallbackAliases.length > 0 && (
+                          <span
+                            className="rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 text-[10px] font-medium"
+                            title={`Fallback chain: ${fallbackAliases.join(', ')}`}
+                          >
+                            Fallback {fallbackAliases.length}
                           </span>
                         )}
                         {route.pii_redaction_enabled && (
@@ -759,6 +819,9 @@ export default function GatewayPage() {
                         </button>
                       </td>
                     )}
+                        </>
+                      )
+                    })()}
                   </tr>
                 ))}
               </tbody>
@@ -950,12 +1013,183 @@ export default function GatewayPage() {
       </section>
 
       {/* ── Optimization flywheel ── */}
+      {apiKey && <PassThroughPanel apiKey={apiKey} canManage={canManage} />}
       {apiKey && <FlywheelPanel apiKey={apiKey} canManage={canManage} />}
     </div>
   )
 }
 
 // ── Recommendation panel ──────────────────────────────────────────────────────
+
+function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {
+  const [items, setItems] = useState<GatewayPassThroughEndpoint[]>([])
+  const [loading, setLoading] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [slug, setSlug] = useState('')
+  const [pathPrefix, setPathPrefix] = useState('/')
+  const [upstreamBaseUrl, setUpstreamBaseUrl] = useState('')
+  const [authType, setAuthType] = useState('')
+  const [timeoutMs, setTimeoutMs] = useState('30000')
+  const [rateLimitRpm, setRateLimitRpm] = useState('')
+  const [costPerCallUsd, setCostPerCallUsd] = useState('')
+  const [headerConfigStr, setHeaderConfigStr] = useState('{}')
+  const [defaultQueryStr, setDefaultQueryStr] = useState('{}')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await listGatewayPassThroughEndpoints(apiKey, true)
+      setItems(data.items)
+    } catch {
+      toast.error('Failed to load pass-through endpoints')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiKey])
+
+  useEffect(() => { void load() }, [load])
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    let headerConfig: Record<string, unknown> = {}
+    let defaultQuery: Record<string, unknown> = {}
+    try {
+      headerConfig = JSON.parse(headerConfigStr || '{}')
+      defaultQuery = JSON.parse(defaultQueryStr || '{}')
+    } catch {
+      toast.error('Header and query config must be valid JSON')
+      return
+    }
+    setCreating(true)
+    try {
+      const created = await createGatewayPassThroughEndpoint(apiKey, {
+        slug: slug.trim(),
+        path_prefix: pathPrefix.trim() || '/',
+        upstream_base_url: upstreamBaseUrl.trim(),
+        auth_type: authType.trim() || null,
+        timeout_ms: parseInt(timeoutMs, 10) || 30000,
+        rate_limit_rpm: rateLimitRpm ? parseInt(rateLimitRpm, 10) : null,
+        cost_per_call_usd: costPerCallUsd ? parseFloat(costPerCallUsd) : null,
+        header_config: headerConfig,
+        default_query: defaultQuery,
+      })
+      setItems((prev) => [created, ...prev])
+      setSlug('')
+      setPathPrefix('/')
+      setUpstreamBaseUrl('')
+      setAuthType('')
+      setTimeoutMs('30000')
+      setRateLimitRpm('')
+      setCostPerCallUsd('')
+      setHeaderConfigStr('{}')
+      setDefaultQueryStr('{}')
+      toast.success('Pass-through endpoint created')
+    } catch {
+      toast.error('Failed to create pass-through endpoint')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleToggle(item: GatewayPassThroughEndpoint) {
+    try {
+      const updated = await updateGatewayPassThroughEndpoint(apiKey, item.id, { is_active: !item.is_active })
+      setItems((prev) => prev.map((cur) => (cur.id === item.id ? updated : cur)))
+    } catch {
+      toast.error('Failed to update pass-through endpoint')
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this pass-through endpoint?')) return
+    try {
+      await deleteGatewayPassThroughEndpoint(apiKey, id)
+      setItems((prev) => prev.filter((item) => item.id !== id))
+    } catch {
+      toast.error('Failed to delete pass-through endpoint')
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold dark:text-white">Pass-Through Endpoints</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Register non-LLM upstream APIs behind the gateway with shared auth, timeout, and rate policy.
+          </p>
+        </div>
+        <button
+          onClick={() => void load()}
+          disabled={loading}
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+
+      {canManage && (
+        <form onSubmit={handleCreate} className="grid gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4 sm:grid-cols-2">
+          <input value={slug} onChange={(e) => setSlug(e.target.value)} className={inputCls} placeholder="slug (search-proxy)" required />
+          <input value={pathPrefix} onChange={(e) => setPathPrefix(e.target.value)} className={inputCls} placeholder="/v1" />
+          <input value={upstreamBaseUrl} onChange={(e) => setUpstreamBaseUrl(e.target.value)} className={inputCls + ' sm:col-span-2'} placeholder="https://upstream.example.com" required />
+          <input value={authType} onChange={(e) => setAuthType(e.target.value)} className={inputCls} placeholder="bearer | api_key | none" />
+          <input value={timeoutMs} onChange={(e) => setTimeoutMs(e.target.value)} className={inputCls} placeholder="30000" />
+          <input value={rateLimitRpm} onChange={(e) => setRateLimitRpm(e.target.value)} className={inputCls} placeholder="Rate limit RPM" />
+          <input value={costPerCallUsd} onChange={(e) => setCostPerCallUsd(e.target.value)} className={inputCls} placeholder="Cost per call USD" />
+          <textarea value={headerConfigStr} onChange={(e) => setHeaderConfigStr(e.target.value)} className={inputCls + ' min-h-[96px] sm:col-span-2'} placeholder='{"x-api-version":"2026-08"}' />
+          <textarea value={defaultQueryStr} onChange={(e) => setDefaultQueryStr(e.target.value)} className={inputCls + ' min-h-[96px] sm:col-span-2'} placeholder='{"region":"us"}' />
+          <div className="sm:col-span-2">
+            <button type="submit" disabled={creating} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+              {creating ? 'Creating...' : 'Add endpoint'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400">
+          No pass-through endpoints configured yet.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div key={item.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm dark:text-slate-100">{item.slug}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{item.path_prefix}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                      {item.is_active ? 'active' : 'inactive'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400 break-all">{item.upstream_base_url}</p>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>auth {item.auth_type ?? 'none'}</span>
+                    <span>timeout {item.timeout_ms}ms</span>
+                    <span>rpm {item.rate_limit_rpm ?? 'unlimited'}</span>
+                    <span>cost {item.cost_per_call_usd ? `$${item.cost_per_call_usd}` : 'unset'}</span>
+                  </div>
+                </div>
+                {canManage && (
+                  <div className="flex shrink-0 gap-2">
+                    <button onClick={() => void handleToggle(item)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      {item.is_active ? 'Disable' : 'Enable'}
+                    </button>
+                    <button onClick={() => void handleDelete(item.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
 
 function RecommendationPanel({ rec }: { rec: RoutingRecommendationResponse }) {
   const hasData = rec.total_outcomes_sampled > 0 && rec.models.some((m) => m.cost_per_success !== null)

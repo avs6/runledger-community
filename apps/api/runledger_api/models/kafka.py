@@ -35,6 +35,20 @@ class KafkaExportConfig(Base):
     sasl_username: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     sasl_password_secret: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     ssl_ca_cert: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    single_topic_mode: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    single_topic_name: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    dead_letter_topic: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    redaction_mode: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'none'")
+    )
+    max_retries: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("2")
+    )
+    retry_backoff_seconds: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("5")
+    )
     event_types: Mapped[list[str]] = mapped_column(
         ARRAY(sa.String), nullable=False, server_default=sa.text("'{}'::varchar[]")
     )
@@ -74,10 +88,21 @@ class KafkaExportDelivery(Base):
     )
     event_type: Mapped[str] = mapped_column(sa.String(128), nullable=False)
     topic: Mapped[str] = mapped_column(sa.String(512), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
     status: Mapped[str] = mapped_column(sa.String(32), nullable=False, server_default="pending")
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_detail: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     attempt: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
+    next_retry_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    last_error_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    dead_letter_topic: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    dead_lettered_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     delivered_at: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )

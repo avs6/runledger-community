@@ -8,6 +8,8 @@ container already running in `C:\Users\Abi\Desktop\LocalAIAgentStack`.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -88,6 +90,7 @@ def download_latest(bucket: str, prefix: str, dest_dir: Path) -> Path:
 def backup(bucket: str) -> None:
     ensure_bucket(bucket)
     ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    artifacts: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="runledger-backup-") as td:
         temp = Path(td)
         control_plane = temp / f"control-plane-{ts}.dump"
@@ -97,16 +100,45 @@ def backup(bucket: str) -> None:
         dump = run(["docker", "exec", "runledger-postgres", "pg_dump", "-U", "runledger", "-Fc", "runledger"], capture=True)
         control_plane.write_bytes(dump.stdout)
         upload_file(control_plane, bucket, "control-plane")
+        artifacts.append(
+            {
+                "name": control_plane.name,
+                "prefix": "control-plane",
+                "size_bytes": len(dump.stdout),
+                "checksum": hashlib.sha256(dump.stdout).hexdigest(),
+            }
+        )
 
         print("[memory-db] pg_dump runledger-memory-db")
         try:
             dump = run(["docker", "exec", "runledger-memory-db", "pg_dump", "-U", "letta", "-Fc", "letta"], capture=True)
             memory_db.write_bytes(dump.stdout)
             upload_file(memory_db, bucket, "memory-db")
+            artifacts.append(
+                {
+                    "name": memory_db.name,
+                    "prefix": "memory-db",
+                    "size_bytes": len(dump.stdout),
+                    "checksum": hashlib.sha256(dump.stdout).hexdigest(),
+                }
+            )
         except subprocess.CalledProcessError:
             print("  memory DB backup skipped; container not available", file=sys.stderr)
 
         print(f"Backup uploaded to MinIO bucket s3://{bucket}/ with timestamp {ts}")
+        summary_input = "|".join(f"{a['name']}:{a['checksum']}" for a in artifacts).encode("utf-8")
+        print(
+            json.dumps(
+                {
+                    "kind": "runledger_backup_summary",
+                    "bucket": bucket,
+                    "timestamp": ts,
+                    "artifacts": artifacts,
+                    "total_size_bytes": sum(int(a["size_bytes"]) for a in artifacts),
+                    "checksum": hashlib.sha256(summary_input).hexdigest() if artifacts else None,
+                }
+            )
+        )
 
 
 def restore(bucket: str, *, confirm: bool) -> None:

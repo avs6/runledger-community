@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -9,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
+from runledger_api.core.config import settings
 from runledger_api.models.events import RunStatusEnum
 
 
@@ -141,3 +145,73 @@ async def test_list_runs(authed_client: AsyncClient, mock_db_session: AsyncMock)
     assert len(data) == 1
     assert data[0]["id"] == str(run_id)
     assert data[0]["status"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_ingest_webhook_accepts_workspace_payload(
+    client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    run_id = str(uuid.uuid4())
+    mock_db_session.get = AsyncMock(return_value=mock_workspace)
+    payload = {
+        "workspace_id": str(mock_workspace.id),
+        "events": [
+            {
+                "event_type": "run_start",
+                "run_id": run_id,
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+        ],
+    }
+    with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
+        mock_task.delay = MagicMock()
+        response = await client.post("/ingest/v1/webhook", json=payload)
+
+    assert response.status_code == 202
+    assert response.json() == {"accepted": 1}
+    mock_task.delay.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ingest_signed_accepts_valid_signature(
+    client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "ingest_signing_secret", "phase1a-secret")
+    mock_db_session.get = AsyncMock(return_value=mock_workspace)
+    payload = {
+        "workspace_id": str(mock_workspace.id),
+        "events": [
+            {
+                "event_type": "run_start",
+                "run_id": str(uuid.uuid4()),
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+        ],
+    }
+    raw_body = json.dumps(payload).encode()
+    timestamp = datetime.now(UTC).isoformat()
+    signature = hmac.new(
+        settings.effective_ingest_signing_secret.encode(),
+        b".".join([str(mock_workspace.id).encode(), timestamp.encode(), raw_body]),
+        hashlib.sha256,
+    ).hexdigest()
+    with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
+        mock_task.delay = MagicMock()
+        response = await client.post(
+            "/ingest/v1/signed",
+            content=raw_body,
+            headers={
+                "Content-Type": "application/json",
+                "X-RunLedger-Timestamp": timestamp,
+                "X-RunLedger-Signature": signature,
+            },
+        )
+
+    assert response.status_code == 202
+    assert response.json() == {"accepted": 1}
+    mock_task.delay.assert_called_once()

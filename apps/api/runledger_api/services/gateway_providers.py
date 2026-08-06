@@ -33,6 +33,12 @@ from runledger_api.models.gateway import GatewayRoute
 log = logging.getLogger(__name__)
 
 
+def _http_timeout(route: GatewayRoute, *, stream: bool) -> float:
+    if route.timeout_ms:
+        return max(1.0, route.timeout_ms / 1000)
+    return 300.0 if stream else 120.0
+
+
 def _is_reasoning_model(model: str) -> bool:
     """
     True only for models that accept the `reasoning_effort` parameter (OpenAI o-series and
@@ -138,7 +144,7 @@ class OpenAIAdapter:
     ) -> dict[str, Any]:
         base_url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, **kwargs)
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout(route, stream=False)) as client:
             resp = await client.post(
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -153,7 +159,7 @@ class OpenAIAdapter:
         base_url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
-            httpx.AsyncClient(timeout=300.0) as client,
+            httpx.AsyncClient(timeout=_http_timeout(route, stream=True)) as client,
             client.stream(
                 "POST",
                 f"{base_url}/chat/completions",
@@ -235,7 +241,7 @@ class AzureAdapter:
     ) -> dict[str, Any]:
         url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, **kwargs)
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout(route, stream=False)) as client:
             resp = await client.post(
                 url,
                 headers={"api-key": api_key, "Content-Type": "application/json"},
@@ -250,7 +256,7 @@ class AzureAdapter:
         url, api_key = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
-            httpx.AsyncClient(timeout=300.0) as client,
+            httpx.AsyncClient(timeout=_http_timeout(route, stream=True)) as client,
             client.stream(
                 "POST",
                 url,
@@ -594,7 +600,7 @@ class VertexAdapter:
         contents, system_text = _messages_to_gemini(messages)
         url, token = await asyncio.to_thread(self._resolve, route)
         payload = self._build_gemini_payload(contents, system_text, **kwargs)
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=_http_timeout(route, stream=False)) as client:
             resp = await client.post(
                 url,
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
@@ -614,7 +620,7 @@ class VertexAdapter:
         payload = self._build_gemini_payload(contents, system_text, **kwargs)
         model = route.target_model
         async with (
-            httpx.AsyncClient(timeout=300.0) as client,
+            httpx.AsyncClient(timeout=_http_timeout(route, stream=True)) as client,
             client.stream(
                 "POST",
                 stream_url,

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Activity, ArrowRight, Clock, Cpu, GitBranch, Route, Sparkles, Table2 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getRunFlow } from '@/lib/api'
+import { getBestValueModels, getCostQuality, getRunFlow } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   ModelQualityCostBars,
@@ -16,7 +16,7 @@ import {
 } from '@/components/dashboard/ModelRoutingCharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MODEL_FAMILY_COLORS, classifyModel as classifyModelFamily } from '@/lib/modelColors'
-import type { RunFlowRecord } from '@/types/api'
+import type { BestValueModel, RunFlowRecord } from '@/types/api'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
 
@@ -75,6 +75,12 @@ function formatLatency(ms: number | null) {
 
 function shortNumber(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+function parseScore(value: string | null | undefined) {
+  if (value == null) return null
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function allowedScope(raw: string | undefined, isPlatformAdmin: boolean, isOrgAdmin: boolean): FlowScope {
@@ -262,6 +268,18 @@ export default async function ModelUsagePage({
     from: win.from,
     to: win.to,
   })
+  const [costQuality, bestValue] = await Promise.all([
+    getCostQuality(session.apiKey, {
+      score_name: 'quality',
+      from: win.from,
+      to: win.to,
+    }).catch(() => ({ items: [] })),
+    getBestValueModels(session.apiKey, {
+      score_name: 'quality',
+      from: win.from,
+      to: win.to,
+    }).catch(() => ({ items: [] })),
+  ])
 
   const items = flow.items
   const timeline = buildTimeline(items)
@@ -288,8 +306,21 @@ export default async function ModelUsagePage({
     model: model.model,
     cost: model.cost,
     latency: model.latencySamples > 0 ? model.latencyTotal / model.latencySamples : 0,
-    quality: model.requests > 0 ? (model.successes / model.requests) * 100 : 0,
+    quality:
+      parseScore(costQuality.items.find((item) => item.model === model.model)?.avg_score) ??
+      (model.requests > 0 ? (model.successes / model.requests) * 100 : 0),
   }))
+  const qualityScoreMap = new Map(
+    costQuality.items.map((item) => [item.model, parseScore(item.avg_score)])
+  )
+  const bestValueByModel = new Map<string, BestValueModel>(
+    bestValue.items.map((item) => [item.model, item])
+  )
+  const qualitySamples = costQuality.items.filter((item) => item.avg_score !== null)
+  const avgQualityScore =
+    qualitySamples.length > 0
+      ? qualitySamples.reduce((sum, item) => sum + (parseScore(item.avg_score) ?? 0), 0) / qualitySamples.length
+      : null
 
   const cheapestModel = models
     .filter((model) => model.requests > 0)
@@ -347,7 +378,12 @@ export default async function ModelUsagePage({
           { title: 'Requests', value: requests.toLocaleString(), sub: `${items.length.toLocaleString()} sampled`, icon: Activity },
           { title: 'Model spend', value: money(totalCost), sub: `${money(totalSavings)} saved`, icon: Cpu },
           { title: 'Avg latency', value: formatLatency(avgLatency), sub: 'Across captured samples', icon: Clock },
-          { title: 'Cache hit rate', value: percent(cacheHitRate), sub: 'Cached input token usage', icon: Sparkles },
+          {
+            title: 'Avg quality',
+            value: avgQualityScore !== null ? percent(avgQualityScore) : 'n/a',
+            sub: avgQualityScore !== null ? `${qualitySamples.length} models with score data` : 'No explicit quality scores captured yet in this window',
+            icon: Sparkles,
+          },
         ].map(({ title, value, sub, icon: Icon }) => (
           <div key={title} className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -394,9 +430,9 @@ export default async function ModelUsagePage({
         <Card className="border-slate-200 bg-white/90 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Table2 className="h-4 w-4 text-blue-600" /> Cost, Latency, Quality Proxy
+              <Table2 className="h-4 w-4 text-blue-600" /> Cost, Latency, Quality
             </CardTitle>
-            <p className="text-xs text-muted-foreground">Bars show cost. Table below includes latency and success-rate quality proxy.</p>
+            <p className="text-xs text-muted-foreground">Bars show cost. Quality uses explicit evaluation scores when present, then falls back to outcome success rate.</p>
           </CardHeader>
           <CardContent>
             <ModelQualityCostBars data={qualityCost} />
@@ -407,7 +443,7 @@ export default async function ModelUsagePage({
       <Card className="overflow-hidden border-slate-200 bg-white/90 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold">Model Usage Table</CardTitle>
-          <p className="text-xs text-muted-foreground">Request, token, cost, latency, and quality proxy by model.</p>
+          <p className="text-xs text-muted-foreground">Request, token, cost, latency, and explicit quality score by model, with outcome fallback where no scores exist.</p>
         </CardHeader>
         <CardContent className="p-0">
           {models.length === 0 ? (
@@ -416,7 +452,7 @@ export default async function ModelUsagePage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-y border-slate-200 bg-slate-50/80">
-                  {['Model', 'Provider', 'Requests', 'Input', 'Output', 'Cost', 'Latency', 'Quality proxy'].map((heading) => (
+                  {['Model', 'Provider', 'Requests', 'Input', 'Output', 'Cost', 'Latency', 'Quality score'].map((heading) => (
                     <th key={heading} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                       {heading}
                     </th>
@@ -426,7 +462,10 @@ export default async function ModelUsagePage({
               <tbody className="divide-y divide-slate-100">
                 {models.map((model) => {
                   const latency = model.latencySamples > 0 ? model.latencyTotal / model.latencySamples : null
-                  const quality = model.requests > 0 ? (model.successes / model.requests) * 100 : 0
+                  const explicitQuality = qualityScoreMap.get(model.model)
+                  const fallbackQuality = model.requests > 0 ? (model.successes / model.requests) * 100 : 0
+                  const quality = explicitQuality ?? fallbackQuality
+                  const qualityLabel = explicitQuality !== null && explicitQuality !== undefined ? 'score' : 'proxy'
                   return (
                     <tr key={model.model} className="hover:bg-blue-50/40">
                       <td className="px-5 py-3 font-semibold text-slate-950">{model.model}</td>
@@ -436,7 +475,12 @@ export default async function ModelUsagePage({
                       <td className="px-5 py-3 font-mono text-xs">{shortNumber(model.outputTokens)}</td>
                       <td className="px-5 py-3 font-mono text-xs font-semibold">{money(model.cost)}</td>
                       <td className="px-5 py-3 font-mono text-xs">{formatLatency(latency)}</td>
-                      <td className="px-5 py-3 font-mono text-xs font-semibold">{percent(quality)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-semibold">
+                        {percent(quality)}
+                        <span className="ml-2 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                          {qualityLabel}
+                        </span>
+                      </td>
                     </tr>
                   )
                 })}
@@ -449,7 +493,7 @@ export default async function ModelUsagePage({
       <Card className="overflow-hidden border-slate-200 bg-white/90 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold">Routing Decision Detail</CardTitle>
-          <p className="text-xs text-muted-foreground">Explains why routes selected models and what lower-cost or lower-latency alternatives exist in current telemetry.</p>
+          <p className="text-xs text-muted-foreground">Explains why routes selected models and what lower-cost, lower-latency, or better value alternatives exist in current telemetry.</p>
         </CardHeader>
         <CardContent className="p-0">
           {routes.length === 0 ? (
@@ -473,6 +517,8 @@ export default async function ModelUsagePage({
                   const fastestLatency = fastestModel && fastestModel.latencySamples > 0 ? fastestModel.latencyTotal / fastestModel.latencySamples : null
                   const costDelta = cheapestModel && cheapestModel.model !== route.model ? avgCost - cheapestAvg : 0
                   const latencyDelta = fastestLatency !== null && avgLatency !== null ? avgLatency - fastestLatency : null
+                  const bestValueAlternative = bestValueByModel.get(route.model)
+                  const routeQuality = qualityScoreMap.get(route.model) ?? (route.requests > 0 ? (route.successes / route.requests) * 100 : 0)
                   return (
                     <tr key={route.key} className="align-top hover:bg-blue-50/40">
                       <td className="px-5 py-3 font-semibold text-slate-950">{route.route}</td>
@@ -491,7 +537,16 @@ export default async function ModelUsagePage({
                           ? `${formatLatency(Math.max(latencyDelta, 0))} vs ${fastestModel.model}`
                           : 'Already fastest observed lane'}
                       </td>
-                      <td className="px-5 py-3 font-mono text-xs font-semibold">{percent(route.requests > 0 ? (route.successes / route.requests) * 100 : 0)}</td>
+                      <td className="px-5 py-3 text-xs text-slate-600">
+                        <div className="font-mono font-semibold">{percent(routeQuality)}</div>
+                        {bestValueAlternative ? (
+                          <div className="mt-1 text-[11px] text-slate-500">
+                            value score {Number(bestValueAlternative.value_score).toFixed(2)}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[11px] text-slate-400">no quality sample yet</div>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}

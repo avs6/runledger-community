@@ -6,6 +6,7 @@ import {
   listTeamModels,
   addTeamModel,
   deleteTeamModel,
+  updateTeamModel,
 } from '@/lib/api'
 import type { TeamModelResponse } from '@/types/api'
 
@@ -25,6 +26,7 @@ export default function TeamModelsPage() {
   const [description, setDescription] = useState('')
   const [budgetUsd, setBudgetUsd] = useState<number | ''>('')
   const [budgetPeriod, setBudgetPeriod] = useState('monthly')
+  const [loggingOptOut, setLoggingOptOut] = useState(false)
 
   async function load() {
     if (!apiKey) return
@@ -51,6 +53,7 @@ export default function TeamModelsPage() {
       description: description || undefined,
       budget_usd: budgetUsd !== '' ? budgetUsd : undefined,
       budget_period: budgetPeriod,
+      logging_opt_out: loggingOptOut,
     })
     setTeamName('')
     setModelName('')
@@ -58,6 +61,7 @@ export default function TeamModelsPage() {
     setApiBaseUrl('')
     setDescription('')
     setBudgetUsd('')
+    setLoggingOptOut(false)
     setShowForm(false)
     load()
   }
@@ -65,6 +69,12 @@ export default function TeamModelsPage() {
   async function handleDelete(id: string) {
     if (!apiKey) return
     await deleteTeamModel(apiKey, id)
+    load()
+  }
+
+  async function handleToggleLoggingOptOut(model: TeamModelResponse) {
+    if (!apiKey) return
+    await updateTeamModel(apiKey, model.id, { logging_opt_out: !model.logging_opt_out })
     load()
   }
 
@@ -123,6 +133,10 @@ export default function TeamModelsPage() {
             <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
             <input value={description} onChange={e => setDescription(e.target.value)} className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm dark:border-white/20 dark:bg-white/5 dark:text-white" />
           </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <input type="checkbox" checked={loggingOptOut} onChange={e => setLoggingOptOut(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+            Opt this team out of prompt/response logging (GDPR)
+          </label>
           <button type="submit" className="rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">Add</button>
         </form>
       )}
@@ -140,7 +154,7 @@ export default function TeamModelsPage() {
         <table className="w-full text-sm">
           <thead><tr className="border-b border-slate-200 text-left text-xs font-medium uppercase text-slate-500 dark:border-white/10">
             <th className="py-2 pr-4">Team</th><th className="py-2 pr-4">Model</th><th className="py-2 pr-4">Provider</th>
-            <th className="py-2 pr-4">Health</th><th className="py-2 pr-4">Calls</th><th className="py-2 pr-4">Cost</th>
+            <th className="py-2 pr-4">Health</th><th className="py-2 pr-4">Logging</th><th className="py-2 pr-4">Calls</th><th className="py-2 pr-4">Cost</th>
             <th className="py-2 pr-4">Budget</th><th className="py-2">Actions</th>
           </tr></thead>
           <tbody>
@@ -154,6 +168,11 @@ export default function TeamModelsPage() {
                     {m.health_status}
                   </span>
                 </td>
+                <td className="py-2 pr-4">
+                  <button onClick={() => handleToggleLoggingOptOut(m)} className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.logging_opt_out ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'}`}>
+                    {m.logging_opt_out ? 'Opted out' : 'Logging on'}
+                  </button>
+                </td>
                 <td className="py-2 pr-4 text-slate-500">{m.total_calls.toLocaleString()}</td>
                 <td className="py-2 pr-4 text-slate-500">${m.total_cost_usd.toFixed(2)}</td>
                 <td className="py-2 pr-4 text-slate-500">{m.budget_usd != null ? `$${m.budget_usd} / ${m.budget_period}` : '—'}</td>
@@ -162,7 +181,7 @@ export default function TeamModelsPage() {
                 </td>
               </tr>
             ))}
-            {models.length === 0 && !loading && <tr><td colSpan={8} className="py-8 text-center text-slate-400">No team models configured.</td></tr>}
+            {models.length === 0 && !loading && <tr><td colSpan={9} className="py-8 text-center text-slate-400">No team models configured.</td></tr>}
           </tbody>
         </table>
       </div>

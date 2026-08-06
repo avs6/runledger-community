@@ -105,6 +105,30 @@ class RunLedger:
         self._sync_transport: SyncTransport | None = None
         self._async_transport: Transport | None = None
         self._instrumented = False
+        self._agent_helper: Any | None = None
+        self._default_task_metadata: dict[str, Any] = {}
+
+    @classmethod
+    def from_env(
+        cls,
+        *,
+        agent: str | None = None,
+        workspace: str | None = None,
+        **kwargs: Any,
+    ) -> RunLedger:
+        """
+        Create a client from environment variables with optional default task metadata.
+
+        Example::
+
+            rl = RunLedger.from_env(agent="cursor", workspace="Desktop Agents")
+        """
+        client = cls(**kwargs)
+        if agent:
+            client._default_task_metadata["agent"] = agent
+        if workspace:
+            client._default_task_metadata["workspace"] = workspace
+        return client
 
     # ── Transport helpers ─────────────────────────────────────────────────────
 
@@ -292,6 +316,60 @@ class RunLedger:
         return RunLedgerCallbackHandler(
             self._get_sync_transport(),
             track_llm_cost=track_llm_cost,
+        )
+
+    def agent_helper(self) -> object:
+        """Return the shared helper for manual agent telemetry and policy checks."""
+        if self._agent_helper is None:
+            from runledger_sdk.agent_helper import AgentTelemetryHelper  # noqa: PLC0415
+
+            self._agent_helper = AgentTelemetryHelper(self)
+        return self._agent_helper
+
+    def record_run_start(self, **kwargs: Any) -> str:
+        return self.agent_helper().record_run_start(**kwargs)
+
+    def record_span(self, **kwargs: Any) -> str:
+        return self.agent_helper().record_span(**kwargs)
+
+    def record_tool_call(self, **kwargs: Any) -> None:
+        self.agent_helper().record_tool_call(**kwargs)
+
+    def record_model_call(self, **kwargs: Any) -> None:
+        self.agent_helper().record_model_call(**kwargs)
+
+    def record_outcome(self, **kwargs: Any) -> None:
+        self.agent_helper().record_outcome(**kwargs)
+
+    def check_budget(self, **kwargs: Any) -> dict[str, Any]:
+        return self.agent_helper().check_budget(**kwargs)
+
+    def check_policy(self, **kwargs: Any) -> dict[str, Any]:
+        return self.agent_helper().check_policy(**kwargs)
+
+    def task(
+        self,
+        name: str,
+        *,
+        intent: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        end_user_id: str | None = None,
+        session_id: str | None = None,
+        feature_tag: str | None = None,
+        deployment_version: str | None = None,
+    ) -> object:
+        """Return a high-level task wrapper context manager for manual instrumentation."""
+        from runledger_sdk.task import RunLedgerTask  # noqa: PLC0415
+
+        return RunLedgerTask(
+            self,
+            name,
+            intent=intent,
+            metadata=metadata,
+            end_user_id=end_user_id,
+            session_id=session_id,
+            feature_tag=feature_tag,
+            deployment_version=deployment_version,
         )
 
     def context(

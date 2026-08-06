@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 KafkaSecurityProtocol = Literal["PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL"]
 KafkaSaslMechanism = Literal["PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512"]
+KafkaRedactionMode = Literal["none", "metadata_only"]
 
 KafkaEventType = Literal[
     "run.started",
@@ -40,6 +41,12 @@ class KafkaExportConfigCreate(BaseModel):
     sasl_username: str | None = None
     sasl_password: str | None = None
     ssl_ca_cert: str | None = None
+    single_topic_mode: bool = False
+    single_topic_name: str | None = None
+    dead_letter_topic: str | None = None
+    redaction_mode: KafkaRedactionMode = "none"
+    max_retries: int = Field(default=2, ge=0, le=10)
+    retry_backoff_seconds: int = Field(default=5, ge=0, le=300)
     event_types: list[KafkaEventType] = Field(
         default_factory=lambda: ["run.completed", "run.failed"]  # type: ignore[arg-type]
     )
@@ -54,6 +61,12 @@ class KafkaExportConfigUpdate(BaseModel):
     sasl_username: str | None = None
     sasl_password: str | None = None
     ssl_ca_cert: str | None = None
+    single_topic_mode: bool | None = None
+    single_topic_name: str | None = None
+    dead_letter_topic: str | None = None
+    redaction_mode: KafkaRedactionMode | None = None
+    max_retries: int | None = Field(default=None, ge=0, le=10)
+    retry_backoff_seconds: int | None = Field(default=None, ge=0, le=300)
     event_types: list[KafkaEventType] | None = None
     enabled: bool | None = None
 
@@ -70,6 +83,12 @@ class KafkaExportConfigResponse(BaseModel):
     sasl_mechanism: str | None
     sasl_username: str | None
     ssl_ca_cert: str | None
+    single_topic_mode: bool
+    single_topic_name: str | None
+    dead_letter_topic: str | None
+    redaction_mode: str
+    max_retries: int
+    retry_backoff_seconds: int
     event_types: list[str]
     enabled: bool
     created_at: datetime
@@ -87,9 +106,14 @@ class KafkaExportDeliveryResponse(BaseModel):
     config_id: uuid.UUID
     event_type: str
     topic: str
+    idempotency_key: str | None
     status: str
     error_detail: str | None
     attempt: int
+    next_retry_at: datetime | None
+    last_error_at: datetime | None
+    dead_letter_topic: str | None
+    dead_lettered_at: datetime | None
     delivered_at: datetime | None
     created_at: datetime
 

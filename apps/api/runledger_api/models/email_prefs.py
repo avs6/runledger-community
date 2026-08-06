@@ -40,6 +40,9 @@ class EmailPreference(Base):
         sa.String(32), nullable=False, server_default=sa.text("'workspace_admins'")
     )
     report_recipients: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    report_template: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'detailed'")
+    )
     report_last_sent_at: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )

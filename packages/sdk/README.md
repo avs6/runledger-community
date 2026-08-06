@@ -166,6 +166,30 @@ except RunLedgerBudgetExceededError as e:
     print(f"Blocked: {e}")
 ```
 
+## Shared agent helper
+
+Use the shared helper when a published skill, wrapper script, or local bridge needs
+explicit task telemetry plus budget or policy checks:
+
+```python
+from runledger_sdk import RunLedger
+
+rl = RunLedger(api_key="rl_dev_...")
+run_id = rl.record_run_start(feature_tag="codex-task", intent="code_generation")
+decision = rl.check_policy(tool_name="shell_command", dry_run=True)
+rl.record_tool_call(run_id=run_id, tool_name="shell_command", tool_type="privileged")
+rl.record_outcome(run_id=run_id, outcome_type="completed", success=True)
+rl.shutdown()
+```
+
+The canonical MCP tool list for published skills is also exported:
+
+```python
+from runledger_sdk import published_skill_tool_names
+
+print(published_skill_tool_names())
+```
+
 ## Local / offline mode
 
 ```python

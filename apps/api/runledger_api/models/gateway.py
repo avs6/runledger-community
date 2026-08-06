@@ -5,7 +5,7 @@ ORM models for the Model Gateway: routes, routing policies, request log, and pro
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -70,6 +70,25 @@ class GatewayRoute(Base):
     # Router settings: classifier_mode, llm_model, tiers{}, matrix{}, risk_keywords[], on_failure, ...
     routing_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     per_user_rpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    fallback_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    required_tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'")
+    )
+    excluded_tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'")
+    )
+    retry_count: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default="1"
+    )
+    timeout_ms: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    cooldown_seconds: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default="0"
+    )
+    cooldown_until: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    region: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    mirror_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     health_auto_disable: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")
     )
@@ -83,6 +102,34 @@ class GatewayRoute(Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
+
+    @property
+    def deployment_status(self) -> str:
+        if self.cooldown_until is not None and self.cooldown_until > datetime.now(UTC):
+            return "degraded"
+        if not self.is_active and self.disabled_reason:
+            return "down"
+        if self.consecutive_health_failures >= 3:
+            return "down"
+        if self.consecutive_health_failures > 0:
+            return "degraded"
+        if self.last_health_check_at is not None:
+            return "healthy"
+        return "unknown"
+
+    @property
+    def health_summary(self) -> str | None:
+        if self.disabled_reason:
+            return self.disabled_reason
+        if self.cooldown_until is not None and self.cooldown_until > datetime.now(UTC):
+            return f"Cooldown until {self.cooldown_until.isoformat()}"
+        if self.consecutive_health_failures >= 3:
+            return f"{self.consecutive_health_failures} consecutive health failures"
+        if self.consecutive_health_failures > 0:
+            return f"{self.consecutive_health_failures} recent health failures"
+        if self.last_health_check_at is not None:
+            return f"Last checked {self.last_health_check_at.isoformat()}"
+        return None
 
 
 class GatewayRequest(Base):
@@ -207,3 +254,38 @@ class PromptCache(Base):
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
     expires_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+
+
+class GatewayPassThroughEndpoint(Base):
+    __tablename__ = "gateway_passthrough_endpoints"
+    __table_args__ = (
+        sa.UniqueConstraint("workspace_id", "slug", name="uq_gateway_passthrough_workspace_slug"),
+        sa.Index("ix_gateway_passthrough_workspace", "workspace_id", "slug"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(sa.String(80), nullable=False)
+    path_prefix: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'/''"))
+    upstream_base_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    auth_type: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    auth_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    header_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    default_query: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    timeout_ms: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="30000")
+    rate_limit_rpm: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    cost_per_call_usd: Mapped[Decimal | None] = mapped_column(sa.NUMERIC(12, 6), nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )

@@ -11,8 +11,9 @@ fully exercised RunLedger deployment. You'll play two roles:
 
 Everything runs against **local Ollama**, so you need no cloud API keys.
 
-> This is a manual workbook, not an automated seed. It is intentionally *not* picked
-> up by `full_simulate.py`. Work through it top to bottom the first time.
+> This is the manual Phase 13 demo profile, not an automated seed. It is intentionally
+> *not* picked up by `full_simulate.py`, and the dashboard links here as `Hands-on Labs`.
+> Work through it top to bottom the first time.
 
 ---
 

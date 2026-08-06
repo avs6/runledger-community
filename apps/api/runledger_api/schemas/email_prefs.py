@@ -15,6 +15,7 @@ class EmailPreferenceUpdate(BaseModel):
     report_timezone: str | None = None
     report_recipient_mode: str | None = None
     report_recipients: str | None = None
+    report_template: str | None = None
     alerts_enabled: bool | None = None
     approvals_enabled: bool | None = None
     reconciliation_enabled: bool | None = None
@@ -48,6 +49,13 @@ class EmailPreferenceUpdate(BaseModel):
             raise ValueError("invalid report_recipient_mode")
         return value
 
+    @field_validator("report_template")
+    @classmethod
+    def valid_report_template(cls, value: str | None) -> str | None:
+        if value is not None and value not in {"executive", "summary", "detailed"}:
+            raise ValueError("invalid report_template")
+        return value
+
 
 class EmailPreferenceResponse(BaseModel):
     model_config = {"from_attributes": True}
@@ -59,6 +67,7 @@ class EmailPreferenceResponse(BaseModel):
     report_timezone: str
     report_recipient_mode: str
     report_recipients: str | None
+    report_template: str
     report_last_sent_at: datetime | None
     alerts_enabled: bool
     approvals_enabled: bool

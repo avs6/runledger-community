@@ -9,8 +9,13 @@ import {
   GitBranch, Bot, Terminal, MousePointer, Wind, Cpu,
   Copy, Check, ChevronDown, ChevronUp,
 } from 'lucide-react'
-import { getOnboardingStatus, triggerDemoSeed } from '@/lib/api'
-import type { OnboardingStatus } from '@/types/api'
+import {
+  getDemoModeStatus,
+  getOnboardingStatus,
+  triggerDemoReset,
+  triggerDemoSeed,
+} from '@/lib/api'
+import type { DemoModeStatus, OnboardingStatus } from '@/types/api'
 
 /* ------------------------------------------------------------------ */
 /*  Steps checklist (unchanged)                                       */
@@ -248,25 +253,66 @@ export default function OnboardingPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
   const [status, setStatus] = useState<OnboardingStatus | null>(null)
+  const [demoStatus, setDemoStatus] = useState<DemoModeStatus | null>(null)
+  const [selectedDemoProfile, setSelectedDemoProfile] = useState<'full' | 'quick'>('full')
   const [seeding, setSeeding] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [selectedIntegration, setSelectedIntegration] = useState<string | null>(null)
 
   useEffect(() => {
     if (!apiKey) return
     getOnboardingStatus(apiKey).then(setStatus).catch(() => toast.error('Failed to load onboarding status'))
+    getDemoModeStatus(apiKey).then((state) => {
+      setDemoStatus(state)
+      if (state.profile === 'quick' || state.profile === 'full') {
+        setSelectedDemoProfile(state.profile)
+      }
+    }).catch(() => {})
   }, [apiKey])
+
+  useEffect(() => {
+    if (!apiKey || !demoStatus || !['queued', 'running'].includes(demoStatus.status)) return
+
+    const interval = window.setInterval(async () => {
+      try {
+        const next = await getDemoModeStatus(apiKey)
+        setDemoStatus(next)
+        if (!['queued', 'running'].includes(next.status)) {
+          const updated = await getOnboardingStatus(apiKey)
+          setStatus(updated)
+        }
+      } catch {
+      }
+    }, 2500)
+
+    return () => window.clearInterval(interval)
+  }, [apiKey, demoStatus])
 
   const handleSeed = async () => {
     setSeeding(true)
     try {
-      await triggerDemoSeed(apiKey)
-      toast.success('Demo seed started in background')
+      const res = await triggerDemoSeed(apiKey, selectedDemoProfile)
+      setDemoStatus(res.state)
+      toast.success(res.message)
       const updated = await getOnboardingStatus(apiKey)
       setStatus(updated)
     } catch {
       toast.error('Failed to trigger demo seed')
     } finally {
       setSeeding(false)
+    }
+  }
+
+  const handleReset = async () => {
+    setResetting(true)
+    try {
+      const res = await triggerDemoReset(apiKey)
+      setDemoStatus(res.state)
+      toast.success(res.message)
+    } catch {
+      toast.error('Failed to trigger demo reset')
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -279,6 +325,9 @@ export default function OnboardingPage() {
   }
 
   const active = INTEGRATIONS.find((i) => i.id === selectedIntegration)
+  const demoProfiles = demoStatus?.available_profiles ?? []
+  const manualProfile = demoProfiles.find((profile) => profile.id === 'manual')
+  const automatedProfiles = demoProfiles.filter((profile) => profile.kind === 'automated')
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-10">
@@ -391,17 +440,92 @@ export default function OnboardingPage() {
         })}
       </div>
 
-      {/* ---- Demo seed ---- */}
+      {/* ---- Demo mode ---- */}
       <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <h2 className="mb-1 font-semibold">Seed Demo Data</h2>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">Populate your account with sample data to explore RunLedger features.</p>
-        <button
-          onClick={handleSeed}
-          disabled={seeding}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800"
-        >
-          {seeding ? 'Seeding…' : 'Seed Demo Data'}
-        </button>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="mb-1 font-semibold">Demo Mode</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Use the full simulator for the complete Phase 13 story, the quick seed for a lighter REST-only setup, or the labs for a manual walkthrough.
+            </p>
+          </div>
+          {demoStatus && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {demoStatus.status}
+            </span>
+          )}
+        </div>
+
+        {automatedProfiles.length > 0 && (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {automatedProfiles.map((profile) => {
+              const selected = selectedDemoProfile === profile.id
+              return (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => setSelectedDemoProfile(profile.id as 'full' | 'quick')}
+                  className={`rounded-xl border p-4 text-left transition-colors ${
+                    selected
+                      ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/40'
+                      : 'border-slate-200 bg-slate-50 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-blue-600'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{profile.label}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{profile.description}</p>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {demoStatus && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+              {demoStatus.profile ? `${demoStatus.profile.toUpperCase()} ` : ''}
+              {demoStatus.action ? `${demoStatus.action.toUpperCase()}: ` : ''}
+              {demoStatus.message}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Updated {new Date(demoStatus.updated_at).toLocaleString()}
+            </p>
+            <a
+              href={demoStatus.runbook_path}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Open demo runbook
+            </a>
+            {manualProfile && (
+              <a
+                href={manualProfile.runbook_path}
+                target="_blank"
+                rel="noreferrer"
+                className="ml-4 inline-flex text-xs font-medium text-slate-600 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100"
+              >
+                Open labs workbook
+              </a>
+            )}
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            onClick={handleSeed}
+            disabled={seeding || resetting}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800"
+          >
+            {seeding ? 'Seeding…' : 'Seed Demo Data'}
+          </button>
+          <button
+            onClick={handleReset}
+            disabled={seeding || resetting}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800"
+          >
+            {resetting ? 'Resetting…' : 'Reset Demo Data'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -41,12 +41,14 @@ from runledger_api.routers import model_budgets as model_budgets_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
 from runledger_api.routers import outcomes as outcomes_router
+from runledger_api.routers import phase16_deferred as phase16_deferred_router
 from runledger_api.routers import playground as playground_router
 from runledger_api.routers import policies as policies_router
 from runledger_api.routers import prompts as prompts_router
 from runledger_api.routers import providers as providers_router
 from runledger_api.routers import retention as retention_router
 from runledger_api.routers import sessions as sessions_router
+from runledger_api.routers import security as security_router
 from runledger_api.routers import settings as settings_router
 from runledger_api.routers import users as users_router
 from runledger_api.routers import vector_stores as vector_stores_router
@@ -103,6 +105,7 @@ app.include_router(ledger.router)
 app.include_router(tools.router)
 app.include_router(privacy.router)
 app.include_router(settings_router.router)
+app.include_router(security_router.router)
 app.include_router(providers_router.router)
 app.include_router(integrations_router.router)
 app.include_router(alerts_router.router)
@@ -128,6 +131,11 @@ app.include_router(agents_router.router)
 app.include_router(workflows_router.router)
 app.include_router(vector_stores_router.router)
 app.include_router(playground_router.router)
+app.include_router(phase16_deferred_router.tags_router)
+app.include_router(phase16_deferred_router.search_tools_router)
+app.include_router(phase16_deferred_router.tool_policies_router)
+app.include_router(phase16_deferred_router.access_groups_router)
+app.include_router(phase16_deferred_router.response_cache_router)
 app.include_router(mcp_registry_router.router)
 app.include_router(plugins_router.router)
 app.include_router(hub_router.router)

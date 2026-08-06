@@ -33,6 +33,14 @@ class GatewayRouteCreate(BaseModel):
     intelligent_routing_enabled: bool = False
     routing_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
+    fallback_config: dict[str, Any] | None = None
+    required_tags: list[str] = Field(default_factory=list)
+    excluded_tags: list[str] = Field(default_factory=list)
+    retry_count: int = Field(1, ge=0, le=5)
+    timeout_ms: int | None = Field(None, ge=1000, le=300000)
+    cooldown_seconds: int = Field(0, ge=0, le=3600)
+    region: str | None = None
+    mirror_config: dict[str, Any] | None = None
     health_auto_disable: bool = True
 
 
@@ -54,6 +62,14 @@ class GatewayRouteUpdate(BaseModel):
     intelligent_routing_enabled: bool | None = None
     routing_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = Field(None, ge=1)
+    fallback_config: dict[str, Any] | None = None
+    required_tags: list[str] | None = None
+    excluded_tags: list[str] | None = None
+    retry_count: int | None = Field(None, ge=0, le=5)
+    timeout_ms: int | None = Field(None, ge=1000, le=300000)
+    cooldown_seconds: int | None = Field(None, ge=0, le=3600)
+    region: str | None = None
+    mirror_config: dict[str, Any] | None = None
     health_auto_disable: bool | None = None
 
 
@@ -78,10 +94,21 @@ class GatewayRouteResponse(BaseModel):
     intelligent_routing_enabled: bool = False
     routing_config: dict[str, Any] | None = None
     per_user_rpm_limit: int | None = None
+    fallback_config: dict[str, Any] | None = None
+    required_tags: list[str] = Field(default_factory=list)
+    excluded_tags: list[str] = Field(default_factory=list)
+    retry_count: int = 1
+    timeout_ms: int | None = None
+    cooldown_seconds: int = 0
+    cooldown_until: datetime | None = None
+    region: str | None = None
+    mirror_config: dict[str, Any] | None = None
     health_auto_disable: bool = True
     last_health_check_at: datetime | None = None
     consecutive_health_failures: int = 0
     disabled_reason: str | None = None
+    deployment_status: str = "unknown"
+    health_summary: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -89,6 +116,21 @@ class GatewayRouteResponse(BaseModel):
 
 class GatewayRouteList(BaseModel):
     items: list[GatewayRouteResponse]
+
+
+class GatewayDeploymentHealthItem(BaseModel):
+    route_id: uuid.UUID
+    alias: str
+    provider: str
+    target_model: str
+    deployment_status: str
+    health_summary: str | None = None
+    last_health_check_at: datetime | None = None
+    consecutive_health_failures: int = 0
+
+
+class GatewayDeploymentHealthList(BaseModel):
+    items: list[GatewayDeploymentHealthItem]
 
 
 # ── Completion request / response ──────────────────────────────────────────────
@@ -102,6 +144,8 @@ class GatewayMessage(BaseModel):
 class GatewayCompletionRequest(BaseModel):
     model: str = Field(..., description="Alias or model name to route")
     messages: list[GatewayMessage]
+    metadata: dict[str, Any] | None = None
+    fallback_aliases: list[str] | None = None
     # Core sampling params
     temperature: float | None = None
     max_tokens: int | None = None
@@ -187,6 +231,56 @@ class GatewayRequestResponse(BaseModel):
 class GatewayRequestList(BaseModel):
     items: list[GatewayRequestResponse]
     total: int
+
+
+class GatewayPassThroughEndpointCreate(BaseModel):
+    slug: str = Field(..., min_length=1, max_length=80)
+    path_prefix: str = "/"
+    upstream_base_url: str
+    auth_type: str | None = None
+    auth_config: dict[str, Any] = Field(default_factory=dict)
+    header_config: dict[str, Any] = Field(default_factory=dict)
+    default_query: dict[str, Any] = Field(default_factory=dict)
+    timeout_ms: int = Field(30000, ge=1000, le=300000)
+    rate_limit_rpm: int | None = Field(None, ge=1)
+    cost_per_call_usd: Decimal | None = None
+    is_active: bool = True
+
+
+class GatewayPassThroughEndpointUpdate(BaseModel):
+    path_prefix: str | None = None
+    upstream_base_url: str | None = None
+    auth_type: str | None = None
+    auth_config: dict[str, Any] | None = None
+    header_config: dict[str, Any] | None = None
+    default_query: dict[str, Any] | None = None
+    timeout_ms: int | None = Field(None, ge=1000, le=300000)
+    rate_limit_rpm: int | None = Field(None, ge=1)
+    cost_per_call_usd: Decimal | None = None
+    is_active: bool | None = None
+
+
+class GatewayPassThroughEndpointResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    slug: str
+    path_prefix: str
+    upstream_base_url: str
+    auth_type: str | None = None
+    auth_config: dict[str, Any] = Field(default_factory=dict)
+    header_config: dict[str, Any] = Field(default_factory=dict)
+    default_query: dict[str, Any] = Field(default_factory=dict)
+    timeout_ms: int
+    rate_limit_rpm: int | None = None
+    cost_per_call_usd: Decimal | None = None
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GatewayPassThroughEndpointList(BaseModel):
+    items: list[GatewayPassThroughEndpointResponse]
 
 
 # ── Routing policy schemas ─────────────────────────────────────────────────────

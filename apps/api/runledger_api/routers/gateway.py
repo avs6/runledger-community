@@ -23,19 +23,27 @@ import uuid
 from collections.abc import AsyncGenerator
 from decimal import Decimal
 from typing import Annotated, Any
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.gateway import GatewayRequest, GatewayRoute
+from runledger_api.models.gateway import GatewayPassThroughEndpoint, GatewayRequest, GatewayRoute
 from runledger_api.models.tenant import ApiKey, TenantUser, User, Workspace
 from runledger_api.schemas.gateway import (
     GatewayCompletionRequest,
+    GatewayDeploymentHealthItem,
+    GatewayDeploymentHealthList,
+    GatewayPassThroughEndpointCreate,
+    GatewayPassThroughEndpointList,
+    GatewayPassThroughEndpointResponse,
+    GatewayPassThroughEndpointUpdate,
     GatewayRequestList,
     GatewayRequestResponse,
     GatewayRouteCreate,
@@ -46,8 +54,10 @@ from runledger_api.schemas.gateway import (
     GatewayStats,
 )
 from runledger_api.services import context_compiler, intelligent_router, semantic_cache
+from runledger_api.services.auth import verify_api_key
 from runledger_api.services.gateway import (
     check_cache,
+    choose_route_for_alias,
     increment_hit_count,
     make_cache_key,
     record_gateway_request,
@@ -58,6 +68,12 @@ from runledger_api.services.gateway import (
 from runledger_api.services.gateway_controls import check_cost_cap, check_per_user_rpm
 from runledger_api.services.gateway_redact import redact_messages
 from runledger_api.services.guardrails import evaluate_guardrails
+from runledger_api.services.security import (
+    authenticate_oidc_token,
+    enforce_required_metadata,
+    evaluate_ip_acl,
+    get_client_ip,
+)
 
 log = logging.getLogger(__name__)
 
@@ -116,14 +132,67 @@ def _segment_key(model_alias: str, ir_decision: dict[str, Any] | None) -> str:
 
 ApiKeyDep = Annotated[ApiKey, Depends(get_current_api_key)]
 
+_PASSTHROUGH_ALLOWED_REQUEST_HEADERS = {
+    "accept",
+    "accept-encoding",
+    "content-type",
+    "if-match",
+    "if-none-match",
+    "user-agent",
+    "x-correlation-id",
+    "x-request-id",
+}
+_PASSTHROUGH_ALLOWED_RESPONSE_HEADERS = {
+    "cache-control",
+    "content-length",
+    "content-type",
+    "etag",
+    "last-modified",
+}
+
+
+async def _resolve_gateway_workspace(
+    request: Request,
+    db: AsyncSession,
+) -> tuple[Workspace, ApiKey | None]:
+    workspace, api_key = await _resolve_gateway_workspace(request, db)
+    return workspace, api_key
+
+
+def _build_passthrough_headers(
+    endpoint: GatewayPassThroughEndpoint,
+    request: Request,
+) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for key, value in request.headers.items():
+        lowered = key.lower()
+        if lowered in _PASSTHROUGH_ALLOWED_REQUEST_HEADERS:
+            headers[key] = value
+
+    for key, value in (endpoint.header_config or {}).items():
+        if value is not None:
+            headers[str(key)] = str(value)
+
+    auth_type = (endpoint.auth_type or "").lower()
+    auth_config = endpoint.auth_config or {}
+    if auth_type == "bearer" and auth_config.get("token"):
+        headers["Authorization"] = f"Bearer {auth_config['token']}"
+    elif auth_type == "api_key" and auth_config.get("value"):
+        header_name = str(auth_config.get("header_name") or "x-api-key")
+        headers[header_name] = str(auth_config["value"])
+
+    return headers
+
 
 @router.post("/chat/completions")
 async def gateway_chat_completions(
     body: GatewayCompletionRequest,
-    workspace: WorkspaceDep,
-    api_key: ApiKeyDep,
+    request: Request,
     db: DbDep,
     x_runledger_end_user_id: str | None = Header(default=None, alias="X-RunLedger-End-User-Id"),
+    x_runledger_tags: str | None = Header(default=None, alias="X-RunLedger-Tags"),
+    x_runledger_region: str | None = Header(default=None, alias="X-RunLedger-Region"),
+    x_runledger_timeout_ms: int | None = Header(default=None, alias="X-RunLedger-Timeout-Ms"),
 ) -> Any:
     """
     OpenAI-compatible chat completions proxy.
@@ -138,7 +207,42 @@ async def gateway_chat_completions(
       7. Store result in cache + record GatewayRequest
       8. If body.stream=True: return SSE StreamingResponse
     """
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    raw_bearer = auth_header.split(" ", 1)[1].strip()
+    api_key = await verify_api_key(raw_bearer, db)
+    oidc_auth = None if api_key is not None else await authenticate_oidc_token(raw_bearer, db)
+    if api_key is None and oidc_auth is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    workspace = (
+        (await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))).scalar_one()
+        if api_key is not None
+        else oidc_auth.workspace
+    )
+    metadata = body.metadata or {}
+    team_name = str(metadata.get("team")) if metadata.get("team") else None
+    await evaluate_ip_acl(
+        db,
+        workspace_id=workspace.id,
+        api_key_id=api_key.id if api_key is not None else None,
+        team_name=team_name,
+        client_ip=get_client_ip(request.headers.get("x-forwarded-for"), request.client.host if request.client else None),
+    )
+    missing_metadata = await enforce_required_metadata(db, workspace_id=workspace.id, metadata=metadata)
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
+    request_tags = [str(tag).strip() for tag in metadata.get("tags", [])] if isinstance(metadata.get("tags"), list) else []
+    if x_runledger_tags:
+        request_tags.extend(tag.strip() for tag in x_runledger_tags.split(",") if tag.strip())
+    preferred_region = x_runledger_region.strip() if x_runledger_region else None
 
     # ── 1. Cache lookup ──────────────────────────────────────────────────────
     cache_entry = None
@@ -171,7 +275,7 @@ async def gateway_chat_completions(
     if not semantic_enabled and not body.stream:
         from runledger_api.services.gateway import select_routes  # noqa: PLC0415
 
-        _sc_routes = await select_routes(db, workspace.id, body.model)
+        _sc_routes = await select_routes(db, workspace.id, body.model, request_tags, preferred_region)
         semantic_enabled = bool(_sc_routes and _sc_routes[0].semantic_cache_enabled)
 
     if semantic_enabled and not body.stream:
@@ -203,7 +307,7 @@ async def gateway_chat_completions(
     if context_compiler.enabled():
         from runledger_api.services.gateway import select_routes  # noqa: PLC0415
 
-        _cc_routes = await select_routes(db, workspace.id, body.model)
+        _cc_routes = await select_routes(db, workspace.id, body.model, request_tags, preferred_region)
         if _cc_routes:
             compiler_config = _cc_routes[0].context_compiler_config
             compiler_enabled = compiler_enabled or _cc_routes[0].context_compiler_enabled
@@ -232,7 +336,7 @@ async def gateway_chat_completions(
     if intelligent_router.enabled():
         from runledger_api.services.gateway import select_routes  # noqa: PLC0415
 
-        _ir_routes = await select_routes(db, workspace.id, body.model)
+        _ir_routes = await select_routes(db, workspace.id, body.model, request_tags, preferred_region)
         if _ir_routes:
             routing_config = _ir_routes[0].routing_config
             ir_enabled = ir_enabled or _ir_routes[0].intelligent_routing_enabled
@@ -256,18 +360,21 @@ async def gateway_chat_completions(
 
     # ── 2. Streaming path ────────────────────────────────────────────────────
     if body.stream:
-        from runledger_api.services.gateway import select_routes  # noqa: PLC0415
-
-        routes = await select_routes(db, workspace.id, route_alias)
-        if not routes:
+        route, decision_reason = await choose_route_for_alias(
+            db,
+            workspace.id,
+            route_alias,
+            messages,
+            request_tags=request_tags,
+            preferred_region=preferred_region,
+        )
+        if route is None:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"No active gateway routes for alias '{route_alias}'",
             )
-        route = routes[0]
-        decision_reason = (
-            ir_decision["reason"] if ir_decision and ir_decision.get("alias") else "priority"
-        )
+        if ir_decision and ir_decision.get("alias"):
+            decision_reason = ir_decision["reason"]
 
         # Runtime controls
         await check_cost_cap(db, route, workspace.id)
@@ -384,9 +491,15 @@ async def gateway_chat_completions(
             tools=effective_tools,
             tool_choice=body.tool_choice,
             reasoning_effort=effective_reasoning_effort,
+            request_tags=request_tags,
+            preferred_region=preferred_region,
+            timeout_override_ms=x_runledger_timeout_ms,
+            fallback_aliases=body.fallback_aliases,
         )
         if ir_decision and ir_decision.get("alias"):
             decision_reason = ir_decision["reason"]
+        elif missing_metadata:
+            decision_reason = f"{decision_reason}|metadata_warn:{','.join(missing_metadata)}"
     except HTTPException:
         await record_gateway_request(
             db=db,
@@ -549,6 +662,14 @@ async def create_gateway_route(
         intelligent_routing_enabled=body.intelligent_routing_enabled,
         routing_config=body.routing_config,
         per_user_rpm_limit=body.per_user_rpm_limit,
+        fallback_config=body.fallback_config,
+        required_tags=body.required_tags,
+        excluded_tags=body.excluded_tags,
+        retry_count=body.retry_count,
+        timeout_ms=body.timeout_ms,
+        cooldown_seconds=body.cooldown_seconds,
+        region=body.region,
+        mirror_config=body.mirror_config,
         health_auto_disable=body.health_auto_disable,
     )
     db.add(route)
@@ -618,6 +739,22 @@ async def update_gateway_route(
         route.routing_config = body.routing_config
     if "per_user_rpm_limit" in body.model_fields_set:
         route.per_user_rpm_limit = body.per_user_rpm_limit
+    if "fallback_config" in body.model_fields_set:
+        route.fallback_config = body.fallback_config
+    if body.required_tags is not None:
+        route.required_tags = body.required_tags
+    if body.excluded_tags is not None:
+        route.excluded_tags = body.excluded_tags
+    if body.retry_count is not None:
+        route.retry_count = body.retry_count
+    if "timeout_ms" in body.model_fields_set:
+        route.timeout_ms = body.timeout_ms
+    if body.cooldown_seconds is not None:
+        route.cooldown_seconds = body.cooldown_seconds
+    if "region" in body.model_fields_set:
+        route.region = body.region
+    if "mirror_config" in body.model_fields_set:
+        route.mirror_config = body.mirror_config
     if body.health_auto_disable is not None:
         route.health_auto_disable = body.health_auto_disable
 
@@ -638,6 +775,230 @@ async def delete_gateway_route(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
     await db.delete(route)
     await db.commit()
+
+
+@router.post(
+    "/passthrough",
+    response_model=GatewayPassThroughEndpointResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_gateway_passthrough_endpoint(
+    body: GatewayPassThroughEndpointCreate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayPassThroughEndpointResponse:
+    workspace = auth[0]
+    endpoint = GatewayPassThroughEndpoint(
+        workspace_id=workspace.id,
+        slug=body.slug,
+        path_prefix=body.path_prefix,
+        upstream_base_url=body.upstream_base_url,
+        auth_type=body.auth_type,
+        auth_config=body.auth_config,
+        header_config=body.header_config,
+        default_query=body.default_query,
+        timeout_ms=body.timeout_ms,
+        rate_limit_rpm=body.rate_limit_rpm,
+        cost_per_call_usd=body.cost_per_call_usd,
+        is_active=body.is_active,
+    )
+    db.add(endpoint)
+    await db.commit()
+    await db.refresh(endpoint)
+    return GatewayPassThroughEndpointResponse.model_validate(endpoint)
+
+
+@router.get("/passthrough", response_model=GatewayPassThroughEndpointList)
+async def list_gateway_passthrough_endpoints(
+    auth: OrgAdminDep,
+    db: DbDep,
+    include_inactive: bool = Query(False),
+) -> GatewayPassThroughEndpointList:
+    workspace = auth[0]
+    stmt = select(GatewayPassThroughEndpoint).where(
+        GatewayPassThroughEndpoint.workspace_id == workspace.id
+    )
+    if not include_inactive:
+        stmt = stmt.where(GatewayPassThroughEndpoint.is_active.is_(True))
+    stmt = stmt.order_by(GatewayPassThroughEndpoint.slug.asc())
+    items = (await db.execute(stmt)).scalars().all()
+    return GatewayPassThroughEndpointList(
+        items=[GatewayPassThroughEndpointResponse.model_validate(item) for item in items]
+    )
+
+
+@router.put("/passthrough/{endpoint_id}", response_model=GatewayPassThroughEndpointResponse)
+async def update_gateway_passthrough_endpoint(
+    endpoint_id: uuid.UUID,
+    body: GatewayPassThroughEndpointUpdate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayPassThroughEndpointResponse:
+    workspace = auth[0]
+    endpoint = await db.get(GatewayPassThroughEndpoint, endpoint_id)
+    if endpoint is None or endpoint.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(endpoint, field, value)
+
+    await db.commit()
+    await db.refresh(endpoint)
+    return GatewayPassThroughEndpointResponse.model_validate(endpoint)
+
+
+@router.delete("/passthrough/{endpoint_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_gateway_passthrough_endpoint(
+    endpoint_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    endpoint = await db.get(GatewayPassThroughEndpoint, endpoint_id)
+    if endpoint is None or endpoint.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
+    await db.delete(endpoint)
+    await db.commit()
+
+
+@router.api_route(
+    "/passthrough/{slug}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+@router.api_route(
+    "/passthrough/{slug}/{upstream_path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+async def execute_gateway_passthrough_endpoint(
+    slug: str,
+    request: Request,
+    db: DbDep,
+    upstream_path: str = "",
+) -> Response:
+    workspace, api_key = await _resolve_gateway_workspace(request, db)
+    await evaluate_ip_acl(
+        db,
+        workspace_id=workspace.id,
+        api_key_id=api_key.id if api_key is not None else None,
+        team_name=None,
+        client_ip=get_client_ip(
+            request.headers.get("x-forwarded-for"),
+            request.client.host if request.client else None,
+        ),
+    )
+
+    stmt = select(GatewayPassThroughEndpoint).where(
+        GatewayPassThroughEndpoint.workspace_id == workspace.id,
+        GatewayPassThroughEndpoint.slug == slug,
+        GatewayPassThroughEndpoint.is_active.is_(True),
+    )
+    endpoint = (await db.execute(stmt)).scalar_one_or_none()
+    if endpoint is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
+
+    upstream_base = endpoint.upstream_base_url.rstrip("/")
+    path_prefix = (endpoint.path_prefix or "/").strip("/")
+    upstream_suffix = upstream_path.strip("/")
+    path_parts = [part for part in (path_prefix, upstream_suffix) if part]
+    target_url = upstream_base
+    if path_parts:
+        target_url = f"{upstream_base}/{'/'.join(path_parts)}"
+
+    merged_query: dict[str, Any] = {}
+    for key, value in (endpoint.default_query or {}).items():
+        if value is not None:
+            merged_query[str(key)] = str(value)
+    for key, value in request.query_params.multi_items():
+        merged_query[key] = value
+    if merged_query:
+        target_url = f"{target_url}?{urlencode(merged_query, doseq=True)}"
+
+    raw_body = await request.body()
+    timeout_seconds = max(1.0, endpoint.timeout_ms / 1000)
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+            upstream_response = await client.request(
+                method=request.method,
+                url=target_url,
+                content=raw_body if raw_body else None,
+                headers=_build_passthrough_headers(endpoint, request),
+            )
+    except httpx.HTTPError as exc:
+        await record_gateway_request(
+            db=db,
+            workspace_id=workspace.id,
+            model_requested=f"passthrough:{slug}",
+            route=None,
+            model_used=endpoint.upstream_base_url,
+            cache_hit=False,
+            input_tokens=None,
+            output_tokens=None,
+            latency_ms=int((time.monotonic() - t0) * 1000),
+            req_status="error",
+            decision_reason=f"passthrough:{slug}|upstream_error",
+        )
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Upstream request failed: {exc!s}") from exc
+
+    await record_gateway_request(
+        db=db,
+        workspace_id=workspace.id,
+        model_requested=f"passthrough:{slug}",
+        route=None,
+        model_used=endpoint.upstream_base_url,
+        cache_hit=False,
+        input_tokens=None,
+        output_tokens=None,
+        latency_ms=int((time.monotonic() - t0) * 1000),
+        req_status="success" if upstream_response.status_code < 400 else "error",
+        decision_reason=f"passthrough:{slug}",
+    )
+
+    response_headers = {
+        key: value
+        for key, value in upstream_response.headers.items()
+        if key.lower() in _PASSTHROUGH_ALLOWED_RESPONSE_HEADERS
+    }
+    return Response(
+        content=upstream_response.content,
+        status_code=upstream_response.status_code,
+        headers=response_headers,
+        media_type=upstream_response.headers.get("content-type"),
+    )
+
+
+@router.get("/deployments/health", response_model=GatewayDeploymentHealthList)
+async def list_gateway_deployment_health(
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayDeploymentHealthList:
+    workspace = auth[0]
+    rows = (
+        (
+            await db.execute(
+                select(GatewayRoute)
+                .where(GatewayRoute.workspace_id == workspace.id)
+                .order_by(GatewayRoute.alias.asc(), GatewayRoute.priority.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return GatewayDeploymentHealthList(
+        items=[
+            GatewayDeploymentHealthItem(
+                route_id=row.id,
+                alias=row.alias,
+                provider=row.provider,
+                target_model=row.target_model,
+                deployment_status=row.deployment_status,
+                health_summary=row.health_summary,
+                last_health_check_at=row.last_health_check_at,
+                consecutive_health_failures=row.consecutive_health_failures,
+            )
+            for row in rows
+        ]
+    )
 
 
 # ── Request log (routing log) ─────────────────────────────────────────────────

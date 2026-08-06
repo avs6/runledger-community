@@ -2,6 +2,14 @@
 
 Utilities for running, resetting, and populating a RunLedger stack.
 
+## Demo modes at a glance
+
+There are now three cohesive demo paths:
+
+1. `Full Simulator`: [full_simulate.py](./full_simulate.py) is the primary automated demo and the default Phase 13 one-click path in the dashboard.
+2. `Quick Seed`: [../apps/api/scripts/seed_demo.py](../apps/api/scripts/seed_demo.py) is the lighter REST-only seed used when you want broad feature coverage fast.
+3. `Hands-on Labs`: [scenarios/labs/README.md](./scenarios/labs/README.md) is the manual workbook for guided operator-style walkthroughs.
+
 | Script | What it does |
 |---|---|
 | [`full_simulate.py`](./full_simulate.py) | Reset the cluster, then populate it with high-volume local Ollama demo data **through the REST API**. |
@@ -15,7 +23,7 @@ Utilities for running, resetting, and populating a RunLedger stack.
 
 ## What `full_simulate.py` does
 
-One command turns an empty stack into a fully-populated demo:
+One command turns an empty stack into a fully-populated demo, and it is the recommended automated profile:
 
 ```bash
 uv run python scripts/full_simulate.py            # reset -> bootstrap -> import local pricing -> run Ollama scenarios x3

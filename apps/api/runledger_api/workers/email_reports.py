@@ -191,6 +191,7 @@ async def _run_weekly_reports() -> dict[str, int]:
                         rows=items,
                         total_cost=total_cost,
                         workspace_name=ws_name,
+                        template=getattr(prefs, "report_template", "detailed"),
                     )
                     emails_sent += 1
 

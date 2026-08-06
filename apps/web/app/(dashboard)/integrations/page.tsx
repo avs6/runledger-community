@@ -471,6 +471,8 @@ export default function IntegrationsPage() {
     bootstrap_servers: 'localhost:9092',
     topic_prefix: 'runledger.dev',
     security_protocol: 'PLAINTEXT' as KafkaSecurityProtocol,
+    single_topic_mode: false,
+    single_topic_name: 'runledger.events',
     event_types: ['run.completed', 'run.failed', 'alert.fired', 'budget.breached'] as KafkaEventType[],
   })
 
@@ -820,7 +822,7 @@ export default function IntegrationsPage() {
                 <StatusBadge status="available" />
               </div>
               <p className="mt-2 max-w-3xl text-sm text-slate-600">
-                Optional real-time export for RunLedger events. Keep it disabled unless you have Redpanda, Kafka, Confluent, or MSK ready.
+                Optional real-time export for RunLedger events. Keep it disabled unless you have Redpanda, Kafka, Confluent, or MSK ready. Choose routed topics by prefix or force all events into one shared topic for simpler deployments.
               </p>
             </div>
           </div>
@@ -865,6 +867,27 @@ export default function IntegrationsPage() {
                 </select>
               </label>
             </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={kafkaForm.single_topic_mode}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, single_topic_mode: e.target.checked }))}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Single-topic export mode
+              </label>
+              <label className="text-xs font-semibold text-slate-600 lg:col-span-2">
+                Shared topic name
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.single_topic_name}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, single_topic_name: e.target.value }))}
+                  disabled={!kafkaForm.single_topic_mode}
+                  placeholder="runledger.events"
+                />
+              </label>
+            </div>
             <div className="mt-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Events</p>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -887,7 +910,13 @@ export default function IntegrationsPage() {
             </div>
             <button
               type="submit"
-              disabled={kafkaBusy || !kafkaForm.label.trim() || !kafkaForm.bootstrap_servers.trim() || kafkaForm.event_types.length === 0}
+              disabled={
+                kafkaBusy ||
+                !kafkaForm.label.trim() ||
+                !kafkaForm.bootstrap_servers.trim() ||
+                kafkaForm.event_types.length === 0 ||
+                (kafkaForm.single_topic_mode && !kafkaForm.single_topic_name.trim())
+              }
               className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
             >
               Create Kafka Export
@@ -911,11 +940,16 @@ export default function IntegrationsPage() {
                         </span>
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{config.security_protocol}</span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">{config.bootstrap_servers} / {config.topic_prefix}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {config.bootstrap_servers} / {config.single_topic_mode ? (config.single_topic_name ?? 'single topic') : config.topic_prefix}
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {config.event_types.map((eventType) => (
                           <span key={eventType} className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">{eventType}</span>
                         ))}
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                          {config.single_topic_mode ? 'single topic' : 'topic prefix'}
+                        </span>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -936,18 +970,22 @@ export default function IntegrationsPage() {
                         <tr className="bg-slate-50 text-left text-slate-500">
                           <th className="px-3 py-2 font-semibold">Event</th>
                           <th className="px-3 py-2 font-semibold">Topic</th>
+                          <th className="px-3 py-2 font-semibold">Idempotency</th>
                           <th className="px-3 py-2 font-semibold">Status</th>
                           <th className="px-3 py-2 font-semibold">Error</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {(kafkaDeliveries[config.id] ?? []).length === 0 ? (
-                          <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-500">No deliveries yet.</td></tr>
+                          <tr><td colSpan={5} className="px-3 py-4 text-center text-slate-500">No deliveries yet.</td></tr>
                         ) : (
                           (kafkaDeliveries[config.id] ?? []).map((delivery) => (
                             <tr key={delivery.id}>
                               <td className="px-3 py-2 font-medium text-slate-700">{delivery.event_type}</td>
                               <td className="px-3 py-2 text-slate-500">{delivery.topic}</td>
+                              <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
+                                {delivery.idempotency_key ? `${delivery.idempotency_key.slice(0, 14)}...` : '-'}
+                              </td>
                               <td className="px-3 py-2">
                                 <span className={`rounded-full px-2 py-0.5 font-semibold ${delivery.status === 'success' ? 'bg-emerald-50 text-emerald-700' : delivery.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
                                   {delivery.status}

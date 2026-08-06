@@ -34,6 +34,8 @@ app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_enable=False,
 )
+task_app = typer.Typer(help="Manual task lifecycle helpers for tools without a native SDK.")
+app.add_typer(task_app, name="task")
 console = Console()
 err_console = Console(stderr=True, style="bold red")
 
@@ -77,6 +79,12 @@ def _client(api_key: str, base_url: str) -> httpx.Client:
     )
 
 
+def _print_json(data: dict[str, Any]) -> None:
+    import json  # noqa: PLC0415
+
+    console.print(json.dumps(data, indent=2, sort_keys=True))
+
+
 # ── validate ──────────────────────────────────────────────────────────────────
 
 
@@ -112,6 +120,93 @@ def validate(
     except httpx.ConnectError:
         err_console.print(f"✗ Could not connect to {base_url}")
         raise typer.Exit(code=1) from None
+
+
+@task_app.command("start")
+def task_start(
+    task: Annotated[str, typer.Option("--task", help="Task or work item name")],
+    intent: Annotated[str | None, typer.Option("--intent", help="Intent classification")] = None,
+    feature_tag: Annotated[str | None, typer.Option("--feature-tag", help="Feature or agent tag")] = None,
+    end_user_id: Annotated[str | None, typer.Option("--end-user-id", help="End-user identifier")] = None,
+    session_id: Annotated[str | None, typer.Option("--session-id", help="Session identifier")] = None,
+    agent: Annotated[str | None, typer.Option("--agent", help="Agent/client name")] = None,
+    api_key: ApiKeyOpt = None,
+    base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
+) -> None:
+    """Start a task run and return the generated run_id."""
+    key = _require_api_key(api_key)
+    payload: dict[str, Any] = {
+        "event_type": "run_start",
+        "run_id": str(uuid.uuid4()),
+        "started_at": datetime.now(UTC).isoformat(),
+        "feature_tag": feature_tag,
+        "end_user_id": end_user_id,
+        "session_id": session_id,
+        "intent": intent,
+        "metadata": {"task": task, "agent": agent} if task or agent else None,
+    }
+    try:
+        with _client(key, base_url) as client:
+            resp = client.post("/ingest/v1/events", json=payload)
+    except httpx.ConnectError:
+        err_console.print(f"Could not connect to {base_url}")
+        raise typer.Exit(code=1) from None
+    if resp.status_code not in (200, 202):
+        err_console.print(f"API error {resp.status_code}: {resp.text}")
+        raise typer.Exit(code=1)
+    _print_json({"accepted": 1, "run_id": payload["run_id"]})
+
+
+@task_app.command("outcome")
+def task_outcome(
+    run_id: Annotated[str, typer.Option("--run-id", help="Run ID returned by task start")],
+    result: Annotated[str, typer.Option("--result", help="Outcome type, e.g. completed")] = "completed",
+    success: Annotated[bool, typer.Option("--success/--failure", help="Mark the task as successful or failed")] = True,
+    final_status: Annotated[str, typer.Option("--final-status", help="Final run status")] = "succeeded",
+    total_cost_usd: Annotated[float | None, typer.Option("--total-cost-usd")] = None,
+    total_input_tokens: Annotated[int | None, typer.Option("--total-input-tokens")] = None,
+    total_output_tokens: Annotated[int | None, typer.Option("--total-output-tokens")] = None,
+    quality_score: Annotated[float | None, typer.Option("--quality-score")] = None,
+    verification_status: Annotated[str | None, typer.Option("--verification-status")] = None,
+    api_key: ApiKeyOpt = None,
+    base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
+) -> None:
+    """Record the final task outcome and close the run."""
+    key = _require_api_key(api_key)
+    outcome_event = {
+        "event_type": "outcome",
+        "run_id": run_id,
+        "outcome_type": result,
+        "success": success,
+        "labels": {
+            k: v
+            for k, v in {
+                "quality_score": quality_score,
+                "verification_status": verification_status,
+            }.items()
+            if v is not None
+        }
+        or None,
+    }
+    run_end_event = {
+        "event_type": "run_end",
+        "run_id": run_id,
+        "status": final_status,
+        "ended_at": datetime.now(UTC).isoformat(),
+        "total_cost_usd": total_cost_usd,
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+    }
+    try:
+        with _client(key, base_url) as client:
+            resp = client.post("/ingest/v1/batch", json={"events": [outcome_event, run_end_event]})
+    except httpx.ConnectError:
+        err_console.print(f"Could not connect to {base_url}")
+        raise typer.Exit(code=1) from None
+    if resp.status_code not in (200, 202):
+        err_console.print(f"API error {resp.status_code}: {resp.text}")
+        raise typer.Exit(code=1)
+    _print_json({"accepted": 2, "run_id": run_id, "result": result})
 
 
 # ── runs ──────────────────────────────────────────────────────────────────────

@@ -33,9 +33,11 @@ export { instrumentOpenAI, detectProvider } from './openai.js'
 export { instrumentGemini } from './gemini.js'
 export { instrumentMistral } from './mistral.js'
 export { instrumentCohere } from './cohere.js'
+export { RunLedgerTask, withTask } from './task.js'
 export type {
   RunLedgerOptions,
   ContextOptions,
+  TaskOptions,
   RunLedgerContextData,
   RunLedgerEvent,
   RunStartEvent,
@@ -43,4 +45,6 @@ export type {
   SpanStartEvent,
   SpanEndEvent,
   ProviderCallEvent,
+  ToolCallEvent,
+  OutcomeEvent,
 } from './types.js'

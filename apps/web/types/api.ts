@@ -491,7 +491,7 @@ export interface CapturePolicyResponse { id: string; workspace_id: string; priva
 
 // ── Phase 12 — Settings ────────────────────────────────────────────────────────
 
-export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null }
+export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null; ownership_type: string; owner_reference: string | null }
 export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 
 // ── Phase 12 — Providers ───────────────────────────────────────────────────────
@@ -750,15 +750,41 @@ export interface GatewayRoute {
   intelligent_routing_enabled: boolean
   routing_config: Record<string, unknown> | null
   per_user_rpm_limit: number | null
+  fallback_config: Record<string, unknown> | null
+  required_tags: string[]
+  excluded_tags: string[]
+  retry_count: number
+  timeout_ms: number | null
+  cooldown_seconds: number
+  cooldown_until: string | null
+  region: string | null
+  mirror_config: Record<string, unknown> | null
   health_auto_disable: boolean
   last_health_check_at: string | null
   consecutive_health_failures: number
   disabled_reason: string | null
+  deployment_status: string
+  health_summary: string | null
   created_at: string
 }
 
 export interface GatewayRouteList {
   items: GatewayRoute[]
+}
+
+export interface GatewayDeploymentHealthItem {
+  route_id: string
+  alias: string
+  provider: string
+  target_model: string
+  deployment_status: string
+  health_summary: string | null
+  last_health_check_at: string | null
+  consecutive_health_failures: number
+}
+
+export interface GatewayDeploymentHealthList {
+  items: GatewayDeploymentHealthItem[]
 }
 
 export interface GatewayRouteStats {
@@ -797,6 +823,27 @@ export interface GatewayRequestLog {
 export interface GatewayRequestList {
   items: GatewayRequestLog[]
   total: number
+}
+
+export interface GatewayPassThroughEndpoint {
+  id: string
+  workspace_id: string
+  slug: string
+  path_prefix: string
+  upstream_base_url: string
+  auth_type: string | null
+  auth_config: Record<string, unknown>
+  header_config: Record<string, unknown>
+  default_query: Record<string, unknown>
+  timeout_ms: number
+  rate_limit_rpm: number | null
+  cost_per_call_usd: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface GatewayPassThroughEndpointList {
+  items: GatewayPassThroughEndpoint[]
 }
 
 export type RoutingPolicyType =
@@ -1356,6 +1403,7 @@ export interface EmailPreference {
   report_timezone: string
   report_recipient_mode: string
   report_recipients: string | null
+  report_template: string
   report_last_sent_at: string | null
   alerts_enabled: boolean
   approvals_enabled: boolean
@@ -1388,6 +1436,36 @@ export interface OpsFeatureStatus {
   email_reports_enabled: boolean
   backup_enabled: boolean
   smtp_configured: boolean
+}
+
+export interface BackupRun {
+  id: string
+  workspace_id: string
+  trigger_mode: 'manual' | 'scheduled'
+  status: 'queued' | 'running' | 'success' | 'failed'
+  backup_scope: string
+  target: string | null
+  command: string | null
+  triggered_by: string | null
+  size_bytes: number | null
+  checksum: string | null
+  output_excerpt: string | null
+  error_detail: string | null
+  details: Record<string, unknown> | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+}
+
+export interface BackupRunList {
+  items: BackupRun[]
+  total: number
+}
+
+export interface BackupActionResult {
+  ok: boolean
+  message: string
+  details: Record<string, unknown> | null
 }
 
 
@@ -1453,10 +1531,90 @@ export interface KafkaExportConfig {
   sasl_mechanism: KafkaSaslMechanism | null
   sasl_username: string | null
   ssl_ca_cert: string | null
+  single_topic_mode: boolean
+  single_topic_name: string | null
+  dead_letter_topic: string | null
+  redaction_mode: 'none' | 'metadata_only'
+  max_retries: number
+  retry_backoff_seconds: number
   event_types: KafkaEventType[]
   enabled: boolean
   created_at: string
   updated_at: string
+}
+
+export interface WorkspaceSecuritySettings {
+  id: string
+  workspace_id: string
+  required_metadata_fields: string[]
+  required_metadata_mode: 'warn' | 'reject' | string
+  data_residency_regions: string[]
+  callback_config: Record<string, unknown>
+  brand_config: Record<string, unknown>
+  oidc_session_config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface OIDCProviderResponse {
+  id: string
+  workspace_id: string
+  name: string
+  issuer_url: string
+  audience: string | null
+  discovery_url: string | null
+  jwks_uri: string | null
+  claim_mappings: Record<string, unknown>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface OIDCProviderList {
+  items: OIDCProviderResponse[]
+}
+
+export interface IpAclRuleResponse {
+  id: string
+  workspace_id: string | null
+  api_key_id: string | null
+  scope_type: string
+  team_name: string | null
+  cidr: string
+  action: 'allow' | 'deny' | string
+  priority: number
+  description: string | null
+  created_at: string
+}
+
+export interface IpAclRuleList {
+  items: IpAclRuleResponse[]
+}
+
+export interface IpAclTestResponse {
+  ip: string
+  allowed: boolean
+}
+
+export interface KeyRotationEventResponse {
+  id: string
+  api_key_id: string
+  rotated_from_prefix: string
+  rotated_to_prefix: string
+  triggered_by: string | null
+  grace_expires_at: string | null
+  created_at: string
+}
+
+export interface KeyRotationEventList {
+  items: KeyRotationEventResponse[]
+}
+
+export interface RotateApiKeyResponse {
+  key_id: string
+  key_prefix: string
+  key: string
+  expires_old_at: string | null
 }
 
 export interface KafkaExportConfigList {
@@ -1468,9 +1626,14 @@ export interface KafkaExportDelivery {
   config_id: string
   event_type: string
   topic: string
+  idempotency_key: string | null
   status: 'pending' | 'success' | 'failed'
   error_detail: string | null
   attempt: number
+  next_retry_at: string | null
+  last_error_at: string | null
+  dead_letter_topic: string | null
+  dead_lettered_at: string | null
   delivered_at: string | null
   created_at: string
 }
@@ -1862,6 +2025,34 @@ export interface OnboardingStatus {
   completed: number
   total: number
   pct: number
+}
+
+export interface DemoModeStatus {
+  status: 'idle' | 'queued' | 'running' | 'completed' | 'failed' | 'busy'
+  action: 'seed' | 'reset' | null
+  profile: 'full' | 'quick' | 'manual' | null
+  message: string
+  pid: number | null
+  started_at: string | null
+  finished_at: string | null
+  updated_at: string
+  runbook_path: string
+  available_profiles: DemoProfileOption[]
+}
+
+export interface DemoProfileOption {
+  id: 'full' | 'quick' | 'manual'
+  label: string
+  kind: 'automated' | 'manual'
+  description: string
+  entrypoint: string
+  runbook_path: string
+}
+
+export interface DemoModeTriggerResponse {
+  status: string
+  message: string
+  state: DemoModeStatus
 }
 
 // ── Phase 13: Chargeback Reports ────────────────────────────────────────────
@@ -3000,6 +3191,7 @@ export interface TeamModelResponse {
   budget_usd: number | null
   budget_period: string | null
   is_active: boolean
+  logging_opt_out: boolean
   health_status: string
   last_health_check: string | null
   total_calls: number
@@ -3011,4 +3203,231 @@ export interface TeamModelResponse {
 
 export interface TeamModelList {
   items: TeamModelResponse[]
+}
+
+// Phase 16 deferred management surfaces
+
+export interface TagResponse {
+  id: string
+  workspace_id: string
+  category: string
+  key: string
+  value: string
+  description: string | null
+  parent_tag_id: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TagTreeNode extends TagResponse {
+  children: TagTreeNode[]
+}
+
+export interface TagListResponse {
+  items: TagResponse[]
+  total: number
+}
+
+export interface TagTreeResponse {
+  items: TagTreeNode[]
+  total: number
+}
+
+export interface AutoTaggingRuleResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  match_type: string
+  match_field: string
+  match_pattern: string
+  tag_key: string
+  tag_value: string
+  priority: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AutoTaggingRuleListResponse {
+  items: AutoTaggingRuleResponse[]
+  total: number
+}
+
+export interface AutoTaggingSimulationMatch {
+  rule_id: string
+  rule_name: string
+  tag_key: string
+  tag_value: string
+  priority: number
+}
+
+export interface AutoTaggingSimulationResponse {
+  matched: AutoTaggingSimulationMatch[]
+  applied_tags: Record<string, string>
+}
+
+export interface SearchToolResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  tool_type: string
+  endpoint_url: string | null
+  auth_type: string | null
+  auth_config: Record<string, unknown>
+  rate_limit_rpm: number | null
+  cost_per_query: number
+  is_active: boolean
+  total_queries: number
+  total_cost_usd: number
+  avg_quality_score: number | null
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  policy_count: number
+}
+
+export interface SearchToolListResponse {
+  items: SearchToolResponse[]
+  total: number
+}
+
+export interface ToolPolicyResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  tool_name: string
+  action: 'allow' | 'deny' | 'audit' | string
+  condition_type: string | null
+  condition_config: Record<string, unknown>
+  scope_type: string
+  scope_id: string | null
+  priority: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ToolPolicyListResponse {
+  items: ToolPolicyResponse[]
+  total: number
+}
+
+export interface SearchToolPolicySummary {
+  tool_id: string
+  tool_name: string
+  policies: ToolPolicyResponse[]
+}
+
+export interface ToolPolicySimulationResponse {
+  tool_name: string
+  final_action: string
+  matched_policy_ids: string[]
+  matched_policy_names: string[]
+  reasons: string[]
+}
+
+export interface ToolUsageAnalyticsItem {
+  tool_name: string
+  total_calls: number
+  allowed_calls: number
+  denied_calls: number
+  audited_calls: number
+  success_count: number
+  failure_count: number
+  avg_duration_ms: number | null
+  avg_risk_score: number | null
+}
+
+export interface ToolUsageAnalyticsResponse {
+  items: ToolUsageAnalyticsItem[]
+  total_calls: number
+  unique_tools: number
+}
+
+export interface AccessGroupResponse {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  permissions: Record<string, unknown>
+  budget_usd: number | null
+  budget_period: string | null
+  guardrail_profile: string | null
+  is_active: boolean
+  member_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AccessGroupListResponse {
+  items: AccessGroupResponse[]
+  total: number
+}
+
+export interface AccessGroupMemberResponse {
+  id: string
+  group_id: string
+  user_id: string
+  role: string
+  created_at: string
+}
+
+export interface AccessGroupMemberListResponse {
+  items: AccessGroupMemberResponse[]
+  total: number
+}
+
+export interface AccessGroupDashboardItem {
+  id: string
+  name: string
+  member_count: number
+  budget_usd: number | null
+  budget_period: string | null
+  guardrail_profile: string | null
+  dashboard_filters: Record<string, unknown>
+  is_active: boolean
+}
+
+export interface AccessGroupDashboardResponse {
+  groups: AccessGroupDashboardItem[]
+  selected_group_id: string | null
+}
+
+export interface ResponseCacheConfigResponse {
+  id: string
+  workspace_id: string
+  name: string
+  is_enabled: boolean
+  ttl_seconds: number
+  max_entries: number
+  eviction_policy: string
+  similarity_threshold: number
+  embedding_model: string | null
+  scope_models: string[]
+  total_hits: number
+  total_misses: number
+  total_savings_usd: number
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface ResponseCacheConfigListResponse {
+  items: ResponseCacheConfigResponse[]
+  total: number
+}
+
+export interface ResponseCacheStatsResponse {
+  config_count: number
+  enabled_config_count: number
+  total_hits: number
+  total_misses: number
+  hit_rate: number | null
+  total_savings_usd: number
+  live_entry_count: number
+  top_models: { model: string; hit_count: number }[]
 }

@@ -4,7 +4,8 @@ import { instrumentOpenAI } from './openai.js'
 import { instrumentGemini } from './gemini.js'
 import { instrumentMistral } from './mistral.js'
 import { instrumentCohere } from './cohere.js'
-import type { RunLedgerOptions, ContextOptions } from './types.js'
+import { withTask, RunLedgerTask } from './task.js'
+import type { RunLedgerOptions, ContextOptions, TaskOptions } from './types.js'
 
 /**
  * RunLedger client — the main entry point for the TypeScript SDK.
@@ -31,6 +32,7 @@ import type { RunLedgerOptions, ContextOptions } from './types.js'
 export class RunLedger {
   private readonly _transport: Transport
   private readonly _opts: Required<Pick<RunLedgerOptions, 'baseUrl' | 'local' | 'budgetCheck' | 'privacyMode'>>
+  private readonly _defaultTaskMetadata: Record<string, unknown>
 
   constructor(opts: RunLedgerOptions = {}) {
     const apiKey = opts.apiKey ?? process.env['RUNLEDGER_API_KEY'] ?? ''
@@ -50,8 +52,21 @@ export class RunLedger {
       budgetCheck: opts.budgetCheck ?? false,
       privacyMode: opts.privacyMode ?? 'metadata_only',
     }
+    this._defaultTaskMetadata = opts.defaultTaskMetadata ?? {}
 
     this._transport = new Transport({ apiKey, baseUrl, local })
+  }
+
+  static fromEnv(opts: {
+    agent?: string
+    workspace?: string
+  } & RunLedgerOptions = {}): RunLedger {
+    const defaultTaskMetadata = {
+      ...(opts.defaultTaskMetadata ?? {}),
+      ...(opts.agent ? { agent: opts.agent } : {}),
+      ...(opts.workspace ? { workspace: opts.workspace } : {}),
+    }
+    return new RunLedger({ ...opts, defaultTaskMetadata })
   }
 
   // ── Instrumentation ────────────────────────────────────────────────────────
@@ -140,6 +155,14 @@ export class RunLedger {
    */
   getContext() {
     return getContextSnapshot()
+  }
+
+  withTask<T>(
+    name: string,
+    options: TaskOptions,
+    fn: (task: RunLedgerTask) => Promise<T> | T,
+  ): Promise<T> {
+    return withTask(this._transport, name, options, this._defaultTaskMetadata, fn)
   }
 
   // ── Flush / shutdown ───────────────────────────────────────────────────────

@@ -17,13 +17,15 @@ import {
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
 import RetentionTab from '@/components/settings/RetentionTab'
-import type { EmailPreference, EmailLogItem, OpsFeatureStatus } from '@/types/api'
+import type { BackupRun, EmailPreference, EmailLogItem, OpsFeatureStatus } from '@/types/api'
 import {
+  getBackupHistory,
   getEmailPreferences,
   updateEmailPreferences,
-  testEmailSend,
   getEmailLog,
   getOpsFeatureStatus,
+  runBackupNow,
+  testEmailSend,
 } from '@/lib/api'
 
 const inputCls =
@@ -64,6 +66,10 @@ export default function SettingsPage() {
   const [testingEmail, setTestingEmail] = useState(false)
   const [opsStatus, setOpsStatus] = useState<OpsFeatureStatus | null>(null)
   const [opsStatusAttempted, setOpsStatusAttempted] = useState(false)
+  const [backupRuns, setBackupRuns] = useState<BackupRun[]>([])
+  const [loadingBackup, setLoadingBackup] = useState(false)
+  const [backupAttempted, setBackupAttempted] = useState(false)
+  const [runningBackup, setRunningBackup] = useState(false)
 
   const loadCompliance = useCallback(async () => {
     if (!apiKey || !canManagePlatformSettings) return
@@ -124,6 +130,29 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'backup' && !opsStatusAttempted) loadOpsStatus()
   }, [activeTab, opsStatusAttempted, loadOpsStatus])
+
+  const loadBackupData = useCallback(async () => {
+    if (!apiKey || !canManagePlatformSettings) return
+    setBackupAttempted(true)
+    setLoadingBackup(true)
+    try {
+      const [status, history] = await Promise.all([
+        getOpsFeatureStatus(apiKey),
+        getBackupHistory(apiKey, 20),
+      ])
+      setOpsStatus(status)
+      setBackupRuns(history.items)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to load backup history')
+    } finally {
+      setLoadingBackup(false)
+    }
+  }, [apiKey, canManagePlatformSettings])
+
+  useEffect(() => {
+    if (activeTab === 'backup' && !backupAttempted) void loadBackupData()
+  }, [activeTab, backupAttempted, loadBackupData])
 
   const emailDeliveryDisabled = opsStatus
     ? !opsStatus.email_enabled || !opsStatus.smtp_configured
@@ -549,9 +578,24 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            {/* Section 3: Email Log */}
+            {/* Section 3: Email Delivery History */}
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Recent Email Log</h3>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Email Delivery History</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Recent sends, failures, and test deliveries recorded by the backend mail pipeline.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadEmailPrefs()}
+                  disabled={loadingEmailPrefs}
+                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+                >
+                  Refresh
+                </button>
+              </div>
               {emailLog.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No emails sent yet.</p>
               ) : (
@@ -561,8 +605,10 @@ export default function SettingsPage() {
                       <tr className="border-b border-gray-200 dark:border-gray-700">
                         <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sent At</th>
                         <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">To</th>
+                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subject</th>
                         <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Event Type</th>
-                        <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Error</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -572,8 +618,9 @@ export default function SettingsPage() {
                             {new Date(item.sent_at).toLocaleString()}
                           </td>
                           <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 text-xs">{item.to_email}</td>
+                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 text-xs">{item.subject}</td>
                           <td className="py-2 pr-4 text-gray-500 dark:text-gray-400 text-xs font-mono">{item.event_type}</td>
-                          <td className="py-2">
+                          <td className="py-2 pr-4">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                 item.status === 'sent'
@@ -583,6 +630,9 @@ export default function SettingsPage() {
                             >
                               {item.status}
                             </span>
+                          </td>
+                          <td className="py-2 text-xs text-slate-500 dark:text-slate-400">
+                            {item.error_message ?? '-'}
                           </td>
                         </tr>
                       ))}
@@ -597,7 +647,7 @@ export default function SettingsPage() {
         {activeTab === 'backup' && (
           <div className="space-y-6">
             <div className="rounded-lg border border-stone-200 bg-[#fbfaf7] p-6 dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div className="rounded-xl bg-stone-100 p-2 text-stone-700 dark:bg-stone-700/35 dark:text-[#D8CAAA]">
                   <DatabaseBackup className="h-5 w-5" />
                 </div>
@@ -608,6 +658,14 @@ export default function SettingsPage() {
                     This page is the platform UI for configuring and testing that flow; local product-managed scheduling stays off until `BACKUP_ENABLED=true`.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void loadBackupData()}
+                  disabled={loadingBackup}
+                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+                >
+                  {loadingBackup ? 'Refreshing...' : 'Refresh'}
+                </button>
               </div>
 
               {opsStatus && (
@@ -618,7 +676,7 @@ export default function SettingsPage() {
                   <p className="mt-1">
                     {backupSchedulerDisabled
                       ? 'BACKUP_ENABLED=false, so this local stack will not launch backup jobs from the UI. Helm/script-based S3 backup remains available outside the app.'
-                      : 'BACKUP_ENABLED=true. UI-managed backup actions still require the schedule/test/history endpoints to be wired for this deployment.'}
+                      : 'BACKUP_ENABLED=true. Manual backup runs and history are live. Schedule persistence and S3 test flows can layer on top of this.'}
                   </p>
                 </div>
               )}
@@ -685,14 +743,100 @@ export default function SettingsPage() {
                 <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">
                   Test S3 connection
                 </button>
+                <button
+                  type="button"
+                  disabled={backupSchedulerDisabled || runningBackup}
+                  onClick={async () => {
+                    if (!apiKey) return
+                    setRunningBackup(true)
+                    try {
+                      const run = await runBackupNow(apiKey)
+                      setBackupRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)])
+                      toast.success('Backup started in background')
+                      setTimeout(() => { void loadBackupData() }, 1500)
+                    } catch (err) {
+                      console.error(err)
+                      toast.error('Failed to start backup')
+                    } finally {
+                      setRunningBackup(false)
+                    }
+                  }}
+                  className="rounded border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60 dark:border-stone-600 dark:text-stone-200"
+                >
+                  {runningBackup ? 'Starting...' : 'Run backup now'}
+                </button>
                 <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">
                   Restore docs planned
                 </button>
               </div>
 
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                Available today: Helm CronJob backups to S3 and `scripts/restore.sh` restore. Planned in this UI: save schedule, test S3 connection, backup history, and guided restore drills.
+                Available today: Helm CronJob backups to S3, background manual backup runs from this page, and `scripts/restore.sh` restore. Planned next: save schedule, test S3 connection, and guided restore drills.
               </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Backup History</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Manual and scheduled backup attempts, including failures and recent command output excerpts.
+                  </p>
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {backupRuns.length} recent run{backupRuns.length === 1 ? '' : 's'}
+                </div>
+              </div>
+              {loadingBackup ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading backup history...</p>
+              ) : backupRuns.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">No backup runs have been recorded yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Created</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Status</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Target</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Started</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Completed</th>
+                        <th className="py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {backupRuns.map((run) => (
+                        <tr key={run.id} className="border-b border-gray-100 dark:border-gray-800">
+                          <td className="py-2 pr-4 font-mono text-xs text-gray-700 dark:text-gray-300">
+                            {new Date(run.created_at).toLocaleString()}
+                          </td>
+                          <td className="py-2 pr-4">
+                            <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${
+                              run.status === 'success'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : run.status === 'failed'
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+                            }`}>
+                              {run.status}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 text-xs text-gray-600 dark:text-gray-400">{run.target ?? '-'}</td>
+                          <td className="py-2 pr-4 text-xs text-gray-600 dark:text-gray-400">
+                            {run.started_at ? new Date(run.started_at).toLocaleString() : '-'}
+                          </td>
+                          <td className="py-2 pr-4 text-xs text-gray-600 dark:text-gray-400">
+                            {run.completed_at ? new Date(run.completed_at).toLocaleString() : '-'}
+                          </td>
+                          <td className="py-2 text-xs text-slate-500 dark:text-slate-400">
+                            {run.error_detail ?? run.output_excerpt ?? '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

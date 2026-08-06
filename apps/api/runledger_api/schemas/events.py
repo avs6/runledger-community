@@ -108,6 +108,11 @@ class BatchIngestRequest(BaseModel):
     events: list[IngestEvent]
 
 
+class WebhookIngestRequest(BaseModel):
+    workspace_id: uuid.UUID
+    events: list[IngestEvent]
+
+
 # ── Response schemas ───────────────────────────────────────────────────────────
 
 
