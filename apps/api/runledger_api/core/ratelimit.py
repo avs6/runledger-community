@@ -55,11 +55,13 @@ async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
 
         if not hasattr(request.state, "rate_limit_info"):
             request.state.rate_limit_info = {}
-        request.state.rate_limit_info.update({
-            "limit_requests": limit,
-            "remaining_requests": limit - count,
-            "reset": reset_at,
-        })
+        request.state.rate_limit_info.update(
+            {
+                "limit_requests": limit,
+                "remaining_requests": limit - count,
+                "reset": reset_at,
+            }
+        )
 
         if count > limit:
             raise HTTPException(

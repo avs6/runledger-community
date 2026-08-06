@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
+import sqlalchemy as sa
 import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,18 +31,21 @@ _DIMENSION_COL = {
 _NEEDS_AGENT_RUN = {"intent", "feature_tag"}
 
 
-def _metric_expr(metric: str) -> tuple:
+def _metric_expr(metric: str) -> tuple[Any, ...]:
     if metric == "cost":
         return (func.coalesce(func.sum(ProviderCall.cost_usd), 0),)
     if metric == "tokens":
-        return (func.coalesce(func.sum(ProviderCall.input_tokens), 0) + func.coalesce(func.sum(ProviderCall.output_tokens), 0),)
+        return (
+            func.coalesce(func.sum(ProviderCall.input_tokens), 0)
+            + func.coalesce(func.sum(ProviderCall.output_tokens), 0),
+        )
     if metric == "call_count":
         return (func.count(),)
     if metric == "latency_p95":
         return (func.percentile_cont(0.95).within_group(ProviderCall.latency_ms),)
     if metric == "error_rate":
         return (
-            func.count().filter(ProviderCall.status != "succeeded").cast(float)
+            func.count().filter(ProviderCall.status != "succeeded").cast(sa.Float)
             / func.nullif(func.count(), 0),
         )
     raise ValueError(f"Unknown metric: {metric}")
@@ -61,7 +66,9 @@ async def compute_top_k(
     prev_end = start
 
     current_items = await _query_top_k(db, workspace_id, dimension, metric, k, start, end)
-    previous_items = await _query_top_k(db, workspace_id, dimension, metric, k, prev_start, prev_end)
+    previous_items = await _query_top_k(
+        db, workspace_id, dimension, metric, k, prev_start, prev_end
+    )
 
     prev_map = {item.key: item for item in previous_items}
     prev_rank_map = {item.key: item.rank for item in previous_items}
@@ -76,14 +83,16 @@ async def compute_top_k(
         if prev_value and prev_value != 0:
             pct_change = round(((item.current_value - prev_value) / abs(prev_value)) * 100, 1)
 
-        result_items.append(TopKItem(
-            rank=item.rank,
-            key=item.key,
-            current_value=item.current_value,
-            previous_value=prev_value,
-            rank_change=rank_change,
-            pct_change=pct_change,
-        ))
+        result_items.append(
+            TopKItem(
+                rank=item.rank,
+                key=item.key,
+                current_value=item.current_value,
+                previous_value=prev_value,
+                rank_change=rank_change,
+                pct_change=pct_change,
+            )
+        )
 
     changes = _detect_changes(result_items, previous_items, threshold_pct=50.0)
 
@@ -144,14 +153,16 @@ async def _query_top_k(
     result = await db.execute(q)
     items = []
     for rank, row in enumerate(result.all(), start=1):
-        items.append(TopKItem(
-            rank=rank,
-            key=str(row.key_val),
-            current_value=round(float(row.metric_val or 0), 4),
-            previous_value=None,
-            rank_change=None,
-            pct_change=None,
-        ))
+        items.append(
+            TopKItem(
+                rank=rank,
+                key=str(row.key_val),
+                current_value=round(float(row.metric_val or 0), 4),
+                previous_value=None,
+                rank_change=None,
+                pct_change=None,
+            )
+        )
     return items
 
 
@@ -166,25 +177,31 @@ def _detect_changes(
 
     for item in current:
         if item.key not in previous_keys:
-            changes.append(TopKChange(
-                key=item.key,
-                change_type="new_entrant",
-                detail=f"{item.key} entered top-K at rank {item.rank}",
-            ))
+            changes.append(
+                TopKChange(
+                    key=item.key,
+                    change_type="new_entrant",
+                    detail=f"{item.key} entered top-K at rank {item.rank}",
+                )
+            )
         elif item.pct_change and abs(item.pct_change) >= threshold_pct:
             direction = "increased" if item.pct_change > 0 else "decreased"
-            changes.append(TopKChange(
-                key=item.key,
-                change_type="magnitude_spike",
-                detail=f"{item.key} {direction} by {abs(item.pct_change):.1f}%",
-            ))
+            changes.append(
+                TopKChange(
+                    key=item.key,
+                    change_type="magnitude_spike",
+                    detail=f"{item.key} {direction} by {abs(item.pct_change):.1f}%",
+                )
+            )
 
     for prev_item in previous:
         if prev_item.key not in current_keys:
-            changes.append(TopKChange(
-                key=prev_item.key,
-                change_type="exited",
-                detail=f"{prev_item.key} exited top-K (was rank {prev_item.rank})",
-            ))
+            changes.append(
+                TopKChange(
+                    key=prev_item.key,
+                    change_type="exited",
+                    detail=f"{prev_item.key} exited top-K (was rank {prev_item.rank})",
+                )
+            )
 
     return changes

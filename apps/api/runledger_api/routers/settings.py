@@ -45,7 +45,9 @@ WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 # API-key management is an **org-admin** function performed by a logged-in user
 # (a session), not by a bare API key — a key can no longer mint or revoke keys.
-WorkspaceAdminDep = Annotated[tuple[Workspace, Any, WorkspaceUser | None], Depends(require_workspace_admin)]
+WorkspaceAdminDep = Annotated[
+    tuple[Workspace, Any, WorkspaceUser | None], Depends(require_workspace_admin)
+]
 PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
 
 
@@ -305,37 +307,51 @@ async def onboarding_status(
     from runledger_api.models.events import AgentRun  # noqa: PLC0415
     from runledger_api.models.gateway import GatewayRoute  # noqa: PLC0415
 
-    has_org = (await db.execute(
-        select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1)
-    )).scalar_one_or_none() is not None
+    has_org = (
+        await db.execute(select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1))
+    ).scalar_one_or_none() is not None
 
     has_workspace = True  # they're authenticated with a workspace key
 
-    has_api_key = (await db.execute(
-        select(ApiKey.id).where(
-            ApiKey.workspace_id == workspace.id, ApiKey.revoked_at.is_(None)
-        ).limit(1)
-    )).scalar_one_or_none() is not None
+    has_api_key = (
+        await db.execute(
+            select(ApiKey.id)
+            .where(ApiKey.workspace_id == workspace.id, ApiKey.revoked_at.is_(None))
+            .limit(1)
+        )
+    ).scalar_one_or_none() is not None
 
-    has_first_run = (await db.execute(
-        select(AgentRun.id).where(AgentRun.workspace_id == workspace.id).limit(1)
-    )).scalar_one_or_none() is not None
+    has_first_run = (
+        await db.execute(select(AgentRun.id).where(AgentRun.workspace_id == workspace.id).limit(1))
+    ).scalar_one_or_none() is not None
 
-    has_gateway_route = (await db.execute(
-        select(GatewayRoute.id).where(
-            GatewayRoute.workspace_id == workspace.id, GatewayRoute.is_active.is_(True)
-        ).limit(1)
-    )).scalar_one_or_none() is not None
+    has_gateway_route = (
+        await db.execute(
+            select(GatewayRoute.id)
+            .where(GatewayRoute.workspace_id == workspace.id, GatewayRoute.is_active.is_(True))
+            .limit(1)
+        )
+    ).scalar_one_or_none() is not None
 
-    has_budget = (await db.execute(
-        select(Budget.id).where(Budget.workspace_id == workspace.id).limit(1)
-    )).scalar_one_or_none() is not None
+    has_budget = (
+        await db.execute(select(Budget.id).where(Budget.workspace_id == workspace.id).limit(1))
+    ).scalar_one_or_none() is not None
 
-    has_alert_rule = (await db.execute(
-        select(AlertRule.id).where(AlertRule.workspace_id == workspace.id).limit(1)
-    )).scalar_one_or_none() is not None
+    has_alert_rule = (
+        await db.execute(
+            select(AlertRule.id).where(AlertRule.workspace_id == workspace.id).limit(1)
+        )
+    ).scalar_one_or_none() is not None
 
-    steps = [has_org, has_workspace, has_api_key, has_first_run, has_gateway_route, has_budget, has_alert_rule]
+    steps = [
+        has_org,
+        has_workspace,
+        has_api_key,
+        has_first_run,
+        has_gateway_route,
+        has_budget,
+        has_alert_rule,
+    ]
     completed = sum(1 for s in steps if s)
 
     return {

@@ -22,7 +22,9 @@ def upgrade() -> None:
     # GuardrailRule — skip_system_messages flag
     op.add_column(
         "guardrail_rules",
-        sa.Column("skip_system_messages", sa.Boolean, server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "skip_system_messages", sa.Boolean, server_default=sa.text("false"), nullable=False
+        ),
     )
 
     # GuardrailEvent — extra dimensions for monitoring breakdown
@@ -75,10 +77,17 @@ def upgrade() -> None:
         sa.Column("alert_metadata", JSONB, server_default=sa.text("'{}'"), nullable=False),
         sa.Column("status", sa.Text, nullable=False, server_default=sa.text("'active'")),
         sa.Column("acknowledged_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
     op.create_index("ix_guardrail_alerts_workspace", "guardrail_alerts", ["workspace_id"])
-    op.create_index("ix_guardrail_alerts_workspace_type", "guardrail_alerts", ["workspace_id", "alert_type"])
+    op.create_index(
+        "ix_guardrail_alerts_workspace_type", "guardrail_alerts", ["workspace_id", "alert_type"]
+    )
     op.create_index("ix_guardrail_alerts_created", "guardrail_alerts", ["created_at"])
 
 

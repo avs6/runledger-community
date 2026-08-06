@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import numpy as np
 import structlog
@@ -27,7 +28,7 @@ _DIMENSIONS = ["cost", "latency", "tokens"]
 def classify_pattern(
     values: list[float],
     dates: list[date],
-) -> tuple[str, float, dict]:
+) -> tuple[str, float, dict[str, Any]]:
     """Classify a time-series into a pattern type.
 
     Returns (pattern, confidence, evidence).
@@ -44,7 +45,7 @@ def classify_pattern(
 
     x = np.arange(n, dtype=np.float64)
     slope, intercept, r_value, p_value, std_err = sp_stats.linregress(x, arr)
-    r_squared = r_value ** 2
+    r_squared = r_value**2
 
     total = float(np.sum(arr))
     if total > 0:

@@ -220,7 +220,9 @@ async def _flow_workspace_ids(
                     status.HTTP_403_FORBIDDEN,
                     "Organization admin access required for org flow scope",
                 )
-        result = await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id))
+        result = await db.execute(
+            select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
+        )
         return list(result.scalars().all())
 
     if scope == "platform":
@@ -232,7 +234,9 @@ async def _flow_workspace_ids(
         result = await db.execute(select(Workspace.id))
         return list(result.scalars().all())
 
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform")
+    raise HTTPException(
+        status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform"
+    )
 
 
 def _first_metadata(spans: list[Span], keys: list[str]) -> str | None:
@@ -491,7 +495,7 @@ async def get_run_flow(
             items=[],
         )
 
-    filters = [AgentRun.workspace_id.in_(workspace_ids)]
+    filters: list[sa.ColumnElement[bool]] = [AgentRun.workspace_id.in_(workspace_ids)]
     if from_dt is not None:
         filters.append(AgentRun.started_at >= from_dt)
     if to_dt is not None:
@@ -588,7 +592,9 @@ async def get_run_flow(
             .scalars()
             .all()
         )
-        route_ids = [request.route_id for request in gateway_requests if request.route_id is not None]
+        route_ids = [
+            request.route_id for request in gateway_requests if request.route_id is not None
+        ]
         if route_ids:
             gateway_routes = {
                 route.id: route
@@ -604,7 +610,7 @@ async def get_run_flow(
         spans = spans_by_run.get(run.id, [])
         tools = tools_by_run.get(run.id, [])
         primary_call = primary_calls.get(run.id)
-        outcome = outcomes_by_run.get(run.id)
+        run_outcome: OutcomeEvent | None = outcomes_by_run.get(run.id)
         gateway_request = _matching_gateway_request(run, primary_call, gateway_requests)
         route = (
             gateway_routes.get(gateway_request.route_id)
@@ -622,20 +628,28 @@ async def get_run_flow(
             output_tokens = primary_call.output_tokens
         input_tokens = input_tokens or 0
         output_tokens = output_tokens or 0
-        cached_input_tokens = primary_call.cached_input_tokens if primary_call else None
-        cached_input_tokens = cached_input_tokens or (
-            gateway_request.input_tokens if gateway_request is not None and gateway_request.cache_hit else 0
+        cached_input_tokens: int = (
+            (primary_call.cached_input_tokens if primary_call else None)
+            or (
+                gateway_request.input_tokens
+                if gateway_request is not None and gateway_request.cache_hit
+                else 0
+            )
+            or 0
         )
         agent_name = (
             _metadata_value(metadata, ["agent_name", "agent", "agent_client", "selected_agent"])
-            or _metadata_value(resource_metadata, ["agent_name", "agent", "agent_client", "service.name"])
-            or _first_metadata(spans, ["agent_name", "agent", "agent_client", "selected_agent", "workflow_agent"])
+            or _metadata_value(
+                resource_metadata, ["agent_name", "agent", "agent_client", "service.name"]
+            )
+            or _first_metadata(
+                spans, ["agent_name", "agent", "agent_client", "selected_agent", "workflow_agent"]
+            )
             or next((span.name for span in spans if span.span_type == "agent"), None)
         )
-        skill_name = (
-            _metadata_value(metadata, ["skill", "skill_name", "selected_skill", "runledger.skill"])
-            or _first_metadata(spans, ["skill", "skill_name", "selected_skill", "runledger.skill"])
-        )
+        skill_name = _metadata_value(
+            metadata, ["skill", "skill_name", "selected_skill", "runledger.skill"]
+        ) or _first_metadata(spans, ["skill", "skill_name", "selected_skill", "runledger.skill"])
         team = (
             _metadata_value(metadata, ["team", "department", "cost_center"])
             or _metadata_value(resource_metadata, ["team", "department", "cost_center"])
@@ -657,10 +671,18 @@ async def get_run_flow(
             if primary_call is not None
             else _provider_from_model(gateway_request.model_used if gateway_request else None)
         )
-        model = primary_call.model if primary_call is not None else (gateway_request.model_used if gateway_request else None)
+        model = (
+            primary_call.model
+            if primary_call is not None
+            else (gateway_request.model_used if gateway_request else None)
+        )
         total_cost = run.total_cost_usd or Decimal("0")
         total_tokens = input_tokens + output_tokens
-        savings = primary_call.savings_usd if primary_call is not None and primary_call.savings_usd is not None else Decimal("0")
+        savings = (
+            primary_call.savings_usd
+            if primary_call is not None and primary_call.savings_usd is not None
+            else Decimal("0")
+        )
         savings_category = primary_call.savings_category if primary_call is not None else None
         savings_reason = primary_call.savings_reason if primary_call is not None else None
         if savings <= 0:
@@ -679,11 +701,17 @@ async def get_run_flow(
                 if any(name in text for name in ("llama", "local", "ollama"))
                 else "smart_routing"
             )
-            savings_reason = savings_reason or "RunLedger recorded realized savings for this provider call."
+            savings_reason = (
+                savings_reason or "RunLedger recorded realized savings for this provider call."
+            )
         route_label = (
             route.alias
             if route is not None
-            else (gateway_request.model_requested if gateway_request is not None else "Direct SDK / OTLP")
+            else (
+                gateway_request.model_requested
+                if gateway_request is not None
+                else "Direct SDK / OTLP"
+            )
         )
 
         items.append(
@@ -700,8 +728,8 @@ async def get_run_flow(
                 provider=provider,
                 route=route_label,
                 outcome=(
-                    f"{outcome.event_type}: {'Success' if outcome.success else 'Miss'}"
-                    if outcome is not None
+                    f"{run_outcome.event_type}: {'Success' if run_outcome.success else 'Miss'}"
+                    if run_outcome is not None
                     else str(run.status)
                 ),
                 prompt=_clean_label(prompt, "Prompt metadata only"),
@@ -716,7 +744,11 @@ async def get_run_flow(
                 total_output_tokens=output_tokens,
                 cached_input_tokens=cached_input_tokens,
                 latency_ms=_duration_or_latency(run, primary_call),
-                success=(outcome.success if outcome is not None else run.status == RunStatusEnum.succeeded),
+                success=(
+                    outcome.success
+                    if outcome is not None
+                    else run.status == RunStatusEnum.succeeded
+                ),
                 savings_usd=savings,
                 savings_category=savings_category,
                 savings_reason=savings_reason,
@@ -984,7 +1016,9 @@ async def get_run_graph(
 # ── Runbooks ─────────────────────────────────────────────────────────────────
 
 
-@router.post("/{run_id}/runbook", response_model=RunbookResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{run_id}/runbook", response_model=RunbookResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_runbook(
     run_id: uuid.UUID,
     workspace: WorkspaceDep,

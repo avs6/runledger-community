@@ -1,13 +1,14 @@
-"""Cost and token forecasting using linear regression and Holt-Winters.
+"""Cost and token forecasting — linear, Holt-Winters, Prophet-style decomposition, and ARIMA.
 
-Both methods produce point forecasts with confidence intervals. The
-orchestrator runs both, picks the one with lower in-sample MAPE, and
-stores the result.
+All methods produce point forecasts with confidence intervals. The
+orchestrator runs all applicable methods, picks the one with lowest
+in-sample MAPE, and stores the result.
 """
 
 from __future__ import annotations
 
 import uuid
+import warnings
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -55,7 +56,7 @@ def forecast_linear(
         pct_errors = np.where(y != 0, abs_errors / np.abs(y), 0)
     mape = float(np.mean(pct_errors))
 
-    ss_res = float(np.sum(residuals ** 2))
+    ss_res = float(np.sum(residuals**2))
     ss_tot = float(np.sum((y - np.mean(y)) ** 2))
     r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
 
@@ -66,12 +67,14 @@ def forecast_linear(
         predicted = slope * future_x + intercept
         prediction_var = 1 + 1 / n + (future_x - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2)
         margin_95 = 1.96 * residual_std * np.sqrt(prediction_var)
-        points.append({
-            "date": str(last_date + timedelta(days=d)),
-            "predicted": round(max(predicted, 0), 4),
-            "lower": round(max(predicted - margin_95, 0), 4),
-            "upper": round(predicted + margin_95, 4),
-        })
+        points.append(
+            {
+                "date": str(last_date + timedelta(days=d)),
+                "predicted": round(max(predicted, 0), 4),
+                "lower": round(max(predicted - margin_95, 0), 4),
+                "upper": round(predicted + margin_95, 4),
+            }
+        )
 
     return ForecastResult(
         method="linear",
@@ -119,12 +122,14 @@ def forecast_holt_winters(
         for i, val in enumerate(forecast):
             step = i + 1
             margin = 1.96 * residual_std * np.sqrt(step)
-            points.append({
-                "date": str(base_date + timedelta(days=step)),
-                "predicted": round(max(float(val), 0), 4),
-                "lower": round(max(float(val) - margin, 0), 4),
-                "upper": round(float(val) + margin, 4),
-            })
+            points.append(
+                {
+                    "date": str(base_date + timedelta(days=step)),
+                    "predicted": round(max(float(val), 0), 4),
+                    "lower": round(max(float(val) - margin, 0), 4),
+                    "upper": round(float(val) + margin, 4),
+                }
+            )
 
         return ForecastResult(
             method="holt_winters",
@@ -134,6 +139,176 @@ def forecast_holt_winters(
         )
     except Exception:
         log.exception("holt_winters_failed")
+        return None
+
+
+def forecast_prophet_style(
+    dates: list[date],
+    values: list[float],
+    horizon_days: int = 14,
+    seasonal_period: int = 7,
+) -> ForecastResult | None:
+    """Prophet-style additive decomposition forecast.
+
+    Decomposes the series via STL into trend, seasonal, and residual
+    components, then extrapolates trend via linear regression and
+    repeats the seasonal cycle forward. Confidence intervals are
+    derived from the residual standard deviation.
+    """
+    n = len(values)
+    if n < 2 * seasonal_period + 1:
+        return None
+
+    try:
+        from statsmodels.tsa.seasonal import STL
+
+        y = np.array(values, dtype=np.float64)
+        stl_result = STL(y, period=seasonal_period, robust=True).fit()
+
+        trend = np.array(stl_result.trend, dtype=np.float64)
+        seasonal = np.array(stl_result.seasonal, dtype=np.float64)
+        residual = np.array(stl_result.resid, dtype=np.float64)
+
+        residual_std = float(np.std(residual, ddof=1))
+
+        x = np.arange(n, dtype=np.float64)
+        trend_coeffs = np.polyfit(x, trend, 1)
+        trend_slope, trend_intercept = trend_coeffs[0], trend_coeffs[1]
+
+        fitted = trend + seasonal
+        abs_errors = np.abs(y - fitted)
+        mae = float(np.mean(abs_errors))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            pct_errors = np.where(y != 0, abs_errors / np.abs(y), 0)
+        mape = float(np.mean(pct_errors))
+
+        ss_res = float(np.sum((y - fitted) ** 2))
+        ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+        last_date = dates[-1]
+        points = []
+        for d in range(1, horizon_days + 1):
+            future_x = n + d - 1
+            future_trend = trend_slope * future_x + trend_intercept
+            seasonal_idx = (n + d - 1) % seasonal_period
+            future_seasonal = float(seasonal[seasonal_idx])
+            predicted = future_trend + future_seasonal
+            margin = 1.96 * residual_std * np.sqrt(d)
+            points.append(
+                {
+                    "date": str(last_date + timedelta(days=d)),
+                    "predicted": round(max(float(predicted), 0), 4),
+                    "lower": round(max(float(predicted) - margin, 0), 4),
+                    "upper": round(float(predicted) + margin, 4),
+                }
+            )
+
+        return ForecastResult(
+            method="prophet_style",
+            points=points,
+            mape=round(mape, 4),
+            mae=round(mae, 4),
+            r_squared=round(r_squared, 4),
+        )
+    except Exception:
+        log.exception("prophet_style_failed")
+        return None
+
+
+def _arima_select_order(
+    y: np.ndarray[Any, np.dtype[np.float64]],
+    max_p: int = 3,
+    max_d: int = 2,
+    max_q: int = 3,
+) -> tuple[int, int, int]:
+    """Grid-search ARIMA(p,d,q) orders and return the one with lowest AIC."""
+    from statsmodels.tsa.arima.model import ARIMA as StatsARIMA
+
+    best_aic = np.inf
+    best_order: tuple[int, int, int] = (1, 0, 0)
+
+    for d in range(max_d + 1):
+        for p in range(max_p + 1):
+            for q in range(max_q + 1):
+                if p == 0 and q == 0:
+                    continue
+                try:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        model = StatsARIMA(y, order=(p, d, q)).fit(method="innovations_mle")
+                    if model.aic < best_aic:
+                        best_aic = model.aic
+                        best_order = (p, d, q)
+                except Exception:
+                    continue
+
+    return best_order
+
+
+def forecast_arima(
+    dates: list[date],
+    values: list[float],
+    horizon_days: int = 14,
+) -> ForecastResult | None:
+    """ARIMA forecast with automatic order selection via AIC grid search.
+
+    Best suited for stationary or near-stationary series where seasonal
+    patterns are weak. The differencing order (d) handles non-stationarity.
+    """
+    n = len(values)
+    if n < 10:
+        return None
+
+    try:
+        from statsmodels.tsa.arima.model import ARIMA as StatsARIMA
+
+        y = np.array(values, dtype=np.float64)
+
+        order = _arima_select_order(y)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = StatsARIMA(y, order=order).fit(method="innovations_mle")
+
+        forecast_obj = model.get_forecast(steps=horizon_days)
+        predicted_mean = np.asarray(forecast_obj.predicted_mean)
+        conf_int = np.asarray(forecast_obj.conf_int(alpha=0.05))
+
+        fitted = np.asarray(model.fittedvalues)
+        abs_errors = np.abs(y[1:] - fitted[1:])
+        mae = float(np.mean(abs_errors))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            pct_errors = np.where(y[1:] != 0, abs_errors / np.abs(y[1:]), 0)
+        mape = float(np.mean(pct_errors))
+
+        ss_res = float(np.sum((y[1:] - fitted[1:]) ** 2))
+        ss_tot = float(np.sum((y[1:] - np.mean(y[1:])) ** 2))
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+        last_date = dates[-1]
+        points = []
+        for i in range(horizon_days):
+            pred = float(predicted_mean[i])
+            lower = float(conf_int[i, 0])
+            upper = float(conf_int[i, 1])
+            points.append(
+                {
+                    "date": str(last_date + timedelta(days=i + 1)),
+                    "predicted": round(max(pred, 0), 4),
+                    "lower": round(max(lower, 0), 4),
+                    "upper": round(upper, 4),
+                }
+            )
+
+        return ForecastResult(
+            method="arima",
+            points=points,
+            mape=round(mape, 4),
+            mae=round(mae, 4),
+            r_squared=round(r_squared, 4),
+        )
+    except Exception:
+        log.exception("arima_failed")
         return None
 
 
@@ -154,10 +329,21 @@ async def run_forecast(
     dates = [row["date"] for row in series]
     values = [row["features"].get("value", 0) for row in series]
 
-    linear_result = forecast_linear(dates, values, horizon_days)
-    hw_result = forecast_holt_winters(values, horizon_days, last_date=dates[-1])
+    candidates: list[ForecastResult] = [forecast_linear(dates, values, horizon_days)]
 
-    best = hw_result if hw_result and hw_result.mape < linear_result.mape else linear_result
+    hw_result = forecast_holt_winters(values, horizon_days, last_date=dates[-1])
+    if hw_result:
+        candidates.append(hw_result)
+
+    prophet_result = forecast_prophet_style(dates, values, horizon_days)
+    if prophet_result:
+        candidates.append(prophet_result)
+
+    arima_result = forecast_arima(dates, values, horizon_days)
+    if arima_result:
+        candidates.append(arima_result)
+
+    best = min(candidates, key=lambda r: r.mape)
 
     forecast = MLForecast(
         workspace_id=workspace_id,
@@ -192,10 +378,12 @@ async def forecast_with_budget(
         return None
 
     result = await db.execute(
-        select(Budget).where(
+        select(Budget)
+        .where(
             Budget.workspace_id == workspace_id,
             Budget.scope_type == "workspace",
-        ).limit(1)
+        )
+        .limit(1)
     )
     budget = result.scalar_one_or_none()
     budget_limit = float(budget.limit_usd) if budget else None

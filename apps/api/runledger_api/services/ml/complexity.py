@@ -113,7 +113,10 @@ async def train_complexity_model(
         mape = float(np.mean(np.where(y_arr != 0, np.abs(residuals / y_arr), 0)))
     r2 = float(model.score(X_arr, y_arr))
 
-    importances = {name: round(float(imp), 4) for name, imp in zip(_FEATURE_NAMES, model.feature_importances_, strict=False)}
+    importances = {
+        name: round(float(imp), 4)
+        for name, imp in zip(_FEATURE_NAMES, model.feature_importances_, strict=False)
+    }
 
     artifact_bytes = pickle.dumps(model)
 
@@ -124,7 +127,12 @@ async def train_complexity_model(
         dimension="cost",
         artifact_bytes=artifact_bytes,
         hyperparams={"n_estimators": 100, "max_depth": 4, "learning_rate": 0.1},
-        metrics={"mae": round(mae, 4), "mape": round(mape, 4), "r_squared": round(r2, 4), "feature_importances": importances},
+        metrics={
+            "mae": round(mae, 4),
+            "mape": round(mape, 4),
+            "r_squared": round(r2, 4),
+            "feature_importances": importances,
+        },
         sample_count=len(y),
     )
 
@@ -193,13 +201,15 @@ async def get_recent_scores(
             tier = "reasoning"
 
         distribution[tier] += 1
-        items.append(ComplexityScore(
-            run_id=str(row.run_id),
-            score=round(score, 3),
-            predicted_cost=round(predicted, 6),
-            actual_cost=round(actual, 6),
-            complexity_tier=tier,
-        ))
+        items.append(
+            ComplexityScore(
+                run_id=str(row.run_id),
+                score=round(score, 3),
+                predicted_cost=round(predicted, 6),
+                actual_cost=round(actual, 6),
+                complexity_tier=tier,
+            )
+        )
 
     return ComplexityScoreList(items=items, distribution=distribution)
 

@@ -10,9 +10,7 @@ from starlette.responses import Response
 
 
 class RateLimitHeaderMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
 
         info = getattr(request.state, "rate_limit_info", None)

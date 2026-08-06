@@ -26,21 +26,15 @@ class BudgetTier(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False
-    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(sa.String(64), nullable=False)
-    max_spend_usd: Mapped[Decimal | None] = mapped_column(
-        sa.Numeric(14, 6), nullable=True
-    )
+    max_spend_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     period_type: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, server_default=sa.text("'monthly'")
     )
     rpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     tpm_limit: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
-    allowed_models: Mapped[list[str] | None] = mapped_column(
-        ARRAY(sa.Text), nullable=True
-    )
+    allowed_models: Mapped[list[str] | None] = mapped_column(ARRAY(sa.Text), nullable=True)
     is_default: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )

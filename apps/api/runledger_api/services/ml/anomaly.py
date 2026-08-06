@@ -43,7 +43,7 @@ class AnomalyResult:
     deviation_score: float
     severity: str
     detection_method: str
-    context: dict
+    context: dict[str, Any]
 
 
 def classify_severity(deviation_score: float) -> str:
@@ -308,24 +308,27 @@ async def detect_isolation_forest(
         dim_z = abs((last_raw[j] - means[j]) / std_j)
         if dim_z < 1.5:
             continue
-        results.append(AnomalyResult(
-            anomaly_type=_anomaly_type_for_dimension(dim),
-            dimension=dim,
-            dimension_key=None,
-            current_value=float(last_raw[j]),
-            expected_value=float(means[j]),
-            deviation_score=round(deviation, 4),
-            severity=classify_severity(deviation),
-            detection_method="isolation_forest",
-            context={
-                "if_anomaly_score": round(score, 6),
-                "dimension_z_score": round(dim_z, 4),
-                "contributing_dimensions": [
-                    dims[k] for k in range(len(dims))
-                    if stds[k] > 1e-10 and abs((last_raw[k] - means[k]) / stds[k]) >= 1.5
-                ],
-            },
-        ))
+        results.append(
+            AnomalyResult(
+                anomaly_type=_anomaly_type_for_dimension(dim),
+                dimension=dim,
+                dimension_key=None,
+                current_value=float(last_raw[j]),
+                expected_value=float(means[j]),
+                deviation_score=round(deviation, 4),
+                severity=classify_severity(deviation),
+                detection_method="isolation_forest",
+                context={
+                    "if_anomaly_score": round(score, 6),
+                    "dimension_z_score": round(dim_z, 4),
+                    "contributing_dimensions": [
+                        dims[k]
+                        for k in range(len(dims))
+                        if stds[k] > 1e-10 and abs((last_raw[k] - means[k]) / stds[k]) >= 1.5
+                    ],
+                },
+            )
+        )
 
     return results
 

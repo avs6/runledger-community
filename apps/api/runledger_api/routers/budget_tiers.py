@@ -35,9 +35,7 @@ router = APIRouter(
 log = structlog.get_logger()
 
 
-async def _tier_response(
-    db: AsyncSession, tier: BudgetTier
-) -> BudgetTierResponse:
+async def _tier_response(db: AsyncSession, tier: BudgetTier) -> BudgetTierResponse:
     key_count_result = await db.execute(
         select(func.count()).where(ApiKey.budget_tier_id == tier.id)
     )
@@ -176,20 +174,18 @@ async def delete_tier(
     await db.execute(
         update(ApiKey).where(ApiKey.budget_tier_id == tier_id).values(budget_tier_id=None)
     )
-    await db.execute(
-        update(BudgetTier).where(BudgetTier.id == tier_id).values(is_active=False)
-    )
+    await db.execute(update(BudgetTier).where(BudgetTier.id == tier_id).values(is_active=False))
     await db.commit()
     log.info("budget_tier_deleted", tier_id=str(tier_id))
 
 
-@router.put("/assign/{key_id}", response_model=dict)
+@router.put("/assign/{key_id}", response_model=dict[str, Any])
 async def assign_tier_to_key(
     key_id: uuid.UUID,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     tier_id: Annotated[uuid.UUID | None, Query()] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Assign a budget tier to an API key, or pass tier_id=null to unassign."""
     workspace: Workspace = auth[0]
 
@@ -211,9 +207,7 @@ async def assign_tier_to_key(
         if tier_result.scalar_one_or_none() is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget tier not found")
 
-    await db.execute(
-        update(ApiKey).where(ApiKey.id == key_id).values(budget_tier_id=tier_id)
-    )
+    await db.execute(update(ApiKey).where(ApiKey.id == key_id).values(budget_tier_id=tier_id))
     await db.commit()
     log.info("tier_assigned", key_id=str(key_id), tier_id=str(tier_id))
     return {"key_id": str(key_id), "budget_tier_id": str(tier_id) if tier_id else None}

@@ -16,7 +16,7 @@ GET    /alerts/history        Recent alert firings
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -43,7 +43,7 @@ router = APIRouter(
 )
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-OrgAdminDep = Annotated[tuple, Depends(require_org_admin)]
+OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 
 
 # ── Create rule ────────────────────────────────────────────────────────────────

@@ -25,15 +25,15 @@ async def generate_runbook(
     if run is None:
         raise ValueError(f"Run {run_id} not found")
 
-    spans = (
-        await db.execute(select(Span).where(Span.run_id == run_id))
-    ).scalars().all()
+    spans = (await db.execute(select(Span).where(Span.run_id == run_id))).scalars().all()
     provider_calls = (
-        await db.execute(select(ProviderCall).where(ProviderCall.run_id == run_id))
-    ).scalars().all()
+        (await db.execute(select(ProviderCall).where(ProviderCall.run_id == run_id)))
+        .scalars()
+        .all()
+    )
     tool_calls = (
-        await db.execute(select(ToolCall).where(ToolCall.run_id == run_id))
-    ).scalars().all()
+        (await db.execute(select(ToolCall).where(ToolCall.run_id == run_id))).scalars().all()
+    )
 
     avg_cost_result = await db.execute(
         select(func.avg(AgentRun.total_cost_usd)).where(
@@ -54,11 +54,13 @@ async def generate_runbook(
     failed_calls = [c for c in provider_calls if c.status == "failed"]
     errors = []
     for c in failed_calls:
-        errors.append({
-            "model": c.model,
-            "provider": c.provider,
-            "error_type": c.error_type,
-        })
+        errors.append(
+            {
+                "model": c.model,
+                "provider": c.provider,
+                "error_type": c.error_type,
+            }
+        )
 
     models_used = list({c.model for c in provider_calls})
     providers_used = list({c.provider for c in provider_calls})

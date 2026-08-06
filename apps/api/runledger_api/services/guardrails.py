@@ -182,9 +182,15 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Block personalized investment/financial advice",
         "category": "content_safety",
         "keywords": [
-            "invest in", "buy stock", "sell stock", "portfolio advice",
-            "financial advice", "investment recommendation", "trade shares",
-            "crypto investment", "retirement planning advice",
+            "invest in",
+            "buy stock",
+            "sell stock",
+            "portfolio advice",
+            "financial advice",
+            "investment recommendation",
+            "trade shares",
+            "crypto investment",
+            "retirement planning advice",
         ],
         "patterns": [
             r"(?i)\b(should|recommend|advise)\b.{0,30}\b(invest|buy|sell|trade)\b",
@@ -196,8 +202,14 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect health-related advice requests",
         "category": "content_safety",
         "keywords": [
-            "diagnose", "diagnosis", "medical advice", "health advice",
-            "prescription", "medication", "treatment plan", "symptoms indicate",
+            "diagnose",
+            "diagnosis",
+            "medical advice",
+            "health advice",
+            "prescription",
+            "medication",
+            "treatment plan",
+            "symptoms indicate",
         ],
         "patterns": [
             r"(?i)\b(diagnose|prescribe|treat)\b.{0,40}\b(condition|disease|illness|symptoms)\b",
@@ -209,8 +221,12 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Block unauthorized legal advice",
         "category": "content_safety",
         "keywords": [
-            "legal advice", "sue them", "file lawsuit", "legal counsel",
-            "legally obligated", "legal recommendation",
+            "legal advice",
+            "sue them",
+            "file lawsuit",
+            "legal counsel",
+            "legally obligated",
+            "legal recommendation",
         ],
         "patterns": [
             r"(?i)\blegal\s+(advice|recommendation|counsel|guidance)\b",
@@ -222,8 +238,12 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Block medical diagnosis/treatment advice",
         "category": "content_safety",
         "keywords": [
-            "take this medication", "dosage recommendation", "stop taking",
-            "increase dosage", "medical treatment", "drug interaction",
+            "take this medication",
+            "dosage recommendation",
+            "stop taking",
+            "increase dosage",
+            "medical treatment",
+            "drug interaction",
         ],
         "patterns": [
             r"(?i)\b(take|stop|increase|decrease)\s+\w+\s*(mg|dosage|medication)\b",
@@ -235,8 +255,13 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect violent content",
         "category": "harmful",
         "keywords": [
-            "how to kill", "make a weapon", "build a bomb", "hurt someone",
-            "attack plan", "assassinate", "mass shooting",
+            "how to kill",
+            "make a weapon",
+            "build a bomb",
+            "hurt someone",
+            "attack plan",
+            "assassinate",
+            "mass shooting",
         ],
         "patterns": [
             r"(?i)\bhow\s+to\s+(kill|harm|hurt|attack|assassinate)\b",
@@ -248,8 +273,12 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect self-harm content",
         "category": "harmful",
         "keywords": [
-            "kill myself", "commit suicide", "end my life", "self-harm",
-            "cut myself", "ways to die",
+            "kill myself",
+            "commit suicide",
+            "end my life",
+            "self-harm",
+            "cut myself",
+            "ways to die",
         ],
         "patterns": [
             r"(?i)\b(kill|harm|hurt|end)\s+(myself|my\s+life)\b",
@@ -261,7 +290,9 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect child safety violations",
         "category": "harmful",
         "keywords": [
-            "child exploitation", "minor abuse", "underage",
+            "child exploitation",
+            "minor abuse",
+            "underage",
         ],
         "patterns": [
             r"(?i)\bchild\s+(exploitation|abuse|pornography)\b",
@@ -273,8 +304,12 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect content related to illegal activities",
         "category": "harmful",
         "keywords": [
-            "how to hack", "steal identity", "forge documents", "money laundering",
-            "drug manufacturing", "counterfeit",
+            "how to hack",
+            "steal identity",
+            "forge documents",
+            "money laundering",
+            "drug manufacturing",
+            "counterfeit",
         ],
         "patterns": [
             r"(?i)\bhow\s+to\s+(hack|steal|forge|counterfeit|launder)\b",
@@ -286,8 +321,11 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect gender-based discrimination",
         "category": "bias",
         "keywords": [
-            "women can't", "men are better", "girls shouldn't",
-            "boys are smarter", "female weakness",
+            "women can't",
+            "men are better",
+            "girls shouldn't",
+            "boys are smarter",
+            "female weakness",
         ],
         "patterns": [
             r"(?i)\b(women|girls|females)\s+(can't|cannot|shouldn't|are\s+not\s+able)\b",
@@ -299,7 +337,9 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect racial discrimination and bias",
         "category": "bias",
         "keywords": [
-            "racial superiority", "ethnic cleansing", "race is inferior",
+            "racial superiority",
+            "ethnic cleansing",
+            "race is inferior",
         ],
         "patterns": [
             r"(?i)\bracial\s+(superiority|inferiority|purity)\b",
@@ -311,8 +351,12 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect toxic language and harassment",
         "category": "content_safety",
         "keywords": [
-            "you idiot", "stupid moron", "hate you", "kill yourself",
-            "worthless", "die in a fire",
+            "you idiot",
+            "stupid moron",
+            "hate you",
+            "kill yourself",
+            "worthless",
+            "die in a fire",
         ],
         "patterns": [
             r"(?i)\b(idiot|moron|imbecile|retard|loser)\b",
@@ -324,8 +368,11 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect attempts to inject executable code",
         "category": "security",
         "keywords": [
-            "ignore previous instructions", "system prompt", "jailbreak",
-            "DAN mode", "developer mode override",
+            "ignore previous instructions",
+            "system prompt",
+            "jailbreak",
+            "DAN mode",
+            "developer mode override",
         ],
         "patterns": [
             r"(?i)ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|rules|guidelines)",
@@ -340,8 +387,11 @@ BUILTIN_FILTERS: dict[str, dict[str, Any]] = {
         "description": "Detect attempts to extract sensitive data",
         "category": "security",
         "keywords": [
-            "show me the system prompt", "reveal your instructions",
-            "what are your rules", "dump all data", "export all records",
+            "show me the system prompt",
+            "reveal your instructions",
+            "what are your rules",
+            "dump all data",
+            "export all records",
         ],
         "patterns": [
             r"(?i)(show|reveal|display|dump|print)\s+(me\s+)?(the\s+)?(system\s+prompt|instructions|rules|training\s+data)",
@@ -389,9 +439,7 @@ def evaluate_builtin_filter(
             matched_reasons.append("pattern match")
 
     if hit_count >= threshold:
-        return block(
-            f"{filter_def['name']}: {'; '.join(matched_reasons[:3])}"
-        )
+        return block(f"{filter_def['name']}: {'; '.join(matched_reasons[:3])}")
     return allow()
 
 
@@ -603,7 +651,8 @@ async def evaluate_guardrails(
         eval_texts = texts
         if rule.skip_system_messages and _msgs:
             eval_texts = [
-                m.get("content", "") for m in _msgs
+                m.get("content", "")
+                for m in _msgs
                 if m.get("role") != "system" and m.get("content")
             ]
             if not eval_texts:
@@ -617,7 +666,9 @@ async def evaluate_guardrails(
                 eval_texts,
                 rule.severity,
             )
-        elif rule.rule_type == "custom" and rule.logic or rule.rule_type == "template" and rule.logic:
+        elif (
+            rule.rule_type == "custom" and rule.logic or rule.rule_type == "template" and rule.logic
+        ):
             gr = execute_custom_logic(
                 rule.logic,
                 eval_texts,

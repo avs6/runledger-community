@@ -617,7 +617,9 @@ async def seed_workspace(ctx: dict) -> None:
                         "optimization_applied": opt_applied,
                         "savings_usd": float(savings) if savings > 0 else None,
                         "savings_category": opt_category,
-                        "savings_reason": f"RunLedger {opt_applied} optimization" if opt_applied else None,
+                        "savings_reason": f"RunLedger {opt_applied} optimization"
+                        if opt_applied
+                        else None,
                     },
                 ]
 
@@ -1784,6 +1786,25 @@ async def seed_workspace(ctx: dict) -> None:
         # ── Ops / metrics ──────────────────────────────────────────────────────
         await c.get("/ops/status", skip_errors=True)
         await c.get("/metrics", skip_errors=True)
+
+        # ── ML Intelligence ───────────────────────────────────────────────────
+        print("    → ML intelligence (forecasts, top-K, patterns)")
+        await c.post(
+            "/intelligence/forecasts/generate",
+            json={"forecast_type": "cost_daily", "horizon_days": 14},
+            skip_errors=True,
+        )
+        await c.post(
+            "/intelligence/forecasts/generate",
+            json={"forecast_type": "tokens_daily", "horizon_days": 14},
+            skip_errors=True,
+        )
+        await c.get("/intelligence/forecasts/cost", skip_errors=True)
+        await c.get("/intelligence/forecasts/tokens", skip_errors=True)
+        await c.get("/intelligence/top-k?dimension=model&metric=cost&k=10", skip_errors=True)
+        await c.get("/intelligence/patterns", skip_errors=True)
+        await c.get("/intelligence/anomalies/summary?hours=24", skip_errors=True)
+        await c.get("/intelligence/dashboard", skip_errors=True)
 
         print("    ✓ Done")
 

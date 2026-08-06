@@ -110,7 +110,9 @@ router = APIRouter(prefix="/guardrails", tags=["guardrails"])
 log = structlog.get_logger()
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
-WorkspaceAdminDep = Annotated[tuple[Workspace, object, object | None], Depends(require_workspace_admin)]
+WorkspaceAdminDep = Annotated[
+    tuple[Workspace, object, object | None], Depends(require_workspace_admin)
+]
 ApiKeyDep = Annotated[ApiKey, Depends(get_current_api_key)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -148,10 +150,18 @@ async def create_guardrail(
     await db.commit()
     await db.refresh(rule)
 
-    log.info("guardrail_created", workspace_id=str(workspace.id), name=body.name, rule_type=body.rule_type)
+    log.info(
+        "guardrail_created",
+        workspace_id=str(workspace.id),
+        name=body.name,
+        rule_type=body.rule_type,
+    )
     await emit_audit_event(
-        db, workspace.id, "guardrail.created",
-        target_type="guardrail", target_id=str(rule.id),
+        db,
+        workspace.id,
+        "guardrail.created",
+        target_type="guardrail",
+        target_id=str(rule.id),
         after={"name": body.name, "rule_type": body.rule_type, "mode": body.mode},
     )
     return GuardrailRuleResponse.model_validate(rule)
@@ -179,18 +189,32 @@ async def list_guardrails(
     count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = int(count_result.scalar() or 0)
 
-    stmt = stmt.order_by(GuardrailRule.priority.asc(), GuardrailRule.created_at.desc()).limit(limit).offset(offset)
+    stmt = (
+        stmt.order_by(GuardrailRule.priority.asc(), GuardrailRule.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     result = await db.execute(stmt)
     items = result.scalars().all()
-    return GuardrailRuleList(items=[GuardrailRuleResponse.model_validate(r) for r in items], total=total)
+    return GuardrailRuleList(
+        items=[GuardrailRuleResponse.model_validate(r) for r in items], total=total
+    )
 
 
-@router.get("/templates", response_model=list[GuardrailTemplate], dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/templates",
+    response_model=list[GuardrailTemplate],
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def list_templates(auth: WorkspaceAdminDep) -> list[GuardrailTemplate]:
     return [GuardrailTemplate(**t) for t in get_templates()]
 
 
-@router.get("/filters", response_model=ContentFilterListResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/filters",
+    response_model=ContentFilterListResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def list_content_filters(
     auth: WorkspaceAdminDep,
     db: DbDep,
@@ -207,17 +231,23 @@ async def list_content_filters(
     filters = []
     for fid, fdef in BUILTIN_FILTERS.items():
         active = active_filters.get(fid)
-        filters.append(ContentFilterStatus(
-            filter_name=fid,
-            description=fdef["description"],
-            severity=active.severity if active else "off",
-            enabled=active is not None and active.status == "active",
-            category=fdef["category"],
-        ))
+        filters.append(
+            ContentFilterStatus(
+                filter_name=fid,
+                description=fdef["description"],
+                severity=active.severity if active else "off",
+                enabled=active is not None and active.status == "active",
+                category=fdef["category"],
+            )
+        )
     return ContentFilterListResponse(filters=filters)
 
 
-@router.put("/filters", response_model=ContentFilterListResponse, dependencies=[Depends(management_rate_limit)])
+@router.put(
+    "/filters",
+    response_model=ContentFilterListResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def activate_content_filters(
     body: ContentFilterActivation,
     auth: WorkspaceAdminDep,
@@ -258,8 +288,11 @@ async def activate_content_filters(
     await db.commit()
     log.info("content_filters_updated", workspace_id=str(workspace.id))
     await emit_audit_event(
-        db, workspace.id, "guardrail.filters_updated",
-        target_type="guardrail_filters", target_id="bulk",
+        db,
+        workspace.id,
+        "guardrail.filters_updated",
+        target_type="guardrail_filters",
+        target_id="bulk",
         after={"filters": [f.model_dump() for f in body.filters]},
     )
     return await list_content_filters(auth, db)
@@ -273,6 +306,7 @@ async def guardrail_stats(
 ) -> GuardrailStats:
     workspace = auth[0]
     from datetime import timedelta  # noqa: PLC0415
+
     since = datetime.now(UTC) - timedelta(hours=hours)
 
     base = select(GuardrailEvent).where(
@@ -291,8 +325,9 @@ async def guardrail_stats(
     by_decision = {row[0]: int(row[1]) for row in by_decision_result.all()}
 
     avg_lat_result = await db.execute(
-        select(func.avg(GuardrailEvent.latency_ms))
-        .where(GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since)
+        select(func.avg(GuardrailEvent.latency_ms)).where(
+            GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since
+        )
     )
     avg_latency = float(avg_lat_result.scalar() or 0)
 
@@ -307,8 +342,7 @@ async def guardrail_stats(
 
     # Error count
     error_count_result = await db.execute(
-        select(func.count(GuardrailEvent.id))
-        .where(
+        select(func.count(GuardrailEvent.id)).where(
             GuardrailEvent.workspace_id == workspace.id,
             GuardrailEvent.created_at >= since,
             GuardrailEvent.error.isnot(None),
@@ -318,8 +352,7 @@ async def guardrail_stats(
 
     # False positive count
     fp_count_result = await db.execute(
-        select(func.count(GuardrailEvent.id))
-        .where(
+        select(func.count(GuardrailEvent.id)).where(
             GuardrailEvent.workspace_id == workspace.id,
             GuardrailEvent.created_at >= since,
             GuardrailEvent.is_false_positive.is_(True),
@@ -329,8 +362,9 @@ async def guardrail_stats(
 
     # Total latency overhead
     total_latency_result = await db.execute(
-        select(func.sum(GuardrailEvent.latency_ms))
-        .where(GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since)
+        select(func.sum(GuardrailEvent.latency_ms)).where(
+            GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since
+        )
     )
     total_latency_overhead = float(total_latency_result.scalar() or 0)
 
@@ -339,7 +373,9 @@ async def guardrail_stats(
         select(
             GuardrailEvent.model,
             func.count(GuardrailEvent.id).label("total"),
-            func.count(GuardrailEvent.id).filter(GuardrailEvent.decision == "block").label("blocks"),
+            func.count(GuardrailEvent.id)
+            .filter(GuardrailEvent.decision == "block")
+            .label("blocks"),
         )
         .where(
             GuardrailEvent.workspace_id == workspace.id,
@@ -351,8 +387,12 @@ async def guardrail_stats(
         .limit(10)
     )
     by_model = [
-        {"model": row[0], "total": int(row[1]), "blocks": int(row[2]),
-         "block_rate": round(int(row[2]) / int(row[1]), 4) if int(row[1]) else 0}
+        {
+            "model": row[0],
+            "total": int(row[1]),
+            "blocks": int(row[2]),
+            "block_rate": round(int(row[2]) / int(row[1]), 4) if int(row[1]) else 0,
+        }
         for row in by_model_result.all()
     ]
 
@@ -361,7 +401,9 @@ async def guardrail_stats(
         select(
             GuardrailEvent.user_id,
             func.count(GuardrailEvent.id).label("total"),
-            func.count(GuardrailEvent.id).filter(GuardrailEvent.decision == "block").label("blocks"),
+            func.count(GuardrailEvent.id)
+            .filter(GuardrailEvent.decision == "block")
+            .label("blocks"),
         )
         .where(
             GuardrailEvent.workspace_id == workspace.id,
@@ -373,8 +415,12 @@ async def guardrail_stats(
         .limit(10)
     )
     by_user = [
-        {"user_id": row[0], "total": int(row[1]), "blocks": int(row[2]),
-         "block_rate": round(int(row[2]) / int(row[1]), 4) if int(row[1]) else 0}
+        {
+            "user_id": row[0],
+            "total": int(row[1]),
+            "blocks": int(row[2]),
+            "block_rate": round(int(row[2]) / int(row[1]), 4) if int(row[1]) else 0,
+        }
         for row in by_user_result.all()
     ]
 
@@ -383,7 +429,9 @@ async def guardrail_stats(
         select(
             GuardrailEvent.guardrail_name,
             func.count(GuardrailEvent.id).label("total"),
-            func.count(GuardrailEvent.id).filter(GuardrailEvent.decision == "block").label("blocks"),
+            func.count(GuardrailEvent.id)
+            .filter(GuardrailEvent.decision == "block")
+            .label("blocks"),
             func.avg(GuardrailEvent.latency_ms).label("avg_latency"),
         )
         .where(GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.created_at >= since)
@@ -392,8 +440,12 @@ async def guardrail_stats(
         .limit(20)
     )
     by_guardrail = [
-        {"name": row[0], "total": int(row[1]), "blocks": int(row[2]),
-         "avg_latency_ms": round(float(row[3] or 0), 2)}
+        {
+            "name": row[0],
+            "total": int(row[1]),
+            "blocks": int(row[2]),
+            "avg_latency_ms": round(float(row[3] or 0), 2),
+        }
         for row in by_guardrail_result.all()
     ]
 
@@ -416,7 +468,9 @@ async def guardrail_stats(
     )
 
 
-@router.get("/events", response_model=GuardrailEventList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/events", response_model=GuardrailEventList, dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_events(
     auth: WorkspaceAdminDep,
     db: DbDep,
@@ -438,10 +492,16 @@ async def list_events(
     stmt = stmt.order_by(GuardrailEvent.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     items = result.scalars().all()
-    return GuardrailEventList(items=[GuardrailEventResponse.model_validate(e) for e in items], total=total)
+    return GuardrailEventList(
+        items=[GuardrailEventResponse.model_validate(e) for e in items], total=total
+    )
 
 
-@router.get("/{guardrail_id}", response_model=GuardrailRuleResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/{guardrail_id}",
+    response_model=GuardrailRuleResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def get_guardrail(
     guardrail_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -449,7 +509,9 @@ async def get_guardrail(
 ) -> GuardrailRuleResponse:
     workspace = auth[0]
     result = await db.execute(
-        select(GuardrailRule).where(GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id)
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
     )
     rule = result.scalar_one_or_none()
     if rule is None:
@@ -457,7 +519,11 @@ async def get_guardrail(
     return GuardrailRuleResponse.model_validate(rule)
 
 
-@router.put("/{guardrail_id}", response_model=GuardrailRuleResponse, dependencies=[Depends(management_rate_limit)])
+@router.put(
+    "/{guardrail_id}",
+    response_model=GuardrailRuleResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def update_guardrail(
     guardrail_id: uuid.UUID,
     body: GuardrailRuleUpdate,
@@ -466,7 +532,9 @@ async def update_guardrail(
 ) -> GuardrailRuleResponse:
     workspace = auth[0]
     result = await db.execute(
-        select(GuardrailRule).where(GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id)
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
     )
     rule = result.scalar_one_or_none()
     if rule is None:
@@ -481,14 +549,21 @@ async def update_guardrail(
     await db.refresh(rule)
     log.info("guardrail_updated", guardrail_id=str(guardrail_id))
     await emit_audit_event(
-        db, workspace.id, "guardrail.updated",
-        target_type="guardrail", target_id=str(guardrail_id),
+        db,
+        workspace.id,
+        "guardrail.updated",
+        target_type="guardrail",
+        target_id=str(guardrail_id),
         after=update_data,
     )
     return GuardrailRuleResponse.model_validate(rule)
 
 
-@router.delete("/{guardrail_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(management_rate_limit)])
+@router.delete(
+    "/{guardrail_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def delete_guardrail(
     guardrail_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -496,7 +571,9 @@ async def delete_guardrail(
 ) -> None:
     workspace = auth[0]
     result = await db.execute(
-        select(GuardrailRule).where(GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id)
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
     )
     rule = result.scalar_one_or_none()
     if rule is None:
@@ -506,8 +583,11 @@ async def delete_guardrail(
     await db.commit()
     log.info("guardrail_deleted", guardrail_id=str(guardrail_id))
     await emit_audit_event(
-        db, workspace.id, "guardrail.deleted",
-        target_type="guardrail", target_id=str(guardrail_id),
+        db,
+        workspace.id,
+        "guardrail.deleted",
+        target_type="guardrail",
+        target_id=str(guardrail_id),
         after={"name": rule.name},
     )
 
@@ -515,7 +595,11 @@ async def delete_guardrail(
 # ── Test endpoints ───────────────────────────────────────────────────────────
 
 
-@router.post("/{guardrail_id}/test", response_model=GuardrailTestResponse, dependencies=[Depends(management_rate_limit)])
+@router.post(
+    "/{guardrail_id}/test",
+    response_model=GuardrailTestResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def test_single_guardrail(
     guardrail_id: uuid.UUID,
     body: GuardrailTestInput,
@@ -524,7 +608,9 @@ async def test_single_guardrail(
 ) -> GuardrailTestResponse:
     workspace = auth[0]
     result = await db.execute(
-        select(GuardrailRule).where(GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id)
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
     )
     rule = result.scalar_one_or_none()
     if rule is None:
@@ -532,12 +618,22 @@ async def test_single_guardrail(
 
     start = time.monotonic()
     if rule.rule_type == "builtin_filter":
-        gr = evaluate_builtin_filter(rule.template_id or rule.name.lower().replace(" ", "_"), body.texts, rule.severity)
+        gr = evaluate_builtin_filter(
+            rule.template_id or rule.name.lower().replace(" ", "_"), body.texts, rule.severity
+        )
     elif rule.logic:
         gr = execute_custom_logic(
-            rule.logic, body.texts, body.images, body.tools, body.tool_calls,
-            body.structured_messages, body.model, body.user_id, body.team_id,
-            body.end_user_id, {**body.metadata, **rule.config},
+            rule.logic,
+            body.texts,
+            body.images,
+            body.tools,
+            body.tool_calls,
+            body.structured_messages,
+            body.model,
+            body.user_id,
+            body.team_id,
+            body.end_user_id,
+            {**body.metadata, **rule.config},
         )
     else:
         gr = allow()
@@ -553,10 +649,14 @@ async def test_single_guardrail(
         modified_images=gr.modified_images,
         modified_tool_calls=gr.modified_tool_calls,
     )
-    return GuardrailTestResponse(results=[test_result], overall_decision=gr.decision, total_latency_ms=round(elapsed, 2))
+    return GuardrailTestResponse(
+        results=[test_result], overall_decision=gr.decision, total_latency_ms=round(elapsed, 2)
+    )
 
 
-@router.post("/test", response_model=GuardrailTestResponse, dependencies=[Depends(management_rate_limit)])
+@router.post(
+    "/test", response_model=GuardrailTestResponse, dependencies=[Depends(management_rate_limit)]
+)
 async def test_all_guardrails(
     body: GuardrailTestInput,
     auth: WorkspaceAdminDep,
@@ -564,11 +664,19 @@ async def test_all_guardrails(
 ) -> GuardrailTestResponse:
     workspace = auth[0]
     overall_decision, results, total_latency = await evaluate_guardrails(
-        db, workspace.id, "pre_call",
-        texts=body.texts, images=body.images, tools=body.tools,
-        tool_calls=body.tool_calls, structured_messages=body.structured_messages,
-        model=body.model, user_id=body.user_id, team_id=body.team_id,
-        end_user_id=body.end_user_id, metadata=body.metadata,
+        db,
+        workspace.id,
+        "pre_call",
+        texts=body.texts,
+        images=body.images,
+        tools=body.tools,
+        tool_calls=body.tool_calls,
+        structured_messages=body.structured_messages,
+        model=body.model,
+        user_id=body.user_id,
+        team_id=body.team_id,
+        end_user_id=body.end_user_id,
+        metadata=body.metadata,
     )
     await db.commit()
     return GuardrailTestResponse(
@@ -578,7 +686,9 @@ async def test_all_guardrails(
     )
 
 
-@router.post("/test/batch", response_model=BatchTestResponse, dependencies=[Depends(management_rate_limit)])
+@router.post(
+    "/test/batch", response_model=BatchTestResponse, dependencies=[Depends(management_rate_limit)]
+)
 async def batch_test_guardrails(
     body: list[GuardrailTestInput],
     auth: WorkspaceAdminDep,
@@ -592,18 +702,28 @@ async def batch_test_guardrails(
 
     for i, row in enumerate(body):
         decision, row_results, _ = await evaluate_guardrails(
-            db, workspace.id, "pre_call",
-            texts=row.texts, images=row.images, tools=row.tools,
-            tool_calls=row.tool_calls, structured_messages=row.structured_messages,
-            model=row.model, user_id=row.user_id, team_id=row.team_id,
-            end_user_id=row.end_user_id, metadata=row.metadata,
+            db,
+            workspace.id,
+            "pre_call",
+            texts=row.texts,
+            images=row.images,
+            tools=row.tools,
+            tool_calls=row.tool_calls,
+            structured_messages=row.structured_messages,
+            model=row.model,
+            user_id=row.user_id,
+            team_id=row.team_id,
+            end_user_id=row.end_user_id,
+            metadata=row.metadata,
         )
-        results.append(BatchTestResult(
-            row_index=i,
-            input_text=" | ".join(row.texts),
-            decisions=[GuardrailTestResult(**r) for r in row_results],
-            overall_decision=decision,
-        ))
+        results.append(
+            BatchTestResult(
+                row_index=i,
+                input_text=" | ".join(row.texts),
+                decisions=[GuardrailTestResult(**r) for r in row_results],
+                overall_decision=decision,
+            )
+        )
         if decision == "block":
             total_blocks += 1
         elif decision == "modify":
@@ -651,7 +771,11 @@ async def create_test_case(
     return GuardrailTestCaseResponse.model_validate(tc)
 
 
-@router.get("/test-cases", response_model=GuardrailTestCaseList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/test-cases",
+    response_model=GuardrailTestCaseList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def list_test_cases(
     auth: WorkspaceAdminDep,
     db: DbDep,
@@ -670,10 +794,16 @@ async def list_test_cases(
     stmt = stmt.order_by(GuardrailTestCase.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     items = result.scalars().all()
-    return GuardrailTestCaseList(items=[GuardrailTestCaseResponse.model_validate(tc) for tc in items], total=total)
+    return GuardrailTestCaseList(
+        items=[GuardrailTestCaseResponse.model_validate(tc) for tc in items], total=total
+    )
 
 
-@router.delete("/test-cases/{test_case_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(management_rate_limit)])
+@router.delete(
+    "/test-cases/{test_case_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def delete_test_case(
     test_case_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -681,7 +811,9 @@ async def delete_test_case(
 ) -> None:
     workspace = auth[0]
     result = await db.execute(
-        select(GuardrailTestCase).where(GuardrailTestCase.id == test_case_id, GuardrailTestCase.workspace_id == workspace.id)
+        select(GuardrailTestCase).where(
+            GuardrailTestCase.id == test_case_id, GuardrailTestCase.workspace_id == workspace.id
+        )
     )
     tc = result.scalar_one_or_none()
     if tc is None:
@@ -690,7 +822,11 @@ async def delete_test_case(
     await db.commit()
 
 
-@router.post("/{guardrail_id}/regression", response_model=GuardrailRegressionReport, dependencies=[Depends(management_rate_limit)])
+@router.post(
+    "/{guardrail_id}/regression",
+    response_model=GuardrailRegressionReport,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def run_regression(
     guardrail_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -698,17 +834,21 @@ async def run_regression(
 ) -> GuardrailRegressionReport:
     workspace = auth[0]
     rule_result = await db.execute(
-        select(GuardrailRule).where(GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id)
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
     )
     rule = rule_result.scalar_one_or_none()
     if rule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
 
     tc_result = await db.execute(
-        select(GuardrailTestCase).where(
+        select(GuardrailTestCase)
+        .where(
             GuardrailTestCase.guardrail_rule_id == guardrail_id,
             GuardrailTestCase.workspace_id == workspace.id,
-        ).order_by(GuardrailTestCase.created_at.asc())
+        )
+        .order_by(GuardrailTestCase.created_at.asc())
     )
     test_cases = tc_result.scalars().all()
 
@@ -722,8 +862,17 @@ async def run_regression(
             gr = evaluate_builtin_filter(rule.template_id or "", [tc.input_text], rule.severity)
         elif rule.logic:
             gr = execute_custom_logic(
-                rule.logic, [tc.input_text], [], [], [], [],
-                None, None, None, None, {**tc.input_metadata, **rule.config},
+                rule.logic,
+                [tc.input_text],
+                [],
+                [],
+                [],
+                [],
+                None,
+                None,
+                None,
+                None,
+                {**tc.input_metadata, **rule.config},
             )
         else:
             gr = allow()
@@ -735,15 +884,17 @@ async def run_regression(
         else:
             failed += 1
 
-        results.append(GuardrailRegressionResult(
-            test_case_id=tc.id,
-            test_case_name=tc.name,
-            expected_decision=tc.expected_decision,
-            actual_decision=gr.decision,
-            passed=match,
-            latency_ms=round(elapsed, 2),
-            reason=gr.reason,
-        ))
+        results.append(
+            GuardrailRegressionResult(
+                test_case_id=tc.id,
+                test_case_name=tc.name,
+                expected_decision=tc.expected_decision,
+                actual_decision=gr.decision,
+                passed=match,
+                latency_ms=round(elapsed, 2),
+                reason=gr.reason,
+            )
+        )
 
     return GuardrailRegressionReport(
         guardrail_rule_id=guardrail_id,
@@ -789,14 +940,19 @@ async def create_partner_guardrail(
 
     log.info("partner_guardrail_created", provider=body.provider, name=body.name)
     await emit_audit_event(
-        db, workspace.id, "guardrail.partner_created",
-        target_type="partner_guardrail", target_id=str(pg.id),
+        db,
+        workspace.id,
+        "guardrail.partner_created",
+        target_type="partner_guardrail",
+        target_id=str(pg.id),
         after={"provider": body.provider, "name": body.name},
     )
     return PartnerGuardrailResponse.model_validate(pg)
 
 
-@router.get("/partners", response_model=PartnerGuardrailList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/partners", response_model=PartnerGuardrailList, dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_partner_guardrails(
     auth: WorkspaceAdminDep,
     db: DbDep,
@@ -815,10 +971,16 @@ async def list_partner_guardrails(
     stmt = stmt.order_by(PartnerGuardrail.priority.asc()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     items = result.scalars().all()
-    return PartnerGuardrailList(items=[PartnerGuardrailResponse.model_validate(p) for p in items], total=total)
+    return PartnerGuardrailList(
+        items=[PartnerGuardrailResponse.model_validate(p) for p in items], total=total
+    )
 
 
-@router.get("/partners/{partner_id}", response_model=PartnerGuardrailResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/partners/{partner_id}",
+    response_model=PartnerGuardrailResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def get_partner_guardrail(
     partner_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -826,15 +988,23 @@ async def get_partner_guardrail(
 ) -> PartnerGuardrailResponse:
     workspace = auth[0]
     result = await db.execute(
-        select(PartnerGuardrail).where(PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id)
+        select(PartnerGuardrail).where(
+            PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id
+        )
     )
     pg = result.scalar_one_or_none()
     if pg is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found"
+        )
     return PartnerGuardrailResponse.model_validate(pg)
 
 
-@router.put("/partners/{partner_id}", response_model=PartnerGuardrailResponse, dependencies=[Depends(management_rate_limit)])
+@router.put(
+    "/partners/{partner_id}",
+    response_model=PartnerGuardrailResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def update_partner_guardrail(
     partner_id: uuid.UUID,
     body: PartnerGuardrailUpdate,
@@ -843,11 +1013,15 @@ async def update_partner_guardrail(
 ) -> PartnerGuardrailResponse:
     workspace = auth[0]
     result = await db.execute(
-        select(PartnerGuardrail).where(PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id)
+        select(PartnerGuardrail).where(
+            PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id
+        )
     )
     pg = result.scalar_one_or_none()
     if pg is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found"
+        )
 
     update_data = body.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -860,7 +1034,11 @@ async def update_partner_guardrail(
     return PartnerGuardrailResponse.model_validate(pg)
 
 
-@router.delete("/partners/{partner_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(management_rate_limit)])
+@router.delete(
+    "/partners/{partner_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def delete_partner_guardrail(
     partner_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -868,23 +1046,34 @@ async def delete_partner_guardrail(
 ) -> None:
     workspace = auth[0]
     result = await db.execute(
-        select(PartnerGuardrail).where(PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id)
+        select(PartnerGuardrail).where(
+            PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id
+        )
     )
     pg = result.scalar_one_or_none()
     if pg is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found"
+        )
 
     await db.delete(pg)
     await db.commit()
     log.info("partner_guardrail_deleted", partner_id=str(partner_id))
     await emit_audit_event(
-        db, workspace.id, "guardrail.partner_deleted",
-        target_type="partner_guardrail", target_id=str(partner_id),
+        db,
+        workspace.id,
+        "guardrail.partner_deleted",
+        target_type="partner_guardrail",
+        target_id=str(partner_id),
         after={"provider": pg.provider, "name": pg.name},
     )
 
 
-@router.post("/partners/{partner_id}/health", response_model=PartnerGuardrailResponse, dependencies=[Depends(management_rate_limit)])
+@router.post(
+    "/partners/{partner_id}/health",
+    response_model=PartnerGuardrailResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
 async def health_check_partner(
     partner_id: uuid.UUID,
     auth: WorkspaceAdminDep,
@@ -892,11 +1081,15 @@ async def health_check_partner(
 ) -> PartnerGuardrailResponse:
     workspace = auth[0]
     result = await db.execute(
-        select(PartnerGuardrail).where(PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id)
+        select(PartnerGuardrail).where(
+            PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id
+        )
     )
     pg = result.scalar_one_or_none()
     if pg is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found"
+        )
 
     pg.last_health_check = datetime.now(UTC)
     pg.health_status = "healthy"
@@ -928,7 +1121,9 @@ async def submit_event_feedback(
     )
     event = result.scalar_one_or_none()
     if event is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail event not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail event not found"
+        )
 
     event.is_false_positive = body.is_false_positive
     event.feedback_reason = body.reason
@@ -941,8 +1136,11 @@ async def submit_event_feedback(
         is_false_positive=body.is_false_positive,
     )
     await emit_audit_event(
-        db, workspace.id, "guardrail.feedback",
-        target_type="guardrail_event", target_id=str(event_id),
+        db,
+        workspace.id,
+        "guardrail.feedback",
+        target_type="guardrail_event",
+        target_id=str(event_id),
         after={"is_false_positive": body.is_false_positive, "reason": body.reason},
     )
     return GuardrailEventResponse.model_validate(event)
@@ -951,7 +1149,9 @@ async def submit_event_feedback(
 # ── Guardrail Alerts ───────────────────────────────────────────────────────
 
 
-@router.get("/alerts", response_model=GuardrailAlertList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/alerts", response_model=GuardrailAlertList, dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_guardrail_alerts(
     auth: WorkspaceAdminDep,
     db: DbDep,
@@ -1015,7 +1215,9 @@ async def acknowledge_alert(
     )
     alert = result.scalar_one_or_none()
     if alert is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail alert not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail alert not found"
+        )
 
     alert.status = "acknowledged"
     alert.acknowledged_at = datetime.now(UTC)

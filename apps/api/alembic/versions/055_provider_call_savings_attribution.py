@@ -18,7 +18,9 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("provider_calls", sa.Column("savings_usd", sa.Numeric(14, 8), nullable=True))
-    op.add_column("provider_calls", sa.Column("savings_category", sa.String(length=64), nullable=True))
+    op.add_column(
+        "provider_calls", sa.Column("savings_category", sa.String(length=64), nullable=True)
+    )
     op.add_column("provider_calls", sa.Column("savings_reason", sa.Text(), nullable=True))
     op.create_index(
         "ix_provider_calls_savings_category",

@@ -37,8 +37,18 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("enabled", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
-        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -67,7 +77,12 @@ def upgrade() -> None:
         sa.Column("error_detail", sa.Text(), nullable=True),
         sa.Column("attempt", sa.Integer(), server_default="1", nullable=False),
         sa.Column("delivered_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["config_id"], ["kafka_export_configs.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -87,7 +102,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_kafka_export_deliveries_workspace_created", table_name="kafka_export_deliveries")
+    op.drop_index(
+        "ix_kafka_export_deliveries_workspace_created", table_name="kafka_export_deliveries"
+    )
     op.drop_index("ix_kafka_export_deliveries_config_created", table_name="kafka_export_deliveries")
     op.drop_table("kafka_export_deliveries")
     op.drop_index("ix_kafka_export_configs_enabled", table_name="kafka_export_configs")

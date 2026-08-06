@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -29,7 +30,7 @@ def _make_session_factory() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def _get_active_workspaces(factory: async_sessionmaker[AsyncSession]) -> list:
+async def _get_active_workspaces(factory: async_sessionmaker[AsyncSession]) -> list[Any]:
     async with factory() as db:
         cutoff = datetime.now(UTC) - timedelta(days=1)
         result = await db.execute(
@@ -40,7 +41,7 @@ async def _get_active_workspaces(factory: async_sessionmaker[AsyncSession]) -> l
         return [row[0] for row in result.all()]
 
 
-@celery_app.task(name="ml.anomaly_detection", max_retries=1)
+@celery_app.task(name="ml.anomaly_detection", max_retries=1)  # type: ignore[untyped-decorator]
 def ml_anomaly_detection_worker() -> dict[str, int]:
     """Detect anomalies across all active workspaces."""
     return asyncio.run(_run())
@@ -70,7 +71,7 @@ async def _run() -> dict[str, int]:
     return {"workspaces_checked": workspaces_checked, "anomalies_found": anomalies_found}
 
 
-@celery_app.task(name="ml.isolation_forest_training", max_retries=1)
+@celery_app.task(name="ml.isolation_forest_training", max_retries=1)  # type: ignore[untyped-decorator]
 def ml_isolation_forest_training_worker() -> dict[str, int]:
     """Train Isolation Forest models for all active workspaces."""
     return asyncio.run(_run_training())

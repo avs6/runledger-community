@@ -10,8 +10,11 @@ from pydantic import BaseModel
 # ── Anomaly schemas ─────────────────────────────────────────────────────
 
 AnomalyType = Literal[
-    "cost_spike", "latency_regression", "error_rate_spike",
-    "token_spike", "cache_hit_drop",
+    "cost_spike",
+    "latency_regression",
+    "error_rate_spike",
+    "token_spike",
+    "cache_hit_drop",
 ]
 
 AnomalySeverity = Literal["low", "medium", "high", "critical"]
@@ -71,7 +74,7 @@ class AnomalyAcknowledge(BaseModel):
 
 # ── Forecast schemas ────────────────────────────────────────────────────
 
-ForecastMethod = Literal["linear", "holt_winters"]
+ForecastMethod = Literal["linear", "holt_winters", "prophet_style", "arima"]
 
 
 class ForecastPoint(BaseModel):
@@ -165,6 +168,7 @@ class PatternList(BaseModel):
 
 # ── Complexity scoring schemas ──────────────────────────────────────────
 
+
 class ComplexityScore(BaseModel):
     run_id: str
     score: float
@@ -192,6 +196,7 @@ class FeatureImportanceList(BaseModel):
 
 # ── Cost-per-outcome schemas ───────────────────────────────────────────
 
+
 class CostPerOutcome(BaseModel):
     outcome_type: str
     total_cost: float
@@ -215,6 +220,7 @@ class CostOutcomeResponse(BaseModel):
 
 # ── Adaptive alert schemas ─────────────────────────────────────────────
 
+
 class AdaptiveThresholdSuggestion(BaseModel):
     rule_id: str
     rule_name: str
@@ -231,6 +237,7 @@ class AdaptiveThresholdList(BaseModel):
 
 
 # ── ML dashboard / observability schemas ───────────────────────────────
+
 
 class ModelHealth(BaseModel):
     id: str

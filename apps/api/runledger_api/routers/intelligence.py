@@ -107,7 +107,11 @@ async def list_anomalies(
     )
 
 
-@router.get("/anomalies/summary", response_model=AnomalySummary, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/anomalies/summary",
+    response_model=AnomalySummary,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def anomaly_summary(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -119,9 +123,7 @@ async def anomaly_summary(
     total = await db.scalar(select(func.count()).where(and_(*base))) or 0
 
     sev_result = await db.execute(
-        select(MLAnomaly.severity, func.count())
-        .where(and_(*base))
-        .group_by(MLAnomaly.severity)
+        select(MLAnomaly.severity, func.count()).where(and_(*base)).group_by(MLAnomaly.severity)
     )
     by_severity = {row[0]: row[1] for row in sev_result.all()}
 
@@ -132,13 +134,17 @@ async def anomaly_summary(
     )
     by_type = {row[0]: row[1] for row in type_result.all()}
 
-    suppressed = await db.scalar(
-        select(func.count()).where(and_(*base, MLAnomaly.is_suppressed.is_(True)))
-    ) or 0
+    suppressed = (
+        await db.scalar(select(func.count()).where(and_(*base, MLAnomaly.is_suppressed.is_(True))))
+        or 0
+    )
 
-    acknowledged = await db.scalar(
-        select(func.count()).where(and_(*base, MLAnomaly.acknowledged_at.isnot(None)))
-    ) or 0
+    acknowledged = (
+        await db.scalar(
+            select(func.count()).where(and_(*base, MLAnomaly.acknowledged_at.isnot(None)))
+        )
+        or 0
+    )
 
     return AnomalySummary(
         total=total,
@@ -184,7 +190,11 @@ async def train_isolation_forest_endpoint(
     return result
 
 
-@router.get("/anomalies/correlated", response_model=CorrelatedGroupList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/anomalies/correlated",
+    response_model=CorrelatedGroupList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def list_correlated_anomaly_groups(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -218,13 +228,15 @@ async def list_correlated_anomaly_groups(
         reverse=True,
     ):
         max_sev = max(members, key=lambda m: severity_order.get(m.severity, 0)).severity
-        items.append(CorrelatedAnomalyGroup(
-            correlation_group_id=gid,
-            dimensions=[m.dimension for m in members],
-            max_severity=max_sev,
-            anomalies=[_anomaly_to_response(m) for m in members],
-            detected_at=max(m.detected_at for m in members),
-        ))
+        items.append(
+            CorrelatedAnomalyGroup(
+                correlation_group_id=gid,
+                dimensions=[m.dimension for m in members],
+                max_severity=max_sev,
+                anomalies=[_anomaly_to_response(m) for m in members],
+                detected_at=max(m.detected_at for m in members),
+            )
+        )
 
     return CorrelatedGroupList(items=items[:limit], total=len(items))
 
@@ -232,7 +244,11 @@ async def list_correlated_anomaly_groups(
 # ── Forecast endpoints ──────────────────────────────────────────────────
 
 
-@router.get("/forecasts/cost", response_model=ForecastResponse | None, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/forecasts/cost",
+    response_model=ForecastResponse | None,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def get_cost_forecast(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -240,7 +256,11 @@ async def get_cost_forecast(
     return await _get_latest_forecast(db, workspace.id, "cost_daily")
 
 
-@router.get("/forecasts/tokens", response_model=ForecastResponse | None, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/forecasts/tokens",
+    response_model=ForecastResponse | None,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def get_token_forecast(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -248,13 +268,18 @@ async def get_token_forecast(
     return await _get_latest_forecast(db, workspace.id, "tokens_daily")
 
 
-@router.post("/forecasts/generate", response_model=dict, dependencies=[Depends(analytics_rate_limit)])
+@router.post(
+    "/forecasts/generate",
+    response_model=dict[str, Any],
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def generate_forecast(
     workspace: WorkspaceDep,
     db: DbDep,
     body: ForecastGenerateRequest,
-) -> dict:
+) -> dict[str, Any]:
     from runledger_api.services.ml.forecast import run_forecast
+
     forecast = await run_forecast(
         db, workspace.id, body.forecast_type, body.horizon_days, body.dimension_key
     )
@@ -264,7 +289,11 @@ async def generate_forecast(
     return {"status": "insufficient_data"}
 
 
-@router.get("/forecasts/{forecast_id}", response_model=ForecastResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/forecasts/{forecast_id}",
+    response_model=ForecastResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def get_forecast(
     forecast_id: uuid.UUID,
     workspace: WorkspaceDep,
@@ -296,6 +325,7 @@ async def top_k_analysis(
     to_dt: str | None = Query(None, alias="to"),
 ) -> TopKResponse:
     from runledger_api.services.ml.topk import compute_top_k
+
     now = datetime.now(UTC)
     start = _parse_dt(from_dt, now - timedelta(days=7))
     end = _parse_dt(to_dt, now)
@@ -316,16 +346,17 @@ async def list_patterns(
         where.append(MLPattern.dimension == dimension)
 
     result = await db.execute(
-        select(MLPattern)
-        .where(and_(*where))
-        .order_by(MLPattern.detected_at.desc())
-        .limit(50)
+        select(MLPattern).where(and_(*where)).order_by(MLPattern.detected_at.desc()).limit(50)
     )
     rows = result.scalars().all()
     return PatternList(items=[_pattern_to_response(p) for p in rows])
 
 
-@router.get("/patterns/{dimension}", response_model=PatternList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/patterns/{dimension}",
+    response_model=PatternList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def patterns_by_dimension(
     dimension: str,
     workspace: WorkspaceDep,
@@ -344,31 +375,42 @@ async def patterns_by_dimension(
 # ── Complexity endpoints ────────────────────────────────────────────────
 
 
-@router.get("/complexity/scores", response_model=ComplexityScoreList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/complexity/scores",
+    response_model=ComplexityScoreList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def complexity_scores(
     workspace: WorkspaceDep,
     db: DbDep,
     hours: int = Query(24, ge=1, le=720),
 ) -> ComplexityScoreList:
     from runledger_api.services.ml.complexity import get_recent_scores
+
     return await get_recent_scores(db, workspace.id, hours)
 
 
-@router.get("/complexity/importances", response_model=FeatureImportanceList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/complexity/importances",
+    response_model=FeatureImportanceList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def feature_importances(
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> FeatureImportanceList:
     from runledger_api.services.ml.complexity import get_feature_importances
+
     return await get_feature_importances(db, workspace.id)
 
 
-@router.post("/complexity/retrain", response_model=dict)
+@router.post("/complexity/retrain", response_model=dict[str, Any])
 async def retrain_complexity(
     workspace: WorkspaceDep,
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     from runledger_api.services.ml.complexity import train_complexity_model
+
     result = await train_complexity_model(db, workspace.id)
     if result:
         await db.commit()
@@ -379,7 +421,11 @@ async def retrain_complexity(
 # ── Cost-per-outcome endpoints ──────────────────────────────────────────
 
 
-@router.get("/cost-per-outcome", response_model=CostOutcomeResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/cost-per-outcome",
+    response_model=CostOutcomeResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def cost_per_outcome(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -387,6 +433,7 @@ async def cost_per_outcome(
     to_dt: str | None = Query(None, alias="to"),
 ) -> CostOutcomeResponse:
     from runledger_api.services.ml.cost_outcome import compute_cost_per_outcome
+
     now = datetime.now(UTC)
     start = _parse_dt(from_dt, now - timedelta(days=30))
     end = _parse_dt(to_dt, now)
@@ -396,22 +443,28 @@ async def cost_per_outcome(
 # ── Adaptive alert endpoints ───────────────────────────────────────────
 
 
-@router.get("/alerts/adaptive-suggestions", response_model=AdaptiveThresholdList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/alerts/adaptive-suggestions",
+    response_model=AdaptiveThresholdList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def adaptive_suggestions(
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> AdaptiveThresholdList:
     from runledger_api.services.ml.adaptive_alerts import suggest_thresholds
+
     return await suggest_thresholds(db, workspace.id)
 
 
-@router.post("/alerts/{rule_id}/enable-adaptive", response_model=dict)
+@router.post("/alerts/{rule_id}/enable-adaptive", response_model=dict[str, Any])
 async def enable_adaptive(
     rule_id: uuid.UUID,
     workspace: WorkspaceDep,
     db: DbDep,
-) -> dict:
+) -> dict[str, Any]:
     from runledger_api.models.alerts import AlertRule
+
     result = await db.execute(
         select(AlertRule).where(AlertRule.id == rule_id, AlertRule.workspace_id == workspace.id)
     )
@@ -432,15 +485,19 @@ async def ml_dashboard(
     db: DbDep,
 ) -> MLDashboard:
     from runledger_api.services.ml.observability import get_dashboard
+
     return await get_dashboard(db, workspace.id)
 
 
-@router.get("/models", response_model=list[ModelHealth], dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/models", response_model=list[ModelHealth], dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_ml_models(
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> list[ModelHealth]:
     from runledger_api.services.ml.observability import get_model_health_list
+
     return await get_model_health_list(db, workspace.id)
 
 
@@ -471,6 +528,7 @@ def _anomaly_to_response(a: MLAnomaly) -> AnomalyResponse:
 
 def _forecast_to_response(f: MLForecast, budget_overlay: Any = None) -> ForecastResponse:
     from runledger_api.schemas.ml import ForecastPoint
+
     return ForecastResponse(
         id=str(f.id),
         workspace_id=str(f.workspace_id),

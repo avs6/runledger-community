@@ -60,12 +60,12 @@ def _already_sent(prefs: EmailPreference | None, local_now: datetime, frequency:
         return False
     local_sent = sent_at.astimezone(local_now.tzinfo)
     if frequency == "daily":
-        return local_sent.date() == local_now.date()
+        return bool(local_sent.date() == local_now.date())
     if frequency == "monthly":
-        return local_sent.year == local_now.year and local_sent.month == local_now.month
+        return bool(local_sent.year == local_now.year and local_sent.month == local_now.month)
     sent_year, sent_week, _ = local_sent.isocalendar()
     now_year, now_week, _ = local_now.isocalendar()
-    return sent_year == now_year and sent_week == now_week
+    return bool(sent_year == now_year and sent_week == now_week)
 
 
 def _should_send_report(prefs: EmailPreference | None, now_utc: datetime) -> bool:

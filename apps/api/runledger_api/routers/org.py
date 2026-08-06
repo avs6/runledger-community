@@ -148,8 +148,7 @@ async def list_platform_orgs(
         tenant_id: count
         for tenant_id, count in (
             await db.execute(
-                select(Workspace.tenant_id, func.count(Workspace.id))
-                .group_by(Workspace.tenant_id)
+                select(Workspace.tenant_id, func.count(Workspace.id)).group_by(Workspace.tenant_id)
             )
         ).all()
     }
@@ -157,8 +156,9 @@ async def list_platform_orgs(
         tenant_id: count
         for tenant_id, count in (
             await db.execute(
-                select(TenantUser.tenant_id, func.count(TenantUser.user_id))
-                .group_by(TenantUser.tenant_id)
+                select(TenantUser.tenant_id, func.count(TenantUser.user_id)).group_by(
+                    TenantUser.tenant_id
+                )
             )
         ).all()
     }
@@ -255,9 +255,7 @@ async def delete_platform_org(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Organization name confirmation mismatch")
 
     candidate_user_ids = list(
-        (
-            await db.execute(select(TenantUser.user_id).where(TenantUser.tenant_id == tenant.id))
-        )
+        (await db.execute(select(TenantUser.user_id).where(TenantUser.tenant_id == tenant.id)))
         .scalars()
         .all()
     )

@@ -26,7 +26,7 @@ def _make_session_factory() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@celery_app.task(name="ml.forecast_retraining", max_retries=1)
+@celery_app.task(name="ml.forecast_retraining", max_retries=1)  # type: ignore[untyped-decorator]
 def ml_forecast_retraining_worker() -> dict[str, int]:
     """Retrain forecasts and detect patterns for all workspaces."""
     return asyncio.run(_run())
@@ -50,12 +50,14 @@ async def _run() -> dict[str, int]:
         async with factory() as db:
             try:
                 from runledger_api.services.ml.forecast import run_forecast
+
                 for ftype in ("cost_daily", "tokens_daily"):
                     forecast = await run_forecast(db, ws_id, ftype, horizon_days=14)
                     if forecast:
                         forecasts_created += 1
 
                 from runledger_api.services.ml.patterns import detect_patterns
+
                 patterns = await detect_patterns(db, ws_id)
                 patterns_detected += len(patterns)
 

@@ -71,15 +71,17 @@ async def suggest_thresholds(
         cv = residual_std / abs(baseline) if abs(baseline) > 1e-10 else 0
         confidence = max(1 - cv, 0.1)
 
-        suggestions.append(AdaptiveThresholdSuggestion(
-            rule_id=str(rule.id),
-            rule_name=rule.name,
-            metric=rule.metric,
-            current_threshold=str(rule.threshold),
-            suggested_upper=round(upper, 4),
-            suggested_lower=round(lower, 4),
-            baseline=round(baseline, 4),
-            confidence=round(confidence, 3),
-        ))
+        suggestions.append(
+            AdaptiveThresholdSuggestion(
+                rule_id=str(rule.id),
+                rule_name=rule.name,
+                metric=rule.metric,
+                current_threshold=str(rule.threshold),
+                suggested_upper=round(upper, 4),
+                suggested_lower=round(lower, 4),
+                baseline=round(baseline, 4),
+                confidence=round(confidence, 3),
+            )
+        )
 
     return AdaptiveThresholdList(items=suggestions)

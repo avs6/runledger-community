@@ -26,7 +26,7 @@ def _make_session_factory() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@celery_app.task(name="ml.complexity_retraining", max_retries=1)
+@celery_app.task(name="ml.complexity_retraining", max_retries=1)  # type: ignore[untyped-decorator]
 def ml_complexity_retraining_worker() -> dict[str, int]:
     """Retrain complexity scorer for all eligible workspaces."""
     return asyncio.run(_run())
@@ -50,6 +50,7 @@ async def _run() -> dict[str, int]:
         async with factory() as db:
             try:
                 from runledger_api.services.ml.complexity import train_complexity_model
+
                 model = await train_complexity_model(db, ws_id)
                 if model:
                     models_trained += 1

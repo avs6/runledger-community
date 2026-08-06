@@ -40,7 +40,9 @@ class KafkaExportConfigCreate(BaseModel):
     sasl_username: str | None = None
     sasl_password: str | None = None
     ssl_ca_cert: str | None = None
-    event_types: list[KafkaEventType] = Field(default_factory=lambda: ["run.completed", "run.failed"])
+    event_types: list[KafkaEventType] = Field(
+        default_factory=lambda: ["run.completed", "run.failed"]  # type: ignore[arg-type]
+    )
 
 
 class KafkaExportConfigUpdate(BaseModel):

@@ -130,7 +130,9 @@ def runledger_recommend_route(
     )
     optimizations: dict[str, Any]
     try:
-        optimizations = _get("/gateway/flywheel/recommendations", {"status": "pending", "limit": 10})
+        optimizations = _get(
+            "/gateway/flywheel/recommendations", {"status": "pending", "limit": 10}
+        )
     except Exception as exc:
         optimizations = {"items": [], "warning": f"Optimization lookup unavailable: {exc}"}
 
@@ -379,7 +381,7 @@ def runledger_filter_mcp_tool(
     model_alias: str | None = None,
 ) -> dict[str, Any]:
     """Check whether an agent may invoke a downstream MCP/tool by workspace policy."""
-    return runledger_policy_check(
+    return runledger_policy_check(  # type: ignore[no-any-return]
         end_user_id=end_user_id,
         feature_tag=feature_tag,
         tool_name=tool_name,
@@ -400,7 +402,7 @@ def list_runs(
     end_user_id: str | None = None,
 ) -> dict[str, Any]:
     """List recent agent runs. Prefer runledger.query_runs for new clients."""
-    return runledger_query_runs(
+    return runledger_query_runs(  # type: ignore[no-any-return]
         limit=limit,
         status=status,
         feature_tag=feature_tag,
@@ -415,7 +417,9 @@ def get_run(run_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_analytics_summary(from_date: str | None = None, to_date: str | None = None) -> dict[str, Any]:
+def get_analytics_summary(
+    from_date: str | None = None, to_date: str | None = None
+) -> dict[str, Any]:
     """Get analytics summary. Prefer runledger.query_costs for new clients."""
     params: dict[str, Any] = {}
     if from_date:
@@ -445,7 +449,7 @@ def list_budgets() -> dict[str, Any]:
 @mcp.tool()
 def check_budget(end_user_id: str | None = None, feature_tag: str | None = None) -> dict[str, Any]:
     """Check workspace budgets. Prefer runledger.budget_check for new clients."""
-    return runledger_budget_check(end_user_id=end_user_id, feature_tag=feature_tag)
+    return runledger_budget_check(end_user_id=end_user_id, feature_tag=feature_tag)  # type: ignore[no-any-return]
 
 
 @mcp.tool()
@@ -580,7 +584,7 @@ def agent_instructions() -> str:
 @mcp.resource("runledger://workspace/stats")
 def workspace_stats() -> str:
     """Backward-compatible workspace KPI snapshot."""
-    return org_summary("current")
+    return org_summary("current")  # type: ignore[no-any-return]
 
 
 # ---------------------------------------------------------------------------

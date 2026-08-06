@@ -38,9 +38,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index(
-        "ix_budget_overrides_budget", "budget_overrides", ["budget_id", "status"]
-    )
+    op.create_index("ix_budget_overrides_budget", "budget_overrides", ["budget_id", "status"])
 
 
 def downgrade() -> None:

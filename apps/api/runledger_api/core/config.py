@@ -29,9 +29,7 @@ class Settings(BaseSettings):
     # Dev defaults cover the Next dev server (3000) and the Docker dashboard (3201) on
     # both localhost and 127.0.0.1 — a browser Origin that isn't listed fails preflight
     # (400) and the dashboard shows "Failed to load …" on client-fetched pages.
-    cors_origins: str = (
-        "http://localhost:3000,http://localhost:3201,http://127.0.0.1:3201"
-    )
+    cors_origins: str = "http://localhost:3000,http://localhost:3201,http://127.0.0.1:3201"
 
     # Provider pricing YAML file.  Mounted into the container by docker-compose.
     # Set PRICING_FILE=/path/to/pricing.yml to override.

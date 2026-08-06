@@ -14,8 +14,14 @@ GuardrailStatus = Literal["active", "disabled", "draft"]
 GuardrailSeverity = Literal["off", "low", "medium", "high", "strict"]
 GuardrailDecision = Literal["allow", "block", "modify"]
 PartnerProvider = Literal[
-    "presidio", "bedrock", "lakera", "openai_moderation",
-    "google_model_armor", "guardrails_ai", "prompt_security", "lasso",
+    "presidio",
+    "bedrock",
+    "lakera",
+    "openai_moderation",
+    "google_model_armor",
+    "guardrails_ai",
+    "prompt_security",
+    "lasso",
 ]
 FallbackAction = Literal["allow", "block"]
 

@@ -25,7 +25,7 @@ Use this as the top-level checklist. Update the status checkbox when a phase is 
 | [x] | Phase 12 - Implementation Order | S | M | Roadmap has been converted into a practical PR sequence with validation checkpoints. |
 | [x] | Phase 13 - Product Differentiators And Advanced Roadmap | L | H | All items shipped: audit export, policy dry run, replay lab, runbooks, chargeback, model scorecards, onboarding wizard, demo mode. |
 | [x] | Phase 14 - Guardrails, Content Safety And Policy Engine | XL | H | Custom guardrails with Python logic, pre-built content filters, partner guardrail integrations, guardrails monitor, and policy dry-run. |
-| [x] | Phase 15 - Traditional AI/ML Intelligence Layer | XL | H | Anomaly detection (Z-score+EWMA), cost/token forecasting (linear+Holt-Winters), top-K analysis, pattern recognition, complexity scoring, cost-per-outcome, adaptive alerts, ML observability. |
+| [x] | Phase 15 - Traditional AI/ML Intelligence Layer | XL | H | Anomaly detection (Z-score, EWMA, STL, Isolation Forest), cost/token forecasting (linear, Holt-Winters, Prophet-style decomposition, ARIMA), top-K analysis, pattern recognition, complexity scoring, cost-per-outcome, adaptive alerts, ML observability. Phase 15.1 complete. |
 | [ ] | Phase 16 - Agentic Operations And Developer Experience | L | H | Agent lifecycle management, workflow runs, agent memory, API playground, vector store management, and tag management. |
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | High-perf Rust gateway, advanced routing (tag-based, A/B test, traffic mirror), fallback chains, pass-through endpoints, multi-region, DB read replicas. |
 | [ ] | Phase 18 - Enterprise Security, Compliance And Key Management | XL | H | JWT/OIDC auth, SCIM provisioning, IP ACLs, key rotation, secret manager integrations, GDPR opt-out, audit log export. |
@@ -74,7 +74,7 @@ Use this to find low-hanging fruit and sequence work.
 | [ ] | Phase 3A - Supporting Infrastructure Backbone | XL | H | Important for production readiness but spans S3, SMTP, OTEL, logs, metrics, secrets, and deployment profiles. |
 | [x] | Phase 13 - Product Differentiators | L | H | All items shipped: audit export, policy dry run, replay lab, runbooks, chargeback, model scorecards, onboarding wizard, demo mode. |
 | [x] | Phase 14 - Guardrails And Content Safety | XL | H | Major competitive gap vs LiteLLM; custom guardrails, content filters, and partner integrations are table stakes. |
-| [x] | Phase 15 - AI/ML Intelligence Layer | XL | H | Shipped: anomaly detection, forecasting, top-K, pattern recognition, complexity scoring, cost-per-outcome, adaptive alerts. Deferred: Isolation Forest, STL, ARIMA, Prophet to Phase 15.1. |
+| [x] | Phase 15 - AI/ML Intelligence Layer | XL | H | Complete including Phase 15.1: anomaly detection (Z-score, EWMA, STL, Isolation Forest, correlated grouping), forecasting (linear, Holt-Winters, Prophet-style decomposition, ARIMA with AIC order selection), top-K, patterns, complexity, cost-per-outcome, adaptive alerts. |
 | [ ] | Phase 16 - Agentic Operations And DX | L | H | Agent lifecycle, workflow runs, memory, and playground close the gap with LiteLLM Agentic features. |
 | [ ] | Phase 17 - Enterprise Gateway And Infrastructure | XL | H | Rust gateway, advanced routing, multi-region, and pass-through endpoints match LiteLLM's core gateway. |
 | [ ] | Phase 18 - Enterprise Security And Compliance | XL | H | JWT auth, SCIM, IP ACLs, key rotation, secret managers close enterprise security gap vs LiteLLM. |
@@ -2457,7 +2457,7 @@ Add traditional machine learning and statistical intelligence to RunLedger, tran
   - per-model cost deviation
   - per-agent runaway loop detection
   - per-provider cost drift
-- [~] Detection methods:
+- [x] Detection methods:
   - [x] Z-score with configurable sigma threshold (default 3.0σ)
   - [x] Exponential Weighted Moving Average (EWMA) for trend-adjusted detection
   - [x] Isolation Forest for multivariate anomalies (scikit-learn, trained weekly via Celery beat, stored in model registry)
@@ -2490,8 +2490,8 @@ Add traditional machine learning and statistical intelligence to RunLedger, tran
   - methods:
     - [x] Linear regression with trend and 95% prediction intervals
     - [x] Holt-Winters exponential smoothing (weekly seasonality)
-    - [ ] Prophet-style decomposition (deferred to Phase 15.1)
-    - [ ] ARIMA for stationary series (deferred to Phase 15.1)
+    - [x] Prophet-style decomposition (STL trend + seasonal extrapolation with residual-derived confidence intervals)
+    - [x] ARIMA with automatic (p,d,q) order selection via AIC grid search
   - 95% confidence intervals
 - [x] Forecast dimensions:
   - total workspace cost

@@ -34,9 +34,18 @@ def upgrade() -> None:
         sa.Column("sample_count", sa.Integer, nullable=False, server_default=sa.text("0")),
         sa.Column("trained_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_ml_models_workspace_type", "ml_models", ["workspace_id", "model_type", "dimension", "is_active"])
+    op.create_index(
+        "ix_ml_models_workspace_type",
+        "ml_models",
+        ["workspace_id", "model_type", "dimension", "is_active"],
+    )
 
     # ML feature store (daily aggregates)
     op.create_table(
@@ -47,10 +56,23 @@ def upgrade() -> None:
         sa.Column("dimension", sa.String(64), nullable=False),
         sa.Column("dimension_key", sa.String(255), nullable=True),
         sa.Column("features", JSONB, nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_ml_features_ws_dim_date", "ml_features_daily", ["workspace_id", "dimension", "feature_date"])
-    op.create_unique_constraint("uq_ml_features_daily", "ml_features_daily", ["workspace_id", "feature_date", "dimension", "dimension_key"])
+    op.create_index(
+        "ix_ml_features_ws_dim_date",
+        "ml_features_daily",
+        ["workspace_id", "dimension", "feature_date"],
+    )
+    op.create_unique_constraint(
+        "uq_ml_features_daily",
+        "ml_features_daily",
+        ["workspace_id", "feature_date", "dimension", "dimension_key"],
+    )
 
     # ML anomalies
     op.create_table(
@@ -60,7 +82,12 @@ def upgrade() -> None:
         sa.Column("anomaly_type", sa.String(32), nullable=False),
         sa.Column("dimension", sa.String(64), nullable=False),
         sa.Column("dimension_key", sa.String(255), nullable=True),
-        sa.Column("detected_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "detected_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
         sa.Column("severity", sa.String(16), nullable=False, server_default=sa.text("'medium'")),
         sa.Column("detection_method", sa.String(32), nullable=False),
         sa.Column("current_value", sa.Numeric(14, 6), nullable=False),
@@ -70,9 +97,18 @@ def upgrade() -> None:
         sa.Column("is_suppressed", sa.Boolean, nullable=False, server_default=sa.text("false")),
         sa.Column("suppressed_reason", sa.String(128), nullable=True),
         sa.Column("acknowledged_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_ml_anomalies_ws_type_date", "ml_anomalies", ["workspace_id", "anomaly_type", "detected_at"])
+    op.create_index(
+        "ix_ml_anomalies_ws_type_date",
+        "ml_anomalies",
+        ["workspace_id", "anomaly_type", "detected_at"],
+    )
 
     # ML forecasts
     op.create_table(
@@ -87,9 +123,16 @@ def upgrade() -> None:
         sa.Column("points", JSONB, nullable=False, server_default=sa.text("'[]'")),
         sa.Column("accuracy_metrics", JSONB, nullable=False, server_default=sa.text("'{}'")),
         sa.Column("model_id", PGUUID(as_uuid=True), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_ml_forecasts_ws_type", "ml_forecasts", ["workspace_id", "forecast_type", "created_at"])
+    op.create_index(
+        "ix_ml_forecasts_ws_type", "ml_forecasts", ["workspace_id", "forecast_type", "created_at"]
+    )
 
     # ML patterns
     op.create_table(
@@ -101,9 +144,16 @@ def upgrade() -> None:
         sa.Column("pattern", sa.String(32), nullable=False),
         sa.Column("confidence", sa.Numeric(4, 3), nullable=False),
         sa.Column("evidence", JSONB, nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("detected_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "detected_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_ml_patterns_ws", "ml_patterns", ["workspace_id", "dimension", "detected_at"])
+    op.create_index(
+        "ix_ml_patterns_ws", "ml_patterns", ["workspace_id", "dimension", "detected_at"]
+    )
 
     # Forecast accuracy tracking
     op.create_table(
@@ -115,9 +165,18 @@ def upgrade() -> None:
         sa.Column("predicted_value", sa.Numeric(14, 6), nullable=False),
         sa.Column("actual_value", sa.Numeric(14, 6), nullable=False),
         sa.Column("absolute_error", sa.Numeric(14, 6), nullable=False),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_forecast_accuracy_ws_date", "forecast_accuracy_tracking", ["workspace_id", "target_date"])
+    op.create_index(
+        "ix_forecast_accuracy_ws_date",
+        "forecast_accuracy_tracking",
+        ["workspace_id", "target_date"],
+    )
 
 
 def downgrade() -> None:

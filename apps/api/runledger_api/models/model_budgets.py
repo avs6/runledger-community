@@ -17,20 +17,14 @@ from runledger_api.core.db import Base
 
 class ModelBudget(Base):
     __tablename__ = "model_budgets"
-    __table_args__ = (
-        sa.Index("ix_model_budgets_key", "api_key_id", "is_active"),
-    )
+    __table_args__ = (sa.Index("ix_model_budgets_key", "api_key_id", "is_active"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    api_key_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False
-    )
+    api_key_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     model_pattern: Mapped[str] = mapped_column(sa.String(255), nullable=False)
-    max_spend_usd: Mapped[Decimal | None] = mapped_column(
-        sa.Numeric(14, 6), nullable=True
-    )
+    max_spend_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 6), nullable=True)
     period_type: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, server_default=sa.text("'monthly'")
     )

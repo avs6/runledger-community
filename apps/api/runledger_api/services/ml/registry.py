@@ -33,7 +33,9 @@ async def save_model(
             MLModel.workspace_id == workspace_id,
             MLModel.model_type == model_type,
             MLModel.dimension == dimension,
-            MLModel.dimension_key == dimension_key if dimension_key else MLModel.dimension_key.is_(None),
+            MLModel.dimension_key == dimension_key
+            if dimension_key
+            else MLModel.dimension_key.is_(None),
             MLModel.is_active.is_(True),
         )
         .values(is_active=False)
@@ -44,7 +46,9 @@ async def save_model(
             MLModel.workspace_id == workspace_id,
             MLModel.model_type == model_type,
             MLModel.dimension == dimension,
-            MLModel.dimension_key == dimension_key if dimension_key else MLModel.dimension_key.is_(None),
+            MLModel.dimension_key == dimension_key
+            if dimension_key
+            else MLModel.dimension_key.is_(None),
         )
     )
 

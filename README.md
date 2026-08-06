@@ -119,7 +119,7 @@ Everything below is **available today** in RunLedger Community. Click through fo
 ### 🧠 ML Intelligence
 - Anomaly detection — Z-score, EWMA, STL seasonal decomposition, Isolation Forest (multivariate)
 - Correlated anomaly grouping — co-occurring anomalies linked by correlation group
-- Cost forecasting — linear regression + Holt-Winters with confidence intervals
+- Cost forecasting — linear regression, Holt-Winters, Prophet-style decomposition, ARIMA with auto order selection
 - Top-K analysis — most expensive models, users, intents with change detection
 - Pattern recognition — steady, growing, declining, spiky, seasonal, one-shot
 - Complexity scoring — gradient boosting on observable features

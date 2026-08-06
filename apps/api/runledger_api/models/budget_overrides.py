@@ -25,32 +25,18 @@ class OverrideStatusEnum(enum.StrEnum):
 
 class BudgetOverride(Base):
     __tablename__ = "budget_overrides"
-    __table_args__ = (
-        sa.Index("ix_budget_overrides_budget", "budget_id", "status"),
-    )
+    __table_args__ = (sa.Index("ix_budget_overrides_budget", "budget_id", "status"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    budget_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), nullable=False
-    )
-    original_limit_usd: Mapped[Decimal] = mapped_column(
-        sa.Numeric(14, 6), nullable=False
-    )
-    override_limit_usd: Mapped[Decimal] = mapped_column(
-        sa.Numeric(14, 6), nullable=False
-    )
-    starts_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=False
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=False
-    )
+    budget_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    original_limit_usd: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
+    override_limit_usd: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
     reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    approved_by: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, server_default=sa.text("'active'")
     )

@@ -36,9 +36,7 @@ class GuardrailRule(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    mode: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'pre_call'")
-    )
+    mode: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pre_call'"))
     rule_type: Mapped[str] = mapped_column(
         sa.Text, nullable=False, server_default=sa.text("'custom'")
     )
@@ -50,9 +48,7 @@ class GuardrailRule(Base):
         sa.Text, nullable=False, server_default=sa.text("'medium'")
     )
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("100"))
-    status: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'active'")
-    )
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
     template_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     skip_system_messages: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
@@ -136,16 +132,12 @@ class GuardrailAlert(Base):
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     metric_value: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
     threshold_value: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
-    guardrail_rule_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
+    guardrail_rule_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     guardrail_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     alert_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )
-    status: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'active'")
-    )
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
     acknowledged_at: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )
@@ -176,9 +168,7 @@ class PartnerGuardrail(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     provider: Mapped[str] = mapped_column(sa.Text, nullable=False)
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    mode: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'pre_call'")
-    )
+    mode: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pre_call'"))
     endpoint_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     credentials: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
@@ -193,14 +183,14 @@ class PartnerGuardrail(Base):
         sa.Text, nullable=False, server_default=sa.text("'allow'")
     )
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("200"))
-    status: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'active'")
-    )
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
     last_health_check: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )
     health_status: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    total_calls: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
+    total_calls: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default=sa.text("0")
+    )
     total_cost_usd: Mapped[float] = mapped_column(
         sa.Float, nullable=False, server_default=sa.text("0")
     )

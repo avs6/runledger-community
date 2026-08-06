@@ -312,13 +312,9 @@ async def check_model_budgets(
         if spend >= limit:
             action = b["action"]
             if action == "block":
-                return BudgetCheckResponse(
-                    allowed=False, action="block", budget_id=b["id"]
-                )
+                return BudgetCheckResponse(allowed=False, action="block", budget_id=b["id"])
             if action in ("downgrade", "fallback"):
-                return BudgetCheckResponse(
-                    allowed=False, action=action, budget_id=b["id"]
-                )
+                return BudgetCheckResponse(allowed=False, action=action, budget_id=b["id"])
 
     return BudgetCheckResponse(allowed=True)
 

@@ -61,12 +61,13 @@ the ML model registry and versioned.
 
 **Goal:** predict future cost and token usage with confidence intervals.
 
-Two forecasting methods are available:
+Four forecasting methods compete — the system runs all applicable methods and
+auto-selects the one with the lowest in-sample MAPE:
 
-- **Linear regression** — simple trend with prediction intervals
-- **Holt-Winters** — exponential smoothing with weekly seasonality
-
-The system auto-selects the method with lower in-sample MAPE.
+- **Linear regression** — simple trend with prediction intervals; always runs
+- **Holt-Winters** — exponential smoothing with additive weekly seasonality; needs 14+ days
+- **Prophet-style decomposition** — STL decomposition (trend + weekly seasonal + residual), then extrapolates trend via linear regression and repeats the seasonal cycle forward; needs 15+ days
+- **ARIMA** — automatic (p,d,q) order selection via AIC grid search over p=0..3, d=0..2, q=0..3; best for stationary or near-stationary series; needs 10+ days
 
 ```bash
 # Generate a 14-day cost forecast
@@ -86,7 +87,9 @@ curl -s "http://localhost:8201/intelligence/forecasts/tokens" \
 ```
 
 Each forecast point includes predicted value, lower bound, and upper bound
-(95% confidence interval). The response also includes accuracy metrics (MAPE, MAE).
+(95% confidence interval). The response also includes accuracy metrics (MAPE, MAE,
+R-squared) and the `method` field showing which method won the competition
+(`linear`, `holt_winters`, `prophet_style`, or `arima`).
 
 ---
 

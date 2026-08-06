@@ -81,7 +81,9 @@ def main() -> None:
     )
     clean = ap.add_mutually_exclusive_group()
     clean.add_argument("--no-clean", action="store_true", help="don't reset first")
-    clean.add_argument("--hard-clean", action="store_true", help="wipe every volume before simulating")
+    clean.add_argument(
+        "--hard-clean", action="store_true", help="wipe every volume before simulating"
+    )
     args = ap.parse_args()
 
     # 1. Reset to a blank slate.
@@ -144,7 +146,20 @@ def main() -> None:
         except Exception:  # noqa: BLE001
             pass
 
-    # 6. Summary.
+    # 6. Phase 15 ML intelligence seeding (generate forecasts for each workspace).
+    say("\n→ seeding Phase 15 ML intelligence (forecasts, top-K, patterns)", "b")
+    for ws in sim.workspaces:
+        if not ws.key:
+            continue
+        try:
+            ws.generate_forecast("cost_daily", horizon_days=14)
+            ws.generate_forecast("tokens_daily", horizon_days=14)
+            ws.get_top_k("model", "cost", k=10)
+            ws.list_patterns()
+        except Exception:  # noqa: BLE001
+            pass
+
+    # 7. Summary.
     say("\n" + "═" * 60, "d")
     say("Simulation complete.", "g")
     total_runs = sum(len(w.runs) for w in sim.workspaces)

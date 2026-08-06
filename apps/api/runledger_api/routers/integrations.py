@@ -8,7 +8,7 @@ Auth:   Bearer API key (get_current_workspace)
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -36,7 +36,7 @@ router = APIRouter(
     prefix="/integrations", tags=["integrations"], dependencies=[Depends(management_rate_limit)]
 )
 log = structlog.get_logger()
-OrgAdminDep = Annotated[tuple, Depends(require_org_admin)]
+OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
 

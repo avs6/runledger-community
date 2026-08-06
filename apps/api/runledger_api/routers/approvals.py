@@ -59,7 +59,9 @@ router = APIRouter(prefix="/approvals", tags=["approvals"])
 log = structlog.get_logger()
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
-WorkspaceAdminDep = Annotated[tuple[Workspace, object, object | None], Depends(require_workspace_admin)]
+WorkspaceAdminDep = Annotated[
+    tuple[Workspace, object, object | None], Depends(require_workspace_admin)
+]
 ApiKeyDep = Annotated[ApiKey, Depends(get_current_api_key)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 

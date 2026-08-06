@@ -197,7 +197,9 @@ async def spend_over_time(
     if granularity == "minute":
         period_col = func.date_trunc("minute", ProviderCall.created_at).label("period")
     elif granularity == "5min":
-        period_col = func.to_timestamp(func.floor(func.extract("epoch", ProviderCall.created_at) / 300) * 300).label("period")
+        period_col = func.to_timestamp(
+            func.floor(func.extract("epoch", ProviderCall.created_at) / 300) * 300
+        ).label("period")
     else:
         trunc_unit = "hour" if granularity == "hourly" else "day"
         period_col = func.date_trunc(trunc_unit, ProviderCall.created_at).label("period")
@@ -1580,8 +1582,7 @@ async def scoped_summary(
         active_users=row.users,
         avg_cost_per_run=row.cost / row.runs if row.runs > 0 else None,
         top_intents=[
-            IntentCount(intent=r.intent, count=r.cnt, cost_usd=r.cost)
-            for r in intent_rows
+            IntentCount(intent=r.intent, count=r.cnt, cost_usd=r.cost) for r in intent_rows
         ],
         top_models=[
             ModelSpend(
@@ -1623,7 +1624,9 @@ async def savings_analytics(
         await db.execute(
             select(
                 func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
-                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label("baseline"),
+                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label(
+                    "baseline"
+                ),
                 func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("actual"),
             ).where(*base)
         )
@@ -1647,7 +1650,9 @@ async def savings_analytics(
             select(
                 func.date_trunc("day", ProviderCall.created_at).label("day"),
                 func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
-                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label("baseline"),
+                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label(
+                    "baseline"
+                ),
                 func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("actual"),
             )
             .where(*base)
@@ -1666,7 +1671,9 @@ async def savings_analytics(
         total_actual_usd=totals.actual,
         savings_rate_pct=savings_rate,
         by_category=[
-            SavingsByCategory(category=r.savings_category, savings_usd=r.savings, call_count=r.calls)
+            SavingsByCategory(
+                category=r.savings_category, savings_usd=r.savings, call_count=r.calls
+            )
             for r in by_cat
         ],
         timeline=[
@@ -1774,7 +1781,7 @@ async def optimization_opportunities(
             )
         )
 
-    total_potential = sum(o.potential_savings_usd for o in opportunities)
+    total_potential = sum((o.potential_savings_usd for o in opportunities), Decimal(0))
     return OptimizationOpportunitiesResponse(
         items=opportunities, total_potential_savings_usd=total_potential
     )
@@ -1869,10 +1876,30 @@ async def trends(
             for r in rows
         ],
         metrics=[
-            TrendMetric(name="cost_usd", current=cur_row.cost, previous=prev_row.cost, change_pct=_pct(cur_row.cost, prev_row.cost)),
-            TrendMetric(name="run_count", current=Decimal(cur_row.runs), previous=Decimal(prev_row.runs), change_pct=_pct(Decimal(cur_row.runs), Decimal(prev_row.runs))),
-            TrendMetric(name="call_count", current=Decimal(cur_row.calls), previous=Decimal(prev_row.calls), change_pct=_pct(Decimal(cur_row.calls), Decimal(prev_row.calls))),
-            TrendMetric(name="savings_usd", current=cur_row.savings, previous=prev_row.savings, change_pct=_pct(cur_row.savings, prev_row.savings)),
+            TrendMetric(
+                name="cost_usd",
+                current=cur_row.cost,
+                previous=prev_row.cost,
+                change_pct=_pct(cur_row.cost, prev_row.cost),
+            ),
+            TrendMetric(
+                name="run_count",
+                current=Decimal(cur_row.runs),
+                previous=Decimal(prev_row.runs),
+                change_pct=_pct(Decimal(cur_row.runs), Decimal(prev_row.runs)),
+            ),
+            TrendMetric(
+                name="call_count",
+                current=Decimal(cur_row.calls),
+                previous=Decimal(prev_row.calls),
+                change_pct=_pct(Decimal(cur_row.calls), Decimal(prev_row.calls)),
+            ),
+            TrendMetric(
+                name="savings_usd",
+                current=cur_row.savings,
+                previous=prev_row.savings,
+                change_pct=_pct(cur_row.savings, prev_row.savings),
+            ),
         ],
         granularity=granularity,
     )
@@ -2013,8 +2040,10 @@ async def engineering_metrics(
     # Retry count: spans with parent_span_id that are LLM type (re-attempts)
     retry_count = (
         await db.execute(
-            select(func.count(Span.id)).where(
-                Span.workspace_id == workspace.id,
+            select(func.count(Span.id))
+            .join(AgentRun, AgentRun.id == Span.run_id)
+            .where(
+                AgentRun.workspace_id == workspace.id,
                 Span.started_at >= t_from,
                 Span.started_at < t_to,
                 Span.span_type == "llm",
@@ -2131,11 +2160,37 @@ async def engineering_metrics(
     # Lifecycle stages
     stages = [
         LifecycleStage(stage="Received", count=total_runs, pct=Decimal(100)),
-        LifecycleStage(stage="Routed", count=routed, pct=Decimal(round(routed / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
-        LifecycleStage(stage="Cached", count=cache_hits, pct=Decimal(round(cache_hits / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
-        LifecycleStage(stage="Completed", count=succeeded_runs, pct=Decimal(round(succeeded_runs / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
-        LifecycleStage(stage="With outcome", count=with_outcome, pct=Decimal(round(with_outcome / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
-        LifecycleStage(stage="Positive", count=positive_outcome, pct=Decimal(round(positive_outcome / total_runs * 100, 1)) if total_runs > 0 else Decimal(0)),
+        LifecycleStage(
+            stage="Routed",
+            count=routed,
+            pct=Decimal(round(routed / total_runs * 100, 1)) if total_runs > 0 else Decimal(0),
+        ),
+        LifecycleStage(
+            stage="Cached",
+            count=cache_hits,
+            pct=Decimal(round(cache_hits / total_runs * 100, 1)) if total_runs > 0 else Decimal(0),
+        ),
+        LifecycleStage(
+            stage="Completed",
+            count=succeeded_runs,
+            pct=Decimal(round(succeeded_runs / total_runs * 100, 1))
+            if total_runs > 0
+            else Decimal(0),
+        ),
+        LifecycleStage(
+            stage="With outcome",
+            count=with_outcome,
+            pct=Decimal(round(with_outcome / total_runs * 100, 1))
+            if total_runs > 0
+            else Decimal(0),
+        ),
+        LifecycleStage(
+            stage="Positive",
+            count=positive_outcome,
+            pct=Decimal(round(positive_outcome / total_runs * 100, 1))
+            if total_runs > 0
+            else Decimal(0),
+        ),
     ]
 
     return EngineeringMetrics(
@@ -2152,8 +2207,7 @@ async def engineering_metrics(
             for r in feature_rows
         ],
         cost_by_model=[
-            CostByDimension(name=r.model, cost_usd=r.cost, call_count=r.calls)
-            for r in model_rows
+            CostByDimension(name=r.model, cost_usd=r.cost, call_count=r.calls) for r in model_rows
         ],
         cost_by_tool=[
             CostByDimension(name=r.tool_name, cost_usd=Decimal(0), call_count=r.calls)
@@ -2294,9 +2348,7 @@ async def simulate_optimization(
         func.avg(ProviderCall.latency_ms).label("avg_lat"),
         func.sum(ProviderCall.input_tokens).label("in_tok"),
         func.sum(ProviderCall.output_tokens).label("out_tok"),
-        func.sum(
-            case((ProviderCall.cached_input_tokens > 0, 1), else_=0)
-        ).label("cached"),
+        func.sum(case((ProviderCall.cached_input_tokens > 0, 1), else_=0)).label("cached"),
     ).where(*filters)
 
     row = (await db.execute(q)).one()
@@ -2340,7 +2392,9 @@ async def simulate_optimization(
 
     compression_pct = Decimal("0.15") if body.enable_compression else Decimal(0)
 
-    projected_cost = current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
+    projected_cost = (
+        current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
+    )
     projected_savings = current_cost - projected_cost
     savings_pct = (projected_savings / current_cost * 100) if current_cost > 0 else Decimal(0)
 
@@ -2351,7 +2405,9 @@ async def simulate_optimization(
         if proposed_lat_est:
             proposed_lat = Decimal(str(round(proposed_lat_est, 1)))
             if current_lat > 0:
-                lat_delta = Decimal(str(round((proposed_lat_est - current_lat) / current_lat * 100, 1)))
+                lat_delta = Decimal(
+                    str(round((proposed_lat_est - current_lat) / current_lat * 100, 1))
+                )
 
     quality_risk = "low"
     if proposed_key:
@@ -2361,26 +2417,36 @@ async def simulate_optimization(
 
     impacts: list[SimulationImpact] = []
     if body.proposed_model and body.current_model:
-        impacts.append(SimulationImpact(
-            label="Model change",
-            current_value=body.current_model,
-            projected_value=body.proposed_model,
-            delta_pct=Decimal(str(round((float(model_cost_ratio) - 1) * 100, 1))),
-        ))
+        impacts.append(
+            SimulationImpact(
+                label="Model change",
+                current_value=body.current_model,
+                projected_value=body.proposed_model,
+                delta_pct=Decimal(str(round((float(model_cost_ratio) - 1) * 100, 1))),
+            )
+        )
     if body.enable_cache:
-        impacts.append(SimulationImpact(
-            label="Cache policy",
-            current_value=f"{round(cached_count / affected * 100)}% hit rate" if affected > 0 else "0%",
-            projected_value=f"~{round(float(cache_savings_pct) * 100 + cached_count / affected * 100)}% hit rate" if affected > 0 else "40%",
-            delta_pct=Decimal(str(round(float(cache_savings_pct) * -100, 1))),
-        ))
+        impacts.append(
+            SimulationImpact(
+                label="Cache policy",
+                current_value=f"{round(cached_count / affected * 100)}% hit rate"
+                if affected > 0
+                else "0%",
+                projected_value=f"~{round(float(cache_savings_pct) * 100 + cached_count / affected * 100)}% hit rate"
+                if affected > 0
+                else "40%",
+                delta_pct=Decimal(str(round(float(cache_savings_pct) * -100, 1))),
+            )
+        )
     if body.enable_compression:
-        impacts.append(SimulationImpact(
-            label="Prompt compression",
-            current_value="Disabled",
-            projected_value="Enabled (~15% token reduction)",
-            delta_pct=Decimal("-15"),
-        ))
+        impacts.append(
+            SimulationImpact(
+                label="Prompt compression",
+                current_value="Disabled",
+                projected_value="Enabled (~15% token reduction)",
+                delta_pct=Decimal("-15"),
+            )
+        )
 
     parts: list[str] = []
     if body.proposed_model:
@@ -2493,19 +2559,27 @@ async def model_scorecards(
 
         avg_score = score_map.get(r.model)
 
-        items.append(ModelScorecard(
-            model=r.model,
-            provider=r.provider,
-            total_cost_usd=Decimal(str(r.total_cost or 0)),
-            call_count=r.call_count,
-            avg_cost_per_call=Decimal(str(round(float(r.avg_cost or 0), 6))),
-            avg_latency_ms=Decimal(str(round(float(r.avg_latency or 0), 1))) if r.avg_latency else None,
-            p95_latency_ms=Decimal(str(round(float(r.p95_latency or 0), 1))) if r.p95_latency else None,
-            error_rate=Decimal(str(round(r.error_count / r.call_count * 100, 2))) if r.call_count > 0 else Decimal("0"),
-            cache_hit_rate=cache_hit_rate,
-            avg_quality_score=Decimal(str(round(float(avg_score), 2))) if avg_score else None,
-            input_tokens=r.input_tokens or 0,
-            output_tokens=r.output_tokens or 0,
-        ))
+        items.append(
+            ModelScorecard(
+                model=r.model,
+                provider=r.provider,
+                total_cost_usd=Decimal(str(r.total_cost or 0)),
+                call_count=r.call_count,
+                avg_cost_per_call=Decimal(str(round(float(r.avg_cost or 0), 6))),
+                avg_latency_ms=Decimal(str(round(float(r.avg_latency or 0), 1)))
+                if r.avg_latency
+                else None,
+                p95_latency_ms=Decimal(str(round(float(r.p95_latency or 0), 1)))
+                if r.p95_latency
+                else None,
+                error_rate=Decimal(str(round(r.error_count / r.call_count * 100, 2)))
+                if r.call_count > 0
+                else Decimal("0"),
+                cache_hit_rate=cache_hit_rate,
+                avg_quality_score=Decimal(str(round(float(avg_score), 2))) if avg_score else None,
+                input_tokens=r.input_tokens or 0,
+                output_tokens=r.output_tokens or 0,
+            )
+        )
 
     return ModelScorecardList(items=items, from_dt=start, to_dt=end)

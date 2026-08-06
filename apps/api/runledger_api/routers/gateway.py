@@ -291,9 +291,11 @@ async def gateway_chat_completions(
                 if body.guardrails
                 else ([uuid.UUID(g) for g in _key_gr_ids] if _key_gr_ids else None)
             )
-            pre_texts = [m.get("content", "") for m in messages if m.get("content")]
+            pre_texts: list[str] = [str(m.get("content", "")) for m in messages if m.get("content")]
             gr_decision, gr_results, gr_latency = await evaluate_guardrails(
-                db, workspace.id, "pre_call",
+                db,
+                workspace.id,
+                "pre_call",
                 texts=pre_texts,
                 structured_messages=messages,
                 model=body.model,
@@ -302,9 +304,12 @@ async def gateway_chat_completions(
             )
             if gr_decision == "block":
                 blocked_reason = next(
-                    (r["reason"] for r in gr_results if r["decision"] == "block"), "Blocked by guardrail"
+                    (r["reason"] for r in gr_results if r["decision"] == "block"),
+                    "Blocked by guardrail",
                 )
-                raise HTTPException(status_code=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, detail=blocked_reason)
+                raise HTTPException(
+                    status_code=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, detail=blocked_reason
+                )
             if gr_decision == "modify":
                 for r in gr_results:
                     if r.get("modified_texts") and r["decision"] == "modify":
@@ -423,23 +428,30 @@ async def gateway_chat_completions(
             import asyncio  # noqa: PLC0415
 
             post_coro = evaluate_guardrails(
-                db, workspace.id, "post_call",
+                db,
+                workspace.id,
+                "post_call",
                 texts=[response_content],
                 structured_messages=messages,
                 model=body.model,
                 end_user_id=x_runledger_end_user_id,
             )
-            input_texts = [m.get("content", "") for m in messages if m.get("content")]
+            input_texts: list[str] = [
+                str(m.get("content", "")) for m in messages if m.get("content")
+            ]
             during_coro = evaluate_guardrails(
-                db, workspace.id, "during_call",
+                db,
+                workspace.id,
+                "during_call",
                 texts=input_texts + [response_content],
                 structured_messages=messages,
                 model=body.model,
                 end_user_id=x_runledger_end_user_id,
             )
-            (post_decision, post_results, _), (during_decision, during_results, _) = await asyncio.gather(
-                post_coro, during_coro
-            )
+            (
+                (post_decision, post_results, _),
+                (during_decision, during_results, _),
+            ) = await asyncio.gather(post_coro, during_coro)
 
             for phase_decision, phase_results in [
                 (post_decision, post_results),

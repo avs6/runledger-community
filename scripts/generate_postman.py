@@ -52,6 +52,7 @@ TAG_ORDER = [
     ("OTLP", "Control Plane - OTLP"),
     ("Kafka Export", "Kafka Export"),
     ("admin", "Bootstrap / Admin"),
+    ("intelligence", "ML Intelligence"),
     ("integrations", "Control Plane - MCP & Integrations"),
     ("Operations", "Operations"),
 ]
@@ -202,7 +203,10 @@ for tag, display_name in TAG_ORDER:
                     "workspace admins can manage keys only for their active workspace. Use a dashboard "
                     "session key from POST /auth/login."
                 )
-            elif path.startswith("/gateway/routes") or path in {"/gateway/requests", "/gateway/stats"}:
+            elif path.startswith("/gateway/routes") or path in {
+                "/gateway/requests",
+                "/gateway/stats",
+            }:
                 req["description"] = (
                     (req.get("description") or "Gateway management")
                     + "\n\nRBAC: requires an org-admin or platform-admin dashboard session key. "
@@ -210,19 +214,16 @@ for tag, display_name in TAG_ORDER:
                 )
             elif path.startswith("/org/tenants"):
                 req["description"] = (
-                    (req.get("description") or "Organization lifecycle")
-                    + "\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub."
-                )
+                    req.get("description") or "Organization lifecycle"
+                ) + "\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub."
             elif path.startswith("/retention") or path.startswith("/settings/email"):
                 req["description"] = (
-                    (req.get("description") or "Platform setting")
-                    + "\n\nRBAC: platform-admin only."
-                )
+                    req.get("description") or "Platform setting"
+                ) + "\n\nRBAC: platform-admin only."
             elif path.startswith("/alerts"):
                 req["description"] = (
-                    (req.get("description") or "Alert rules")
-                    + "\n\nRBAC: org-admin or platform-admin dashboard session key."
-                )
+                    req.get("description") or "Alert rules"
+                ) + "\n\nRBAC: org-admin or platform-admin dashboard session key."
             elif path == "/runs/flow":
                 req["description"] = (
                     (req.get("description") or "Request-flow records")
@@ -239,14 +240,12 @@ for tag, display_name in TAG_ORDER:
                 )
             elif path.startswith("/integrations/slack"):
                 req["description"] = (
-                    (req.get("description") or "Slack integration")
-                    + "\n\nRBAC: org-admin or platform-admin dashboard session key."
-                )
+                    req.get("description") or "Slack integration"
+                ) + "\n\nRBAC: org-admin or platform-admin dashboard session key."
             elif path == "/org/dashboard":
                 req["description"] = (
-                    (req.get("description") or "Org dashboard")
-                    + "\n\nDashboard use: org-level AI Ops and workspace rollup cards."
-                )
+                    req.get("description") or "Org dashboard"
+                ) + "\n\nDashboard use: org-level AI Ops and workspace rollup cards."
             elif path.startswith("/v1/traces/"):
                 desc = (req.get("description") or "OTLP ingest management").replace(
                     "Settings → OTLP tab",
@@ -257,8 +256,7 @@ for tag, display_name in TAG_ORDER:
                     "Control Plane -> OTLP page",
                 )
                 req["description"] = (
-                    desc
-                    + "\n\nRBAC: org-admin or platform-admin dashboard session key."
+                    desc + "\n\nRBAC: org-admin or platform-admin dashboard session key."
                 )
             body = make_body(op)
             if body:
@@ -293,7 +291,11 @@ def _req(name, method, raw_url, desc, body=None, auth=True):
         "description": desc,
     }
     if body is not None:
-        r["body"] = {"mode": "raw", "raw": json.dumps(body, indent=2), "options": {"raw": {"language": "json"}}}
+        r["body"] = {
+            "mode": "raw",
+            "raw": json.dumps(body, indent=2),
+            "options": {"raw": {"language": "json"}},
+        }
     return {"name": name, "request": r, "response": []}
 
 
@@ -302,120 +304,433 @@ def _add_optimization_extras(items: list[dict]) -> None:
     if gw is not None:
         sys_hr = {"role": "system", "content": "You are a concise HR assistant."}
         gw["item"] += [
-            _req("Gateway Chat Completions (Semantic Cache)", "POST",
-                 "{{base_url}}/gateway/chat/completions",
-                 "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).",
-                 {"model": "llama3.2", "messages": [sys_hr, {"role": "user", "content": "how much parental leave do employees get"}], "semantic_cache": True}),
-            _req("Gateway Chat Completions (Context Compiler)", "POST",
-                 "{{base_url}}/gateway/chat/completions",
-                 "Request shrunk (dedup/tool-output/rerank/compaction) before routing.",
-                 {"model": "llama3.2", "messages": [sys_hr, {"role": "user", "content": "How much parental leave do employees get?"}], "context_compiler": True}),
-            _req("Gateway Chat Completions (Intelligent Routing)", "POST",
-                 "{{base_url}}/gateway/chat/completions",
-                 "Classify complexity × risk and route to a model tier (decision_reason shows the tier).",
-                 {"model": "auto", "messages": [sys_hr, {"role": "user", "content": "Does this contract create regulatory exposure?"}], "intelligent_routing": True}),
-            _req("Create Gateway Route (Semantic Cache + Compiler on)", "POST",
-                 "{{base_url}}/gateway/routes",
-                 "Create a route with the semantic cache and context compiler enabled, incl. compiler config.",
-                 {"alias": "llama3.2", "provider": "ollama", "target_model": "llama3.2",
-                  "base_url": "http://host.docker.internal:11434/v1", "priority": 10, "semantic_cache_enabled": True,
-                  "context_compiler_enabled": True,
-                  "context_compiler_config": {"model": "llama3.1:8b", "reranker_model": "flashrank", "token_threshold": 2000, "token_budget": 32000}}),
+            _req(
+                "Gateway Chat Completions (Semantic Cache)",
+                "POST",
+                "{{base_url}}/gateway/chat/completions",
+                "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).",
+                {
+                    "model": "llama3.2",
+                    "messages": [
+                        sys_hr,
+                        {"role": "user", "content": "how much parental leave do employees get"},
+                    ],
+                    "semantic_cache": True,
+                },
+            ),
+            _req(
+                "Gateway Chat Completions (Context Compiler)",
+                "POST",
+                "{{base_url}}/gateway/chat/completions",
+                "Request shrunk (dedup/tool-output/rerank/compaction) before routing.",
+                {
+                    "model": "llama3.2",
+                    "messages": [
+                        sys_hr,
+                        {"role": "user", "content": "How much parental leave do employees get?"},
+                    ],
+                    "context_compiler": True,
+                },
+            ),
+            _req(
+                "Gateway Chat Completions (Intelligent Routing)",
+                "POST",
+                "{{base_url}}/gateway/chat/completions",
+                "Classify complexity × risk and route to a model tier (decision_reason shows the tier).",
+                {
+                    "model": "auto",
+                    "messages": [
+                        sys_hr,
+                        {
+                            "role": "user",
+                            "content": "Does this contract create regulatory exposure?",
+                        },
+                    ],
+                    "intelligent_routing": True,
+                },
+            ),
+            _req(
+                "Create Gateway Route (Semantic Cache + Compiler on)",
+                "POST",
+                "{{base_url}}/gateway/routes",
+                "Create a route with the semantic cache and context compiler enabled, incl. compiler config.",
+                {
+                    "alias": "llama3.2",
+                    "provider": "ollama",
+                    "target_model": "llama3.2",
+                    "base_url": "http://host.docker.internal:11434/v1",
+                    "priority": 10,
+                    "semantic_cache_enabled": True,
+                    "context_compiler_enabled": True,
+                    "context_compiler_config": {
+                        "model": "llama3.1:8b",
+                        "reranker_model": "flashrank",
+                        "token_threshold": 2000,
+                        "token_budget": 32000,
+                    },
+                },
+            ),
         ]
-    scope = {"tenant": "{{workspace_id}}", "model": "llama3.2", "system_prompt_hash": "", "knowledge_version": "", "security_scope": ""}
-    items.append({"name": "Semantic Cache Service",
-        "description": "Direct calls to the semantic-cache microservice ({{semantic_cache_url}}, default :8205). No auth.",
-        "item": [
-            _req("Health", "GET", "{{semantic_cache_url}}/health", "Liveness + Qdrant collection status.", None, auth=False),
-            _req("Lookup", "POST", "{{semantic_cache_url}}/lookup", "Semantic hit within scope (score >= threshold).",
-                 {"text": "how much parental leave do employees get", "scope": scope, "threshold": 0.95}, auth=False),
-            _req("Store", "POST", "{{semantic_cache_url}}/store", "Store a response for future semantic hits.",
-                 {"text": "How much parental leave do employees get?", "scope": scope,
-                  "response": {"choices": [{"message": {"role": "assistant", "content": "16 weeks paid."}}], "usage": {"prompt_tokens": 20, "completion_tokens": 12}},
-                  "prompt_tokens": 20, "completion_tokens": 12}, auth=False),
-        ]})
-    items.append({"name": "Context Compiler Service",
-        "description": "Direct calls to the context-compiler microservice ({{context_compiler_url}}, default :8207). No auth.",
-        "item": [
-            _req("Health", "GET", "{{context_compiler_url}}/health", "Liveness + downstream URLs.", None, auth=False),
-            _req("Select tools", "POST", "{{context_compiler_url}}/select-tools",
-                 "Return the subset of tool definitions relevant to a query (dynamic tool filtering).",
-                 {"query": "Check my Salesforce opportunity",
-                  "tools": [{"type": "function", "function": {"name": "salesforce_search", "description": "Search Salesforce"}},
-                            {"type": "function", "function": {"name": "k8s_scale", "description": "Scale a Kubernetes deployment"}}]}, auth=False),
-            _req("Compile", "POST", "{{context_compiler_url}}/compile",
-                 "Shrink a messages array; returns { messages, token_report, dropped }.",
-                 {"messages": [{"role": "system", "content": "You are a concise HR assistant. Parental leave is 16 weeks paid."},
-                               {"role": "system", "content": "You are a concise HR assistant. Parental leave is 16 weeks paid."},
-                               {"role": "user", "content": "How much parental leave do employees get?"}],
-                  "config": {"reranker_model": "flashrank", "token_threshold": 0, "token_budget": 400,
-                             "stages": {"dedup": True, "tool_output": True, "rerank": True, "compaction": True, "compress": False}}}, auth=False),
-        ]})
-    items.append({"name": "Router Service",
-        "description": "Direct calls to the intelligent-router microservice ({{router_url}}, default :8210). No auth.",
-        "item": [
-            _req("Health", "GET", "{{router_url}}/health", "Liveness + classifier modes.", None, auth=False),
-            _req("Classify", "POST", "{{router_url}}/classify",
-                 "Classify complexity × risk → tier; returns { complexity, risk, reasoning_effort, tier, alias }.",
-                 {"messages": [{"role": "user", "content": "Does this contract create regulatory exposure?"}],
-                  "config": {"classifier_mode": "hybrid",
-                             "tiers": {"cheap": "llama3.2", "mid": "qwen2.5-coder:14b", "frontier": "deepseek-r1:14b"},
-                             "matrix": {"simple": {"low": "cheap", "high": "mid"},
-                                        "medium": {"low": "mid", "high": "frontier"},
-                                        "complex": {"low": "frontier", "high": "frontier"}},
-                             "reasoning_effort": True, "on_failure": "passthrough"}}, auth=False),
-        ]})
-    items.append({"name": "Memory Service",
-        "description": "Cognitive layer — Letta-backed memory ({{memory_url}}, default :8211). No auth.",
-        "item": [
-            _req("Health", "GET", "{{memory_url}}/health", "Liveness + Letta reachability.", None, auth=False),
-            _req("Store", "POST", "{{memory_url}}/memory",
-                 "Store a memory (kind: fact|preference|decision|episode).",
-                 {"workspace": "{{workspace_id}}", "kind": "decision", "text": "We standardized on Qdrant."}, auth=False),
-            _req("Recall", "POST", "{{memory_url}}/recall", "Recall top-k memories for a query.",
-                 {"workspace": "{{workspace_id}}", "query": "what vector database do we use?", "k": 3}, auth=False),
-        ]})
-    items.append({"name": "Knowledge Graph",
-        "description": "Cognitive layer — Kùzu graph ({{kg_url}}, default :8212). No auth.",
-        "item": [
-            _req("Health", "GET", "{{kg_url}}/health", "Liveness.", None, auth=False),
-            _req("Add entity", "POST", "{{kg_url}}/entities", "Upsert an entity.",
-                 {"workspace": "{{workspace_id}}", "id": "svc-api", "type": "service", "name": "API"}, auth=False),
-            _req("Add relation", "POST", "{{kg_url}}/relations", "Add a relationship.",
-                 {"workspace": "{{workspace_id}}", "from_id": "svc-api", "to_id": "db-pg", "type": "depends_on"}, auth=False),
-            _req("Neighbors", "GET", "{{kg_url}}/neighbors?workspace={{workspace_id}}&entity=svc-api",
-                 "Connected entities.", None, auth=False),
-        ]})
-    items.append({"name": "Skill Registry",
-        "description": "Cognitive layer — skills ({{skill_url}}, default :8213). No auth.",
-        "item": [
-            _req("Health", "GET", "{{skill_url}}/health", "Liveness.", None, auth=False),
-            _req("Upsert skill", "POST", "{{skill_url}}/skills", "Store a skill.",
-                 {"workspace": "{{workspace_id}}", "name": "deploy", "description": "How to deploy", "content": "1. build 2. push", "version": 1}, auth=False),
-            _req("List skills", "GET", "{{skill_url}}/skills?workspace={{workspace_id}}", "List skills.", None, auth=False),
-        ]})
-    items.append({"name": "Compression Service",
-        "description": "Direct calls to the LLMLingua-2 compression microservice ({{compression_url}}, default :8209). No auth.",
-        "item": [
-            _req("Health", "GET", "{{compression_url}}/health", "Liveness + available models.", None, auth=False),
-            _req("Compress", "POST", "{{compression_url}}/compress",
-                 "Compress text to a target keep-rate; returns { compressed_text, original_tokens, compressed_tokens, ratio }.",
-                 {"text": "The parental leave policy grants sixteen weeks of fully paid leave to all "
-                          "full-time employees and benefits continue throughout the leave period.",
-                  "rate": 0.5, "model": "bert-base-multilingual"}, auth=False),
-        ]})
-    items.append({"name": "Flywheel Service",
-        "description": "Direct calls to the stateless flywheel analyzer ({{flywheel_url}}, default :8215). No auth.",
-        "item": [
-            _req("Health", "GET", "{{flywheel_url}}/health", "Liveness.", None, auth=False),
-            _req("Analyze", "POST", "{{flywheel_url}}/analyze",
-                 "Given per-segment observations, return the cheapest config per segment that holds the SLA.",
-                 {"segment_by": "outcome_type", "min_quality": 0.85, "min_sample_size": 20,
-                  "segments": [{"segment_key": "refund_resolved", "observations": [
-                      {"config": {"model": "deepseek-r1:14b"}, "n": 140, "avg_cost_per_req": 0.0028, "quality": 0.94},
-                      {"config": {"model": "llama3.2"}, "n": 90, "avg_cost_per_req": 0.0006, "quality": 0.90}]}]},
-                 auth=False),
-        ]})
+    scope = {
+        "tenant": "{{workspace_id}}",
+        "model": "llama3.2",
+        "system_prompt_hash": "",
+        "knowledge_version": "",
+        "security_scope": "",
+    }
+    items.append(
+        {
+            "name": "Semantic Cache Service",
+            "description": "Direct calls to the semantic-cache microservice ({{semantic_cache_url}}, default :8205). No auth.",
+            "item": [
+                _req(
+                    "Health",
+                    "GET",
+                    "{{semantic_cache_url}}/health",
+                    "Liveness + Qdrant collection status.",
+                    None,
+                    auth=False,
+                ),
+                _req(
+                    "Lookup",
+                    "POST",
+                    "{{semantic_cache_url}}/lookup",
+                    "Semantic hit within scope (score >= threshold).",
+                    {
+                        "text": "how much parental leave do employees get",
+                        "scope": scope,
+                        "threshold": 0.95,
+                    },
+                    auth=False,
+                ),
+                _req(
+                    "Store",
+                    "POST",
+                    "{{semantic_cache_url}}/store",
+                    "Store a response for future semantic hits.",
+                    {
+                        "text": "How much parental leave do employees get?",
+                        "scope": scope,
+                        "response": {
+                            "choices": [
+                                {"message": {"role": "assistant", "content": "16 weeks paid."}}
+                            ],
+                            "usage": {"prompt_tokens": 20, "completion_tokens": 12},
+                        },
+                        "prompt_tokens": 20,
+                        "completion_tokens": 12,
+                    },
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Context Compiler Service",
+            "description": "Direct calls to the context-compiler microservice ({{context_compiler_url}}, default :8207). No auth.",
+            "item": [
+                _req(
+                    "Health",
+                    "GET",
+                    "{{context_compiler_url}}/health",
+                    "Liveness + downstream URLs.",
+                    None,
+                    auth=False,
+                ),
+                _req(
+                    "Select tools",
+                    "POST",
+                    "{{context_compiler_url}}/select-tools",
+                    "Return the subset of tool definitions relevant to a query (dynamic tool filtering).",
+                    {
+                        "query": "Check my Salesforce opportunity",
+                        "tools": [
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "salesforce_search",
+                                    "description": "Search Salesforce",
+                                },
+                            },
+                            {
+                                "type": "function",
+                                "function": {
+                                    "name": "k8s_scale",
+                                    "description": "Scale a Kubernetes deployment",
+                                },
+                            },
+                        ],
+                    },
+                    auth=False,
+                ),
+                _req(
+                    "Compile",
+                    "POST",
+                    "{{context_compiler_url}}/compile",
+                    "Shrink a messages array; returns { messages, token_report, dropped }.",
+                    {
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a concise HR assistant. Parental leave is 16 weeks paid.",
+                            },
+                            {
+                                "role": "system",
+                                "content": "You are a concise HR assistant. Parental leave is 16 weeks paid.",
+                            },
+                            {
+                                "role": "user",
+                                "content": "How much parental leave do employees get?",
+                            },
+                        ],
+                        "config": {
+                            "reranker_model": "flashrank",
+                            "token_threshold": 0,
+                            "token_budget": 400,
+                            "stages": {
+                                "dedup": True,
+                                "tool_output": True,
+                                "rerank": True,
+                                "compaction": True,
+                                "compress": False,
+                            },
+                        },
+                    },
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Router Service",
+            "description": "Direct calls to the intelligent-router microservice ({{router_url}}, default :8210). No auth.",
+            "item": [
+                _req(
+                    "Health",
+                    "GET",
+                    "{{router_url}}/health",
+                    "Liveness + classifier modes.",
+                    None,
+                    auth=False,
+                ),
+                _req(
+                    "Classify",
+                    "POST",
+                    "{{router_url}}/classify",
+                    "Classify complexity × risk → tier; returns { complexity, risk, reasoning_effort, tier, alias }.",
+                    {
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": "Does this contract create regulatory exposure?",
+                            }
+                        ],
+                        "config": {
+                            "classifier_mode": "hybrid",
+                            "tiers": {
+                                "cheap": "llama3.2",
+                                "mid": "qwen2.5-coder:14b",
+                                "frontier": "deepseek-r1:14b",
+                            },
+                            "matrix": {
+                                "simple": {"low": "cheap", "high": "mid"},
+                                "medium": {"low": "mid", "high": "frontier"},
+                                "complex": {"low": "frontier", "high": "frontier"},
+                            },
+                            "reasoning_effort": True,
+                            "on_failure": "passthrough",
+                        },
+                    },
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Memory Service",
+            "description": "Cognitive layer — Letta-backed memory ({{memory_url}}, default :8211). No auth.",
+            "item": [
+                _req(
+                    "Health",
+                    "GET",
+                    "{{memory_url}}/health",
+                    "Liveness + Letta reachability.",
+                    None,
+                    auth=False,
+                ),
+                _req(
+                    "Store",
+                    "POST",
+                    "{{memory_url}}/memory",
+                    "Store a memory (kind: fact|preference|decision|episode).",
+                    {
+                        "workspace": "{{workspace_id}}",
+                        "kind": "decision",
+                        "text": "We standardized on Qdrant.",
+                    },
+                    auth=False,
+                ),
+                _req(
+                    "Recall",
+                    "POST",
+                    "{{memory_url}}/recall",
+                    "Recall top-k memories for a query.",
+                    {
+                        "workspace": "{{workspace_id}}",
+                        "query": "what vector database do we use?",
+                        "k": 3,
+                    },
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Knowledge Graph",
+            "description": "Cognitive layer — Kùzu graph ({{kg_url}}, default :8212). No auth.",
+            "item": [
+                _req("Health", "GET", "{{kg_url}}/health", "Liveness.", None, auth=False),
+                _req(
+                    "Add entity",
+                    "POST",
+                    "{{kg_url}}/entities",
+                    "Upsert an entity.",
+                    {
+                        "workspace": "{{workspace_id}}",
+                        "id": "svc-api",
+                        "type": "service",
+                        "name": "API",
+                    },
+                    auth=False,
+                ),
+                _req(
+                    "Add relation",
+                    "POST",
+                    "{{kg_url}}/relations",
+                    "Add a relationship.",
+                    {
+                        "workspace": "{{workspace_id}}",
+                        "from_id": "svc-api",
+                        "to_id": "db-pg",
+                        "type": "depends_on",
+                    },
+                    auth=False,
+                ),
+                _req(
+                    "Neighbors",
+                    "GET",
+                    "{{kg_url}}/neighbors?workspace={{workspace_id}}&entity=svc-api",
+                    "Connected entities.",
+                    None,
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Skill Registry",
+            "description": "Cognitive layer — skills ({{skill_url}}, default :8213). No auth.",
+            "item": [
+                _req("Health", "GET", "{{skill_url}}/health", "Liveness.", None, auth=False),
+                _req(
+                    "Upsert skill",
+                    "POST",
+                    "{{skill_url}}/skills",
+                    "Store a skill.",
+                    {
+                        "workspace": "{{workspace_id}}",
+                        "name": "deploy",
+                        "description": "How to deploy",
+                        "content": "1. build 2. push",
+                        "version": 1,
+                    },
+                    auth=False,
+                ),
+                _req(
+                    "List skills",
+                    "GET",
+                    "{{skill_url}}/skills?workspace={{workspace_id}}",
+                    "List skills.",
+                    None,
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Compression Service",
+            "description": "Direct calls to the LLMLingua-2 compression microservice ({{compression_url}}, default :8209). No auth.",
+            "item": [
+                _req(
+                    "Health",
+                    "GET",
+                    "{{compression_url}}/health",
+                    "Liveness + available models.",
+                    None,
+                    auth=False,
+                ),
+                _req(
+                    "Compress",
+                    "POST",
+                    "{{compression_url}}/compress",
+                    "Compress text to a target keep-rate; returns { compressed_text, original_tokens, compressed_tokens, ratio }.",
+                    {
+                        "text": "The parental leave policy grants sixteen weeks of fully paid leave to all "
+                        "full-time employees and benefits continue throughout the leave period.",
+                        "rate": 0.5,
+                        "model": "bert-base-multilingual",
+                    },
+                    auth=False,
+                ),
+            ],
+        }
+    )
+    items.append(
+        {
+            "name": "Flywheel Service",
+            "description": "Direct calls to the stateless flywheel analyzer ({{flywheel_url}}, default :8215). No auth.",
+            "item": [
+                _req("Health", "GET", "{{flywheel_url}}/health", "Liveness.", None, auth=False),
+                _req(
+                    "Analyze",
+                    "POST",
+                    "{{flywheel_url}}/analyze",
+                    "Given per-segment observations, return the cheapest config per segment that holds the SLA.",
+                    {
+                        "segment_by": "outcome_type",
+                        "min_quality": 0.85,
+                        "min_sample_size": 20,
+                        "segments": [
+                            {
+                                "segment_key": "refund_resolved",
+                                "observations": [
+                                    {
+                                        "config": {"model": "deepseek-r1:14b"},
+                                        "n": 140,
+                                        "avg_cost_per_req": 0.0028,
+                                        "quality": 0.94,
+                                    },
+                                    {
+                                        "config": {"model": "llama3.2"},
+                                        "n": 90,
+                                        "avg_cost_per_req": 0.0006,
+                                        "quality": 0.90,
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                    auth=False,
+                ),
+            ],
+        }
+    )
 
 
 _add_optimization_extras(items_list)
@@ -560,12 +875,27 @@ environment = {
             "enabled": True,
             "description": "Intelligent-router microservice base URL (optimization layer).",
         },
-        {"key": "memory_url", "value": "http://localhost:8211", "type": "default", "enabled": True,
-         "description": "Memory microservice base URL (cognitive layer)."},
-        {"key": "kg_url", "value": "http://localhost:8212", "type": "default", "enabled": True,
-         "description": "Knowledge-graph microservice base URL (cognitive layer)."},
-        {"key": "skill_url", "value": "http://localhost:8213", "type": "default", "enabled": True,
-         "description": "Skill-registry microservice base URL (cognitive layer)."},
+        {
+            "key": "memory_url",
+            "value": "http://localhost:8211",
+            "type": "default",
+            "enabled": True,
+            "description": "Memory microservice base URL (cognitive layer).",
+        },
+        {
+            "key": "kg_url",
+            "value": "http://localhost:8212",
+            "type": "default",
+            "enabled": True,
+            "description": "Knowledge-graph microservice base URL (cognitive layer).",
+        },
+        {
+            "key": "skill_url",
+            "value": "http://localhost:8213",
+            "type": "default",
+            "enabled": True,
+            "description": "Skill-registry microservice base URL (cognitive layer).",
+        },
         {
             "key": "api_key",
             "value": "",

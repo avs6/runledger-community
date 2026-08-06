@@ -20,10 +20,12 @@ async def get_model_health_list(
     workspace_id: uuid.UUID,
 ) -> list[ModelHealth]:
     result = await db.execute(
-        select(MLModel).where(
+        select(MLModel)
+        .where(
             MLModel.workspace_id == workspace_id,
             MLModel.is_active.is_(True),
-        ).order_by(MLModel.model_type, MLModel.dimension)
+        )
+        .order_by(MLModel.model_type, MLModel.dimension)
     )
     models = result.scalars().all()
     now = datetime.now(UTC)
@@ -41,18 +43,20 @@ async def get_model_health_list(
         else:
             status = "healthy"
 
-        items.append(ModelHealth(
-            id=str(m.id),
-            model_type=m.model_type,
-            dimension=m.dimension,
-            dimension_key=m.dimension_key,
-            version=m.version,
-            trained_at=m.trained_at,
-            sample_count=m.sample_count,
-            staleness_hours=round(staleness_hours, 1),
-            metrics=m.metrics,
-            status=status,
-        ))
+        items.append(
+            ModelHealth(
+                id=str(m.id),
+                model_type=m.model_type,
+                dimension=m.dimension,
+                dimension_key=m.dimension_key,
+                version=m.version,
+                trained_at=m.trained_at,
+                sample_count=m.sample_count,
+                staleness_hours=round(staleness_hours, 1),
+                metrics=m.metrics,
+                status=status,
+            )
+        )
     return items
 
 
@@ -73,24 +77,30 @@ async def get_dashboard(
     by_severity = {row[0]: row[1] for row in sev_result.all()}
 
     type_result = await db.execute(
-        select(MLAnomaly.anomaly_type, func.count()).where(and_(*base)).group_by(MLAnomaly.anomaly_type)
+        select(MLAnomaly.anomaly_type, func.count())
+        .where(and_(*base))
+        .group_by(MLAnomaly.anomaly_type)
     )
     by_type = {row[0]: row[1] for row in type_result.all()}
 
-    suppressed = await db.scalar(
-        select(func.count()).where(and_(*base, MLAnomaly.is_suppressed.is_(True)))
-    ) or 0
-    acknowledged = await db.scalar(
-        select(func.count()).where(and_(*base, MLAnomaly.acknowledged_at.isnot(None)))
-    ) or 0
+    suppressed = (
+        await db.scalar(select(func.count()).where(and_(*base, MLAnomaly.is_suppressed.is_(True))))
+        or 0
+    )
+    acknowledged = (
+        await db.scalar(
+            select(func.count()).where(and_(*base, MLAnomaly.acknowledged_at.isnot(None)))
+        )
+        or 0
+    )
 
-    total_forecasts = await db.scalar(
-        select(func.count()).where(MLForecast.workspace_id == workspace_id)
-    ) or 0
+    total_forecasts = (
+        await db.scalar(select(func.count()).where(MLForecast.workspace_id == workspace_id)) or 0
+    )
 
-    total_patterns = await db.scalar(
-        select(func.count()).where(MLPattern.workspace_id == workspace_id)
-    ) or 0
+    total_patterns = (
+        await db.scalar(select(func.count()).where(MLPattern.workspace_id == workspace_id)) or 0
+    )
 
     last_anomaly = await db.scalar(
         select(func.max(MLAnomaly.detected_at)).where(MLAnomaly.workspace_id == workspace_id)

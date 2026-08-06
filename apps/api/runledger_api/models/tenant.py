@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -170,12 +171,10 @@ class ApiKey(Base):
         sa.Boolean, server_default=sa.text("false"), nullable=False
     )
     created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    guardrail_config: Mapped[dict] = mapped_column(
+    guardrail_config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )
-    budget_tier_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), nullable=True
-    )
+    budget_tier_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
 
     workspace: Mapped["Workspace"] = relationship(back_populates="api_keys")
 

@@ -84,9 +84,7 @@ class AgentRun(Base):
 
 class RunbookEntry(Base):
     __tablename__ = "runbook_entries"
-    __table_args__ = (
-        sa.Index("ix_runbook_entries_workspace", "workspace_id", "generated_at"),
-    )
+    __table_args__ = (sa.Index("ix_runbook_entries_workspace", "workspace_id", "generated_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

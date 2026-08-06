@@ -99,7 +99,9 @@ async def _budget_rollup_workspace_ids(
                     status.HTTP_403_FORBIDDEN,
                     "Organization admin access required for org budget rollups",
                 )
-        result = await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id))
+        result = await db.execute(
+            select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
+        )
         return list(result.scalars().all())
 
     if scope == "platform":
@@ -111,7 +113,9 @@ async def _budget_rollup_workspace_ids(
         result = await db.execute(select(Workspace.id))
         return list(result.scalars().all())
 
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform")
+    raise HTTPException(
+        status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform"
+    )
 
 
 # ── POST /budgets ─────────────────────────────────────────────────────────────
@@ -736,9 +740,7 @@ async def revoke_override(
         raise HTTPException(status.HTTP_409_CONFLICT, "Override is not active")
 
     await db.execute(
-        update(BudgetOverride)
-        .where(BudgetOverride.id == override_id)
-        .values(status="revoked")
+        update(BudgetOverride).where(BudgetOverride.id == override_id).values(status="revoked")
     )
     await db.commit()
     await invalidate_workspace_budgets_cache(redis, workspace.id)

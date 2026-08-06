@@ -78,7 +78,9 @@ class KafkaExportDelivery(Base):
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_detail: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     attempt: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
-    delivered_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("NOW()")
     )

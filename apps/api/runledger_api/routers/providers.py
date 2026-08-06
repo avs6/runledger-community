@@ -195,9 +195,7 @@ class RepriceRequest(BaseModel):
 
 
 @router.post("/reprice", response_model=dict[str, int])
-async def reprice_provider(
-    body: RepriceRequest, auth: OrgAdminDep, db: DbDep
-) -> dict[str, int]:
+async def reprice_provider(body: RepriceRequest, auth: OrgAdminDep, db: DbDep) -> dict[str, int]:
     """Reset cost_usd to NULL for provider_calls so the enrichment worker re-prices them.
 
     Useful after updating pricing rates — provider_calls that already have cost_usd = 0.00

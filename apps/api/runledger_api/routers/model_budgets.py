@@ -49,9 +49,7 @@ def _to_response(mb: ModelBudget) -> ModelBudgetResponse:
     )
 
 
-async def _verify_key(
-    key_id: uuid.UUID, workspace: Workspace, db: AsyncSession
-) -> ApiKey:
+async def _verify_key(key_id: uuid.UUID, workspace: Workspace, db: AsyncSession) -> ApiKey:
     result = await db.execute(
         select(ApiKey).where(ApiKey.id == key_id, ApiKey.workspace_id == workspace.id)
     )
@@ -116,15 +114,11 @@ async def delete_model_budget(
     await _verify_key(key_id, workspace, db)
 
     result = await db.execute(
-        select(ModelBudget).where(
-            ModelBudget.id == budget_id, ModelBudget.api_key_id == key_id
-        )
+        select(ModelBudget).where(ModelBudget.id == budget_id, ModelBudget.api_key_id == key_id)
     )
     if result.scalar_one_or_none() is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Model budget not found")
 
-    await db.execute(
-        update(ModelBudget).where(ModelBudget.id == budget_id).values(is_active=False)
-    )
+    await db.execute(update(ModelBudget).where(ModelBudget.id == budget_id).values(is_active=False))
     await db.commit()
     log.info("model_budget_deleted", id=str(budget_id))

@@ -113,12 +113,21 @@ async def export_audit_events(
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["id", "action", "actor_user_id", "target_type", "target_id", "details", "created_at"])
+    writer.writerow(
+        ["id", "action", "actor_user_id", "target_type", "target_id", "details", "created_at"]
+    )
     for e in items:
-        writer.writerow([
-            str(e.id), e.action, str(e.actor_user_id) if e.actor_user_id else "",
-            e.target_type or "", e.target_id or "", str(e.details) if e.details else "", str(e.created_at),
-        ])
+        writer.writerow(
+            [
+                str(e.id),
+                e.action,
+                str(e.actor_user_id) if e.actor_user_id else "",
+                e.target_type or "",
+                e.target_id or "",
+                str({"before": e.before, "after": e.after}) if e.before or e.after else "",
+                str(e.created_at),
+            ]
+        )
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
