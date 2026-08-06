@@ -276,6 +276,73 @@ async def billing_summary(
     )
 
 
+# ── GET /budgets/billing-export ──────────────────────────────────────────────
+
+
+@router.get("/billing-export")
+async def billing_export(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    months: Annotated[int, Query(ge=1, le=12)] = 3,
+    fmt: Annotated[str, Query(alias="format", pattern="^(csv|json)$")] = "json",
+):
+    """Export billing summary as CSV or JSON."""
+    from io import StringIO  # noqa: PLC0415
+
+    from fastapi.responses import Response  # noqa: PLC0415
+    from sqlalchemy import func as sa_func  # noqa: PLC0415
+
+    from runledger_api.models.metering import UsageDaily  # noqa: PLC0415
+
+    result = await db.execute(
+        select(
+            sa_func.to_char(UsageDaily.day, "YYYY-MM").label("period"),
+            sa_func.coalesce(sa_func.sum(UsageDaily.cost_usd), 0).label("total_cost"),
+            sa_func.coalesce(sa_func.sum(UsageDaily.billable_cost_usd), 0).label("billable_cost"),
+            sa_func.coalesce(sa_func.sum(UsageDaily.call_count), 0).label("total_calls"),
+        )
+        .where(
+            UsageDaily.workspace_id == workspace.id,
+            UsageDaily.day >= sa_func.current_date() - months * 31,
+        )
+        .group_by("period")
+        .order_by("period")
+    )
+    rows = result.all()
+
+    if fmt == "csv":
+        buf = StringIO()
+        buf.write("period,total_cost_usd,billable_cost_usd,non_billable_cost_usd,total_calls\n")
+        for r in rows:
+            total = Decimal(str(r.total_cost))
+            billable = Decimal(str(r.billable_cost))
+            buf.write(f"{r.period},{total},{billable},{total - billable},{r.total_calls}\n")
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=billing-export.csv"},
+        )
+
+    import json as _json  # noqa: PLC0415
+
+    periods = []
+    for r in rows:
+        total = float(Decimal(str(r.total_cost)))
+        billable = float(Decimal(str(r.billable_cost)))
+        periods.append({
+            "period": r.period,
+            "total_cost_usd": total,
+            "billable_cost_usd": billable,
+            "non_billable_cost_usd": round(total - billable, 8),
+            "total_calls": int(r.total_calls),
+        })
+    return Response(
+        content=_json.dumps({"workspace_id": str(workspace.id), "periods": periods}),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=billing-export.json"},
+    )
+
+
 # ── GET /budgets/check ────────────────────────────────────────────────────────
 # IMPORTANT: this route must be defined BEFORE /budgets/{id}/... routes
 # so FastAPI doesn't treat "check" as a budget ID.

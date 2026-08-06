@@ -45,6 +45,11 @@ import {
   FileCheck,
   Play,
   Wrench,
+  Gauge,
+  Layers,
+  ArrowUpCircle,
+  Crosshair,
+  FileSpreadsheet,
 } from 'lucide-react'
 import RunLedgerLogo from '@/components/brand/RunLedgerLogo'
 import { useRole } from '@/components/rbac/useRole'
@@ -205,6 +210,11 @@ export default function Sidebar() {
           <Section id="finance" label="Finance">
             <NavLink href="/cost-savings" label="Cost & Savings" icon={PiggyBank} />
             <NavLink href="/budgets" label="Budgets" icon={Wallet} />
+            <NavLink href="/budget-tiers" label="Budget Tiers" icon={Layers} />
+            <NavLink href="/budget-overrides" label="Budget Overrides" icon={ArrowUpCircle} />
+            <NavLink href="/model-budgets" label="Model Budgets" icon={Crosshair} />
+            <NavLink href="/rate-limits" label="Rate Limits" icon={Gauge} />
+            <NavLink href="/billing-summary" label="Billing Summary" icon={FileSpreadsheet} />
             <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
             <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />
           </Section>

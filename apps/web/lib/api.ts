@@ -2829,6 +2829,21 @@ export async function createBudgetTier(
   return apiFetch<import('@/types/api').BudgetTier>(`/budget-tiers`, apiKey, { method: 'POST', body: JSON.stringify(body) })
 }
 
+export async function getBudgetTier(
+  apiKey: string,
+  tierId: string
+): Promise<import('@/types/api').BudgetTier> {
+  return apiFetch<import('@/types/api').BudgetTier>(`/budget-tiers/${tierId}`, apiKey)
+}
+
+export async function updateBudgetTier(
+  apiKey: string,
+  tierId: string,
+  body: { name?: string; max_spend_usd?: number | null; period_type?: string; rpm_limit?: number | null; tpm_limit?: number | null; allowed_models?: string[] | null; is_default?: boolean }
+): Promise<import('@/types/api').BudgetTier> {
+  return apiFetch<import('@/types/api').BudgetTier>(`/budget-tiers/${tierId}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
+}
+
 export async function deleteBudgetTier(
   apiKey: string,
   tierId: string
@@ -2860,6 +2875,14 @@ export async function createModelBudget(
   return apiFetch<import('@/types/api').ModelBudget>(`/api-keys/${keyId}/model-budgets`, apiKey, { method: 'POST', body: JSON.stringify(body) })
 }
 
+export async function deleteModelBudget(
+  apiKey: string,
+  keyId: string,
+  budgetId: string
+): Promise<void> {
+  await apiFetch<void>(`/api-keys/${keyId}/model-budgets/${budgetId}`, apiKey, { method: 'DELETE' })
+}
+
 export async function createBudgetOverride(
   apiKey: string,
   budgetId: string,
@@ -2889,6 +2912,20 @@ export async function getBillingSummary(
 ): Promise<import('@/types/api').BillingSummaryResponse> {
   const qs = months ? `?months=${months}` : ''
   return apiFetch<import('@/types/api').BillingSummaryResponse>(`/budgets/billing-summary${qs}`, apiKey)
+}
+
+export async function exportBilling(
+  apiKey: string,
+  format: 'csv' | 'json' = 'json',
+  months?: number
+): Promise<Blob> {
+  const params = new URLSearchParams({ format })
+  if (months) params.set('months', String(months))
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'}/budgets/billing-export?${params}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+  return res.blob()
 }
 
 // ── Agent Registry ─────────────────────────────────────────────────────────
