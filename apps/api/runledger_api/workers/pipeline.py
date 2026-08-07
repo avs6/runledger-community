@@ -148,6 +148,25 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
         .on_conflict_do_nothing(index_elements=["id"])
     )
     await session.execute(stmt)
+    try:
+        await kafka_export.publish_event(
+            session,
+            workspace_id=uuid.UUID(workspace_id),
+            event_type="run.started",
+            payload={
+                "run_id": e["run_id"],
+                "trace_id": e.get("external_trace_id"),
+                "end_user_id": e.get("end_user_id"),
+                "session_id": e.get("session_id"),
+                "feature_tag": e.get("feature_tag"),
+                "deployment_version": e.get("deployment_version"),
+                "started_at": e.get("started_at"),
+                "source": e.get("source_type") or "runledger.ingest",
+                "event_summary": "Run started",
+            },
+        )
+    except Exception:
+        log.exception("kafka_export.run_start_unexpected_error", run_id=e.get("run_id"))
 
 
 async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
@@ -300,6 +319,28 @@ async def _handle_provider_call(
         .on_conflict_do_nothing(index_elements=["id"])
     )
     await session.execute(stmt)
+    if e.get("optimization_applied"):
+        try:
+            await kafka_export.publish_event(
+                session,
+                workspace_id=uuid.UUID(workspace_id),
+                event_type="optimization.applied",
+                payload={
+                    "run_id": e["run_id"],
+                    "trace_id": e.get("external_trace_id"),
+                    "provider_call_id": str(pc_id),
+                    "provider": e.get("provider"),
+                    "model": e.get("model"),
+                    "optimization_applied": e.get("optimization_applied"),
+                    "savings_usd": e.get("savings_usd"),
+                    "savings_category": e.get("savings_category"),
+                    "savings_reason": e.get("savings_reason"),
+                    "source": "runledger.ingest",
+                    "event_summary": f"Optimization applied: {e.get('optimization_applied')}",
+                },
+            )
+        except Exception:
+            log.exception("kafka_export.optimization_unexpected_error", run_id=e.get("run_id"))
 
 
 async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:
@@ -315,6 +356,26 @@ async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[st
             status=e["status"],
         )
     )
+    event_type = "mcp.tool.blocked" if str(e.get("status")).lower() in {"blocked", "denied"} else "mcp.tool.called"
+    try:
+        await kafka_export.publish_event(
+            session,
+            workspace_id=uuid.UUID(workspace_id),
+            event_type=event_type,
+            payload={
+                "run_id": e["run_id"],
+                "trace_id": e.get("external_trace_id"),
+                "tool_name": e.get("tool_name"),
+                "tool_type": e.get("tool_type", "read"),
+                "status": e.get("status"),
+                "risk_score": e.get("risk_score"),
+                "duration_ms": e.get("duration_ms"),
+                "source": "runledger.ingest",
+                "event_summary": f"Tool {e.get('tool_name')} {e.get('status')}",
+            },
+        )
+    except Exception:
+        log.exception("kafka_export.tool_call_unexpected_error", run_id=e.get("run_id"))
 
 
 async def _handle_outcome(session: AsyncSession, e: dict[str, Any]) -> None:

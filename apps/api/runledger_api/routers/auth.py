@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_admin
+from runledger_api.core.ratelimit import system_rate_limit
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import (
     ApiKey,
@@ -53,7 +54,7 @@ log = structlog.get_logger()
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin), Depends(system_rate_limit)],
 )
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]

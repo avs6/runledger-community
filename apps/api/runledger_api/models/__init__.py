@@ -3,7 +3,7 @@ from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.annotations import Annotation
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
-from runledger_api.models.backup_ops import BackupRun
+from runledger_api.models.backup_ops import BackupRun, BackupSnapshot, BackupTargetConfig
 from runledger_api.models.budget_overrides import BudgetOverride
 from runledger_api.models.budget_tiers import BudgetTier
 from runledger_api.models.cache_config import ResponseCacheConfig
@@ -140,6 +140,8 @@ __all__ = [
     "AccessGroup",
     "AccessGroupMember",
     "BackupRun",
+    "BackupTargetConfig",
+    "BackupSnapshot",
     "ResponseCacheConfig",
     "WorkspaceSecuritySettings",
     "OIDCProvider",

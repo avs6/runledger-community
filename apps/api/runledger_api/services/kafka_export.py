@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-import asyncio
+import base64
 import hashlib
 import json
+import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import structlog
+from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings
 from runledger_api.models.kafka import KafkaExportConfig, KafkaExportDelivery
 
 log = structlog.get_logger()
@@ -118,6 +121,40 @@ def _derive_idempotency_key(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _fernet() -> Fernet:
+    key = base64.urlsafe_b64encode(hashlib.sha256(settings.secret_key.encode("utf-8")).digest())
+    return Fernet(key)
+
+
+def encrypt_secret_value(value: str) -> str:
+    return "enc::" + _fernet().encrypt(value.encode("utf-8")).decode("utf-8")
+
+
+def is_secret_reference(value: str) -> bool:
+    lowered = value.lower()
+    return lowered.startswith("secretref://") or lowered.startswith("env://")
+
+
+def resolve_secret_value(value: str | None) -> str | None:
+    if not value:
+        return None
+    if value.startswith("enc::"):
+        token = value.removeprefix("enc::").encode("utf-8")
+        try:
+            return _fernet().decrypt(token).decode("utf-8")
+        except InvalidToken as exc:  # noqa: PERF203
+            raise ValueError("Stored Kafka secret could not be decrypted") from exc
+    if is_secret_reference(value):
+        env_name = value.split("://", 1)[1].strip()
+        if not env_name:
+            raise ValueError("Kafka secret reference is missing an environment variable name")
+        resolved = os.getenv(env_name)
+        if not resolved:
+            raise ValueError(f"Kafka secret reference '{env_name}' is not set in the environment")
+        return resolved
+    return value
+
+
 def _producer_kwargs(config: KafkaExportConfig) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "bootstrap_servers": [s.strip() for s in config.bootstrap_servers.split(",") if s.strip()],
@@ -130,7 +167,7 @@ def _producer_kwargs(config: KafkaExportConfig) -> dict[str, Any]:
     if config.sasl_username:
         kwargs["sasl_plain_username"] = config.sasl_username
     if config.sasl_password_secret:
-        kwargs["sasl_plain_password"] = config.sasl_password_secret
+        kwargs["sasl_plain_password"] = resolve_secret_value(config.sasl_password_secret)
     return kwargs
 
 
@@ -195,36 +232,42 @@ async def _send_dead_letter(
     delivery.dead_lettered_at = datetime.now(UTC)
 
 
+def _retry_delay_seconds(config: KafkaExportConfig, attempt: int) -> int:
+    base = max(0, int(config.retry_backoff_seconds))
+    return base * max(1, attempt)
+
+
 async def _deliver_once(
     config: KafkaExportConfig,
     *,
     delivery: KafkaExportDelivery,
     payload: dict[str, Any],
-) -> None:
+) -> bool:
     topic = delivery.topic
+    attempt = max(1, int(delivery.attempt or 1))
+    delivery.attempt = attempt
     max_attempts = max(1, int(config.max_retries) + 1)
-    for attempt in range(1, max_attempts + 1):
-        delivery.attempt = attempt
-        try:
-            await _send(config, topic, payload)
-            delivery.status = "success"
-            delivery.error_detail = None
-            delivery.next_retry_at = None
-            delivery.delivered_at = datetime.now(UTC)
-            return
-        except Exception as exc:  # noqa: BLE001
-            delivery.status = "failed"
-            delivery.error_detail = str(exc)
-            delivery.last_error_at = datetime.now(UTC)
-            if attempt < max_attempts:
-                delivery.next_retry_at = datetime.now(UTC) + timedelta(
-                    seconds=max(0, int(config.retry_backoff_seconds))
-                )
-                await asyncio.sleep(max(0, int(config.retry_backoff_seconds)))
-            else:
-                delivery.next_retry_at = None
-                await _send_dead_letter(config, delivery=delivery, payload=payload)
-                raise
+    try:
+        await _send(config, topic, payload)
+        delivery.status = "success"
+        delivery.error_detail = None
+        delivery.next_retry_at = None
+        delivery.delivered_at = datetime.now(UTC)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        delivery.error_detail = str(exc)
+        delivery.last_error_at = datetime.now(UTC)
+        delivery.delivered_at = None
+        if attempt < max_attempts:
+            delivery.status = "retry_scheduled"
+            delivery.next_retry_at = datetime.now(UTC) + timedelta(
+                seconds=_retry_delay_seconds(config, attempt)
+            )
+            return False
+        delivery.status = "failed"
+        delivery.next_retry_at = None
+        await _send_dead_letter(config, delivery=delivery, payload=payload)
+        raise
 
 
 async def publish_event(
@@ -321,7 +364,7 @@ async def test_config(db: AsyncSession, config: KafkaExportConfig) -> tuple[bool
     try:
         await _deliver_once(config, delivery=delivery, payload=payload)
         await db.commit()
-        return True, None, topic
+        return delivery.status == "success", delivery.error_detail, topic
     except Exception as exc:  # noqa: BLE001
         delivery.status = "failed"
         delivery.error_detail = str(exc)
@@ -336,7 +379,48 @@ async def retry_delivery(
     delivery: KafkaExportDelivery,
 ) -> KafkaExportDelivery:
     payload = delivery.payload or {}
+    delivery.attempt = max(1, int(delivery.attempt or 1))
+    if delivery.status in {"retry_scheduled", "failed"}:
+        delivery.attempt += 1
+    delivery.next_retry_at = None
     await _deliver_once(config, delivery=delivery, payload=payload)
     await db.commit()
     await db.refresh(delivery)
     return delivery
+
+
+async def process_pending_deliveries(db: AsyncSession, *, limit: int = 100) -> int:
+    now = datetime.now(UTC)
+    rows = list(
+        (
+            await db.execute(
+                select(KafkaExportDelivery, KafkaExportConfig)
+                .join(KafkaExportConfig, KafkaExportConfig.id == KafkaExportDelivery.config_id)
+                .where(
+                    KafkaExportConfig.enabled.is_(True),
+                    KafkaExportDelivery.status == "retry_scheduled",
+                    KafkaExportDelivery.next_retry_at.is_not(None),
+                    KafkaExportDelivery.next_retry_at <= now,
+                )
+                .order_by(KafkaExportDelivery.next_retry_at.asc())
+                .limit(limit)
+            )
+        ).all()
+    )
+    processed = 0
+    for delivery, config in rows:
+        delivery.attempt = max(1, int(delivery.attempt or 1)) + 1
+        try:
+            await _deliver_once(config, delivery=delivery, payload=delivery.payload or {})
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "kafka_export.retry.failed",
+                config_id=str(config.id),
+                delivery_id=str(delivery.id),
+                event_type=delivery.event_type,
+                error=str(exc),
+            )
+        processed += 1
+    if processed:
+        await db.commit()
+    return processed

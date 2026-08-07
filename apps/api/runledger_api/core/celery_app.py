@@ -25,6 +25,8 @@ celery_app = Celery(
         "runledger_api.workers.ml_forecast",
         "runledger_api.workers.ml_complexity",
         "runledger_api.workers.budget_overrides",
+        "runledger_api.workers.backups",
+        "runledger_api.workers.kafka",
     ],
 )
 
@@ -161,6 +163,14 @@ celery_app.conf.update(
         "budget-overrides-expire-5m": {
             "task": "budgets.expire_overrides",
             "schedule": 300.0,
+        },
+        "backups-scheduled-1h": {
+            "task": "backups.run_scheduled",
+            "schedule": 3600.0,
+        },
+        "kafka-retry-30s": {
+            "task": "kafka.retry_pending_deliveries",
+            "schedule": 30.0,
         },
     },
 )

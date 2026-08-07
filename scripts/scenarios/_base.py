@@ -37,6 +37,13 @@ PRICING_FILE = Path(__file__).resolve().parent.parent / "pricing.yaml"
 # (input $/1M, output $/1M) per model, and provider per model — built from the YAML.
 PRICING: dict[str, tuple[float, float]] = {}
 PROVIDER_OF: dict[str, str] = {}
+OPTIMIZATION_TYPES: list[tuple[str, str, float]] = [
+    ("semantic_cache", "semantic_cache", 0.45),
+    ("prompt_compression", "context_compiler", 0.28),
+    ("model_routing", "intelligent_routing", 0.34),
+    ("tool_filtering", "tool_filtering", 0.16),
+    ("none", "", 0.0),
+]
 
 
 def _load_pricing() -> None:
@@ -109,6 +116,51 @@ class Workspace:
 
     def _manage_post(self, path: str, body: dict[str, Any], label: str) -> dict[str, Any]:
         return self.sim.post(path, body, key=self.admin_key or self.key, label=label)
+
+    def enable_kafka_export_demo(
+        self,
+        *,
+        bootstrap_servers: str = "runledger-redpanda:9092",
+        topic_prefix: str = "runledger.demo",
+        single_topic_mode: bool = True,
+        single_topic_name: str = "runledger.events",
+    ) -> dict[str, Any]:
+        return self._manage_post(
+            "/integrations/kafka/configs",
+            {
+                "label": f"{self.name} Redpanda Export",
+                "bootstrap_servers": bootstrap_servers,
+                "topic_prefix": topic_prefix,
+                "security_protocol": "PLAINTEXT",
+                "single_topic_mode": single_topic_mode,
+                "single_topic_name": single_topic_name,
+                "dead_letter_topic": "runledger.dead-letter",
+                "redaction_mode": "metadata_only",
+                "max_retries": 3,
+                "retry_backoff_seconds": 15,
+                "event_types": [
+                    "run.started",
+                    "run.completed",
+                    "run.failed",
+                    "gateway.request.completed",
+                    "gateway.request.rejected",
+                    "budget.threshold_crossed",
+                    "budget.breached",
+                    "alert.fired",
+                    "optimization.applied",
+                    "route.changed",
+                    "mcp.tool.called",
+                    "mcp.tool.blocked",
+                    "approval.requested",
+                    "approval.decided",
+                    "email.report.sent",
+                    "backup.completed",
+                    "backup.failed",
+                    "compliance.export.ready",
+                ],
+            },
+            f"enable kafka export for {self.name}",
+        )
 
     # ── runs ─────────────────────────────────────────────────────────────────
     def ingest_runs(
@@ -239,6 +291,9 @@ class Workspace:
                 latency = random.randint(220, 4600)
                 billable_in = max(0, in_tok - cached)
                 cost = _cost(model, billable_in, out_tok) + (_cost(model, cached, 0) * 0.15 if cached else 0)
+                savings_category, optimization_applied, optimization_rate = random.choice(OPTIMIZATION_TYPES)
+                baseline_cost = round(cost / (1 - optimization_rate), 8) if optimization_rate > 0 else round(cost, 8)
+                savings_usd = round(baseline_cost - cost, 8) if optimization_rate > 0 else 0.0
                 run_id, span_id = str(uuid.uuid4()), str(uuid.uuid4())
                 start = now - timedelta(days=random.uniform(0, days), minutes=random.uniform(0, 1440))
                 end = start + timedelta(milliseconds=latency)
@@ -255,6 +310,7 @@ class Workspace:
                         "end_user_id": user,
                         "session_id": random.choice(session_ids),
                         "feature_tag": workflow["feature"],
+                        "intent": workflow.get("intent", workflow["feature"].replace("-", " ")),
                         "deployment_version": deployment_version,
                         "metadata": {
                             "agent_name": workflow["agent"],
@@ -262,7 +318,7 @@ class Workspace:
                             "team": workflow.get("team", "Support"),
                             "application": workflow.get("application", self.name),
                             "route_alias": workflow.get("route", "local-routing"),
-                            "intent": workflow["feature"].replace("-", " "),
+                            "intent": workflow.get("intent", workflow["feature"].replace("-", " ")),
                         },
                     },
                     {
@@ -286,6 +342,15 @@ class Workspace:
                         "cost_usd": round(cost, 8),
                         "status": pc_status,
                         "error_type": None if success else random.choice(["timeout", "tool_error", "provider_error"]),
+                        "baseline_cost_usd": baseline_cost if savings_usd > 0 else None,
+                        "optimization_applied": optimization_applied or None,
+                        "savings_usd": savings_usd if savings_usd > 0 else None,
+                        "savings_category": savings_category if savings_usd > 0 else None,
+                        "savings_reason": (
+                            f"RunLedger {optimization_applied} optimization"
+                            if optimization_applied and savings_usd > 0
+                            else None
+                        ),
                     },
                     {
                         "event_type": "tool_call",
@@ -623,6 +688,192 @@ class Workspace:
             f"alert {name}",
         )
 
+    def create_application(self, name: str, *, environment: str = "prod") -> dict[str, Any]:
+        return self.sim.post(
+            "/applications",
+            {
+                "workspace_id": self.workspace_id,
+                "name": name,
+                "environment": environment,
+            },
+            key=self.admin_key or self.key,
+            label=f"application {name}",
+            expect=(200, 201, 409, 422),
+        )
+
+    def add_team_model(
+        self,
+        team_name: str,
+        model_name: str,
+        *,
+        provider: str | None = None,
+        description: str | None = None,
+        budget_usd: float | None = None,
+        budget_period: str = "monthly",
+        logging_opt_out: bool = False,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "team_name": team_name,
+            "model_name": model_name,
+            "provider": provider or _provider(model_name),
+            "budget_period": budget_period,
+            "logging_opt_out": logging_opt_out,
+            "config": config or {},
+        }
+        if description is not None:
+            body["description"] = description
+        if budget_usd is not None:
+            body["budget_usd"] = budget_usd
+        return self._manage_post("/team-models", body, f"team model {team_name}:{model_name}")
+
+    def upsert_tool_policy(
+        self,
+        tool_name: str,
+        *,
+        policy: str = "audit",
+        runtime_enforcement: bool = False,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "tool_name": tool_name,
+            "policy": policy,
+            "runtime_enforcement": runtime_enforcement,
+        }
+        if description is not None:
+            body["description"] = description
+        return self._post("/tools/registry", body, f"tool policy {tool_name}")
+
+    def check_tool(self, tool_name: str) -> dict[str, Any]:
+        return self.sim.get(f"/tools/check/{tool_name}", key=self.key) or {}
+
+    def list_tool_registry(self) -> dict[str, Any]:
+        return self.sim.get("/tools/registry", key=self.key) or {}
+
+    def list_tool_security_events(self) -> dict[str, Any]:
+        return self.sim.get("/tools/security-events", key=self.key) or {}
+
+    def register_mcp_server(
+        self,
+        name: str,
+        *,
+        description: str | None = None,
+        transport: str = "http",
+        url: str | None = None,
+        auth_type: str | None = None,
+        auth_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"name": name, "transport": transport}
+        if description is not None:
+            body["description"] = description
+        if url is not None:
+            body["url"] = url
+        if auth_type is not None:
+            body["auth_type"] = auth_type
+        if auth_config is not None:
+            body["auth_config"] = auth_config
+        return self._post("/mcp-registry", body, f"mcp server {name}")
+
+    def grant_mcp_permission(
+        self,
+        mcp_server_id: str,
+        *,
+        scope_type: str = "workspace",
+        scope_id: str | None = None,
+        allowed_tools: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return self._post(
+            "/mcp-registry/permissions",
+            {
+                "mcp_server_id": mcp_server_id,
+                "scope_type": scope_type,
+                "scope_id": scope_id or self.workspace_id,
+                "allowed_tools": allowed_tools,
+            },
+            "mcp permission",
+        )
+
+    def list_mcp_permissions(self) -> dict[str, Any]:
+        return self.sim.get("/mcp-registry/permissions", key=self.key) or {}
+
+    def list_mcp_tools(self) -> dict[str, Any]:
+        return self.sim.get("/mcp-registry/tools", key=self.key) or {}
+
+    def update_email_preferences(self, **prefs: Any) -> dict[str, Any]:
+        return self.sim.put(
+            "/settings/email/preferences",
+            prefs,
+            key=self.admin_key or self.key,
+            label="email preferences",
+            expect=(200, 201, 422),
+        )
+
+    def get_email_history(self) -> dict[str, Any]:
+        return self.sim.get("/settings/email/history", key=self.admin_key or self.key) or {}
+
+    def send_test_email(self) -> dict[str, Any]:
+        return self.sim.post(
+            "/settings/email/test",
+            {},
+            key=self.admin_key or self.key,
+            label="email test",
+            expect=(200, 400),
+        )
+
+    def send_test_report(self) -> dict[str, Any]:
+        return self.sim.post(
+            "/settings/email/test-report",
+            {},
+            key=self.admin_key or self.key,
+            label="email test report",
+            expect=(200, 400),
+        )
+
+    def update_backup_config(self, **config: Any) -> dict[str, Any]:
+        return self.sim.put(
+            "/settings/backups/config",
+            config,
+            key=self.admin_key or self.key,
+            label="backup config",
+            expect=(200, 201, 422),
+        )
+
+    def get_backup_history(self) -> dict[str, Any]:
+        return self.sim.get("/settings/backups/history", key=self.admin_key or self.key) or {}
+
+    def get_backup_snapshots(self) -> dict[str, Any]:
+        return self.sim.get("/settings/backups/snapshots", key=self.admin_key or self.key) or {}
+
+    def test_backup_connection(self) -> dict[str, Any]:
+        return self.sim.post(
+            "/settings/backups/test",
+            {},
+            key=self.admin_key or self.key,
+            label="backup test",
+            expect=(200, 400),
+        )
+
+    def run_backup_now(self) -> dict[str, Any]:
+        return self.sim.post(
+            "/settings/backups/run",
+            {},
+            key=self.admin_key or self.key,
+            label="backup run",
+            expect=(200, 201, 400),
+        )
+
+    def run_restore_drill(self) -> dict[str, Any]:
+        return self.sim.post(
+            "/settings/backups/restore-drill",
+            {},
+            key=self.admin_key or self.key,
+            label="restore drill",
+            expect=(200, 201, 400),
+        )
+
+    def get_backup_status(self) -> dict[str, Any]:
+        return self.sim.get("/settings/backups/status", key=self.admin_key or self.key) or {}
+
     def create_approval_request(
         self,
         request_type: str,
@@ -640,6 +891,30 @@ class Workspace:
             label=f"approval {request_type}",
             expect=(200, 201, 401, 403),
         )
+
+    def approve_request(self, approval_id: str, note: str | None = None) -> dict[str, Any]:
+        return self.sim.put(
+            f"/approvals/{approval_id}/approve",
+            {"note": note},
+            key=self.admin_key or self.key,
+            label=f"approve {approval_id[:8]}",
+            expect=(200, 201, 409),
+        )
+
+    def deny_request(self, approval_id: str, note: str | None = None) -> dict[str, Any]:
+        return self.sim.put(
+            f"/approvals/{approval_id}/deny",
+            {"note": note},
+            key=self.admin_key or self.key,
+            label=f"deny {approval_id[:8]}",
+            expect=(200, 201, 409),
+        )
+
+    def list_approvals(self) -> dict[str, Any]:
+        return self.sim.get("/approvals", key=self.admin_key or self.key) or {}
+
+    def get_approval_summary(self) -> dict[str, Any]:
+        return self.sim.get("/approvals/summary", key=self.admin_key or self.key) or {}
 
     def add_auto_approval_policy(
         self,

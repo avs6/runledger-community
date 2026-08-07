@@ -17,15 +17,37 @@ import {
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
 import RetentionTab from '@/components/settings/RetentionTab'
-import type { BackupRun, EmailPreference, EmailLogItem, OpsFeatureStatus } from '@/types/api'
+import type {
+  BackupRun,
+  BackupSnapshot,
+  BackupTargetConfig,
+  EmailPreference,
+  EmailLogItem,
+  OpsFeatureFlagsResponse,
+  OpsFeatureStatus,
+  OpsPolicyEvaluation,
+  OpsQueueStatusItem,
+  OpsStorageStatus,
+} from '@/types/api'
 import {
+  getBackupConfig,
   getBackupHistory,
+  getBackupSnapshots,
   getEmailPreferences,
   updateEmailPreferences,
   getEmailLog,
   getOpsFeatureStatus,
   runBackupNow,
+  runRestoreDrill,
+  testBackupConnection,
   testEmailSend,
+  testEmailReport,
+  updateBackupConfig,
+  getBackupStatus,
+  getOpsFeatureFlags,
+  getOpsPolicyEvaluation,
+  getOpsQueueStatus,
+  getOpsStorageStatus,
 } from '@/lib/api'
 
 const inputCls =
@@ -37,6 +59,34 @@ const TABS = [
   { id: 'email', label: 'Email Delivery', description: 'SMTP, reporting, and notification policy', icon: Mail },
   { id: 'backup', label: 'Backup & Restore', description: 'External S3 schedules and recovery posture', icon: DatabaseBackup },
 ] as const
+
+function makeDefaultBackupConfig(): BackupTargetConfig {
+  const now = new Date().toISOString()
+  return {
+    id: 'draft',
+    workspace_id: 'draft',
+    provider: 's3',
+    bucket: '',
+    prefix: 'runledger',
+    region: 'us-east-1',
+    endpoint_url: 'http://localhost:9010',
+    access_key_id: 'runledger',
+    secret_access_key: 'runledgerminio',
+    force_path_style: true,
+    schedule_enabled: true,
+    cadence: 'daily',
+    run_hour_utc: 2,
+    retention_days: 30,
+    include_memory_db: true,
+    include_qdrant: false,
+    include_kuzu: true,
+    include_skills: true,
+    encryption_mode: 'server_side',
+    last_verified_at: null,
+    created_at: now,
+    updated_at: now,
+  }
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -64,12 +114,24 @@ export default function SettingsPage() {
   const [emailPrefsAttempted, setEmailPrefsAttempted] = useState(false)
   const [savingEmailPrefs, setSavingEmailPrefs] = useState(false)
   const [testingEmail, setTestingEmail] = useState(false)
+  const [testingEmailReportState, setTestingEmailReportState] = useState(false)
   const [opsStatus, setOpsStatus] = useState<OpsFeatureStatus | null>(null)
   const [opsStatusAttempted, setOpsStatusAttempted] = useState(false)
   const [backupRuns, setBackupRuns] = useState<BackupRun[]>([])
+  const [backupConfig, setBackupConfig] = useState<BackupTargetConfig>(makeDefaultBackupConfig())
+  const [backupSnapshots, setBackupSnapshots] = useState<BackupSnapshot[]>([])
+  const [backupStatus, setBackupStatus] = useState<{ ok: boolean; message: string; details: Record<string, unknown> | null } | null>(null)
+  const [opsQueues, setOpsQueues] = useState<OpsQueueStatusItem[]>([])
+  const [opsQueueSummary, setOpsQueueSummary] = useState<{ total_depth: number; busy_queues: number } | null>(null)
+  const [opsStorage, setOpsStorage] = useState<OpsStorageStatus | null>(null)
+  const [opsFeatureFlags, setOpsFeatureFlags] = useState<OpsFeatureFlagsResponse | null>(null)
+  const [opsPolicy, setOpsPolicy] = useState<OpsPolicyEvaluation | null>(null)
   const [loadingBackup, setLoadingBackup] = useState(false)
   const [backupAttempted, setBackupAttempted] = useState(false)
   const [runningBackup, setRunningBackup] = useState(false)
+  const [testingBackupConnectionState, setTestingBackupConnectionState] = useState(false)
+  const [runningRestoreDrillState, setRunningRestoreDrillState] = useState(false)
+  const [savingBackupConfig, setSavingBackupConfig] = useState(false)
 
   const loadCompliance = useCallback(async () => {
     if (!apiKey || !canManagePlatformSettings) return
@@ -136,12 +198,27 @@ export default function SettingsPage() {
     setBackupAttempted(true)
     setLoadingBackup(true)
     try {
-      const [status, history] = await Promise.all([
+      const [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, featureFlags, policyEval] = await Promise.all([
         getOpsFeatureStatus(apiKey),
         getBackupHistory(apiKey, 20),
+        getBackupConfig(apiKey),
+        getBackupSnapshots(apiKey, 20),
+        getBackupStatus(apiKey),
+        getOpsQueueStatus(apiKey),
+        getOpsStorageStatus(apiKey),
+        getOpsFeatureFlags(apiKey),
+        getOpsPolicyEvaluation(apiKey),
       ])
       setOpsStatus(status)
       setBackupRuns(history.items)
+      setBackupConfig(config ?? makeDefaultBackupConfig())
+      setBackupSnapshots(snapshotList.items)
+      setBackupStatus(backupHealth)
+      setOpsQueues(queueStatus.items)
+      setOpsQueueSummary({ total_depth: queueStatus.total_depth, busy_queues: queueStatus.busy_queues })
+      setOpsStorage(storageStatus)
+      setOpsFeatureFlags(featureFlags)
+      setOpsPolicy(policyEval)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load backup history')
@@ -467,6 +544,20 @@ export default function SettingsPage() {
                           <option value="custom">Custom list</option>
                         </select>
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                          Report template
+                        </label>
+                        <select
+                          className={`${inputCls} w-full`}
+                          value={emailPrefs.report_template ?? 'detailed'}
+                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_template: e.target.value })}
+                        >
+                          <option value="executive">Executive</option>
+                          <option value="summary">Summary</option>
+                          <option value="detailed">Detailed</option>
+                        </select>
+                      </div>
                     </div>
                     {emailPrefs.report_recipient_mode === 'custom' && (
                       <div className="mt-3">
@@ -484,6 +575,33 @@ export default function SettingsPage() {
                     <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                       Last sent: {emailPrefs.report_last_sent_at ? new Date(emailPrefs.report_last_sent_at).toLocaleString() : 'No scheduled report sent yet.'}
                     </p>
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        disabled={testingEmailReportState || emailDeliveryDisabled}
+                        onClick={async () => {
+                          if (!apiKey) return
+                          setTestingEmailReportState(true)
+                          try {
+                            const result = await testEmailReport(apiKey)
+                            if (result.ok) {
+                              toast.success(`Test report sent${result.recipient ? ` to ${result.recipient}` : ''}`)
+                              void loadEmailPrefs()
+                            } else {
+                              toast.error(result.error ?? 'Failed to send test report')
+                            }
+                          } catch (err) {
+                            console.error(err)
+                            toast.error('Failed to send test report')
+                          } finally {
+                            setTestingEmailReportState(false)
+                          }
+                        }}
+                      >
+                        {testingEmailReportState ? 'Sending test report…' : emailDeliveryDisabled ? 'Report delivery disabled' : 'Send Test Report To Me'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -523,6 +641,7 @@ export default function SettingsPage() {
                           report_timezone: emailPrefs.report_timezone,
                           report_recipient_mode: emailPrefs.report_recipient_mode,
                           report_recipients: emailPrefs.report_recipients,
+                          report_template: emailPrefs.report_template,
                           alerts_enabled: emailPrefs.alerts_enabled,
                           approvals_enabled: emailPrefs.approvals_enabled,
                           reconciliation_enabled: emailPrefs.reconciliation_enabled,
@@ -681,10 +800,179 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {backupStatus && (
+                <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${backupStatus.ok ? 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100' : 'border border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100'}`}>
+                  <div className="font-semibold">{backupStatus.message}</div>
+                  {backupStatus.details && (
+                    <p className="mt-1 text-xs">
+                      Recent failures: {String(backupStatus.details.failed_recent_runs ?? 0)} · Latest status: {String(backupStatus.details.latest_status ?? 'unknown')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Worker Queue Visibility</h4>
+                    <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
+                      Live queue depth for the background worker lanes that drive alerts, budgets, exports, and scheduled operations.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      Total queued: {opsQueueSummary?.total_depth ?? 0}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      Active queues: {opsQueueSummary?.busy_queues ?? 0}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                        <th className="py-2 pr-4">Queue</th>
+                        <th className="py-2 pr-4">Role</th>
+                        <th className="py-2 pr-4">Depth</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {opsQueues.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-4 text-sm text-slate-500 dark:text-slate-400">
+                            Queue visibility will appear after the first refresh against a running Redis-backed worker stack.
+                          </td>
+                        </tr>
+                      ) : opsQueues.map((item) => (
+                        <tr key={item.queue} className="border-b border-slate-100 dark:border-slate-900">
+                          <td className="py-3 pr-4 font-mono text-xs text-slate-700 dark:text-slate-200">{item.queue}</td>
+                          <td className="py-3 pr-4 text-xs text-slate-600 dark:text-slate-300">{item.role}</td>
+                          <td className="py-3 pr-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{item.depth}</td>
+                          <td className="py-3 pr-4">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                              item.status === 'busy'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
+                                : item.status === 'active'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
+                                  : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-3 text-xs text-slate-500 dark:text-slate-400">{item.description}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr,0.9fr]">
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Infrastructure Hardening</h4>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Runtime posture derived from config, storage targets, and the infra policy evaluation layer.
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{opsStatus?.deployment_profile ?? 'core'}</div>
+                      <div className="mt-1 text-slate-500 dark:text-slate-400">Deployment profile</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{opsStatus?.redis_durability_mode ?? 'ephemeral'}</div>
+                      <div className="mt-1 text-slate-500 dark:text-slate-400">Redis durability</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{opsStatus?.local_tls_enabled ? 'Enabled' : 'Disabled'}</div>
+                      <div className="mt-1 text-slate-500 dark:text-slate-400">Local TLS demo</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{opsStorage?.backup.lifecycle_enabled ? `${opsStorage.backup.retention_days}d` : 'Not set'}</div>
+                      <div className="mt-1 text-slate-500 dark:text-slate-400">Object lifecycle</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{opsStorage?.compliance_exports.bucket ?? 'Not configured'}</div>
+                      <div className="mt-1 text-slate-500 dark:text-slate-400">Compliance export bucket</div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{opsStatus?.abuse_protection_enabled ? 'Protected' : 'Open'}</div>
+                      <div className="mt-1 text-slate-500 dark:text-slate-400">System abuse controls</div>
+                    </div>
+                  </div>
+
+                  {opsFeatureFlags && (
+                    <div className="mt-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Feature flags</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {opsFeatureFlags.items.map((flag) => (
+                          <span
+                            key={flag.name}
+                            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                              flag.enabled
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
+                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                            }`}
+                          >
+                            {flag.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Bring-up Policy Evaluation</h4>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Advisory checks for durability, storage, abuse controls, TLS, and deployment shape.
+                  </p>
+                  <div className="mt-3 flex gap-2 text-xs">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                      Pass {opsPolicy?.summary.pass ?? 0}
+                    </span>
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-medium text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                      Warn {opsPolicy?.summary.warn ?? 0}
+                    </span>
+                    <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                      Fail {opsPolicy?.summary.fail ?? 0}
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {(opsPolicy?.checks ?? []).map((check) => (
+                      <div key={`${check.category}:${check.name}`} className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                            {check.category} / {check.name}
+                          </div>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            check.status === 'pass'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
+                              : check.status === 'warn'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
+                                : 'bg-rose-100 text-rose-800 dark:bg-rose-500/15 dark:text-rose-200'
+                          }`}>
+                            {check.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{check.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Cadence</label>
-                  <select className={`${inputCls} w-full`} defaultValue="daily" disabled={backupSchedulerDisabled}>
+                  <select
+                    className={`${inputCls} w-full`}
+                    value={backupConfig?.cadence ?? 'daily'}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, cadence: e.target.value as BackupTargetConfig['cadence'] } : prev)}
+                  >
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
@@ -692,7 +980,11 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Run time</label>
-                  <select className={`${inputCls} w-full`} defaultValue="2" disabled={backupSchedulerDisabled}>
+                  <select
+                    className={`${inputCls} w-full`}
+                    value={String(backupConfig?.run_hour_utc ?? 2)}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, run_hour_utc: Number(e.target.value) } : prev)}
+                  >
                     {Array.from({ length: 24 }, (_, hour) => (
                       <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>
                     ))}
@@ -700,7 +992,11 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Retention</label>
-                  <select className={`${inputCls} w-full`} defaultValue="30" disabled={backupSchedulerDisabled}>
+                  <select
+                    className={`${inputCls} w-full`}
+                    value={String(backupConfig?.retention_days ?? 30)}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, retention_days: Number(e.target.value) } : prev)}
+                  >
                     <option value="7">7 days</option>
                     <option value="30">30 days</option>
                     <option value="90">90 days</option>
@@ -712,36 +1008,171 @@ export default function SettingsPage() {
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">S3 bucket</label>
-                  <input className={`${inputCls} w-full`} placeholder="s3://my-bucket/runledger-backups" disabled={backupSchedulerDisabled} />
+                  <input
+                    className={`${inputCls} w-full`}
+                    placeholder="runledger-backups"
+                    value={backupConfig?.bucket ?? ''}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, bucket: e.target.value } : prev)}
+                  />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">AWS region</label>
-                  <input className={`${inputCls} w-full`} placeholder="us-east-1" disabled={backupSchedulerDisabled} />
+                  <input
+                    className={`${inputCls} w-full`}
+                    placeholder="us-east-1"
+                    value={backupConfig?.region ?? ''}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, region: e.target.value } : prev)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Encryption</label>
+                  <select
+                    className={`${inputCls} w-full`}
+                    value={backupConfig.encryption_mode}
+                    onChange={(e) => setBackupConfig((prev) => ({ ...prev, encryption_mode: e.target.value as BackupTargetConfig['encryption_mode'] }))}
+                  >
+                    <option value="server_side">Server-side AES256</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={backupConfig.force_path_style}
+                    onChange={(e) => setBackupConfig((prev) => ({ ...prev, force_path_style: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-stone-700 focus:ring-stone-500"
+                  />
+                  Force path-style S3 URLs
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Endpoint URL</label>
+                  <input
+                    className={`${inputCls} w-full`}
+                    placeholder="http://runledger-minio:9000"
+                    value={backupConfig?.endpoint_url ?? ''}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, endpoint_url: e.target.value } : prev)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Prefix</label>
+                  <input
+                    className={`${inputCls} w-full`}
+                    placeholder="runledger"
+                    value={backupConfig?.prefix ?? ''}
+                    onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, prefix: e.target.value } : prev)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Access key</label>
+                  <input
+                    className={`${inputCls} w-full`}
+                    placeholder="runledger"
+                    value={backupConfig.access_key_id ?? ''}
+                    onChange={(e) => setBackupConfig((prev) => ({ ...prev, access_key_id: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Secret key</label>
+                  <input
+                    className={`${inputCls} w-full`}
+                    placeholder="runledgerminio"
+                    value={backupConfig.secret_access_key ?? ''}
+                    onChange={(e) => setBackupConfig((prev) => ({ ...prev, secret_access_key: e.target.value }))}
+                  />
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2">
                 {[
-                  'Control-plane Postgres',
-                  'Memory DB',
-                  'Qdrant snapshots',
-                  'Kuzu graph PVC',
-                  'Skill registry PVC',
-                  'Trace/export artifacts',
-                ].map((label) => (
-                  <label key={label} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
-                    <input type="checkbox" defaultChecked={label !== 'Qdrant snapshots'} disabled={backupSchedulerDisabled} className="h-4 w-4 rounded border-slate-300 text-stone-700 focus:ring-stone-500" />
+                  ['include_memory_db', 'Memory DB'],
+                  ['include_qdrant', 'Qdrant snapshots'],
+                  ['include_kuzu', 'Kuzu graph PVC'],
+                  ['include_skills', 'Skill registry PVC'],
+                ].map(([field, label]) => (
+                  <label key={field} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(backupConfig?.[field as keyof BackupTargetConfig])}
+                      onChange={(e) => setBackupConfig((prev) => prev ? { ...prev, [field]: e.target.checked } as BackupTargetConfig : prev)}
+                      className="h-4 w-4 rounded border-slate-300 text-stone-700 focus:ring-stone-500"
+                    />
                     {label}
                   </label>
                 ))}
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <button disabled className="rounded bg-stone-700 px-4 py-2 text-sm font-medium text-white opacity-60 dark:bg-[#D8CAAA] dark:text-[#111318]">
-                  Save schedule
+                <button
+                  type="button"
+                  disabled={savingBackupConfig || !backupConfig.bucket}
+                  onClick={async () => {
+                    if (!apiKey) return
+                    setSavingBackupConfig(true)
+                    try {
+                      const saved = await updateBackupConfig(apiKey, {
+                        provider: 's3',
+                        bucket: backupConfig.bucket,
+                        prefix: backupConfig.prefix,
+                        region: backupConfig.region,
+                        endpoint_url: backupConfig.endpoint_url,
+                        access_key_id: backupConfig.access_key_id,
+                        secret_access_key: backupConfig.secret_access_key,
+                        force_path_style: backupConfig.force_path_style,
+                        schedule_enabled: true,
+                        cadence: backupConfig.cadence,
+                        run_hour_utc: backupConfig.run_hour_utc,
+                        retention_days: backupConfig.retention_days,
+                        include_memory_db: backupConfig.include_memory_db,
+                        include_qdrant: backupConfig.include_qdrant,
+                        include_kuzu: backupConfig.include_kuzu,
+                        include_skills: backupConfig.include_skills,
+                        encryption_mode: backupConfig.encryption_mode,
+                      })
+                      setBackupConfig(saved)
+                      toast.success('Backup schedule saved')
+                    } catch (err) {
+                      console.error(err)
+                      toast.error('Failed to save backup schedule')
+                    } finally {
+                      setSavingBackupConfig(false)
+                    }
+                  }}
+                  className="rounded bg-stone-700 px-4 py-2 text-sm font-medium text-white hover:bg-stone-600 disabled:opacity-60 dark:bg-[#D8CAAA] dark:text-[#111318]"
+                >
+                  {savingBackupConfig ? 'Saving…' : 'Save schedule'}
                 </button>
-                <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">
-                  Test S3 connection
+                <button
+                  type="button"
+                  disabled={testingBackupConnectionState}
+                  onClick={async () => {
+                    if (!apiKey) return
+                    setTestingBackupConnectionState(true)
+                    try {
+                      const result = await testBackupConnection(apiKey)
+                      if (result.ok) {
+                        toast.success(result.message || 'Backup connectivity check passed')
+                      } else {
+                        toast.error(result.message || 'Backup connectivity check failed')
+                      }
+                    } catch (err) {
+                      console.error(err)
+                      toast.error('Failed to test backup connectivity')
+                    } finally {
+                      setTestingBackupConnectionState(false)
+                    }
+                  }}
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  {testingBackupConnectionState ? 'Testing…' : 'Test S3 Connection'}
                 </button>
                 <button
                   type="button"
@@ -765,13 +1196,32 @@ export default function SettingsPage() {
                 >
                   {runningBackup ? 'Starting...' : 'Run backup now'}
                 </button>
-                <button disabled className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-500 opacity-70 dark:border-slate-700">
-                  Restore docs planned
+                <button
+                  type="button"
+                  disabled={runningRestoreDrillState}
+                  onClick={async () => {
+                    if (!apiKey) return
+                    setRunningRestoreDrillState(true)
+                    try {
+                      const run = await runRestoreDrill(apiKey)
+                      setBackupRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)])
+                      toast.success('Restore drill queued')
+                      setTimeout(() => { void loadBackupData() }, 1500)
+                    } catch (err) {
+                      console.error(err)
+                      toast.error('Failed to start restore drill')
+                    } finally {
+                      setRunningRestoreDrillState(false)
+                    }
+                  }}
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  {runningRestoreDrillState ? 'Starting…' : 'Run Restore Drill'}
                 </button>
               </div>
 
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                Available today: Helm CronJob backups to S3, background manual backup runs from this page, and `scripts/restore.sh` restore. Planned next: save schedule, test S3 connection, and guided restore drills.
+                Available today: Helm CronJob backups to S3, background manual backup runs from this page, backup connectivity checks, restore drills, and `scripts/restore.sh` restore. Schedule persistence remains infrastructure-managed.
               </div>
             </div>
 
@@ -831,6 +1281,50 @@ export default function SettingsPage() {
                           <td className="py-2 text-xs text-slate-500 dark:text-slate-400">
                             {run.error_detail ?? run.output_excerpt ?? '-'}
                           </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Snapshot Inventory</h3>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Recorded backup manifests with checksum, size, and artifact metadata.
+                  </p>
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {backupSnapshots.length} snapshot{backupSnapshots.length === 1 ? '' : 's'}
+                </div>
+              </div>
+              {loadingBackup ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading snapshot inventory...</p>
+              ) : backupSnapshots.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400">No snapshots recorded yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Created</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Bucket</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Checksum</th>
+                        <th className="py-2 pr-4 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Artifacts</th>
+                        <th className="py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Integrity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {backupSnapshots.map((snap) => (
+                        <tr key={snap.id} className="border-b border-gray-100 dark:border-gray-800">
+                          <td className="py-2 pr-4 font-mono text-xs text-gray-700 dark:text-gray-300">{new Date(snap.created_at).toLocaleString()}</td>
+                          <td className="py-2 pr-4 text-xs text-gray-700 dark:text-gray-300">{snap.bucket}</td>
+                          <td className="py-2 pr-4 font-mono text-xs text-slate-500 dark:text-slate-400">{snap.checksum ? `${snap.checksum.slice(0, 14)}...` : '-'}</td>
+                          <td className="py-2 pr-4 text-xs text-slate-500 dark:text-slate-400">{snap.artifact_count}</td>
+                          <td className="py-2 text-xs text-slate-500 dark:text-slate-400">{snap.integrity_status}</td>
                         </tr>
                       ))}
                     </tbody>

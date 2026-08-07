@@ -52,7 +52,7 @@ collector shows *unhealthy*). On the **RunLedger** stack:
 
 ```bash
 # mint a workspace key in the dashboard (Control Plane -> API Keys), then:
-RUNLEDGER_API_KEY=rl_... docker compose up -d runledger-otel-collector
+RUNLEDGER_API_KEY=rl_... docker compose --profile observability up -d runledger-otel-collector
 ```
 
 All stack traffic lands in **that one workspace** — the key decides where.

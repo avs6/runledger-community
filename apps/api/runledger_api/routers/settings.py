@@ -23,11 +23,20 @@ from runledger_api.core.deps import (
     require_platform_admin,
     require_workspace_admin,
 )
+from runledger_api.core.redis import get_redis
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
-from runledger_api.schemas.backup_ops import BackupActionResult, BackupRunList, BackupRunResponse
+from runledger_api.schemas.backup_ops import (
+    BackupActionResult,
+    BackupRunList,
+    BackupRunResponse,
+    BackupSnapshotList,
+    BackupSnapshotResponse,
+    BackupTargetConfigResponse,
+    BackupTargetConfigUpdate,
+)
 from runledger_api.schemas.email_prefs import (
     EmailLogList,
     EmailPreferenceResponse,
@@ -38,6 +47,13 @@ from runledger_api.services.auth import generate_api_key
 from runledger_api.services.demo_mode import launch_demo_process, read_demo_state
 from runledger_api.services.email import send_email
 from runledger_api.services.email_utils import get_workspace_admin_users
+from runledger_api.services.ops import get_queue_depths
+from runledger_api.services.ops_policy import evaluate_infra_posture
+
+try:
+    from redis.asyncio import Redis
+except ImportError:
+    Redis = object  # type: ignore[misc,assignment]
 
 log = structlog.get_logger()
 
@@ -76,7 +92,7 @@ async def _key_visible_workspaces(
 
 
 @router.get("/ops/status")
-async def get_ops_feature_status(auth: PlatformAdminDep) -> dict[str, bool]:
+async def get_ops_feature_status(auth: PlatformAdminDep) -> dict[str, Any]:
     """Expose platform-wide optional feature flags for the Settings UI."""
     _workspace = auth[0]
     smtp_configured = bool(app_settings.smtp_user and app_settings.smtp_password)
@@ -85,7 +101,80 @@ async def get_ops_feature_status(auth: PlatformAdminDep) -> dict[str, bool]:
         "email_reports_enabled": app_settings.email_reports_enabled,
         "backup_enabled": app_settings.backup_enabled,
         "smtp_configured": smtp_configured,
+        "redis_durable": app_settings.redis_durability_mode != "ephemeral",
+        "redis_durability_mode": app_settings.redis_durability_mode,
+        "compliance_export_enabled": app_settings.compliance_export_enabled,
+        "compliance_export_configured": bool(app_settings.compliance_export_bucket),
+        "object_lifecycle_enabled": app_settings.object_lifecycle_enabled,
+        "abuse_protection_enabled": app_settings.abuse_protection_enabled,
+        "local_tls_enabled": app_settings.local_tls_enabled,
+        "deployment_profile": app_settings.deployment_profile,
+        "feature_flags": sorted(app_settings.enabled_feature_flags),
     }
+
+
+@router.get("/ops/queues")
+async def get_ops_queue_status(
+    auth: PlatformAdminDep,
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> dict[str, Any]:
+    """Expose worker queue depth and role hints for the operator UI."""
+    _workspace = auth[0]
+    items = await get_queue_depths(redis)
+    return {
+        "items": items,
+        "total_depth": sum(int(item["depth"]) for item in items),
+        "busy_queues": sum(1 for item in items if int(item["depth"]) > 0),
+    }
+
+
+@router.get("/ops/storage")
+async def get_ops_storage_status(auth: PlatformAdminDep) -> dict[str, Any]:
+    _workspace = auth[0]
+    return {
+        "backup": {
+            "bucket": app_settings.runledger_localai_s3_bucket if hasattr(app_settings, "runledger_localai_s3_bucket") else None,
+            "lifecycle_enabled": app_settings.object_lifecycle_enabled,
+            "retention_days": app_settings.object_lifecycle_days,
+            "noncurrent_retention_days": app_settings.object_lifecycle_noncurrent_days,
+        },
+        "compliance_exports": {
+            "enabled": app_settings.compliance_export_enabled,
+            "bucket": app_settings.compliance_export_bucket or None,
+            "prefix": app_settings.compliance_export_prefix,
+            "storage_class": app_settings.compliance_export_storage_class,
+            "retention_days": app_settings.compliance_export_retention_days,
+        },
+    }
+
+
+@router.get("/ops/feature-flags")
+async def get_ops_feature_flags(auth: PlatformAdminDep) -> dict[str, Any]:
+    _workspace = auth[0]
+    known_flags = [
+        "gateway_pass_through",
+        "kafka_exports",
+        "backup_operations",
+        "policy_dry_run",
+        "otlp_insights",
+        "demo_mode",
+    ]
+    return {
+        "enabled": sorted(app_settings.enabled_feature_flags),
+        "items": [
+            {
+                "name": flag,
+                "enabled": app_settings.is_feature_enabled(flag),
+            }
+            for flag in known_flags
+        ],
+    }
+
+
+@router.get("/ops/policy-evaluation")
+async def get_ops_policy_evaluation(auth: PlatformAdminDep) -> dict[str, Any]:
+    _workspace = auth[0]
+    return evaluate_infra_posture()
 
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
@@ -365,6 +454,45 @@ async def get_backup_history(
     )
 
 
+@router.get("/backups/config", response_model=BackupTargetConfigResponse | None)
+async def get_backup_config(
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> BackupTargetConfigResponse | None:
+    workspace = auth[0]
+    config = await backup_ops.get_backup_config(db, workspace.id)
+    if config is None:
+        return None
+    return BackupTargetConfigResponse.model_validate(config)
+
+
+@router.put("/backups/config", response_model=BackupTargetConfigResponse)
+async def update_backup_config(
+    payload: BackupTargetConfigUpdate,
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> BackupTargetConfigResponse:
+    workspace = auth[0]
+    config = await backup_ops.upsert_backup_config(
+        db, workspace.id, payload.model_dump()
+    )
+    return BackupTargetConfigResponse.model_validate(config)
+
+
+@router.get("/backups/snapshots", response_model=BackupSnapshotList)
+async def get_backup_snapshots(
+    auth: PlatformAdminDep,
+    db: DbDep,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> BackupSnapshotList:
+    workspace = auth[0]
+    items, total = await backup_ops.list_backup_snapshots(db, workspace.id, limit=limit)
+    return BackupSnapshotList(
+        items=[BackupSnapshotResponse.model_validate(item) for item in items],
+        total=total,
+    )
+
+
 @router.post("/backups/run", response_model=BackupRunResponse)
 async def run_backup_now(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
     workspace = auth[0]
@@ -381,9 +509,10 @@ async def run_backup_now(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse
 
 
 @router.post("/backups/test", response_model=BackupActionResult)
-async def test_backup_connection(auth: PlatformAdminDep) -> BackupActionResult:
-    _workspace = auth[0]
-    result = await backup_ops.test_backup_connection()
+async def test_backup_connection(auth: PlatformAdminDep, db: DbDep) -> BackupActionResult:
+    workspace = auth[0]
+    config = await backup_ops.get_backup_config(db, workspace.id)
+    result = await backup_ops.test_backup_connection(config)
     return BackupActionResult(
         ok=bool(result["ok"]),
         message=str(result["message"]),

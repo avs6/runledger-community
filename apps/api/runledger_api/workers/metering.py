@@ -45,6 +45,7 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import DataQualityIssue, UsageDaily, UsageHourly
+from runledger_api.services import kafka_export
 from runledger_api.services.budgets import (
     _matching_budgets,
     fire_breach,
@@ -140,6 +141,28 @@ async def _run_cost_enrichment() -> dict[str, int]:
                         budget_id = uuid.UUID(b["id"])
                         await incr_budget_spend(redis, budget_id, b["period_type"], cost)
                         spend = await get_budget_spend(redis, budget_id, b["period_type"])
+                        limit = Decimal(b["limit_usd"])
+                        if limit > 0 and spend >= (limit * Decimal("0.80")) and spend < limit:
+                            await kafka_export.publish_event(
+                                session,
+                                workspace_id=pc.workspace_id,
+                                event_type="budget.threshold_crossed",
+                                payload={
+                                    "budget_id": str(budget_id),
+                                    "run_id": str(pc.run_id),
+                                    "trace_id": None,
+                                    "provider_call_id": str(pc.id),
+                                    "scope_type": b.get("scope_type"),
+                                    "scope_id": b.get("scope_id"),
+                                    "period_type": b.get("period_type"),
+                                    "limit_usd": b.get("limit_usd"),
+                                    "spend_usd": str(spend),
+                                    "threshold_pct": "80",
+                                    "idempotency_key": f"budget-threshold:{budget_id}:{_period_key(b['period_type'], datetime.now(UTC))}",
+                                    "source": "runledger.metering",
+                                    "event_summary": "Budget threshold crossed",
+                                },
+                            )
                         if spend >= Decimal(b["limit_usd"]) and b["action"] != "notify":
                             await fire_breach(session, redis, b, spend, b["action"])
                 except Exception as exc:

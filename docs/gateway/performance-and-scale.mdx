@@ -1,0 +1,89 @@
+---
+title: "Gateway Performance And Scale"
+description: "Benchmarking, pass-through analytics, multi-region routing, read replicas, and horizontal scale patterns for the RunLedger gateway."
+---
+
+RunLedger now exposes a first-class **Performance And Benchmarking** view in the Gateway dashboard plus benchmark APIs and scripts for operator validation.
+
+## What is now built in
+
+- `GET /gateway/benchmarks/compare` returns per-alias request volume, throughput, gateway overhead, provider latency, and end-to-end latency.
+- The Gateway dashboard renders p50, p95, and p99 overhead plus direct-provider comparison metrics.
+- Pass-through endpoints expose:
+  - per-request cost attribution for non-LLM APIs
+  - test endpoint execution from the dashboard
+  - per-endpoint request, latency, cost, and rate-limit utilization summaries
+- Multi-region routing supports:
+  - region-specific route deployment with the `region` field
+  - preferred-region selection with `X-RunLedger-Region`
+  - cross-region fallback when the preferred region has no healthy match
+  - latency-based region ordering from recent gateway traffic
+
+## Benchmarking workflow
+
+1. Drive traffic through the gateway with `scripts/bench/run_benchmark.py`.
+2. Optionally compare the same workload against a direct provider endpoint.
+3. Review aggregate results in the dashboard or with `scripts/bench/report.py`.
+
+Example:
+
+```bash
+python scripts/bench/run_benchmark.py \
+  --base-url http://localhost:8201 \
+  --api-key rl_... \
+  --alias chat \
+  --repeat 30 \
+  --concurrency 5 \
+  --provider-url https://api.openai.com/v1/chat/completions \
+  --provider-auth-header Authorization \
+  --provider-auth-value "Bearer sk-..." \
+  --provider-model gpt-4o-mini
+
+python scripts/bench/report.py \
+  --base-url http://localhost:8201 \
+  --api-key rl_... \
+  --days 7
+```
+
+## Horizontal scaling design
+
+The gateway remains **stateless at the node layer**:
+
+- API nodes scale horizontally behind a load balancer
+- shared limits and coordination stay in Redis
+- durable request history and routing telemetry stay in Postgres
+- pods can be drained cleanly through readiness changes before shutdown
+
+Recommended rollout pattern:
+
+1. mark the pod unready
+2. stop accepting new gateway traffic
+3. allow in-flight streaming requests to finish or timeout
+4. terminate the pod after the drain window
+
+## Read replicas
+
+Primary writes remain on Postgres. Read replicas are appropriate for:
+
+- benchmark aggregation
+- request-log browsing
+- analytics-heavy operator views
+
+Recommended signals to monitor:
+
+- replica lag in seconds
+- replay delay trend over time
+- replica connection saturation
+- query latency split between primary and replicas
+
+If lag exceeds your routing or audit tolerance, keep operational reads on primary until the replica recovers.
+
+## Rust hot-path evaluation
+
+RunLedger does not replace the Python gateway path by default. The current recommendation is:
+
+- keep FastAPI as the control and compatibility layer
+- evaluate a Rust sidecar or edge proxy only if benchmark data shows Python gateway overhead is materially above your target SLO
+- preserve the same request logging, policy checks, and attribution contracts if a Rust proxy is introduced
+
+That keeps the optimization tied to measured need rather than speculative complexity.

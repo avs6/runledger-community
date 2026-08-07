@@ -11,19 +11,21 @@ from runledger_api.services.demo_mode import REPO_ROOT, now_iso, write_demo_stat
 def _run_seed(profile: str) -> None:
     if profile == "quick":
         from scripts import seed_demo  # noqa: PLC0415
+        from scripts import cleanup  # noqa: PLC0415
 
         write_demo_state(
             status="running",
             action="seed",
             profile="quick",
-            message="Running quick REST demo seed.",
+            message="Resetting demo data, then running quick REST demo seed.",
         )
+        cleanup.truncate()
         asyncio.run(seed_demo.main())
         write_demo_state(
             status="completed",
             action="seed",
             profile="quick",
-            message="Quick REST demo seed completed successfully.",
+            message="Quick REST demo seed completed successfully from a clean slate.",
             finished_at=now_iso(),
         )
         return

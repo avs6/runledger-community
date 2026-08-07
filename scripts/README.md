@@ -9,6 +9,13 @@ There are now three cohesive demo paths:
 1. `Full Simulator`: [full_simulate.py](./full_simulate.py) is the primary automated demo and the default Phase 13 one-click path in the dashboard.
 2. `Quick Seed`: [../apps/api/scripts/seed_demo.py](../apps/api/scripts/seed_demo.py) is the lighter REST-only seed used when you want broad feature coverage fast.
 3. `Hands-on Labs`: [scenarios/labs/README.md](./scenarios/labs/README.md) is the manual workbook for guided operator-style walkthroughs.
+4. `Streaming Demo`: [streaming/kafka_consumer.py](./streaming/kafka_consumer.py) consumes live Kafka events from the bundled Redpanda profile.
+
+Supporting demo assets live alongside those entrypoints:
+
+- [scenarios/labs/guided_demo_scenarios.md](./scenarios/labs/guided_demo_scenarios.md) for presenter-friendly before/after stories
+- [scenarios/labs/sales_engineering_walkthrough.md](./scenarios/labs/sales_engineering_walkthrough.md) for the 12-20 minute sales/demo narrative
+- [../docs/demo-visual-regression.md](../docs/demo-visual-regression.md) for replayable dashboard screenshot and visual review checkpoints
 
 | Script | What it does |
 |---|---|
@@ -20,6 +27,51 @@ There are now three cohesive demo paths:
 | [`restore.sh`](./restore.sh) | Restore stores from an S3 backup (companion to the Helm backup CronJob). |
 | [`bench/`](./bench) | Optimization benchmark harness (baseline vs optimized). |
 | [`localai/`](./localai) | LocalAI Agent Stack integration helpers: org bootstrap, S3 backup/restore, MCP config injection, SDK-style traffic, and OTLP trace generation. |
+| [`streaming/`](./streaming) | Kafka/Redpanda local consumer helpers for the streaming export demo. |
+
+## Local backup profile
+
+RunLedger now includes a local MinIO-backed backup profile:
+
+```bash
+docker compose --profile backup up -d runledger-minio
+```
+
+Default local endpoints:
+
+- S3 API: `http://localhost:9010`
+- Console: `http://localhost:9011`
+
+## Local observability profile
+
+RunLedger also includes a dedicated local observability profile for the bundled OTel Collector:
+
+```bash
+docker compose --profile observability up -d runledger-otel-collector
+```
+
+Default local endpoints:
+
+- OTLP/gRPC: `http://localhost:4317`
+- OTLP/HTTP: `http://localhost:4318`
+- Collector health: `http://localhost:13133`
+- Collector self-metrics: `http://localhost:8888/metrics`
+- Collector span metrics: `http://localhost:8889/metrics`
+
+The legacy `otel` profile name is still accepted, but `observability` is the canonical profile going forward.
+The shipped collector expects `Authorization: Bearer <workspace-api-key>` on inbound OTLP traffic and forwards the same workspace API key upstream to RunLedger.
+
+## Local deployment profiles
+
+RunLedger now has a clearer local profile split:
+
+- `docker compose up -d` → core control plane
+- `docker compose --profile aux up -d` → optimization and agentic sidecars
+- `docker compose --profile backup up -d runledger-minio` → local S3-compatible target
+- `docker compose --profile observability up -d runledger-otel-collector` → OTEL collector
+- `docker compose --profile streaming up -d runledger-redpanda runledger-redpanda-console` → Kafka-compatible event bus demo
+- `docker compose --profile tls-demo up -d runledger-caddy` → local HTTPS demo proxy
+- `docker compose --profile full-demo up -d` → all optional demo services together
 
 ## What `full_simulate.py` does
 
@@ -31,6 +83,7 @@ uv run python scripts/full_simulate.py --hard-clean  # wipe every volume first (
 uv run python scripts/full_simulate.py --no-clean    # add on top of existing data
 uv run python scripts/full_simulate.py --traffic-multiplier 5
 uv run python scripts/full_simulate.py --scenario-set all  # intentionally include hosted examples
+uv run python scripts/full_simulate.py --streaming-demo     # also seed Kafka/Redpanda exports
 ```
 
 Step by step:
@@ -41,7 +94,10 @@ Step by step:
 4. **Run local scenarios** - discovers the [`scenarios/ollama`](./scenarios/ollama) scenarios by default and runs them with a 3x traffic multiplier. Each scenario creates its own org via `/org/tenants`, logs in as the seeded org admin for management actions, mints a workspace API key from `/settings/api-keys`, and fills the workspace via the API: gateway routes, runs (`/ingest/v1/batch`), budgets, outcomes, scores, alerts, approval requests, chargeback rules, auto-approval policies, runbooks, and guardrails.
 5. **Seed governance & finops** - triggers a governance audit pack export across all workspaces.
 6. **Seed guardrails** - activates baseline content filters (code injection, data exfiltration, toxicity, violence, self-harm, child safety) across all workspaces.
-7. **Summary** - prints each workspace, its API key, and run count.
+7. **Expand demo breadth** - seeds richer control-plane and operator data across applications, teams, team-model mappings, agent workflows, tool policies, MCP permissions, approval decisions, email settings/history, backup settings/history, OTLP traces, intents, outcomes, and savings categories.
+8. **Summary** - prints each workspace, its API key, and run count.
+
+When `--streaming-demo` is enabled, the simulator also seeds a single-topic Kafka export config per workspace aimed at `runledger-redpanda:9092` so the `streaming` and `full-demo` Compose profiles can show live event fanout immediately.
 
 Everything goes through the **public REST API** exactly as a real client would - no direct database writes - so it exercises the real ingest / metering / budgets / outcomes paths. Cost enrichment and rollups run on Celery, so give analytics ~60s to populate.
 

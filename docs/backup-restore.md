@@ -1,229 +1,204 @@
 # Backup and Restore
 
-## Backup strategy
+RunLedger now has two practical backup stories:
 
-The **control-plane PostgreSQL** is RunLedger's system of record and the primary thing to back up.
-The optimization layer adds a few more **durable** stores that also hold state worth keeping:
+- **platform-managed backup operations** exposed in Settings for manual runs, history, connectivity checks, and restore drills
+- **infrastructure-level scheduled backups** for Helm, MinIO/S3, and restore automation
 
-| Store | Contents | Back up? |
-|-------|----------|----------|
-| control-plane Postgres | routes, ledger, flywheel, everything | **Always** |
-| memory-db (Letta) | facts / preferences / decisions / episodes | **Yes** |
-| Kùzu graph | knowledge graph | **Yes** |
-| skill-registry | skill files | **Yes** |
-| Qdrant | semantic cache + episode vectors | Optional — largely regenerable |
+This document covers both.
 
-Everything else is **regenerable** and is *not* backed up:
-- **Redis** — Celery queues + rate-limit counters (ephemeral) and budget counters (rebuilt from Postgres).
-- **Embedding / reranker / compression model caches** — re-downloaded on pod start.
+## What should be backed up
 
-The Helm chart's backup CronJob covers every durable store in one job (see below); `scripts/restore.sh`
-is the companion restore tool.
+The control-plane PostgreSQL database is the system of record and should always be backed up. Depending on your deployment, you may also want to include:
 
-## Automated backups
+| Store | Purpose | Recommendation |
+|---|---|---|
+| Control-plane Postgres | routes, runs, ledger, prompts, approvals, policies, budgets, analytics inputs | Always back up |
+| Memory DB | long-lived memory / agent state | Back up if enabled |
+| Kuzu graph | knowledge-graph state | Back up if you use it |
+| Skill registry storage | durable skill content | Back up if you use it |
+| Qdrant | semantic cache and vector artifacts | Optional, depending on recovery goals |
 
-### Via Helm chart (K8s)
+Redis and model caches are generally treated as rebuildable.
 
-Enable the nightly multi-store backup CronJob in your values and pick which durable stores to include:
+## Product-managed backup operations
+
+The Settings page includes backup operations for platform admins:
+
+- saved S3-compatible target configuration
+- scheduled backup cadence, hour, and retention settings
+- manual **Run backup now**
+- backup run history
+- snapshot inventory with checksum and artifact metadata
+- **Test backup connectivity**
+- **Run restore drill**
+- checksum and artifact metadata capture for LocalAI/MinIO helper runs
+
+These flows are backed by the `backup_runs` table and the backup operations service in the API.
+
+### Local helper path
+
+For local development and demos, RunLedger ships a generic S3-compatible helper:
+
+```bash
+python scripts/localai/localai_s3_backup.py ensure-bucket
+python scripts/localai/localai_s3_backup.py backup
+python scripts/localai/localai_s3_backup.py list
+python scripts/localai/localai_s3_backup.py restore --confirm-restore
+```
+
+The backup helper emits structured summary metadata, including:
+
+- per-artifact name
+- artifact size in bytes
+- per-artifact checksum
+- total size
+- aggregate checksum
+
+That metadata is recorded into backup history when the RunLedger backup service invokes the helper.
+
+## Local Docker Compose backup profile
+
+RunLedger now includes a local `backup` profile with MinIO:
+
+```bash
+docker compose --profile backup up -d runledger-minio
+```
+
+Default local ports:
+
+- S3 API: `http://localhost:9010`
+- MinIO console: `http://localhost:9011`
+
+Default local credentials are driven from `.env`:
+
+- `RUNLEDGER_BACKUP_ACCESS_KEY_ID`
+- `RUNLEDGER_BACKUP_SECRET_ACCESS_KEY`
+- `RUNLEDGER_BACKUP_ENDPOINT_URL`
+- `RUNLEDGER_LOCALAI_S3_BUCKET`
+
+## Bring your own S3-compatible storage
+
+Use the Settings page to configure:
+
+- bucket
+- region
+- endpoint URL
+- access key
+- secret key
+- path-style vs virtual-host behavior
+- schedule cadence
+- retention days
+- encryption mode
+
+This works for:
+
+- AWS S3
+- MinIO
+- Ceph RGW
+- other S3-compatible object stores
+
+For MinIO and many local object stores, keep path-style URLs enabled.
+
+## Helm and infrastructure-managed backups
+
+For Kubernetes deployments, use the Helm backup CronJob and object storage.
+
+Example values:
 
 ```yaml
 backup:
   enabled: true
-  schedule: "0 2 * * *"          # 02:00 UTC daily
+  schedule: "0 2 * * *"
   s3Bucket: "s3://my-bucket/runledger-backups"
   awsRegion: us-east-1
   retainDays: 30
   stores:
-    memoryDb: { enabled: true }  # pg_dump the Letta memory Postgres
-    qdrant:   { enabled: false } # snapshot (semantic cache is regenerable; episodes are not)
-    kuzu:     { enabled: true }  # tar the knowledge-graph PVC
-    skills:   { enabled: true }  # tar the skill-registry PVC
+    memoryDb: { enabled: true }
+    qdrant: { enabled: false }
+    kuzu: { enabled: true }
+    skills: { enabled: true }
 ```
 
-One job backs up every enabled store to S3 (`STANDARD_IA`) under per-store prefixes, pruning objects
-older than `retainDays`:
+Recommended methods by store:
 
 | Store | Method |
-|-------|--------|
-| control-plane Postgres | `pg_dump --format=custom` (always) |
-| memory-db | `pg_dump --format=custom` |
+|---|---|
+| Control-plane Postgres | `pg_dump --format=custom` |
+| Memory DB | `pg_dump --format=custom` |
 | Qdrant | snapshot API |
-| Kùzu / skills | `tar` the StatefulSet PVC |
-
-> **PVC access:** the Kùzu and skills backups mount their `ReadWriteOnce` PVCs, which single-attach — so
-> the backup Job must land on the same node as the owning pod, or the PVC must use a `ReadWriteMany`
-> storage class. For managed production, prefer external stores with the provider's own snapshots.
-
-The backup pod needs S3 write access. On EKS, use IRSA:
-
-```yaml
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/runledger-backup
-```
-
-Required IAM policy:
-```json
-{
-  "Effect": "Allow",
-  "Action": ["s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
-  "Resource": [
-    "arn:aws:s3:::my-bucket",
-    "arn:aws:s3:::my-bucket/runledger-backups/*"
-  ]
-}
-```
-
-### Via Docker Compose (standalone backup script)
-
-```bash
-#!/bin/bash
-TIMESTAMP=$(date +%Y%m%dT%H%M%SZ)
-FILENAME="runledger-${TIMESTAMP}.dump"
-
-docker run --rm \
-  --network runledger_default \
-  -e PGPASSWORD="${DB_PASSWORD}" \
-  postgres:16-alpine \
-  pg_dump \
-    --host=postgres \
-    --port=5432 \
-    --username="${DB_USER}" \
-    --dbname=runledger \
-    --format=custom \
-    --no-acl \
-    --no-owner \
-    > "/backups/${FILENAME}"
-
-# Upload to S3
-aws s3 cp "/backups/${FILENAME}" "s3://my-bucket/runledger-backups/${FILENAME}"
-```
-
-Schedule with system cron:
-```
-0 2 * * * /opt/runledger/backup.sh >> /var/log/runledger-backup.log 2>&1
-```
-
-### Managed database backups
-
-If you use a managed Postgres service, prefer the built-in backup:
-
-| Provider | Backup | PITR |
-|----------|--------|------|
-| AWS RDS | Automated daily snapshots + transaction logs | Up to 35 days |
-| Google Cloud SQL | Automated backups + binary logging | Up to 7 days |
-| Neon | Continuous branching / point-in-time | Up to 7 days |
-| Supabase | Daily backups (Pro+) | Available on Pro+ |
-
-Enable PITR in addition to daily snapshots — it lets you restore to within seconds of any event.
+| Kuzu / skill storage | archive the mounted data volume |
 
 ## Restore procedures
 
-### All stores — `scripts/restore.sh`
+### Product restore drill
 
-[`scripts/restore.sh`](https://github.com/avs6/runledger-community/blob/master/scripts/restore.sh) restores
-any subset of stores from S3 — the latest object per prefix, or a specific `--timestamp`:
+The dashboard restore drill is intended to validate that backup inventory is reachable and that operators can rehearse recovery safely. It is not a full destructive restore in-place.
+
+Use it as a regular validation step before relying on any backup schedule.
+
+### Local restore helper
+
+For local restore using the bundled helper:
 
 ```bash
-S3_BUCKET=s3://my-bucket/runledger-backups \
-DATABASE_URL=postgresql://user:pass@host:5432/runledger \
-MEMORY_DB_URL=postgresql://user:pass@host:5432/memory \
-QDRANT_URL=http://qdrant:6333 \
-./scripts/restore.sh --control-plane --memory-db --qdrant \
-    --kuzu-dir /data --skills-dir /data/skills
+python scripts/localai/localai_s3_backup.py restore --confirm-restore
 ```
 
-- **Postgres stores** → `pg_restore --clean --if-exists` (idempotent).
-- **Qdrant** → snapshot upload/recover API.
-- **Kùzu / skills** → `tar` extract into the PVC; restart `runledger-kg` / `runledger-skill-registry` to reload.
+Restart API, worker, and beat after restore so all processes reload state.
 
-Run a restore drill on a scratch namespace periodically — that is the only way to know your backups work.
-The manual per-store procedures below cover the control-plane Postgres in detail.
+### Full Postgres restore
 
-### From pg_dump file (control-plane)
+Restore from a `pg_dump` archive:
 
 ```bash
-# 1. Create an empty database (if restoring to a new instance)
-createdb -h <host> -U <user> runledger_restored
-
-# 2. Restore
 pg_restore \
   --host=<host> \
   --port=5432 \
   --username=<user> \
-  --dbname=runledger_restored \
-  --no-owner \
-  --no-acl \
-  --verbose \
-  runledger-20260324T020000Z.dump
-```
-
-### Full replace (same database)
-
-```bash
-# 1. Stop the API and workers to prevent writes during restore
-kubectl scale deployment runledger-api runledger-worker runledger-beat --replicas=0
-
-# 2. Drop and recreate the database
-psql -h <host> -U <adminuser> -c "DROP DATABASE runledger;"
-psql -h <host> -U <adminuser> -c "CREATE DATABASE runledger OWNER runledger;"
-
-# 3. Restore
-pg_restore \
-  --host=<host> \
-  --username=runledger \
   --dbname=runledger \
   --no-owner \
   --no-acl \
   --verbose \
   runledger-20260324T020000Z.dump
-
-# 4. Run any pending migrations (in case the dump is behind HEAD)
-kubectl run --rm -it migrations --image=ghcr.io/avs6/runledger-api:latest \
-  --env DATABASE_URL="$DATABASE_URL" \
-  --env SECRET_KEY="$SECRET_KEY" \
-  -- alembic upgrade head
-
-# 5. Restart all pods
-kubectl scale deployment runledger-api runledger-worker runledger-beat \
-  --replicas=$(kubectl get deployment runledger-api -o jsonpath='{.spec.replicas}')
 ```
 
-### Point-in-time recovery (AWS RDS)
+When restoring into a live environment:
 
-```bash
-# Via AWS CLI — restore to a new DB instance
-aws rds restore-db-instance-to-point-in-time \
-  --source-db-instance-identifier runledger-prod \
-  --target-db-instance-identifier runledger-restored \
-  --restore-time "2026-03-24T03:00:00Z"
+1. stop API and worker writes
+2. restore the target database
+3. run pending migrations if needed
+4. restart the services
 
-# Wait for it to become available, then update DATABASE_URL in your secret
-kubectl patch secret runledger-secrets \
-  -p '{"stringData":{"DATABASE_URL":"postgresql+asyncpg://user:pass@runledger-restored.xxx.rds.amazonaws.com:5432/runledger"}}'
+## Connectivity checks and restore drills
 
-# Rolling restart to pick up new DB URL
-kubectl rollout restart deployment/runledger-api deployment/runledger-worker deployment/runledger-beat
-```
+Before enabling scheduled backup workflows in any serious environment:
 
-## Verify restore integrity
+1. verify the target bucket or object store is reachable
+2. run at least one successful backup
+3. verify checksum and artifact metadata are being recorded
+4. run a restore drill against a safe environment
+5. confirm operators know the recovery path
 
-After restoring, verify the tamper-evident ledger snapshots are intact:
+## Encryption
 
-```bash
-curl -H "Authorization: Bearer $ADMIN_SECRET" \
-  https://api.example.com/ledger/snapshots?limit=5
-```
+RunLedger currently supports a product-managed server-side encryption mode for S3-compatible uploads using AES256 headers where the target accepts them.
 
-Each snapshot contains a `snapshot_hash` that can be re-verified against the raw data. A mismatch indicates the data was modified after the snapshot was signed.
+Use `Server-side AES256` in the Settings page for the default path.
 
-## Recovery time objectives
+## Recovery guidance
 
-| Scenario | RTO | RPO |
-|----------|-----|-----|
-| Single pod failure | ~30s (K8s restart) | 0 |
-| Primary DB failover (RDS Multi-AZ) | ~60s | ~0 (synchronous standby) |
-| Full DB restore from pg_dump | 15–60 min (size-dependent) | Up to 24h (daily backup) |
-| PITR | 15–30 min provisioning | ~5 min (transaction log lag) |
+Use managed database PITR where available. Scheduled dumps are useful, but point-in-time recovery is still the better option for tighter recovery objectives.
 
-For RPO < 5 min, use managed PITR (RDS / Cloud SQL) rather than scheduled pg_dump.
+| Scenario | Typical guidance |
+|---|---|
+| Single service restart | restart the service |
+| DB failover with managed Postgres | prefer provider failover / PITR |
+| Local demo reset | use `scripts/cleanup.py` or demo-mode reset |
+| Full environment recovery | restore Postgres first, then durable auxiliary stores |
+
+## Related docs
+
+- [scripts/README.md](../scripts/README.md)
+- [Demo runbook](./demo-runbook.md)
+- [Helm](./helm.md)

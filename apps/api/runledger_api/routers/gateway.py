@@ -18,14 +18,17 @@ GET    /gateway/requests                  Routing log
 from __future__ import annotations
 
 import logging
+import math
 import time
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
 import httpx
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func, select
@@ -34,7 +37,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.gateway import GatewayPassThroughEndpoint, GatewayRequest, GatewayRoute
+from runledger_api.models.gateway import (
+    GatewayPassThroughEndpoint,
+    GatewayRequest,
+    GatewayRoute,
+    GatewayRoutingGroup,
+    RoutingPolicy,
+)
 from runledger_api.models.tenant import ApiKey, TenantUser, User, Workspace
 from runledger_api.schemas.gateway import (
     GatewayCompletionRequest,
@@ -43,15 +52,35 @@ from runledger_api.schemas.gateway import (
     GatewayPassThroughEndpointCreate,
     GatewayPassThroughEndpointList,
     GatewayPassThroughEndpointResponse,
+    GatewayPassThroughEndpointStats,
+    GatewayPassThroughEndpointStatsList,
+    GatewayPassThroughTestRequest,
+    GatewayPassThroughTestResponse,
     GatewayPassThroughEndpointUpdate,
+    GatewayBenchmarkComparisonItem,
+    GatewayBenchmarkComparisonList,
     GatewayRequestList,
     GatewayRequestResponse,
+    GatewayRoutingGroupCreate,
+    GatewayRoutingGroupList,
+    GatewayRoutingGroupResponse,
+    GatewayRoutingGroupRouteSummary,
+    GatewayRoutingGroupUpdate,
+    GatewayRoutingStrategyComparison,
+    GatewayRoutingStrategyComparisonItem,
     GatewayRouteCreate,
     GatewayRouteList,
     GatewayRouteResponse,
     GatewayRouteStats,
     GatewayRouteUpdate,
     GatewayStats,
+    RoutingPolicyActionResponse,
+    RoutingPolicyAnalysisResponse,
+    RoutingPolicyCreate,
+    RoutingPolicyList,
+    RoutingPolicyPromotionRequest,
+    RoutingPolicyResponse,
+    RoutingPolicyUpdate,
 )
 from runledger_api.services import context_compiler, intelligent_router, semantic_cache
 from runledger_api.services.auth import verify_api_key
@@ -61,6 +90,7 @@ from runledger_api.services.gateway import (
     increment_hit_count,
     make_cache_key,
     record_gateway_request,
+    resolve_request_tags,
     route_and_forward,
     store_cache,
     stream_request,
@@ -68,6 +98,7 @@ from runledger_api.services.gateway import (
 from runledger_api.services.gateway_controls import check_cost_cap, check_per_user_rpm
 from runledger_api.services.gateway_redact import redact_messages
 from runledger_api.services.guardrails import evaluate_guardrails
+from runledger_api.services.routing import analyze_routing_policy
 from runledger_api.services.security import (
     authenticate_oidc_token,
     enforce_required_metadata,
@@ -127,6 +158,28 @@ def _segment_key(model_alias: str, ir_decision: dict[str, Any] | None) -> str:
     return model_alias
 
 
+def _serialize_gateway_route(
+    route: GatewayRoute,
+    *,
+    routing_group_name: str | None = None,
+) -> GatewayRouteResponse:
+    payload = GatewayRouteResponse.model_validate(route).model_dump()
+    payload["routing_group_name"] = routing_group_name
+    return GatewayRouteResponse(**payload)
+
+
+def _serialize_routing_group(
+    group: GatewayRoutingGroup,
+    routes: list[GatewayRoute],
+) -> GatewayRoutingGroupResponse:
+    payload = GatewayRoutingGroupResponse.model_validate(group).model_dump()
+    payload["route_count"] = len(routes)
+    payload["routes"] = [
+        GatewayRoutingGroupRouteSummary.model_validate(route).model_dump() for route in routes
+    ]
+    return GatewayRoutingGroupResponse(**payload)
+
+
 # ── Chat completions ────────────────────────────────────────────────────────────
 
 
@@ -155,16 +208,42 @@ async def _resolve_gateway_workspace(
     request: Request,
     db: AsyncSession,
 ) -> tuple[Workspace, ApiKey | None]:
-    workspace, api_key = await _resolve_gateway_workspace(request, db)
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    raw_bearer = auth_header.split(" ", 1)[1].strip()
+    api_key = await verify_api_key(raw_bearer, db)
+    oidc_auth = None if api_key is not None else await authenticate_oidc_token(raw_bearer, db)
+    if api_key is None and oidc_auth is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bearer token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    workspace = (
+        (await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))).scalar_one()
+        if api_key is not None
+        else oidc_auth.workspace
+    )
     return workspace, api_key
 
 
 def _build_passthrough_headers(
     endpoint: GatewayPassThroughEndpoint,
-    request: Request,
+    request: Request | None = None,
+    source_headers: dict[str, str] | None = None,
 ) -> dict[str, str]:
     headers: dict[str, str] = {}
-    for key, value in request.headers.items():
+    if request is not None:
+        for key, value in request.headers.items():
+            lowered = key.lower()
+            if lowered in _PASSTHROUGH_ALLOWED_REQUEST_HEADERS:
+                headers[key] = value
+    for key, value in (source_headers or {}).items():
         lowered = key.lower()
         if lowered in _PASSTHROUGH_ALLOWED_REQUEST_HEADERS:
             headers[key] = value
@@ -184,6 +263,32 @@ def _build_passthrough_headers(
     return headers
 
 
+def _build_passthrough_target_url(
+    endpoint: GatewayPassThroughEndpoint,
+    *,
+    upstream_path: str = "",
+    query_params: dict[str, Any] | None = None,
+) -> str:
+    upstream_base = endpoint.upstream_base_url.rstrip("/")
+    path_prefix = (endpoint.path_prefix or "/").strip("/")
+    upstream_suffix = upstream_path.strip("/")
+    path_parts = [part for part in (path_prefix, upstream_suffix) if part]
+    target_url = upstream_base
+    if path_parts:
+        target_url = f"{upstream_base}/{'/'.join(path_parts)}"
+
+    merged_query: dict[str, Any] = {}
+    for key, value in (endpoint.default_query or {}).items():
+        if value is not None:
+            merged_query[str(key)] = str(value)
+    for key, value in (query_params or {}).items():
+        if value is not None:
+            merged_query[str(key)] = str(value)
+    if merged_query:
+        target_url = f"{target_url}?{urlencode(merged_query, doseq=True)}"
+    return target_url
+
+
 @router.post("/chat/completions")
 async def gateway_chat_completions(
     body: GatewayCompletionRequest,
@@ -193,6 +298,8 @@ async def gateway_chat_completions(
     x_runledger_tags: str | None = Header(default=None, alias="X-RunLedger-Tags"),
     x_runledger_region: str | None = Header(default=None, alias="X-RunLedger-Region"),
     x_runledger_timeout_ms: int | None = Header(default=None, alias="X-RunLedger-Timeout-Ms"),
+    x_runledger_completion_timeout_ms: int | None = Header(default=None, alias="X-RunLedger-Completion-Timeout-Ms"),
+    x_runledger_stream_timeout_ms: int | None = Header(default=None, alias="X-RunLedger-Stream-Timeout-Ms"),
 ) -> Any:
     """
     OpenAI-compatible chat completions proxy.
@@ -242,6 +349,7 @@ async def gateway_chat_completions(
     request_tags = [str(tag).strip() for tag in metadata.get("tags", [])] if isinstance(metadata.get("tags"), list) else []
     if x_runledger_tags:
         request_tags.extend(tag.strip() for tag in x_runledger_tags.split(",") if tag.strip())
+    request_tags = await resolve_request_tags(db, workspace.id, body.model, request_tags)
     preferred_region = x_runledger_region.strip() if x_runledger_region else None
 
     # ── 1. Cache lookup ──────────────────────────────────────────────────────
@@ -441,6 +549,7 @@ async def gateway_chat_completions(
                 tools=effective_tools,
                 tool_choice=body.tool_choice,
                 reasoning_effort=effective_reasoning_effort,
+                timeout_override_ms=x_runledger_stream_timeout_ms or x_runledger_timeout_ms,
             ):
                 yield chunk
 
@@ -493,7 +602,7 @@ async def gateway_chat_completions(
             reasoning_effort=effective_reasoning_effort,
             request_tags=request_tags,
             preferred_region=preferred_region,
-            timeout_override_ms=x_runledger_timeout_ms,
+            timeout_override_ms=x_runledger_completion_timeout_ms or x_runledger_timeout_ms,
             fallback_aliases=body.fallback_aliases,
         )
         if ir_decision and ir_decision.get("alias"):
@@ -583,6 +692,8 @@ async def gateway_chat_completions(
     usage = response_json.get("usage") or {}
     input_tokens = usage.get("prompt_tokens")
     output_tokens = usage.get("completion_tokens")
+    total_wall_ms = int((time.monotonic() - t0) * 1000)
+    gateway_overhead_ms = max(total_wall_ms - (latency_ms or 0), 0)
 
     # ── 4. Store in cache ────────────────────────────────────────────────────
     if body.cache:
@@ -627,7 +738,13 @@ async def gateway_chat_completions(
             compiler_enabled=compiler_enabled,
             compiler_config=compiler_config,
             ir_decision=ir_decision,
-        ),
+        )
+        | {
+            "provider_latency_ms": latency_ms,
+            "total_wall_ms": total_wall_ms,
+            "gateway_overhead_ms": gateway_overhead_ms,
+            "region": winning_route.region,
+        },
         segment_key=_segment_key(body.model, ir_decision),
     )
 
@@ -637,6 +754,218 @@ async def gateway_chat_completions(
 # ── Routes CRUD ────────────────────────────────────────────────────────────────
 
 
+@router.post(
+    "/routing-groups",
+    response_model=GatewayRoutingGroupResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_gateway_routing_group(
+    body: GatewayRoutingGroupCreate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayRoutingGroupResponse:
+    workspace = auth[0]
+    group = GatewayRoutingGroup(
+        workspace_id=workspace.id,
+        alias=body.alias,
+        name=body.name,
+        description=body.description,
+        match_tags=body.match_tags,
+        default_tags=body.default_tags,
+        strategy_type=body.strategy_type,
+        strategy_config=body.strategy_config,
+        is_active=body.is_active,
+    )
+    db.add(group)
+    await db.commit()
+    await db.refresh(group)
+    return _serialize_routing_group(group, [])
+
+
+@router.get("/routing-groups", response_model=GatewayRoutingGroupList)
+async def list_gateway_routing_groups(
+    auth: OrgAdminDep,
+    db: DbDep,
+    alias: str | None = Query(default=None),
+    include_inactive: bool = Query(default=False),
+) -> GatewayRoutingGroupList:
+    workspace = auth[0]
+    stmt = select(GatewayRoutingGroup).where(GatewayRoutingGroup.workspace_id == workspace.id)
+    if alias:
+        stmt = stmt.where(GatewayRoutingGroup.alias == alias)
+    if not include_inactive:
+        stmt = stmt.where(GatewayRoutingGroup.is_active.is_(True))
+    stmt = stmt.order_by(
+        GatewayRoutingGroup.alias.asc(),
+        GatewayRoutingGroup.name.asc(),
+        GatewayRoutingGroup.created_at.asc(),
+    )
+    groups = list((await db.execute(stmt)).scalars().all())
+    routes = list(
+        (
+            await db.execute(
+                select(GatewayRoute)
+                .where(GatewayRoute.workspace_id == workspace.id)
+                .order_by(GatewayRoute.alias.asc(), GatewayRoute.priority.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    routes_by_group: dict[uuid.UUID, list[GatewayRoute]] = {}
+    for route in routes:
+        if route.routing_group_id is not None:
+            routes_by_group.setdefault(route.routing_group_id, []).append(route)
+    return GatewayRoutingGroupList(
+        items=[_serialize_routing_group(group, routes_by_group.get(group.id, [])) for group in groups]
+    )
+
+
+@router.get(
+    "/routing-groups/strategy-comparison",
+    response_model=GatewayRoutingStrategyComparison,
+)
+async def gateway_routing_strategy_comparison(
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayRoutingStrategyComparison:
+    workspace = auth[0]
+    groups = list(
+        (
+            await db.execute(
+                select(GatewayRoutingGroup).where(GatewayRoutingGroup.workspace_id == workspace.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    group_map = {group.id: group for group in groups}
+    routes = list(
+        (await db.execute(select(GatewayRoute).where(GatewayRoute.workspace_id == workspace.id)))
+        .scalars()
+        .all()
+    )
+    routes_by_group: dict[uuid.UUID | None, list[GatewayRoute]] = {}
+    for route in routes:
+        routes_by_group.setdefault(route.routing_group_id, []).append(route)
+
+    rows = (
+        await db.execute(
+            select(
+                GatewayRoute.routing_group_id,
+                GatewayRoute.alias,
+                func.count(GatewayRequest.id).label("total_requests"),
+                func.avg(GatewayRequest.latency_ms).label("avg_latency_ms"),
+                func.count(GatewayRequest.id)
+                .filter(GatewayRequest.cache_hit.is_(True))
+                .label("cache_hits"),
+                func.count(GatewayRequest.id)
+                .filter(GatewayRequest.status == "error")
+                .label("error_count"),
+            )
+            .select_from(GatewayRequest)
+            .join(GatewayRoute, GatewayRequest.route_id == GatewayRoute.id, isouter=True)
+            .where(GatewayRequest.workspace_id == workspace.id)
+            .group_by(GatewayRoute.routing_group_id, GatewayRoute.alias)
+        )
+    ).all()
+    items: list[GatewayRoutingStrategyComparisonItem] = []
+    for row in rows:
+        total_requests = int(row.total_requests or 0)
+        cache_hits = int(row.cache_hits or 0)
+        error_count = int(row.error_count or 0)
+        group = group_map.get(row.routing_group_id)
+        group_routes = routes_by_group.get(row.routing_group_id, [])
+        items.append(
+            GatewayRoutingStrategyComparisonItem(
+                routing_group_id=row.routing_group_id,
+                alias=row.alias or "ungrouped",
+                group_name=group.name if group is not None else "Ungrouped",
+                strategy_type=group.strategy_type if group is not None else "manual",
+                total_requests=total_requests,
+                cache_hit_rate=Decimal(str(round(cache_hits / total_requests, 4))) if total_requests else Decimal("0"),
+                avg_latency_ms=(
+                    Decimal(str(row.avg_latency_ms)).quantize(Decimal("0.01"))
+                    if row.avg_latency_ms is not None
+                    else None
+                ),
+                error_rate=Decimal(str(round(error_count / total_requests, 4))) if total_requests else Decimal("0"),
+                active_routes=sum(1 for route in group_routes if route.is_active),
+                default_tags=list(group.default_tags or []) if group is not None else [],
+                match_tags=list(group.match_tags or []) if group is not None else [],
+            )
+        )
+    return GatewayRoutingStrategyComparison(items=items)
+
+
+@router.put("/routing-groups/{group_id}", response_model=GatewayRoutingGroupResponse)
+async def update_gateway_routing_group(
+    group_id: uuid.UUID,
+    body: GatewayRoutingGroupUpdate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayRoutingGroupResponse:
+    workspace = auth[0]
+    group = await db.get(GatewayRoutingGroup, group_id)
+    if group is None or group.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway routing group not found")
+
+    if body.alias is not None:
+        group.alias = body.alias
+    if body.name is not None:
+        group.name = body.name
+    if "description" in body.model_fields_set:
+        group.description = body.description
+    if body.match_tags is not None:
+        group.match_tags = body.match_tags
+    if body.default_tags is not None:
+        group.default_tags = body.default_tags
+    if body.strategy_type is not None:
+        group.strategy_type = body.strategy_type
+    if "strategy_config" in body.model_fields_set:
+        group.strategy_config = body.strategy_config
+    if body.is_active is not None:
+        group.is_active = body.is_active
+    group.updated_at = func.now()
+
+    await db.commit()
+    await db.refresh(group)
+    routes = list(
+        (
+            await db.execute(
+                select(GatewayRoute)
+                .where(GatewayRoute.routing_group_id == group.id)
+                .order_by(GatewayRoute.priority.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return _serialize_routing_group(group, routes)
+
+
+@router.delete("/routing-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_gateway_routing_group(
+    group_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    group = await db.get(GatewayRoutingGroup, group_id)
+    if group is None or group.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway routing group not found")
+
+    grouped_routes = list(
+        (await db.execute(select(GatewayRoute).where(GatewayRoute.routing_group_id == group.id)))
+        .scalars()
+        .all()
+    )
+    for route in grouped_routes:
+        route.routing_group_id = None
+    await db.delete(group)
+    await db.commit()
+
+
 @router.post("/routes", response_model=GatewayRouteResponse, status_code=status.HTTP_201_CREATED)
 async def create_gateway_route(
     body: GatewayRouteCreate,
@@ -644,8 +973,17 @@ async def create_gateway_route(
     db: DbDep,
 ) -> GatewayRouteResponse:
     workspace = auth[0]
+    routing_group_name: str | None = None
+    if body.routing_group_id is not None:
+        group = await db.get(GatewayRoutingGroup, body.routing_group_id)
+        if group is None or group.workspace_id != workspace.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway routing group not found")
+        if group.alias != body.alias:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Routing group alias must match route alias")
+        routing_group_name = group.name
     route = GatewayRoute(
         workspace_id=workspace.id,
+        routing_group_id=body.routing_group_id,
         alias=body.alias,
         provider=body.provider,
         target_model=body.target_model,
@@ -676,7 +1014,7 @@ async def create_gateway_route(
     await db.flush()
     await db.commit()
     await db.refresh(route)
-    return GatewayRouteResponse.model_validate(route)
+    return _serialize_gateway_route(route, routing_group_name=routing_group_name)
 
 
 @router.get("/routes", response_model=GatewayRouteList)
@@ -692,7 +1030,21 @@ async def list_gateway_routes(
     stmt = stmt.order_by(GatewayRoute.priority.asc(), GatewayRoute.created_at.asc())
     result = await db.execute(stmt)
     routes = list(result.scalars().all())
-    return GatewayRouteList(items=[GatewayRouteResponse.model_validate(r) for r in routes])
+    group_names: dict[uuid.UUID, str] = {}
+    group_ids = [route.routing_group_id for route in routes if route.routing_group_id is not None]
+    if group_ids:
+        group_result = await db.execute(
+            select(GatewayRoutingGroup.id, GatewayRoutingGroup.name).where(
+                GatewayRoutingGroup.id.in_(group_ids)
+            )
+        )
+        group_names = {row.id: row.name for row in group_result.all()}
+    return GatewayRouteList(
+        items=[
+            _serialize_gateway_route(route, routing_group_name=group_names.get(route.routing_group_id))
+            for route in routes
+        ]
+    )
 
 
 @router.put("/routes/{route_id}", response_model=GatewayRouteResponse)
@@ -706,9 +1058,25 @@ async def update_gateway_route(
     route = await db.get(GatewayRoute, route_id)
     if route is None or route.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
+    routing_group_name: str | None = None
 
     if body.alias is not None:
         route.alias = body.alias
+    if "routing_group_id" in body.model_fields_set:
+        if body.routing_group_id is None:
+            route.routing_group_id = None
+        else:
+            group = await db.get(GatewayRoutingGroup, body.routing_group_id)
+            if group is None or group.workspace_id != workspace.id:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway routing group not found")
+            target_alias = body.alias or route.alias
+            if group.alias != target_alias:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST,
+                    "Routing group alias must match route alias",
+                )
+            route.routing_group_id = group.id
+            routing_group_name = group.name
     if body.target_model is not None:
         route.target_model = body.target_model
     if body.priority is not None:
@@ -760,7 +1128,10 @@ async def update_gateway_route(
 
     await db.commit()
     await db.refresh(route)
-    return GatewayRouteResponse.model_validate(route)
+    if route.routing_group_id is not None and routing_group_name is None:
+        group = await db.get(GatewayRoutingGroup, route.routing_group_id)
+        routing_group_name = group.name if group is not None else None
+    return _serialize_gateway_route(route, routing_group_name=routing_group_name)
 
 
 @router.delete("/routes/{route_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -775,6 +1146,210 @@ async def delete_gateway_route(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
     await db.delete(route)
     await db.commit()
+
+
+@router.post("/policies", response_model=RoutingPolicyResponse, status_code=status.HTTP_201_CREATED)
+async def create_routing_policy(
+    body: RoutingPolicyCreate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyResponse:
+    workspace = auth[0]
+    existing = (
+        await db.execute(
+            select(RoutingPolicy).where(
+                RoutingPolicy.workspace_id == workspace.id,
+                RoutingPolicy.alias == body.alias,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Routing policy already exists for alias")
+    policy = RoutingPolicy(
+        workspace_id=workspace.id,
+        alias=body.alias,
+        policy_type=body.policy_type,
+        config=body.config,
+    )
+    db.add(policy)
+    await db.commit()
+    await db.refresh(policy)
+    return RoutingPolicyResponse.model_validate(policy)
+
+
+@router.get("/policies", response_model=RoutingPolicyList)
+async def list_routing_policies(
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyList:
+    workspace = auth[0]
+    items = list(
+        (
+            await db.execute(
+                select(RoutingPolicy)
+                .where(RoutingPolicy.workspace_id == workspace.id)
+                .order_by(RoutingPolicy.alias.asc(), RoutingPolicy.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return RoutingPolicyList(items=[RoutingPolicyResponse.model_validate(item) for item in items])
+
+
+@router.put("/policies/{policy_id}", response_model=RoutingPolicyResponse)
+async def update_routing_policy(
+    policy_id: uuid.UUID,
+    body: RoutingPolicyUpdate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyResponse:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    if body.policy_type is not None:
+        policy.policy_type = body.policy_type
+    if "config" in body.model_fields_set:
+        policy.config = body.config or {}
+    if body.is_active is not None:
+        policy.is_active = body.is_active
+    policy.updated_at = func.now()
+    await db.commit()
+    await db.refresh(policy)
+    return RoutingPolicyResponse.model_validate(policy)
+
+
+@router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_routing_policy(
+    policy_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    await db.delete(policy)
+    await db.commit()
+
+
+@router.get("/policies/{policy_id}/analysis", response_model=RoutingPolicyAnalysisResponse)
+async def get_routing_policy_analysis(
+    policy_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyAnalysisResponse:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    analysis = await analyze_routing_policy(db, workspace.id, policy)
+    return RoutingPolicyAnalysisResponse(**analysis)
+
+
+@router.post("/policies/{policy_id}/promote", response_model=RoutingPolicyActionResponse)
+async def promote_routing_policy_variant(
+    policy_id: uuid.UUID,
+    body: RoutingPolicyPromotionRequest,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyActionResponse:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    analysis = await analyze_routing_policy(db, workspace.id, policy)
+    if policy.policy_type == "ab_test":
+        if analysis.get("confidence") == "insufficient_data":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                analysis.get("summary") or "Not enough A/B test traffic to promote a winner",
+            )
+        significance_p_value = analysis.get("significance_p_value")
+        significance_threshold = float((policy.config or {}).get("significance_threshold", 0.05))
+        if significance_p_value is None or float(significance_p_value) >= significance_threshold:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"A/B result is not yet statistically significant at p<{significance_threshold:.4f}",
+            )
+    route_id = body.route_id or analysis.get("winner_route_id")
+    if route_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No winner available to promote")
+    policy.policy_type = "weighted"
+    policy.config = {
+        "weights": {str(route_id): 1.0},
+        "promoted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "promoted_from": analysis.get("policy_type"),
+        "winner_label": analysis.get("winner_label"),
+    }
+    policy.updated_at = func.now()
+    await db.commit()
+    await db.refresh(policy)
+    return RoutingPolicyActionResponse(
+        policy_id=policy.id,
+        policy_type=policy.policy_type,
+        summary=f"Promoted {analysis.get('winner_label') or route_id} to 100% traffic.",
+        config=policy.config or {},
+    )
+
+
+@router.post("/policies/{policy_id}/rollout/advance", response_model=RoutingPolicyActionResponse)
+async def advance_canary_rollout(
+    policy_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyActionResponse:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    if policy.policy_type != "canary":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Rollout advance is only supported for canary policies")
+    config = dict(policy.config or {})
+    stages = config.get("rollout_stages") if isinstance(config.get("rollout_stages"), list) else [5, 10, 25, 50, 100]
+    current_pct = float(config.get("canary_pct", 0.0)) * 100
+    next_stage = next((float(stage) for stage in stages if float(stage) > current_pct), None)
+    if next_stage is None:
+        next_stage = 100.0
+    config["canary_pct"] = round(next_stage / 100.0, 4)
+    config["last_advanced_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    policy.config = config
+    policy.updated_at = func.now()
+    await db.commit()
+    return RoutingPolicyActionResponse(
+        policy_id=policy.id,
+        policy_type=policy.policy_type,
+        summary=f"Advanced canary rollout to {next_stage:.0f}%.",
+        config=config,
+    )
+
+
+@router.post("/policies/{policy_id}/rollback", response_model=RoutingPolicyActionResponse)
+async def rollback_policy_rollout(
+    policy_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyActionResponse:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    config = dict(policy.config or {})
+    if policy.policy_type == "canary":
+        config["canary_pct"] = 0.0
+    elif policy.policy_type == "ab_test":
+        config["auto_promote"] = False
+    config["rollback_triggered_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    policy.config = config
+    policy.updated_at = func.now()
+    await db.commit()
+    return RoutingPolicyActionResponse(
+        policy_id=policy.id,
+        policy_type=policy.policy_type,
+        summary="Rollback applied to routing policy.",
+        config=config,
+    )
 
 
 @router.post(
@@ -861,6 +1436,135 @@ async def delete_gateway_passthrough_endpoint(
     await db.commit()
 
 
+@router.post("/passthrough/{endpoint_id}/test", response_model=GatewayPassThroughTestResponse)
+async def test_gateway_passthrough_endpoint(
+    endpoint_id: uuid.UUID,
+    body: GatewayPassThroughTestRequest,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayPassThroughTestResponse:
+    workspace = auth[0]
+    endpoint = await db.get(GatewayPassThroughEndpoint, endpoint_id)
+    if endpoint is None or endpoint.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
+
+    target_url = _build_passthrough_target_url(
+        endpoint,
+        upstream_path=body.path or "",
+        query_params=body.query,
+    )
+    timeout_seconds = max(1.0, endpoint.timeout_ms / 1000)
+    started = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+            upstream_response = await client.request(
+                method=body.method.upper(),
+                url=target_url,
+                json=body.body_json if body.body_json is not None else None,
+                headers=_build_passthrough_headers(endpoint, source_headers=body.headers),
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Upstream test failed: {exc!s}") from exc
+
+    preview = upstream_response.text[:1000] if upstream_response.text else None
+    return GatewayPassThroughTestResponse(
+        ok=upstream_response.status_code < 400,
+        status_code=upstream_response.status_code,
+        latency_ms=int((time.monotonic() - started) * 1000),
+        target_url=target_url,
+        response_preview=preview,
+        headers={
+            key: value
+            for key, value in upstream_response.headers.items()
+            if key.lower() in _PASSTHROUGH_ALLOWED_RESPONSE_HEADERS
+        },
+    )
+
+
+@router.get("/passthrough/stats", response_model=GatewayPassThroughEndpointStatsList)
+async def list_gateway_passthrough_stats(
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayPassThroughEndpointStatsList:
+    workspace = auth[0]
+    endpoints = list(
+        (
+            await db.execute(
+                select(GatewayPassThroughEndpoint)
+                .where(GatewayPassThroughEndpoint.workspace_id == workspace.id)
+                .order_by(GatewayPassThroughEndpoint.slug.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    items: list[GatewayPassThroughEndpointStats] = []
+    for endpoint in endpoints:
+        requested_model = f"passthrough:{endpoint.slug}"
+        row = (
+            await db.execute(
+                select(
+                    func.count(GatewayRequest.id).label("total_requests"),
+                    func.count(GatewayRequest.id)
+                    .filter(GatewayRequest.status != "error")
+                    .label("success_count"),
+                    func.count(GatewayRequest.id)
+                    .filter(GatewayRequest.status == "error")
+                    .label("error_count"),
+                    func.avg(GatewayRequest.latency_ms).label("avg_latency_ms"),
+                    func.percentile_cont(0.5).within_group(GatewayRequest.latency_ms).label("p50_latency_ms"),
+                    func.percentile_cont(0.95).within_group(GatewayRequest.latency_ms).label("p95_latency_ms"),
+                    func.percentile_cont(0.99).within_group(GatewayRequest.latency_ms).label("p99_latency_ms"),
+                    func.count(GatewayRequest.id)
+                    .filter(GatewayRequest.created_at >= func.now() - sa.text("INTERVAL '1 hour'"))
+                    .label("last_hour_requests"),
+                    func.count(GatewayRequest.id)
+                    .filter(GatewayRequest.created_at >= func.now() - sa.text("INTERVAL '24 hours'"))
+                    .label("last_24h_requests"),
+                )
+                .where(
+                    GatewayRequest.workspace_id == workspace.id,
+                    GatewayRequest.model_requested == requested_model,
+                )
+            )
+        ).one()
+        total_requests = int(row.total_requests or 0)
+        last_hour_requests = int(row.last_hour_requests or 0)
+        last_24h_requests = int(row.last_24h_requests or 0)
+        estimated_total_cost = (
+            (endpoint.cost_per_call_usd or Decimal("0")) * Decimal(total_requests)
+            if endpoint.cost_per_call_usd is not None
+            else None
+        )
+        estimated_24h_cost = (
+            (endpoint.cost_per_call_usd or Decimal("0")) * Decimal(last_24h_requests)
+            if endpoint.cost_per_call_usd is not None
+            else None
+        )
+        utilization = None
+        if endpoint.rate_limit_rpm:
+            utilization = Decimal(str(round(last_hour_requests / (endpoint.rate_limit_rpm * 60), 4)))
+        items.append(
+            GatewayPassThroughEndpointStats(
+                endpoint_id=endpoint.id,
+                slug=endpoint.slug,
+                total_requests=total_requests,
+                success_count=int(row.success_count or 0),
+                error_count=int(row.error_count or 0),
+                avg_latency_ms=Decimal(str(round(float(row.avg_latency_ms), 2))) if row.avg_latency_ms is not None else None,
+                p50_latency_ms=Decimal(str(round(float(row.p50_latency_ms), 2))) if row.p50_latency_ms is not None else None,
+                p95_latency_ms=Decimal(str(round(float(row.p95_latency_ms), 2))) if row.p95_latency_ms is not None else None,
+                p99_latency_ms=Decimal(str(round(float(row.p99_latency_ms), 2))) if row.p99_latency_ms is not None else None,
+                last_hour_requests=last_hour_requests,
+                rate_limit_rpm=endpoint.rate_limit_rpm,
+                rate_limit_utilization_pct=utilization,
+                estimated_total_cost_usd=estimated_total_cost,
+                estimated_24h_cost_usd=estimated_24h_cost,
+            )
+        )
+    return GatewayPassThroughEndpointStatsList(items=items)
+
+
 @router.api_route(
     "/passthrough/{slug}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
@@ -896,25 +1600,46 @@ async def execute_gateway_passthrough_endpoint(
     if endpoint is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
 
-    upstream_base = endpoint.upstream_base_url.rstrip("/")
-    path_prefix = (endpoint.path_prefix or "/").strip("/")
-    upstream_suffix = upstream_path.strip("/")
-    path_parts = [part for part in (path_prefix, upstream_suffix) if part]
-    target_url = upstream_base
-    if path_parts:
-        target_url = f"{upstream_base}/{'/'.join(path_parts)}"
-
-    merged_query: dict[str, Any] = {}
-    for key, value in (endpoint.default_query or {}).items():
-        if value is not None:
-            merged_query[str(key)] = str(value)
-    for key, value in request.query_params.multi_items():
-        merged_query[key] = value
-    if merged_query:
-        target_url = f"{target_url}?{urlencode(merged_query, doseq=True)}"
+    merged_query = {key: value for key, value in request.query_params.multi_items()}
+    target_url = _build_passthrough_target_url(
+        endpoint,
+        upstream_path=upstream_path,
+        query_params=merged_query,
+    )
 
     raw_body = await request.body()
     timeout_seconds = max(1.0, endpoint.timeout_ms / 1000)
+    if endpoint.rate_limit_rpm:
+        from runledger_api.core.redis import get_redis  # noqa: PLC0415
+
+        redis = await get_redis()
+        now = int(time.time())
+        bucket = now // 60
+        key = f"gateway:passthrough:rpm:{workspace.id}:{endpoint.id}:{bucket}"
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, 120)
+        if count > endpoint.rate_limit_rpm:
+            await record_gateway_request(
+                db=db,
+                workspace_id=workspace.id,
+                model_requested=f"passthrough:{slug}",
+                route=None,
+                model_used=endpoint.upstream_base_url,
+                cache_hit=False,
+                input_tokens=None,
+                output_tokens=None,
+                latency_ms=0,
+                req_status="error",
+                decision_reason=f"passthrough:{slug}|rate_limited",
+                config_fingerprint={
+                    "assigned_cost_usd": str(endpoint.cost_per_call_usd or Decimal("0")),
+                    "endpoint_slug": slug,
+                    "passthrough": True,
+                },
+                segment_key=slug,
+            )
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Pass-through endpoint rate limit exceeded")
     t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
@@ -937,6 +1662,12 @@ async def execute_gateway_passthrough_endpoint(
             latency_ms=int((time.monotonic() - t0) * 1000),
             req_status="error",
             decision_reason=f"passthrough:{slug}|upstream_error",
+            config_fingerprint={
+                "assigned_cost_usd": str(endpoint.cost_per_call_usd or Decimal("0")),
+                "endpoint_slug": slug,
+                "passthrough": True,
+            },
+            segment_key=slug,
         )
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Upstream request failed: {exc!s}") from exc
 
@@ -952,6 +1683,13 @@ async def execute_gateway_passthrough_endpoint(
         latency_ms=int((time.monotonic() - t0) * 1000),
         req_status="success" if upstream_response.status_code < 400 else "error",
         decision_reason=f"passthrough:{slug}",
+        config_fingerprint={
+            "assigned_cost_usd": str(endpoint.cost_per_call_usd or Decimal("0")),
+            "endpoint_slug": slug,
+            "passthrough": True,
+            "rate_limit_rpm": endpoint.rate_limit_rpm,
+        },
+        segment_key=slug,
     )
 
     response_headers = {
@@ -1125,3 +1863,92 @@ async def gateway_stats(
         avg_latency_ms=overall_latency,
         routes=route_stats,
     )
+
+
+@router.get("/benchmarks/compare", response_model=GatewayBenchmarkComparisonList)
+async def gateway_benchmark_comparison(
+    auth: OrgAdminDep,
+    db: DbDep,
+    days: int = Query(7, ge=1, le=30),
+    alias: str | None = Query(default=None),
+) -> GatewayBenchmarkComparisonList:
+    workspace = auth[0]
+    since = datetime.now(UTC) - timedelta(days=days)
+    stmt = select(GatewayRequest).where(
+        GatewayRequest.workspace_id == workspace.id,
+        GatewayRequest.created_at >= since,
+        GatewayRequest.status != "cache_hit",
+    )
+    if alias:
+        stmt = stmt.where(GatewayRequest.model_requested == alias)
+    items = list((await db.execute(stmt)).scalars().all())
+    buckets: dict[str, dict[str, Any]] = {}
+    for item in items:
+        alias_key = item.model_requested
+        bucket = buckets.setdefault(
+            alias_key,
+            {
+                "request_count": 0,
+                "provider_latencies": [],
+                "end_to_end": [],
+                "overheads": [],
+                "timestamps": [],
+            },
+        )
+        cfg = item.config_fingerprint or {}
+        provider_latency = cfg.get("provider_latency_ms")
+        total_wall = cfg.get("total_wall_ms")
+        gateway_overhead = cfg.get("gateway_overhead_ms")
+        if provider_latency is not None:
+            bucket["provider_latencies"].append(float(provider_latency))
+        if total_wall is not None:
+            bucket["end_to_end"].append(float(total_wall))
+        if gateway_overhead is not None:
+            bucket["overheads"].append(float(gateway_overhead))
+        bucket["request_count"] += 1
+        bucket["timestamps"].append(item.created_at)
+
+    def _percentile(values: list[float], q: float) -> Decimal | None:
+        if not values:
+            return None
+        ordered = sorted(values)
+        index = min(len(ordered) - 1, max(0, math.ceil(q * len(ordered)) - 1))
+        return Decimal(str(round(ordered[index], 2)))
+
+    rows: list[GatewayBenchmarkComparisonItem] = []
+    for alias_key, bucket in sorted(buckets.items()):
+        timestamps = sorted(bucket["timestamps"])
+        minutes = max(((timestamps[-1] - timestamps[0]).total_seconds() / 60.0) if len(timestamps) > 1 else 1.0, 1.0)
+        provider_avg = (
+            Decimal(str(round(sum(bucket["provider_latencies"]) / len(bucket["provider_latencies"]), 2)))
+            if bucket["provider_latencies"]
+            else None
+        )
+        end_to_end_avg = (
+            Decimal(str(round(sum(bucket["end_to_end"]) / len(bucket["end_to_end"]), 2)))
+            if bucket["end_to_end"]
+            else None
+        )
+        overhead_avg = (
+            Decimal(str(round(sum(bucket["overheads"]) / len(bucket["overheads"]), 2)))
+            if bucket["overheads"]
+            else None
+        )
+        overhead_pct = None
+        if provider_avg is not None and provider_avg > 0 and overhead_avg is not None:
+            overhead_pct = Decimal(str(round(float(overhead_avg / provider_avg), 4)))
+        rows.append(
+            GatewayBenchmarkComparisonItem(
+                alias=alias_key,
+                request_count=bucket["request_count"],
+                throughput_rpm=Decimal(str(round(bucket["request_count"] / minutes, 4))),
+                p50_gateway_overhead_ms=_percentile(bucket["overheads"], 0.50),
+                p95_gateway_overhead_ms=_percentile(bucket["overheads"], 0.95),
+                p99_gateway_overhead_ms=_percentile(bucket["overheads"], 0.99),
+                avg_provider_latency_ms=provider_avg,
+                avg_end_to_end_latency_ms=end_to_end_avg,
+                avg_gateway_overhead_ms=overhead_avg,
+                overhead_vs_provider_pct=overhead_pct,
+            )
+        )
+    return GatewayBenchmarkComparisonList(items=rows)

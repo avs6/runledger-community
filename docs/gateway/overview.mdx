@@ -1,42 +1,40 @@
 ---
 title: "Model Gateway"
-description: "An OpenAI-compatible proxy that puts caching, routing, optimization, and budget enforcement in the request path — with a single base_url swap."
+description: "An OpenAI-compatible proxy that puts caching, routing, optimization, and budget enforcement in the request path with a single base_url swap."
 ---
 
-The Model Gateway is RunLedger's **inline data plane**. Point any OpenAI-compatible client at it — change
-only `base_url` — and every request flows through a pipeline of caching, optimization, routing, and
-enforcement before reaching the provider. No application code changes.
+The Model Gateway is RunLedger's **inline data plane**. Point any OpenAI-compatible client at it, change only `base_url`, and every request flows through caching, optimization, routing, and enforcement before reaching the provider.
 
-<Frame caption="The Gateway page — routes, routing log, caching, and per-route runtime controls.">
+<Frame caption="The Gateway page: routes, routing log, pass-through endpoints, benchmarking, and per-route runtime controls.">
   <img src="/images/gateway.png" alt="Model Gateway" />
 </Frame>
 
 ## Key features
 
-- **Drop-in OpenAI compatibility** — `/gateway/chat/completions`, streaming and non-streaming.
-- **Per-alias routes** — map a model alias to one or more provider routes with priority + fallback.
-- **In-band enforcement** — budgets, cost caps, and rate limits stop a runaway loop *before* it hits the provider.
-- **Caching & optimization** — exact + semantic cache, Context Compiler, and intelligent routing, all opt-in per route.
-- **Full metering** — every forward is metered and cost-attributed like any other call.
+- **Drop-in OpenAI compatibility** via `/gateway/chat/completions` for streaming and non-streaming requests.
+- **Per-alias routes** that map one logical model alias to one or more provider routes with fallback and regional preference.
+- **Pass-through endpoints** for non-LLM APIs with shared auth, timeout, rate limits, and per-call cost attribution.
+- **In-band enforcement** for budgets, cost caps, and rate limits before provider spend occurs.
+- **Caching and optimization** with exact cache, semantic cache, Context Compiler, and intelligent routing.
+- **Performance visibility** with gateway overhead, throughput, and provider-comparison benchmarking.
 
 ## The request pipeline
 
 ```mermaid
 flowchart TB
-  req[POST /gateway/chat/completions] --> exact{Exact cache?}
-  exact -- hit --> resp[Return response]
-  exact -- miss --> sem{Semantic cache?}
+  req["POST /gateway/chat/completions"] --> exact{"Exact cache?"}
+  exact -- hit --> resp["Return response"]
+  exact -- miss --> sem{"Semantic cache?"}
   sem -- hit --> resp
-  sem -- miss --> comp[Context Compiler]
-  comp --> route[Routing policy / intelligent routing]
-  route --> guard[Budgets · cost caps · rate limits · PII redaction]
-  guard --> fwd[Forward to provider + retry/fallback]
-  fwd --> meter[Meter · store cache · log decision]
+  sem -- miss --> comp["Context Compiler"]
+  comp --> route["Routing policy / intelligent routing"]
+  route --> guard["Budgets, cost caps, rate limits, PII redaction"]
+  guard --> fwd["Forward to provider + retry/fallback"]
+  fwd --> meter["Meter, store cache, log decision"]
   meter --> resp
 ```
 
-Each stage is **opt-in and fail-open** — if an optimization service is slow or down, the request proceeds
-unoptimized rather than failing.
+Each stage is opt-in and fail-open. If an optimization service is unavailable, the request proceeds unoptimized rather than failing.
 
 ## Usage
 
@@ -44,51 +42,40 @@ unoptimized rather than failing.
 import openai
 
 client = openai.OpenAI(
-    api_key="rl_...",                       # your RunLedger key
+    api_key="rl_...",
     base_url="http://localhost:8201/gateway",
 )
-resp = client.chat.completions.create(model="gpt-4o-mini", messages=[...])
-# First call → forwarded to the provider. Identical second call → exact cache hit (<5ms).
+
+resp = client.chat.completions.create(
+    model="chat",
+    messages=[{"role": "user", "content": "Hello"}],
+)
 ```
 
-`model` is a **route alias** you define — the same client call can fall back across providers, cache
-exactly and semantically, and be metered, without touching application code.
-
-## Manage routes
-
-Define routes per alias on the **Gateway** dashboard page, or via the API:
-
-```bash
-POST /gateway/routes
-{
-  "alias": "chat",
-  "provider": "openai",
-  "target_model": "gpt-4o-mini",
-  "priority": 10,
-  "semantic_cache_enabled": true
-}
-```
+## Main endpoints
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /gateway/chat/completions` | OpenAI-compatible proxy (stream + non-stream) |
-| `POST/GET/PUT/DELETE /gateway/routes` | Manage routes |
-| `GET /gateway/stats` · `GET /gateway/requests` | Stats + routing log |
+| `POST /gateway/chat/completions` | OpenAI-compatible gateway proxy |
+| `POST/GET/PUT/DELETE /gateway/routes` | Manage model routes |
+| `POST/GET/PUT/DELETE /gateway/passthrough/*` | Manage and execute pass-through endpoints |
+| `GET /gateway/stats` and `GET /gateway/requests` | Routing stats and request log |
+| `GET /gateway/benchmarks/compare` | Per-alias overhead and throughput comparison |
 
 ## Related
 
 <CardGroup cols={2}>
   <Card title="Routing & fallback" icon="route" href="/gateway/routing">
-    Policies and intelligent routing.
+    Policies, region selection, and fallback behavior.
   </Card>
   <Card title="Caching" icon="database" href="/gateway/caching">
-    Exact + semantic cache.
+    Exact and semantic cache behavior.
   </Card>
   <Card title="Runtime controls" icon="sliders" href="/gateway/runtime-controls">
-    Cost caps, rate limits, PII redaction.
+    Cost caps, rate limits, and redaction.
   </Card>
-  <Card title="Providers" icon="plug" href="/gateway/providers">
-    Hosted and self-hosted models.
+  <Card title="Performance & scale" icon="gauge" href="/gateway/performance-and-scale">
+    Benchmarking, pass-through analytics, and scaling guidance.
   </Card>
 </CardGroup>
 

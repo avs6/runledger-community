@@ -1,84 +1,70 @@
 #!/usr/bin/env python3
 """
-Phase 0 benchmark report.
+Gateway benchmark report.
 
-Pulls recent gateway requests for an alias from RunLedger and renders the Baseline-vs-Optimized
-table (input/cached/output tokens, agent calls, cache-hit rate, latency). Cost-per-task is a
-TODO pending the analytics/ledger endpoint wiring.
+Reads the gateway's benchmark comparison endpoint and prints per-alias overhead,
+throughput, and provider-comparison metrics.
 
-Usage:
+Example:
     python scripts/bench/report.py \
-        --base-url http://localhost:8201 --api-key $RUNLEDGER_SESSION_KEY \
-        --alias gpt-frontier --since 2026-07-27T00:00:00+00:00 --limit 200
-
-`--api-key` must be an org-admin or platform-admin dashboard session key from
-POST /auth/login. Gateway request logs are management-side after RBAC Phase 2.
+        --base-url http://localhost:8201 \
+        --api-key rl_... \
+        --days 7
 """
 
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 
 import httpx
 
 
-def fetch(base_url: str, api_key: str, alias: str, limit: int) -> list[dict]:
-    url = f"{base_url.rstrip('/')}/gateway/requests"
+def fetch(base_url: str, api_key: str, days: int, alias: str | None) -> list[dict]:
+    url = f"{base_url.rstrip('/')}/gateway/benchmarks/compare"
     headers = {"Authorization": f"Bearer {api_key}"}
+    params: dict[str, str | int] = {"days": days}
+    if alias:
+        params["alias"] = alias
     with httpx.Client(timeout=60.0) as client:
-        r = client.get(url, headers=headers, params={"alias": alias, "limit": limit})
-        r.raise_for_status()
-        return r.json().get("items", [])
-
-
-def summarize(items: list[dict], since: datetime | None) -> dict:
-    n = cache_hits = in_tok = out_tok = lat_sum = lat_n = 0
-    reasons: dict[str, int] = {}
-    for it in items:
-        if since is not None:
-            created = it.get("created_at")
-            if created and datetime.fromisoformat(created) < since:
-                continue
-        n += 1
-        cache_hits += 1 if it.get("cache_hit") else 0
-        in_tok += it.get("input_tokens") or 0
-        out_tok += it.get("output_tokens") or 0
-        reason = it.get("decision_reason") or "—"
-        reasons[reason] = reasons.get(reason, 0) + 1
-        if it.get("latency_ms") is not None:
-            lat_sum += it["latency_ms"]
-            lat_n += 1
-    return {
-        "requests": n,
-        "cache_hits": cache_hits,
-        "cache_hit_rate": round(cache_hits / n, 3) if n else 0.0,
-        "input_tokens": in_tok,
-        "avg_input_tokens": round(in_tok / n, 1) if n else 0,
-        "output_tokens": out_tok,
-        "avg_latency_ms": round(lat_sum / lat_n, 1) if lat_n else None,
-        "decision_reasons": reasons,
-        "cost_usd": "TODO (analytics endpoint)",
-    }
+        response = client.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        return response.json().get("items", [])
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-url", default="http://localhost:8201")
     ap.add_argument("--api-key", required=True)
-    ap.add_argument("--alias", required=True)
-    ap.add_argument("--since", default=None, help="ISO timestamp; ignore requests before it")
-    ap.add_argument("--limit", type=int, default=200)
+    ap.add_argument("--days", type=int, default=7)
+    ap.add_argument("--alias", default=None)
     args = ap.parse_args()
 
-    since = datetime.fromisoformat(args.since) if args.since else None
-    items = fetch(args.base_url, args.api_key, args.alias, args.limit)
-    s = summarize(items, since)
+    items = fetch(args.base_url, args.api_key, args.days, args.alias)
+    if not items:
+        print("No benchmark comparison data found.")
+        return
 
-    print(f"\nBenchmark summary - alias={args.alias}")
-    print("-" * 48)
-    for k, v in s.items():
-        print(f"{k:>18}: {v}")
+    print(f"\nGateway benchmark comparison - last {args.days} day(s)")
+    print("-" * 120)
+    header = (
+        f"{'alias':<22} {'req':>6} {'rpm':>9} {'p50':>8} {'p95':>8} "
+        f"{'p99':>8} {'provider':>10} {'end2end':>10} {'ovh%':>8}"
+    )
+    print(header)
+    print("-" * len(header))
+    for item in items:
+        overhead_pct = item.get("overhead_vs_provider_pct")
+        print(
+            f"{item['alias']:<22} "
+            f"{item['request_count']:>6} "
+            f"{float(item.get('throughput_rpm') or 0):>9.2f} "
+            f"{float(item.get('p50_gateway_overhead_ms') or 0):>8.1f} "
+            f"{float(item.get('p95_gateway_overhead_ms') or 0):>8.1f} "
+            f"{float(item.get('p99_gateway_overhead_ms') or 0):>8.1f} "
+            f"{float(item.get('avg_provider_latency_ms') or 0):>10.1f} "
+            f"{float(item.get('avg_end_to_end_latency_ms') or 0):>10.1f} "
+            f"{(float(overhead_pct) * 100 if overhead_pct is not None else 0):>7.1f}%"
+        )
 
 
 if __name__ == "__main__":

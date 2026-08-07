@@ -48,9 +48,14 @@ services:
     image: redis:7-alpine
     container_name: runledger-redis
     restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command:
+      - sh
+      - -c
+      - redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly ${RUNLEDGER_REDIS_APPENDONLY:-no} --appendfsync ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec} --save "${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}"
     ports:
       - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -61,6 +66,7 @@ services:
     image: qdrant/qdrant:v1.12.4
     container_name: runledger-qdrant
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${QDRANT_HTTP_PORT:-8202}:6333"
       - "${QDRANT_GRPC_PORT:-8203}:6334"
@@ -72,7 +78,92 @@ services:
       timeout: 5s
       retries: 5
 
+  runledger-minio:
+    image: minio/minio:RELEASE.2026-07-23T15-54-02Z
+    container_name: runledger-minio
+    restart: unless-stopped
+    profiles: ["backup", "full-demo"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
+      MINIO_ROOT_PASSWORD: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # ── RunLedger API ──────────────────────────────────────────────────────────
+
+  runledger-redpanda:
+    image: redpandadata/redpanda:v26.2.10
+    container_name: runledger-redpanda
+    restart: unless-stopped
+    profiles: ["streaming", "full-demo"]
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://runledger-redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr
+      - internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr
+      - internal://runledger-redpanda:8082,external://localhost:18082
+      - --rpc-addr
+      - 0.0.0.0:33145
+      - --advertise-rpc-addr
+      - runledger-redpanda:33145
+    ports:
+      - "19092:19092"
+      - "18082:18082"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --brokers=localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  runledger-redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v3.2.3
+    container_name: runledger-redpanda-console
+    restart: unless-stopped
+    profiles: ["streaming", "full-demo"]
+    environment:
+      CONFIG_FILEPATH: /tmp/console-config.yml
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cat <<'EOF' >/tmp/console-config.yml
+        kafka:
+          brokers: ["runledger-redpanda:9092"]
+        server:
+          listenPort: 8080
+        EOF
+        /app/console
+    ports:
+      - "19091:8080"
+    depends_on:
+      runledger-redpanda:
+        condition: service_healthy
 
   runledger-api:
     image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1}
@@ -117,6 +208,32 @@ services:
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_REPORTS_ENABLED: ${EMAIL_REPORTS_ENABLED:-false}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+      RUNLEDGER_LOCALAI_S3_BUCKET: ${RUNLEDGER_LOCALAI_S3_BUCKET:-runledger-backups}
+      RUNLEDGER_BACKUP_ENDPOINT_URL: ${RUNLEDGER_BACKUP_ENDPOINT_URL:-http://runledger-minio:9000}
+      RUNLEDGER_BACKUP_REGION: ${RUNLEDGER_BACKUP_REGION:-us-east-1}
+      RUNLEDGER_BACKUP_ACCESS_KEY_ID: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
+      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      RUNLEDGER_BACKUP_FORCE_PATH_STYLE: ${RUNLEDGER_BACKUP_FORCE_PATH_STYLE:-true}
+      OBJECT_LIFECYCLE_ENABLED: ${OBJECT_LIFECYCLE_ENABLED:-false}
+      OBJECT_LIFECYCLE_DAYS: ${OBJECT_LIFECYCLE_DAYS:-90}
+      OBJECT_LIFECYCLE_NONCURRENT_DAYS: ${OBJECT_LIFECYCLE_NONCURRENT_DAYS:-30}
+      COMPLIANCE_EXPORT_ENABLED: ${COMPLIANCE_EXPORT_ENABLED:-false}
+      COMPLIANCE_EXPORT_BUCKET: ${COMPLIANCE_EXPORT_BUCKET:-}
+      COMPLIANCE_EXPORT_PREFIX: ${COMPLIANCE_EXPORT_PREFIX:-compliance-exports}
+      COMPLIANCE_EXPORT_STORAGE_CLASS: ${COMPLIANCE_EXPORT_STORAGE_CLASS:-STANDARD_IA}
+      COMPLIANCE_EXPORT_RETENTION_DAYS: ${COMPLIANCE_EXPORT_RETENTION_DAYS:-365}
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
+      ABUSE_PROTECTION_ENABLED: ${ABUSE_PROTECTION_ENABLED:-true}
+      INFRA_POLICY_ENFORCEMENT_MODE: ${INFRA_POLICY_ENFORCEMENT_MODE:-advisory}
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-core}
+      LOCAL_TLS_ENABLED: ${LOCAL_TLS_ENABLED:-false}
+      REDIS_APPENDONLY: ${RUNLEDGER_REDIS_APPENDONLY:-false}
+      REDIS_APPENDFSYNC: ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec}
+      RUNLEDGER_REDIS_SAVE: ${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}
+      INGEST_RATE_LIMIT_PER_MINUTE: ${INGEST_RATE_LIMIT_PER_MINUTE:-600}
+      ANALYTICS_RATE_LIMIT_PER_MINUTE: ${ANALYTICS_RATE_LIMIT_PER_MINUTE:-120}
+      MANAGEMENT_RATE_LIMIT_PER_MINUTE: ${MANAGEMENT_RATE_LIMIT_PER_MINUTE:-60}
+      SYSTEM_RATE_LIMIT_PER_MINUTE: ${SYSTEM_RATE_LIMIT_PER_MINUTE:-20}
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_FROM: ${SMTP_FROM:-}
@@ -190,6 +307,22 @@ services:
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_REPORTS_ENABLED: ${EMAIL_REPORTS_ENABLED:-false}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+      RUNLEDGER_LOCALAI_S3_BUCKET: ${RUNLEDGER_LOCALAI_S3_BUCKET:-runledger-backups}
+      RUNLEDGER_BACKUP_ENDPOINT_URL: ${RUNLEDGER_BACKUP_ENDPOINT_URL:-http://runledger-minio:9000}
+      RUNLEDGER_BACKUP_REGION: ${RUNLEDGER_BACKUP_REGION:-us-east-1}
+      RUNLEDGER_BACKUP_ACCESS_KEY_ID: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
+      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      RUNLEDGER_BACKUP_FORCE_PATH_STYLE: ${RUNLEDGER_BACKUP_FORCE_PATH_STYLE:-true}
+      OBJECT_LIFECYCLE_ENABLED: ${OBJECT_LIFECYCLE_ENABLED:-false}
+      OBJECT_LIFECYCLE_DAYS: ${OBJECT_LIFECYCLE_DAYS:-90}
+      OBJECT_LIFECYCLE_NONCURRENT_DAYS: ${OBJECT_LIFECYCLE_NONCURRENT_DAYS:-30}
+      COMPLIANCE_EXPORT_ENABLED: ${COMPLIANCE_EXPORT_ENABLED:-false}
+      COMPLIANCE_EXPORT_BUCKET: ${COMPLIANCE_EXPORT_BUCKET:-}
+      COMPLIANCE_EXPORT_PREFIX: ${COMPLIANCE_EXPORT_PREFIX:-compliance-exports}
+      COMPLIANCE_EXPORT_STORAGE_CLASS: ${COMPLIANCE_EXPORT_STORAGE_CLASS:-STANDARD_IA}
+      COMPLIANCE_EXPORT_RETENTION_DAYS: ${COMPLIANCE_EXPORT_RETENTION_DAYS:-365}
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-core}
     volumes:
       - ./config:/app/config:ro
     extra_hosts:
@@ -223,6 +356,22 @@ services:
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       EMAIL_REPORTS_ENABLED: ${EMAIL_REPORTS_ENABLED:-false}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+      RUNLEDGER_LOCALAI_S3_BUCKET: ${RUNLEDGER_LOCALAI_S3_BUCKET:-runledger-backups}
+      RUNLEDGER_BACKUP_ENDPOINT_URL: ${RUNLEDGER_BACKUP_ENDPOINT_URL:-http://runledger-minio:9000}
+      RUNLEDGER_BACKUP_REGION: ${RUNLEDGER_BACKUP_REGION:-us-east-1}
+      RUNLEDGER_BACKUP_ACCESS_KEY_ID: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
+      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      RUNLEDGER_BACKUP_FORCE_PATH_STYLE: ${RUNLEDGER_BACKUP_FORCE_PATH_STYLE:-true}
+      OBJECT_LIFECYCLE_ENABLED: ${OBJECT_LIFECYCLE_ENABLED:-false}
+      OBJECT_LIFECYCLE_DAYS: ${OBJECT_LIFECYCLE_DAYS:-90}
+      OBJECT_LIFECYCLE_NONCURRENT_DAYS: ${OBJECT_LIFECYCLE_NONCURRENT_DAYS:-30}
+      COMPLIANCE_EXPORT_ENABLED: ${COMPLIANCE_EXPORT_ENABLED:-false}
+      COMPLIANCE_EXPORT_BUCKET: ${COMPLIANCE_EXPORT_BUCKET:-}
+      COMPLIANCE_EXPORT_PREFIX: ${COMPLIANCE_EXPORT_PREFIX:-compliance-exports}
+      COMPLIANCE_EXPORT_STORAGE_CLASS: ${COMPLIANCE_EXPORT_STORAGE_CLASS:-STANDARD_IA}
+      COMPLIANCE_EXPORT_RETENTION_DAYS: ${COMPLIANCE_EXPORT_RETENTION_DAYS:-365}
+      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-core}
     volumes:
       - ./config:/app/config:ro
     depends_on:
@@ -254,6 +403,24 @@ services:
       runledger-api:
         condition: service_healthy
 
+  runledger-caddy:
+    image: caddy:2-alpine
+    container_name: runledger-caddy
+    restart: unless-stopped
+    profiles: ["tls-demo", "full-demo"]
+    ports:
+      - "3443:3443"
+      - "8443:8443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      runledger-api:
+        condition: service_healthy
+      runledger-web:
+        condition: service_started
+
   # ── Optimization services ──────────────────────────────────────────────────
 
   runledger-embedding-svc:
@@ -262,6 +429,7 @@ services:
       context: ./apps/embedding-svc
     container_name: runledger-embedding-svc
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${EMBEDDING_PORT:-8204}:8100"
     environment:
@@ -269,7 +437,7 @@ services:
     volumes:
       - embedding_cache:/app/.cache/fastembed
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8100/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8100/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -281,6 +449,7 @@ services:
       context: ./apps/semantic-cache-svc
     container_name: runledger-semantic-cache-svc
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${SEMANTIC_CACHE_PORT:-8205}:8101"
     environment:
@@ -294,7 +463,7 @@ services:
       runledger-embedding-svc:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8101/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8101/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -306,6 +475,7 @@ services:
       context: ./apps/mcp-gateway
     container_name: runledger-mcp-gateway
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${MCP_PORT:-8206}:8200"
     environment:
@@ -326,6 +496,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: runledger-memory-db
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     environment:
       POSTGRES_USER: letta
       POSTGRES_PASSWORD: letta
@@ -344,6 +515,7 @@ services:
     image: letta/letta:latest
     container_name: runledger-letta
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${LETTA_PORT:-8214}:8283"
     environment:
@@ -361,6 +533,7 @@ services:
       context: ./apps/memory-svc
     container_name: runledger-memory-svc
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${MEMORY_PORT:-8211}:8107"
     environment:
@@ -379,12 +552,13 @@ services:
       context: ./apps/kg-svc
     container_name: runledger-kg-svc
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${KG_PORT:-8212}:8106"
     volumes:
       - kuzu_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8106/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8106/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -396,6 +570,7 @@ services:
       context: ./apps/skill-registry
     container_name: runledger-skill-registry
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${SKILL_PORT:-8213}:8108"
     volumes:
@@ -407,6 +582,7 @@ services:
       context: ./apps/reranker-svc
     container_name: runledger-reranker
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${RERANKER_PORT:-8208}:8102"
     environment:
@@ -414,7 +590,7 @@ services:
     volumes:
       - reranker_cache:/app/.cache/fastembed
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8102/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8102/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -426,6 +602,7 @@ services:
       context: ./apps/compression-svc
     container_name: runledger-compression
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${COMPRESSION_PORT:-8209}:8104"
     environment:
@@ -433,7 +610,7 @@ services:
     volumes:
       - hf_cache:/app/.cache/huggingface
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8104/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8104/health/ready')\" || exit 1"]
       interval: 20s
       timeout: 5s
       retries: 5
@@ -445,6 +622,7 @@ services:
       context: ./apps/router-svc
     container_name: runledger-router
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${ROUTER_PORT:-8210}:8105"
     environment:
@@ -453,7 +631,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8105/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8105/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -465,6 +643,7 @@ services:
       context: ./apps/context-compiler-svc
     container_name: runledger-context-compiler
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${CONTEXT_COMPILER_PORT:-8207}:8103"
     environment:
@@ -480,7 +659,7 @@ services:
       runledger-reranker:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8103/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8103/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -492,10 +671,11 @@ services:
       context: ./apps/flywheel-svc
     container_name: runledger-flywheel
     restart: unless-stopped
+    profiles: ["aux", "full-demo"]
     ports:
       - "${FLYWHEEL_PORT:-8215}:8109"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8109/health')\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8109/health/ready')\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -508,6 +688,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.114.0
     container_name: runledger-otel-collector
     restart: unless-stopped
+    profiles: ["observability", "otel", "full-demo"]
     command: ["--config=/etc/otel/config.yaml"]
     configs:
       - source: otel_config
@@ -516,21 +697,31 @@ services:
       - "4317:4317"    # OTLP/gRPC
       - "4318:4318"    # OTLP/HTTP
       - "13133:13133"  # Health probe
+      - "8888:8888"    # Collector self-metrics
+      - "8889:8889"    # Span-derived metrics
+      - "55679:55679"  # zPages
     environment:
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
+      RUNLEDGER_OTEL_WORKSPACE_NAME: ${RUNLEDGER_OTEL_WORKSPACE_NAME:-Local Demo Workspace}
+      RUNLEDGER_OTEL_ORGANIZATION_NAME: ${RUNLEDGER_OTEL_ORGANIZATION_NAME:-Local Demo Org}
     depends_on:
       runledger-api:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  redis_data:
   qdrant_data:
   embedding_cache:
+  minio_data:
+  redpanda_data:
   reranker_cache:
   memory_db_data:
   kuzu_data:
   skills_data:
   hf_cache:
+  caddy_data:
+  caddy_config:
 
 configs:
   otel_config:
@@ -539,25 +730,65 @@ configs:
         health_check:
           endpoint: 0.0.0.0:13133
           path: /
+        bearertokenauth:
+          token: $${env:RUNLEDGER_API_KEY}
+        zpages:
+          endpoint: 0.0.0.0:55679
+      connectors:
+        spanmetrics:
+          histogram:
+            explicit:
+              buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s]
+          dimensions:
+            - name: service.name
+            - name: openinference.span.kind
+            - name: gen_ai.system
+            - name: llm.provider
+            - name: llm.model_name
+            - name: gen_ai.request.model
+            - name: runledger.feature_tag
+            - name: runledger.deployment_version
+            - name: runledger.workspace_name
       receivers:
         otlp:
           protocols:
             grpc:
               endpoint: 0.0.0.0:4317
+              auth:
+                authenticator: bearertokenauth
             http:
               endpoint: 0.0.0.0:4318
+              auth:
+                authenticator: bearertokenauth
               cors:
                 allowed_origins:
                   - "http://*"
                   - "https://*"
       processors:
+        resource/runledger:
+          attributes:
+            - key: runledger.collector.name
+              value: runledger-otel-collector
+              action: upsert
+            - key: runledger.workspace_name
+              value: $${env:RUNLEDGER_OTEL_WORKSPACE_NAME}
+              action: upsert
+            - key: runledger.organization_name
+              value: $${env:RUNLEDGER_OTEL_ORGANIZATION_NAME}
+              action: upsert
         batch:
           timeout: 5s
           send_batch_size: 512
+          send_batch_max_size: 1024
         memory_limiter:
           check_interval: 1s
           limit_mib: 256
           spike_limit_mib: 64
+        filter/ai_only:
+          error_mode: ignore
+          traces:
+            span:
+              - 'attributes["openinference.span.kind"] == nil and attributes["gen_ai.system"] == nil and not IsMatch(name, "^(llm|chat|agent|tool|retriev).*")'
       exporters:
         otlphttp/runledger:
           endpoint: http://runledger-api:8000
@@ -573,12 +804,25 @@ configs:
             initial_interval: 5s
             max_interval: 30s
             max_elapsed_time: 120s
+        prometheus/spanmetrics:
+          endpoint: 0.0.0.0:8889
         debug:
           verbosity: basic
       service:
-        extensions: [health_check]
+        extensions: [health_check, bearertokenauth, zpages]
+        telemetry:
+          metrics:
+            address: 0.0.0.0:8888
         pipelines:
           traces:
             receivers: [otlp]
-            processors: [memory_limiter, batch]
+            processors: [memory_limiter, resource/runledger, filter/ai_only, batch]
+            exporters: [spanmetrics, otlphttp/runledger, debug]
+          metrics:
+            receivers: [otlp, spanmetrics]
+            processors: [memory_limiter, resource/runledger, batch]
+            exporters: [otlphttp/runledger, prometheus/spanmetrics, debug]
+          logs:
+            receivers: [otlp]
+            processors: [memory_limiter, resource/runledger, batch]
             exporters: [otlphttp/runledger, debug]

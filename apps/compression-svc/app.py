@@ -70,6 +70,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "default_model": DEFAULT_MODEL, "aliases": list(MODEL_ALIASES)}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/compress", response_model=CompressResponse)
 def compress(req: CompressRequest) -> CompressResponse:
     model_name = _resolve(req.model)

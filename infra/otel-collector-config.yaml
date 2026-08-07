@@ -7,8 +7,11 @@
 #   OTLP/HTTP: http://localhost:4318
 #   OTLP/gRPC: http://localhost:4317
 #
-# The Collector authenticates to RunLedger using the RUNLEDGER_API_KEY env var.
+# The Collector authenticates upstream to RunLedger using the RUNLEDGER_API_KEY env var
+# and requires the same bearer token from inbound clients.
 # Health probe:  GET http://localhost:13133/
+# Self-metrics:  GET http://localhost:8888/metrics
+# Span metrics:  GET http://localhost:8889/metrics
 
 extensions:
   health_check:
@@ -18,14 +21,22 @@ extensions:
       enabled: true
       interval: 5s
       exporter_failure_threshold: 5
+  bearertokenauth:
+    token: "${env:RUNLEDGER_API_KEY}"
+  zpages:
+    endpoint: 0.0.0.0:55679
 
 receivers:
   otlp:
     protocols:
       grpc:
         endpoint: 0.0.0.0:4317
+        auth:
+          authenticator: bearertokenauth
       http:
         endpoint: 0.0.0.0:4318
+        auth:
+          authenticator: bearertokenauth
         # Allow any CORS origin for local dev
         cors:
           allowed_origins:
@@ -33,7 +44,34 @@ receivers:
             - "http://localhost:*"
             - "http://*"
 
+connectors:
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s]
+    dimensions:
+      - name: service.name
+      - name: openinference.span.kind
+      - name: gen_ai.system
+      - name: llm.provider
+      - name: llm.model_name
+      - name: gen_ai.request.model
+      - name: runledger.feature_tag
+      - name: runledger.deployment_version
+      - name: runledger.workspace_name
+
 processors:
+  resource/runledger:
+    attributes:
+      - key: runledger.collector.name
+        value: runledger-otel-collector
+        action: upsert
+      - key: runledger.workspace_name
+        value: "${env:RUNLEDGER_OTEL_WORKSPACE_NAME}"
+        action: upsert
+      - key: runledger.organization_name
+        value: "${env:RUNLEDGER_OTEL_ORGANIZATION_NAME}"
+        action: upsert
   batch:
     # Flush every 5 seconds or when the batch reaches 512 spans
     timeout: 5s
@@ -44,12 +82,18 @@ processors:
     check_interval: 1s
     limit_mib: 256
     spike_limit_mib: 64
+  filter/ai_only:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["openinference.span.kind"] == nil and attributes["gen_ai.system"] == nil and not IsMatch(name, "^(llm|chat|agent|tool|retriev).*")'
 
 exporters:
   otlphttp/runledger:
     endpoint: http://runledger-api:8000
     headers:
       Authorization: "Bearer ${env:RUNLEDGER_API_KEY}"
+    encoding: json
     tls:
       insecure: true
     sending_queue:
@@ -61,15 +105,28 @@ exporters:
       initial_interval: 5s
       max_interval: 30s
       max_elapsed_time: 120s
+  prometheus/spanmetrics:
+    endpoint: 0.0.0.0:8889
 
   # Structured logs to stdout — useful for debugging; safe to keep in prod
   debug:
     verbosity: basic
 
 service:
-  extensions: [health_check]
+  extensions: [health_check, bearertokenauth, zpages]
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8888
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource/runledger, filter/ai_only, batch]
+      exporters: [spanmetrics, otlphttp/runledger, debug]
+    metrics:
+      receivers: [otlp, spanmetrics]
+      processors: [memory_limiter, resource/runledger, batch]
+      exporters: [otlphttp/runledger, prometheus/spanmetrics, debug]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/runledger, batch]
       exporters: [otlphttp/runledger, debug]

@@ -17,6 +17,7 @@ import structlog
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
 
 log = structlog.get_logger()
@@ -28,11 +29,13 @@ try:
 except ImportError:
     Redis = object  # type: ignore[misc,assignment]
 
-_LIMITS: dict[str, int] = {
-    "ingest": 600,
-    "analytics": 120,
-    "management": 60,
-}
+def _limits() -> dict[str, int]:
+    return {
+        "ingest": settings.ingest_rate_limit_per_minute,
+        "analytics": settings.analytics_rate_limit_per_minute,
+        "management": settings.management_rate_limit_per_minute,
+        "system": settings.system_rate_limit_per_minute,
+    }
 
 
 async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
@@ -45,7 +48,7 @@ async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
     token_key = token[:16]
     epoch_minute = int(time.time() // 60)
     key = f"rl:ratelimit:{tier}:{token_key}:{epoch_minute}"
-    limit = _LIMITS[tier]
+    limit = _limits()[tier]
     reset_at = (epoch_minute + 1) * 60
 
     try:
@@ -97,3 +100,13 @@ async def management_rate_limit(
 ) -> None:
     """60 requests/min per API key — CRUD management endpoints."""
     await _check_rate_limit("management", request, redis)
+
+
+async def system_rate_limit(
+    request: Request,
+    redis: Redis = Depends(get_redis),
+) -> None:
+    """Low-volume protection for bootstrap/admin/system surfaces."""
+    if not settings.abuse_protection_enabled:
+        return
+    await _check_rate_limit("system", request, redis)

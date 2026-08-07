@@ -14,6 +14,7 @@ Covers:
 10. Billing period close fires email to admins
 11. Invoice dispute_line fires email to admins
 12. Weekly report skips workspace when report_frequency='never'
+13. Settings queue visibility exposes worker depth summary
 """
 
 from __future__ import annotations
@@ -238,6 +239,22 @@ async def test_get_email_log() -> None:
 
     assert result.total == 1
     assert len(result.items) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_ops_queue_status() -> None:
+    from runledger_api.routers.settings import get_ops_queue_status
+
+    mock_redis = AsyncMock()
+    mock_redis.llen = AsyncMock(side_effect=[4, 1, 0])
+
+    result = await get_ops_queue_status(auth=(make_workspace(), None), redis=mock_redis)  # type: ignore[arg-type]
+
+    assert result["total_depth"] == 5
+    assert result["busy_queues"] == 2
+    assert len(result["items"]) == 3
+    assert result["items"][0]["queue"] == "celery"
+    assert result["items"][0]["depth"] == 4
 
 
 # ── Test 5: GET /auth/unsubscribe?token=valid ────────────────────────────────

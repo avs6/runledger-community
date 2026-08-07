@@ -47,6 +47,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "model": EMBEDDING_MODEL}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/embed", response_model=EmbedResponse)
 def embed(req: EmbedRequest) -> EmbedResponse:
     vectors = [v.tolist() for v in _model().embed(req.texts)]

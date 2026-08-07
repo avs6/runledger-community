@@ -112,6 +112,48 @@ def _otlp_payload(spans: list[dict], resource_attrs: list | None = None) -> dict
     }
 
 
+def _otlp_metrics_payload(metric_count: int = 1) -> dict:
+    return {
+        "resourceMetrics": [
+            {
+                "resource": {"attributes": [_make_attr("service.name", "metrics-svc")]},
+                "scopeMetrics": [
+                    {
+                        "scope": {"name": "otel.metrics", "version": "1.0.0"},
+                        "metrics": [
+                            {"name": f"runledger.metric.{i}", "sum": {"dataPoints": []}}
+                            for i in range(metric_count)
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def _otlp_logs_payload(log_count: int = 1) -> dict:
+    return {
+        "resourceLogs": [
+            {
+                "resource": {"attributes": [_make_attr("service.name", "logs-svc")]},
+                "scopeLogs": [
+                    {
+                        "scope": {"name": "otel.logs", "version": "1.0.0"},
+                        "logRecords": [
+                            {
+                                "timeUnixNano": str(1_700_000_000_000_000_000 + i),
+                                "severityText": "INFO",
+                                "body": {"stringValue": f"log-{i}"},
+                            }
+                            for i in range(log_count)
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+
 # ── Unit tests: otlp_parse helpers ─────────────────────────────────────────────
 
 
@@ -454,6 +496,80 @@ async def test_receive_traces_alias(
             content=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"},
         )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_receive_metrics(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """POST /v1/metrics → 200."""
+    payload = _otlp_metrics_payload(metric_count=2)
+    mock_db_session.flush = AsyncMock()
+
+    resp = await authed_client.post(
+        "/v1/metrics",
+        content=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"partialSuccess": {}}
+
+
+@pytest.mark.asyncio
+async def test_receive_metrics_alias(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """POST /otlp/v1/metrics → 200."""
+    payload = _otlp_metrics_payload(metric_count=1)
+    mock_db_session.flush = AsyncMock()
+
+    resp = await authed_client.post(
+        "/otlp/v1/metrics",
+        content=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_receive_logs(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """POST /v1/logs → 200."""
+    payload = _otlp_logs_payload(log_count=3)
+    mock_db_session.flush = AsyncMock()
+
+    resp = await authed_client.post(
+        "/v1/logs",
+        content=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"partialSuccess": {}}
+
+
+@pytest.mark.asyncio
+async def test_receive_logs_alias(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """POST /otlp/v1/logs → 200."""
+    payload = _otlp_logs_payload(log_count=1)
+    mock_db_session.flush = AsyncMock()
+
+    resp = await authed_client.post(
+        "/otlp/v1/logs",
+        content=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+
     assert resp.status_code == 200
 
 

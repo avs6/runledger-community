@@ -10,21 +10,29 @@ import {
 import { useRole } from '@/components/rbac/useRole'
 import {
   listGatewayRoutes, createGatewayRoute, updateGatewayRoute, deleteGatewayRoute,
-  getGatewayStats, listRoutingPolicies, createRoutingPolicy, updateRoutingPolicy,
+  listGatewayRoutingGroups, createGatewayRoutingGroup, updateGatewayRoutingGroup, deleteGatewayRoutingGroup, getGatewayRoutingStrategyComparison,
+  getGatewayStats, listRoutingPolicies, createRoutingPolicy, updateRoutingPolicy, getRoutingPolicyAnalysis, promoteRoutingPolicyWinner, advanceCanaryRollout, rollbackRoutingPolicy,
   deleteRoutingPolicy, listGatewayRequests, listProviderPricing, getRoutingRecommendation,
   getFlywheelSettings, updateFlywheelSettings, listFlywheelRecommendations,
   applyFlywheelRecommendation, dismissFlywheelRecommendation, runFlywheel,
-  listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint,
+  listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint, testGatewayPassThroughEndpoint, listGatewayPassThroughStats, getGatewayBenchmarkComparison,
 } from '@/lib/api'
 import type {
-  GatewayRoute, GatewayStats, GatewayRequestLog,
-  RoutingPolicy, RoutingPolicyType, ProviderPricingResponse,
+  GatewayRoute, GatewayRoutingGroup, GatewayRoutingGroupStrategy, GatewayRoutingStrategyComparisonItem, GatewayStats, GatewayRequestLog,
+  RoutingPolicy, RoutingPolicyAnalysis, RoutingPolicyType, ProviderPricingResponse,
   RoutingRecommendationResponse,
-  FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint,
+  FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
 } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+
+function parseCsvTags(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
 
 export default function GatewayPage() {
   const { data: session } = useSession()
@@ -40,6 +48,10 @@ export default function GatewayPage() {
   const [newRouteBaseUrl, setNewRouteBaseUrl] = useState('')
   const [newRouteApiKeyEnvVar, setNewRouteApiKeyEnvVar] = useState('OPENAI_API_KEY')
   const [newRoutePriority, setNewRoutePriority] = useState('10')
+  const [newRouteRoutingGroupId, setNewRouteRoutingGroupId] = useState('')
+  const [newRouteRequiredTags, setNewRouteRequiredTags] = useState('')
+  const [newRouteExcludedTags, setNewRouteExcludedTags] = useState('')
+  const [newRouteRegion, setNewRouteRegion] = useState('')
   const [newRouteConfigStr, setNewRouteConfigStr] = useState('')
   const [newRouteConfigError, setNewRouteConfigError] = useState('')
   const [newRouteDailyCap, setNewRouteDailyCap] = useState('')
@@ -84,6 +96,19 @@ export default function GatewayPage() {
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
 
+  const [routingGroups, setRoutingGroups] = useState<GatewayRoutingGroup[]>([])
+  const [strategyComparison, setStrategyComparison] = useState<GatewayRoutingStrategyComparisonItem[]>([])
+  const [showGroupForm, setShowGroupForm] = useState(false)
+  const [creatingGroup, setCreatingGroup] = useState(false)
+  const [newGroupAlias, setNewGroupAlias] = useState('')
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupDescription, setNewGroupDescription] = useState('')
+  const [newGroupMatchTags, setNewGroupMatchTags] = useState('')
+  const [newGroupDefaultTags, setNewGroupDefaultTags] = useState('')
+  const [newGroupStrategyType, setNewGroupStrategyType] = useState<GatewayRoutingGroupStrategy>('manual')
+  const [newGroupStrategyConfig, setNewGroupStrategyConfig] = useState('{}')
+  const [newGroupStrategyError, setNewGroupStrategyError] = useState('')
+
   const [routingPolicies, setRoutingPolicies] = useState<RoutingPolicy[]>([])
   const [policyAlias, setPolicyAlias] = useState('')
   const [policyType, setPolicyType] = useState<RoutingPolicyType>('manual')
@@ -91,6 +116,8 @@ export default function GatewayPage() {
   const [creatingPolicy, setCreatingPolicy] = useState(false)
   const [policyConfigError, setPolicyConfigError] = useState('')
   const [showPolicyForm, setShowPolicyForm] = useState(false)
+  const [policyAnalysis, setPolicyAnalysis] = useState<Record<string, RoutingPolicyAnalysis>>({})
+  const [loadingPolicyAnalysis, setLoadingPolicyAnalysis] = useState<Record<string, boolean>>({})
 
   const [routingLog, setRoutingLog] = useState<GatewayRequestLog[]>([])
   const [loadingLog, setLoadingLog] = useState(false)
@@ -110,13 +137,17 @@ export default function GatewayPage() {
     }
     setLoading(true)
     try {
-      const [routesData, statsData, policiesData, pricingData] = await Promise.all([
+      const [routesData, groupsData, comparisonData, statsData, policiesData, pricingData] = await Promise.all([
         listGatewayRoutes(apiKey, true).catch(() => ({ items: [] })),
+        listGatewayRoutingGroups(apiKey, { include_inactive: true }).catch(() => ({ items: [] })),
+        getGatewayRoutingStrategyComparison(apiKey).catch(() => ({ items: [] })),
         getGatewayStats(apiKey).catch(() => ({ total_requests: 0, cache_hits: 0, cache_hit_rate: '0', avg_latency_ms: null, routes: [] })),
         listRoutingPolicies(apiKey).catch(() => ({ items: [] })),
         listProviderPricing(apiKey).catch(() => ({ items: [] })),
       ])
       setGatewayRoutes(routesData.items)
+      setRoutingGroups(groupsData.items)
+      setStrategyComparison(comparisonData.items)
       setGatewayStats(statsData as any)
       setRoutingPolicies(policiesData.items)
       setPricing(pricingData.items)
@@ -187,6 +218,7 @@ export default function GatewayPage() {
     try {
       const route = await createGatewayRoute(apiKey, {
         alias: newRouteAlias.trim(),
+        routing_group_id: newRouteRoutingGroupId || null,
         provider: newRouteProvider,
         target_model: newRouteTargetModel.trim(),
         base_url: newRouteBaseUrl.trim() || null,
@@ -220,6 +252,9 @@ export default function GatewayPage() {
         routing_config: routingConfig,
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
         fallback_config: fallbackAliases.length > 0 ? { aliases: fallbackAliases } : null,
+        required_tags: parseCsvTags(newRouteRequiredTags),
+        excluded_tags: parseCsvTags(newRouteExcludedTags),
+        region: newRouteRegion.trim() || null,
       })
       setGatewayRoutes((prev) => [...prev, route])
       setNewRouteAlias('')
@@ -227,6 +262,10 @@ export default function GatewayPage() {
       setNewRouteBaseUrl('')
       setNewRouteApiKeyEnvVar('OPENAI_API_KEY')
       setNewRoutePriority('10')
+      setNewRouteRoutingGroupId('')
+      setNewRouteRequiredTags('')
+      setNewRouteExcludedTags('')
+      setNewRouteRegion('')
       setNewRouteConfigStr('')
       setNewRouteDailyCap('')
       setNewRouteMonthlyCap('')
@@ -250,6 +289,7 @@ export default function GatewayPage() {
       setNewRoutePerUserRpm('')
       setNewRouteFallbackAliases('')
       setShowRouteForm(false)
+      await load()
       toast.success('Gateway route created')
     } catch {
       toast.error('Failed to create gateway route')
@@ -319,6 +359,69 @@ export default function GatewayPage() {
     }
   }
 
+  async function handleCreateRoutingGroup(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !newGroupAlias.trim() || !newGroupName.trim()) return
+    setNewGroupStrategyError('')
+    let strategyConfig: Record<string, unknown> | null = null
+    if (newGroupStrategyConfig.trim()) {
+      try {
+        strategyConfig = JSON.parse(newGroupStrategyConfig)
+      } catch {
+        setNewGroupStrategyError('Strategy config must be valid JSON')
+        return
+      }
+    }
+    setCreatingGroup(true)
+    try {
+      await createGatewayRoutingGroup(apiKey, {
+        alias: newGroupAlias.trim(),
+        name: newGroupName.trim(),
+        description: newGroupDescription.trim() || null,
+        match_tags: parseCsvTags(newGroupMatchTags),
+        default_tags: parseCsvTags(newGroupDefaultTags),
+        strategy_type: newGroupStrategyType,
+        strategy_config: strategyConfig,
+      })
+      setNewGroupAlias('')
+      setNewGroupName('')
+      setNewGroupDescription('')
+      setNewGroupMatchTags('')
+      setNewGroupDefaultTags('')
+      setNewGroupStrategyType('manual')
+      setNewGroupStrategyConfig('{}')
+      setShowGroupForm(false)
+      await load()
+      toast.success('Routing group created')
+    } catch {
+      toast.error('Failed to create routing group')
+    } finally {
+      setCreatingGroup(false)
+    }
+  }
+
+  async function handleToggleRoutingGroup(group: GatewayRoutingGroup) {
+    if (!apiKey) return
+    try {
+      await updateGatewayRoutingGroup(apiKey, group.id, { is_active: !group.is_active })
+      await load()
+      toast.success(group.is_active ? 'Routing group disabled' : 'Routing group enabled')
+    } catch {
+      toast.error('Failed to update routing group')
+    }
+  }
+
+  async function handleDeleteRoutingGroup(groupId: string) {
+    if (!apiKey || !confirm('Delete this routing group? Routes will be detached.')) return
+    try {
+      await deleteGatewayRoutingGroup(apiKey, groupId)
+      await load()
+      toast.success('Routing group deleted')
+    } catch {
+      toast.error('Failed to delete routing group')
+    }
+  }
+
   async function handleCreatePolicy(e: React.FormEvent) {
     e.preventDefault()
     if (!apiKey || !policyAlias) return
@@ -364,6 +467,57 @@ export default function GatewayPage() {
       toast.success('Policy deleted')
     } catch {
       toast.error('Failed to delete policy')
+    }
+  }
+
+  async function handleLoadPolicyAnalysis(policyId: string) {
+    if (!apiKey) return
+    setLoadingPolicyAnalysis((prev) => ({ ...prev, [policyId]: true }))
+    try {
+      const data = await getRoutingPolicyAnalysis(apiKey, policyId)
+      setPolicyAnalysis((prev) => ({ ...prev, [policyId]: data }))
+      if (data.auto_promoted) {
+        await load()
+      }
+    } catch {
+      toast.error('Failed to load policy analysis')
+    } finally {
+      setLoadingPolicyAnalysis((prev) => ({ ...prev, [policyId]: false }))
+    }
+  }
+
+  async function handlePromotePolicy(policyId: string) {
+    if (!apiKey) return
+    try {
+      const result = await promoteRoutingPolicyWinner(apiKey, policyId)
+      toast.success(result.summary)
+      await load()
+      await handleLoadPolicyAnalysis(policyId)
+    } catch {
+      toast.error('Failed to promote winner')
+    }
+  }
+
+  async function handleAdvanceCanary(policyId: string) {
+    if (!apiKey) return
+    try {
+      const result = await advanceCanaryRollout(apiKey, policyId)
+      toast.success(result.summary)
+      await load()
+    } catch {
+      toast.error('Failed to advance canary rollout')
+    }
+  }
+
+  async function handleRollbackPolicy(policyId: string) {
+    if (!apiKey) return
+    try {
+      const result = await rollbackRoutingPolicy(apiKey, policyId)
+      toast.success(result.summary)
+      await load()
+      await handleLoadPolicyAnalysis(policyId)
+    } catch {
+      toast.error('Failed to roll back policy')
     }
   }
 
@@ -452,6 +606,127 @@ export default function GatewayPage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
+            <h2 className="text-base font-semibold dark:text-white">Routing Groups</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Independent group state for tagged traffic, default tags for untagged requests, and per-group routing strategy.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowGroupForm((value) => !value)}
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          >
+            {showGroupForm ? <ChevronUp className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {showGroupForm ? 'Cancel' : 'Add Group'}
+          </button>
+        </div>
+
+        {showGroupForm && (
+          <form onSubmit={handleCreateRoutingGroup} className="grid gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <input value={newGroupAlias} onChange={(e) => setNewGroupAlias(e.target.value)} className={inputCls} placeholder="Alias (e.g. gpt-4o)" required />
+            <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className={inputCls} placeholder="Group name" required />
+            <select value={newGroupStrategyType} onChange={(e) => setNewGroupStrategyType(e.target.value as GatewayRoutingGroupStrategy)} className={inputCls}>
+              <option value="manual">manual</option>
+              <option value="latency_optimized">latency_optimized</option>
+              <option value="round_robin">round_robin</option>
+            </select>
+            <input value={newGroupMatchTags} onChange={(e) => setNewGroupMatchTags(e.target.value)} className={inputCls} placeholder="Match tags (csv)" />
+            <input value={newGroupDefaultTags} onChange={(e) => setNewGroupDefaultTags(e.target.value)} className={inputCls} placeholder="Default tags (csv)" />
+            <input value={newGroupDescription} onChange={(e) => setNewGroupDescription(e.target.value)} className={inputCls} placeholder="Description" />
+            <textarea value={newGroupStrategyConfig} onChange={(e) => { setNewGroupStrategyConfig(e.target.value); setNewGroupStrategyError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder='{"notes":"optional"}' />
+            {newGroupStrategyError && <p className="text-xs text-red-500 sm:col-span-2 lg:col-span-3">{newGroupStrategyError}</p>}
+            <div className="sm:col-span-2 lg:col-span-3">
+              <button type="submit" disabled={creatingGroup} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                {creatingGroup ? 'Creating…' : 'Create routing group'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          {routingGroups.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400 lg:col-span-2">
+              No routing groups configured yet.
+            </div>
+          ) : routingGroups.map((group) => (
+            <div key={group.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm dark:text-slate-100">{group.alias}</span>
+                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{group.name}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{group.strategy_type}</span>
+                    <button onClick={() => void handleToggleRoutingGroup(group)} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${group.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                      {group.is_active ? 'active' : 'inactive'}
+                    </button>
+                  </div>
+                  {group.description && <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{group.description}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">match: {group.match_tags.length ? group.match_tags.join(', ') : 'none'}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">default: {group.default_tags.length ? group.default_tags.join(', ') : 'none'}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-700 dark:text-slate-300">routes: {group.route_count}</span>
+                  </div>
+                </div>
+                <button onClick={() => void handleDeleteRoutingGroup(group.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold dark:text-white">Routing Strategy Comparison</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Compare routing groups by throughput, cache performance, latency, and errors.
+          </p>
+        </div>
+        {strategyComparison.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400">
+            Comparison data will appear after requests hit grouped routes.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {strategyComparison.map((item) => (
+              <div key={`${item.alias}-${item.group_name}`} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-sm dark:text-slate-100">{item.alias}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.group_name}</p>
+                  </div>
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{item.strategy_type}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900/40">
+                    <p className="text-slate-400">Requests</p>
+                    <p className="font-semibold dark:text-white">{item.total_requests.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900/40">
+                    <p className="text-slate-400">Active routes</p>
+                    <p className="font-semibold dark:text-white">{item.active_routes}</p>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900/40">
+                    <p className="text-slate-400">Cache hit</p>
+                    <p className="font-semibold dark:text-white">{(parseFloat(item.cache_hit_rate) * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-slate-900/40">
+                    <p className="text-slate-400">Errors</p>
+                    <p className="font-semibold dark:text-white">{(parseFloat(item.error_rate) * 100).toFixed(1)}%</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  Avg latency: {item.avg_latency_ms ? `${parseFloat(item.avg_latency_ms).toFixed(0)}ms` : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
             <h2 className="text-base font-semibold dark:text-white">Provider Routes</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Each route maps an alias to a provider model with priority and fallback.</p>
           </div>
@@ -526,6 +801,16 @@ export default function GatewayPage() {
               </div>
               <input type="text" placeholder="Base URL (optional)" value={newRouteBaseUrl} onChange={(e) => setNewRouteBaseUrl(e.target.value)} className={inputCls} />
               <input type="text" placeholder="API key env var (e.g. OPENAI_API_KEY)" value={newRouteApiKeyEnvVar} onChange={(e) => setNewRouteApiKeyEnvVar(e.target.value)} className={inputCls} />
+              <select value={newRouteRoutingGroupId} onChange={(e) => setNewRouteRoutingGroupId(e.target.value)} className={inputCls}>
+                <option value="">No routing group</option>
+                {routingGroups
+                  .filter((group) => group.alias === newRouteAlias.trim() || newRouteAlias.trim().length === 0)
+                  .map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.alias} / {group.name}
+                    </option>
+                  ))}
+              </select>
               <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
                 <label className="text-xs text-gray-500 dark:text-gray-400">
                   Provider Config JSON <span className="text-gray-400">(optional — Azure: deployment_name/api_version; Bedrock: region; Vertex: project/location)</span>
@@ -542,6 +827,9 @@ export default function GatewayPage() {
               <div className="flex items-center gap-2">
                 <input type="number" placeholder="Priority" value={newRoutePriority} onChange={(e) => setNewRoutePriority(e.target.value)} className={`w-24 ${inputCls}`} min={1} max={100} />
               </div>
+              <input type="text" placeholder="Region (e.g. us-east-1)" value={newRouteRegion} onChange={(e) => setNewRouteRegion(e.target.value)} className={inputCls} />
+              <input type="text" placeholder="Required tags (csv)" value={newRouteRequiredTags} onChange={(e) => setNewRouteRequiredTags(e.target.value)} className={inputCls} />
+              <input type="text" placeholder="Excluded tags (csv)" value={newRouteExcludedTags} onChange={(e) => setNewRouteExcludedTags(e.target.value)} className={inputCls} />
               {/* Runtime controls row */}
               <div className="sm:col-span-2 lg:col-span-3 border-t border-indigo-100 dark:border-indigo-900 pt-3 mt-1">
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Runtime Controls</p>
@@ -739,7 +1027,33 @@ export default function GatewayPage() {
                       const fallbackAliases = getRouteFallbackAliases(route)
                       return (
                         <>
-                    <td className="px-4 py-2.5 font-mono text-sm font-semibold dark:text-slate-200">{route.alias}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-mono text-sm font-semibold dark:text-slate-200">{route.alias}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {route.routing_group_name && (
+                            <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                              {route.routing_group_name}
+                            </span>
+                          )}
+                          {route.region && (
+                            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                              {route.region}
+                            </span>
+                          )}
+                          {route.required_tags.length > 0 && (
+                            <span className="rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                              needs {route.required_tags.join(', ')}
+                            </span>
+                          )}
+                          {route.excluded_tags.length > 0 && (
+                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                              avoids {route.excluded_tags.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-4 py-2.5 text-xs capitalize text-slate-600 dark:text-slate-300">{route.provider}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{route.target_model}</td>
                     <td className="px-4 py-2.5 text-center text-xs text-slate-500 dark:text-slate-400">{route.priority}</td>
@@ -859,6 +1173,7 @@ export default function GatewayPage() {
                 <option value="quality_optimized">quality_optimized — highest score</option>
                 <option value="weighted">weighted — random split by weight</option>
                 <option value="canary">canary — % to canary route</option>
+                <option value="ab_test">ab_test — traffic split with winner analysis</option>
                 <option value="budget_aware">budget_aware — fallback when budget % hit</option>
                 <option value="complexity_based">complexity_based — branch on token count</option>
                 <option value="outcome_optimized">outcome_optimized — lowest cost-per-success</option>
@@ -895,6 +1210,7 @@ export default function GatewayPage() {
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Config</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Insights</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                   {canManage && <th className="px-4 py-2.5" />}
                 </tr>
               </thead>
@@ -918,14 +1234,45 @@ export default function GatewayPage() {
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <button
-                          onClick={() => handleLoadRecommendation(p.alias)}
-                          disabled={loadingRec[p.alias]}
+                          onClick={() => {
+                            void handleLoadRecommendation(p.alias)
+                            void handleLoadPolicyAnalysis(p.id)
+                          }}
+                          disabled={loadingRec[p.alias] || loadingPolicyAnalysis[p.id]}
                           title="View outcome-based routing recommendation"
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${expandedRec === p.alias ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-900/20 dark:hover:text-violet-300'}`}
                         >
                           <Sparkles className="h-3 w-3" />
-                          {loadingRec[p.alias] ? '…' : expandedRec === p.alias ? 'Hide' : 'Analyze'}
+                          {loadingRec[p.alias] || loadingPolicyAnalysis[p.id] ? '…' : expandedRec === p.alias ? 'Hide' : 'Analyze'}
                         </button>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {(p.policy_type === 'ab_test' || p.policy_type === 'canary') && (
+                            <button
+                              onClick={() => void handlePromotePolicy(p.id)}
+                              className="rounded-lg border border-indigo-200 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                            >
+                              Promote
+                            </button>
+                          )}
+                          {p.policy_type === 'canary' && (
+                            <button
+                              onClick={() => void handleAdvanceCanary(p.id)}
+                              className="rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                            >
+                              Advance
+                            </button>
+                          )}
+                          {(p.policy_type === 'canary' || p.policy_type === 'ab_test') && (
+                            <button
+                              onClick={() => void handleRollbackPolicy(p.id)}
+                              className="rounded-lg border border-amber-200 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-950/30"
+                            >
+                              Roll back
+                            </button>
+                          )}
+                        </div>
                       </td>
                       {canManage && (
                         <td className="px-4 py-2.5 text-right">
@@ -937,8 +1284,13 @@ export default function GatewayPage() {
                     </tr>
                     {expandedRec === p.alias && recommendations[p.alias] && (
                       <tr key={`${p.id}-rec`}>
-                        <td colSpan={canManage ? 6 : 5} className="px-4 py-0 bg-violet-50/50 dark:bg-violet-900/10">
-                          <RecommendationPanel rec={recommendations[p.alias]} />
+                        <td colSpan={canManage ? 7 : 6} className="px-4 py-0 bg-violet-50/50 dark:bg-violet-900/10">
+                          <div className="py-3 space-y-4">
+                            <RecommendationPanel rec={recommendations[p.alias]} />
+                            {policyAnalysis[p.id] && (
+                              <PolicyAnalysisPanel analysis={policyAnalysis[p.id]} />
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -1013,6 +1365,7 @@ export default function GatewayPage() {
       </section>
 
       {/* ── Optimization flywheel ── */}
+      {apiKey && <BenchmarkPanel apiKey={apiKey} />}
       {apiKey && <PassThroughPanel apiKey={apiKey} canManage={canManage} />}
       {apiKey && <FlywheelPanel apiKey={apiKey} canManage={canManage} />}
     </div>
@@ -1021,8 +1374,124 @@ export default function GatewayPage() {
 
 // ── Recommendation panel ──────────────────────────────────────────────────────
 
+function BenchmarkPanel({ apiKey }: { apiKey: string }) {
+  const [days, setDays] = useState('7')
+  const [items, setItems] = useState<GatewayBenchmarkComparisonItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await getGatewayBenchmarkComparison(apiKey, { days: parseInt(days, 10) || 7 })
+      setItems(data.items)
+    } catch {
+      toast.error('Failed to load benchmark comparison')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiKey, days])
+
+  useEffect(() => { void load() }, [load])
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold dark:text-white">Performance And Benchmarking</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Gateway overhead, throughput, and direct-provider comparison by alias over a rolling window.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select value={days} onChange={(e) => setDays(e.target.value)} className={inputCls}>
+            <option value="1">Last 24h</option>
+            <option value="7">Last 7d</option>
+            <option value="30">Last 30d</option>
+          </select>
+          <button
+            onClick={() => void load()}
+            disabled={loading}
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400">
+          No benchmark data yet. Drive traffic through one or more aliases to populate overhead and throughput metrics.
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {items.map((item) => (
+            <div key={item.alias} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <BarChart2 className="h-4 w-4 text-indigo-500" />
+                    <span className="font-mono text-sm text-slate-800 dark:text-slate-100">{item.alias}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {item.request_count} requests in the last {days === '1' ? '24 hours' : `${days} days`}
+                  </p>
+                </div>
+                <div className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                  {item.throughput_rpm ? `${parseFloat(item.throughput_rpm).toFixed(2)} rpm` : '0 rpm'}
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
+                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                  <p className="text-slate-400">P50 overhead</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-100">
+                    {item.p50_gateway_overhead_ms ? `${parseFloat(item.p50_gateway_overhead_ms).toFixed(0)}ms` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                  <p className="text-slate-400">P95 overhead</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-100">
+                    {item.p95_gateway_overhead_ms ? `${parseFloat(item.p95_gateway_overhead_ms).toFixed(0)}ms` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                  <p className="text-slate-400">P99 overhead</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-100">
+                    {item.p99_gateway_overhead_ms ? `${parseFloat(item.p99_gateway_overhead_ms).toFixed(0)}ms` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                  <p className="text-slate-400">Provider latency</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-100">
+                    {item.avg_provider_latency_ms ? `${parseFloat(item.avg_provider_latency_ms).toFixed(0)}ms` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                  <p className="text-slate-400">End-to-end</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-100">
+                    {item.avg_end_to_end_latency_ms ? `${parseFloat(item.avg_end_to_end_latency_ms).toFixed(0)}ms` : '—'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                  <p className="text-slate-400">Overhead vs provider</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-100">
+                    {item.overhead_vs_provider_pct ? `${(parseFloat(item.overhead_vs_provider_pct) * 100).toFixed(1)}%` : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {
   const [items, setItems] = useState<GatewayPassThroughEndpoint[]>([])
+  const [stats, setStats] = useState<Record<string, GatewayPassThroughEndpointStats>>({})
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, GatewayPassThroughTestResult>>({})
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [slug, setSlug] = useState('')
@@ -1038,8 +1507,16 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await listGatewayPassThroughEndpoints(apiKey, true)
+      const [data, statsData] = await Promise.all([
+        listGatewayPassThroughEndpoints(apiKey, true),
+        listGatewayPassThroughStats(apiKey).catch(() => ({ items: [] })),
+      ])
       setItems(data.items)
+      setStats(
+        Object.fromEntries(
+          statsData.items.map((item) => [item.endpoint_id, item]),
+        ),
+      )
     } catch {
       toast.error('Failed to load pass-through endpoints')
     } finally {
@@ -1110,6 +1587,22 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
     }
   }
 
+  async function handleTest(item: GatewayPassThroughEndpoint) {
+    setTestingId(item.id)
+    try {
+      const result = await testGatewayPassThroughEndpoint(apiKey, item.id, {
+        method: 'GET',
+        path: '',
+      })
+      setTestResults((prev) => ({ ...prev, [item.id]: result }))
+      toast.success(result.ok ? `Test succeeded (${result.status_code})` : `Test returned ${result.status_code}`)
+    } catch {
+      toast.error('Failed to test pass-through endpoint')
+    } finally {
+      setTestingId(null)
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1155,6 +1648,10 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
         <div className="space-y-3">
           {items.map((item) => (
             <div key={item.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+              {(() => {
+                const itemStats = stats[item.id]
+                const testResult = testResults[item.id]
+                return (
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1171,9 +1668,42 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
                     <span>rpm {item.rate_limit_rpm ?? 'unlimited'}</span>
                     <span>cost {item.cost_per_call_usd ? `$${item.cost_per_call_usd}` : 'unset'}</span>
                   </div>
+                  {itemStats && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                        <p className="text-slate-400">Requests</p>
+                        <p className="font-semibold text-slate-700 dark:text-slate-100">{itemStats.total_requests}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                        <p className="text-slate-400">P95</p>
+                        <p className="font-semibold text-slate-700 dark:text-slate-100">{itemStats.p95_latency_ms ? `${parseFloat(itemStats.p95_latency_ms).toFixed(0)}ms` : '—'}</p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                        <p className="text-slate-400">Rate use</p>
+                        <p className="font-semibold text-slate-700 dark:text-slate-100">
+                          {itemStats.rate_limit_utilization_pct ? `${(parseFloat(itemStats.rate_limit_utilization_pct) * 100).toFixed(1)}%` : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/30">
+                        <p className="text-slate-400">24h cost</p>
+                        <p className="font-semibold text-slate-700 dark:text-slate-100">
+                          {itemStats.estimated_24h_cost_usd ? `$${parseFloat(itemStats.estimated_24h_cost_usd).toFixed(4)}` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {testResult && (
+                    <div className={`mt-3 rounded-lg px-3 py-2 text-xs ${testResult.ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-300'}`}>
+                      <p className="font-medium">Last test: {testResult.status_code} in {testResult.latency_ms}ms</p>
+                      <p className="mt-1 break-all">{testResult.target_url}</p>
+                    </div>
+                  )}
                 </div>
                 {canManage && (
                   <div className="flex shrink-0 gap-2">
+                    <button onClick={() => void handleTest(item)} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-950/30">
+                      {testingId === item.id ? 'Testing...' : 'Test'}
+                    </button>
                     <button onClick={() => void handleToggle(item)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
                       {item.is_active ? 'Disable' : 'Enable'}
                     </button>
@@ -1183,6 +1713,8 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
                   </div>
                 )}
               </div>
+                )
+              })()}
             </div>
           ))}
         </div>
@@ -1256,6 +1788,69 @@ function RecommendationPanel({ rec }: { rec: RoutingRecommendationResponse }) {
 }
 
 // ── Optimization flywheel ─────────────────────────────────────────────────────
+
+function PolicyAnalysisPanel({ analysis }: { analysis: RoutingPolicyAnalysis }) {
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 p-4 dark:bg-slate-900/20">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Traffic Analysis</span>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+          confidence {analysis.confidence}
+        </span>
+        {analysis.winner_label && (
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+            winner {analysis.winner_label}
+          </span>
+        )}
+        {analysis.significance_p_value && (
+          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+            p={parseFloat(analysis.significance_p_value).toFixed(4)}
+          </span>
+        )}
+        {analysis.auto_promoted && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+            auto-promoted
+          </span>
+        )}
+      </div>
+      <p className="text-sm text-slate-600 dark:text-slate-300">{analysis.summary}</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-slate-400 dark:border-slate-700 dark:text-slate-500">
+              <th className="py-1.5 pr-4 font-medium">Variant</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Alloc</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Requests</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Success</th>
+              <th className="py-1.5 pr-4 font-medium text-right">Errors</th>
+              <th className="py-1.5 font-medium text-right">Latency</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {analysis.variants.map((variant) => (
+              <tr key={variant.route_id}>
+                <td className="py-1.5 pr-4 font-mono text-slate-700 dark:text-slate-200">{variant.label}</td>
+                <td className="py-1.5 pr-4 text-right text-slate-500 dark:text-slate-400">
+                  {(parseFloat(variant.allocation_pct) * 100).toFixed(1)}%
+                </td>
+                <td className="py-1.5 pr-4 text-right text-slate-500 dark:text-slate-400">{variant.total_requests}</td>
+                <td className="py-1.5 pr-4 text-right text-slate-600 dark:text-slate-300">
+                  {(parseFloat(variant.success_rate) * 100).toFixed(1)}%
+                </td>
+                <td className="py-1.5 pr-4 text-right text-slate-600 dark:text-slate-300">
+                  {(parseFloat(variant.error_rate) * 100).toFixed(1)}%
+                </td>
+                <td className="py-1.5 text-right text-slate-600 dark:text-slate-300">
+                  {variant.avg_latency_ms ? `${parseFloat(variant.avg_latency_ms).toFixed(0)}ms` : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 const KIND_STYLE: Record<string, string> = {
   switch: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',

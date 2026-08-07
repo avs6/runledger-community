@@ -1,60 +1,59 @@
 ---
 title: "Routing & Fallback"
-description: "Select the best route for each request — by priority, cost, latency, quality, outcome, or complexity — with automatic fallback across providers."
+description: "Configure routing strategies, tag filters, and fallback chains across providers and tiers."
 ---
 
-Each model alias can have **multiple routes**. When a request arrives, RunLedger selects a route by the
-alias's **routing policy**, forwards to it, and **falls back** to the next route on a transient error.
+Each model alias can have multiple routes. When a request arrives, RunLedger selects a route by policy, tag filters, region preference, and health state, then falls back if the chosen provider fails.
 
-## Fallback
+## Fallback behavior
 
-Routes carry a `priority` (lower = tried first). On a transient provider error the gateway retries once,
-then moves to the next-priority active route for the alias — so a provider outage degrades gracefully
-instead of failing the request.
+Routes carry a `priority` where lower numbers are tried first. On a transient provider failure the gateway retries and then moves to the next eligible route. That means provider failures are absorbed by the fallback chain and hidden from clients unless every eligible route fails.
 
-```mermaid
-flowchart LR
-  req[Request for alias] --> p1[Route priority 10]
-  p1 -- error --> p2[Route priority 20]
-  p2 -- error --> p3[Route priority 30]
-  p1 & p2 & p3 --> prov[Provider]
-```
+## Routing strategies
 
-## Routing policies
+Routing strategies are configurable through both the API and the Gateway UI.
 
-Set a policy per alias to select *which* route rather than just the highest priority:
-
-| Policy | Selects |
+| Policy | Purpose |
 |---|---|
-| `manual` | Priority order (default). |
-| `cost_optimized` | Cheapest route above a quality floor. |
-| `latency_optimized` | Lowest recent p95 latency. |
-| `quality_optimized` | Highest average quality score. |
-| `weighted` | Weighted random split across routes. |
-| `canary` | X% to a canary route, the rest by priority. |
-| `budget_aware` | Downgrade to a cheaper alias when a budget threshold is hit. |
-| `complexity_based` | Branch by input size. |
-| `outcome_optimized` | Lowest cost-per-success from the [outcomes ledger](/finops/outcomes). |
+| `manual` | Priority-order routing |
+| `cost_optimized` | Cheapest route above a quality floor |
+| `latency_optimized` | Lowest recent p95 latency |
+| `quality_optimized` | Highest average quality score |
+| `weighted` | Weighted traffic split |
+| `canary` | Gradual rollout to one route |
+| `ab_test` | Experiment split with significance analysis |
+| `budget_aware` | Fallback alias when budget threshold is hit |
+| `complexity_based` | Branch by request complexity |
+| `outcome_optimized` | Lowest cost per successful outcome |
 
-Policies read from the same metering, score, and outcome data the rest of RunLedger records — so
-`quality_optimized` and `outcome_optimized` reflect *your* traffic.
+## Tag-based routing and exclusion flows
 
-## Intelligent routing
+Routes support both `required_tags` and `excluded_tags`. This allows:
 
-Beyond route selection, **intelligent routing** classifies each request by **complexity × business risk**
-and maps it to a model tier (with reasoning-effort) — so easy work goes to a cheap model and only hard or
-high-risk work reaches a frontier model. It's configurable per route (heuristic / LLM / hybrid classifier,
-arbitrary N-tier map). See [Intelligent Routing](/optimization/intelligent-routing).
+- **Tier routing** such as `tier:cheap`, `tier:mid`, and `tier:frontier`
+- **Provider exclusion** such as excluding `provider:openai` or `provider:anthropic`
+- **Safety or residency slices** such as excluding `region:eu` or `data:restricted`
+
+Routing groups can also contribute default tags for untagged traffic, which makes the tier and provider exclusion flow work even when callers do not pass custom headers.
+
+## A/B testing validity
+
+Production A/B testing uses:
+
+- per-variant request counts
+- success and error rates
+- significance testing with a configurable `significance_threshold`
+- minimum sample enforcement before a winner can be promoted
+
+Winner promotion for A/B tests is blocked until significance and sample requirements are met.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Intelligent routing" icon="route" href="/optimization/intelligent-routing">
-    Complexity × risk → tier.
+  <Card title="Performance & scale" icon="gauge" href="/gateway/performance-and-scale">
+    Gateway overhead, throughput, and benchmarks.
   </Card>
-  <Card title="Outcomes & ROI" icon="chart-line" href="/finops/outcomes">
-    Powers outcome_optimized routing.
+  <Card title="Alerts & monitoring" icon="bell" href="/governance/alerts">
+    Availability and overhead alerting.
   </Card>
 </CardGroup>
-
-See [`examples/19_policy_check.py`](https://github.com/avs6/runledger-community/blob/master/examples/19_policy_check.py).

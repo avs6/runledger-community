@@ -54,6 +54,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "dir": str(DATA_DIR)}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/skills")
 def upsert(skill: Skill) -> dict[str, object]:
     path = _dir(skill.workspace) / f"{_safe(skill.name)}.json"

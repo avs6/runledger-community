@@ -82,6 +82,11 @@ def health() -> dict[str, object]:
     return {"status": "ok" if ok else "degraded", "db": DB_PATH}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/entities")
 def upsert_entity(e: Entity) -> dict[str, str]:
     # Scoped id so entities never collide across workspaces.

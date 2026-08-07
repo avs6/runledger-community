@@ -54,6 +54,7 @@ from runledger_api.schemas.approvals import (
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.email import send_approval_decision_email, send_approval_request_email
 from runledger_api.services.email_utils import get_workspace_admin_users
+from runledger_api.services import kafka_export
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 log = structlog.get_logger()
@@ -193,6 +194,26 @@ async def create_approval(
         approval_id=str(approval.id),
         requested_by=approval.requested_by,
     )
+    try:
+        await kafka_export.publish_event(
+            db,
+            workspace_id=workspace.id,
+            event_type="approval.requested",
+            payload={
+                "run_id": str(approval.id),
+                "approval_id": str(approval.id),
+                "request_type": approval.request_type,
+                "status": approval.status,
+                "requested_by": approval.requested_by,
+                "reason": body.reason,
+                "requested_at": approval.created_at.isoformat() if approval.created_at else None,
+                "idempotency_key": f"approval-requested:{approval.id}",
+                "source": "runledger.approvals",
+                "event_summary": f"Approval requested: {approval.request_type}",
+            },
+        )
+    except Exception:
+        log.exception("kafka_export.approval_requested_failed", approval_id=str(approval.id))
     await _notify_slack(workspace, approval)
     await _notify_approval_request(db, workspace, approval, body.reason)
     return ApprovalResponse.model_validate(approval)
@@ -343,6 +364,26 @@ async def approve_approval(
         target_id=str(approval.id),
         after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
+    try:
+        await kafka_export.publish_event(
+            db,
+            workspace_id=workspace.id,
+            event_type="approval.decided",
+            payload={
+                "run_id": str(approval.id),
+                "approval_id": str(approval.id),
+                "request_type": approval.request_type,
+                "status": approval.status,
+                "decided_by": approval.decided_by,
+                "decision_note": approval.decision_note,
+                "decided_at": approval.decided_at.isoformat() if approval.decided_at else None,
+                "idempotency_key": f"approval-decided:{approval.id}:{approval.status}",
+                "source": "runledger.approvals",
+                "event_summary": f"Approval {approval.status}",
+            },
+        )
+    except Exception:
+        log.exception("kafka_export.approval_decided_failed", approval_id=str(approval.id))
     await _notify_approval_decision(workspace, approval)
     return ApprovalResponse.model_validate(approval)
 
@@ -405,6 +446,26 @@ async def deny_approval(
         target_id=str(approval.id),
         after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
+    try:
+        await kafka_export.publish_event(
+            db,
+            workspace_id=workspace.id,
+            event_type="approval.decided",
+            payload={
+                "run_id": str(approval.id),
+                "approval_id": str(approval.id),
+                "request_type": approval.request_type,
+                "status": approval.status,
+                "decided_by": approval.decided_by,
+                "decision_note": approval.decision_note,
+                "decided_at": approval.decided_at.isoformat() if approval.decided_at else None,
+                "idempotency_key": f"approval-decided:{approval.id}:{approval.status}",
+                "source": "runledger.approvals",
+                "event_summary": f"Approval {approval.status}",
+            },
+        )
+    except Exception:
+        log.exception("kafka_export.approval_decided_failed", approval_id=str(approval.id))
     await _notify_approval_decision(workspace, approval)
     return ApprovalResponse.model_validate(approval)
 

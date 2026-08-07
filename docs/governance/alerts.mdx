@@ -1,47 +1,45 @@
 ---
 title: "Alerts & Monitoring"
-description: "Metric-threshold alert rules — spend spikes, cost-per-success drops, pipeline lag — dispatched to your channels."
+description: "Metric-threshold alert rules for spend, quality, gateway health, and latency dispatched to your channels."
 ---
 
-Alert rules watch your metrics and fire when a threshold is crossed, so you hear about a spend spike or a
-quality drop in minutes rather than at invoice time.
+Alert rules watch key control-plane and gateway metrics so operators hear about spend spikes, degraded model availability, or rising gateway overhead within minutes.
 
 ## Key features
 
-- **Metric-threshold rules** — define a metric, comparator, threshold, and window.
-- **Built-in checks** — cost-per-success spikes, success-rate drops, budget breaches, pipeline lag.
-- **Channels** — dispatch to a Slack webhook (and other integrations).
-- **Scheduled evaluation** — rules are checked on a cadence by a background worker.
-
-## How it works
-
-```mermaid
-flowchart LR
-  metrics[Metrics & rollups] --> eval[Rule evaluation · every few min]
-  eval -- threshold crossed --> fire[AlertFiring]
-  fire --> notify[Slack / webhook]
-  eval -- ok --> quiet[No-op]
-```
+- **Metric-threshold rules** with a metric, comparator, threshold, and window.
+- **Gateway-aware checks** including model availability and p95 gateway overhead.
+- **Channels** for Slack, webhook destinations, and optional email to workspace admins.
+- **Scheduled evaluation** by the background worker on a recurring cadence.
 
 ## Example rules
 
 | Rule | Fires when |
 |---|---|
-| Spend spike | Daily spend > threshold |
-| Cost-per-success spike | +30% vs baseline |
-| Success-rate drop | −20% vs baseline |
-| Pipeline lag | Ingest lag > 5 min |
+| Spend spike | Spend velocity exceeds threshold |
+| Success-rate drop | Error rate or score crosses threshold |
+| Model availability | Healthy route ratio drops below threshold |
+| Gateway overhead | p95 gateway overhead rises above target |
+
+## Gateway acceptance monitoring
+
+The gateway-specific metrics are useful for production acceptance checks:
+
+- `model_availability`
+  Use a threshold like `< 1.0` or `< 0.95` to alert when healthy route coverage drops.
+- `gateway_overhead_p95`
+  Use a threshold in milliseconds to enforce your gateway overhead budget.
 
 Configure rules on **Control Plane -> Alert Rules** and notification channels on **Control Plane -> Integrations**.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Outcomes & ROI" icon="chart-line" href="/finops/outcomes">
-    The quality metrics alerts watch.
+  <Card title="Routing & fallback" icon="route" href="/gateway/routing">
+    Fallback hides provider failures unless every route is exhausted.
   </Card>
-  <Card title="Budgets" icon="shield-check" href="/finops/budgets">
-    Alerts complement hard budget actions.
+  <Card title="Performance & scale" icon="gauge" href="/gateway/performance-and-scale">
+    Benchmarking and overhead targets.
   </Card>
 </CardGroup>
 

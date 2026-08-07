@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.config import settings
 from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
 from runledger_api.schemas.budgets import BudgetCheckResponse
+from runledger_api.services import kafka_export
 
 log = structlog.get_logger()
 
@@ -364,6 +365,29 @@ async def fire_breach(
     workspace_id_str = budget_dict.get("workspace_id")
     if workspace_id_str:
         workspace_id = uuid.UUID(workspace_id_str)
+        try:
+            await kafka_export.publish_event(
+                db,
+                workspace_id=workspace_id,
+                event_type="budget.breached",
+                payload={
+                    "budget_id": str(budget_id),
+                    "run_id": str(breach.id),
+                    "trace_id": None,
+                    "scope_type": budget_dict.get("scope_type"),
+                    "scope_id": budget_dict.get("scope_id"),
+                    "period_type": budget_dict.get("period_type"),
+                    "limit_usd": budget_dict.get("limit_usd"),
+                    "spend_usd": str(spend),
+                    "action_taken": action_taken,
+                    "occurred_at": breach.occurred_at.isoformat() if breach.occurred_at else datetime.now(UTC).isoformat(),
+                    "idempotency_key": f"budget-breached:{budget_id}:{breach.id}",
+                    "source": "runledger.budgets",
+                    "event_summary": "Budget breached",
+                },
+            )
+        except Exception:
+            log.exception("kafka_export.budget_breached_failed", budget_id=str(budget_id))
         result = await db.execute(
             select(BudgetNotification).where(
                 BudgetNotification.workspace_id == workspace_id,

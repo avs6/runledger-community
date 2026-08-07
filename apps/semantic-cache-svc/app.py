@@ -121,6 +121,11 @@ def health() -> dict[str, object]:
     return {"status": "ok" if ok else "degraded", "collection": COLLECTION}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/lookup", response_model=LookupResponse)
 async def lookup(req: LookupRequest) -> LookupResponse:
     threshold = req.threshold if req.threshold is not None else DEFAULT_THRESHOLD

@@ -15,6 +15,11 @@ Everything runs against **local Ollama**, so you need no cloud API keys.
 > *not* picked up by `full_simulate.py`, and the dashboard links here as `Hands-on Labs`.
 > Work through it top to bottom the first time.
 
+For the automated story that sits beside this workbook, also use:
+
+- [Guided Demo Scenarios](./guided_demo_scenarios.md)
+- [Sales Engineering Walkthrough](./sales_engineering_walkthrough.md)
+
 ---
 
 ## The scenario
@@ -92,6 +97,24 @@ scripts, `lab_01`…`lab_05`, remain as focused demos of each instrumentation *t
 Ready-to-load **sample assets** live in [`samples/`](./samples) — a dataset, prompt texts,
 gateway routing policies, tool policies, and evaluator configs you paste/import in the GUI.
 
+### Streaming mini-lab
+
+Use this when you want the integrations dashboard, the simulator, and a live Kafka-compatible stream to line up on **Friday, August 7, 2026**.
+
+1. Start the bundled Redpanda profile from the repo root:
+   ```bash
+   docker compose --profile streaming up -d runledger-redpanda runledger-redpanda-console
+   ```
+2. Seed or refresh the demo with streaming exports enabled:
+   ```bash
+   uv run python scripts/full_simulate.py --no-clean --streaming-demo
+   ```
+3. Open Redpanda Console at `http://localhost:19091` or consume the topic directly:
+   ```bash
+   python scripts/streaming/kafka_consumer.py --topic runledger.events --offset start
+   ```
+4. Trigger a few new runs, alerts, or approval actions from the simulator or dashboard and verify that they appear in the stream.
+
 ---
 
 ## The workbook, in parts
@@ -110,6 +133,9 @@ linked guides.
 | **[Part 7 - Control Plane & Platform Settings](./part7_settings.md)** | OTLP · MCP · Integrations · Data Capture · Compliance · Retention · Email |
 | **[Part 8 · Integrating an existing stack](./part8_integrating_existing_stack.md)** | How customers adopt RunLedger beside an existing AI stack (hub instrumentation, gateway, SDK) |
 | **[Part 9 · Guardrails & Content Safety](./part9_guardrails.md)** | Built-in content filters · custom guardrails · templates · partner integrations · test playground · regression testing · gateway enforcement · monitor |
+| **[Guided Demo Scenarios](./guided_demo_scenarios.md)** | Seven polished before/after stories for cache, routing, compression, budgets, and MCP governance |
+| **[Sales Engineering Walkthrough](./sales_engineering_walkthrough.md)** | A 12 to 20 minute prospect/demo narrative using the seeded product surfaces |
+| **Streaming mini-lab** | Bring up Redpanda, seed Kafka exports, and verify live fanout from the local demo stack. |
 
 ---
 

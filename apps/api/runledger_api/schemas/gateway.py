@@ -12,8 +12,105 @@ from pydantic import BaseModel, Field
 # ── Route schemas ──────────────────────────────────────────────────────────────
 
 
+VALID_ROUTING_GROUP_STRATEGIES = {
+    "manual",
+    "latency_optimized",
+    "round_robin",
+}
+
+
+class GatewayRoutingGroupCreate(BaseModel):
+    alias: str = Field(..., min_length=1, max_length=128)
+    name: str = Field(..., min_length=1, max_length=120)
+    description: str | None = None
+    match_tags: list[str] = Field(default_factory=list)
+    default_tags: list[str] = Field(default_factory=list)
+    strategy_type: str = Field("manual")
+    strategy_config: dict[str, Any] | None = None
+    is_active: bool = True
+
+    def model_post_init(self, __context: Any) -> None:  # noqa: ANN401
+        if self.strategy_type not in VALID_ROUTING_GROUP_STRATEGIES:
+            raise ValueError(
+                f"strategy_type must be one of {sorted(VALID_ROUTING_GROUP_STRATEGIES)}"
+            )
+
+
+class GatewayRoutingGroupUpdate(BaseModel):
+    alias: str | None = None
+    name: str | None = Field(None, min_length=1, max_length=120)
+    description: str | None = None
+    match_tags: list[str] | None = None
+    default_tags: list[str] | None = None
+    strategy_type: str | None = None
+    strategy_config: dict[str, Any] | None = None
+    is_active: bool | None = None
+
+    def model_post_init(self, __context: Any) -> None:  # noqa: ANN401
+        if self.strategy_type is not None and self.strategy_type not in VALID_ROUTING_GROUP_STRATEGIES:
+            raise ValueError(
+                f"strategy_type must be one of {sorted(VALID_ROUTING_GROUP_STRATEGIES)}"
+            )
+
+
+class GatewayRoutingGroupRouteSummary(BaseModel):
+    id: uuid.UUID
+    alias: str
+    provider: str
+    target_model: str
+    priority: int
+    region: str | None = None
+    required_tags: list[str] = Field(default_factory=list)
+    excluded_tags: list[str] = Field(default_factory=list)
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class GatewayRoutingGroupResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    alias: str
+    name: str
+    description: str | None = None
+    match_tags: list[str] = Field(default_factory=list)
+    default_tags: list[str] = Field(default_factory=list)
+    strategy_type: str = "manual"
+    strategy_config: dict[str, Any] | None = None
+    is_active: bool
+    route_count: int = 0
+    routes: list[GatewayRoutingGroupRouteSummary] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GatewayRoutingGroupList(BaseModel):
+    items: list[GatewayRoutingGroupResponse]
+
+
+class GatewayRoutingStrategyComparisonItem(BaseModel):
+    routing_group_id: uuid.UUID | None
+    alias: str
+    group_name: str
+    strategy_type: str
+    total_requests: int
+    cache_hit_rate: Decimal
+    avg_latency_ms: Decimal | None
+    error_rate: Decimal
+    active_routes: int
+    default_tags: list[str] = Field(default_factory=list)
+    match_tags: list[str] = Field(default_factory=list)
+
+
+class GatewayRoutingStrategyComparison(BaseModel):
+    items: list[GatewayRoutingStrategyComparisonItem]
+
+
 class GatewayRouteCreate(BaseModel):
     alias: str = Field(..., min_length=1, max_length=128, description="Model alias clients use")
+    routing_group_id: uuid.UUID | None = None
     provider: str = Field(
         ...,
         pattern="^(openai|anthropic|ollama|vllm|local|groq|mistral|azure|bedrock|vertex|custom)$",
@@ -46,6 +143,7 @@ class GatewayRouteCreate(BaseModel):
 
 class GatewayRouteUpdate(BaseModel):
     alias: str | None = None
+    routing_group_id: uuid.UUID | None = None
     target_model: str | None = None
     base_url: str | None = None
     api_key_env_var: str | None = None
@@ -76,7 +174,9 @@ class GatewayRouteUpdate(BaseModel):
 class GatewayRouteResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
+    routing_group_id: uuid.UUID | None = None
     alias: str
+    routing_group_name: str | None = None
     provider: str
     target_model: str
     base_url: str | None
@@ -283,6 +383,61 @@ class GatewayPassThroughEndpointList(BaseModel):
     items: list[GatewayPassThroughEndpointResponse]
 
 
+class GatewayPassThroughTestRequest(BaseModel):
+    method: str = Field("GET", min_length=3, max_length=16)
+    path: str | None = None
+    query: dict[str, str] = Field(default_factory=dict)
+    headers: dict[str, str] = Field(default_factory=dict)
+    body_json: dict[str, Any] | None = None
+
+
+class GatewayPassThroughTestResponse(BaseModel):
+    ok: bool
+    status_code: int
+    latency_ms: int
+    target_url: str
+    response_preview: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
+class GatewayPassThroughEndpointStats(BaseModel):
+    endpoint_id: uuid.UUID
+    slug: str
+    total_requests: int
+    success_count: int
+    error_count: int
+    avg_latency_ms: Decimal | None = None
+    p50_latency_ms: Decimal | None = None
+    p95_latency_ms: Decimal | None = None
+    p99_latency_ms: Decimal | None = None
+    last_hour_requests: int
+    rate_limit_rpm: int | None = None
+    rate_limit_utilization_pct: Decimal | None = None
+    estimated_total_cost_usd: Decimal | None = None
+    estimated_24h_cost_usd: Decimal | None = None
+
+
+class GatewayPassThroughEndpointStatsList(BaseModel):
+    items: list[GatewayPassThroughEndpointStats]
+
+
+class GatewayBenchmarkComparisonItem(BaseModel):
+    alias: str
+    request_count: int
+    throughput_rpm: Decimal
+    p50_gateway_overhead_ms: Decimal | None = None
+    p95_gateway_overhead_ms: Decimal | None = None
+    p99_gateway_overhead_ms: Decimal | None = None
+    avg_provider_latency_ms: Decimal | None = None
+    avg_end_to_end_latency_ms: Decimal | None = None
+    avg_gateway_overhead_ms: Decimal | None = None
+    overhead_vs_provider_pct: Decimal | None = None
+
+
+class GatewayBenchmarkComparisonList(BaseModel):
+    items: list[GatewayBenchmarkComparisonItem]
+
+
 # ── Routing policy schemas ─────────────────────────────────────────────────────
 
 VALID_POLICY_TYPES = {
@@ -292,6 +447,7 @@ VALID_POLICY_TYPES = {
     "quality_optimized",
     "weighted",
     "canary",
+    "ab_test",
     "budget_aware",
     "complexity_based",
     "outcome_optimized",
@@ -329,6 +485,42 @@ class RoutingPolicyResponse(BaseModel):
 
 class RoutingPolicyList(BaseModel):
     items: list[RoutingPolicyResponse]
+
+
+class RoutingPolicyVariantMetrics(BaseModel):
+    route_id: uuid.UUID
+    label: str
+    allocation_pct: Decimal
+    total_requests: int
+    success_rate: Decimal
+    error_rate: Decimal
+    avg_latency_ms: Decimal | None = None
+    avg_input_tokens: Decimal | None = None
+    avg_output_tokens: Decimal | None = None
+
+
+class RoutingPolicyAnalysisResponse(BaseModel):
+    policy_id: uuid.UUID
+    alias: str
+    policy_type: str
+    winner_route_id: uuid.UUID | None = None
+    winner_label: str | None = None
+    confidence: str = "insufficient_data"
+    significance_p_value: Decimal | None = None
+    auto_promoted: bool = False
+    summary: str
+    variants: list[RoutingPolicyVariantMetrics]
+
+
+class RoutingPolicyPromotionRequest(BaseModel):
+    route_id: uuid.UUID | None = None
+
+
+class RoutingPolicyActionResponse(BaseModel):
+    policy_id: uuid.UUID
+    policy_type: str
+    summary: str
+    config: dict[str, Any]
 
 
 # ── Routing recommendation schemas ─────────────────────────────────────────────

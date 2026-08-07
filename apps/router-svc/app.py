@@ -138,6 +138,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "llm": OLLAMA_BASE_URL, "modes": ["heuristic", "llm", "hybrid"]}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/classify", response_model=ClassifyResponse)
 async def classify(req: ClassifyRequest) -> ClassifyResponse:
     cfg = req.config

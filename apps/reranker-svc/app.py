@@ -72,6 +72,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "default_model": DEFAULT_MODEL, "aliases": list(MODEL_ALIASES)}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/rerank", response_model=RerankResponse)
 def rerank(req: RerankRequest) -> RerankResponse:
     model_name = _resolve(req.model)

@@ -14,6 +14,7 @@ On success returns:
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 import gzip
 import json
 import uuid
@@ -29,11 +30,7 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
-from runledger_api.services.otlp_parse import (
-    OtlpTrace,
-    parse_otlp_json,
-    synthesize_canonical_events,
-)
+from runledger_api.services.otlp_parse import OtlpTrace, parse_otlp_json, synthesize_canonical_events
 
 log = structlog.get_logger()
 
@@ -81,14 +78,51 @@ def _parse_body(body: bytes, content_type: str) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {exc}") from exc
 
 
+def _unwrap_any_value(value: dict[str, Any] | None) -> Any:
+    if not isinstance(value, dict):
+        return None
+    for key in ("stringValue", "intValue", "doubleValue", "boolValue", "bytesValue"):
+        if key in value:
+            return value[key]
+    if "arrayValue" in value:
+        values = value.get("arrayValue", {}).get("values", []) or []
+        return [_unwrap_any_value(item) for item in values]
+    if "kvlistValue" in value:
+        values = value.get("kvlistValue", {}).get("values", []) or []
+        return {item.get("key"): _unwrap_any_value(item.get("value")) for item in values if item.get("key")}
+    return None
+
+
+def _attrs_list_to_dict(attrs: list[dict[str, Any]] | None) -> dict[str, Any]:
+    flattened: dict[str, Any] = {}
+    for item in attrs or []:
+        key = item.get("key")
+        if not key:
+            continue
+        flattened[key] = _unwrap_any_value(item.get("value"))
+    return flattened
+
+
+def _iter_resource_attribute_maps(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    resource_maps: list[dict[str, Any]] = []
+    for container_key in ("resourceSpans", "resourceMetrics", "resourceLogs"):
+        for resource_item in payload.get(container_key, []) or []:
+            attrs = resource_item.get("resource", {}).get("attributes", []) or []
+            resource_maps.append(_attrs_list_to_dict(attrs))
+    return resource_maps
+
+
 async def _persist_batch(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     content_type: str,
     encoding: str | None,
     raw_body: bytes,
+    signal_type: str,
     trace_count: int,
     span_count: int,
+    metric_count: int = 0,
+    log_record_count: int = 0,
     status_str: str = "accepted",
     error: str | None = None,
 ) -> OtlpIngestBatch:
@@ -96,8 +130,11 @@ async def _persist_batch(
         workspace_id=workspace_id,
         content_type=content_type,
         encoding=encoding,
+        signal_type=signal_type,
         trace_count=trace_count,
         span_count=span_count,
+        metric_count=metric_count,
+        log_record_count=log_record_count,
         status=status_str,
         error=error,
         raw_payload=raw_body,
@@ -162,6 +199,7 @@ async def _handle_traces(
         content_type=content_type,
         encoding=encoding,
         raw_body=body,
+        signal_type="trace",
         trace_count=trace_count,
         span_count=span_count,
     )
@@ -193,6 +231,82 @@ async def _handle_traces(
         events=len(all_events),
     )
 
+    return {"partialSuccess": {}}
+
+
+def _count_metrics(payload: dict[str, Any]) -> int:
+    total = 0
+    for resource_metric in payload.get("resourceMetrics", []) or []:
+        for scope_metric in resource_metric.get("scopeMetrics", []) or []:
+            total += len(scope_metric.get("metrics", []) or [])
+    return total
+
+
+def _count_log_records(payload: dict[str, Any]) -> int:
+    total = 0
+    for resource_log in payload.get("resourceLogs", []) or []:
+        for scope_log in resource_log.get("scopeLogs", []) or []:
+            total += len(scope_log.get("logRecords", []) or [])
+    return total
+
+
+async def _handle_metrics(
+    request: Request,
+    workspace: Any,
+    db: AsyncSession,
+) -> dict[str, Any]:
+    body, content_type, encoding = await _read_body(request)
+    payload = _parse_body(body, content_type)
+    metric_count = _count_metrics(payload)
+
+    await _persist_batch(
+        db=db,
+        workspace_id=workspace.id,
+        content_type=content_type,
+        encoding=encoding,
+        raw_body=body,
+        signal_type="metric",
+        trace_count=0,
+        span_count=0,
+        metric_count=metric_count,
+    )
+    await db.commit()
+
+    log.info(
+        "otlp_metrics_accepted",
+        workspace_id=str(workspace.id),
+        metrics=metric_count,
+    )
+    return {"partialSuccess": {}}
+
+
+async def _handle_logs(
+    request: Request,
+    workspace: Any,
+    db: AsyncSession,
+) -> dict[str, Any]:
+    body, content_type, encoding = await _read_body(request)
+    payload = _parse_body(body, content_type)
+    log_record_count = _count_log_records(payload)
+
+    await _persist_batch(
+        db=db,
+        workspace_id=workspace.id,
+        content_type=content_type,
+        encoding=encoding,
+        raw_body=body,
+        signal_type="log",
+        trace_count=0,
+        span_count=0,
+        log_record_count=log_record_count,
+    )
+    await db.commit()
+
+    log.info(
+        "otlp_logs_accepted",
+        workspace_id=str(workspace.id),
+        log_records=log_record_count,
+    )
     return {"partialSuccess": {}}
 
 
@@ -234,6 +348,68 @@ async def receive_traces_alias(
     return await _handle_traces(request, workspace, db)
 
 
+@router.post(
+    "/v1/metrics",
+    status_code=200,
+    dependencies=[Depends(ingest_rate_limit)],
+    summary="OTLP/HTTP metrics receiver",
+)
+async def receive_metrics(
+    request: Request,
+    workspace: Any = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Accept OTLP ExportMetricsServiceRequest (JSON)."""
+    return await _handle_metrics(request, workspace, db)
+
+
+@router.post(
+    "/otlp/v1/metrics",
+    status_code=200,
+    dependencies=[Depends(ingest_rate_limit)],
+    summary="OTLP/HTTP metrics receiver (collector-prefix alias)",
+    include_in_schema=False,
+)
+async def receive_metrics_alias(
+    request: Request,
+    workspace: Any = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Alias for collectors that prefix /otlp before /v1/metrics."""
+    return await _handle_metrics(request, workspace, db)
+
+
+@router.post(
+    "/v1/logs",
+    status_code=200,
+    dependencies=[Depends(ingest_rate_limit)],
+    summary="OTLP/HTTP logs receiver",
+)
+async def receive_logs(
+    request: Request,
+    workspace: Any = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Accept OTLP ExportLogsServiceRequest (JSON)."""
+    return await _handle_logs(request, workspace, db)
+
+
+@router.post(
+    "/otlp/v1/logs",
+    status_code=200,
+    dependencies=[Depends(ingest_rate_limit)],
+    summary="OTLP/HTTP logs receiver (collector-prefix alias)",
+    include_in_schema=False,
+)
+async def receive_logs_alias(
+    request: Request,
+    workspace: Any = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Alias for collectors that prefix /otlp before /v1/logs."""
+    return await _handle_logs(request, workspace, db)
+
+
 @router.get(
     "/v1/traces/stats",
     summary="OTLP ingestion statistics",
@@ -246,8 +422,8 @@ async def get_traces_stats(
     Return aggregate ingest stats for the current workspace.
 
     Response fields:
-      last_24h: {batches, traces, spans}
-      last_7d:  {batches, traces, spans}
+      last_24h: {batches, traces, spans, metrics, logs}
+      last_7d:  {batches, traces, spans, metrics, logs}
     """
     workspace = auth[0]
     now = datetime.now(UTC)
@@ -263,13 +439,21 @@ async def get_traces_stats(
                 func.count(OtlpIngestBatch.id).label("batches"),
                 func.coalesce(func.sum(OtlpIngestBatch.trace_count), 0).label("traces"),
                 func.coalesce(func.sum(OtlpIngestBatch.span_count), 0).label("spans"),
+                func.coalesce(func.sum(OtlpIngestBatch.metric_count), 0).label("metrics"),
+                func.coalesce(func.sum(OtlpIngestBatch.log_record_count), 0).label("logs"),
             ).where(
                 OtlpIngestBatch.workspace_id == workspace.id,
                 OtlpIngestBatch.received_at >= cutoff,
             )
         )
         r = row.one()
-        result[label] = {"batches": r.batches, "traces": int(r.traces), "spans": int(r.spans)}
+        result[label] = {
+            "batches": r.batches,
+            "traces": int(r.traces),
+            "spans": int(r.spans),
+            "metrics": int(r.metrics),
+            "logs": int(r.logs),
+        }
 
     return result
 
@@ -309,8 +493,11 @@ async def list_traces_batches(
             {
                 "id": str(b.id),
                 "created_at": b.received_at.isoformat() if b.received_at else None,
+                "signal_type": b.signal_type,
                 "trace_count": b.trace_count,
                 "span_count": b.span_count,
+                "metric_count": b.metric_count,
+                "log_record_count": b.log_record_count,
                 "status": b.status,
                 "error": b.error,
                 "content_type": b.content_type,
@@ -320,4 +507,147 @@ async def list_traces_batches(
         "total": total,
         "limit": limit,
         "offset": offset,
+    }
+
+
+@router.get(
+    "/v1/traces/insights",
+    summary="OTLP ingestion insights and derived metrics",
+)
+async def get_traces_insights(
+    auth: OrgAdminDep,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    workspace = auth[0]
+    now = datetime.now(UTC)
+    last_24h_cutoff = now - timedelta(hours=24)
+    last_7d_cutoff = now - timedelta(days=7)
+
+    rows = await db.execute(
+        select(OtlpIngestBatch)
+        .where(
+            OtlpIngestBatch.workspace_id == workspace.id,
+            OtlpIngestBatch.received_at >= last_7d_cutoff,
+        )
+        .order_by(OtlpIngestBatch.received_at.asc())
+    )
+    batches = rows.scalars().all()
+
+    hourly_buckets: dict[str, dict[str, Any]] = {}
+    for hour_offset in range(24):
+        bucket_dt = (last_24h_cutoff + timedelta(hours=hour_offset)).replace(
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        hourly_buckets[bucket_dt.isoformat()] = {
+            "timestamp": bucket_dt.isoformat(),
+            "batches": 0,
+            "traces": 0,
+            "spans": 0,
+            "metrics": 0,
+            "logs": 0,
+        }
+
+    signal_totals: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"batches": 0, "traces": 0, "spans": 0, "metrics": 0, "logs": 0}
+    )
+    status_breakdown: Counter[str] = Counter()
+    service_counter: Counter[str] = Counter()
+    attribute_hits: Counter[str] = Counter()
+    semantic_dimensions: Counter[str] = Counter()
+    resource_maps_seen = 0
+
+    for batch in batches:
+        signal_totals[batch.signal_type]["batches"] += 1
+        signal_totals[batch.signal_type]["traces"] += int(batch.trace_count or 0)
+        signal_totals[batch.signal_type]["spans"] += int(batch.span_count or 0)
+        signal_totals[batch.signal_type]["metrics"] += int(batch.metric_count or 0)
+        signal_totals[batch.signal_type]["logs"] += int(batch.log_record_count or 0)
+        status_breakdown[batch.status or "unknown"] += 1
+
+        if batch.received_at and batch.received_at >= last_24h_cutoff:
+            bucket_key = batch.received_at.replace(minute=0, second=0, microsecond=0).isoformat()
+            bucket = hourly_buckets.get(bucket_key)
+            if bucket is not None:
+                bucket["batches"] += 1
+                bucket["traces"] += int(batch.trace_count or 0)
+                bucket["spans"] += int(batch.span_count or 0)
+                bucket["metrics"] += int(batch.metric_count or 0)
+                bucket["logs"] += int(batch.log_record_count or 0)
+
+        if not batch.raw_payload:
+            continue
+        try:
+            payload = json.loads(batch.raw_payload)
+        except Exception:
+            continue
+
+        resource_maps = _iter_resource_attribute_maps(payload)
+        for attrs in resource_maps:
+            resource_maps_seen += 1
+            if attrs.get("service.name"):
+                service_counter[str(attrs["service.name"])] += 1
+                attribute_hits["service_name"] += 1
+            if attrs.get("runledger.session_id") or attrs.get("session.id"):
+                attribute_hits["session_id"] += 1
+            if attrs.get("runledger.end_user_id") or attrs.get("user.id"):
+                attribute_hits["end_user_id"] += 1
+            if attrs.get("runledger.feature_tag") or attrs.get("feature_tag"):
+                attribute_hits["feature_tag"] += 1
+            if attrs.get("runledger.deployment_version") or attrs.get("service.version"):
+                attribute_hits["deployment_version"] += 1
+            if attrs.get("runledger.workspace_name"):
+                attribute_hits["workspace_name"] += 1
+            if attrs.get("runledger.organization_name"):
+                attribute_hits["organization_name"] += 1
+
+            for semantic_key in (
+                "service.name",
+                "service.version",
+                "deployment.environment",
+                "runledger.feature_tag",
+                "runledger.workspace_name",
+                "runledger.organization_name",
+            ):
+                if attrs.get(semantic_key):
+                    semantic_dimensions[semantic_key] += 1
+
+    def _pct(hit_key: str) -> float:
+        if resource_maps_seen <= 0:
+            return 0.0
+        return round((attribute_hits[hit_key] / resource_maps_seen) * 100, 1)
+
+    return {
+        "window": {
+            "resource_maps_seen": resource_maps_seen,
+            "workspace_attribution_mode": "workspace_api_key",
+            "workspace_name_hint": workspace.name,
+        },
+        "timeseries_24h": list(hourly_buckets.values()),
+        "signal_breakdown": [
+            {"signal_type": signal_type, **totals}
+            for signal_type, totals in sorted(signal_totals.items(), key=lambda item: item[0])
+        ],
+        "top_services": [
+            {"service_name": name, "resource_count": count}
+            for name, count in service_counter.most_common(8)
+        ],
+        "attribute_coverage": {
+            "service_name_pct": _pct("service_name"),
+            "session_id_pct": _pct("session_id"),
+            "end_user_id_pct": _pct("end_user_id"),
+            "feature_tag_pct": _pct("feature_tag"),
+            "deployment_version_pct": _pct("deployment_version"),
+            "workspace_name_pct": _pct("workspace_name"),
+            "organization_name_pct": _pct("organization_name"),
+        },
+        "semantic_dimensions": [
+            {"key": key, "resource_count": count}
+            for key, count in semantic_dimensions.most_common()
+        ],
+        "status_breakdown": [
+            {"status": status_key, "count": count}
+            for status_key, count in status_breakdown.most_common()
+        ],
     }

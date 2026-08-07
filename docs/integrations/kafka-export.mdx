@@ -1,46 +1,105 @@
 ---
 title: "Kafka Export"
-description: "Stream RunLedger run lifecycle events to Kafka for downstream analytics, SIEM, and warehouse pipelines."
+description: "Export normalized RunLedger events to Kafka for downstream analytics, security, and warehouse workflows."
 ---
 
-Kafka export lets an org admin stream normalized RunLedger events out of a workspace.
-It is useful when another platform owns long-term analytics, security monitoring, or
-lakehouse ingestion.
+Kafka export lets a workspace stream normalized RunLedger events into Kafka-compatible infrastructure.
 
-## What is exported
+Use it when another system owns:
 
-RunLedger currently exports run lifecycle events:
+- long-term analytics
+- streaming enrichment
+- SIEM or security monitoring
+- warehouse ingestion
+- event-driven downstream workflows
 
-| Event type | When it fires | Typical topic |
-|---|---|---|
-| `run.completed` | A run reaches a successful terminal state | `runledger.run.completed` |
-| `run.failed` | A run reaches a failed terminal state | `runledger.run.failed` |
+## What is available today
 
-Each message includes workspace, run, provider/model, token, cost, latency, feature,
-session, end-user, and outcome-oriented metadata when available.
+The current Kafka export surface includes:
+
+- workspace-scoped Kafka export configs
+- test-send support from the dashboard and API
+- delivery history
+- stable event envelopes
+- deterministic idempotency keys
+- single-topic mode
+- configurable event-type selection
+- optional dead-letter topic configuration
+- redaction mode support
+- manual retry endpoint for failed deliveries
+- background retry worker for scheduled redelivery
+- encrypted or environment-referenced SASL secrets
+- audit logging for config and retry operations
+
+## Event envelope
+
+Each exported message includes normalized metadata such as:
+
+- `event_id`
+- `event_type`
+- `idempotency_key`
+- `occurred_at`
+- `workspace_id`
+- `run_id`
+- `trace_id`
+- `source`
+- `data`
+
+RunLedger also includes CloudEvents-style compatibility fields in the exported payload.
+
+## Event types
+
+RunLedger currently supports export selection for:
+
+- `run.started`
+- `run.completed`
+- `run.failed`
+- `gateway.request.completed`
+- `gateway.request.rejected`
+- `budget.threshold_crossed`
+- `budget.breached`
+- `alert.fired`
+- `optimization.applied`
+- `route.changed`
+- `mcp.tool.called`
+- `mcp.tool.blocked`
+- `approval.requested`
+- `approval.decided`
+- `email.report.sent`
+- `backup.completed`
+- `backup.failed`
+- `compliance.export.ready`
+
+Producer coverage includes run lifecycle, gateway outcomes, budget thresholds and breaches, alerts, optimization changes, route changes, approvals, backup events, and analytics email delivery. The governance audit-pack export remains the last notable compliance-oriented follow-on.
 
 ## Configure from the UI
 
-1. Open **Control Plane -> Integrations**.
+1. Open **Integrations** in the dashboard.
 2. Create a Kafka export config.
-3. Enter bootstrap servers, topic prefix, security protocol, and optional SASL/SSL settings.
-4. Choose enabled event types.
-5. Save, then use **Test** to produce a connectivity event.
-6. Watch the delivery log panel for success or failure.
+3. Set bootstrap servers, topic prefix, and security options.
+4. Choose event types.
+5. Optionally enable:
+   - single-topic mode
+   - dead-letter topic
+   - redaction mode
+   - retry settings
+6. Save the config.
+7. Use **Test** to send a connectivity event.
+8. Review the delivery log.
 
 ## API
 
-All Kafka export management endpoints require an org-admin or platform-admin dashboard
-session key.
+Kafka export management endpoints:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/integrations/kafka/configs` | List workspace export configs |
+| `GET` | `/integrations/kafka/configs` | List export configs |
 | `POST` | `/integrations/kafka/configs` | Create a config |
 | `PUT` | `/integrations/kafka/configs/{config_id}` | Update a config |
 | `DELETE` | `/integrations/kafka/configs/{config_id}` | Delete a config |
 | `POST` | `/integrations/kafka/configs/{config_id}/test` | Send a test event |
 | `GET` | `/integrations/kafka/configs/{config_id}/deliveries` | View recent delivery attempts |
+| `POST` | `/integrations/kafka/configs/{config_id}/deliveries/{delivery_id}/retry` | Retry a failed delivery manually |
 
 Example:
 
@@ -53,18 +112,59 @@ curl -X POST http://localhost:8201/integrations/kafka/configs \
     "bootstrap_servers": "host.docker.internal:9092",
     "topic_prefix": "runledger",
     "security_protocol": "PLAINTEXT",
-    "event_types": ["run.completed", "run.failed"]
+    "event_types": ["run.completed", "run.failed", "backup.completed"],
+    "single_topic_mode": false,
+    "dead_letter_topic": "runledger.dead-letter",
+    "redaction_mode": "metadata_only",
+    "max_retries": 2,
+    "retry_backoff_seconds": 5
   }'
 ```
 
+## Delivery behavior
+
+Current behavior:
+
+- deliveries are recorded in the database
+- idempotency keys are stable for the same logical event payload
+- retry attempts can be configured per export config and are processed by a background worker
+- failed events can be routed to a dead-letter topic
+- manual retry is available through the API
+- Kafka remains fanout-only; Postgres stays the system of record
+
+## Redaction mode
+
+When redaction is enabled, RunLedger can reduce exported payload detail and preserve only routing and attribution metadata needed downstream.
+
+Use this when Kafka is shared with broader analytics or security systems and you do not want full prompt or tool payloads exported.
+
 ## Local development notes
 
-Kafka is optional infrastructure. The core stack does not require it to boot. For a
-local demo, bring up Kafka separately, configure the integration, then run:
+Kafka is optional. The core stack does not require it to boot.
+
+For a local demo on Friday, August 7, 2026:
+
+1. start the bundled Redpanda profile:
 
 ```bash
-uv run python scripts/full_simulate.py --no-clean --traffic-multiplier 2
+docker compose --profile streaming up -d runledger-redpanda runledger-redpanda-console
 ```
 
-The simulator generates many completed and failed runs, which will exercise export
-delivery as soon as a Kafka config is enabled.
+2. optionally seed streaming exports automatically:
+
+```bash
+uv run python scripts/full_simulate.py --no-clean --streaming-demo
+```
+
+3. or configure an export in the dashboard
+4. consume the stream:
+
+```bash
+python scripts/streaming/kafka_consumer.py --topic runledger.events --offset start
+```
+
+```bash
+uv run python scripts/full_simulate.py --no-clean --traffic-multiplier 2 --streaming-demo
+```
+
+This will generate enough run and operational activity to exercise delivery logs quickly.

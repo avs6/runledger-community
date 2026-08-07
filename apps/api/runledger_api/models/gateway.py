@@ -17,6 +17,47 @@ from sqlalchemy.orm import Mapped, mapped_column
 from runledger_api.core.db import Base
 
 
+class GatewayRoutingGroup(Base):
+    """
+    Logical route grouping for an alias.
+
+    Groups let operators keep separate tag entry points, default tag behavior,
+    and strategy state for different slices of traffic under the same alias.
+    """
+
+    __tablename__ = "gateway_routing_groups"
+    __table_args__ = (
+        sa.Index("ix_gateway_routing_groups_workspace", "workspace_id", "alias", "name"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    alias: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    name: Mapped[str] = mapped_column(sa.String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    match_tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'")
+    )
+    default_tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'")
+    )
+    strategy_type: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default="manual"
+    )
+    strategy_config: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+
 class GatewayRoute(Base):
     """
     A configured provider route that the gateway can forward requests to.
@@ -37,6 +78,11 @@ class GatewayRoute(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    routing_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("gateway_routing_groups.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     alias: Mapped[str] = mapped_column(sa.Text, nullable=False)
     provider: Mapped[str] = mapped_column(sa.String(32), nullable=False)
     target_model: Mapped[str] = mapped_column(sa.Text, nullable=False)

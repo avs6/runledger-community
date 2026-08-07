@@ -1,0 +1,71 @@
+{
+  "generated_for": "2026-08-07",
+  "seed_profile": "full",
+  "description": "Narrative dashboard fixtures for replayable demo-mode screenshot capture and visual review.",
+  "fixtures": [
+    {
+      "id": "dashboard-overview",
+      "route": "/dashboard",
+      "title": "Executive overview",
+      "expected_headings": ["Dashboard"],
+      "expected_signals": ["cost", "requests", "latency", "savings"],
+      "story_role": "Open with enterprise activity and KPI density."
+    },
+    {
+      "id": "request-flow-story",
+      "route": "/request-flow",
+      "title": "Request flow",
+      "expected_headings": ["Request Flow"],
+      "expected_signals": ["workspace", "model", "route", "outcome", "savings"],
+      "story_role": "Move from symptom to request-level attribution."
+    },
+    {
+      "id": "cost-savings-story",
+      "route": "/cost-savings",
+      "title": "Cost and savings",
+      "expected_headings": ["Cost & Savings"],
+      "expected_signals": ["roi", "savings", "cost", "optimization"],
+      "story_role": "Show realized savings from optimization decisions."
+    },
+    {
+      "id": "optimization-opportunities",
+      "route": "/optimization-opportunities",
+      "title": "Optimization opportunities",
+      "expected_headings": ["Optimization Opportunities"],
+      "expected_signals": ["recommendation", "projected", "savings"],
+      "story_role": "Prove the product recommends next actions."
+    },
+    {
+      "id": "gateway-routing",
+      "route": "/gateway",
+      "title": "Gateway routing",
+      "expected_headings": ["Gateway"],
+      "expected_signals": ["route", "cache", "request", "latency"],
+      "story_role": "Show central routing and request control."
+    },
+    {
+      "id": "approvals-governance",
+      "route": "/approvals",
+      "title": "Approvals",
+      "expected_headings": ["Approvals"],
+      "expected_signals": ["approved", "denied", "pending"],
+      "story_role": "Demonstrate human approvals and policy workflow."
+    },
+    {
+      "id": "mcp-governance",
+      "route": "/mcp",
+      "title": "MCP",
+      "expected_headings": ["MCP Servers", "MCP Tools"],
+      "expected_signals": ["mcp", "tool", "server", "workspace"],
+      "story_role": "Show MCP integration and tool-governance depth."
+    },
+    {
+      "id": "runbooks-ops",
+      "route": "/runbooks",
+      "title": "Runbooks",
+      "expected_headings": ["Agent Runbooks"],
+      "expected_signals": ["runbook", "incident", "response"],
+      "story_role": "Close with operator evidence and incident guidance."
+    }
+  ]
+}

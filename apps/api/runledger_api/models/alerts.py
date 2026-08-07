@@ -19,7 +19,8 @@ class AlertRule(Base):
     """
     A threshold rule that fires a notification when a metric crosses a limit.
 
-    metric values: error_rate | p95_latency | avg_score | spend_velocity
+    metric values: error_rate | p95_latency | avg_score | spend_velocity |
+    model_availability | gateway_overhead_p95
     operator values: gt (greater than) | lt (less than)
     """
 

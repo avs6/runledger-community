@@ -117,6 +117,11 @@ async def health() -> dict[str, object]:
     return {"status": "ok", "letta_reachable": reachable, "letta": LETTA_BASE_URL}
 
 
+@app.get("/health/ready")
+async def readiness() -> dict[str, object]:
+    return await health()
+
+
 @app.post("/memory")
 async def store(req: StoreRequest) -> dict[str, object]:
     # Encode kind + metadata into the passage so recall can surface/filter it.

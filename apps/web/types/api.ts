@@ -732,7 +732,9 @@ export interface AlertHistoryList {
 export interface GatewayRoute {
   id: string
   workspace_id: string
+  routing_group_id: string | null
   alias: string
+  routing_group_name: string | null
   provider: string
   target_model: string
   base_url: string | null
@@ -770,6 +772,59 @@ export interface GatewayRoute {
 
 export interface GatewayRouteList {
   items: GatewayRoute[]
+}
+
+export type GatewayRoutingGroupStrategy = 'manual' | 'latency_optimized' | 'round_robin'
+
+export interface GatewayRoutingGroupRouteSummary {
+  id: string
+  alias: string
+  provider: string
+  target_model: string
+  priority: number
+  region: string | null
+  required_tags: string[]
+  excluded_tags: string[]
+  is_active: boolean
+}
+
+export interface GatewayRoutingGroup {
+  id: string
+  workspace_id: string
+  alias: string
+  name: string
+  description: string | null
+  match_tags: string[]
+  default_tags: string[]
+  strategy_type: GatewayRoutingGroupStrategy
+  strategy_config: Record<string, unknown> | null
+  is_active: boolean
+  route_count: number
+  routes: GatewayRoutingGroupRouteSummary[]
+  created_at: string
+  updated_at: string
+}
+
+export interface GatewayRoutingGroupList {
+  items: GatewayRoutingGroup[]
+}
+
+export interface GatewayRoutingStrategyComparisonItem {
+  routing_group_id: string | null
+  alias: string
+  group_name: string
+  strategy_type: GatewayRoutingGroupStrategy
+  total_requests: number
+  cache_hit_rate: string
+  avg_latency_ms: string | null
+  error_rate: string
+  active_routes: number
+  default_tags: string[]
+  match_tags: string[]
+}
+
+export interface GatewayRoutingStrategyComparison {
+  items: GatewayRoutingStrategyComparisonItem[]
 }
 
 export interface GatewayDeploymentHealthItem {
@@ -846,6 +901,53 @@ export interface GatewayPassThroughEndpointList {
   items: GatewayPassThroughEndpoint[]
 }
 
+export interface GatewayPassThroughTestResult {
+  ok: boolean
+  status_code: number
+  latency_ms: number
+  target_url: string
+  response_preview: string | null
+  headers: Record<string, string>
+}
+
+export interface GatewayPassThroughEndpointStats {
+  endpoint_id: string
+  slug: string
+  total_requests: number
+  success_count: number
+  error_count: number
+  avg_latency_ms: string | null
+  p50_latency_ms: string | null
+  p95_latency_ms: string | null
+  p99_latency_ms: string | null
+  last_hour_requests: number
+  rate_limit_rpm: number | null
+  rate_limit_utilization_pct: string | null
+  estimated_total_cost_usd: string | null
+  estimated_24h_cost_usd: string | null
+}
+
+export interface GatewayPassThroughEndpointStatsList {
+  items: GatewayPassThroughEndpointStats[]
+}
+
+export interface GatewayBenchmarkComparisonItem {
+  alias: string
+  request_count: number
+  throughput_rpm: string
+  p50_gateway_overhead_ms: string | null
+  p95_gateway_overhead_ms: string | null
+  p99_gateway_overhead_ms: string | null
+  avg_provider_latency_ms: string | null
+  avg_end_to_end_latency_ms: string | null
+  avg_gateway_overhead_ms: string | null
+  overhead_vs_provider_pct: string | null
+}
+
+export interface GatewayBenchmarkComparisonList {
+  items: GatewayBenchmarkComparisonItem[]
+}
+
 export type RoutingPolicyType =
   | 'manual'
   | 'cost_optimized'
@@ -853,6 +955,7 @@ export type RoutingPolicyType =
   | 'quality_optimized'
   | 'weighted'
   | 'canary'
+  | 'ab_test'
   | 'budget_aware'
   | 'complexity_based'
   | 'outcome_optimized'
@@ -870,6 +973,38 @@ export interface RoutingPolicy {
 
 export interface RoutingPolicyList {
   items: RoutingPolicy[]
+}
+
+export interface RoutingPolicyVariantMetrics {
+  route_id: string
+  label: string
+  allocation_pct: string
+  total_requests: number
+  success_rate: string
+  error_rate: string
+  avg_latency_ms: string | null
+  avg_input_tokens: string | null
+  avg_output_tokens: string | null
+}
+
+export interface RoutingPolicyAnalysis {
+  policy_id: string
+  alias: string
+  policy_type: RoutingPolicyType
+  winner_route_id: string | null
+  winner_label: string | null
+  confidence: string
+  significance_p_value: string | null
+  auto_promoted: boolean
+  summary: string
+  variants: RoutingPolicyVariantMetrics[]
+}
+
+export interface RoutingPolicyActionResult {
+  policy_id: string
+  policy_type: RoutingPolicyType
+  summary: string
+  config: Record<string, unknown>
 }
 
 export interface RoutingRecommendationModel {
@@ -1255,6 +1390,8 @@ export interface OtlpWindowStats {
   batches: number
   traces: number
   spans: number
+  metrics: number
+  logs: number
 }
 
 export interface OtlpStats {
@@ -1265,8 +1402,11 @@ export interface OtlpStats {
 export interface OtlpBatchResponse {
   id: string
   created_at: string | null
+  signal_type: 'trace' | 'metric' | 'log'
   trace_count: number
   span_count: number
+  metric_count: number
+  log_record_count: number
   status: string
   error: string | null
   content_type: string
@@ -1277,6 +1417,63 @@ export interface OtlpBatchList {
   total: number
   limit: number
   offset: number
+}
+
+export interface OtlpInsightPoint {
+  timestamp: string
+  batches: number
+  traces: number
+  spans: number
+  metrics: number
+  logs: number
+}
+
+export interface OtlpSignalBreakdown {
+  signal_type: 'trace' | 'metric' | 'log'
+  batches: number
+  traces: number
+  spans: number
+  metrics: number
+  logs: number
+}
+
+export interface OtlpServiceBreakdown {
+  service_name: string
+  resource_count: number
+}
+
+export interface OtlpStatusBreakdown {
+  status: string
+  count: number
+}
+
+export interface OtlpSemanticDimension {
+  key: string
+  resource_count: number
+}
+
+export interface OtlpAttributeCoverage {
+  service_name_pct: number
+  session_id_pct: number
+  end_user_id_pct: number
+  feature_tag_pct: number
+  deployment_version_pct: number
+  workspace_name_pct: number
+  organization_name_pct: number
+}
+
+export interface OtlpInsights {
+  window: {
+    resource_maps_seen: number
+    workspace_attribution_mode: string
+    workspace_name_hint: string
+  }
+  timeseries_24h: OtlpInsightPoint[]
+  signal_breakdown: OtlpSignalBreakdown[]
+  top_services: OtlpServiceBreakdown[]
+  attribute_coverage: OtlpAttributeCoverage
+  semantic_dimensions: OtlpSemanticDimension[]
+  status_breakdown: OtlpStatusBreakdown[]
 }
 
 // ── Retention ─────────────────────────────────────────────────────────────────
@@ -1436,6 +1633,72 @@ export interface OpsFeatureStatus {
   email_reports_enabled: boolean
   backup_enabled: boolean
   smtp_configured: boolean
+  redis_durable: boolean
+  redis_durability_mode: string
+  compliance_export_enabled: boolean
+  compliance_export_configured: boolean
+  object_lifecycle_enabled: boolean
+  abuse_protection_enabled: boolean
+  local_tls_enabled: boolean
+  deployment_profile: string
+  feature_flags: string[]
+}
+
+export interface OpsQueueStatusItem {
+  queue: string
+  depth: number
+  role: 'default' | 'priority' | 'low'
+  description: string
+  status: 'idle' | 'active' | 'busy'
+}
+
+export interface OpsQueueStatus {
+  items: OpsQueueStatusItem[]
+  total_depth: number
+  busy_queues: number
+}
+
+export interface OpsStorageStatus {
+  backup: {
+    bucket: string | null
+    lifecycle_enabled: boolean
+    retention_days: number
+    noncurrent_retention_days: number
+  }
+  compliance_exports: {
+    enabled: boolean
+    bucket: string | null
+    prefix: string
+    storage_class: string
+    retention_days: number
+  }
+}
+
+export interface OpsFeatureFlagItem {
+  name: string
+  enabled: boolean
+}
+
+export interface OpsFeatureFlagsResponse {
+  enabled: string[]
+  items: OpsFeatureFlagItem[]
+}
+
+export interface OpsPolicyCheck {
+  category: string
+  name: string
+  status: 'pass' | 'warn' | 'fail'
+  detail: string
+}
+
+export interface OpsPolicyEvaluation {
+  mode: string
+  summary: {
+    pass: number
+    warn: number
+    fail: number
+  }
+  checks: OpsPolicyCheck[]
 }
 
 export interface BackupRun {
@@ -1466,6 +1729,53 @@ export interface BackupActionResult {
   ok: boolean
   message: string
   details: Record<string, unknown> | null
+}
+
+export interface BackupTargetConfig {
+  id: string
+  workspace_id: string
+  provider: 's3'
+  bucket: string
+  prefix: string | null
+  region: string | null
+  endpoint_url: string | null
+  access_key_id: string | null
+  secret_access_key: string | null
+  force_path_style: boolean
+  schedule_enabled: boolean
+  cadence: 'daily' | 'weekly' | 'monthly'
+  run_hour_utc: number
+  retention_days: number
+  include_memory_db: boolean
+  include_qdrant: boolean
+  include_kuzu: boolean
+  include_skills: boolean
+  encryption_mode: 'none' | 'server_side'
+  last_verified_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BackupSnapshot {
+  id: string
+  workspace_id: string
+  backup_run_id: string
+  snapshot_type: string
+  bucket: string
+  prefix: string | null
+  manifest_key: string | null
+  checksum: string | null
+  total_size_bytes: number | null
+  artifact_count: number
+  artifacts: Record<string, unknown> | null
+  integrity_status: string
+  verified_at: string | null
+  created_at: string
+}
+
+export interface BackupSnapshotList {
+  items: BackupSnapshot[]
+  total: number
 }
 
 
@@ -1627,7 +1937,7 @@ export interface KafkaExportDelivery {
   event_type: string
   topic: string
   idempotency_key: string | null
-  status: 'pending' | 'success' | 'failed'
+  status: 'pending' | 'retry_scheduled' | 'success' | 'failed'
   error_detail: string | null
   attempt: number
   next_retry_at: string | null

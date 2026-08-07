@@ -17,7 +17,7 @@ Use this role split while working through the page:
 
 **Goal:** point any OpenTelemetry app at RunLedger.
 
-Open **Control Plane -> OTLP**. It shows the ingestion endpoint (`/v1/traces`) and how to send spans. You already exercised this in **Part 1, Lab 02** (out-of-band OTLP). The stack also runs an OTel Collector on `:4318` if you'd rather fan many services through a collector.
+Open **Control Plane -> OTLP**. It shows the ingestion endpoints, OTEL-derived trend charts, top `service.name` values, and semantic attribution coverage. You already exercised this in **Part 1, Lab 02** (out-of-band OTLP). The stack also runs an OTel Collector on `:4318` if you'd rather fan many services through a collector, and that collector expects the same workspace API key as a Bearer token on inbound OTLP traffic.
 
 Nothing to configure for the basics - the page is the "how to connect" reference. Confirm your Lab 02 traces show up on the Runs page.
 

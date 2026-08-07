@@ -3,9 +3,8 @@ title: "Docker Compose"
 description: "Self-host the entire RunLedger stack on a single host with one command — control plane, gateway, optimization services, and stores."
 ---
 
-Docker Compose is the fastest way to run RunLedger. One `docker compose up -d` brings up the whole stack —
-the control plane, the model gateway, every optimization microservice, and the data stores — with no
-external dependencies and no GPU.
+Docker Compose is the fastest way to run RunLedger. The default `docker compose up -d` now brings up the
+**core** control plane. Optional profiles layer in optimization sidecars, OTEL, backup tooling, and local TLS.
 
 ## Prerequisites
 
@@ -21,7 +20,10 @@ cp .env.example .env
 # set SECRET_KEY:
 python -c "import secrets; print(secrets.token_hex(32))"
 
-docker compose up -d          # add --build to build from source instead of pulling images
+docker compose up -d          # core control plane
+docker compose --profile aux up -d                                      # optional optimization sidecars
+docker compose --profile observability up -d runledger-otel-collector   # optional OTLP receiver
+docker compose --profile full-demo up -d                                # full local demo footprint
 ```
 
 Bootstrap the first admin:
@@ -38,6 +40,15 @@ curl -s -X POST http://localhost:8201/admin/bootstrap \
 | `http://localhost:3201` | Dashboard |
 | `http://localhost:8201/reference` | Interactive API reference (Scalar) |
 | `http://localhost:4318` | OTLP/HTTP receiver (via OTel Collector) |
+
+## Profile model
+
+- `core` → plain `docker compose up -d`
+- `aux` → optimization and agentic sidecars
+- `observability` → OTEL collector
+- `backup` → MinIO S3-compatible target
+- `tls-demo` → local HTTPS reverse proxy with internal certs
+- `full-demo` → all optional services together
 
 ## Load demo data (optional)
 
@@ -93,12 +104,19 @@ For contributor workflows — hot-reload dev servers, tests, lint, and type-chec
 | `runledger-web` | 3201 | Next.js dashboard |
 | `runledger-api` | 8201 | FastAPI control plane + gateway |
 | `runledger-postgres` / `runledger-redis` | 5432 / 6379 | System of record + queue/cache |
-| `runledger-qdrant` | 8202 | Vector store (semantic cache) |
-| Optimization services | 8204–8215 | embedding, semantic-cache, context-compiler, reranker, compression, router, memory, kg, skill-registry, flywheel, mcp-gateway |
-| `runledger-otel-collector` | 4317 / 4318 | OTLP receiver |
+| `runledger-qdrant` | 8202 | Vector store (semantic cache, `aux` / `full-demo`) |
+| Optimization services | 8204–8215 | embedding, semantic-cache, context-compiler, reranker, compression, router, memory, kg, skill-registry, flywheel, mcp-gateway (`aux` / `full-demo`) |
+| `runledger-otel-collector` | 4317 / 4318 | OTLP receiver (`observability` / `full-demo`) |
 
 Local LLM runtimes (Ollama / vLLM) stay **external** — point `OLLAMA_BASE_URL` / `VLLM_BASE_URL` at them.
 See the [Token Optimization overview](/optimization) for the full service map.
+
+For local OTLP ingestion, `observability` is the canonical Compose profile name.
+The older `otel` profile name is still accepted as a compatibility alias.
+The API exposes `/health/live` plus `/health/ready`, and the optimization sidecars expose
+`/health/ready` as a consistent readiness path for local probes and container healthchecks.
+For local HTTPS demos, start `runledger-caddy` under the `tls-demo` profile and use
+`https://runledger.localhost:3443` plus `https://api.runledger.localhost:8443`.
 
 ## Next steps
 

@@ -206,6 +206,25 @@ max_client_conn = 1000
 default_pool_size = 20
 ```
 
+### Read replicas and lag monitoring
+
+RunLedger can keep Postgres as the write primary while moving read-heavy operator
+paths to replicas. Good candidates include:
+
+- gateway request history
+- benchmark comparison queries
+- analytics-heavy dashboards
+
+Monitor at minimum:
+
+- replica lag in seconds
+- replay delay trend
+- connection saturation
+- query latency split between primary and replicas
+
+If lag exceeds your audit or routing tolerance, keep those reads pinned to primary
+ until the replica recovers.
+
 ## Health checks
 
 RunLedger exposes two health endpoints used by Kubernetes probes:
@@ -215,7 +234,34 @@ RunLedger exposes two health endpoints used by Kubernetes probes:
 
 The readiness probe prevents traffic from being routed to a pod while its DB/Redis connections are warming up or failing.
 
+The API exposes the full `health/live` plus `health/ready` pair. The stateless optimization
+sidecars expose `GET /health/ready` as well, so local Compose and Kubernetes-style checks can
+use a consistent readiness path across the stack.
+
+### Graceful draining
+
+Gateway nodes are intended to be drained before termination:
+
+1. mark the pod unready
+2. stop accepting new requests
+3. allow in-flight streaming requests to finish or hit timeout
+4. terminate after the drain window
+
+This preserves the stateless horizontal-scaling model without dropping active
+gateway sessions during rollouts.
+
 ## Prometheus / Grafana monitoring
+
+RunLedger intentionally prefers OSS infrastructure monitoring rather than re-implementing a full
+infra-monitoring product surface in-app. The supported pattern is:
+
+- use Prometheus to scrape `/metrics`
+- use Grafana or your existing dashboards for infrastructure views
+- use the bundled OTel Collector for trace fan-in and fan-out
+- use RunLedger's own UI for agent, FinOps, governance, and operator workflows such as queue visibility
+
+This keeps generic host, container, and infra telemetry in standard OSS tooling while RunLedger
+focuses on AI-specific control-plane data.
 
 Enable the metrics endpoint and protect it with a token:
 
@@ -242,6 +288,9 @@ Available metrics:
 | `runledger_gateway_cache_hit_rate` | gauge | Prompt cache hit fraction (0–1) |
 | `runledger_uncosted_provider_calls` | gauge | Cost enrichment backlog |
 | `runledger_celery_queue_depth{queue}` | gauge | Tasks waiting per queue |
+
+Platform admins can also inspect the same queue-depth summary in the dashboard under
+`Settings -> Backup & Restore -> Worker Queue Visibility`.
 
 Prometheus scrape config:
 

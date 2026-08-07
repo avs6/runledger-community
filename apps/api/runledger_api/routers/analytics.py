@@ -1123,6 +1123,7 @@ async def email_analytics_report(
     window_days: Annotated[int, Query(ge=1, le=365)] = 7,
 ) -> dict[str, Any]:
     """Email a usage analytics report to all workspace admins."""
+    from runledger_api.services import kafka_export  # noqa: PLC0415
     from runledger_api.services.email import send_analytics_report_email  # noqa: PLC0415
     from runledger_api.services.email_utils import get_workspace_admin_users  # noqa: PLC0415
 
@@ -1167,6 +1168,22 @@ async def email_analytics_report(
             rows=items,
             total_cost=total_cost,
             workspace_name=ws_name,
+        )
+        await kafka_export.publish_event(
+            db,
+            workspace_id=workspace.id,
+            event_type="email.report.sent",
+            payload={
+                "run_id": str(workspace.id),
+                "workspace_name": ws_name,
+                "recipient": u.email,
+                "cadence": "manual",
+                "period_label": period_label,
+                "total_cost_usd": total_cost,
+                "idempotency_key": f"email-report-manual:{workspace.id}:{u.email}:{window_days}:{t_to.date()}",
+                "source": "runledger.email",
+                "event_summary": "Manual analytics report sent",
+            },
         )
 
     return {"queued": True, "recipients": len(admins)}

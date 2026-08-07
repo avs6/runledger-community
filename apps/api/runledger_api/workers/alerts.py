@@ -25,10 +25,12 @@ from runledger_api.core.config import settings
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.budgets import BudgetNotification
 from runledger_api.models.events import AgentRun
+from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
 from runledger_api.services.email import send_alert_fired_email
 from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
+from runledger_api.services import kafka_export
 from runledger_api.services.notifications import send_slack_message
 
 log = structlog.get_logger()
@@ -106,6 +108,7 @@ async def _run_evaluation() -> dict[str, int]:
                 metric_value=metric_value,
             )
             session.add(firing)
+            await session.flush()
             firings_created += 1
             log.info(
                 "alerts.rule_fired",
@@ -115,6 +118,28 @@ async def _run_evaluation() -> dict[str, int]:
                 metric_value=str(metric_value),
                 threshold=str(rule.threshold),
             )
+            try:
+                await kafka_export.publish_event(
+                    session,
+                    workspace_id=rule.workspace_id,
+                    event_type="alert.fired",
+                    payload={
+                        "run_id": str(firing.id),
+                        "alert_rule_id": str(rule.id),
+                        "alert_firing_id": str(firing.id),
+                        "metric": rule.metric,
+                        "metric_value": str(metric_value),
+                        "threshold": str(rule.threshold),
+                        "operator": rule.operator,
+                        "window_minutes": rule.window_minutes,
+                        "fired_at": firing.fired_at.isoformat() if firing.fired_at else now.isoformat(),
+                        "idempotency_key": f"alert-fired:{rule.id}:{firing.id}",
+                        "source": "runledger.alerts",
+                        "event_summary": f"Alert fired for {rule.metric}",
+                    },
+                )
+            except Exception:
+                log.exception("kafka_export.alert_fired_failed", rule_id=str(rule.id))
 
             # Send Slack notification if channel configured
             if rule.channel_id is not None:
@@ -204,6 +229,40 @@ async def _compute_metric(
         result = (await session.execute(spend_stmt)).scalar()
         return Decimal(str(result)) if result is not None else Decimal("0")
 
+    if metric == "model_availability":
+        routes_stmt = select(GatewayRoute).where(GatewayRoute.workspace_id == workspace_id)
+        routes = list((await session.execute(routes_stmt)).scalars().all())
+        considered = [route for route in routes if route.last_health_check_at is not None or route.is_active]
+        if not considered:
+            return None
+        healthy = sum(1 for route in considered if route.deployment_status == "healthy")
+        return Decimal(str(healthy / len(considered)))
+
+    if metric == "gateway_overhead_p95":
+        rows_stmt = select(GatewayRequest.config_fingerprint).where(
+            GatewayRequest.workspace_id == workspace_id,
+            GatewayRequest.route_id.is_not(None),
+            GatewayRequest.created_at >= window_start,
+            GatewayRequest.created_at < window_end,
+            GatewayRequest.status == "success",
+        )
+        rows = (await session.execute(rows_stmt)).scalars().all()
+        overheads: list[float] = []
+        for cfg in rows:
+            if not isinstance(cfg, dict):
+                continue
+            value = cfg.get("gateway_overhead_ms")
+            try:
+                if value is not None:
+                    overheads.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        if not overheads:
+            return None
+        overheads.sort()
+        index = min(len(overheads) - 1, max(0, int(len(overheads) * 0.95) - 1))
+        return Decimal(str(round(overheads[index], 4)))
+
     return None
 
 
@@ -223,6 +282,8 @@ async def _send_alert_notification(
         "p95_latency": f"{float(metric_value):.0f}ms",
         "avg_score": f"{float(metric_value):.3f}",
         "spend_velocity": f"${float(metric_value):.4f}",
+        "model_availability": f"{float(metric_value) * 100:.1f}%",
+        "gateway_overhead_p95": f"{float(metric_value):.0f}ms",
     }.get(rule.metric, str(metric_value))
 
     threshold_label = {
@@ -230,6 +291,8 @@ async def _send_alert_notification(
         "p95_latency": f"{float(rule.threshold):.0f}ms",
         "avg_score": f"{float(rule.threshold):.3f}",
         "spend_velocity": f"${float(rule.threshold):.4f}",
+        "model_availability": f"{float(rule.threshold) * 100:.1f}%",
+        "gateway_overhead_p95": f"{float(rule.threshold):.0f}ms",
     }.get(rule.metric, str(rule.threshold))
 
     operator_label = ">" if rule.operator == "gt" else "<"
@@ -290,6 +353,8 @@ async def _send_alert_emails(
         "p95_latency": f"{float(metric_value):.0f}ms",
         "avg_score": f"{float(metric_value):.3f}",
         "spend_velocity": f"${float(metric_value):.4f}",
+        "model_availability": f"{float(metric_value) * 100:.1f}%",
+        "gateway_overhead_p95": f"{float(metric_value):.0f}ms",
     }.get(rule.metric, str(metric_value))
 
     threshold_label = {
@@ -297,6 +362,8 @@ async def _send_alert_emails(
         "p95_latency": f"{float(rule.threshold):.0f}ms",
         "avg_score": f"{float(rule.threshold):.3f}",
         "spend_velocity": f"${float(rule.threshold):.4f}",
+        "model_availability": f"{float(rule.threshold) * 100:.1f}%",
+        "gateway_overhead_p95": f"{float(rule.threshold):.0f}ms",
     }.get(rule.metric, str(rule.threshold))
 
     try:

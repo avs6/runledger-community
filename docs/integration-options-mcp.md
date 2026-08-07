@@ -1,44 +1,48 @@
-# RunLedger Integration Options And MCP Connectivity
+# RunLedger Integration Options and MCP Connectivity
 
-RunLedger should be easy to connect to any AI app, IDE, agent framework, workflow tool, or model gateway.
+RunLedger is designed to be easy to connect to AI apps, desktop agents, frameworks, workflow tools, and OpenAI-compatible gateways.
 
-The product supports two integration patterns:
+It supports two primary integration styles:
 
-- Inline control plane: agents ask RunLedger before acting, so budgets, policies, routing, and tool filters can shape behavior in real time.
-- Out-of-band intelligence layer: agents and gateways send telemetry after or during work, so RunLedger can measure cost, quality, routing, outcomes, savings, and optimization opportunities.
+- **inline control plane**: requests or tool decisions are shaped by RunLedger before work happens
+- **out-of-band intelligence layer**: telemetry and outcomes are sent into RunLedger during or after work
 
-## Phase 1A Scope
+MCP is the most direct control-plane path for agent tools.
 
-Phase 1A creates the base integration surface:
+## What ships today
 
-- A RunLedger MCP server mounted at `/mcp`.
-- A local stdio bridge for tools that cannot connect to HTTP MCP directly.
-- A product setup page at `/mcp` with generated configuration snippets.
-- A documented MCP contract for tools, resources, and prompts.
-- A smoke-test path that proves a connected agent can record a visible run.
+The current MCP and integration surface includes:
 
-## MCP Tool Contract
+- canonical RunLedger MCP server at `/mcp`
+- streamable HTTP MCP transport
+- local stdio bridge for MCP clients that cannot connect to HTTP directly
+- generated configuration snippets in the product
+- publishable skills for Claude, Codex, Cursor, and Devin
+- SDK task helpers and webhook-based ingest fallbacks
+- signed ingestion support for customer-controlled environments
 
-RunLedger exposes canonical MCP tools with `runledger.*` names:
+## MCP tool contract
 
-- `runledger.budget_check`: Check whether a user, feature, or workspace is inside budget.
-- `runledger.policy_check`: Evaluate budget, tool, gateway, and score gates before an action.
-- `runledger.recommend_route`: Ask RunLedger whether a model alias should be used, downgraded, or blocked.
-- `runledger.record_run_start`: Start a traceable agent run.
-- `runledger.record_span`: Record an agent, chain, retrieval, tool, or model span.
-- `runledger.record_tool_call`: Record a tool call with risk, duration, and status.
-- `runledger.record_model_call`: Record provider, model, token, latency, cost, and error details.
-- `runledger.record_outcome`: Record business outcome and close the run.
-- `runledger.query_runs`: Query recent runs for the workspace.
-- `runledger.query_costs`: Query spend, token, model, and feature-tag cost breakdowns.
-- `runledger.query_optimizations`: Query cost regressions and optimization flywheel recommendations.
-- `runledger.filter_mcp_tool`: Check whether a downstream tool or MCP server call is allowed.
+RunLedger exposes these canonical `runledger.*` MCP tools:
 
-Backward-compatible aliases such as `list_runs`, `check_budget`, and `get_analytics_summary` remain available for existing clients.
+- `runledger.budget_check`
+- `runledger.policy_check`
+- `runledger.recommend_route`
+- `runledger.record_run_start`
+- `runledger.record_span`
+- `runledger.record_tool_call`
+- `runledger.record_model_call`
+- `runledger.record_outcome`
+- `runledger.query_runs`
+- `runledger.query_costs`
+- `runledger.query_optimizations`
+- `runledger.filter_mcp_tool`
 
-## MCP Resource Contract
+Backward-compatible aliases remain available for older clients.
 
-RunLedger exposes read-only resources for agent context:
+## MCP resource contract
+
+RunLedger exposes read-oriented resources for agent context, including:
 
 - `runledger://orgs/{org_id}/summary`
 - `runledger://workspaces/{workspace_id}/budget`
@@ -50,9 +54,9 @@ RunLedger exposes read-only resources for agent context:
 - `runledger://policies/{workspace_id}/tool-policy`
 - `runledger://docs/agent-instructions`
 
-## MCP Prompt Contract
+## MCP prompt contract
 
-RunLedger exposes reusable prompts for consistent agent behavior:
+RunLedger also ships reusable prompts for consistent behavior:
 
 - `runledger_start_agent_task`
 - `runledger_choose_model_route`
@@ -60,11 +64,11 @@ RunLedger exposes reusable prompts for consistent agent behavior:
 - `runledger_optimize_prompt`
 - `runledger_debug_expensive_request`
 
-## Connection Methods
+## Connection methods
 
 ### Direct HTTP MCP
 
-Use this for Claude Desktop, Claude Code, Cursor, Windsurf, hosted agents, and custom MCP-aware clients.
+Use this for Claude Desktop, Claude Code, Cursor, Windsurf, hosted agents, and custom MCP-aware tools.
 
 ```text
 Endpoint: http://localhost:8201/mcp
@@ -72,14 +76,11 @@ Authentication: RUNLEDGER_API_KEY=<workspace-api-key>
 Transport: streamable HTTP
 ```
 
-RunLedger also ships a separate optimization/cognitive MCP gateway on `http://localhost:8206/mcp`.
-Use `:8206` for context compiler, memory, knowledge graph, skill registry, and flywheel tools.
-Use the canonical API endpoint on `:8201/mcp` when you need the Phase 1A control-plane tools
-such as budget checks, policy checks, run recording, model-call recording, and cost queries.
+RunLedger may also expose a separate optimization or cognitive MCP surface in some local setups. Use the canonical API MCP endpoint on `:8201/mcp` when you need budget checks, policy checks, run logging, and cost-aware control-plane tools.
 
-### Local stdio MCP Bridge
+### Local stdio MCP bridge
 
-Use this when a client only supports launching a local stdio MCP server.
+Use this when a client only supports a launched local stdio server:
 
 ```powershell
 $env:RUNLEDGER_BASE_URL="http://localhost:8201"
@@ -87,11 +88,23 @@ $env:RUNLEDGER_API_KEY="<workspace-api-key>"
 python scripts/runledger/mcp_stdio_bridge.py
 ```
 
-### SSE Compatibility
+### SSE compatibility
 
-RunLedger currently uses streamable HTTP at `/mcp`. Clients that describe this as SSE-style MCP should point at the same endpoint unless they require a separate event endpoint.
+RunLedger uses streamable HTTP at `/mcp`. Some clients still describe this loosely as SSE-style MCP. In practice, they should point at the same endpoint unless they strictly require a different transport implementation.
 
-## Generated Config Examples
+### Older-client fallback
+
+If an older client cannot use the canonical HTTP MCP endpoint cleanly, the supported fallback is the local stdio bridge:
+
+```powershell
+$env:RUNLEDGER_BASE_URL="http://localhost:8201"
+$env:RUNLEDGER_API_KEY="<workspace-api-key>"
+python scripts\runledger\mcp_stdio_bridge.py
+```
+
+For the current product scope, this bridge is the compatibility path for stricter legacy clients. A separate product-managed legacy SSE transport is not required to use RunLedger successfully today.
+
+## Generated config examples
 
 ### Claude Desktop
 
@@ -153,26 +166,56 @@ url = "http://localhost:8201/mcp"
 env = { RUNLEDGER_API_KEY = "<workspace-api-key>" }
 ```
 
-## Agent Default Instruction
+## Desktop-agent setup path
 
-Add this instruction to `AGENTS.md`, `CLAUDE.md`, Cursor rules, Windsurf rules, Devin instructions, or a system prompt:
+For desktop-agent onboarding:
+
+1. generate or install the matching skill
+2. configure MCP connectivity
+3. install default agent instructions (`AGENTS.md`, `CLAUDE.md`, Cursor rules, or equivalent)
+4. run a smoke test
+5. confirm the run appears in Runs or Request Explorer
+
+Relevant skill surfaces:
+
+- `skills/runledger-connect-claude`
+- `skills/runledger-connect-codex`
+- `skills/runledger-connect-cursor`
+- `skills/runledger-connect-devin`
+
+For host-side setup, restart expectations, smoke validation, and troubleshooting by client, use [Desktop Agent Setup And Validation](./integrations/desktop-agent-setup.md).
+
+## Frameworks And Workflow Tools
+
+RunLedger's supported integration primitives today are:
+
+- SDKs
+- MCP
+- OTLP / OpenTelemetry
+- webhook ingest
+- signed ingest
+- OpenAI-compatible gateway routing
+
+That means frameworks and workflow tools do not require dedicated product-side adapters to be usable with RunLedger today. Framework-specific adapters remain optional convenience packaging, not a blocker for the current integration foundation.
+
+## Suggested default instruction
 
 ```text
 Use RunLedger for every agent task. Before expensive or risky work, call runledger.budget_check and runledger.policy_check. Start each task with runledger.record_run_start. Record model calls, tool calls, and spans as work happens. Finish with runledger.record_outcome so RunLedger can track cost, quality, routing, business impact, and savings.
 ```
 
-## Smoke Test
+## Smoke test
 
 After connecting an agent:
 
-1. Ask the agent to call `runledger.budget_check`.
-2. Ask the agent to call `runledger.record_run_start`.
-3. Ask the agent to call `runledger.record_tool_call` for a harmless read tool.
-4. Ask the agent to call `runledger.record_model_call` with sample token and cost values.
-5. Ask the agent to call `runledger.record_outcome`.
-6. Verify the new run appears in Runs and Request Explorer.
+1. call `runledger.budget_check`
+2. call `runledger.record_run_start`
+3. call `runledger.record_tool_call`
+4. call `runledger.record_model_call`
+5. call `runledger.record_outcome`
+6. verify the run appears in the dashboard
 
-For command-line validation of the canonical MCP endpoint:
+Validator command:
 
 ```powershell
 $env:RUNLEDGER_BASE_URL = "http://localhost:8201"
@@ -180,16 +223,18 @@ $env:RUNLEDGER_API_KEY = "<workspace-api-key>"
 python scripts\runledger\validate_mcp_connection.py
 ```
 
-The validator performs the streamable-HTTP handshake, lists tools, and verifies the required Phase 1A
-`runledger.*` tools are visible. If you just rebuilt the API image, restart the API container before
-running this command.
+## Non-MCP fallbacks
 
-## Next Enhancements
+When a tool cannot use MCP directly, RunLedger also supports:
 
-Phase 1A creates the base integration contract. Follow-up work should add:
+- SDK task wrappers
+- webhook ingest
+- signed ingest
+- OTLP / OpenTelemetry
+- gateway-based integration for tools that support a custom OpenAI-compatible `base_url`
 
-- Scoped integration keys for MCP-only, Gateway-only, OTLP-only, SDK ingest-only, and read analytics-only access.
-- One-click integration kit generation with config files, `.env`, wrapper scripts, and default agent instructions.
-- MCP proxy mode so RunLedger can sit between agents and third-party MCP servers.
-- Integration audit events for generated configs, key creation, MCP tool calls, policy denials, and key rotation.
-- Webhook ingestion for tools that cannot use SDK, MCP, OTLP, or Gateway.
+## Current follow-up areas
+
+Still-open integration follow-ons include:
+
+- more compatibility help for older MCP clients

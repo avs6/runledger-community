@@ -23,6 +23,7 @@ Requires the stack to be running (`docker compose up -d`).
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 from pathlib import Path
 
@@ -60,6 +61,301 @@ def _import_pricing(sim: Sim) -> None:
         say(f"  ! pricing import skipped: {exc}", "y")
 
 
+def _seed_demo_breadth(ws) -> None:
+    """Expand seeded entities so demo workspaces show broad enterprise coverage."""
+    if not ws.key:
+        return
+
+    model_pool = sorted({run.model for run in ws.runs}) or [
+        "qwen2.5-coder:14b",
+        "deepseek-r1:14b",
+        "llama3.2",
+    ]
+    workflows = [
+        {
+            "feature": "support-escalation",
+            "agent": "support-triage-agent",
+            "skill": "support-routing",
+            "tool": "crm.lookup",
+            "tool_type": "read",
+            "team": "Support",
+            "application": "Customer Portal",
+            "route": "support-router",
+            "prompt_name": "support-triage",
+            "intent": "support escalation",
+            "outcome_type": "resolved",
+            "cache_rate": 0.28,
+        },
+        {
+            "feature": "finance-reconciliation",
+            "agent": "finance-ops-agent",
+            "skill": "ledger-analysis",
+            "tool": "billing.export",
+            "tool_type": "write",
+            "team": "Finance",
+            "application": "Ops Console",
+            "route": "finance-router",
+            "prompt_name": "finance-summary",
+            "intent": "invoice reconciliation",
+            "outcome_type": "reconciled",
+            "cache_rate": 0.14,
+        },
+        {
+            "feature": "security-review",
+            "agent": "trust-review-agent",
+            "skill": "policy-review",
+            "tool": "policy.diff",
+            "tool_type": "review",
+            "team": "Trust",
+            "application": "Trust Desk",
+            "route": "trust-router",
+            "prompt_name": "trust-check",
+            "intent": "policy review",
+            "outcome_type": "approved",
+            "cache_rate": 0.1,
+        },
+        {
+            "feature": "sales-assist",
+            "agent": "revenue-copilot",
+            "skill": "account-research",
+            "tool": "search.accounts",
+            "tool_type": "read",
+            "team": "Sales",
+            "application": "Sales Copilot",
+            "route": "sales-router",
+            "prompt_name": "sales-brief",
+            "intent": "account research",
+            "outcome_type": "conversion",
+            "cache_rate": 0.22,
+        },
+        {
+            "feature": "backup-ops",
+            "agent": "platform-ops-agent",
+            "skill": "backup-automation",
+            "tool": "s3.snapshot",
+            "tool_type": "write",
+            "team": "Platform",
+            "application": "Admin Console",
+            "route": "ops-router",
+            "prompt_name": "backup-ops",
+            "intent": "backup verification",
+            "outcome_type": "completed",
+            "cache_rate": 0.08,
+        },
+    ]
+
+    for app_name, env in (
+        ("Customer Portal", "prod"),
+        ("Ops Console", "staging"),
+        ("Sales Copilot", "prod"),
+        ("Admin Console", "dev"),
+    ):
+        try:
+            ws.create_application(app_name, environment=env)
+        except Exception:  # noqa: BLE001
+            pass
+
+    for team_name, model_name, budget_usd in (
+        ("Support", model_pool[0], 120.0),
+        ("Finance", model_pool[min(1, len(model_pool) - 1)], 180.0),
+        ("Trust", model_pool[min(2, len(model_pool) - 1)], 150.0),
+        ("Sales", model_pool[-1], 200.0),
+    ):
+        try:
+            ws.add_team_model(
+                team_name,
+                model_name,
+                description=f"{team_name} default model for demo traffic",
+                budget_usd=budget_usd,
+                logging_opt_out=team_name == "Trust",
+                config={"routing_mode": "guided", "workspace": ws.name},
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        seeded_runs = ws.ingest_rich_runs(
+            36,
+            models=model_pool[: min(4, len(model_pool))],
+            workflows=workflows,
+            users=[f"{ws.name.lower().replace(' ', '-')}-user-{i:02d}" for i in range(1, 25)],
+            days=14,
+            success_rate=0.9,
+            sessions=18,
+            batch_runs=36,
+        )
+        ws.ingest_otlp_traces(
+            10,
+            models=model_pool[: min(3, len(model_pool))],
+            workflows=workflows,
+        )
+    except Exception:  # noqa: BLE001
+        seeded_runs = []
+
+    for run in ws.sample(seeded_runs, 18):
+        try:
+            ws.record_outcome(
+                run,
+                random.choice(["resolved", "conversion", "escalated", "retained"]),
+                success=run.success,
+                value_usd=round(random.uniform(4, 160), 2),
+                labels={
+                    "workspace": ws.name,
+                    "org": ws.org,
+                    "segment": random.choice(["enterprise", "growth", "startup"]),
+                },
+            )
+            ws.score(run, "quality", round(random.uniform(0.58, 0.97), 3))
+        except Exception:  # noqa: BLE001
+            pass
+
+    for alert_name, metric, operator, threshold in (
+        ("High error rate", "error_rate", "gt", 0.12),
+        ("Gateway overhead target", "gateway_overhead_p95", "gt", 900.0),
+        ("Model availability", "model_availability", "lt", 0.85),
+        ("Spend velocity", "spend_velocity", "gt", 75.0),
+    ):
+        try:
+            ws.add_alert(f"{ws.name} {alert_name}", metric, operator, threshold)
+        except Exception:  # noqa: BLE001
+            pass
+
+    for tool_name, policy, runtime_enforcement, description in (
+        ("shell.exec", "block", True, "Production shell access requires approval"),
+        ("search.docs", "allow", False, "Knowledge-base lookups are allowed"),
+        ("billing.export", "audit", False, "Exports remain visible for operator review"),
+    ):
+        try:
+            ws.upsert_tool_policy(
+                tool_name,
+                policy=policy,
+                runtime_enforcement=runtime_enforcement,
+                description=description,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        ws.check_tool("shell.exec")
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        ws.list_tool_registry()
+        ws.list_tool_security_events()
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        server = ws.register_mcp_server(
+            f"{ws.name} MCP Gateway",
+            description="Simulator-seeded MCP server for permission and filtering demos.",
+            transport="http",
+            url="https://mcp.demo.runledger.local",
+            auth_type="bearer",
+            auth_config={"token": "demo-token"},
+        )
+        server_id = server.get("id")
+        if server_id:
+            ws.grant_mcp_permission(
+                server_id,
+                scope_type="workspace",
+                allowed_tools=["search.docs", "crm.lookup"],
+            )
+            ws.list_mcp_permissions()
+            ws.list_mcp_tools()
+    except Exception:  # noqa: BLE001
+        pass
+
+    approval_specs = [
+        (
+            "tool_allow",
+            "Allow a sensitive tool for a supervised ops demo.",
+            {"tool_name": "shell.exec", "requested_policy": "allow"},
+            "approve",
+        ),
+        (
+            "shadow_routing",
+            "Enable shadow routing for side-by-side provider evaluation.",
+            {"alias": "support-router", "mirror_provider": "demo-shadow"},
+            "approve",
+        ),
+        (
+            "capture_policy_full",
+            "Temporary full capture for a troubleshooting drill.",
+            {"scope": "workspace", "duration_hours": 2},
+            "deny",
+        ),
+    ]
+    for request_type, reason, metadata, decision in approval_specs:
+        try:
+            approval = ws.create_approval_request(request_type, reason, metadata=metadata)
+            approval_id = approval.get("id")
+            if approval_id and decision == "approve":
+                ws.approve_request(approval_id, "Approved by simulator for demo coverage.")
+            elif approval_id and decision == "deny":
+                ws.deny_request(approval_id, "Denied by simulator to show decision workflow.")
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        ws.list_approvals()
+        ws.get_approval_summary()
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        ws.update_email_preferences(
+            report_frequency="weekly",
+            report_hour=8,
+            report_timezone="America/Chicago",
+            report_recipient_mode="workspace_admins",
+            report_template="detailed",
+            alerts_enabled=True,
+            approvals_enabled=True,
+            budget_alerts_enabled=True,
+            score_regression_enabled=True,
+        )
+        ws.send_test_email()
+        ws.send_test_report()
+        ws.get_email_history()
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        slug = ws.name.lower().replace(" ", "-")
+        ws.update_backup_config(
+            provider="s3",
+            bucket="runledger-backups",
+            prefix=f"demos/{slug}",
+            region="us-east-1",
+            endpoint_url="http://runledger-minio:9000",
+            access_key_id="minioadmin",
+            secret_access_key="minioadmin",
+            force_path_style=True,
+            schedule_enabled=True,
+            cadence="daily",
+            run_hour_utc=2,
+            retention_days=14,
+            include_memory_db=True,
+            include_qdrant=False,
+            include_kuzu=True,
+            include_skills=True,
+            encryption_mode="server_side",
+        )
+        ws.test_backup_connection()
+        ws.run_backup_now()
+        ws.run_restore_drill()
+        ws.get_backup_history()
+        ws.get_backup_snapshots()
+        ws.get_backup_status()
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        if ws.runs:
+            ws.generate_runbook(ws.runs[0])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Simulate a full RunLedger cluster via the API.")
     ap.add_argument("--base-url", default="http://localhost:8201")
@@ -78,6 +374,11 @@ def main() -> None:
         type=int,
         default=3,
         help="multiply each scenario's run count; default creates a high-volume local demo",
+    )
+    ap.add_argument(
+        "--streaming-demo",
+        action="store_true",
+        help="also seed Kafka/Redpanda export configs for live streaming demos",
     )
     clean = ap.add_mutually_exclusive_group()
     clean.add_argument("--no-clean", action="store_true", help="don't reset first")
@@ -220,6 +521,24 @@ def main() -> None:
             )
         except Exception:  # noqa: BLE001
             pass
+
+    # 7b. Broaden one-click demo seeds across control-plane and operator-facing entities.
+    say("\n-> expanding demo breadth across apps, teams, tools, approvals, backups, email, OTLP, and MCP", "b")
+    for ws in sim.workspaces:
+        try:
+            _seed_demo_breadth(ws)
+        except Exception as exc:  # noqa: BLE001
+            say(f"  ! demo breadth seed skipped for {ws.name}: {exc}", "y")
+
+    if args.streaming_demo:
+        say("\n-> enabling Kafka/Redpanda demo exports", "b")
+        for ws in sim.workspaces:
+            if not ws.key:
+                continue
+            try:
+                ws.enable_kafka_export_demo()
+            except Exception as exc:  # noqa: BLE001
+                say(f"  ! kafka export setup skipped for {ws.name}: {exc}", "y")
 
     # 8. Summary.
     say("\n" + "═" * 60, "d")

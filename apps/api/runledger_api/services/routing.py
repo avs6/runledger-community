@@ -11,6 +11,7 @@ meaningful signal (e.g. no score data yet, no latency history).
 from __future__ import annotations
 
 import logging
+import math
 import random
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -61,6 +62,8 @@ async def select_route_with_policy(
             return _weighted(routes, config)
         if policy_type == "canary":
             return await _canary(db, workspace_id, routes, config)
+        if policy_type == "ab_test":
+            return await _ab_test(db, workspace_id, routes, config)
         if policy_type == "budget_aware":
             return await _budget_aware(db, workspace_id, routes, config)
         if policy_type == "complexity_based":
@@ -296,6 +299,39 @@ async def _canary(
 ) -> tuple[GatewayRoute, str]:
     canary_route_id: str | None = config.get("canary_route_id")
     canary_pct: float = float(config.get("canary_pct", 0.10))
+    error_spike_threshold: float = float(config.get("error_spike_threshold", 0.25))
+    min_error_samples: int = int(config.get("min_error_samples", 20))
+
+    if canary_route_id:
+        canary = await db.get(GatewayRoute, canary_route_id)
+        if canary and canary.workspace_id == workspace_id and canary.is_active:
+            canary_rows = await db.execute(
+                text("""
+                SELECT
+                    COUNT(*) AS total_requests,
+                    AVG(CASE WHEN status = 'error' THEN 1.0 ELSE 0.0 END) AS error_rate
+                FROM gateway_requests
+                WHERE workspace_id = :ws
+                  AND route_id = :route_id
+                  AND created_at >= NOW() - INTERVAL '1 day'
+                """).bindparams(ws=str(workspace_id), route_id=str(canary.id))
+            )
+            row = canary_rows.one_or_none()
+            total_requests = int(row.total_requests or 0) if row else 0
+            error_rate = float(row.error_rate or 0.0) if row else 0.0
+            if total_requests >= min_error_samples and error_rate >= error_spike_threshold:
+                config["canary_pct"] = 0.0
+                config["rollback_triggered_at"] = datetime.now(UTC).isoformat()
+                config["rollback_reason"] = f"error_spike:{error_rate:.3f}"
+                policy = await _fetch_policy(db, workspace_id, routes[0].alias)
+                if policy is not None:
+                    policy.config = config
+                    await db.commit()
+                baseline = next((r for r in routes if str(r.id) != canary_route_id), routes[0])
+                return baseline, (
+                    f"canary:auto_rollback-error-spike-{error_rate * 100:.1f}pct"
+                    f" ({baseline.target_model})"
+                )
 
     if canary_route_id and random.random() < canary_pct:
         canary = await db.get(GatewayRoute, canary_route_id)
@@ -308,6 +344,241 @@ async def _canary(
         routes[0],
     )
     return baseline, (f"canary:baseline-{100 - canary_pct * 100:.0f}pct ({baseline.target_model})")
+
+
+async def _ab_test(
+    db: AsyncSession,
+    workspace_id: Any,
+    routes: list[GatewayRoute],
+    config: dict[str, Any],
+) -> tuple[GatewayRoute, str]:
+    variants = _policy_variants(routes, config, default_label_prefix="variant")
+    if not variants:
+        route = routes[0]
+        return route, f"ab_test:no-config-fallback ({route.target_model})"
+    chosen = random.choices(
+        variants,
+        weights=[variant["allocation_pct"] for variant in variants],
+        k=1,
+    )[0]
+    route = chosen["route"]
+    return route, (
+        f"ab_test:{chosen['label']}:{int(chosen['allocation_pct'] * 100)}pct"
+        f" ({route.target_model})"
+    )
+
+
+def _policy_variants(
+    routes: list[GatewayRoute],
+    config: dict[str, Any],
+    *,
+    default_label_prefix: str,
+) -> list[dict[str, Any]]:
+    route_map = {str(route.id): route for route in routes}
+    variants_cfg = config.get("variants")
+    variants: list[dict[str, Any]] = []
+    if isinstance(variants_cfg, list):
+        for index, item in enumerate(variants_cfg, start=1):
+            if not isinstance(item, dict):
+                continue
+            route_id = str(item.get("route_id") or "")
+            route = route_map.get(route_id)
+            if route is None:
+                continue
+            allocation = float(item.get("pct", item.get("weight", 0.0)) or 0.0)
+            label = str(item.get("label") or f"{default_label_prefix}-{index}")
+            variants.append(
+                {
+                    "route": route,
+                    "route_id": route_id,
+                    "label": label,
+                    "allocation_pct": max(0.0, allocation),
+                }
+            )
+    if variants:
+        total = sum(variant["allocation_pct"] for variant in variants)
+        if total > 0:
+            for variant in variants:
+                variant["allocation_pct"] = variant["allocation_pct"] / total
+        return variants
+
+    if config.get("weights"):
+        weights = config.get("weights") or {}
+        if isinstance(weights, dict):
+            eligible = []
+            for index, (route_id, weight) in enumerate(weights.items(), start=1):
+                route = route_map.get(str(route_id))
+                if route is None:
+                    continue
+                eligible.append(
+                    {
+                        "route": route,
+                        "route_id": str(route_id),
+                        "label": f"{default_label_prefix}-{index}",
+                        "allocation_pct": float(weight or 0.0),
+                    }
+                )
+            total = sum(variant["allocation_pct"] for variant in eligible)
+            if total > 0:
+                for variant in eligible:
+                    variant["allocation_pct"] = variant["allocation_pct"] / total
+                return eligible
+    return []
+
+
+def _p_value_for_two_proportion_z(z_score: float) -> float:
+    return math.erfc(abs(z_score) / math.sqrt(2.0))
+
+
+async def analyze_routing_policy(
+    db: AsyncSession,
+    workspace_id: Any,
+    policy: RoutingPolicy,
+) -> dict[str, Any]:
+    routes = await _fetch_active_routes(db, workspace_id, policy.alias)
+    if not routes:
+        return {
+            "policy_id": policy.id,
+            "alias": policy.alias,
+            "policy_type": policy.policy_type,
+            "winner_route_id": None,
+            "winner_label": None,
+            "confidence": "insufficient_data",
+            "significance_p_value": None,
+            "auto_promoted": False,
+            "summary": "No active routes available.",
+            "variants": [],
+        }
+
+    variants = _policy_variants(routes, policy.config or {}, default_label_prefix="variant")
+    if policy.policy_type == "canary":
+        canary_route_id = str((policy.config or {}).get("canary_route_id") or "")
+        variants = [
+            {
+                "route": route,
+                "route_id": str(route.id),
+                "label": "canary" if str(route.id) == canary_route_id else "baseline",
+                "allocation_pct": float((policy.config or {}).get("canary_pct", 0.0))
+                if str(route.id) == canary_route_id
+                else max(0.0, 1.0 - float((policy.config or {}).get("canary_pct", 0.0))),
+            }
+            for route in routes
+            if str(route.id) == canary_route_id or str(route.id) != canary_route_id
+        ][:2]
+    if not variants:
+        variants = [
+            {
+                "route": route,
+                "route_id": str(route.id),
+                "label": route.target_model,
+                "allocation_pct": 1.0 / max(1, len(routes)),
+            }
+            for route in routes
+        ]
+
+    route_ids = [variant["route_id"] for variant in variants]
+    rows = await db.execute(
+        text("""
+        SELECT
+            route_id,
+            COUNT(*) AS total_requests,
+            AVG(CASE WHEN status <> 'error' THEN 1.0 ELSE 0.0 END) AS success_rate,
+            AVG(CASE WHEN status = 'error' THEN 1.0 ELSE 0.0 END) AS error_rate,
+            AVG(latency_ms) AS avg_latency_ms,
+            AVG(input_tokens) AS avg_input_tokens,
+            AVG(output_tokens) AS avg_output_tokens
+        FROM gateway_requests
+        WHERE workspace_id = :ws
+          AND route_id = ANY(:route_ids)
+          AND created_at >= NOW() - INTERVAL '14 days'
+        GROUP BY route_id
+        """).bindparams(ws=str(workspace_id), route_ids=route_ids)
+    )
+    metrics_map = {str(row.route_id): row for row in rows.all()}
+
+    metrics: list[dict[str, Any]] = []
+    for variant in variants:
+        row = metrics_map.get(variant["route_id"])
+        metrics.append(
+            {
+                "route_id": variant["route"].id,
+                "label": variant["label"],
+                "allocation_pct": round(float(variant["allocation_pct"]), 4),
+                "total_requests": int(row.total_requests or 0) if row else 0,
+                "success_rate": round(float(row.success_rate or 0.0), 4) if row else 0.0,
+                "error_rate": round(float(row.error_rate or 0.0), 4) if row else 0.0,
+                "avg_latency_ms": round(float(row.avg_latency_ms), 2) if row and row.avg_latency_ms is not None else None,
+                "avg_input_tokens": round(float(row.avg_input_tokens), 2) if row and row.avg_input_tokens is not None else None,
+                "avg_output_tokens": round(float(row.avg_output_tokens), 2) if row and row.avg_output_tokens is not None else None,
+            }
+        )
+
+    ranked = sorted(
+        metrics,
+        key=lambda item: (-item["success_rate"], item["error_rate"], item["avg_latency_ms"] or float("inf")),
+    )
+    min_sample_size = max(5, int((policy.config or {}).get("min_sample_size", 25)))
+    significance_threshold = float((policy.config or {}).get("significance_threshold", 0.05))
+    if len(ranked) < 2 or ranked[0]["total_requests"] < min_sample_size or ranked[1]["total_requests"] < min_sample_size:
+        return {
+            "policy_id": policy.id,
+            "alias": policy.alias,
+            "policy_type": policy.policy_type,
+            "winner_route_id": ranked[0]["route_id"] if ranked else None,
+            "winner_label": ranked[0]["label"] if ranked else None,
+            "confidence": "insufficient_data",
+            "significance_p_value": None,
+            "auto_promoted": False,
+            "summary": f"Not enough variant traffic yet to determine a winner. Need at least {min_sample_size} requests per top variant.",
+            "variants": metrics,
+        }
+
+    best = ranked[0]
+    challenger = ranked[1]
+    p1 = best["success_rate"]
+    p2 = challenger["success_rate"]
+    n1 = best["total_requests"]
+    n2 = challenger["total_requests"]
+    pooled = ((p1 * n1) + (p2 * n2)) / (n1 + n2)
+    denom = math.sqrt(max(pooled * (1 - pooled) * ((1 / n1) + (1 / n2)), 1e-9))
+    z_score = (p1 - p2) / denom if denom else 0.0
+    p_value = _p_value_for_two_proportion_z(z_score)
+    confidence = "high" if p_value < 0.01 else "medium" if p_value < 0.05 else "low"
+
+    auto_promoted = False
+    if (
+        policy.policy_type == "ab_test"
+        and bool((policy.config or {}).get("auto_promote"))
+        and p_value < significance_threshold
+        and best["route_id"] != challenger["route_id"]
+    ):
+        policy.policy_type = "weighted"
+        policy.config = {
+            "weights": {str(best["route_id"]): 1.0},
+            "promoted_from": "ab_test",
+            "promoted_at": datetime.now(UTC).isoformat(),
+            "winner_label": best["label"],
+        }
+        await db.commit()
+        auto_promoted = True
+
+    return {
+        "policy_id": policy.id,
+        "alias": policy.alias,
+        "policy_type": policy.policy_type,
+        "winner_route_id": best["route_id"],
+        "winner_label": best["label"],
+        "confidence": confidence,
+        "significance_p_value": round(p_value, 6),
+        "auto_promoted": auto_promoted,
+        "summary": (
+            f"{best['label']} leads with {(best['success_rate'] * 100):.1f}% success "
+            f"vs {(challenger['success_rate'] * 100):.1f}% for {challenger['label']}. "
+            f"p={p_value:.4f} against threshold {significance_threshold:.4f}; "
+            f"minimum sample per top variant is {min_sample_size}."
+        ),
+        "variants": metrics,
+    }
 
 
 # ---------------------------------------------------------------------------

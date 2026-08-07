@@ -1,161 +1,134 @@
 ---
 title: "RunLedger"
-description: "The self-hosted control plane that makes AI agents observable, governable, and cheaper to run."
+description: "The self-hosted AI operations control plane for observability, governance, optimization, and cost intelligence."
 ---
 
-**RunLedger is an open-source Agent FinOps control plane.** It sits between your agents and every model
-provider — OpenAI, Anthropic, Gemini, Mistral, Cohere, and any self-hosted or OpenAI-compatible endpoint —
-and turns raw inference traffic into trace-linked cost accounting, budget enforcement, outcome-to-cost
-visibility, and active token optimization.
+**RunLedger is an open-source AI operations control plane.** It helps teams understand what their AI systems are doing, what they cost, whether they are allowed, whether they worked, and what to optimize next.
 
-> Tracing tools tell you *what happened.*
-> RunLedger tells you *what it cost, who pays, whether you're over budget, what the ROI was — and how to
-> spend fewer tokens next time.*
+RunLedger supports both:
+
+- an **inline gateway** for routing, caching, budgets, and runtime controls
+- an **out-of-band control plane** for SDK, OTLP, MCP, and webhook-driven telemetry
+
+> Tracing tools tell you what happened.  
+> RunLedger tells you what it cost, who owns it, whether it was allowed, whether it worked, and how to improve it.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Up and running in 5 minutes with Docker Compose.
+    Get a local stack running in a few minutes with Docker Compose.
   </Card>
   <Card title="Core concepts" icon="diagram-project" href="/concepts">
-    The domain model, control plane vs data plane, and the four ways agents connect.
+    Learn the domain model, data plane vs control plane split, and ingestion paths.
   </Card>
 </CardGroup>
 
 ---
 
-## The problem it solves
+## The problems it solves
 
 <CardGroup cols={2}>
   <Card title="Spend explodes" icon="fire">
-    A retry loop or runaway agent silently burns through the API budget overnight — nobody notices until the invoice lands.
+    Retry loops, oversized prompts, and weak routing quietly burn budget.
   </Card>
-  <Card title="Attribution is guesswork" icon="circle-question">
-    Cost can't be tied to a tenant, user, or feature without custom instrumentation.
+  <Card title="Attribution is weak" icon="circle-question">
+    Cost is hard to tie back to tenant, user, feature, workflow, or model choice.
   </Card>
   <Card title="Routing ignores economics" icon="route">
-    Models are chosen for capability, never for cost-per-outcome.
+    Model choice often optimizes for capability only, not cost-per-outcome.
   </Card>
-  <Card title="No audit trail" icon="file-invoice">
-    Nothing links internal metering back to the exact agent run that generated the spend.
+  <Card title="No shared audit trail" icon="file-invoice">
+    Observability, governance, and finance data usually live in separate systems.
   </Card>
 </CardGroup>
 
-RunLedger closes all of these in one self-hosted control plane — no vendor lock-in, no data leaving your
-infrastructure, no GPU required.
+RunLedger closes all of these in one self-hosted system with no vendor lock-in and support for both hosted and local models.
 
 ---
 
 ## Explore the platform
 
-### Instrument your agents
+### Instrument your agents and apps
 
 <CardGroup cols={2}>
   <Card title="Python SDK" icon="python" href="/instrumentation/python-sdk">
-    Two-line instrumentation for OpenAI, Anthropic, LangChain, and LangGraph.
+    Lightweight instrumentation for Python agents and applications.
   </Card>
   <Card title="TypeScript SDK" icon="js" href="/instrumentation/typescript-sdk">
-    Wrap OpenAI, Gemini, Mistral, and Cohere clients in Node.
+    Client wrappers and task helpers for Node and browser-adjacent systems.
   </Card>
   <Card title="OTLP / OpenTelemetry" icon="bolt" href="/otlp">
-    Send OTel or OpenInference traces — no SDK, no code change.
+    Send OTel or OpenInference traces without adopting a RunLedger SDK first.
   </Card>
-  <Card title="Model Gateway" icon="server" href="/gateway/overview">
-    Drop-in <code>base_url</code> swap for any OpenAI-compatible client.
-  </Card>
-</CardGroup>
-
-### Cost & FinOps
-
-<CardGroup cols={2}>
-  <Card title="Metering" icon="gauge-high" href="/finops/metering">
-    Provider-aware token accounting — input, output, and cached tokens.
-  </Card>
-  <Card title="Pricing engine" icon="tags" href="/finops/pricing">
-    Add a model by inserting a pricing row — no code change.
-  </Card>
-  <Card title="Cost attribution" icon="building" href="/finops/attribution">
-    Break spend down by tenant, user, and feature.
-  </Card>
-  <Card title="Budgets" icon="shield-check" href="/finops/budgets">
-    Spend limits that throttle, block, or downgrade the model automatically.
-  </Card>
-  <Card title="Outcomes & ROI" icon="chart-line" href="/finops/outcomes">
-    Cost-per-success, ROI by workflow, and success-rate trends.
-  </Card>
-  <Card title="Tamper-evident ledger" icon="lock" href="/finops/ledger">
-    HMAC-signed usage ledger for billing integrity.
+  <Card title="MCP connectivity" icon="plug" href="/integration-options-mcp">
+    Connect desktop agents and MCP-aware tools through the RunLedger control plane.
   </Card>
 </CardGroup>
 
-### Token optimization
+### Gateway and optimization
 
 <CardGroup cols={2}>
-  <Card title="Semantic cache" icon="database" href="/optimization/semantic-cache">
-    Serve near-duplicate prompts from cache, with strict scope isolation.
+  <Card title="Gateway overview" icon="server" href="/gateway/overview">
+    OpenAI-compatible inline gateway for cache, route, budget, and runtime control.
   </Card>
-  <Card title="Context Compiler" icon="compress" href="/optimization/context-compiler">
-    Shrink oversized requests before the model.
+  <Card title="Routing and fallback" icon="route" href="/gateway/routing">
+    Weighted, budget-aware, latency-aware, and health-aware routing strategies.
   </Card>
-  <Card title="Intelligent routing" icon="route" href="/optimization/intelligent-routing">
-    Route by complexity × risk to the right model tier.
+  <Card title="Caching" icon="database" href="/gateway/caching">
+    Exact and semantic caching with workspace isolation.
   </Card>
-  <Card title="Optimization flywheel" icon="arrows-spin" href="/optimization/flywheel">
-    Learn the cheapest config that still holds your quality SLA.
+  <Card title="Optimization" icon="layer-group" href="/optimization">
+    Context compiler, prompt compression, tool filtering, cognitive layer, and flywheel loops.
   </Card>
 </CardGroup>
 
-<Card title="See all optimization features →" icon="layer-group" href="/optimization">
-  Prompt compression, cognitive layer (memory / KG / skills), dynamic tool filtering, and more.
-</Card>
-
-### Quality & governance
+### FinOps and governance
 
 <CardGroup cols={2}>
-  <Card title="Evaluations & experiments" icon="flask" href="/governance/evaluations">
-    Prompt × model × dataset scoring with regression tracking.
+  <Card title="Metering and pricing" icon="gauge-high" href="/finops/metering">
+    Provider-aware token accounting, price catalogs, and local-model costing.
   </Card>
-  <Card title="Prompt registry" icon="code-branch" href="/governance/prompts">
-    Versioning, diffs, and promote-to-production.
+  <Card title="Budgets and outcomes" icon="shield-check" href="/finops/budgets">
+    Spend enforcement, downgrade flows, ROI, and cost-per-success analysis.
   </Card>
-  <Card title="Approvals" icon="user-check" href="/governance/approvals">
-    Governance queue for sensitive actions.
+  <Card title="Prompts, evaluations, and approvals" icon="flask" href="/governance/evaluations">
+    Govern prompt changes, experiments, and higher-risk actions.
   </Card>
-  <Card title="RBAC & multi-tenancy" icon="users-gear" href="/governance/rbac">
-    Org and workspace roles with scoped isolation.
+  <Card title="Policy dry run and data capture controls" icon="eye-slash" href="/governance/policy-dry-run">
+    Simulate policies and control payload capture before rolling changes out.
   </Card>
 </CardGroup>
 
-### Agentic operations
+### Observability and operations
 
 <CardGroup cols={2}>
-  <Card title="Agent Registry & Memory" icon="robot" href="/agentic/agents">
-    Register agents, track lifecycle, govern per-agent memory with PII detection.
+  <Card title="AI Ops dashboards" icon="chart-mixed" href="/observability/ai-ops-dashboards">
+    Platform, org, and workspace dashboards for spend, savings, quality, and route health.
   </Card>
-  <Card title="Workflow Runs" icon="diagram-project" href="/agentic/workflows">
-    Multi-step workflows with per-step cost attribution.
+  <Card title="Request and run exploration" icon="magnifying-glass-chart" href="/observability/request-explorer">
+    Explore runs, requests, routes, prompts, tools, and model costs in detail.
   </Card>
-  <Card title="Vector Stores" icon="database" href="/agentic/vector-stores">
-    Monitor Qdrant collections — docs, queries, costs, latency.
+  <Card title="Engineering and model operations" icon="gauge-high" href="/observability/engineering">
+    Monitor latency, cache performance, quality funnel, and model usage trends.
   </Card>
-  <Card title="API Playground" icon="play" href="/agentic/playground">
-    Send requests, compare models side-by-side, track prompt economics.
+  <Card title="Replay, runbooks, and scorecards" icon="arrows-rotate" href="/observability/replay-lab">
+    Compare alternate routes, review incidents, and track model quality trends.
   </Card>
 </CardGroup>
 
-### Observability
+### Agentic and admin surfaces
 
 <CardGroup cols={2}>
-  <Card title="Run Explorer" icon="magnifying-glass-chart" href="/observability/runs">
-    Filter runs, view the DAG, export CSV.
+  <Card title="Agents and workflows" icon="robot" href="/agentic/agents">
+    Track registered agents, workflow runs, and operational ownership.
   </Card>
-  <Card title="Sessions" icon="comments" href="/observability/sessions">
-    Multi-turn conversations and cost-over-turns.
+  <Card title="Vector stores and playground" icon="play" href="/agentic/playground">
+    Manage vector-store usage and compare model behavior in the playground.
   </Card>
-  <Card title="Analytics" icon="chart-mixed" href="/observability/analytics">
-    Top spenders, cohorts, and anomaly detection.
+  <Card title="Onboarding and demo mode" icon="wand-magic-sparkles" href="/observability/onboarding">
+    Use health checks, demo seeding, labs, and integration guidance to bootstrap the product quickly.
   </Card>
-  <Card title="Product tour" icon="images" href="/observability/product-tour">
-    A screenshot walkthrough of the dashboard, by feature.
+  <Card title="Admin control surfaces" icon="sliders" href="/observability/onboarding">
+    The dashboard now includes tags, search tools, tool policies, access groups, cache controls, backup operations, and security settings.
   </Card>
 </CardGroup>
 
@@ -165,16 +138,14 @@ infrastructure, no GPU required.
 
 <CardGroup cols={3}>
   <Card title="Docker Compose" icon="docker" href="/deployment/docker-compose">
-    Single-host self-hosting.
+    Single-host local or self-hosted deployment.
   </Card>
   <Card title="Kubernetes / Helm" icon="dharmachakra" href="/helm">
-    One chart, self-host or HA.
+    Self-host or run high-availability deployments from the chart.
   </Card>
   <Card title="High availability" icon="layer-group" href="/ha">
-    Autoscaling + pluggable stores.
+    Autoscaling, pluggable stores, and operational topology guidance.
   </Card>
 </CardGroup>
 
-RunLedger Community is fully self-hosted and free under Apache-2.0. A separate Enterprise edition adds
-invoice reconciliation, chargeback, SSO/SCIM, warehouse export, and BYOK — see the
-[Community vs Enterprise](https://github.com/avs6/runledger-community#community-vs-enterprise) comparison.
+RunLedger Community is fully self-hosted and free under Apache-2.0. A separate Enterprise edition adds SSO/SCIM, deeper compliance export, secret-manager integrations, and commercial packaging. See the [Community vs Enterprise](https://github.com/avs6/runledger-community#community-vs-enterprise) comparison.

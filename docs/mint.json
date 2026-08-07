@@ -158,6 +158,7 @@
         "deployment/docker-compose",
         "helm",
         "ha",
+        "infra-hardening",
         "backup-restore",
         "upgrade",
         "deployment",

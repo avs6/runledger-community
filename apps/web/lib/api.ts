@@ -3,6 +3,9 @@ import type {
   AlertHistoryList,
   AlertRule,
   AlertRuleList,
+  GatewayRoutingGroup,
+  GatewayRoutingGroupList,
+  GatewayRoutingStrategyComparison,
   GatewayRoute,
   GatewayRequestList,
   GatewayRouteList,
@@ -78,6 +81,7 @@ import type {
   WorkflowTopList,
   OtlpStats,
   OtlpBatchList,
+  OtlpInsights,
   AuditEventList,
   RetentionPolicy,
   RetentionPolicyList,
@@ -88,9 +92,15 @@ import type {
   EmailPreference,
   EmailLogList,
   OpsFeatureStatus,
+  OpsFeatureFlagsResponse,
+  OpsPolicyEvaluation,
+  OpsQueueStatus,
+  OpsStorageStatus,
   BackupRun,
   BackupRunList,
   BackupActionResult,
+  BackupTargetConfig,
+  BackupSnapshotList,
   EvalDataset,
   EvalDatasetList,
   EvalExperiment,
@@ -1253,6 +1263,7 @@ export async function createGatewayRoute(
   apiKey: string,
   body: {
     alias: string
+    routing_group_id?: string | null
     provider: string
     target_model: string
     base_url?: string | null
@@ -1290,6 +1301,7 @@ export async function updateGatewayRoute(
   routeId: string,
   body: {
     alias?: string
+    routing_group_id?: string | null
     target_model?: string
     base_url?: string | null
     api_key_env_var?: string | null
@@ -1321,6 +1333,65 @@ export async function updateGatewayRoute(
 
 export async function deleteGatewayRoute(apiKey: string, routeId: string): Promise<void> {
   await apiFetch<void>(`/gateway/routes/${routeId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function listGatewayRoutingGroups(
+  apiKey: string,
+  params?: { alias?: string; include_inactive?: boolean }
+): Promise<GatewayRoutingGroupList> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<GatewayRoutingGroupList>(`/gateway/routing-groups${qs}`, apiKey)
+}
+
+export async function createGatewayRoutingGroup(
+  apiKey: string,
+  body: {
+    alias: string
+    name: string
+    description?: string | null
+    match_tags?: string[]
+    default_tags?: string[]
+    strategy_type?: 'manual' | 'latency_optimized' | 'round_robin'
+    strategy_config?: Record<string, unknown> | null
+    is_active?: boolean
+  }
+): Promise<GatewayRoutingGroup> {
+  return apiFetch<GatewayRoutingGroup>('/gateway/routing-groups', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateGatewayRoutingGroup(
+  apiKey: string,
+  groupId: string,
+  body: Partial<{
+    alias: string
+    name: string
+    description: string | null
+    match_tags: string[]
+    default_tags: string[]
+    strategy_type: 'manual' | 'latency_optimized' | 'round_robin'
+    strategy_config: Record<string, unknown> | null
+    is_active: boolean
+  }>
+): Promise<GatewayRoutingGroup> {
+  return apiFetch<GatewayRoutingGroup>(`/gateway/routing-groups/${groupId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteGatewayRoutingGroup(apiKey: string, groupId: string): Promise<void> {
+  await apiFetch<void>(`/gateway/routing-groups/${groupId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getGatewayRoutingStrategyComparison(
+  apiKey: string
+): Promise<GatewayRoutingStrategyComparison> {
+  return apiFetch<GatewayRoutingStrategyComparison>('/gateway/routing-groups/strategy-comparison', apiKey)
 }
 
 export async function getGatewayStats(apiKey: string): Promise<GatewayStats> {
@@ -1393,6 +1464,49 @@ export async function deleteGatewayPassThroughEndpoint(apiKey: string, endpointI
   await apiFetch<void>(`/gateway/passthrough/${endpointId}`, apiKey, { method: 'DELETE' })
 }
 
+export async function testGatewayPassThroughEndpoint(
+  apiKey: string,
+  endpointId: string,
+  body?: {
+    method?: string
+    path?: string | null
+    query?: Record<string, string>
+    headers?: Record<string, string>
+    body_json?: Record<string, unknown> | null
+  }
+): Promise<import('@/types/api').GatewayPassThroughTestResult> {
+  return apiFetch<import('@/types/api').GatewayPassThroughTestResult>(
+    `/gateway/passthrough/${endpointId}/test`,
+    apiKey,
+    {
+      method: 'POST',
+      body: JSON.stringify(body ?? {}),
+    },
+  )
+}
+
+export async function listGatewayPassThroughStats(
+  apiKey: string,
+): Promise<import('@/types/api').GatewayPassThroughEndpointStatsList> {
+  return apiFetch<import('@/types/api').GatewayPassThroughEndpointStatsList>(
+    '/gateway/passthrough/stats',
+    apiKey,
+  )
+}
+
+export async function getGatewayBenchmarkComparison(
+  apiKey: string,
+  params?: { days?: number; alias?: string }
+): Promise<import('@/types/api').GatewayBenchmarkComparisonList> {
+  const qs = params ? '?' + new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+  ).toString() : ''
+  return apiFetch<import('@/types/api').GatewayBenchmarkComparisonList>(
+    `/gateway/benchmarks/compare${qs}`,
+    apiKey,
+  )
+}
+
 // ── Routing policies ──────────────────────────────────────────────────────────
 
 export async function listRoutingPolicies(apiKey: string): Promise<RoutingPolicyList> {
@@ -1424,6 +1538,53 @@ export async function updateRoutingPolicy(
 
 export async function deleteRoutingPolicy(apiKey: string, policyId: string): Promise<void> {
   await apiFetch<void>(`/gateway/policies/${policyId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getRoutingPolicyAnalysis(
+  apiKey: string,
+  policyId: string,
+): Promise<import('@/types/api').RoutingPolicyAnalysis> {
+  return apiFetch<import('@/types/api').RoutingPolicyAnalysis>(
+    `/gateway/policies/${policyId}/analysis`,
+    apiKey,
+  )
+}
+
+export async function promoteRoutingPolicyWinner(
+  apiKey: string,
+  policyId: string,
+  routeId?: string,
+): Promise<import('@/types/api').RoutingPolicyActionResult> {
+  return apiFetch<import('@/types/api').RoutingPolicyActionResult>(
+    `/gateway/policies/${policyId}/promote`,
+    apiKey,
+    {
+      method: 'POST',
+      body: JSON.stringify(routeId ? { route_id: routeId } : {}),
+    },
+  )
+}
+
+export async function advanceCanaryRollout(
+  apiKey: string,
+  policyId: string,
+): Promise<import('@/types/api').RoutingPolicyActionResult> {
+  return apiFetch<import('@/types/api').RoutingPolicyActionResult>(
+    `/gateway/policies/${policyId}/rollout/advance`,
+    apiKey,
+    { method: 'POST' },
+  )
+}
+
+export async function rollbackRoutingPolicy(
+  apiKey: string,
+  policyId: string,
+): Promise<import('@/types/api').RoutingPolicyActionResult> {
+  return apiFetch<import('@/types/api').RoutingPolicyActionResult>(
+    `/gateway/policies/${policyId}/rollback`,
+    apiKey,
+    { method: 'POST' },
+  )
 }
 
 export async function getSecuritySettings(apiKey: string): Promise<import('@/types/api').WorkspaceSecuritySettings> {
@@ -2148,6 +2309,42 @@ export async function getBackupHistory(apiKey: string, limit = 20): Promise<Back
   return apiFetch<BackupRunList>(`/settings/backups/history?limit=${limit}`, apiKey)
 }
 
+export async function getBackupConfig(apiKey: string): Promise<BackupTargetConfig | null> {
+  return apiFetch<BackupTargetConfig | null>('/settings/backups/config', apiKey)
+}
+
+export async function updateBackupConfig(
+  apiKey: string,
+  data: {
+    provider: 's3'
+    bucket: string
+    prefix?: string | null
+    region?: string | null
+    endpoint_url?: string | null
+    access_key_id?: string | null
+    secret_access_key?: string | null
+    force_path_style?: boolean
+    schedule_enabled?: boolean
+    cadence?: 'daily' | 'weekly' | 'monthly'
+    run_hour_utc?: number
+    retention_days?: number
+    include_memory_db?: boolean
+    include_qdrant?: boolean
+    include_kuzu?: boolean
+    include_skills?: boolean
+    encryption_mode?: 'none' | 'server_side'
+  },
+): Promise<BackupTargetConfig> {
+  return apiFetch<BackupTargetConfig>('/settings/backups/config', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function getBackupSnapshots(apiKey: string, limit = 20): Promise<BackupSnapshotList> {
+  return apiFetch<BackupSnapshotList>(`/settings/backups/snapshots?limit=${limit}`, apiKey)
+}
+
 export async function runBackupNow(apiKey: string): Promise<BackupRun> {
   return apiFetch<BackupRun>('/settings/backups/run', apiKey, {
     method: 'POST',
@@ -2178,6 +2375,22 @@ export async function testEmailReport(apiKey: string): Promise<{ ok: boolean; re
 
 export async function getOpsFeatureStatus(apiKey: string): Promise<OpsFeatureStatus> {
   return apiFetch<OpsFeatureStatus>('/settings/ops/status', apiKey)
+}
+
+export async function getOpsQueueStatus(apiKey: string): Promise<OpsQueueStatus> {
+  return apiFetch<OpsQueueStatus>('/settings/ops/queues', apiKey)
+}
+
+export async function getOpsStorageStatus(apiKey: string): Promise<OpsStorageStatus> {
+  return apiFetch<OpsStorageStatus>('/settings/ops/storage', apiKey)
+}
+
+export async function getOpsFeatureFlags(apiKey: string): Promise<OpsFeatureFlagsResponse> {
+  return apiFetch<OpsFeatureFlagsResponse>('/settings/ops/feature-flags', apiKey)
+}
+
+export async function getOpsPolicyEvaluation(apiKey: string): Promise<OpsPolicyEvaluation> {
+  return apiFetch<OpsPolicyEvaluation>('/settings/ops/policy-evaluation', apiKey)
 }
 
 // ── Kafka Export ───────────────────────────────────────────────────────────────
@@ -2279,6 +2492,10 @@ export async function listKafkaExportDeliveries(
     `/integrations/kafka/configs/${configId}/deliveries?limit=${limit}`,
     apiKey
   )
+}
+
+export async function getOtlpInsights(apiKey: string): Promise<OtlpInsights> {
+  return apiFetch<OtlpInsights>('/v1/traces/insights', apiKey)
 }
 
 export async function retryKafkaExportDelivery(

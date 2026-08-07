@@ -219,6 +219,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "kinds": ["switch", "explore", "guardrail"]}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     recs: list[Recommendation] = []

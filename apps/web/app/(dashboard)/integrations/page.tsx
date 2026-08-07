@@ -36,25 +36,35 @@ import {
   listGatewayRoutes,
   listKafkaExportConfigs,
   listKafkaExportDeliveries,
+  retryKafkaExportDelivery,
   testKafkaExportConfig,
   testSlackWebhook,
   updateKafkaExportConfig,
 } from '@/lib/api'
-import type { KafkaExportConfig, KafkaExportDelivery, KafkaEventType, KafkaSecurityProtocol } from '@/types/api'
+import type { KafkaExportConfig, KafkaExportDelivery, KafkaEventType, KafkaSaslMechanism, KafkaSecurityProtocol } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-300 bg-white/85 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-300 dark:bg-white/85 dark:text-slate-900 dark:placeholder:text-slate-500'
 
 const kafkaEvents: KafkaEventType[] = [
+  'run.started',
   'run.completed',
   'run.failed',
   'gateway.request.completed',
   'gateway.request.rejected',
+  'budget.threshold_crossed',
   'budget.breached',
   'alert.fired',
   'optimization.applied',
+  'route.changed',
   'mcp.tool.called',
   'mcp.tool.blocked',
+  'approval.requested',
+  'approval.decided',
+  'email.report.sent',
+  'backup.completed',
+  'backup.failed',
+  'compliance.export.ready',
 ]
 
 type IntegrationStatus = 'available' | 'published' | 'planned' | 'docs' | 'coming-soon'
@@ -468,13 +478,31 @@ export default function IntegrationsPage() {
   const [kafkaBusy, setKafkaBusy] = useState(false)
   const [kafkaForm, setKafkaForm] = useState({
     label: 'Local Redpanda',
-    bootstrap_servers: 'localhost:9092',
+    bootstrap_servers: 'runledger-redpanda:9092',
     topic_prefix: 'runledger.dev',
     security_protocol: 'PLAINTEXT' as KafkaSecurityProtocol,
+    sasl_mechanism: 'PLAIN' as KafkaSaslMechanism,
+    sasl_username: '',
+    sasl_password: '',
+    ssl_ca_cert: '',
     single_topic_mode: false,
     single_topic_name: 'runledger.events',
-    event_types: ['run.completed', 'run.failed', 'alert.fired', 'budget.breached'] as KafkaEventType[],
+    dead_letter_topic: 'runledger.dead-letter',
+    redaction_mode: 'metadata_only' as 'none' | 'metadata_only',
+    max_retries: 3,
+    retry_backoff_seconds: 15,
+    event_types: ['run.started', 'run.completed', 'run.failed', 'alert.fired', 'budget.breached', 'route.changed'] as KafkaEventType[],
   })
+
+  async function refreshKafkaDeliveries(configId: string, limit = 20) {
+    if (!apiKey) return
+    try {
+      const deliveries = await listKafkaExportDeliveries(apiKey, configId, limit)
+      setKafkaDeliveries((prev) => ({ ...prev, [configId]: deliveries.items }))
+    } catch {
+      setKafkaDeliveries((prev) => ({ ...prev, [configId]: [] }))
+    }
+  }
 
   const loadHealth = useCallback(async () => {
     if (!apiKey) return
@@ -502,7 +530,7 @@ export default function IntegrationsPage() {
         const deliveryPairs = await Promise.all(
           kafkaConfigs.items.slice(0, 3).map(async (config) => {
             try {
-              const deliveries = await listKafkaExportDeliveries(apiKey, config.id, 10)
+              const deliveries = await listKafkaExportDeliveries(apiKey, config.id, 20)
               return [config.id, deliveries.items] as const
             } catch {
               return [config.id, []] as const
@@ -686,6 +714,26 @@ export default function IntegrationsPage() {
     }
   }
 
+  async function handleRetryKafkaDelivery(config: KafkaExportConfig, delivery: KafkaExportDelivery) {
+    if (!apiKey) return
+    setKafkaBusy(true)
+    try {
+      await retryKafkaExportDelivery(apiKey, config.id, delivery.id)
+      toast.success(`Retry queued for ${delivery.event_type}`)
+      await refreshKafkaDeliveries(config.id)
+    } catch (err) {
+      toast.error(`Kafka retry failed: ${String(err)}`)
+    } finally {
+      setKafkaBusy(false)
+    }
+  }
+
+  function formatTimestamp(value: string | null) {
+    if (!value) return '-'
+    const dt = new Date(value)
+    return Number.isNaN(dt.getTime()) ? value : dt.toLocaleString()
+  }
+
   function toggleKafkaEvent(eventType: KafkaEventType) {
     setKafkaForm((prev) => {
       const exists = prev.event_types.includes(eventType)
@@ -867,7 +915,7 @@ export default function IntegrationsPage() {
                 </select>
               </label>
             </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="mt-4 grid gap-3 lg:grid-cols-4">
               <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">
                 <input
                   type="checkbox"
@@ -885,6 +933,91 @@ export default function IntegrationsPage() {
                   onChange={(e) => setKafkaForm((prev) => ({ ...prev, single_topic_name: e.target.value }))}
                   disabled={!kafkaForm.single_topic_mode}
                   placeholder="runledger.events"
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Dead-letter topic
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.dead_letter_topic}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, dead_letter_topic: e.target.value }))}
+                  placeholder="runledger.dead-letter"
+                />
+              </label>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-4">
+              <label className="text-xs font-semibold text-slate-600">
+                Redaction
+                <select
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.redaction_mode}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, redaction_mode: e.target.value as 'none' | 'metadata_only' }))}
+                >
+                  <option value="none">none</option>
+                  <option value="metadata_only">metadata_only</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Max retries
+                <input
+                  type="number"
+                  min={0}
+                  max={10}
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.max_retries}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, max_retries: Number(e.target.value || 0) }))}
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Retry backoff (s)
+                <input
+                  type="number"
+                  min={0}
+                  max={300}
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.retry_backoff_seconds}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, retry_backoff_seconds: Number(e.target.value || 0) }))}
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                SASL mechanism
+                <select
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.sasl_mechanism}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, sasl_mechanism: e.target.value as KafkaSaslMechanism }))}
+                >
+                  <option value="PLAIN">PLAIN</option>
+                  <option value="SCRAM-SHA-256">SCRAM-SHA-256</option>
+                  <option value="SCRAM-SHA-512">SCRAM-SHA-512</option>
+                </select>
+              </label>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <label className="text-xs font-semibold text-slate-600">
+                SASL username
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.sasl_username}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, sasl_username: e.target.value }))}
+                  placeholder="optional"
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                SASL password or secret ref
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.sasl_password}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, sasl_password: e.target.value }))}
+                  placeholder="secretref://KAFKA_PASSWORD"
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                SSL CA cert path or PEM
+                <input
+                  className={`mt-1 w-full ${inputCls}`}
+                  value={kafkaForm.ssl_ca_cert}
+                  onChange={(e) => setKafkaForm((prev) => ({ ...prev, ssl_ca_cert: e.target.value }))}
+                  placeholder="optional"
                 />
               </label>
             </div>
@@ -943,6 +1076,9 @@ export default function IntegrationsPage() {
                       <p className="mt-1 text-xs text-slate-500">
                         {config.bootstrap_servers} / {config.single_topic_mode ? (config.single_topic_name ?? 'single topic') : config.topic_prefix}
                       </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Redaction: {config.redaction_mode} · Retries: {config.max_retries} @ {config.retry_backoff_seconds}s · DLQ: {config.dead_letter_topic ?? 'disabled'}
+                      </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {config.event_types.map((eventType) => (
                           <span key={eventType} className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">{eventType}</span>
@@ -955,6 +1091,9 @@ export default function IntegrationsPage() {
                     <div className="flex flex-wrap gap-2">
                       <button type="button" disabled={kafkaBusy} onClick={() => void handleTestKafka(config)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50">
                         Test
+                      </button>
+                      <button type="button" disabled={kafkaBusy} onClick={() => void refreshKafkaDeliveries(config.id)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                        Refresh history
                       </button>
                       <button type="button" disabled={kafkaBusy} onClick={() => void handleToggleKafka(config)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
                         {config.enabled ? 'Disable' : 'Enable'}
@@ -970,28 +1109,42 @@ export default function IntegrationsPage() {
                         <tr className="bg-slate-50 text-left text-slate-500">
                           <th className="px-3 py-2 font-semibold">Event</th>
                           <th className="px-3 py-2 font-semibold">Topic</th>
-                          <th className="px-3 py-2 font-semibold">Idempotency</th>
                           <th className="px-3 py-2 font-semibold">Status</th>
+                          <th className="px-3 py-2 font-semibold">Attempts</th>
+                          <th className="px-3 py-2 font-semibold">Retry / DLQ</th>
                           <th className="px-3 py-2 font-semibold">Error</th>
+                          <th className="px-3 py-2 font-semibold">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {(kafkaDeliveries[config.id] ?? []).length === 0 ? (
-                          <tr><td colSpan={5} className="px-3 py-4 text-center text-slate-500">No deliveries yet.</td></tr>
+                          <tr><td colSpan={7} className="px-3 py-4 text-center text-slate-500">No deliveries yet.</td></tr>
                         ) : (
                           (kafkaDeliveries[config.id] ?? []).map((delivery) => (
                             <tr key={delivery.id}>
                               <td className="px-3 py-2 font-medium text-slate-700">{delivery.event_type}</td>
                               <td className="px-3 py-2 text-slate-500">{delivery.topic}</td>
-                              <td className="px-3 py-2 font-mono text-[11px] text-slate-500">
-                                {delivery.idempotency_key ? `${delivery.idempotency_key.slice(0, 14)}...` : '-'}
-                              </td>
                               <td className="px-3 py-2">
-                                <span className={`rounded-full px-2 py-0.5 font-semibold ${delivery.status === 'success' ? 'bg-emerald-50 text-emerald-700' : delivery.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
+                                <span className={`rounded-full px-2 py-0.5 font-semibold ${delivery.status === 'success' ? 'bg-emerald-50 text-emerald-700' : delivery.status === 'failed' ? 'bg-rose-50 text-rose-700' : delivery.status === 'retry_scheduled' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
                                   {delivery.status}
                                 </span>
                               </td>
+                              <td className="px-3 py-2 text-slate-500">{delivery.attempt}</td>
+                              <td className="px-3 py-2 text-[11px] text-slate-500">
+                                <div>{delivery.next_retry_at ? `Next: ${formatTimestamp(delivery.next_retry_at)}` : 'Next: -'}</div>
+                                <div>{delivery.dead_letter_topic ? `DLQ: ${delivery.dead_letter_topic}` : 'DLQ: -'}</div>
+                              </td>
                               <td className="max-w-sm truncate px-3 py-2 text-slate-500">{delivery.error_detail ?? '-'}</td>
+                              <td className="px-3 py-2">
+                                <button
+                                  type="button"
+                                  disabled={kafkaBusy || delivery.status === 'success'}
+                                  onClick={() => void handleRetryKafkaDelivery(config, delivery)}
+                                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                  Retry now
+                                </button>
+                              </td>
                             </tr>
                           ))
                         )}

@@ -22,6 +22,7 @@ from runledger_api.core.config import settings
 from runledger_api.models.email_prefs import EmailPreference
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.tenant import Workspace
+from runledger_api.services import kafka_export
 from runledger_api.services.email import send_analytics_report_email
 from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
 
@@ -193,6 +194,30 @@ async def _run_weekly_reports() -> dict[str, int]:
                         workspace_name=ws_name,
                         template=getattr(prefs, "report_template", "detailed"),
                     )
+                    try:
+                        await kafka_export.publish_event(
+                            session,
+                            workspace_id=workspace.id,
+                            event_type="email.report.sent",
+                            payload={
+                                "run_id": str(workspace.id),
+                                "workspace_name": ws_name,
+                                "recipient": recipient.email,
+                                "cadence": frequency,
+                                "period_label": period_label,
+                                "total_cost_usd": total_cost,
+                                "template": getattr(prefs, "report_template", "detailed"),
+                                "idempotency_key": f"email-report:{workspace.id}:{recipient.email}:{t_to.date()}:{frequency}",
+                                "source": "runledger.email",
+                                "event_summary": "Scheduled analytics report sent",
+                            },
+                        )
+                    except Exception:
+                        log.exception(
+                            "kafka_export.email_report_failed",
+                            workspace_id=str(workspace.id),
+                            recipient=recipient.email,
+                        )
                     emails_sent += 1
 
                 if prefs is not None:

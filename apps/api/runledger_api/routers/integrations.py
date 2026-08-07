@@ -122,10 +122,18 @@ async def create_kafka_export_config(
         security_protocol=body.security_protocol,
         sasl_mechanism=body.sasl_mechanism,
         sasl_username=body.sasl_username,
-        sasl_password_secret=body.sasl_password,
+        sasl_password_secret=(
+            kafka_export.encrypt_secret_value(body.sasl_password)
+            if body.sasl_password and not kafka_export.is_secret_reference(body.sasl_password)
+            else body.sasl_password
+        ),
         ssl_ca_cert=body.ssl_ca_cert,
         single_topic_mode=body.single_topic_mode,
         single_topic_name=body.single_topic_name,
+        dead_letter_topic=body.dead_letter_topic,
+        redaction_mode=body.redaction_mode,
+        max_retries=body.max_retries,
+        retry_backoff_seconds=body.retry_backoff_seconds,
         event_types=list(body.event_types),
         enabled=True,
     )
@@ -161,7 +169,12 @@ async def update_kafka_export_config(
     }
     data = body.model_dump(exclude_unset=True)
     if "sasl_password" in data:
-        config.sasl_password_secret = data.pop("sasl_password")
+        sasl_password = data.pop("sasl_password")
+        config.sasl_password_secret = (
+            kafka_export.encrypt_secret_value(sasl_password)
+            if sasl_password and not kafka_export.is_secret_reference(sasl_password)
+            else sasl_password
+        )
     for key, value in data.items():
         if key == "event_types" and value is not None:
             setattr(config, key, list(value))

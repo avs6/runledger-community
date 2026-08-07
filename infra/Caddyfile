@@ -1,0 +1,13 @@
+{
+  auto_https off
+}
+
+runledger.localhost:3443 {
+  tls internal
+  reverse_proxy runledger-web:3000
+}
+
+api.runledger.localhost:8443 {
+  tls internal
+  reverse_proxy runledger-api:8000
+}

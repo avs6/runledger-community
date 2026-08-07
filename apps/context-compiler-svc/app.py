@@ -482,6 +482,11 @@ def health() -> dict[str, object]:
     return {"status": "ok", "reranker": RERANKER_SVC_URL, "llm": OLLAMA_BASE_URL}
 
 
+@app.get("/health/ready")
+def readiness() -> dict[str, object]:
+    return health()
+
+
 class SelectToolsRequest(BaseModel):
     query: str
     tools: list[dict[str, Any]]

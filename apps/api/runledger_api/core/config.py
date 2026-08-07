@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     # Redis (also used as Celery broker/backend)
     redis_url: str = "redis://localhost:6379/0"
+    redis_appendonly: bool = False
+    redis_appendfsync: str = "everysec"
+    redis_snapshot_save: str = "900 1 300 10 60 10000"
 
     # Security
     secret_key: str = "dev-secret-key-change-in-production"
@@ -52,9 +55,31 @@ class Settings(BaseSettings):
     backup_command: str = ""
     backup_target: str = ""
     backup_timeout_seconds: int = 1800
+    runledger_localai_s3_bucket: str = "runledger-backups"
+    runledger_backup_endpoint_url: str = ""
+    runledger_backup_region: str = "us-east-1"
+    object_lifecycle_enabled: bool = False
+    object_lifecycle_days: int = 90
+    object_lifecycle_noncurrent_days: int = 30
+    compliance_export_enabled: bool = False
+    compliance_export_bucket: str = ""
+    compliance_export_prefix: str = "compliance-exports"
+    compliance_export_storage_class: str = "STANDARD_IA"
+    compliance_export_retention_days: int = 365
+
+    # Feature-flag and infra controls
+    feature_flags: str = ""
+    abuse_protection_enabled: bool = True
+    infra_policy_enforcement_mode: str = "advisory"
+    deployment_profile: str = "core"
+    local_tls_enabled: bool = False
 
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""
+    ingest_rate_limit_per_minute: int = 600
+    analytics_rate_limit_per_minute: int = 120
+    management_rate_limit_per_minute: int = 60
+    system_rate_limit_per_minute: int = 20
 
     @property
     def is_development(self) -> bool:
@@ -74,6 +99,25 @@ class Settings(BaseSettings):
     def effective_metrics_token(self) -> str:
         """Returns METRICS_TOKEN if set, otherwise falls back to effective_admin_secret."""
         return self.metrics_token or self.effective_admin_secret
+
+    @property
+    def enabled_feature_flags(self) -> set[str]:
+        return {
+            flag.strip()
+            for flag in self.feature_flags.split(",")
+            if flag.strip()
+        }
+
+    def is_feature_enabled(self, flag: str) -> bool:
+        return flag in self.enabled_feature_flags
+
+    @property
+    def redis_durability_mode(self) -> str:
+        if self.redis_url.startswith("rediss://"):
+            return "managed-tls"
+        if self.redis_appendonly:
+            return f"appendonly:{self.redis_appendfsync}"
+        return "ephemeral"
 
 
 settings = Settings()

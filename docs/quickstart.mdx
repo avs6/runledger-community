@@ -25,10 +25,16 @@ Edit `.env` and set `SECRET_KEY`:
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-## 2. Start all services
+## 2. Start the stack
 
 ```bash
 docker compose up -d
+```
+
+That command now launches the **core** profile. For the full local demo footprint:
+
+```bash
+docker compose --profile full-demo up -d
 ```
 
 | Service | Port | Description |
@@ -36,13 +42,13 @@ docker compose up -d
 | Dashboard | 3201 | Next.js UI |
 | API + Swagger | 8201 | FastAPI |
 | API Reference | 8201/reference | Scalar UI |
-| Qdrant | 8202 | Vector store (semantic cache) |
-| Embedding svc | 8204 | fastembed (CPU) |
-| Semantic cache | 8205 | Near-duplicate cache |
-| MCP gateway | 8206 | Claude Desktop / Code |
+| Qdrant | 8202 | Vector store (semantic cache, `aux` / `full-demo`) |
+| Embedding svc | 8204 | fastembed (CPU, `aux` / `full-demo`) |
+| Semantic cache | 8205 | Near-duplicate cache (`aux` / `full-demo`) |
+| MCP gateway | 8206 | Claude Desktop / Code (`aux` / `full-demo`) |
 | PostgreSQL | 5432 | — |
 | Redis | 6379 | — |
-| OTel Collector | 4317 / 4318 | OTLP/gRPC + HTTP |
+| OTel Collector | 4317 / 4318 | OTLP/gRPC + HTTP (`observability` / `full-demo`) |
 
 ## 3. Bootstrap the platform admin
 
@@ -491,8 +497,12 @@ curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
   <Accordion title="OTel Collector not forwarding traces">
     Set `RUNLEDGER_API_KEY` in `.env`. Without it, the Collector starts but gets 401s from the API. Restart after setting:
     ```bash
-    docker compose restart otel-collector
-    docker compose logs otel-collector
+    docker compose restart runledger-otel-collector
+    docker compose logs runledger-otel-collector
+    ```
+    If you start the collector from scratch, prefer the dedicated profile:
+    ```bash
+    docker compose --profile observability up -d runledger-otel-collector
     ```
   </Accordion>
 </AccordionGroup>

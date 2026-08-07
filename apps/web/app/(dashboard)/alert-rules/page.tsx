@@ -137,6 +137,8 @@ export default function AlertRulesPage() {
           <option value="p95_latency">P95 Latency (ms)</option>
           <option value="avg_score">Avg Score</option>
           <option value="spend_velocity">Spend Velocity ($)</option>
+          <option value="model_availability">Model Availability (%)</option>
+          <option value="gateway_overhead_p95">Gateway Overhead P95 (ms)</option>
         </select>
         <div className="flex gap-2">
           <select className={`${inputCls} w-24`} value={newAlertOperator} onChange={(e) => setNewAlertOperator(e.target.value)}>

@@ -6,13 +6,15 @@ Covers:
   Rate limit fail-open on Redis error
   PII scrubbing — email, SSN, credit card, recursive dict
   Health probes — /health/live, /health/ready (ok + degraded)
+  Metrics endpoint — /metrics token protection + plaintext export
 
-13 tests total.
+15 tests total.
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -121,6 +123,56 @@ async def test_health_ready_degraded(
     assert detail["status"] == "degraded"
     assert detail["redis"] == "error"
     assert detail["db"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_metrics_requires_token(client: AsyncClient) -> None:
+    """GET /metrics rejects requests without the metrics bearer token."""
+    resp = await client.get("/metrics")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_metrics_plaintext_export(
+    client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_redis_client: AsyncMock,
+) -> None:
+    """GET /metrics returns the documented Prometheus-style gauges."""
+    scalar_values = [
+        3,
+        datetime.now(UTC) - timedelta(seconds=42),
+        120,
+        20,
+        80,
+        20,
+        4,
+    ]
+
+    def _result(value: object) -> MagicMock:
+        result = MagicMock()
+        result.scalar_one.return_value = value
+        return result
+
+    mock_db_session.execute = AsyncMock(side_effect=[_result(v) for v in scalar_values])
+    mock_redis_client.llen = AsyncMock(side_effect=[5, 1, 0])
+
+    from runledger_api.core.config import settings  # noqa: PLC0415
+
+    resp = await client.get(
+        "/metrics",
+        headers={"Authorization": f"Bearer {settings.effective_metrics_token}"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/plain")
+    body = resp.text
+    assert "runledger_uptime_seconds" in body
+    assert "runledger_active_runs 3" in body
+    assert "runledger_pipeline_lag_seconds" in body
+    assert "runledger_provider_calls_last_hour 120" in body
+    assert "runledger_gateway_requests_last_hour 80" in body
+    assert 'runledger_celery_queue_depth{queue="celery"} 5' in body
 
 
 # ── Rate limit tests ───────────────────────────────────────────────────────────

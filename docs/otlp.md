@@ -1,8 +1,8 @@
-# OTLP/HTTP Trace Ingestion
+# OTLP/HTTP Ingestion
 
-RunLedger accepts traces from any OpenTelemetry-compatible sender via a standard
-OTLP/HTTP JSON endpoint. No RunLedger SDK is required — any app that already emits
-OTel traces can point its exporter at RunLedger directly.
+RunLedger accepts traces, metrics, and logs from any OpenTelemetry-compatible
+sender via standard OTLP/HTTP JSON endpoints. No RunLedger SDK is required —
+any app that already emits OTel signals can point its exporter at RunLedger directly.
 
 ## Endpoints
 
@@ -10,6 +10,10 @@ OTel traces can point its exporter at RunLedger directly.
 |--------|------|-------|
 | `POST` | `/v1/traces` | Primary OTLP/HTTP JSON receiver |
 | `POST` | `/otlp/v1/traces` | Compatibility alias (for collectors that prefix `/otlp`) |
+| `POST` | `/v1/metrics` | Primary OTLP/HTTP JSON metrics receiver |
+| `POST` | `/otlp/v1/metrics` | Compatibility alias for metrics |
+| `POST` | `/v1/logs` | Primary OTLP/HTTP JSON logs receiver |
+| `POST` | `/otlp/v1/logs` | Compatibility alias for logs |
 | `GET`  | `/v1/traces/stats` | Ingestion stats (24h + 7d) |
 | `GET`  | `/v1/traces/batches` | Paginated batch history |
 
@@ -22,7 +26,9 @@ Auth: `Authorization: Bearer <RunLedger API key>` on all routes.
 Your app's OTel SDK exports directly to RunLedger:
 
 ```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT=https://YOUR_API/v1/traces
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://YOUR_API/v1/traces
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://YOUR_API/v1/metrics
+export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://YOUR_API/v1/logs
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer rl_your_key"
 ```
 
@@ -43,9 +49,12 @@ exporters:
 RunLedger ships a pre-configured Collector in `docker-compose.yml`:
 
 ```bash
-docker compose --profile otel up otel-collector
+docker compose --profile observability up runledger-otel-collector
 # Listens on localhost:4318 (HTTP) and localhost:4317 (gRPC)
 ```
+
+`docker compose --profile otel ...` still works as a compatibility alias, but
+`observability` is the preferred local profile name.
 
 Then point your OTel SDK at `http://localhost:4318` (no auth needed — the
 Collector adds the Bearer header when forwarding).
@@ -144,6 +153,9 @@ Check the **Runs** page in the dashboard after ~5 seconds for the ingested resul
 ## Viewing ingestion history
 
 The **Control Plane -> OTLP** page shows:
-- 24h and 7d aggregate stats (batches, traces, spans received)
+- 24h and 7d aggregate stats for batches, traces, spans, metrics, and logs
+- OTEL-derived 24h trend charts across traces, metrics, and logs
+- top instrumented services from `service.name`
+- semantic attribution coverage for `session`, `end_user`, `feature_tag`, deployment, workspace, and org labels
 - A table of recent ingest batches with status and error details
 - A quick-start code snippet for your exporter configuration

@@ -34,8 +34,18 @@ log = logging.getLogger(__name__)
 
 
 def _http_timeout(route: GatewayRoute, *, stream: bool) -> float:
-    if route.timeout_ms:
-        return max(1.0, route.timeout_ms / 1000)
+    cfg = route.config or {}
+    config_timeout = None
+    if isinstance(cfg, dict):
+        raw = cfg.get("stream_timeout_ms" if stream else "completion_timeout_ms")
+        if raw is not None:
+            try:
+                config_timeout = int(raw)
+            except (TypeError, ValueError):
+                config_timeout = None
+    timeout_ms = config_timeout or route.timeout_ms
+    if timeout_ms:
+        return max(1.0, timeout_ms / 1000)
     return 300.0 if stream else 120.0
 
 
