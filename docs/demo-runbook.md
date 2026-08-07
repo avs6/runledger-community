@@ -37,6 +37,8 @@ For guided presenter-friendly stories, pair demo mode with:
 - [Guided Demo Scenarios](C:/Users/Abi/Desktop/github/runledger-community/scripts/scenarios/labs/guided_demo_scenarios.md)
 - [Sales Engineering Walkthrough](C:/Users/Abi/Desktop/github/runledger-community/scripts/scenarios/labs/sales_engineering_walkthrough.md)
 - [Demo Visual Regression](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-visual-regression.md)
+- [Demo Asset Bundle](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-asset-bundle.md)
+- [Demo Script](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-script.md)
 
 ## Before You Start
 
@@ -68,6 +70,22 @@ Use this simple before/after sequence for a coherent seeded narrative:
 4. Open `Approvals`, `MCP`, and `Runbooks` to show governance, tool control, and operator workflows.
 
 The most reusable scripted paths live in [guided_demo_scenarios.md](C:/Users/Abi/Desktop/github/runledger-community/scripts/scenarios/labs/guided_demo_scenarios.md), which covers cache optimization, routing savings, prompt compression, local summarization, budget incidents, and MCP filtering.
+
+## Screenshot Anchors
+
+Use these screenshots when you need async storytelling, docs screenshots, or a backup path for live demos.
+
+<Frame caption="Dashboard — the strongest opening screenshot for the seeded enterprise story.">
+  <img src="/images/dashboard.png" alt="RunLedger dashboard overview" />
+</Frame>
+
+<Frame caption="Gateway — route control, request log, and inline optimization controls.">
+  <img src="/images/gateway.png" alt="RunLedger gateway page" />
+</Frame>
+
+<Frame caption="Approvals — the governance and human-control story in one view.">
+  <img src="/images/approvals.png" alt="RunLedger approvals page" />
+</Frame>
 
 ## Open The Labs Workbook
 

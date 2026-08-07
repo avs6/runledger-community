@@ -108,6 +108,8 @@ RunLedger Community currently includes:
 - [Onboarding](docs/observability/onboarding.mdx)
 - [Product tour](docs/observability/product-tour.mdx)
 - [Demo runbook](docs/demo-runbook.md)
+- [Demo script](docs/demo-script.md)
+- [Demo asset bundle](docs/demo-asset-bundle.md)
 
 ### Agentic and admin surfaces
 
@@ -174,6 +176,7 @@ flowchart TB
 ```
 
 See [Core concepts](docs/concepts.mdx) for the full model and ingestion trade-offs.
+For a fuller system view, see [docs/architecture.md](docs/architecture.md).
 
 ## Quickstart
 
@@ -241,6 +244,10 @@ Deployment docs:
 - [Helm](docs/helm.md)
 - [High availability](docs/ha.md)
 - [Backup and restore](docs/backup-restore.md)
+- [Architecture](docs/architecture.md)
+- [Versioning policy](docs/versioning-policy.md)
+- [Release checklist](docs/release-checklist.md)
+- [Changelog](CHANGELOG.md)
 
 ## Community vs Enterprise
 

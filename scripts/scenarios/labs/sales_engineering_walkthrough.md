@@ -136,5 +136,7 @@ If a page looks sparse or a metric is taking time to populate:
 Pair this walkthrough with:
 
 - [demo-runbook.md](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-runbook.md)
+- [demo-script.md](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-script.md)
+- [demo-asset-bundle.md](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-asset-bundle.md)
 - [guided_demo_scenarios.md](C:/Users/Abi/Desktop/github/runledger-community/scripts/scenarios/labs/guided_demo_scenarios.md)
 - [demo-visual-regression.md](C:/Users/Abi/Desktop/github/runledger-community/docs/demo-visual-regression.md)

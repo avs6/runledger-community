@@ -158,11 +158,28 @@
         "deployment/docker-compose",
         "helm",
         "ha",
+        "architecture",
         "infra-hardening",
         "backup-restore",
         "upgrade",
         "deployment",
         "deployment/configuration"
+      ]
+    },
+    {
+      "group": "Project",
+      "pages": [
+        "versioning-policy",
+        "release-checklist"
+      ]
+    },
+    {
+      "group": "Demo Assets",
+      "pages": [
+        "demo-runbook",
+        "demo-script",
+        "demo-asset-bundle",
+        "demo-visual-regression"
       ]
     },
     {

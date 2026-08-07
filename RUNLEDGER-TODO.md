@@ -23,20 +23,14 @@ Impact key: `M` = medium, `H` = high.
 Status: partial
 
 ### Demo Data
-### Assets
-
-- [ ] Add screenshots to docs and storytelling surfaces.
-- [ ] Add polished docs and demo asset bundle.
-- [ ] Create feature demo deck.
-- [ ] Create demo script.
-- [ ] Export deck and script assets as PPTX, PDF, and Markdown.
 
 ### Release And Process
 
-- [ ] Finish release/process/docs work:
-  - versioning policy
-  - release checklist
-  - `CHANGELOG.md`
-  - architecture/security docs
+### Assets
+
+
+  ### Internal Only Do not Commit. 
   - competitive landscape
   - investor deck
+  - [ ] Create feature demo deck.
+  - [ ] Export deck and script assets as PPTX, PDF, and Markdown.
