@@ -48,6 +48,7 @@ from runledger_api.models.metering import DataQualityIssue, UsageDaily, UsageHou
 from runledger_api.services import kafka_export
 from runledger_api.services.budgets import (
     _matching_budgets,
+    _period_key,
     fire_breach,
     get_budget_spend,
     get_workspace_budgets_cached,

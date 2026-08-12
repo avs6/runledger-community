@@ -9,8 +9,12 @@ mkdir -p /app/logs
 echo "── RunLedger startup $(date -u '+%Y-%m-%d %H:%M:%S UTC') ──────────────────────" | tee "$LOG"
 echo "" | tee -a "$LOG"
 
-echo "→ Running database migrations..." | tee -a "$LOG"
-alembic upgrade head 2>&1 | tee -a "$LOG"
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+  echo "→ Running database migrations..." | tee -a "$LOG"
+  alembic upgrade head 2>&1 | tee -a "$LOG"
+else
+  echo "→ Skipping migrations (RUN_MIGRATIONS=${RUN_MIGRATIONS})" | tee -a "$LOG"
+fi
 echo "" | tee -a "$LOG"
 
 # ── Seed (capture output so we can extract the API key) ───────────────────────

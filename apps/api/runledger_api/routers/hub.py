@@ -22,6 +22,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -176,7 +177,6 @@ DEFAULT_PROVIDER_MODELS: dict[str, list[dict]] = {
 
 @router.post("/sync-provider", dependencies=[Depends(management_rate_limit)])
 async def sync_provider_models(body: ProviderSyncRequest, ws: WorkspaceDep, db: DbDep) -> dict:
-    from pydantic import BaseModel  # noqa: PLC0415
     p_key = body.provider.lower().strip()
     model_templates = DEFAULT_PROVIDER_MODELS.get(p_key, [])
 
