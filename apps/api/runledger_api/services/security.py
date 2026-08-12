@@ -70,7 +70,6 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
             jwks = await _cached_json(jwks_uri, _oidc_jwks_cache)
             header = jwt.get_unverified_header(token)
             kid = header.get("kid")
-            alg = header.get("alg", "RS256")
             keys = jwks.get("keys") or []
             jwk = next((item for item in keys if item.get("kid") == kid), None)
             if jwk is None and len(keys) == 1:
@@ -81,7 +80,7 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
             claims = jwt.decode(
                 token,
                 key=public_key,
-                algorithms=[alg],
+                algorithms=["RS256", "RS384", "RS512"],
                 audience=provider.audience if provider.audience else None,
                 issuer=provider.issuer_url,
                 options={"verify_aud": bool(provider.audience)},

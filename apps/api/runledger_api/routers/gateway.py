@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, get_current_workspace, require_org_admin
-from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.core.ratelimit import ingest_rate_limit, management_rate_limit
 from runledger_api.models.gateway import (
     GatewayPassThroughEndpoint,
     GatewayRequest,
@@ -111,7 +111,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/gateway",
     tags=["gateway"],
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(ingest_rate_limit)],
 )
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]

@@ -113,7 +113,7 @@ async def govern_and_filter_tool_call(
 
     # Step 3: Evaluate Guardrails Payload Scan
     arg_str = str(arguments) if arguments else ""
-    gr_res = await evaluate_guardrails(db, workspace_id, None, arg_str)
+    gr_res = await evaluate_guardrails(db, workspace_id, "tool_call", [arg_str])
 
     # Case A: Block Action
     if (matched_policy and matched_policy.action == "block") or (gr_res and gr_res.action == "block"):
