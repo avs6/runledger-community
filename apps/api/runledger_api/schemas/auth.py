@@ -126,6 +126,13 @@ class ApiKeyCreate(BaseModel):
     owner_reference: str | None = None
 
 
+class ApiKeyUpdate(BaseModel):
+    name: str | None = None
+    ownership_type: str | None = None
+    owner_reference: str | None = None
+    scopes: list[str] | None = None
+
+
 class ApiKeyResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID

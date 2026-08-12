@@ -1,0 +1,25 @@
+---
+title: "API Keys"
+description: "Create, edit, rotate, and revoke workspace-scoped keys for gateway, SDK, and MCP traffic."
+---
+
+The **API Keys** page is the control-plane entry point for long-lived workspace keys. Keys remain workspace-scoped even when an org admin or org manager creates them for another workspace in the same organization.
+
+## Who Can Manage API Keys
+
+- Workspace admins can manage keys for their active workspace.
+- Org admins and org managers can manage keys across workspaces in their organization.
+- Platform admins inherit org-elevated access when operating inside an organization.
+
+## Key Lifecycle
+
+- Create a key and save the raw secret immediately because it is only shown once.
+- Edit key metadata such as name, ownership type, and owner reference.
+- Rotate a key with a grace window and inspect the rotation history.
+- Revoke a key when it should no longer authorize traffic.
+
+## Scope Rules
+
+- Keys are always workspace-scoped for runtime traffic.
+- Management is broader than runtime scope: org-elevated users can list and rotate keys across their org, but the resulting key still belongs to a single workspace.
+- Avoid using legacy project binding as the primary ownership model. Prefer workspace, workflow, and owner metadata.

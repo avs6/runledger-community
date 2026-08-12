@@ -22,7 +22,7 @@ import type { DemoModeStatus, OnboardingStatus } from '@/types/api'
 /* ------------------------------------------------------------------ */
 
 const STEPS: { key: keyof OnboardingStatus; label: string; description: string; href: string }[] = [
-  { key: 'has_org', label: 'Create Organization', description: 'Set up your organization to manage teams and billing', href: '/organization' },
+  { key: 'has_org', label: 'Create Organization', description: 'Create the first organization, then open the org console to manage workspaces, users, and access', href: '/organizations' },
   { key: 'has_workspace', label: 'Set Up Workspace', description: 'Create a workspace to group your AI workloads', href: '/workspace' },
   { key: 'has_api_key', label: 'Generate API Key', description: 'Create an API key to authenticate your requests', href: '/api-keys' },
   { key: 'has_first_run', label: 'Send First Run', description: 'Log your first LLM inference run through RunLedger', href: '/runs' },

@@ -8,7 +8,7 @@ The **Users** page is where admins manage people and access. Platform admins als
 ## Who Can Access Users
 
 - Platform admins can manage users across the installation.
-- Org admins can manage users and memberships inside their organization.
+- Org admins and org managers can manage users and memberships inside their organization.
 - Workspace admins do not see Users; they manage workspace-level controls such as API Keys, Budgets, Approvals, and Audit Log for their active workspace.
 - Members do not see Users.
 
@@ -23,7 +23,7 @@ In local SMTP-less environments, invites can skip verification so test users can
 | Role | Scope | Typical Access |
 |---|---|---|
 | Platform Admin | Platform | Organizations, Settings, all org/workspace views |
-| Org Admin | Organization | Gateway, Control Plane, Org Profile, Users, Workspace |
+| Org Admin / Org Manager | Organization | Gateway, Control Plane, Org Profile, Users, Workspace |
 | Workspace Admin | Workspace | API Keys, Budgets, Outcomes, Approvals, Audit Log |
 | Member | Workspace | Read-only Runs, Sessions, Analytics, Prompts, Monitoring |
 

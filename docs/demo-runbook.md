@@ -18,11 +18,13 @@ This runbook explains how Phase 13 demo mode maps to the existing script surface
 
 ### Quick Seed
 
-`Quick Seed` runs [apps/api/scripts/seed_demo.py](C:/Users/Abi/Desktop/github/runledger-community/apps/api/scripts/seed_demo.py).
+`Quick Seed` runs [scripts/seed_demo.py](C:/Users/Abi/Desktop/github/runledger-community/scripts/seed_demo.py).
 
-It is the lighter REST-only feature seed. It creates:
+It is the lighter REST-only feature seed. It creates the canonical local foundation:
 
-- synthetic enterprise organizations and workspaces
+- `HomeLab` with `AgentTest`
+- `LocalAIAgentStack` with `LiteLLM Gateway`, `OpenWebUI`, `Codex`, `Langgraph`, `HermesAgent`, `Claude Desktop`, `OpenAICodes`, and `PythonAgents`
+- seeded org admins and users for both orgs, all using password `runledger`
 - realistic AI runs, traces, prompts, budgets, alerts, outcomes, approvals, and analytics
 - gateway routes, tool registry entries, replay assets, and governance examples
 
@@ -46,7 +48,7 @@ For guided presenter-friendly stories, pair demo mode with:
 - Log in as a platform admin
 - Keep the current default local credentials handy:
   - `admin@runledger.local / runledger`
-  - demo users created by the seeder use `demo1234`
+  - demo org users created by the seeder also use `runledger`
 
 ## Seed Demo Data
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import subprocess
 import sys
 
@@ -10,7 +9,6 @@ from runledger_api.services.demo_mode import REPO_ROOT, now_iso, write_demo_stat
 
 def _run_seed(profile: str) -> None:
     if profile == "quick":
-        from scripts import seed_demo  # noqa: PLC0415
         from scripts import cleanup  # noqa: PLC0415
 
         write_demo_state(
@@ -20,7 +18,11 @@ def _run_seed(profile: str) -> None:
             message="Resetting demo data, then running quick REST demo seed.",
         )
         cleanup.truncate()
-        asyncio.run(seed_demo.main())
+        subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "seed_demo.py")],
+            cwd=str(REPO_ROOT),
+            check=True,
+        )
         write_demo_state(
             status="completed",
             action="seed",

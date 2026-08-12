@@ -21,6 +21,7 @@ from runledger_api.core.config import settings as app_settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
     get_current_workspace,
+    require_org_admin,
     require_platform_admin,
     require_workspace_admin,
 )
@@ -29,7 +30,7 @@ from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.ledger import CapturePolicyScope
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
-from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
+from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse, ApiKeyUpdate
 from runledger_api.schemas.backup_ops import (
     BackupActionResult,
     BackupRunList,
@@ -80,6 +81,7 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceAdminDep = Annotated[
     tuple[Workspace, Any, WorkspaceUser | None], Depends(require_workspace_admin)
 ]
+OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
 
 _PII_PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
@@ -193,6 +195,21 @@ async def _key_visible_workspaces(
     if workspace_membership is None:
         return await _org_workspaces(db, workspace.tenant_id)
     return {workspace.id: workspace.name}
+
+
+async def _get_visible_api_key(
+    db: AsyncSession,
+    key_id: uuid.UUID,
+    workspace: Workspace,
+    workspace_membership: WorkspaceUser | None,
+) -> tuple[ApiKey, dict[uuid.UUID, str]]:
+    api_key = await db.get(ApiKey, key_id)
+    if api_key is None or api_key.is_session:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    visible_workspaces = await _key_visible_workspaces(db, workspace, workspace_membership)
+    if api_key.workspace_id not in visible_workspaces:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "API key is outside your API key scope")
+    return api_key, visible_workspaces
 
 
 @router.get("/ops/status")
@@ -439,16 +456,74 @@ async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep)
     }
 
 
+@router.get("/api-keys/{key_id}", response_model=ApiKeyResponse)
+async def get_api_key(
+    key_id: uuid.UUID,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> dict[str, Any]:
+    workspace, _user, workspace_membership = auth
+    api_key, visible_workspaces = await _get_visible_api_key(
+        db, key_id, workspace, workspace_membership
+    )
+    if api_key.revoked_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    return {
+        "id": api_key.id,
+        "workspace_id": api_key.workspace_id,
+        "workspace_name": visible_workspaces.get(api_key.workspace_id),
+        "key_prefix": api_key.key_prefix,
+        "name": api_key.name,
+        "scopes": api_key.scopes,
+        "created_at": api_key.created_at,
+        "created_by": api_key.created_by,
+        "is_session": api_key.is_session,
+        "ownership_type": api_key.ownership_type,
+        "owner_reference": api_key.owner_reference,
+    }
+
+
+@router.put("/api-keys/{key_id}", response_model=ApiKeyResponse)
+async def update_api_key(
+    key_id: uuid.UUID,
+    body: ApiKeyUpdate,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> dict[str, Any]:
+    workspace, _user, workspace_membership = auth
+    api_key, visible_workspaces = await _get_visible_api_key(
+        db, key_id, workspace, workspace_membership
+    )
+    if api_key.revoked_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(api_key, field, value)
+
+    await db.commit()
+    await db.refresh(api_key)
+    return {
+        "id": api_key.id,
+        "workspace_id": api_key.workspace_id,
+        "workspace_name": visible_workspaces.get(api_key.workspace_id),
+        "key_prefix": api_key.key_prefix,
+        "name": api_key.name,
+        "scopes": api_key.scopes,
+        "created_at": api_key.created_at,
+        "created_by": api_key.created_by,
+        "is_session": api_key.is_session,
+        "ownership_type": api_key.ownership_type,
+        "owner_reference": api_key.owner_reference,
+    }
+
+
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_api_key(key_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep) -> None:
     """Revoke a key belonging to the caller's org (org-admin only)."""
     workspace, _user, workspace_membership = auth
-    api_key = await db.get(ApiKey, key_id)
-    if api_key is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
-    ws = await _key_visible_workspaces(db, workspace, workspace_membership)
-    if api_key.workspace_id not in ws:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "API key is outside your API key scope")
+    api_key, _visible_workspaces = await _get_visible_api_key(
+        db, key_id, workspace, workspace_membership
+    )
     api_key.revoked_at = datetime.now(UTC)
     await db.commit()
     log.info("api_key_revoked", key_id=str(key_id))
@@ -458,7 +533,7 @@ async def revoke_api_key(key_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep) 
 
 
 @router.get("/email/preferences", response_model=EmailPreferenceResponse)
-async def get_email_preferences(auth: PlatformAdminDep, db: DbDep) -> EmailPreference:
+async def get_email_preferences(auth: OrgAdminDep, db: DbDep) -> EmailPreference:
     """Get or create default email preferences for this workspace."""
     workspace = auth[0]
     result = await db.execute(
@@ -473,9 +548,20 @@ async def get_email_preferences(auth: PlatformAdminDep, db: DbDep) -> EmailPrefe
     return prefs
 
 
+@router.get("/email/status")
+async def get_email_feature_status(auth: OrgAdminDep) -> dict[str, bool]:
+    """Expose org-safe email delivery flags for the org console."""
+    _workspace = auth[0]
+    return {
+        "email_enabled": app_settings.email_enabled,
+        "email_reports_enabled": app_settings.email_reports_enabled,
+        "smtp_configured": bool(app_settings.smtp_user and app_settings.smtp_password),
+    }
+
+
 @router.put("/email/preferences", response_model=EmailPreferenceResponse)
 async def update_email_preferences(
-    body: EmailPreferenceUpdate, auth: PlatformAdminDep, db: DbDep
+    body: EmailPreferenceUpdate, auth: OrgAdminDep, db: DbDep
 ) -> EmailPreference:
     workspace = auth[0]
     """Update email preferences (PATCH semantics — only provided fields are changed)."""
@@ -498,7 +584,7 @@ async def update_email_preferences(
 
 
 @router.get("/email/log", response_model=EmailLogList)
-async def get_email_log(auth: PlatformAdminDep, db: DbDep) -> EmailLogList:
+async def get_email_log(auth: OrgAdminDep, db: DbDep) -> EmailLogList:
     workspace = auth[0]
     """List the 50 most recent email log entries for this workspace."""
     result = await db.execute(
@@ -516,13 +602,13 @@ async def get_email_log(auth: PlatformAdminDep, db: DbDep) -> EmailLogList:
 
 
 @router.get("/email/history", response_model=EmailLogList)
-async def get_email_history(auth: PlatformAdminDep, db: DbDep) -> EmailLogList:
+async def get_email_history(auth: OrgAdminDep, db: DbDep) -> EmailLogList:
     return await get_email_log(auth=auth, db=db)
 
 
 @router.post("/email/test")
 async def test_email_send(
-    auth: PlatformAdminDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> dict[str, Any]:
     workspace = auth[0]
@@ -581,7 +667,7 @@ async def test_email_send(
 
 @router.post("/email/test-report")
 async def test_email_report(
-    auth: PlatformAdminDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> dict[str, Any]:
     workspace = auth[0]

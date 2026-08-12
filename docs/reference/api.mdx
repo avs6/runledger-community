@@ -41,7 +41,7 @@ curl http://localhost:8201/gateway/stats \
   -H "Authorization: Bearer rl_..."
 ```
 
-Create workspace API keys from **Control Plane -> API Keys** in the dashboard. Org admins can mint keys for any workspace in their org; workspace admins can mint keys for their active workspace. `POST /auth/login` returns a dashboard session key, not a long-lived agent key.
+Create workspace API keys from **Control Plane -> API Keys** in the dashboard. Org admins and org managers can mint keys for any workspace in their org; workspace admins can mint keys for their active workspace. `POST /auth/login` returns a dashboard session key, not a long-lived agent key.
 
 ## Surface at a glance
 

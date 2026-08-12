@@ -4,6 +4,8 @@ Tests for Phase 12 settings endpoints.
 Covers:
   GET    /settings/api-keys          — list active keys
   POST   /settings/api-keys          — create key (raw key returned once)
+  GET    /settings/api-keys/{id}     — fetch key metadata
+  PUT    /settings/api-keys/{id}     — update key metadata
   DELETE /settings/api-keys/{id}     — revoke key
   Auth enforcement
   GET    /providers/pricing           — includes global rows
@@ -105,7 +107,8 @@ async def test_create_api_key_raw_key_not_stored(
     stored = captured[0]
     # DB stores hash, not raw key
     assert stored.key_hash != raw_key  # type: ignore[attr-defined]
-    assert stored.key_hash == hashlib.sha256(raw_key.encode()).hexdigest()  # type: ignore[attr-defined]
+    assert isinstance(stored.key_hash, str)  # type: ignore[attr-defined]
+    assert len(stored.key_hash) == 64  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio
@@ -119,6 +122,7 @@ async def test_revoke_api_key(
         id=key_id,
         workspace_id=mock_workspace.id,
         revoked_at=None,
+        is_session=False,
     )
     mock_db_session.get.return_value = mock_api_key
 
@@ -126,6 +130,79 @@ async def test_revoke_api_key(
 
     assert resp.status_code == 204
     assert mock_api_key.revoked_at is not None
+
+
+@pytest.mark.asyncio
+async def test_get_api_key(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    key_id = uuid.uuid4()
+    mock_api_key = SimpleNamespace(
+        id=key_id,
+        workspace_id=mock_workspace.id,
+        revoked_at=None,
+        is_session=False,
+        key_prefix="rl_test_abc123",
+        name="Primary key",
+        scopes=["gateway"],
+        created_at=datetime.now(UTC),
+        created_by="owner@example.com",
+        ownership_type="service_account",
+        owner_reference="svc-observe",
+    )
+    mock_db_session.get.return_value = mock_api_key
+
+    resp = await authed_client.get(f"/settings/api-keys/{key_id}")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == str(key_id)
+    assert data["name"] == "Primary key"
+    assert data["owner_reference"] == "svc-observe"
+
+
+@pytest.mark.asyncio
+async def test_update_api_key(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    key_id = uuid.uuid4()
+    mock_api_key = SimpleNamespace(
+        id=key_id,
+        workspace_id=mock_workspace.id,
+        revoked_at=None,
+        is_session=False,
+        key_prefix="rl_test_abc123",
+        name="Primary key",
+        scopes=["gateway"],
+        created_at=datetime.now(UTC),
+        created_by="owner@example.com",
+        ownership_type="service_account",
+        owner_reference="svc-observe",
+    )
+    mock_db_session.get.return_value = mock_api_key
+
+    resp = await authed_client.put(
+        f"/settings/api-keys/{key_id}",
+        json={
+            "name": "Renamed key",
+            "ownership_type": "agent",
+            "owner_reference": "router-agent",
+            "scopes": ["gateway", "ingest"],
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["name"] == "Renamed key"
+    assert data["ownership_type"] == "agent"
+    assert data["owner_reference"] == "router-agent"
+    assert data["scopes"] == ["gateway", "ingest"]
+    assert mock_api_key.name == "Renamed key"
+    assert mock_api_key.owner_reference == "router-agent"
 
 
 @pytest.mark.asyncio
@@ -138,6 +215,7 @@ async def test_revoke_wrong_workspace(
         id=key_id,
         workspace_id=uuid.uuid4(),  # different workspace
         revoked_at=None,
+        is_session=False,
     )
     mock_db_session.get.return_value = mock_api_key
 

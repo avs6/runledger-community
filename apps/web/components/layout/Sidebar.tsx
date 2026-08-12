@@ -245,7 +245,7 @@ export default function Sidebar() {
         {(canAccessApiKeys || canAccessOrgControl) && (
           <Section id="organization" label="Organization & Access">
             {canAccessOrgControl && <NavLink href="/organization/dashboard" label="Org Dashboard" icon={LayoutDashboard} />}
-            {canAccessOrgControl && <NavLink href="/organization" label="Profile" icon={Building2} />}
+            {canAccessOrgControl && <NavLink href="/organization" label="Organization" icon={Building2} />}
             {canAccessOrgControl && <NavLink href="/users" label="Users" icon={Users} />}
             {canAccessOrgControl && <NavLink href="/workspace" label="Teams / Workspaces" icon={LayoutGrid} />}
             {canAccessOrgControl && <NavLink href="/projects" label="Projects" icon={FolderKanban} />}
@@ -257,7 +257,6 @@ export default function Sidebar() {
             {canAccessOrgControl && <NavLink href="/ai-hub" label="AI Hub" icon={Store} />}
             <NavLink href="/onboarding" label="Getting Started" icon={Rocket} />
             {canAccessOrgControl && <NavLink href="/integrations" label="Integrations" icon={Settings2} />}
-            {canAccessOrgControl && <NavLink href="/org-settings" label="Org Settings" icon={Settings} />}
           </Section>
         )}
         {canAccessOrgControl && (

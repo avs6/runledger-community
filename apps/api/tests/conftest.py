@@ -39,6 +39,9 @@ def mock_db_session() -> AsyncMock:
 def mock_redis_client() -> AsyncMock:
     redis = AsyncMock()
     redis.ping = AsyncMock(return_value=True)
+    redis.incr = AsyncMock(return_value=1)
+    redis.expire = AsyncMock(return_value=True)
+    redis.ttl = AsyncMock(return_value=60)
     return redis
 
 
@@ -82,6 +85,11 @@ async def authed_client(
     mock_redis_client: AsyncMock,
 ) -> AsyncGenerator[AsyncClient]:
     """HTTP test client with workspace auth bypassed."""
+    mock_user = SimpleNamespace(
+        id=uuid.uuid4(),
+        email="admin@example.com",
+        full_name="Test Admin",
+    )
 
     async def override_get_db() -> AsyncGenerator[AsyncMock]:
         yield mock_db_session
@@ -93,13 +101,13 @@ async def authed_client(
         return mock_workspace
 
     async def override_require_workspace_admin() -> tuple:
-        return (mock_workspace, None, None)
+        return (mock_workspace, mock_user, SimpleNamespace(workspace_id=mock_workspace.id))
 
     async def override_require_member() -> tuple:
-        return (mock_workspace, None, None)
+        return (mock_workspace, mock_user, None)
 
     async def override_require_org_admin() -> tuple:
-        return (mock_workspace, None, None)
+        return (mock_workspace, mock_user, None)
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = override_get_redis
