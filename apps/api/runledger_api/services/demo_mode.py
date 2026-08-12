@@ -42,8 +42,8 @@ DEMO_PROFILES: dict[str, dict[str, Any]] = {
         "id": "quick",
         "label": "Quick Seed",
         "kind": "automated",
-        "description": "Runs apps/api/scripts/seed_demo.py for a lightweight REST-only feature seed.",
-        "entrypoint": str(API_ROOT / "scripts" / "seed_demo.py"),
+        "description": "Runs scripts/seed_demo.py for the canonical two-org REST-only feature seed.",
+        "entrypoint": str(REPO_ROOT / "scripts" / "seed_demo.py"),
         "runbook_path": str(RUNBOOK_PATH),
     },
     "manual": {

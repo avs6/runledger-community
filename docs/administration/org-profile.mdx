@@ -1,25 +1,33 @@
 ---
-title: "Org Profile"
-description: "Org-admin profile page for the active organization."
+title: "Organization Console"
+description: "Org-admin console for the active organization."
 ---
 
-**Org Profile** is the active organization's self-service page. It is visible to org admins and platform admins when they are operating inside an organization.
+**Organization Console** is the active organization's self-service page. It is visible to org admins, org managers, and platform admins when they are operating inside an organization.
 
-Use Org Profile when you want to change the organization you are currently working in, not the full platform-wide organization lifecycle.
+Use Organization Console when you want to manage the organization you are currently working in, not the full platform-wide organization lifecycle.
 
 ## Common Actions
 
 - Rename the active organization.
-- Review organization metadata.
+- Review organization metadata and current plan context.
+- Manage organization members and their org roles.
+- Create, suspend, reactivate, and delete workspaces inside the active organization.
+- Review email delivery status and update org notification preferences.
+- Run Slack and email smoke tests for org-level notifications.
 - Confirm which organization the top bar breadcrumb is showing.
 
 After a rename, the dashboard session updates `tenant_name`, so the top bar breadcrumb reflects the new name immediately.
 
-## Organizations vs Org Profile
+The legacy `/org-settings` route now redirects into the Organization Console tabs at `/organization?tab=email` and `/organization?tab=slack`.
+
+## Organizations vs Organization Console
 
 | Page | Visible To | Purpose |
 |---|---|---|
 | **Organizations** | Platform admins | Platform-wide lifecycle: list, create, edit status/plan, delete orgs |
-| **Org Profile** | Org admins and platform admins | Active-org profile and rename |
+| **Organization Console** | Org admins, org managers, and platform admins | Active-org profile, members, workspaces, and notification settings |
 
 Org admins do not see the platform-wide Organizations page.
+
+Organization creation and deletion intentionally remain in **Organizations** because they are platform-lifecycle actions, not self-service org-console actions.

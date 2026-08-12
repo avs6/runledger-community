@@ -493,6 +493,7 @@ export interface CapturePolicyResponse { id: string; workspace_id: string; priva
 
 export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null; ownership_type: string; owner_reference: string | null }
 export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
+export interface ApiKeyUpdateRequest { name?: string | null; ownership_type?: string | null; owner_reference?: string | null; scopes?: string[] }
 
 // ── Phase 12 — Providers ───────────────────────────────────────────────────────
 
@@ -1626,6 +1627,12 @@ export interface EmailLogItem {
 export interface EmailLogList {
   items: EmailLogItem[]
   total: number
+}
+
+export interface OrgEmailFeatureStatus {
+  email_enabled: boolean
+  email_reports_enabled: boolean
+  smtp_configured: boolean
 }
 
 export interface OpsFeatureStatus {

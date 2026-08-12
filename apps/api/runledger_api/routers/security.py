@@ -13,7 +13,7 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.security import IpAclRule, KeyRotationEvent, OIDCProvider
-from runledger_api.models.tenant import ApiKey, EnvironmentEnum, Workspace
+from runledger_api.models.tenant import ApiKey, EnvironmentEnum, Workspace, WorkspaceUser
 from runledger_api.schemas.security import (
     IpAclRuleCreate,
     IpAclRuleList,
@@ -43,6 +43,32 @@ router = APIRouter(
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 OrgAdminDep = Annotated[tuple[Workspace, Any, Any], Depends(require_org_admin)]
+
+
+async def _visible_workspace_ids(
+    db: AsyncSession,
+    workspace: Workspace,
+    membership: WorkspaceUser | None,
+) -> set[uuid.UUID]:
+    if membership is not None:
+        return {workspace.id}
+    result = await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id))
+    return set(result.scalars().all())
+
+
+async def _get_rotatable_key(
+    db: AsyncSession,
+    key_id: uuid.UUID,
+    workspace: Workspace,
+    membership: WorkspaceUser | None,
+) -> ApiKey:
+    key = await db.get(ApiKey, key_id)
+    if key is None or key.is_session:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    visible_workspace_ids = await _visible_workspace_ids(db, workspace, membership)
+    if key.workspace_id not in visible_workspace_ids:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    return key
 
 
 @router.get("/settings", response_model=WorkspaceSecuritySettingsResponse)
@@ -213,10 +239,8 @@ async def test_ip_acl(body: IpAclTestRequest, auth: OrgAdminDep, db: DbDep) -> I
 
 @router.get("/api-keys/{key_id}/rotation-history", response_model=KeyRotationEventList)
 async def get_key_rotation_history(key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) -> KeyRotationEventList:
-    workspace = auth[0]
-    key = await db.get(ApiKey, key_id)
-    if key is None or key.workspace_id != workspace.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    workspace, _user, membership = auth
+    key = await _get_rotatable_key(db, key_id, workspace, membership)
     items = (
         (
             await db.execute(
@@ -240,10 +264,8 @@ async def rotate_api_key(
     auth: OrgAdminDep,
     db: DbDep,
 ) -> RotateApiKeyResponse:
-    workspace, user, _membership = auth
-    key = await db.get(ApiKey, key_id)
-    if key is None or key.workspace_id != workspace.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    workspace, user, membership = auth
+    key = await _get_rotatable_key(db, key_id, workspace, membership)
     environment = EnvironmentEnum.prod if key.key_prefix.startswith("rl_live_") else EnvironmentEnum.dev
     raw_key, key_hash, key_prefix = generate_api_key(environment)
     grace_expires_at = datetime.now(UTC) + timedelta(hours=body.grace_hours) if body.grace_hours > 0 else None

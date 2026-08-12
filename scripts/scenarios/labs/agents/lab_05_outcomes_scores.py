@@ -1,31 +1,7 @@
 """
-Lab 05 — Business outcomes + evaluation scores.
+Lab 05 - Business outcomes and evaluation scores.
 
-WHAT THIS IS
-────────────
-Tokens and latency tell you what an agent *cost*. Outcomes and scores tell you
-what it was *worth*. Here the **AI Support Team** links each run to:
-  • an eval score  — quality of the answer (0–1), and
-  • a business outcome — e.g. a resolved ticket, optionally with a dollar value.
-That's what powers RunLedger's cost-per-outcome / ROI analytics.
-
-Both `rl.score(...)` and `rl.outcome(...)` are posted synchronously and attach to
-the current run's context automatically.
-
-PREREQUISITES
-─────────────
-  • AI Support Team workspace key in agents/.env
-  • pip install -r requirements.txt
-
-RUN
-───
-    python lab_05_outcomes_scores.py
-
-THEN VERIFY
-───────────
-  • dashboard → Evaluation : the "resolution_quality" scores show up.
-  • dashboard → Outcomes   : "ticket_resolved" outcomes with $ value; ROI /
-    cost-per-outcome becomes meaningful once pricing is uploaded and cost enriches.
+This uses HomeLab / AgentTest to attach quality scores and business outcomes to runs.
 """
 
 from __future__ import annotations
@@ -46,7 +22,7 @@ TICKETS = [
 
 
 def main() -> None:
-    banner("Lab 05 · Outcomes + scores · AI Support Team")
+    banner("Lab 05 - Outcomes + scores - HomeLab / AgentTest")
     require_key()
 
     rl = RunLedger()
@@ -65,11 +41,9 @@ def main() -> None:
             )
             _ = (resp.choices[0].message.content or "").strip()
 
-            # A quality score for this answer (an LLM judge or human reviewer in real life).
             quality = round(random.uniform(0.7, 0.98), 2)
             rl.score("resolution_quality", quality, label="judged", source="llm")
 
-            # A business outcome: was the ticket resolved, and what was it worth?
             resolved = quality > 0.75
             rl.outcome(
                 "ticket_resolved",
@@ -84,7 +58,7 @@ def main() -> None:
             )
 
     rl.shutdown()
-    print(f"\n✓ Done. See {dashboard_url()}/outcomes and {dashboard_url()}/evaluation.")
+    print(f"\nDone. See {dashboard_url()}/outcomes and {dashboard_url()}/evaluation.")
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ The product should connect usage, cost, routing, business impact, and savings in
 | Scope | Primary user | Primary job | Data boundary | Typical route |
 |---|---|---|---|---|
 | Platform | Platform Admin | Operate the full RunLedger installation across organizations | All organizations and workspaces | `/dashboard` global/platform views, `/organizations`, platform Settings |
-| Organization | Org Admin | Understand one organization's AI estate across workspaces | One organization and all its workspaces | `/organization/dashboard`, `/request-flow?scope=org` |
+| Organization | Org Admin | Understand and manage one organization's AI estate across workspaces | One organization and all its workspaces | `/organization`, `/organization/dashboard`, `/request-flow?scope=org` |
 | Workspace | Workspace Admin | Manage and optimize one team's traffic, budgets, runs, and keys | One workspace | `/dashboard`, `/runs`, `/request-flow?scope=workspace` |
 | Member | Member/read-only | Inspect runs, sessions, analytics, prompts, and monitoring without changing controls | Assigned workspaces only | read-only workspace views |
 

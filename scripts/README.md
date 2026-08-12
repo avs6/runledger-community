@@ -1,44 +1,68 @@
-# RunLedger scripts
+# Scripts
 
-Utilities for running, resetting, and populating a RunLedger stack.
+`scripts/` is the canonical home for local demo setup, manual labs, scenario docs,
+and replayable verification flows.
 
-## Normalization target
+## Canonical scenario
 
-The script folder is being normalized around one master runner plus explicit `seed`,
-`simulate`, `infra`, `integrations`, and `labs` responsibilities.
+All manual labs and the normalized quick seed now share one foundation:
 
-Use these documents as the source of truth while that work is in progress:
+- Platform admin: `admin@runledger.local` / `runledger`
+- Org 1: `HomeLab`
+  - Admin: `admin@homelab.com`
+  - Users: `user1@homelab.com`, `user2@homelab.com`
+  - Workspace: `AgentTest`
+- Org 2: `LocalAIAgentStack`
+  - Admin: `admin@localstack.com`
+  - Users: `user1@localstack.com`, `user2@localstack.com`
+  - Workspaces: `LiteLLM Gateway`, `OpenWebUI`, `Codex`, `Langgraph`, `HermesAgent`, `Claude Desktop`, `OpenAICodes`, `PythonAgents`
 
-- [Feature coverage and normalization matrix](./FEATURE-COVERAGE-README.md)
-- [Scenario library overview](./scenarios/README.md)
-- [Hands-on labs workbook](./scenarios/labs/README.md)
+Every local account in this scenario uses password `runledger`.
 
-## Demo modes at a glance
+## Start here
 
-There are now three cohesive demo paths:
+- [run_demo.py](./run_demo.py): master runner for the normalized demo surfaces
+- [seed_demo.py](./seed_demo.py): canonical REST-only seed
+- [full_simulate.py](./full_simulate.py): broad synthetic simulator
+- [scenarios/labs/README.md](./scenarios/labs/README.md): manual workbook
+- [scenarios/README.md](./scenarios/README.md): scenario library and simulator notes
 
-1. `Full Simulator`: [full_simulate.py](./full_simulate.py) is the primary automated demo and the default Phase 13 one-click path in the dashboard.
-2. `Quick Seed`: [../apps/api/scripts/seed_demo.py](../apps/api/scripts/seed_demo.py) is the lighter REST-only seed used when you want broad feature coverage fast.
-3. `Hands-on Labs`: [scenarios/labs/README.md](./scenarios/labs/README.md) is the manual workbook for guided operator-style walkthroughs.
-4. `Streaming Demo`: [streaming/kafka_consumer.py](./streaming/kafka_consumer.py) consumes live Kafka events from the bundled Redpanda profile.
+## Recommended entrypoints
 
-Supporting demo assets live alongside those entrypoints:
+Print the canonical scenario:
 
-- [scenarios/labs/guided_demo_scenarios.md](./scenarios/labs/guided_demo_scenarios.md) for presenter-friendly before/after stories
-- [scenarios/labs/sales_engineering_walkthrough.md](./scenarios/labs/sales_engineering_walkthrough.md) for the 12-20 minute sales/demo narrative
-- [../docs/demo-visual-regression.md](../docs/demo-visual-regression.md) for replayable dashboard screenshot and visual review checkpoints
+```bash
+uv run python scripts/run_demo.py scenario
+```
 
-| Script | What it does |
+Run the normalized REST seed:
+
+```bash
+uv run python scripts/run_demo.py seed-demo
+```
+
+Run the broad simulator:
+
+```bash
+uv run python scripts/run_demo.py full-simulate
+```
+
+Print the labs workbook path plus the canonical scenario:
+
+```bash
+uv run python scripts/run_demo.py labs
+```
+
+## Which path to use
+
+| Path | Use it for |
 |---|---|
-| [`full_simulate.py`](./full_simulate.py) | Reset the cluster, then populate it with high-volume local Ollama demo data **through the REST API**. |
-| [`cleanup.py`](./cleanup.py) | Reset to a blank slate - truncate data (default) or wipe every volume (`--hard`). |
-| [`pricing.yaml`](./pricing.yaml) | The simulation pricing catalog - **Ollama-only** local model pricing for the demo. |
-| [`scenarios/`](./scenarios) | The scenario library, organized in folders (`ollama/` by default, `hosted/` opt-in). |
-| [`generate_postman.py`](./generate_postman.py) | Regenerate the Postman collection from the live OpenAPI spec. |
-| [`restore.sh`](./restore.sh) | Restore stores from an S3 backup (companion to the Helm backup CronJob). |
-| [`bench/`](./bench) | Optimization benchmark harness (baseline vs optimized). |
-| [`localai/`](./localai) | LocalAI Agent Stack integration helpers: org bootstrap, S3 backup/restore, MCP config injection, SDK-style traffic, and OTLP trace generation. |
-| [`streaming/`](./streaming) | Kafka/Redpanda local consumer helpers for the streaming export demo. |
+| [`run_demo.py seed-demo`](./run_demo.py) | Fast UI and admin validation against the fixed HomeLab + LocalAIAgentStack layout |
+| [`run_demo.py full-simulate`](./run_demo.py) | Broad synthetic traffic, observability depth, and richer cross-surface demo data |
+| [`scenarios/labs/README.md`](./scenarios/labs/README.md) | Manual operator training with the same org/user/workspace story |
+| [`streaming/`](./streaming) | Kafka or Redpanda export drills |
+| [`localai/`](./localai) | Local AI stack-specific helper flows |
+| [`runledger/`](./runledger) | Focused feature verification scripts |
 
 ## Local backup profile
 

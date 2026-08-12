@@ -1,0 +1,4051 @@
+{
+  "sidebar_sections": {
+    "Observe": [
+      [
+        "/dashboard",
+        "Workspace Dashboard"
+      ],
+      [
+        "/runs",
+        "Runs"
+      ],
+      [
+        "/sessions",
+        "Sessions"
+      ],
+      [
+        "/request-flow",
+        "Request Flow"
+      ],
+      [
+        "/request-explorer",
+        "Request Explorer"
+      ],
+      [
+        "/analytics",
+        "Analytics"
+      ],
+      [
+        "/engineering",
+        "Engineering"
+      ],
+      [
+        "/model-usage",
+        "Model Usage"
+      ],
+      [
+        "/monitoring",
+        "Monitoring"
+      ],
+      [
+        "/evaluations",
+        "Quality Scores"
+      ],
+      [
+        "/outcomes",
+        "Outcomes & ROI"
+      ]
+    ],
+    "Build & Improve": [
+      [
+        "/agents",
+        "Agents"
+      ],
+      [
+        "/workflows",
+        "Workflows"
+      ],
+      [
+        "/playground",
+        "Playground"
+      ],
+      [
+        "/prompts",
+        "Prompts"
+      ],
+      [
+        "/evaluation",
+        "Evaluations Studio"
+      ],
+      [
+        "/datasets",
+        "Datasets"
+      ],
+      [
+        "/experiments",
+        "Experiments"
+      ],
+      [
+        "/replay",
+        "Replay Lab"
+      ],
+      [
+        "/optimization-opportunities",
+        "Optimization Opportunities"
+      ],
+      [
+        "/optimization-simulator",
+        "Optimization Simulator"
+      ],
+      [
+        "/model-scorecards",
+        "Model Scorecards"
+      ],
+      [
+        "/runbooks",
+        "Runbooks"
+      ],
+      [
+        "/vector-stores",
+        "Vector Stores"
+      ]
+    ],
+    "Gateway & Routing": [
+      [
+        "/gateway",
+        "Model Gateway"
+      ],
+      [
+        "/provider-profiles",
+        "Provider Profiles"
+      ],
+      [
+        "/guardrails",
+        "Guardrails"
+      ],
+      [
+        "/response-cache",
+        "Response Cache"
+      ],
+      [
+        "/rate-limits",
+        "Rate Limits"
+      ]
+    ],
+    "Safety & Governance": [
+      [
+        "/tool-registry",
+        "Tool Registry"
+      ],
+      [
+        "/search-tools",
+        "Search Tools"
+      ],
+      [
+        "/tool-policies",
+        "Tool Policies"
+      ],
+      [
+        "/mcp",
+        "MCP Servers"
+      ],
+      [
+        "/data-capture",
+        "Data Capture"
+      ],
+      [
+        "/security",
+        "Security"
+      ],
+      [
+        "/approvals",
+        "Approvals"
+      ],
+      [
+        "/audit",
+        "Audit Log"
+      ],
+      [
+        "/policy-dry-run",
+        "Policy Dry Run"
+      ],
+      [
+        "/governance-pack",
+        "Audit Pack"
+      ],
+      [
+        "/alert-rules",
+        "Alert Rules"
+      ],
+      [
+        "/tags",
+        "Tags"
+      ]
+    ],
+    "FinOps": [
+      [
+        "/cost-savings",
+        "Cost & Savings"
+      ],
+      [
+        "/budgets",
+        "Budgets"
+      ],
+      [
+        "/billing",
+        "Billing"
+      ],
+      [
+        "/chargeback",
+        "Chargeback"
+      ]
+    ],
+    "Organization & Access": [
+      [
+        "/organization/dashboard",
+        "Org Dashboard"
+      ],
+      [
+        "/organization",
+        "Profile"
+      ],
+      [
+        "/users",
+        "Users"
+      ],
+      [
+        "/workspace",
+        "Teams / Workspaces"
+      ],
+      [
+        "/projects",
+        "Projects"
+      ],
+      [
+        "/team-models",
+        "Team Models"
+      ],
+      [
+        "/access-groups",
+        "Access Groups"
+      ],
+      [
+        "/api-keys",
+        "API Keys"
+      ],
+      [
+        "/otlp",
+        "OTLP Ingest"
+      ],
+      [
+        "/mcp-registry",
+        "MCP Registry"
+      ],
+      [
+        "/ai-hub",
+        "AI Hub"
+      ],
+      [
+        "/onboarding",
+        "Getting Started"
+      ],
+      [
+        "/integrations",
+        "Integrations"
+      ],
+      [
+        "/org-settings",
+        "Org Settings"
+      ]
+    ],
+    "Platform": [
+      [
+        "/global-dashboard",
+        "Global Dashboard"
+      ],
+      [
+        "/organizations",
+        "All Organizations"
+      ],
+      [
+        "/settings",
+        "Settings"
+      ]
+    ]
+  },
+  "route_summaries": [
+    {
+      "route": "/access-groups",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\access-groups\\page.tsx",
+      "headings": [
+        "Access Groups",
+        "{group.name}",
+        "{editingGroup ? 'Edit Access Group' : 'Create Access Group'}",
+        "Manage Group Members"
+      ],
+      "buttons": [
+        "resetForm() setShowCreateModal(true) className=\"inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition\" > Create Access Group",
+        "openEdit(group) title=\"Edit group\" className=\"rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200\" >",
+        "handleDeleteGroup(group) title=\"Deactivate group\" className=\"rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400\" >",
+        "openMemberManagement(group) className=\"w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700\" > Manage Members ( group.member_count )",
+        "setShowCreateModal(false) className=\"rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800\" >",
+        "setShowCreateModal(false) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800\" > Cancel",
+        "saving ? 'Saving...' : editingGroup ? 'Update Group' : 'Create Group'",
+        "setManagingGroup(null) className=\"rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800\" >",
+        "Add Member",
+        "handleRemoveMember(m.user_id) title=\"Remove member\" className=\"inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40\" > Remove",
+        "setManagingGroup(null) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800\" > Close"
+      ],
+      "links": [],
+      "api_functions": [
+        "getAccessGroups",
+        "getAccessGroupDashboard",
+        "createAccessGroup",
+        "updateAccessGroup",
+        "deleteAccessGroup",
+        "getAccessGroupMembers",
+        "addAccessGroupMember",
+        "removeAccessGroupMember",
+        "listOrgUsers",
+        "listGuardrailRules",
+        "listGuardrailTemplates",
+        "type OrgUser"
+      ],
+      "api_paths": {
+        "getAccessGroups": [
+          "/access-groups${query}"
+        ],
+        "getAccessGroupDashboard": [
+          "/access-groups/dashboard${query}"
+        ],
+        "createAccessGroup": [
+          "/access-groups"
+        ],
+        "updateAccessGroup": [
+          "/access-groups/${groupId}"
+        ],
+        "deleteAccessGroup": [
+          "/access-groups/${groupId}"
+        ],
+        "getAccessGroupMembers": [
+          "/access-groups/${groupId}/members"
+        ],
+        "addAccessGroupMember": [
+          "/access-groups/${groupId}/members"
+        ],
+        "removeAccessGroupMember": [
+          "/access-groups/${groupId}/members/${userId}"
+        ],
+        "listOrgUsers": [
+          "/users/all"
+        ],
+        "listGuardrailRules": [
+          "/guardrails${qs}"
+        ],
+        "listGuardrailTemplates": [
+          "/guardrails/templates"
+        ],
+        "type OrgUser": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'Active'",
+        "'Inactive'"
+      ]
+    },
+    {
+      "route": "/agents/{agent_id}/memory",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\agents\\[agent_id]\\memory\\page.tsx",
+      "headings": [
+        "Memory",
+        "Most Accessed",
+        "Memories ({memories.total})",
+        "Audit Log (recent {audit.events.length})"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/agents",
+          "label": "Back to Agents"
+        }
+      ],
+      "api_functions": [
+        "getAgent",
+        "getAgentMemories",
+        "getAgentMemoryStats",
+        "getAgentMemoryAudit"
+      ],
+      "api_paths": {
+        "getAgent": [
+          "/agents/${agentId}"
+        ],
+        "getAgentMemories": [
+          "/agents/${agentId}/memory${query}"
+        ],
+        "getAgentMemoryStats": [
+          "/agents/${agentId}/memory/stats"
+        ],
+        "getAgentMemoryAudit": [
+          "/agents/${agentId}/memory/audit${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/agents"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/agents/{agent_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\agents\\[agent_id]\\page.tsx",
+      "headings": [
+        "{agent.name}",
+        "Recent Runs"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/agents",
+          "label": "Agents"
+        }
+      ],
+      "api_functions": [
+        "getAgent",
+        "getAgentStats",
+        "getAgentRuns"
+      ],
+      "api_paths": {
+        "getAgent": [
+          "/agents/${agentId}"
+        ],
+        "getAgentStats": [
+          "/agents/${agentId}/stats"
+        ],
+        "getAgentRuns": [
+          "/agents/${agentId}/runs${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/agents"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/agents",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\agents\\page.tsx",
+      "headings": [
+        "{agent.name}",
+        "Agent Registry"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getAgents"
+      ],
+      "api_paths": {
+        "getAgents": [
+          "/agents${query}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/ai-hub",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\ai-hub\\page.tsx",
+      "headings": [
+        "AI Hub & Model Catalog",
+        "Auto-Connect Model Provider",
+        "Register Custom Model Card",
+        "{m.name}"
+      ],
+      "buttons": [
+        "setShowSyncModal(true) className=\"flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900 transition\" > Auto-Connect Provider",
+        "setShowForm(!showForm) className=\"flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition\" > showForm ? 'Cancel' : 'Add Model Manually'",
+        "setShowSyncModal(false) className=\"rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800\" > Cancel",
+        "syncing ? : 'Connect & Import Models'",
+        "Add to Hub",
+        "handleRequestAccess(m.id) className=\"text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400\" > Request Access",
+        "handleDelete(m.id) className=\"text-xs font-medium text-red-500 hover:text-red-700\" > Remove"
+      ],
+      "links": [],
+      "api_functions": [
+        "listHubModels",
+        "addHubModel",
+        "deleteHubModel",
+        "requestHubAccess",
+        "syncHubProvider"
+      ],
+      "api_paths": {
+        "listHubModels": [
+          "/hub/models${query}"
+        ],
+        "addHubModel": [
+          "/hub/models"
+        ],
+        "deleteHubModel": [
+          "/hub/models/${id}"
+        ],
+        "requestHubAccess": [
+          "/hub/models/${id}/request-access"
+        ],
+        "syncHubProvider": [
+          "/hub/sync-provider"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/alert-rules",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\alert-rules\\page.tsx",
+      "headings": [
+        "Alert Rules",
+        "Alert Rules",
+        "Recent Firings",
+        "Email Reports"
+      ],
+      "buttons": [
+        "creatingAlert ? 'Creating\u2026' : 'Add Rule'",
+        "handleToggleAlert(rule) className= `rounded px-2 py-0.5 text-xs font-medium $ rule.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600' ` > rule.is_active ? 'Active' : 'Paused'",
+        "handleDeleteAlert(rule.id) className=\"text-xs text-red-500 hover:underline\">Delete",
+        "sendingReport ? 'Sending\u2026' : 'Send Report Now'"
+      ],
+      "links": [],
+      "api_functions": [
+        "listAlertRules",
+        "createAlertRule",
+        "updateAlertRule",
+        "deleteAlertRule",
+        "listAlertHistory",
+        "emailAnalyticsReport"
+      ],
+      "api_paths": {
+        "listAlertRules": [
+          "/alerts/rules${qs}"
+        ],
+        "createAlertRule": [
+          "/alerts/rules"
+        ],
+        "updateAlertRule": [
+          "/alerts/rules/${ruleId}"
+        ],
+        "deleteAlertRule": [
+          "/alerts/rules/${ruleId}"
+        ],
+        "listAlertHistory": [
+          "/alerts/history?limit=${limit}"
+        ],
+        "emailAnalyticsReport": [
+          "/analytics/email-report?window_days=${windowDays}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'Active'",
+        "'Paused'"
+      ]
+    },
+    {
+      "route": "/analytics/economics",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\analytics\\economics\\page.tsx",
+      "headings": [
+        "{title}",
+        "Economics"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getRegressions",
+        "getAnnotations",
+        "getTopWorkflows"
+      ],
+      "api_paths": {
+        "getRegressions": [
+          "/analytics/regressions${_analyticsQs(params)}"
+        ],
+        "getAnnotations": [
+          "/analytics/annotations${_analyticsQs(params)}"
+        ],
+        "getTopWorkflows": [
+          "/analytics/workflows/top${_analyticsQs({\n      ...(params.metric ? { metric: params.metric } : {}),\n      ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),\n      ...(params.from ? { from: params.from } : {}),\n      ...(params.to ? { to: params.to } : {}),\n    })}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/economics/ChangeImpactPanel",
+        "@/components/economics/RegressionTable",
+        "@/components/economics/AnnotationForm"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/analytics",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\analytics\\page.tsx",
+      "headings": [
+        "Analytics"
+      ],
+      "buttons": [
+        "Refresh",
+        "Export",
+        "handleExport('csv') className=\"px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-left\">CSV",
+        "handleExport('json') className=\"px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-left\">JSON",
+        "setPreset(v) className= `px-3 py-1.5 transition-colors $ preset === v ? 'bg-blue-600 text-white font-medium' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700' ` > label"
+      ],
+      "links": [],
+      "api_functions": [
+        "getAnalyticsSummary",
+        "getSpendOverTime",
+        "getSpendByModel",
+        "getSpendByFeature",
+        "getSpendByUser"
+      ],
+      "api_paths": {
+        "getAnalyticsSummary": [
+          "/analytics/summary${_analyticsQs(window)}"
+        ],
+        "getSpendOverTime": [
+          "/analytics/spend-over-time${_analyticsQs({ granularity, ...window })}"
+        ],
+        "getSpendByModel": [
+          "/analytics/spend-by-model${_analyticsQs(window)}"
+        ],
+        "getSpendByFeature": [
+          "/analytics/spend-by-feature${_analyticsQs(window)}"
+        ],
+        "getSpendByUser": [
+          "/analytics/spend-by-user${_analyticsQs({\n      ...(limit !== undefined ? { limit: String(limit) } : {}),\n      ...window,\n    })}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/${m.model}",
+        "/analytics/export?${qs}"
+      ],
+      "component_imports": [
+        "@/components/ui/skeleton"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/analytics/users/{end_user_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\analytics\\users\\[end_user_id]\\page.tsx",
+      "headings": [
+        "{userId}"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/analytics/users",
+          "label": "Top Spenders"
+        }
+      ],
+      "api_functions": [
+        "getUserSpend"
+      ],
+      "api_paths": {
+        "getUserSpend": [
+          "/analytics/users/${encodeURIComponent(userId)}${_analyticsQs(window)}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/analytics/users"
+      ],
+      "component_imports": [
+        "@/components/analytics/SpendOverTimeChart",
+        "@/components/analytics/SpendByModelChart",
+        "@/components/analytics/SpendByFeatureChart",
+        "@/components/ui/card"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/analytics/users",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\analytics\\users\\page.tsx",
+      "headings": [
+        "Top Spenders"
+      ],
+      "buttons": [
+        "setTab(t.id) className= `rounded px-3 py-1 text-xs font-medium transition-colors $ tab === t.id ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100' ` > t.label"
+      ],
+      "links": [
+        {
+          "href": "/analytics",
+          "label": "Analytics"
+        }
+      ],
+      "api_functions": [
+        "getSpendByUser",
+        "getUserCohorts",
+        "getUserAnomalies"
+      ],
+      "api_paths": {
+        "getSpendByUser": [
+          "/analytics/spend-by-user${_analyticsQs({\n      ...(limit !== undefined ? { limit: String(limit) } : {}),\n      ...window,\n    })}"
+        ],
+        "getUserCohorts": [
+          "/analytics/users/cohorts${_analyticsQs(params)}"
+        ],
+        "getUserAnomalies": [
+          "/analytics/users/anomalies"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/analytics"
+      ],
+      "component_imports": [
+        "@/components/ui/card"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/api-keys",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\api-keys\\page.tsx",
+      "headings": [
+        "API Keys",
+        "API Keys",
+        "Rotation Automation"
+      ],
+      "buttons": [
+        "copied ? 'Copied!' : 'Copy'",
+        "setNewRawKey(null) className=\"text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300\"> Dismiss",
+        "creatingKey ? 'Creating\u2026' : 'Create Key'",
+        "setKeyUserFilter('') className=\"absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "setKeyUserFilter('') className=\"flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white ml-auto\"> Clear filters",
+        "setKeySearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "handleRevoke(k.id) className=\"text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400\">Revoke",
+        "void handleRotate() disabled= !selectedKeyId || rotating className=\"rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50\" > rotating ? 'Rotating...' : 'Rotate key'"
+      ],
+      "links": [
+        {
+          "href": "/mcp",
+          "label": "Set up MCP \u2192"
+        }
+      ],
+      "api_functions": [
+        "listApiKeys",
+        "createApiKey",
+        "revokeApiKey",
+        "listOrgWorkspaces",
+        "getApiKeyRotationHistory",
+        "rotateApiKey",
+        "listProjects",
+        "assignProjectKey"
+      ],
+      "api_paths": {
+        "listApiKeys": [
+          "/settings/api-keys"
+        ],
+        "createApiKey": [
+          "/settings/api-keys"
+        ],
+        "revokeApiKey": [
+          "/settings/api-keys/${keyId}"
+        ],
+        "listOrgWorkspaces": [
+          "/org/workspaces"
+        ],
+        "getApiKeyRotationHistory": [
+          "/security/api-keys/${keyId}/rotation-history"
+        ],
+        "rotateApiKey": [
+          "/security/api-keys/${keyId}/rotate"
+        ],
+        "listProjects": [
+          "/projects${qs}"
+        ],
+        "assignProjectKey": [
+          "/projects/${projectId}/keys"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/mcp"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/approvals",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\approvals\\page.tsx",
+      "headings": [
+        "Approvals",
+        "Approvals",
+        "{statusFilter ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Approvals` : 'All Approvals'}\n            {!loading &&  ({total}) }",
+        "Auto-Approval Policies",
+        "Request Approval",
+        "{deciding.action} approval?"
+      ],
+      "buttons": [
+        "setShowCreate(true) className=\"rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700\" > Request Approval",
+        "setStatusFilter(s === statusFilter ? '' : s) className= `rounded-xl border p-3 text-left shadow-sm transition-colors $ statusFilter === s ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40' : 'border-slate-300 bg-white/90 hover:bg-blue-50/45 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800' ` > summary[s] s",
+        "setDeciding( id: approval.id, action: 'approve' ); setDecisionNote('') className=\"rounded-lg bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-700\" > Approve",
+        "setDeciding( id: approval.id, action: 'deny' ); setDecisionNote('') className=\"rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700\" > Deny",
+        "handleCancel(approval.id) className=\"rounded-lg border px-3 py-1 text-xs hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700\" > Cancel",
+        "setShowPolicyForm(!showPolicyForm) className=\"flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400\" > showPolicyForm ? 'Cancel' : 'Add Policy'",
+        "creatingPolicy ? 'Creating\u2026' : 'Create'",
+        "handleDeletePolicy(p.id) className=\"rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950\" >",
+        "setShowCreate(false) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Cancel",
+        "createLoading ? 'Submitting\u2026' : 'Submit Request'",
+        "setDeciding(null) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Back",
+        "Confirm deciding.action"
+      ],
+      "links": [
+        {
+          "href": "/audit?action=approval",
+          "label": "Audit Trail"
+        }
+      ],
+      "api_functions": [
+        "getApprovalSummary",
+        "listApprovals",
+        "createApproval",
+        "approveApproval",
+        "denyApproval",
+        "cancelApproval",
+        "listAutoApprovalPolicies",
+        "createAutoApprovalPolicy",
+        "deleteAutoApprovalPolicy"
+      ],
+      "api_paths": {
+        "getApprovalSummary": [
+          "/approvals/summary"
+        ],
+        "listApprovals": [
+          "/approvals${q.toString() ? '?' + q.toString() : ''}"
+        ],
+        "createApproval": [
+          "/approvals"
+        ],
+        "approveApproval": [
+          "/approvals/${id}/approve"
+        ],
+        "denyApproval": [
+          "/approvals/${id}/deny"
+        ],
+        "cancelApproval": [
+          "/approvals/${id}"
+        ],
+        "listAutoApprovalPolicies": [
+          "/approvals/auto-policies"
+        ],
+        "createAutoApprovalPolicy": [
+          "/approvals/auto-policies"
+        ],
+        "deleteAutoApprovalPolicy": [
+          "/approvals/auto-policies/${policyId}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/audit?action=approval"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'approved'",
+        "'pending'"
+      ]
+    },
+    {
+      "route": "/audit",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\audit\\page.tsx",
+      "headings": [
+        "Audit Log"
+      ],
+      "buttons": [
+        "if (!apiKey) return try const csv = await exportAuditEvents(apiKey, 'csv', actionFilter || undefined, targetTypeFilter || undefined) const blob = new Blob([csv], type: 'text/csv' ) const url = URL.createObjectURL(blob) const a = document.createElement('a') a.href = url a.download = `audit-events-$ new Date().toISOString().slice(0, 10) .csv` a.click() URL.revokeObjectURL(url) toast.success('Audit log exported') catch toast.error('Export failed') className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700\" > Export CSV",
+        "Refresh",
+        "Apply",
+        "setActionFilter(''); setTargetTypeFilter(''); setOffset(0) className=\"rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800\" > Clear",
+        "setOffset(Math.max(0, offset - PAGE_SIZE)) disabled= offset === 0 className=\"flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm disabled:opacity-40 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800\" > Prev",
+        "setOffset(offset + PAGE_SIZE) disabled= offset + PAGE_SIZE >= total className=\"flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm disabled:opacity-40 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800\" > Next"
+      ],
+      "links": [],
+      "api_functions": [
+        "listAuditEvents",
+        "exportAuditEvents"
+      ],
+      "api_paths": {
+        "listAuditEvents": [
+          "/audit/events?${q.toString()}"
+        ],
+        "exportAuditEvents": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/billing/{period_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\billing\\[period_id]\\page.tsx",
+      "headings": [
+        "{period!.period_start} \u2014 {period!.period_end}",
+        "Reconciliation"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/billing",
+          "label": "Billing"
+        }
+      ],
+      "api_functions": [
+        "getBillingPeriod",
+        "getReconciliation",
+        "getPeriodBreakdown"
+      ],
+      "api_paths": {
+        "getBillingPeriod": [
+          "/billing/periods/${id}"
+        ],
+        "getReconciliation": [
+          "/billing/periods/${id}/reconciliation"
+        ],
+        "getPeriodBreakdown": [
+          "/billing/periods/${id}/breakdown"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/billing"
+      ],
+      "component_imports": [
+        "@/components/billing/BreakdownTable"
+      ],
+      "statuses": [
+        "'open'"
+      ]
+    },
+    {
+      "route": "/billing",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\billing\\page.tsx",
+      "headings": [
+        "Billing"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/billing-summary",
+          "label": "Summary View Open Dive into period rollups, charts, and export controls."
+        }
+      ],
+      "api_functions": [
+        "getBillingPeriods",
+        "getBillingSummary"
+      ],
+      "api_paths": {
+        "getBillingPeriods": [
+          "/billing/periods"
+        ],
+        "getBillingSummary": [
+          "/budgets/billing-summary${qs}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/billing-summary"
+      ],
+      "component_imports": [
+        "@/components/billing/BillingPeriodTable"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/billing-summary",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\billing-summary\\page.tsx",
+      "headings": [
+        "Billing Summary",
+        "Cost by Period"
+      ],
+      "buttons": [
+        "handleExport('csv') disabled= exporting className=\"rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Export CSV",
+        "handleExport('json') disabled= exporting className=\"rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Export JSON"
+      ],
+      "links": [],
+      "api_functions": [
+        "getBillingSummary",
+        "exportBilling"
+      ],
+      "api_paths": {
+        "getBillingSummary": [
+          "/budgets/billing-summary${qs}"
+        ],
+        "exportBilling": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/budget-overrides",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\budget-overrides\\page.tsx",
+      "headings": [
+        "Budget Overrides",
+        "Create Temporary Increase"
+      ],
+      "buttons": [
+        "setShowForm(true) disabled= budgets.length === 0 className=\"rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50\" > New Override",
+        "saving ? 'Creating...' : 'Create Override'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Cancel",
+        "handleRevoke(o.id) className=\"rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30\" > Revoke"
+      ],
+      "links": [],
+      "api_functions": [
+        "getBudgets",
+        "createBudgetOverride",
+        "listBudgetOverrides",
+        "revokeBudgetOverride"
+      ],
+      "api_paths": {
+        "getBudgets": [
+          "/budgets"
+        ],
+        "createBudgetOverride": [
+          "/budgets/${budgetId}/override"
+        ],
+        "listBudgetOverrides": [
+          "/budgets/${budgetId}/overrides"
+        ],
+        "revokeBudgetOverride": [
+          "/budgets/${budgetId}/override/${overrideId}/revoke"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/${b.feature_tag || b.end_user || b.app || 'workspace'} \u2014 ${money(b.limit_usd)}"
+      ],
+      "component_imports": [],
+      "statuses": [
+        "'active'"
+      ]
+    },
+    {
+      "route": "/budget-tiers",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\budget-tiers\\page.tsx",
+      "headings": [
+        "Budget Tiers",
+        "{editId ? 'Edit Tier' : 'New Tier'}",
+        "Tier Comparison",
+        "{t.name}"
+      ],
+      "buttons": [
+        "Create Tier",
+        "saving ? 'Saving...' : editId ? 'Update' : 'Create'",
+        "setShowForm(false); setEditId(null) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Cancel",
+        "startEdit(t) className=\"rounded-lg px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30\" > Edit",
+        "handleDelete(t.id) className=\"rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30\" > Retire"
+      ],
+      "links": [],
+      "api_functions": [
+        "listBudgetTiers",
+        "createBudgetTier",
+        "updateBudgetTier",
+        "deleteBudgetTier"
+      ],
+      "api_paths": {
+        "listBudgetTiers": [
+          "/budget-tiers"
+        ],
+        "createBudgetTier": [
+          "/budget-tiers"
+        ],
+        "updateBudgetTier": [
+          "/budget-tiers/${tierId}"
+        ],
+        "deleteBudgetTier": [
+          "/budget-tiers/${tierId}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/budgets/{id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\budgets\\[id]\\page.tsx",
+      "headings": [
+        "Breach History"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/budgets",
+          "label": "Budgets"
+        }
+      ],
+      "api_functions": [
+        "getBudgetBreaches"
+      ],
+      "api_paths": {
+        "getBudgetBreaches": [
+          "/budgets/${id}/breaches"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/budgets"
+      ],
+      "component_imports": [
+        "@/components/budgets/BreachHistoryTable"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/budgets",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\budgets\\page.tsx",
+      "headings": [
+        "Budgets"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/budget-tiers",
+          "label": "Budget Tiers {tiers.items.length} Shared policy presets for spend, RPM, TPM, and allowed model sets."
+        },
+        {
+          "href": "/budget-overrides",
+          "label": "Overrides Temporary Review short-lived budget exceptions without leaving the spend-control workflow."
+        },
+        {
+          "href": "/model-budgets",
+          "label": "Model Budgets Per Key Pin tighter limits to expensive models or wildcard model families for sensitive keys."
+        }
+      ],
+      "api_functions": [
+        "getBudgets",
+        "listBudgetTiers"
+      ],
+      "api_paths": {
+        "getBudgets": [
+          "/budgets"
+        ],
+        "listBudgetTiers": [
+          "/budget-tiers"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/budget-overrides",
+        "/budget-tiers",
+        "/model-budgets"
+      ],
+      "component_imports": [
+        "@/components/budgets/BudgetManager"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/chargeback",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\chargeback\\page.tsx",
+      "headings": [
+        "Chargeback &amp; Showback",
+        "Chargeback &amp; Showback"
+      ],
+      "buttons": [
+        "setActiveTab('rules') className= `flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors $ activeTab === 'rules' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' ` > Allocation Rules",
+        "setActiveTab('reports') className= `flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors $ activeTab === 'reports' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' ` > Reports",
+        "handleDelete(rule.id) className=\"rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950\" >",
+        "creating ? 'Creating...' : 'Create'",
+        "setShowForm(!showForm) className=\"flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400\" > showForm ? 'Cancel' : 'Add Rule'",
+        "handleExport('csv') disabled= exporting className=\"flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Export CSV",
+        "handleExport('json') disabled= exporting className=\"flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Export JSON"
+      ],
+      "links": [],
+      "api_functions": [
+        "listChargebackRules",
+        "createChargebackRule",
+        "deleteChargebackRule",
+        "getChargebackReport",
+        "exportChargebackReport"
+      ],
+      "api_paths": {
+        "listChargebackRules": [
+          "/billing/chargeback-rules"
+        ],
+        "createChargebackRule": [
+          "/billing/chargeback-rules"
+        ],
+        "deleteChargebackRule": [
+          "/billing/chargeback-rules/${ruleId}"
+        ],
+        "getChargebackReport": [
+          "/billing/chargeback-report${qs}"
+        ],
+        "exportChargebackReport": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/cost-savings",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\cost-savings\\page.tsx",
+      "headings": [
+        "Cost & Savings"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/budgets",
+          "label": "Manage budgets"
+        }
+      ],
+      "api_functions": [
+        "getBudgetRollup",
+        "getRunFlow"
+      ],
+      "api_paths": {
+        "getBudgetRollup": [
+          "/budgets/rollup?scope=${scope}"
+        ],
+        "getRunFlow": [
+          "/runs/flow${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/budgets"
+      ],
+      "component_imports": [
+        "@/components/dashboard/FinOpsCharts",
+        "@/components/ui/card"
+      ],
+      "statuses": [
+        "'Healthy'"
+      ]
+    },
+    {
+      "route": "/dashboard",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\dashboard\\page.tsx",
+      "headings": [
+        "Workspace Dashboard"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/runs",
+          "label": "View all"
+        },
+        {
+          "href": "/organization/dashboard",
+          "label": "Org Dashboard \u2192"
+        }
+      ],
+      "api_functions": [
+        "getAnalyticsSummary",
+        "getSpendOverTime",
+        "getSpendByModel",
+        "getSpendByFeature",
+        "getRuns"
+      ],
+      "api_paths": {
+        "getAnalyticsSummary": [
+          "/analytics/summary${_analyticsQs(window)}"
+        ],
+        "getSpendOverTime": [
+          "/analytics/spend-over-time${_analyticsQs({ granularity, ...window })}"
+        ],
+        "getSpendByModel": [
+          "/analytics/spend-by-model${_analyticsQs(window)}"
+        ],
+        "getSpendByFeature": [
+          "/analytics/spend-by-feature${_analyticsQs(window)}"
+        ],
+        "getRuns": [
+          "/runs${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/dashboard",
+        "/organization/dashboard",
+        "/runs"
+      ],
+      "component_imports": [
+        "@/components/ui/skeleton",
+        "@/components/ui/card",
+        "@/components/dashboard/DashboardAreaChart",
+        "@/components/dashboard/ModelDonutChart",
+        "@/components/dashboard/FeatureBarsChart",
+        "@/components/runs/RunStatusBadge"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/data-capture",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\data-capture\\page.tsx",
+      "headings": [
+        "Data Capture",
+        "Data Capture Policy Studio"
+      ],
+      "buttons": [
+        "setTab(key) className= `flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors $ tab === key ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' ` > label",
+        "savingPrivacy ? 'Saving\u2026' : 'Save Policy'",
+        "setShowScopeForm(!showScopeForm) className=\"flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400\" > showScopeForm ? 'Cancel' : 'Add Scope'",
+        "savingScope ? 'Saving\u2026' : 'Save'",
+        "testingPii ? : Test Redaction"
+      ],
+      "links": [],
+      "api_functions": [
+        "getCapturePolicy",
+        "upsertCapturePolicy",
+        "getRetentionPreview",
+        "testPiiRedaction",
+        "listCapturePolicyScopes",
+        "upsertCapturePolicyScope"
+      ],
+      "api_paths": {
+        "getCapturePolicy": [],
+        "upsertCapturePolicy": [
+          "/privacy/capture-policy"
+        ],
+        "getRetentionPreview": [
+          "/settings/capture-policy/retention-preview?privacy_mode=${encodeURIComponent(privacyMode)}"
+        ],
+        "testPiiRedaction": [
+          "/settings/capture-policy/test-pii"
+        ],
+        "listCapturePolicyScopes": [
+          "/settings/capture-policy/scopes"
+        ],
+        "upsertCapturePolicyScope": [
+          "/settings/capture-policy/scopes"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/datasets",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\datasets\\page.tsx",
+      "headings": [
+        "Datasets",
+        "New Dataset",
+        "{selected.name}"
+      ],
+      "buttons": [
+        "setShowCreate(true) className=\"flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700\" > New Dataset",
+        "setShowCreate(false) >",
+        "setInputMode(mode) className= `rounded px-3 py-1 text-xs font-medium capitalize $ inputMode === mode ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' ` > mode === 'paste' ? 'Paste' : mode === 'upload' ? 'Upload File' : 'From URL'",
+        "fetching ? 'Fetching\u2026' : 'Fetch'",
+        "setShowCreate(false) className=\"flex-1 rounded-lg border border-gray-300 dark:border-gray-600 py-2 text-sm text-gray-600 dark:text-gray-300\">Cancel",
+        "creating ? 'Creating\u2026' : 'Create'",
+        "e.stopPropagation(); handleDelete(ds.id) className=\"text-red-400 hover:text-red-600 ml-2\" >"
+      ],
+      "links": [],
+      "api_functions": [
+        "listEvalDatasets",
+        "createEvalDataset",
+        "deleteEvalDataset"
+      ],
+      "api_paths": {
+        "listEvalDatasets": [
+          "/datasets?limit=${limit}"
+        ],
+        "createEvalDataset": [
+          "/datasets"
+        ],
+        "deleteEvalDataset": [
+          "/datasets/${id}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/engineering",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\engineering\\page.tsx",
+      "headings": [
+        "{title}",
+        "Engineering Dashboard"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/request-explorer",
+          "label": "Request Explorer"
+        }
+      ],
+      "api_functions": [
+        "getEngineeringMetrics"
+      ],
+      "api_paths": {
+        "getEngineeringMetrics": [
+          "/analytics/engineering${_analyticsQs(window)}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/engineering",
+        "/request-explorer"
+      ],
+      "component_imports": [],
+      "statuses": [
+        "'Completed'"
+      ]
+    },
+    {
+      "route": "/evaluation",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\evaluation\\page.tsx",
+      "headings": [
+        "Create Experiment",
+        "Create Dataset",
+        "Create Prompt",
+        "Evaluators",
+        "Cost vs Quality by Model",
+        "Best Value Models",
+        "Evaluations Studio"
+      ],
+      "buttons": [
+        "setShowForm(true) className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700\" > New Experiment",
+        "creating ? 'Creating\u2026' : 'Create Experiment'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700\"> Cancel",
+        "onRun(exp.id) disabled= exp.status === 'running' className=\"flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40\"> Run",
+        "setShowForm(true) className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700\"> New Dataset",
+        "setInputMode(mode) className= `rounded px-3 py-1 text-xs font-medium capitalize $ inputMode === mode ? 'bg-violet-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700' ` > mode === 'paste' ? 'Paste' : mode === 'upload' ? 'Upload File' : 'From URL'",
+        "fetching ? 'Fetching\u2026' : 'Fetch'",
+        "creating ? 'Creating\u2026' : 'Create Dataset'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700\"> Cancel",
+        "setShowForm(true) className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700\"> New Prompt",
+        "creating ? 'Creating\u2026' : 'Create'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700\"> Cancel",
+        "e.stopPropagation(); handleDelete(p.name) className=\"rounded p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400\">",
+        "setShowForm(false) className=\"flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors\" > Cancel",
+        "setShowForm(true) className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 transition-colors\" > New Evaluator",
+        "creating && Create",
+        "setRunning(ev.id); try await onRun(ev.id) finally setRunning(null) disabled= running === ev.id className=\"flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors disabled:opacity-50\" > running === ev.id ? : Run",
+        "onDelete(ev.id) className=\"rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors\">",
+        "setTab(t.id) className= `flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all $ tab === t.id ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white' ` > t.icon t.label t.count !== undefined && t.count > 0 && ( t.count )"
+      ],
+      "links": [],
+      "api_functions": [
+        "listEvalDatasets",
+        "createEvalDataset",
+        "listEvalExperiments",
+        "createEvalExperiment",
+        "runEvalExperiment",
+        "listPrompts",
+        "createPrompt",
+        "deletePrompt",
+        "listEvaluators",
+        "createEvaluator",
+        "deleteEvaluator",
+        "runEvaluator",
+        "getCostQuality",
+        "getBestValueModels"
+      ],
+      "api_paths": {
+        "listEvalDatasets": [
+          "/datasets?limit=${limit}"
+        ],
+        "createEvalDataset": [
+          "/datasets"
+        ],
+        "listEvalExperiments": [
+          "/experiments?limit=${limit}"
+        ],
+        "createEvalExperiment": [
+          "/experiments"
+        ],
+        "runEvalExperiment": [
+          "/experiments/${id}/run"
+        ],
+        "listPrompts": [
+          "/prompts"
+        ],
+        "createPrompt": [
+          "/prompts"
+        ],
+        "deletePrompt": [
+          "/prompts/${encodeURIComponent(name)}"
+        ],
+        "listEvaluators": [
+          "/evaluations/evaluators"
+        ],
+        "createEvaluator": [
+          "/evaluations/evaluators"
+        ],
+        "deleteEvaluator": [
+          "/evaluations/evaluators/${id}"
+        ],
+        "runEvaluator": [
+          "/evaluations/evaluators/${id}/run"
+        ],
+        "getCostQuality": [
+          "/analytics/scores/cost-quality${qs}"
+        ],
+        "getBestValueModels": [
+          "/analytics/scores/best-value${qs}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'active'",
+        "'running'"
+      ]
+    },
+    {
+      "route": "/evaluations",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\evaluations\\page.tsx",
+      "headings": [
+        "Quality Scores",
+        "Score Summary (Last 7 Days)"
+      ],
+      "buttons": [
+        "submitting ? 'Submitting\u2026' : 'Submit Score'"
+      ],
+      "links": [],
+      "api_functions": [
+        "submitScore",
+        "listScores",
+        "getScoreSummary"
+      ],
+      "api_paths": {
+        "submitScore": [
+          "/evaluations/scores"
+        ],
+        "listScores": [
+          "/evaluations/scores${query}"
+        ],
+        "getScoreSummary": [
+          "/analytics/scores/summary"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/ui/card"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/experiments",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\experiments\\page.tsx",
+      "headings": [
+        "Experiments",
+        "New Experiment",
+        "{selected.name}"
+      ],
+      "buttons": [
+        "setShowCreate(true) className=\"flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700\" > New Experiment",
+        "setShowCreate(false) >",
+        "setShowCreate(false) className=\"flex-1 rounded-lg border border-gray-300 dark:border-gray-600 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800\">Cancel",
+        "creating ? 'Creating\u2026' : 'Create'",
+        "e.stopPropagation(); handleRun(exp.id) disabled= exp.status === 'running' className=\"flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700 disabled:opacity-40\" title=\"Run experiment\" > Run",
+        "e.stopPropagation(); handleDelete(exp.id) className=\"flex items-center gap-1 rounded-md text-xs text-red-500 hover:text-red-700\" title=\"Delete\" >"
+      ],
+      "links": [],
+      "api_functions": [
+        "listEvalExperiments",
+        "createEvalExperiment",
+        "deleteEvalExperiment",
+        "runEvalExperiment",
+        "listPrompts",
+        "listEvalDatasets"
+      ],
+      "api_paths": {
+        "listEvalExperiments": [
+          "/experiments?limit=${limit}"
+        ],
+        "createEvalExperiment": [
+          "/experiments"
+        ],
+        "deleteEvalExperiment": [
+          "/experiments/${id}"
+        ],
+        "runEvalExperiment": [
+          "/experiments/${id}/run"
+        ],
+        "listPrompts": [
+          "/prompts"
+        ],
+        "listEvalDatasets": [
+          "/datasets?limit=${limit}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'Completed'",
+        "'Failed'",
+        "'Pending'",
+        "'Running'",
+        "'running'"
+      ]
+    },
+    {
+      "route": "/gateway",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\gateway\\page.tsx",
+      "headings": [
+        "Model Gateway",
+        "Model Gateway",
+        "Routing Groups",
+        "Routing Strategy Comparison",
+        "Provider Routes",
+        "Routing Policies",
+        "Routing Log",
+        "Performance And Benchmarking",
+        "Pass-Through Endpoints",
+        "Optimization Flywheel\n            {settings?.enabled ? (\n               ON \n            ) : (\n               OFF \n            )}"
+      ],
+      "buttons": [
+        "Refresh",
+        "setShowGroupForm((value) => !value) className=\"flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors\" > showGroupForm ? : showGroupForm ? 'Cancel' : 'Add Group'",
+        "creatingGroup ? 'Creating\u2026' : 'Create routing group'",
+        "void handleToggleRoutingGroup(group) className= `rounded-full px-2 py-0.5 text-[11px] font-semibold $ group.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400' ` > group.is_active ? 'active' : 'inactive'",
+        "void handleDeleteRoutingGroup(group.id) className=\"rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors\">",
+        "setShowRouteForm((v) => !v) className=\"flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors\" > showRouteForm ? : showRouteForm ? 'Cancel' : 'Add Route'",
+        "creatingRoute ? 'Adding\u2026' : 'Add Route'",
+        "canManage && handleToggleRoute(route) disabled= !canManage className= `rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize transition-colors $ getDeploymentStatusTone(route.deployment_status) $ canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default' ` title= route.disabled_reason ?? undefined > route.deployment_status",
+        "handleToggleSemanticCache(route) title= route.semantic_cache_enabled ? 'Semantic cache ON \u2014 click to turn off' : 'Semantic cache OFF \u2014 click to turn on' className= `rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 $ route.semantic_cache_enabled ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500' ` > Cache route.semantic_cache_enabled ? 'ON' : 'OFF'",
+        "handleToggleContextCompiler(route) title= route.context_compiler_enabled ? 'Context compiler ON \u2014 click to turn off' : 'Context compiler OFF \u2014 click to turn on' className= `rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 $ route.context_compiler_enabled ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500' ` > Compiler route.context_compiler_enabled ? 'ON' : 'OFF'",
+        "handleToggleIntelligentRouting(route) title= route.intelligent_routing_enabled ? 'Intelligent routing ON \u2014 click to turn off' : 'Intelligent routing OFF \u2014 click to turn on' className= `rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer hover:opacity-80 $ route.intelligent_routing_enabled ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500' ` > Routing route.intelligent_routing_enabled ? 'ON' : 'OFF'",
+        "handleDeleteRoute(route.id) className=\"rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors\">",
+        "setShowPolicyForm((v) => !v) className=\"flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors\" > showPolicyForm ? : showPolicyForm ? 'Cancel' : 'Add Policy'",
+        "creatingPolicy ? 'Creating\u2026' : 'Add Policy'",
+        "canManage && handleTogglePolicy(p) disabled= !canManage className= `rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors $ p.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400' $ canManage ? 'cursor-pointer hover:opacity-80' : 'cursor-default' ` > p.is_active ? 'Active' : 'Disabled'",
+        "void handleLoadRecommendation(p.alias) void handleLoadPolicyAnalysis(p.id) disabled= loadingRec[p.alias] || loadingPolicyAnalysis[p.id] title=\"View outcome-based routing recommendation\" className= `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors $ expandedRec === p.alias ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-900/20 dark:hover:text-violet-300' ` > loadingRec[p.alias] || loadingPolicyAnalysis[p.id] ? '\u2026' : expandedRec === p.alias ? 'Hide' : 'Analyze'",
+        "void handlePromotePolicy(p.id) className=\"rounded-lg border border-indigo-200 px-2 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-950/30\" > Promote",
+        "void handleAdvanceCanary(p.id) className=\"rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-950/30\" > Advance",
+        "void handleRollbackPolicy(p.id) className=\"rounded-lg border border-amber-200 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-950/30\" > Roll back",
+        "handleDeletePolicy(p.id) className=\"rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors\">"
+      ],
+      "links": [],
+      "api_functions": [
+        "listGatewayRoutes",
+        "createGatewayRoute",
+        "updateGatewayRoute",
+        "deleteGatewayRoute",
+        "listGatewayRoutingGroups",
+        "createGatewayRoutingGroup",
+        "updateGatewayRoutingGroup",
+        "deleteGatewayRoutingGroup",
+        "getGatewayRoutingStrategyComparison",
+        "getGatewayStats",
+        "listRoutingPolicies",
+        "createRoutingPolicy",
+        "updateRoutingPolicy",
+        "getRoutingPolicyAnalysis",
+        "promoteRoutingPolicyWinner",
+        "advanceCanaryRollout",
+        "rollbackRoutingPolicy",
+        "deleteRoutingPolicy",
+        "listGatewayRequests",
+        "listProviderPricing",
+        "getRoutingRecommendation",
+        "getFlywheelSettings",
+        "updateFlywheelSettings",
+        "listFlywheelRecommendations",
+        "applyFlywheelRecommendation",
+        "dismissFlywheelRecommendation",
+        "runFlywheel",
+        "listGatewayPassThroughEndpoints",
+        "createGatewayPassThroughEndpoint",
+        "updateGatewayPassThroughEndpoint",
+        "deleteGatewayPassThroughEndpoint",
+        "testGatewayPassThroughEndpoint",
+        "listGatewayPassThroughStats",
+        "getGatewayBenchmarkComparison"
+      ],
+      "api_paths": {
+        "listGatewayRoutes": [
+          "/gateway/routes${qs}"
+        ],
+        "createGatewayRoute": [
+          "/gateway/routes"
+        ],
+        "updateGatewayRoute": [
+          "/gateway/routes/${routeId}"
+        ],
+        "deleteGatewayRoute": [
+          "/gateway/routes/${routeId}"
+        ],
+        "listGatewayRoutingGroups": [
+          "/gateway/routing-groups${qs}"
+        ],
+        "createGatewayRoutingGroup": [
+          "/gateway/routing-groups"
+        ],
+        "updateGatewayRoutingGroup": [
+          "/gateway/routing-groups/${groupId}"
+        ],
+        "deleteGatewayRoutingGroup": [
+          "/gateway/routing-groups/${groupId}"
+        ],
+        "getGatewayRoutingStrategyComparison": [
+          "/gateway/routing-groups/strategy-comparison"
+        ],
+        "getGatewayStats": [
+          "/gateway/stats"
+        ],
+        "listRoutingPolicies": [
+          "/gateway/policies"
+        ],
+        "createRoutingPolicy": [
+          "/gateway/policies"
+        ],
+        "updateRoutingPolicy": [
+          "/gateway/policies/${policyId}"
+        ],
+        "getRoutingPolicyAnalysis": [
+          "/gateway/policies/${policyId}/analysis"
+        ],
+        "promoteRoutingPolicyWinner": [
+          "/gateway/policies/${policyId}/promote"
+        ],
+        "advanceCanaryRollout": [
+          "/gateway/policies/${policyId}/rollout/advance"
+        ],
+        "rollbackRoutingPolicy": [
+          "/gateway/policies/${policyId}/rollback"
+        ],
+        "deleteRoutingPolicy": [
+          "/gateway/policies/${policyId}"
+        ],
+        "listGatewayRequests": [
+          "/gateway/requests${qs}"
+        ],
+        "listProviderPricing": [
+          "/providers/pricing"
+        ],
+        "getRoutingRecommendation": [
+          "/gateway/recommendations/${encodeURIComponent(alias)}${qs}"
+        ],
+        "getFlywheelSettings": [
+          "/gateway/flywheel/settings"
+        ],
+        "updateFlywheelSettings": [],
+        "listFlywheelRecommendations": [
+          "/gateway/flywheel/recommendations?status=${encodeURIComponent(status)}"
+        ],
+        "applyFlywheelRecommendation": [
+          "/gateway/flywheel/recommendations/${recId}/apply"
+        ],
+        "dismissFlywheelRecommendation": [
+          "/gateway/flywheel/recommendations/${recId}/dismiss"
+        ],
+        "runFlywheel": [
+          "/gateway/flywheel/run"
+        ],
+        "listGatewayPassThroughEndpoints": [
+          "/gateway/passthrough${qs}"
+        ],
+        "createGatewayPassThroughEndpoint": [
+          "/gateway/passthrough"
+        ],
+        "updateGatewayPassThroughEndpoint": [
+          "/gateway/passthrough/${endpointId}"
+        ],
+        "deleteGatewayPassThroughEndpoint": [
+          "/gateway/passthrough/${endpointId}"
+        ],
+        "testGatewayPassThroughEndpoint": [
+          "/gateway/passthrough/${endpointId}/test"
+        ],
+        "listGatewayPassThroughStats": [
+          "/gateway/passthrough/stats"
+        ],
+        "getGatewayBenchmarkComparison": [
+          "/gateway/benchmarks/compare${qs}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/v1"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'Active'",
+        "'Disabled'",
+        "'active'",
+        "'degraded'",
+        "'healthy'",
+        "'inactive'",
+        "'pending'",
+        "'success'"
+      ]
+    },
+    {
+      "route": "/global-dashboard",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\global-dashboard\\page.tsx",
+      "headings": [
+        "Global Dashboard"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/ledger",
+          "label": "Snapshot ledger"
+        },
+        {
+          "href": "/request-flow?scope=platform&mode=team-app-agent-model-cost&metric=cost",
+          "label": "Flow detail \u2192"
+        },
+        {
+          "href": "/organizations",
+          "label": "Manage organizations \u2192"
+        }
+      ],
+      "api_functions": [
+        "getRunFlow",
+        "listPlatformOrganizations"
+      ],
+      "api_paths": {
+        "getRunFlow": [
+          "/runs/flow${query}"
+        ],
+        "listPlatformOrganizations": [
+          "/org/tenants"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/${orgs.length}",
+        "/g, '",
+        "/global-dashboard",
+        "/ledger",
+        "/organizations",
+        "/request-flow?scope=platform&mode=team-app-agent-model-cost&metric=cost"
+      ],
+      "component_imports": [
+        "@/components/dashboard/ExecutiveCharts",
+        "@/components/ui/card"
+      ],
+      "statuses": [
+        "'active'"
+      ]
+    },
+    {
+      "route": "/governance-pack",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\governance-pack\\page.tsx",
+      "headings": [
+        "AI Governance Audit Pack"
+      ],
+      "buttons": [
+        "loading ? : Generate Report",
+        "handleExport('json') disabled= exporting className=\"flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > JSON",
+        "handleExport('csv') disabled= exporting className=\"flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > CSV"
+      ],
+      "links": [],
+      "api_functions": [
+        "getGovernanceAuditPack",
+        "exportGovernanceAuditPack"
+      ],
+      "api_paths": {
+        "getGovernanceAuditPack": [
+          "/governance/audit-pack${qs}"
+        ],
+        "exportGovernanceAuditPack": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/guardrails",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\guardrails\\page.tsx",
+      "headings": [
+        "Guardrails &amp; Safety Engine",
+        "{rule.name}",
+        "Default Safety Templates",
+        "Recent Enforcement Events",
+        "{editingRule ? 'Edit Guardrail Rule' : 'Create Guardrail Rule'}"
+      ],
+      "buttons": [
+        "resetForm() setShowModal(true) className=\"inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition\" > Add Guardrail Rule",
+        "setStatusFilter(st) className= `rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition $ statusFilter === st ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300' ` > st ( st === 'all' ? rules.length : rules.filter((r) => r.status === st).length )",
+        "handleToggleStatus(rule) title= isEnforced ? 'Disable rule' : 'Enforce rule' className= `relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out $ isEnforced ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700' ` >",
+        "openEdit(rule) title=\"Edit rule\" className=\"rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200\" >",
+        "handleDeleteRule(rule) title=\"Delete rule\" className=\"rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400\" >",
+        "applyTemplate(tpl) className=\"mt-3 w-full rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300\" > Apply Template",
+        "setShowModal(false) className=\"rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800\" >",
+        "setShowModal(false) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800\" > Cancel",
+        "saving ? 'Saving...' : editingRule ? 'Update Rule' : 'Create & Enforce'"
+      ],
+      "links": [],
+      "api_functions": [
+        "listGuardrailRules",
+        "createGuardrailRule",
+        "updateGuardrailRule",
+        "deleteGuardrailRule",
+        "getGuardrailStats",
+        "listGuardrailEvents",
+        "listGuardrailTemplates",
+        "listPartnerGuardrails"
+      ],
+      "api_paths": {
+        "listGuardrailRules": [
+          "/guardrails${qs}"
+        ],
+        "createGuardrailRule": [],
+        "updateGuardrailRule": [],
+        "deleteGuardrailRule": [
+          "/guardrails/${id}"
+        ],
+        "getGuardrailStats": [
+          "/guardrails/stats${qs}"
+        ],
+        "listGuardrailEvents": [
+          "/guardrails/events${qs}"
+        ],
+        "listGuardrailTemplates": [
+          "/guardrails/templates"
+        ],
+        "listPartnerGuardrails": [
+          "/guardrails/partners${qs}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'Paused'",
+        "'active'",
+        "'disabled'",
+        "'draft'"
+      ]
+    },
+    {
+      "route": "/integrations",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\integrations\\page.tsx",
+      "headings": [
+        "{item.name}",
+        "{card.name}",
+        "Integrations",
+        "Integrations",
+        "Integration Health Center",
+        "Kafka / Redpanda Export",
+        "{config.label}",
+        "Webhook Ingest",
+        "Unsigned webhook",
+        "Signed webhook"
+      ],
+      "buttons": [
+        "Configure soon",
+        "void loadHealth() disabled= healthLoading className=\"inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 disabled:opacity-60\" > Refresh",
+        "setTab(tab.id) className= `rounded-lg px-4 py-2 text-sm font-semibold transition-all $ activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700' ` > tab.label",
+        "toggleKafkaEvent(eventType) className= `rounded-full border px-3 py-1 text-xs font-semibold transition $ active ? 'border-blue-300 bg-blue-100 text-blue-700' : 'border-slate-200 bg-white text-slate-500 hover:bg-blue-50' ` > eventType",
+        "Create Kafka Export",
+        "void handleTestKafka(config) className=\"rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50\"> Test",
+        "void refreshKafkaDeliveries(config.id) className=\"rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50\"> Refresh history",
+        "void handleToggleKafka(config) className=\"rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50\"> config.enabled ? 'Disable' : 'Enable'",
+        "void handleDeleteKafka(config) className=\"rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50\"> Delete",
+        "void handleRetryKafkaDelivery(config, delivery) className=\"rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50\" > Retry now"
+      ],
+      "links": [
+        {
+          "href": "/settings?tab=backup",
+          "label": "Open backup settings"
+        }
+      ],
+      "api_functions": [
+        "getGatewayStats",
+        "getOpsFeatureStatus",
+        "getOtlpStats",
+        "createKafkaExportConfig",
+        "deleteKafkaExportConfig",
+        "listApiKeys",
+        "listGatewayRoutes",
+        "listKafkaExportConfigs",
+        "listKafkaExportDeliveries",
+        "retryKafkaExportDelivery",
+        "testKafkaExportConfig",
+        "updateKafkaExportConfig"
+      ],
+      "api_paths": {
+        "getGatewayStats": [
+          "/gateway/stats"
+        ],
+        "getOpsFeatureStatus": [
+          "/settings/ops/status"
+        ],
+        "getOtlpStats": [
+          "/v1/traces/stats"
+        ],
+        "createKafkaExportConfig": [
+          "/integrations/kafka/configs"
+        ],
+        "deleteKafkaExportConfig": [
+          "/integrations/kafka/configs/${configId}"
+        ],
+        "listApiKeys": [
+          "/settings/api-keys"
+        ],
+        "listGatewayRoutes": [
+          "/gateway/routes${qs}"
+        ],
+        "listKafkaExportConfigs": [
+          "/integrations/kafka/configs"
+        ],
+        "listKafkaExportDeliveries": [
+          "/integrations/kafka/configs/${configId}/deliveries?limit=${limit}"
+        ],
+        "retryKafkaExportDelivery": [
+          "/integrations/kafka/configs/${configId}/deliveries/${deliveryId}/retry"
+        ],
+        "testKafkaExportConfig": [
+          "/integrations/kafka/configs/${configId}/test"
+        ],
+        "updateKafkaExportConfig": [
+          "/integrations/kafka/configs/${configId}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/settings?tab=backup"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole",
+        "@/components/integrations/PluginsTab"
+      ],
+      "statuses": [
+        "'Disabled'",
+        "'Enabled'",
+        "'Healthy'",
+        "'Open'",
+        "'disabled'",
+        "'failed'",
+        "'healthy'",
+        "'success'"
+      ]
+    },
+    {
+      "route": "/ledger",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\ledger\\page.tsx",
+      "headings": [],
+      "buttons": [],
+      "links": [],
+      "api_functions": [],
+      "api_paths": {},
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/mcp",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\mcp\\page.tsx",
+      "headings": [
+        "MCP Servers",
+        "MCP Servers",
+        "Setup Wizard",
+        "{selected.name}",
+        "MCP Tools",
+        "Resources",
+        "Prompts",
+        "Connection Modes"
+      ],
+      "buttons": [
+        "setSelectedId(connector.id) className= `rounded-2xl border p-4 text-left transition $ isSelected ? 'border-blue-300 bg-blue-50 shadow-sm ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50/70 hover:border-blue-200 hover:bg-white' ` > connector.label connector.name connector.description",
+        "copy(snippet, selected.id) className=\"inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700\" > copied === selected.id ? : copied === selected.id ? 'Copied' : 'Copy'"
+      ],
+      "links": [
+        {
+          "href": "/api-keys",
+          "label": "Create key"
+        }
+      ],
+      "api_functions": [],
+      "api_paths": {},
+      "raw_fetch_refs": [
+        "/api-keys",
+        "/mcp"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/mcp-registry",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\mcp-registry\\page.tsx",
+      "headings": [
+        "MCP Server Registry & Governance",
+        "Register Custom MCP Server",
+        "{s.name}",
+        "Test Execute Tool: {testingTool.tool_name}",
+        "Grant Tool Permission Policy"
+      ],
+      "buttons": [
+        "Populate Popular MCP Servers",
+        "setTab(t.key) className= `flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition $ active ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200' ` > t.label ( t.count )",
+        "Register MCP Server",
+        "handleDelete(s.id) className=\"text-xs font-medium text-red-500 hover:text-red-700\" > Deactivate",
+        "setTestingTool(t) setToolArgsJson(' ') setToolResult(null) className=\"inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400\" > Test Call",
+        "setTestingTool(null) className=\"rounded-lg px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800\" > Close",
+        "executingTool ? 'Executing...' : 'Run Tool'",
+        "Grant Permission Policy",
+        "handleRevokePermission(p.id) className=\"text-xs text-red-500 hover:text-red-700 font-medium\" > Revoke"
+      ],
+      "links": [],
+      "api_functions": [
+        "listMcpServers",
+        "registerMcpServer",
+        "deleteMcpServer",
+        "seedDefaultMcpServers",
+        "listMcpTools",
+        "callMcpTool",
+        "listMcpToolCalls",
+        "listMcpPermissions",
+        "grantMcpPermission",
+        "revokeMcpPermission",
+        "listProjects"
+      ],
+      "api_paths": {
+        "listMcpServers": [
+          "/mcp-registry${qs}"
+        ],
+        "registerMcpServer": [
+          "/mcp-registry"
+        ],
+        "deleteMcpServer": [
+          "/mcp-registry/${id}"
+        ],
+        "seedDefaultMcpServers": [
+          "/mcp-registry/seed-defaults"
+        ],
+        "listMcpTools": [
+          "/mcp-registry/tools"
+        ],
+        "callMcpTool": [
+          "/mcp-registry/tools/call"
+        ],
+        "listMcpToolCalls": [
+          "/mcp-registry/tool-calls?limit=${limit}"
+        ],
+        "listMcpPermissions": [
+          "/mcp-registry/permissions"
+        ],
+        "grantMcpPermission": [
+          "/mcp-registry/permissions"
+        ],
+        "revokeMcpPermission": [
+          "/mcp-registry/permissions/${id}"
+        ],
+        "listProjects": [
+          "/projects${qs}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'Healthy'",
+        "'Inactive'"
+      ]
+    },
+    {
+      "route": "/model-budgets",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\model-budgets\\page.tsx",
+      "headings": [
+        "Model Budgets",
+        "New Model Budget",
+        "Model Budget Heatmap"
+      ],
+      "buttons": [
+        "Load",
+        "setShowForm(true) className=\"rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700\" > Add Model Budget",
+        "saving ? 'Creating...' : 'Create'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800\" > Cancel",
+        "handleDelete(b.id) className=\"rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30\" > Remove"
+      ],
+      "links": [],
+      "api_functions": [
+        "listModelBudgets",
+        "createModelBudget",
+        "deleteModelBudget"
+      ],
+      "api_paths": {
+        "listModelBudgets": [
+          "/api-keys/${keyId}/model-budgets"
+        ],
+        "createModelBudget": [
+          "/api-keys/${keyId}/model-budgets"
+        ],
+        "deleteModelBudget": [
+          "/api-keys/${keyId}/model-budgets/${budgetId}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/model-scorecards",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\model-scorecards\\page.tsx",
+      "headings": [
+        "Model Quality Scorecards",
+        "Score Trends"
+      ],
+      "buttons": [
+        "setRange(r) className= `rounded-lg px-3 py-1.5 text-xs font-semibold transition $ range === r ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-300' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200' ` > r"
+      ],
+      "links": [],
+      "api_functions": [
+        "getModelScorecards",
+        "getModelScoreTrends"
+      ],
+      "api_paths": {
+        "getModelScorecards": [
+          "/analytics/model-scorecards${_analyticsQs(window)}"
+        ],
+        "getModelScoreTrends": [
+          "/analytics/model-score-trends?${q}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/dashboard/DashboardScopeBar"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/model-usage",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\model-usage\\page.tsx",
+      "headings": [
+        "Model Usage"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getBestValueModels",
+        "getCostQuality",
+        "getRunFlow"
+      ],
+      "api_paths": {
+        "getBestValueModels": [
+          "/analytics/scores/best-value${qs}"
+        ],
+        "getCostQuality": [
+          "/analytics/scores/cost-quality${qs}"
+        ],
+        "getRunFlow": [
+          "/runs/flow${query}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/dashboard/ModelRoutingCharts",
+        "@/components/ui/card"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/monitoring",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\monitoring\\page.tsx",
+      "headings": [
+        "Monitoring"
+      ],
+      "buttons": [
+        "onChange(v) className= `px-3 py-1.5 transition-colors $ value === v ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 font-medium' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700' ` > label",
+        "setTimePreset('all'); setTypeFilter('') className=\"flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white ml-auto\"> Clear filters",
+        "setSearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "Reset all",
+        "setStatusFilter(s) className= `px-3 py-1.5 capitalize transition-colors $ statusFilter === s ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 font-medium' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700' ` > s",
+        "Clear filters",
+        "setSearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "Reset all",
+        "Clear filters",
+        "setSearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "Reset all",
+        "load(true) disabled= refreshing className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50\" > refreshing ? 'Refreshing\u2026' : 'Refresh'",
+        "setTab(t.id) className= `flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all $ tab === t.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white' ` > t.icon t.label !!t.badge && t.badge > 0 && ( t.badge )"
+      ],
+      "links": [],
+      "api_functions": [
+        "getSecurityEvents",
+        "listAlertHistory",
+        "listGatewayRequests"
+      ],
+      "api_paths": {
+        "getSecurityEvents": [
+          "/tools/security-events"
+        ],
+        "listAlertHistory": [
+          "/alerts/history?limit=${limit}"
+        ],
+        "listGatewayRequests": [
+          "/gateway/requests${qs}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'active'",
+        "'error'",
+        "'success'"
+      ]
+    },
+    {
+      "route": "/onboarding",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\onboarding\\page.tsx",
+      "headings": [
+        "Getting Started",
+        "Choose Your Integration",
+        "Connect {active.name} to RunLedger",
+        "Demo Mode"
+      ],
+      "buttons": [
+        "copied ? : copied ? 'Copied' : 'Copy'",
+        "setSelectedIntegration(isSelected ? null : integration.id) className= `flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all $ isSelected ? 'border-blue-500 bg-blue-50 shadow-md dark:border-blue-400 dark:bg-blue-950/40' : 'border-slate-200 bg-white/90 shadow-sm hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-600 dark:hover:bg-slate-800' ` > integration.name integration.subtitle",
+        "setSelectedIntegration(null) className=\"text-sm text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300\" >",
+        "setSelectedDemoProfile(profile.id as 'full' | 'quick') className= `rounded-xl border p-4 text-left transition-colors $ selected ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/40' : 'border-slate-200 bg-slate-50 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-blue-600' ` > profile.label profile.description",
+        "seeding ? 'Seeding\u2026' : 'Seed Demo Data'",
+        "resetting ? 'Resetting\u2026' : 'Reset Demo Data'"
+      ],
+      "links": [],
+      "api_functions": [
+        "getDemoModeStatus",
+        "getOnboardingStatus",
+        "triggerDemoReset",
+        "triggerDemoSeed"
+      ],
+      "api_paths": {
+        "getDemoModeStatus": [
+          "/settings/demo-status"
+        ],
+        "getOnboardingStatus": [
+          "/settings/onboarding-status"
+        ],
+        "triggerDemoReset": [
+          "/settings/demo-reset"
+        ],
+        "triggerDemoSeed": [
+          "/settings/demo-seed?profile=${profile}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'running'"
+      ]
+    },
+    {
+      "route": "/optimization-opportunities",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\optimization-opportunities\\page.tsx",
+      "headings": [
+        "Optimization Opportunities",
+        "No strong recommendations yet",
+        "{rec.title}",
+        "How recommendations are generated"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/experiments",
+          "label": "Experiment lab"
+        }
+      ],
+      "api_functions": [
+        "getRunFlow"
+      ],
+      "api_paths": {
+        "getRunFlow": [
+          "/runs/flow${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/experiments"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/optimization-simulator",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\optimization-simulator\\page.tsx",
+      "headings": [
+        "Optimization Simulator",
+        "Simulation Parameters",
+        "Latency Impact",
+        "Impact Breakdown",
+        "Configure a simulation",
+        "No matching requests",
+        "How simulations work"
+      ],
+      "buttons": [
+        "void handleRun() disabled= !canRun || running className=\"flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50\" > running ? : running ? 'Simulating...' : 'Run Simulation'"
+      ],
+      "links": [],
+      "api_functions": [
+        "simulateOptimization"
+      ],
+      "api_paths": {
+        "simulateOptimization": [
+          "/analytics/simulate-optimization"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/org-settings",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\org-settings\\page.tsx",
+      "headings": [
+        "Organization Settings",
+        "Organization Settings",
+        "Email Notification Preferences",
+        "Test Email Delivery",
+        "Email Delivery History",
+        "Slack Webhook"
+      ],
+      "buttons": [
+        "setTab(id) className= `group rounded-2xl border p-4 text-left transition-all $ selected ? 'border-blue-300 bg-blue-50 text-slate-950 shadow-sm ring-1 ring-blue-300/30' : 'border-slate-200 bg-white/70 text-slate-700 hover:border-blue-200 hover:bg-blue-50/50' ` > label description",
+        "if (!apiKey) return setTestingEmailReportState(true) try const result = await testEmailReport(apiKey) if (result.ok) toast.success(`Test report sent$ result.recipient ? ` to $ result.recipient ` : '' `) void loadEmailPrefs() else toast.error(result.error ?? 'Failed to send test report') catch (err) console.error(err) toast.error('Failed to send test report') finally setTestingEmailReportState(false) > testingEmailReportState ? 'Sending test report\u2026' : emailDeliveryDisabled ? 'Report delivery disabled' : 'Send Test Report To Me'",
+        "if (!apiKey || !emailPrefs) return setSavingEmailPrefs(true) try const updated = await updateEmailPreferences(apiKey, report_frequency: emailPrefs.report_frequency, report_hour: emailPrefs.report_hour, report_timezone: emailPrefs.report_timezone, report_recipient_mode: emailPrefs.report_recipient_mode, report_recipients: emailPrefs.report_recipients, report_template: emailPrefs.report_template, alerts_enabled: emailPrefs.alerts_enabled, approvals_enabled: emailPrefs.approvals_enabled, reconciliation_enabled: emailPrefs.reconciliation_enabled, budget_alerts_enabled: emailPrefs.budget_alerts_enabled, billing_closed_enabled: emailPrefs.billing_closed_enabled, score_regression_enabled: emailPrefs.score_regression_enabled, dispute_flagged_enabled: emailPrefs.dispute_flagged_enabled, ) setEmailPrefs(updated) toast.success('Email preferences saved') catch (err) console.error(err) toast.error('Failed to save preferences') finally setSavingEmailPrefs(false) > savingEmailPrefs ? 'Saving\u2026' : 'Save Preferences'",
+        "if (!apiKey) return setTestingEmail(true) try const result = await testEmailSend(apiKey) if (result.ok) toast.success('Test email sent!') else toast.error(`Failed: $ result.error ?? 'unknown error' `) catch (err) toast.error('Failed to send test email') console.error(err) finally setTestingEmail(false) > testingEmail ? 'Sending\u2026' : emailDeliveryDisabled ? 'Email disabled' : 'Send Test Email'",
+        "void loadEmailPrefs() disabled= loadingEmailPrefs className=\"rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50\" > Refresh",
+        "testingSlack ? 'Sending...' : 'Send Test Message'"
+      ],
+      "links": [],
+      "api_functions": [
+        "getEmailPreferences",
+        "updateEmailPreferences",
+        "getEmailLog",
+        "getOpsFeatureStatus",
+        "testEmailSend",
+        "testEmailReport",
+        "testSlackWebhook"
+      ],
+      "api_paths": {
+        "getEmailPreferences": [
+          "/settings/email/preferences"
+        ],
+        "updateEmailPreferences": [
+          "/settings/email/preferences"
+        ],
+        "getEmailLog": [
+          "/settings/email/log"
+        ],
+        "getOpsFeatureStatus": [
+          "/settings/ops/status"
+        ],
+        "testEmailSend": [
+          "/settings/email/test"
+        ],
+        "testEmailReport": [
+          "/settings/email/test-report"
+        ],
+        "testSlackWebhook": [
+          "/integrations/slack/test"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/organization/dashboard",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\organization\\dashboard\\page.tsx",
+      "headings": [
+        "Org Dashboard"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/organization",
+          "label": "Manage org"
+        },
+        {
+          "href": "/dashboard",
+          "label": "\u2190 Workspace Dashboard"
+        }
+      ],
+      "api_functions": [
+        "getOrgDashboard"
+      ],
+      "api_paths": {
+        "getOrgDashboard": [
+          "/org/dashboard${_analyticsQs(window)}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/dashboard",
+        "/organization",
+        "/organization/dashboard"
+      ],
+      "component_imports": [
+        "@/components/ui/skeleton",
+        "@/components/ui/card",
+        "@/components/runs/RunStatusBadge",
+        "@/components/dashboard/OrgSpendChart"
+      ],
+      "statuses": [
+        "'failed'",
+        "'running'"
+      ]
+    },
+    {
+      "route": "/organization",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\organization\\page.tsx",
+      "headings": [
+        "{profile?.name ?? '\u2014'}",
+        "Edit Organization",
+        "Details",
+        "Org Admin Access Required",
+        "Organization"
+      ],
+      "buttons": [
+        "saving ? 'Saving\u2026' : 'Save'",
+        "loading ? 'Loading\u2026' : loaded ? `$ members.length member$ members.length !== 1 ? 's' : '' ` : 'Manage members' loaded && (open ? : )",
+        "handleRemove(m.user_id, m.email) className=\"p-0.5 text-slate-300 hover:text-red-500 transition-colors\">",
+        "setShowAddForm((v) => !v) className=\"flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline\" > showAddForm ? 'Cancel' : 'Add member'",
+        "busy ? '\u2026' : 'Add'",
+        "setShowForm((v) => !v); setNewName('') className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors\" > New Workspace",
+        "creating ? 'Creating\u2026' : 'Create'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50\"> Cancel",
+        "setNewlyCreatedWs(null) className=\"text-xs text-violet-600 dark:text-violet-400 hover:underline\">Done",
+        "setShowForm(true) className=\"mt-2 text-sm text-violet-600 dark:text-violet-400 hover:underline\"> Create the first workspace",
+        "handleDelete(ws) disabled= workspaces.length",
+        "setSearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "load(true) disabled= refreshing className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50\">",
+        "setShowForm((v) => !v); setForm( email: '', full_name: '', password: '', role: 'org_member' ) className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors\" > Add Member",
+        "submitting ? 'Adding\u2026' : 'Add'",
+        "setShowForm(false) className=\"mt-2 text-xs text-slate-400 hover:text-slate-600\">Cancel",
+        "setShowForm(true) className=\"mt-2 flex items-center gap-1.5 mx-auto text-sm text-violet-600 dark:text-violet-400 hover:underline\"> Add first member",
+        "handleRemove(m.user_id, m.email) className=\"p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors\" title=\"Remove from organization\">",
+        "setActiveTab(id) className= `flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px $ activeTab === id ? 'border-violet-500 text-violet-700 dark:text-violet-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200' ` > label"
+      ],
+      "links": [],
+      "api_functions": [],
+      "api_paths": {},
+      "raw_fetch_refs": [
+        "/org/members",
+        "/org/members/${userId}",
+        "/org/members/${userId}/role",
+        "/org/members/invite",
+        "/org/profile",
+        "/org/workspaces",
+        "/org/workspaces/${workspace.id}/members",
+        "/org/workspaces/${workspace.id}/members/${userId}",
+        "/org/workspaces/${ws.id}"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'Active'",
+        "'Failed'",
+        "'Inactive'"
+      ]
+    },
+    {
+      "route": "/organizations",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\organizations\\page.tsx",
+      "headings": [
+        "Organizations",
+        "Organizations",
+        "{title}"
+      ],
+      "buttons": [
+        "setShowCreate(true) className=\"inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700\" > New Organization",
+        "openEdit(org) title=\"Edit organization\" className=\"text-slate-400 hover:text-violet-600\">",
+        "handleStatus(org, org.status === 'active' ? 'suspended' : 'active') disabled= statusDisabled title= org.is_default ? 'Default organization cannot be suspended' : isCurrent ? 'Switch orgs before suspending this one' : org.status === 'active' ? 'Suspend organization' : 'Reactivate organization' className=\"text-slate-400 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-35\" > org.status === 'active' ? :",
+        "setDeleting(org); setDeleteConfirmation('') disabled= deleteDisabled title= org.is_default ? 'Default organization cannot be deleted' : isCurrent ? 'Switch orgs before deleting this one' : 'Delete organization' className=\"text-slate-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35\" >",
+        "setShowCreate(false) className=\"rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600\">Cancel",
+        "busyId === 'create' ? 'Creating...' : 'Create organization'",
+        "setEditing(null) className=\"rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600\">Cancel",
+        "busyId === editing.id ? 'Saving...' : 'Save'",
+        "setDeleting(null) className=\"rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-600\">Cancel",
+        "busyId === deleting.id ? 'Deleting...' : 'Delete organization'"
+      ],
+      "links": [],
+      "api_functions": [
+        "createOrganization",
+        "deletePlatformOrganization",
+        "listPlatformOrganizations",
+        "updatePlatformOrganization"
+      ],
+      "api_paths": {
+        "createOrganization": [
+          "/org/tenants"
+        ],
+        "deletePlatformOrganization": [
+          "/org/tenants/${tenantId}"
+        ],
+        "listPlatformOrganizations": [
+          "/org/tenants"
+        ],
+        "updatePlatformOrganization": [
+          "/org/tenants/${tenantId}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'active'"
+      ]
+    },
+    {
+      "route": "/otlp",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\otlp\\page.tsx",
+      "headings": [
+        "OTLP Ingestion",
+        "OTLP Ingestion",
+        "Last 24h Signal Trend",
+        "Top Instrumented Services",
+        "Attribution Coverage",
+        "Collector Semantics",
+        "Recent Ingest Batches"
+      ],
+      "buttons": [
+        "loading ? 'Loading\u2026' : 'Refresh'"
+      ],
+      "links": [],
+      "api_functions": [
+        "getOtlpInsights",
+        "getOtlpStats",
+        "listOtlpBatches"
+      ],
+      "api_paths": {
+        "getOtlpInsights": [
+          "/v1/traces/insights"
+        ],
+        "getOtlpStats": [
+          "/v1/traces/stats"
+        ],
+        "listOtlpBatches": [
+          "/v1/traces/batches?limit=${limit}&offset=${offset}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/outcomes",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\outcomes\\page.tsx",
+      "headings": [
+        "Outcomes &amp; ROI",
+        "Success Rate Trend \u2014 {trendTypes[0]}",
+        "Workflow ROI by Feature Tag",
+        "Quality Score vs Success Rate Correlation"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getOutcomeSummary",
+        "getOutcomeTrend",
+        "getWorkflowROI",
+        "getQualityCorrelation"
+      ],
+      "api_paths": {
+        "getOutcomeSummary": [
+          "/outcomes/summary?window_days=${windowDays}"
+        ],
+        "getOutcomeTrend": [
+          "/outcomes/trend?${params}"
+        ],
+        "getWorkflowROI": [
+          "/outcomes/workflows?window_days=${windowDays}"
+        ],
+        "getQualityCorrelation": [
+          "/outcomes/quality-correlation?window_days=${windowDays}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/playground",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\playground\\page.tsx",
+      "headings": [
+        "{s.name || 'Untitled Session'}",
+        "API Playground",
+        "Quick Send",
+        "Sessions ({sessions.length})",
+        "Request History ({historyTotal})"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getPlaygroundSessions",
+        "getPlaygroundHistory"
+      ],
+      "api_paths": {
+        "getPlaygroundSessions": [
+          "/playground/sessions${query}"
+        ],
+        "getPlaygroundHistory": [
+          "/playground/history${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/${r.output_tokens}"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/plugins",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\plugins\\page.tsx",
+      "headings": [],
+      "buttons": [],
+      "links": [],
+      "api_functions": [],
+      "api_paths": {},
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/policy-dry-run",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\policy-dry-run\\page.tsx",
+      "headings": [
+        "Policy Dry Run"
+      ],
+      "buttons": [
+        "setTab(t.id) if (t.id === 'report' && !report) loadReport() className= `flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition $ tab === t.id ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' ` > t.label",
+        "loading ? : Run Check",
+        "const policyType = form.feature_tag.trim() || form.tool_name.trim() || 'default' handlePromote(policyType) disabled= promoting className=\"inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50\" > promoting ? ( ) : ( ) Promote to Enforcement",
+        "handleReportPromote('all') disabled= reportPromoting || !report className=\"inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50\" > reportPromoting ? ( ) : ( ) Promote to Enforcement",
+        "reportLoading ? : Refresh"
+      ],
+      "links": [
+        {
+          "href": "/audit?action=policy.dry_run",
+          "label": "View Audit Log"
+        },
+        {
+          "href": "/audit?action=policy.dry_run",
+          "label": "View Audit Log"
+        }
+      ],
+      "api_functions": [
+        "policyDryRun",
+        "getPolicyDryRunReport",
+        "promotePolicy"
+      ],
+      "api_paths": {
+        "policyDryRun": [
+          "/policies/check"
+        ],
+        "getPolicyDryRunReport": [
+          "/policies/dry-run-report${qs}"
+        ],
+        "promotePolicy": [
+          "/policies/promote"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/audit?action=policy.dry_run"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/projects",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\projects\\page.tsx",
+      "headings": [
+        "Projects & Workspace Governance",
+        "Create New Project",
+        "Assigned API Keys \u2014{' '}\n            {projects.find((p) => p.id === selectedProject)?.name}"
+      ],
+      "buttons": [
+        "creating ? 'Creating...' : 'Create Project'",
+        "e.stopPropagation() handleDelete(p.id) className=\"text-xs text-red-500 hover:text-red-700\" > Archive",
+        "Assign Key",
+        "handleRemoveKey(k.api_key_id) className=\"text-xs text-red-500 hover:text-red-700\" > Unassign"
+      ],
+      "links": [],
+      "api_functions": [
+        "listProjects",
+        "createProject",
+        "deleteProject",
+        "assignProjectKey",
+        "listProjectKeys",
+        "removeProjectKey",
+        "listOrgWorkspaces",
+        "listTeamModels",
+        "getAccessGroups",
+        "listApiKeys"
+      ],
+      "api_paths": {
+        "listProjects": [
+          "/projects${qs}"
+        ],
+        "createProject": [
+          "/projects"
+        ],
+        "deleteProject": [
+          "/projects/${id}"
+        ],
+        "assignProjectKey": [
+          "/projects/${projectId}/keys"
+        ],
+        "listProjectKeys": [
+          "/projects/${projectId}/keys"
+        ],
+        "removeProjectKey": [
+          "/projects/${projectId}/keys/${keyId}"
+        ],
+        "listOrgWorkspaces": [
+          "/org/workspaces"
+        ],
+        "listTeamModels": [
+          "/team-models${query}"
+        ],
+        "getAccessGroups": [
+          "/access-groups${query}"
+        ],
+        "listApiKeys": [
+          "/settings/api-keys"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'Active'"
+      ]
+    },
+    {
+      "route": "/prompts/{name}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\prompts\\[name]\\page.tsx",
+      "headings": [
+        "{decodedName}",
+        "Edit v{editingVersion.version} \u2192 auto-bumps to new version"
+      ],
+      "buttons": [
+        "router.push('/prompts') className=\"rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200\">",
+        "ghSyncing ? '\u2026' : 'Push'",
+        "ghSyncing ? '\u2026' : 'Pull'",
+        "handlePromote('staging') className=\"flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800\" > Promote staging \u2192 prod",
+        "setShowVersionForm((v) => !v) className=\"flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700\" > New Version",
+        "setEditingVersion(null) >",
+        "setEditingVersion(null) className=\"flex-1 rounded-lg border border-gray-300 dark:border-gray-600 py-2 text-sm text-gray-600 dark:text-gray-300\">Cancel",
+        "editSaving ? 'Saving\u2026' : 'Save as new version'",
+        "saving ? 'Committing\u2026' : 'Commit Version'",
+        "setShowVersionForm(false) className=\"rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800\"> Cancel",
+        "startEdit(v) title=\"Edit (creates new version)\" className=\"text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300\" >",
+        "toggleExpand(v.version) className=\"text-xs text-indigo-500 hover:underline\" > isExpanded ? 'Hide content' : 'Show full content'",
+        "setDiffA(diffA === v.version ? null : v.version) className= `rounded px-2 py-0.5 border $ diffA === v.version ? 'border-red-400 text-red-600 dark:text-red-400' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400' ` > diffA === v.version ? '\u2713 before' : 'set before'",
+        "setDiffB(diffB === v.version ? null : v.version) className= `rounded px-2 py-0.5 border $ diffB === v.version ? 'border-green-400 text-green-600 dark:text-green-400' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400' ` > diffB === v.version ? '\u2713 after' : 'set after'"
+      ],
+      "links": [
+        {
+          "href": "/settings?tab=git",
+          "label": "Connect Git \u2197"
+        }
+      ],
+      "api_functions": [
+        "getPrompt",
+        "listVersions",
+        "createVersion",
+        "promoteVersion",
+        "getPromptMetrics",
+        "getGithubConfig",
+        "pushToGithub",
+        "pullFromGithub"
+      ],
+      "api_paths": {
+        "getPrompt": [
+          "/prompts/${encodeURIComponent(name)}"
+        ],
+        "listVersions": [
+          "/prompts/${encodeURIComponent(name)}/versions${qs}"
+        ],
+        "createVersion": [
+          "/prompts/${encodeURIComponent(name)}/versions"
+        ],
+        "promoteVersion": [
+          "/prompts/${encodeURIComponent(name)}/promote"
+        ],
+        "getPromptMetrics": [
+          "/prompts/${encodeURIComponent(name)}/metrics"
+        ],
+        "getGithubConfig": [
+          "/prompts/github-config"
+        ],
+        "pushToGithub": [
+          "/prompts/sync/push"
+        ],
+        "pullFromGithub": [
+          "/prompts/sync/pull"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/prompts/${encodeURIComponent(decodedName)}/versions/${editingVersion.version}",
+        "/settings?tab=git"
+      ],
+      "component_imports": [
+        "@/components/ui/card",
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/prompts",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\prompts\\page.tsx",
+      "headings": [
+        "Prompts"
+      ],
+      "buttons": [
+        "setShowForm((v) => !v) className=\"flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700\" > New Prompt",
+        "creating ? 'Creating\u2026' : 'Create'",
+        "setShowForm(false) className=\"rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800\" > Cancel",
+        "e.stopPropagation(); handleDelete(p.name) className=\"rounded p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400\" title=\"Delete prompt\" >"
+      ],
+      "links": [],
+      "api_functions": [
+        "listPrompts",
+        "createPrompt",
+        "deletePrompt"
+      ],
+      "api_paths": {
+        "listPrompts": [
+          "/prompts"
+        ],
+        "createPrompt": [
+          "/prompts"
+        ],
+        "deletePrompt": [
+          "/prompts/${encodeURIComponent(name)}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/ui/card",
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/provider-profiles",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\provider-profiles\\page.tsx",
+      "headings": [
+        "Provider Profiles",
+        "Provider Profiles",
+        "New provider profile (workspace-scoped)"
+      ],
+      "buttons": [
+        "fileInputRef.current?.click() disabled= importing className=\"shrink-0 flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1.5 text-sm text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50\" title=\"Import a pricing YAML \u2014 idempotent upsert into the catalog\" > importing ? 'Importing\u2026' : 'Import YAML'",
+        "Example",
+        "syncing ? 'Syncing\u2026' : 'Pull from Internet'",
+        "Refresh",
+        "setShowForm((v) => !v) className=\"flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors\" > showForm ? 'Cancel' : 'Add Profile'",
+        "addingPricing ? 'Adding\u2026' : 'Add Profile'",
+        "setPricingSearch('') className=\"absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "setPricingScopeFilter(s) className= `rounded-md px-2.5 py-1 text-xs font-medium transition-colors $ pricingScopeFilter === s ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800' ` > s === 'all' ? 'All' : s === 'workspace' ? 'Workspace' : 'Global'",
+        "setPricingSearch(''); setPricingProviderFilter(''); setPricingScopeFilter('all') className=\"flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors\" > Clear filters",
+        "fileInputRef.current?.click() className=\"mt-1 flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors\"> Import pricing YAML",
+        "savingEdit ? 'Saving\u2026' : 'Save'",
+        "setEditState(null) className=\"rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors\"> Cancel",
+        "startEdit(p) className=\"rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors\" title=\"Edit\">",
+        "handleReprice(p.provider, p.model) className=\"rounded-lg p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors\" title=\"Re-enrich costs\">",
+        "handleDeletePricing(p.id) className=\"rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors\" title=\"Delete\">"
+      ],
+      "links": [],
+      "api_functions": [
+        "listProviderPricing",
+        "createProviderPricing",
+        "updateProviderPricing",
+        "deleteProviderPricing",
+        "repriceProvider",
+        "triggerPricingSync",
+        "importProviderPricing",
+        "getPricingExampleYaml"
+      ],
+      "api_paths": {
+        "listProviderPricing": [
+          "/providers/pricing"
+        ],
+        "createProviderPricing": [
+          "/providers/pricing"
+        ],
+        "updateProviderPricing": [
+          "/providers/pricing/${pricingId}"
+        ],
+        "deleteProviderPricing": [
+          "/providers/pricing/${pricingId}"
+        ],
+        "repriceProvider": [
+          "/providers/reprice"
+        ],
+        "triggerPricingSync": [
+          "/pricing/sync"
+        ],
+        "importProviderPricing": [],
+        "getPricingExampleYaml": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": []
+    },
+    {
+      "route": "/rate-limits",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\rate-limits\\page.tsx",
+      "headings": [
+        "Rate Limits",
+        "{tier.name}",
+        "Response Headers",
+        "Budget Tier Rate Limits",
+        "429 Too Many Requests"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/budget-tiers",
+          "label": "Budget Tier"
+        },
+        {
+          "href": "/model-budgets",
+          "label": "Model Budgets"
+        }
+      ],
+      "api_functions": [],
+      "api_paths": {},
+      "raw_fetch_refs": [
+        "/budget-tiers",
+        "/model-budgets"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/replay/{experiment_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\replay\\[experiment_id]\\page.tsx",
+      "headings": [
+        "{results.experiment_name}"
+      ],
+      "buttons": [
+        "handleRecommendRoute(i, c.model) disabled= recommending === i className=\"flex items-center gap-1 rounded-lg border border-indigo-300 px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950\" > recommending === i ? 'Saving\u2026' : 'Recommend Route'"
+      ],
+      "links": [
+        {
+          "href": "/replay",
+          "label": "\u2190 Back to Replay"
+        },
+        {
+          "href": "/replay",
+          "label": "Replay"
+        }
+      ],
+      "api_functions": [
+        "getExperimentResults",
+        "createRouteRecommendation"
+      ],
+      "api_paths": {
+        "getExperimentResults": [
+          "/replay/experiments/${id}/results"
+        ],
+        "createRouteRecommendation": [
+          "/gateway/route-recommendations"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/replay"
+      ],
+      "component_imports": [
+        "@/components/ui/card"
+      ],
+      "statuses": [
+        "'completed'"
+      ]
+    },
+    {
+      "route": "/replay",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\replay\\page.tsx",
+      "headings": [
+        "Replay Lab",
+        "Datasets",
+        "Experiments"
+      ],
+      "buttons": [
+        "setTab(t) className= `px-4 py-2 text-sm font-medium capitalize transition-colors $ tab === t ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' ` > t",
+        "setShowNewDataset(!showNewDataset) className=\"inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700\" > New Dataset",
+        "creatingDs ? 'Creating...' : 'Create'",
+        "setShowNewExperiment(!showNewExperiment) className=\"inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700\" > New Experiment",
+        "creatingExp ? 'Creating...' : 'Create'",
+        "setExpandedExp(expandedExp === e.id ? null : e.id) > expandedExp === e.id ? ( ) : ( )",
+        "handleRun(e.id) className=\"inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700\" > Run"
+      ],
+      "links": [],
+      "api_functions": [
+        "listEvalDatasets",
+        "createEvalDataset",
+        "listEvalExperiments",
+        "createEvalExperiment",
+        "runEvalExperiment"
+      ],
+      "api_paths": {
+        "listEvalDatasets": [
+          "/datasets?limit=${limit}"
+        ],
+        "createEvalDataset": [
+          "/datasets"
+        ],
+        "listEvalExperiments": [
+          "/experiments?limit=${limit}"
+        ],
+        "createEvalExperiment": [
+          "/experiments"
+        ],
+        "runEvalExperiment": [
+          "/experiments/${id}/run"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/${m.model}"
+      ],
+      "component_imports": [],
+      "statuses": [
+        "'completed'",
+        "'pending'"
+      ]
+    },
+    {
+      "route": "/request-explorer",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\request-explorer\\page.tsx",
+      "headings": [
+        "Recent Requests",
+        "Prompt And Response",
+        "{title}",
+        "Request {truncateId(run.id, 12)}",
+        "Request Lifecycle",
+        "Request Explorer"
+      ],
+      "buttons": [
+        "Explore"
+      ],
+      "links": [
+        {
+          "href": "/request-flow",
+          "label": "Back to flow"
+        }
+      ],
+      "api_functions": [
+        "getRun",
+        "getRunGraph",
+        "getRuns",
+        "listGatewayRequests",
+        "listOutcomes"
+      ],
+      "api_paths": {
+        "getRun": [
+          "/runs/${runId}"
+        ],
+        "getRunGraph": [
+          "/runs/${runId}/graph"
+        ],
+        "getRuns": [
+          "/runs${query}"
+        ],
+        "listGatewayRequests": [
+          "/gateway/requests${qs}"
+        ],
+        "listOutcomes": [
+          "/outcomes${q.toString() ? '?' + q.toString() : ''}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/request-explorer",
+        "/request-flow"
+      ],
+      "component_imports": [
+        "@/components/runs/RunStatusBadge"
+      ],
+      "statuses": [
+        "'Error'",
+        "'failed'",
+        "'success'"
+      ]
+    },
+    {
+      "route": "/request-flow/focus",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\request-flow\\focus\\page.tsx",
+      "headings": [
+        "AI Request Flow"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getRunFlow"
+      ],
+      "api_paths": {
+        "getRunFlow": [
+          "/runs/flow${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/request-flow/focus"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/request-flow",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\request-flow\\page.tsx",
+      "headings": [
+        "AI Request Flow",
+        "No request flow data yet"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/request-explorer",
+          "label": "Open Request Explorer"
+        }
+      ],
+      "api_functions": [
+        "getRunFlow"
+      ],
+      "api_paths": {
+        "getRunFlow": [
+          "/runs/flow${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/request-explorer"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/response-cache",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\response-cache\\page.tsx",
+      "headings": [
+        "Response Cache Management",
+        "Semantic Cache Tuning",
+        "Top Cached Models"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getResponseCacheConfigs",
+        "getResponseCacheStats"
+      ],
+      "api_paths": {
+        "getResponseCacheConfigs": [
+          "/response-cache"
+        ],
+        "getResponseCacheStats": [
+          "/response-cache/stats"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'disabled'",
+        "'enabled'"
+      ]
+    },
+    {
+      "route": "/runbooks",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\runbooks\\page.tsx",
+      "headings": [
+        "Agent Runbooks",
+        "What Happened",
+        "{group.label}",
+        "Total Cost",
+        "Error Details",
+        "Recommendations"
+      ],
+      "buttons": [
+        "setShowGenerate(!showGenerate) className=\"inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800\" > Generate Runbook",
+        "generating ? 'Generating...' : 'Generate'",
+        "setShowGenerate(false) className=\"rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300\" > Cancel",
+        "setExpanded(isOpen ? null : rb.id) className=\"flex w-full items-start justify-between gap-4 text-left\" > rb.severity rb.run_id.slice(0, 12) ... new Date(rb.generated_at).toLocaleDateString(undefined, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', ) s.what_happened isOpen ? ( ) : ( )",
+        "handleExport(rb, 'markdown') className=\"inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800\" title=\"Export as Markdown\" > Markdown",
+        "handleExport(rb, 'json') className=\"inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800\" title=\"Export as JSON\" > JSON",
+        "setPage((p) => Math.max(0, p - 1)) disabled= page === 0 className=\"inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800\" > Previous",
+        "setPage((p) => Math.min(totalPages - 1, p + 1)) disabled= page >= totalPages - 1 className=\"inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800\" > Next"
+      ],
+      "links": [],
+      "api_functions": [
+        "listRunbooks",
+        "generateRunbook",
+        "exportRunbook"
+      ],
+      "api_paths": {
+        "listRunbooks": [
+          "/runs/runbooks/list${qs}"
+        ],
+        "generateRunbook": [
+          "/runs/${runId}/runbook"
+        ],
+        "exportRunbook": []
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'critical'",
+        "'warning'"
+      ]
+    },
+    {
+      "route": "/runs/{run_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\runs\\[run_id]\\page.tsx",
+      "headings": [
+        "{title}"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/runs",
+          "label": "Runs"
+        }
+      ],
+      "api_functions": [
+        "getRun",
+        "getRunGraph"
+      ],
+      "api_paths": {
+        "getRun": [
+          "/runs/${runId}"
+        ],
+        "getRunGraph": [
+          "/runs/${runId}/graph"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/runs"
+      ],
+      "component_imports": [
+        "@/components/runs/RunSummaryBar",
+        "@/components/dag/RunGraph",
+        "@/components/runs/PayloadViewer",
+        "@/components/runs/RunScorePanel"
+      ],
+      "statuses": [
+        "'Error'",
+        "'failed'"
+      ]
+    },
+    {
+      "route": "/runs",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\runs\\page.tsx",
+      "headings": [
+        "Live Workspace Model Activity",
+        "Runs"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/request-flow?mode=request-intent-model-result&metric=requests",
+          "label": "Open flow"
+        },
+        {
+          "href": "/request-explorer",
+          "label": "Request Explorer"
+        }
+      ],
+      "api_functions": [
+        "getRuns"
+      ],
+      "api_paths": {
+        "getRuns": [
+          "/runs${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/request-explorer",
+        "/request-flow?mode=request-intent-model-result&metric=requests"
+      ],
+      "component_imports": [
+        "@/components/runs/RunsTable",
+        "@/components/runs/RunFilters",
+        "@/components/runs/RunsExportButton",
+        "@/components/ui/button",
+        "@/components/ui/skeleton"
+      ],
+      "statuses": [
+        "'failed'"
+      ]
+    },
+    {
+      "route": "/search-tools",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\search-tools\\page.tsx",
+      "headings": [
+        "Search Tools Integration",
+        "Policy Preview"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getSearchToolPolicies",
+        "getSearchTools"
+      ],
+      "api_paths": {
+        "getSearchToolPolicies": [
+          "/search-tools/${toolId}/policies"
+        ],
+        "getSearchTools": [
+          "/search-tools${query}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/security",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\security\\page.tsx",
+      "headings": [
+        "Security",
+        "Enterprise Security",
+        "Workspace Security Posture",
+        "OIDC Providers",
+        "IP ACLs"
+      ],
+      "buttons": [
+        "void load() disabled= loading className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50\" > loading ? 'Refreshing...' : 'Refresh'",
+        "void handleSaveSettings() disabled= saving || !settings className=\"rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50\"> saving ? 'Saving...' : 'Save security settings'",
+        "Add OIDC provider",
+        "void handleDeleteOidcProvider(provider.id) className=\"rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30\">",
+        "Add ACL rule",
+        "void handleTestIp() className=\"rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700\"> Simulate",
+        "void handleDeleteIpAclRule(rule.id) className=\"rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30\">"
+      ],
+      "links": [],
+      "api_functions": [
+        "getSecuritySettings",
+        "updateSecuritySettings",
+        "listOidcProviders",
+        "createOidcProvider",
+        "deleteOidcProvider",
+        "listIpAclRules",
+        "createIpAclRule",
+        "deleteIpAclRule",
+        "testIpAcl"
+      ],
+      "api_paths": {
+        "getSecuritySettings": [
+          "/security/settings"
+        ],
+        "updateSecuritySettings": [
+          "/security/settings"
+        ],
+        "listOidcProviders": [
+          "/security/oidc-providers"
+        ],
+        "createOidcProvider": [
+          "/security/oidc-providers"
+        ],
+        "deleteOidcProvider": [
+          "/security/oidc-providers/${providerId}"
+        ],
+        "listIpAclRules": [
+          "/security/ip-acl"
+        ],
+        "createIpAclRule": [
+          "/security/ip-acl"
+        ],
+        "deleteIpAclRule": [
+          "/security/ip-acl/${ruleId}"
+        ],
+        "testIpAcl": [
+          "/security/ip-acl/test"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'active'",
+        "'inactive'"
+      ]
+    },
+    {
+      "route": "/sessions/{session_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\sessions\\[session_id]\\page.tsx",
+      "headings": [
+        "Cumulative Cost Over Turns",
+        "Runs"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/sessions",
+          "label": "Sessions"
+        }
+      ],
+      "api_functions": [
+        "getSession",
+        "getSessionCostOverTurns"
+      ],
+      "api_paths": {
+        "getSession": [
+          "/sessions/${encodeURIComponent(sessionId)}"
+        ],
+        "getSessionCostOverTurns": [
+          "/sessions/${encodeURIComponent(sessionId)}/cost-over-turns"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/sessions"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/sessions",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\sessions\\page.tsx",
+      "headings": [
+        "Sessions"
+      ],
+      "buttons": [
+        "onChange(v) className= `px-3 py-1.5 transition-colors $ value === v ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 font-medium' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700' ` > label",
+        "load(true) disabled= refreshing className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50\" > refreshing ? 'Refreshing\u2026' : 'Refresh'",
+        "setUserFilter('') className=\"absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\">",
+        "Clear filters",
+        "setSearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\" >",
+        "Reset all",
+        "Reset all filters"
+      ],
+      "links": [],
+      "api_functions": [
+        "listSessions"
+      ],
+      "api_paths": {
+        "listSessions": [
+          "/sessions${query}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/settings",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\settings\\page.tsx",
+      "headings": [
+        "Settings",
+        "Platform Settings",
+        "Compliance",
+        "Daily Snapshots",
+        "Backup Schedule",
+        "Backup History",
+        "Snapshot Inventory"
+      ],
+      "buttons": [
+        "setTab(id) className= `group rounded-2xl border p-4 text-left transition-all $ selected ? 'border-stone-300 bg-stone-100 text-slate-950 shadow-sm ring-1 ring-stone-400/20 dark:border-stone-500/40 dark:bg-stone-700/30 dark:text-white' : 'border-stone-200 bg-[#fbfaf7]/70 text-slate-700 hover:border-stone-300 hover:bg-[#fffdf8] dark:border-slate-800 dark:bg-slate-950/45 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900' ` > label description",
+        "setComplianceAttempted(false) disabled= loadingCompliance className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50\" > loadingCompliance ? 'Loading\u2026' : 'Refresh'",
+        "generatingSnap ? 'Generating\u2026' : 'Generate Snapshot'",
+        "handleVerifySnapshot(snap) disabled= verifyingSnap === snap.snapshot_date className=\"text-xs font-medium text-stone-700 hover:underline disabled:opacity-50 dark:text-[#D8CAAA]\" > verifyingSnap === snap.snapshot_date ? 'Verifying\u2026' : 'Verify'",
+        "void loadBackupData() disabled= loadingBackup className=\"rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300\" > loadingBackup ? 'Refreshing...' : 'Refresh'",
+        "if (!apiKey) return setSavingBackupConfig(true) try const saved = await updateBackupConfig(apiKey, provider: 's3', bucket: backupConfig.bucket, prefix: backupConfig.prefix, region: backupConfig.region, endpoint_url: backupConfig.endpoint_url, access_key_id: backupConfig.access_key_id, secret_access_key: backupConfig.secret_access_key, force_path_style: backupConfig.force_path_style, schedule_enabled: true, cadence: backupConfig.cadence, run_hour_utc: backupConfig.run_hour_utc, retention_days: backupConfig.retention_days, include_memory_db: backupConfig.include_memory_db, include_qdrant: backupConfig.include_qdrant, include_kuzu: backupConfig.include_kuzu, include_skills: backupConfig.include_skills, encryption_mode: backupConfig.encryption_mode, ) setBackupConfig(saved) toast.success('Backup schedule saved') catch (err) console.error(err) toast.error('Failed to save backup schedule') finally setSavingBackupConfig(false) className=\"rounded bg-stone-700 px-4 py-2 text-sm font-medium text-white hover:bg-stone-600 disabled:opacity-60 dark:bg-[#D8CAAA] dark:text-[#111318]\" > savingBackupConfig ? 'Saving\u2026' : 'Save schedule'",
+        "if (!apiKey) return setTestingBackupConnectionState(true) try const result = await testBackupConnection(apiKey) if (result.ok) toast.success(result.message || 'Backup connectivity check passed') else toast.error(result.message || 'Backup connectivity check failed') catch (err) console.error(err) toast.error('Failed to test backup connectivity') finally setTestingBackupConnectionState(false) className=\"rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800\" > testingBackupConnectionState ? 'Testing\u2026' : 'Test S3 Connection'",
+        "if (!apiKey) return setRunningBackup(true) try const run = await runBackupNow(apiKey) setBackupRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)]) toast.success('Backup started in background') setTimeout(() => void loadBackupData() , 1500) catch (err) console.error(err) toast.error('Failed to start backup') finally setRunningBackup(false) className=\"rounded border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60 dark:border-stone-600 dark:text-stone-200\" > runningBackup ? 'Starting...' : 'Run backup now'",
+        "if (!apiKey) return setRunningRestoreDrillState(true) try const run = await runRestoreDrill(apiKey) setBackupRuns((prev) => [run, ...prev.filter((item) => item.id !== run.id)]) toast.success('Restore drill queued') setTimeout(() => void loadBackupData() , 1500) catch (err) console.error(err) toast.error('Failed to start restore drill') finally setRunningRestoreDrillState(false) className=\"rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800\" > runningRestoreDrillState ? 'Starting\u2026' : 'Run Restore Drill'"
+      ],
+      "links": [
+        {
+          "href": "/tool-registry",
+          "label": "Go to Tool Registry \u2192"
+        }
+      ],
+      "api_functions": [
+        "listLedgerSnapshots",
+        "generateLedgerSnapshot",
+        "verifyLedgerSnapshot",
+        "getBackupConfig",
+        "getBackupHistory",
+        "getBackupSnapshots",
+        "getOpsFeatureStatus",
+        "runBackupNow",
+        "runRestoreDrill",
+        "testBackupConnection",
+        "updateBackupConfig",
+        "getBackupStatus",
+        "getOpsFeatureFlags",
+        "getOpsPolicyEvaluation",
+        "getOpsQueueStatus",
+        "getOpsStorageStatus"
+      ],
+      "api_paths": {
+        "listLedgerSnapshots": [
+          "/ledger/snapshots"
+        ],
+        "generateLedgerSnapshot": [
+          "/ledger/snapshots/generate"
+        ],
+        "verifyLedgerSnapshot": [
+          "/ledger/verify/${snapshotDate}"
+        ],
+        "getBackupConfig": [
+          "/settings/backups/config"
+        ],
+        "getBackupHistory": [
+          "/settings/backups/history?limit=${limit}"
+        ],
+        "getBackupSnapshots": [
+          "/settings/backups/snapshots?limit=${limit}"
+        ],
+        "getOpsFeatureStatus": [
+          "/settings/ops/status"
+        ],
+        "runBackupNow": [
+          "/settings/backups/run"
+        ],
+        "runRestoreDrill": [
+          "/settings/backups/restore-drill"
+        ],
+        "testBackupConnection": [
+          "/settings/backups/test"
+        ],
+        "updateBackupConfig": [
+          "/settings/backups/config"
+        ],
+        "getBackupStatus": [
+          "/settings/backups/status"
+        ],
+        "getOpsFeatureFlags": [
+          "/settings/ops/feature-flags"
+        ],
+        "getOpsPolicyEvaluation": [
+          "/settings/ops/policy-evaluation"
+        ],
+        "getOpsQueueStatus": [
+          "/settings/ops/queues"
+        ],
+        "getOpsStorageStatus": [
+          "/settings/ops/storage"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/tool-registry"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole",
+        "@/components/settings/RetentionTab"
+      ],
+      "statuses": [
+        "'Disabled'",
+        "'Enabled'",
+        "'Open'",
+        "'active'",
+        "'draft'",
+        "'failed'",
+        "'success'"
+      ]
+    },
+    {
+      "route": "/tags",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\tags\\page.tsx",
+      "headings": [
+        "Tag Management",
+        "Hierarchy",
+        "Auto-Tagging Rules"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getAutoTagRules",
+        "getTagTree",
+        "simulateAutoTagging"
+      ],
+      "api_paths": {
+        "getAutoTagRules": [
+          "/tags/auto-rules"
+        ],
+        "getTagTree": [
+          "/tags/tree${query}"
+        ],
+        "simulateAutoTagging": [
+          "/tags/auto-rules/simulate"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'active'",
+        "'inactive'"
+      ]
+    },
+    {
+      "route": "/team-models",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\team-models\\page.tsx",
+      "headings": [
+        "Team Models",
+        "Cost by Team",
+        "{team}"
+      ],
+      "buttons": [
+        "setShowForm(!showForm) className=\"rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700\"> showForm ? 'Cancel' : 'Add Team Model'",
+        "Add",
+        "handleToggleLoggingOptOut(m) className= `rounded-full px-2 py-0.5 text-xs font-medium $ m.logging_opt_out ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' ` > m.logging_opt_out ? 'Opted out' : 'Logging on'",
+        "handleDelete(m.id) className=\"text-xs text-red-500 hover:text-red-700\">Remove"
+      ],
+      "links": [],
+      "api_functions": [
+        "listTeamModels",
+        "addTeamModel",
+        "deleteTeamModel",
+        "updateTeamModel"
+      ],
+      "api_paths": {
+        "listTeamModels": [
+          "/team-models${query}"
+        ],
+        "addTeamModel": [
+          "/team-models"
+        ],
+        "deleteTeamModel": [
+          "/team-models/${id}"
+        ],
+        "updateTeamModel": [
+          "/team-models/${id}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": [
+        "'degraded'",
+        "'healthy'"
+      ]
+    },
+    {
+      "route": "/tool-policies",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\tool-policies\\page.tsx",
+      "headings": [
+        "Tool Policies & Execution Rules",
+        "New Tool Policy Rule",
+        "Interactive Policy Simulator",
+        "Active Policy Rules ({policies.length})"
+      ],
+      "buttons": [
+        "setShowCreateForm(!showCreateForm) className=\"flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition\" > showCreateForm ? 'Cancel' : 'Create Tool Policy'",
+        "creating ? 'Saving Policy...' : 'Save Policy Rule'",
+        "simulating ? 'Simulating...' : 'Run Simulation'",
+        "handleDeletePolicy(p.id) className=\"text-xs text-red-500 hover:text-red-700 font-medium\" > Delete"
+      ],
+      "links": [],
+      "api_functions": [
+        "getToolPolicies",
+        "createToolPolicy",
+        "deleteToolPolicy",
+        "simulateToolPolicy",
+        "getToolPolicyAnalytics",
+        "getAccessGroups",
+        "listProjects",
+        "listMcpTools"
+      ],
+      "api_paths": {
+        "getToolPolicies": [
+          "/tool-policies${query}"
+        ],
+        "createToolPolicy": [
+          "/tool-policies"
+        ],
+        "deleteToolPolicy": [
+          "/tool-policies/${id}"
+        ],
+        "simulateToolPolicy": [
+          "/tool-policies/simulate"
+        ],
+        "getToolPolicyAnalytics": [
+          "/tool-policies/analytics?limit=${limit}"
+        ],
+        "getAccessGroups": [
+          "/access-groups${query}"
+        ],
+        "listProjects": [
+          "/projects${qs}"
+        ],
+        "listMcpTools": [
+          "/mcp-registry/tools"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/tool-registry",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\tool-registry\\page.tsx",
+      "headings": [
+        "Tool Registry",
+        "Register a tool"
+      ],
+      "buttons": [
+        "Refresh",
+        "setShowForm((v) => !v) className=\"flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors\" > showForm ? 'Cancel' : 'Register Tool'",
+        "registeringTool ? 'Registering\u2026' : 'Register Tool'",
+        "handleDeleteTool(tool.tool_name) className=\"rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors\" title=\"Remove tool\" >"
+      ],
+      "links": [],
+      "api_functions": [
+        "listToolRegistry",
+        "upsertToolRegistry",
+        "deleteToolRegistry"
+      ],
+      "api_paths": {
+        "listToolRegistry": [
+          "/tools/registry"
+        ],
+        "upsertToolRegistry": [
+          "/tools/registry"
+        ],
+        "deleteToolRegistry": [
+          "/tools/registry/${encodeURIComponent(toolName)}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/users",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\users\\page.tsx",
+      "headings": [
+        "Users",
+        "Users",
+        "{title}"
+      ],
+      "buttons": [
+        "setShowCreate(true) className=\"inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700\" > New User",
+        "toggleField(u, 'email_verified') title=\"Toggle verification\" className= `inline-flex items-center gap-1 text-xs $ u.email_verified ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600' ` > u.email_verified ? : u.email_verified ? 'Verified' : 'Unverified'",
+        "toggleField(u, 'is_active') title=\"Toggle active\">",
+        "openEdit(u) title=\"Edit name / reset password\" className=\"text-slate-400 hover:text-blue-600\">",
+        "handleRemove(u) title=\"Remove from org\" className=\"text-slate-400 hover:text-red-600\">",
+        "setShowCreate(false) className=\"rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300\">Cancel",
+        "creating ? 'Creating...' : 'Create user'",
+        "setEditing(null) className=\"rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300\">Cancel",
+        "saving ? 'Saving...' : 'Save'"
+      ],
+      "links": [],
+      "api_functions": [
+        "createOrgUser",
+        "listOrgUsers",
+        "updateOrgUser",
+        "getAccessGroups",
+        "addAccessGroupMember",
+        "type OrgUser"
+      ],
+      "api_paths": {
+        "createOrgUser": [
+          "/users"
+        ],
+        "listOrgUsers": [
+          "/users/all"
+        ],
+        "updateOrgUser": [
+          "/users/${userId}"
+        ],
+        "getAccessGroups": [
+          "/access-groups${query}"
+        ],
+        "addAccessGroupMember": [
+          "/access-groups/${groupId}/members"
+        ],
+        "type OrgUser": []
+      },
+      "raw_fetch_refs": [
+        "/org/members/${u.id}"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'Active'",
+        "'Inactive'"
+      ]
+    },
+    {
+      "route": "/vector-stores/{collection_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\vector-stores\\[collection_id]\\page.tsx",
+      "headings": [
+        "{coll.name}",
+        "Recent Queries ({queries.total})"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/vector-stores",
+          "label": "Back to Vector Stores"
+        },
+        {
+          "href": "/vector-stores",
+          "label": "\u2190 Vector Stores"
+        }
+      ],
+      "api_functions": [
+        "getVectorCollection",
+        "getVectorCollectionStats",
+        "getVectorQueries"
+      ],
+      "api_paths": {
+        "getVectorCollection": [
+          "/vector-stores/${collectionId}"
+        ],
+        "getVectorCollectionStats": [
+          "/vector-stores/${collectionId}/stats"
+        ],
+        "getVectorQueries": [
+          "/vector-stores/${collectionId}/queries${query}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/vector-stores"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/vector-stores",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\vector-stores\\page.tsx",
+      "headings": [
+        "{c.name}",
+        "Vector Stores"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getVectorCollections"
+      ],
+      "api_paths": {
+        "getVectorCollections": [
+          "/vector-stores${query}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/workflows/{workflow_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\workflows\\[workflow_id]\\page.tsx",
+      "headings": [
+        "{wf.name}",
+        "Cost by Step",
+        "Runs ({totalRuns})"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/workflows",
+          "label": "Workflows"
+        }
+      ],
+      "api_functions": [
+        "getWorkflow",
+        "getWorkflowRuns",
+        "getWorkflowCost"
+      ],
+      "api_paths": {
+        "getWorkflow": [
+          "/workflows/${workflowId}"
+        ],
+        "getWorkflowRuns": [
+          "/workflows/${workflowId}/runs${query}"
+        ],
+        "getWorkflowCost": [
+          "/workflows/${workflowId}/cost"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/workflows"
+      ],
+      "component_imports": [],
+      "statuses": [
+        "'active'"
+      ]
+    },
+    {
+      "route": "/workflows/{workflow_id}/runs/{run_id}",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\workflows\\[workflow_id]\\runs\\[run_id]\\page.tsx",
+      "headings": [
+        "Step Timeline ({run.steps.length} steps)"
+      ],
+      "buttons": [],
+      "links": [
+        {
+          "href": "/workflows",
+          "label": "Workflows"
+        }
+      ],
+      "api_functions": [
+        "getWorkflowRun",
+        "getWorkflow"
+      ],
+      "api_paths": {
+        "getWorkflowRun": [
+          "/workflows/${workflowId}/runs/${runId}"
+        ],
+        "getWorkflow": [
+          "/workflows/${workflowId}"
+        ]
+      },
+      "raw_fetch_refs": [
+        "/workflows"
+      ],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/workflows",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\workflows\\page.tsx",
+      "headings": [
+        "{wf.name}",
+        "Workflows"
+      ],
+      "buttons": [],
+      "links": [],
+      "api_functions": [
+        "getWorkflows"
+      ],
+      "api_paths": {
+        "getWorkflows": [
+          "/workflows${query}"
+        ]
+      },
+      "raw_fetch_refs": [],
+      "component_imports": [],
+      "statuses": []
+    },
+    {
+      "route": "/workspace",
+      "file": "C:\\Users\\Abi\\Desktop\\github\\runledger-community\\apps\\web\\app\\(dashboard)\\workspace\\page.tsx",
+      "headings": [
+        "Assign members to &ldquo;{workspace.name}&rdquo;",
+        "Workspaces",
+        "Workspaces",
+        "Create a new workspace"
+      ],
+      "buttons": [
+        "Done",
+        "handleAdd(m) disabled= adding[m.user_id] className=\"flex items-center gap-1 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-2.5 py-1 text-xs font-medium text-white transition-colors\" > adding[m.user_id] ? 'Adding\u2026' : 'Add'",
+        "loading ? 'Loading\u2026' : loaded ? `$ members.length member$ members.length !== 1 ? 's' : '' ` : 'View members' loaded && (open ? : )",
+        "handleRemove(m.user_id, m.email) className=\"p-0.5 text-slate-300 hover:text-red-500 transition-colors\">",
+        "load(true) disabled= refreshing className=\"flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 shrink-0\" > refreshing ? 'Refreshing\u2026' : 'Refresh'",
+        "setSearch('') className=\"absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600\" >",
+        "setShowForm((v) => !v) setNewWsName('') setNewlyCreatedWs(null) className=\"ml-auto flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors shrink-0\" > New Workspace",
+        "creating ? 'Creating\u2026' : 'Create'",
+        "setShowForm(false) className=\"rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700\" > Cancel",
+        "setShowForm(true) className=\"mt-3 flex items-center gap-1.5 text-sm text-violet-600 dark:text-violet-400 hover:underline\" > Create your first workspace",
+        "renamingWorkspaceId === ws.id ? 'Saving\u2026' : 'Save'",
+        "setEditingWorkspaceId(null); setRenameValue('') className=\"text-xs text-slate-400 hover:text-slate-700\"> Cancel",
+        "setManagingMembersWs(managingMembersWs?.id === ws.id ? null : ws) setNewlyCreatedWs(null) className=\"flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline\" > managingMembersWs?.id === ws.id ? 'Close' : 'Add Members'",
+        "setEditingWorkspaceId(ws.id) setRenameValue(ws.name) className=\"flex items-center gap-1 text-xs text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400\" > Rename",
+        "handleDelete(ws) disabled= deleteDisabled title= isCurrent ? 'Cannot delete the current workspace' : isLast ? 'Cannot delete the last workspace' : `Delete workspace \"$ ws.name \"` className=\"absolute top-3 right-3 p-1.5 rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100\" >"
+      ],
+      "links": [],
+      "api_functions": [],
+      "api_paths": {},
+      "raw_fetch_refs": [
+        "/org/members",
+        "/org/workspaces",
+        "/org/workspaces/${workspace.id}/members",
+        "/org/workspaces/${workspace.id}/members/${userId}",
+        "/org/workspaces/${ws.id}",
+        "/org/workspaces/my"
+      ],
+      "component_imports": [
+        "@/components/rbac/useRole"
+      ],
+      "statuses": [
+        "'Failed'",
+        "'active'"
+      ]
+    }
+  ],
+  "api_function_count": 399
+}

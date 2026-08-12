@@ -57,8 +57,8 @@ function StatusBadge({ active }: { active: boolean }) {
 export default function UsersPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
-  const { isOrgAdmin } = useRole()
-  const canManage = isOrgAdmin
+  const { isOrgElevated } = useRole()
+  const canManage = isOrgElevated
 
   const [users, setUsers] = useState<OrgUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -196,7 +196,7 @@ export default function UsersPage() {
     return (
       <div className="p-8">
         <h1 className="font-display text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-950">Users</h1>
-        <p className="mt-4 text-sm text-slate-500">User management is an organization-admin function.</p>
+        <p className="mt-4 text-sm text-slate-500">User management requires organization admin or manager access.</p>
       </div>
     )
   }

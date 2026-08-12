@@ -7152,7 +7152,88 @@
             "description": "Mint a key for a workspace in the caller's org (org-admin only).\n\nRBAC: org/platform admins can manage keys across org workspaces; workspace admins can manage keys only for their active workspace. Use a dashboard session key from POST /auth/login.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": null,\n  \"workspace_id\": null,\n  \"environment\": \"dev\",\n  \"scopes\": [\n    \"string\"\n  ]\n}",
+              "raw": "{\n  \"name\": null,\n  \"workspace_id\": null,\n  \"environment\": \"dev\",\n  \"scopes\": [\n    \"string\"\n  ],\n  \"ownership_type\": \"service_account\",\n  \"owner_reference\": \"gateway-worker\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Api Key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/api-keys/:key_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "api-keys",
+                ":key_id"
+              ],
+              "variable": [
+                {
+                  "key": "key_id",
+                  "value": "{{key_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Fetch metadata for one API key, including workspace ownership and owner-reference fields."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Api Key",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/api-keys/:key_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "api-keys",
+                ":key_id"
+              ],
+              "variable": [
+                {
+                  "key": "key_id",
+                  "value": "{{key_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update API key metadata without changing the underlying secret. Use this for name and ownership updates.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Gateway key\",\n  \"ownership_type\": \"agent\",\n  \"owner_reference\": \"router-agent\",\n  \"scopes\": [\n    \"gateway\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7202,7 +7283,7 @@
       "description": "Workspace API-key management. Org/platform admins can manage keys across org workspaces; workspace admins can manage keys for their active workspace."
     },
     {
-      "name": "Platform Settings - Email",
+      "name": "Organization Settings - Email",
       "item": [
         {
           "name": "Get Email Log",
@@ -7229,7 +7310,36 @@
                 "log"
               ]
             },
-            "description": "Get Email Log\n\nRBAC: platform-admin only."
+            "description": "Get Email Log\n\nRBAC: org admin, org manager, or platform admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Email Feature Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/email/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "email",
+                "status"
+              ]
+            },
+            "description": "Get email delivery feature flags used by the org console.\n\nRBAC: org admin, org manager, or platform admin."
           },
           "response": []
         },
@@ -7258,7 +7368,7 @@
                 "preferences"
               ]
             },
-            "description": "Get or create default email preferences for this workspace.\n\nRBAC: platform-admin only."
+            "description": "Get or create default email preferences for this workspace.\n\nRBAC: org admin, org manager, or platform admin."
           },
           "response": []
         },
@@ -7287,7 +7397,7 @@
                 "preferences"
               ]
             },
-            "description": "Update Email Preferences\n\nRBAC: platform-admin only.",
+            "description": "Update Email Preferences\n\nRBAC: org admin, org manager, or platform admin.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"report_frequency\": null,\n  \"report_hour\": null,\n  \"report_timezone\": null,\n  \"report_recipient_mode\": null\n}",
@@ -7325,12 +7435,12 @@
                 "test"
               ]
             },
-            "description": "Test Email Send\n\nRBAC: platform-admin only."
+            "description": "Test Email Send\n\nRBAC: org admin, org manager, or platform admin."
           },
           "response": []
         }
       ],
-      "description": "Platform-admin-only email preferences, log, and test-send endpoints."
+      "description": "Org-console email preferences, delivery status, log, and test-send endpoints."
     },
     {
       "name": "Settings / Other",

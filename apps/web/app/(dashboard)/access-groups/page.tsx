@@ -35,6 +35,7 @@ import type {
   GuardrailRuleResponse,
   GuardrailTemplate,
 } from '@/types/api'
+import { useRole } from '@/components/rbac/useRole'
 
 function budgetLabel(budget: number | null, period: string | null) {
   if (budget == null) return 'No budget cap'
@@ -47,6 +48,8 @@ const inputCls =
 export default function AccessGroupsPage() {
   const { data: session } = useSession()
   const apiKey = (session as any)?.apiKey
+  const { isWorkspaceAdmin } = useRole()
+  const canManage = isWorkspaceAdmin
 
   const [groups, setGroups] = useState<AccessGroupDashboardItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -105,6 +108,7 @@ export default function AccessGroupsPage() {
   }
 
   function openEdit(group: AccessGroupDashboardItem) {
+    if (!canManage) return
     setEditingGroup(group)
     setName(group.name)
     setDescription('')
@@ -116,7 +120,7 @@ export default function AccessGroupsPage() {
 
   async function handleSaveGroup(e: React.FormEvent) {
     e.preventDefault()
-    if (!apiKey || !name.trim()) return
+    if (!apiKey || !name.trim() || !canManage) return
     setSaving(true)
     try {
       const payload = {
@@ -146,7 +150,7 @@ export default function AccessGroupsPage() {
   }
 
   async function handleDeleteGroup(group: AccessGroupDashboardItem) {
-    if (!apiKey || !confirm(`Deactivate access group "${group.name}"?`)) return
+    if (!apiKey || !canManage || !confirm(`Deactivate access group "${group.name}"?`)) return
     try {
       await deleteAccessGroup(apiKey, group.id)
       toast.success('Access group deactivated')
@@ -158,7 +162,7 @@ export default function AccessGroupsPage() {
   }
 
   async function openMemberManagement(group: AccessGroupDashboardItem) {
-    if (!apiKey) return
+    if (!apiKey || !canManage) return
     setManagingGroup(group)
     setLoadingMembers(true)
     try {
@@ -178,7 +182,7 @@ export default function AccessGroupsPage() {
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault()
-    if (!apiKey || !managingGroup || !selectedUserId) return
+    if (!apiKey || !managingGroup || !selectedUserId || !canManage) return
     setAddingMember(true)
     try {
       await addAccessGroupMember(apiKey, managingGroup.id, { user_id: selectedUserId })
@@ -195,7 +199,7 @@ export default function AccessGroupsPage() {
   }
 
   async function handleRemoveMember(userId: string) {
-    if (!apiKey || !managingGroup) return
+    if (!apiKey || !managingGroup || !canManage) return
     try {
       await removeAccessGroupMember(apiKey, managingGroup.id, userId)
       toast.success('Member removed')
@@ -226,15 +230,23 @@ export default function AccessGroupsPage() {
         </div>
         <button
           onClick={() => {
+            if (!canManage) return
             resetForm()
             setShowCreateModal(true)
           }}
+          disabled={!canManage}
           className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
         >
           <Plus className="h-4 w-4" />
-          Create Access Group
+          {canManage ? 'Create Access Group' : 'Workspace Admin Required'}
         </button>
       </div>
+
+      {!canManage && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+          Access Groups are workspace-scoped governance controls. You can review the dashboard here, but editing groups and membership requires workspace-admin access.
+        </div>
+      )}
 
       {/* Overview Stat Cards */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -308,6 +320,7 @@ export default function AccessGroupsPage() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => openEdit(group)}
+                      disabled={!canManage}
                       title="Edit group"
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     >
@@ -315,6 +328,7 @@ export default function AccessGroupsPage() {
                     </button>
                     <button
                       onClick={() => handleDeleteGroup(group)}
+                      disabled={!canManage}
                       title="Deactivate group"
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                     >
@@ -351,6 +365,7 @@ export default function AccessGroupsPage() {
               <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   onClick={() => openMemberManagement(group)}
+                  disabled={!canManage}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   <Users className="h-3.5 w-3.5" />

@@ -113,6 +113,8 @@
         "administration/org-profile",
         "administration/users",
         "administration/workspaces",
+        "administration/access-groups",
+        "administration/api-keys",
         "governance/rbac"
       ]
     },

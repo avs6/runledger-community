@@ -91,6 +91,7 @@ import type {
   PurgeResult,
   EmailPreference,
   EmailLogList,
+  OrgEmailFeatureStatus,
   OpsFeatureStatus,
   OpsFeatureFlagsResponse,
   OpsPolicyEvaluation,
@@ -725,6 +726,21 @@ export async function createApiKey(
 ): Promise<ApiKeyCreateResponse> {
   return apiFetch<ApiKeyCreateResponse>('/settings/api-keys', apiKey, {
     method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getApiKeyDetail(apiKey: string, keyId: string): Promise<ApiKeyResponse> {
+  return apiFetch<ApiKeyResponse>(`/settings/api-keys/${keyId}`, apiKey)
+}
+
+export async function updateApiKey(
+  apiKey: string,
+  keyId: string,
+  body: import('@/types/api').ApiKeyUpdateRequest
+): Promise<ApiKeyResponse> {
+  return apiFetch<ApiKeyResponse>(`/settings/api-keys/${keyId}`, apiKey, {
+    method: 'PUT',
     body: JSON.stringify(body),
   })
 }
@@ -2371,6 +2387,10 @@ export async function testEmailReport(apiKey: string): Promise<{ ok: boolean; re
   return apiFetch<{ ok: boolean; recipient?: string; error?: string }>('/settings/email/test-report', apiKey, {
     method: 'POST',
   })
+}
+
+export async function getOrgEmailFeatureStatus(apiKey: string): Promise<OrgEmailFeatureStatus> {
+  return apiFetch<OrgEmailFeatureStatus>('/settings/email/status', apiKey)
 }
 
 export async function getOpsFeatureStatus(apiKey: string): Promise<OpsFeatureStatus> {

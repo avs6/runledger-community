@@ -309,7 +309,7 @@ function WorkspaceMembers({
 
 export default function WorkspacePage() {
   const { data: session, update: updateSession } = useSession()
-  const { isOrgAdmin, isPlatformAdmin } = useRole()
+  const { isOrgElevated, isPlatformAdmin } = useRole()
 
   const apiKey = (session as unknown as Record<string, unknown>)?.apiKey as string ?? ''
   const currentWorkspaceName = (session as unknown as Record<string, unknown>)?.workspaceName as string ?? ''
@@ -334,7 +334,7 @@ export default function WorkspacePage() {
 
   const load = useCallback(
     async (isRefresh = false) => {
-      if (!apiKey || !(isOrgAdmin || isPlatformAdmin)) {
+      if (!apiKey || !(isOrgElevated || isPlatformAdmin)) {
         setLoading(false)
         setRefreshing(false)
         return
@@ -352,7 +352,7 @@ export default function WorkspacePage() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [apiKey, isOrgAdmin, isPlatformAdmin]
+    [apiKey, isOrgElevated, isPlatformAdmin]
   )
 
   useEffect(() => { load() }, [load])
@@ -440,13 +440,13 @@ export default function WorkspacePage() {
     w.name.toLowerCase().includes(search.toLowerCase())
   )
 
-  const canManage = isOrgAdmin || isPlatformAdmin
+  const canManage = isOrgElevated || isPlatformAdmin
 
   if (!canManage) {
     return (
       <div className="p-8">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Workspaces</h1>
-        <p className="mt-4 text-sm text-slate-500">Workspace management is an organization-admin function.</p>
+        <p className="mt-4 text-sm text-slate-500">Workspace management requires organization admin or manager access.</p>
       </div>
     )
   }

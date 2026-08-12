@@ -1,0 +1,1849 @@
+{
+  "pages": [
+    {
+      "route": "/access-groups",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/users/all",
+          "backend": [
+            {
+              "file": "users.py",
+              "method": "GET",
+              "path": "/users/all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/agents/{agent_id}/memory",
+      "backend_matches": []
+    },
+    {
+      "route": "/agents/{agent_id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/agents",
+      "backend_matches": []
+    },
+    {
+      "route": "/ai-hub",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/hub/models",
+          "backend": [
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/models"
+            },
+            {
+              "file": "hub.py",
+              "method": "GET",
+              "path": "/hub/models"
+            },
+            {
+              "file": "hub.py",
+              "method": "GET",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "PUT",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "DELETE",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/models/{model_id}/request-access"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/hub/models/${id}",
+          "backend": [
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/models"
+            },
+            {
+              "file": "hub.py",
+              "method": "GET",
+              "path": "/hub/models"
+            },
+            {
+              "file": "hub.py",
+              "method": "GET",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "PUT",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "DELETE",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/models/{model_id}/request-access"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/hub/models/${id}/request-access",
+          "backend": [
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/models"
+            },
+            {
+              "file": "hub.py",
+              "method": "GET",
+              "path": "/hub/models"
+            },
+            {
+              "file": "hub.py",
+              "method": "GET",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "PUT",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "DELETE",
+              "path": "/hub/models/{model_id}"
+            },
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/models/{model_id}/request-access"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/hub/sync-provider",
+          "backend": [
+            {
+              "file": "hub.py",
+              "method": "POST",
+              "path": "/hub/sync-provider"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/alert-rules",
+      "backend_matches": []
+    },
+    {
+      "route": "/analytics/economics",
+      "backend_matches": []
+    },
+    {
+      "route": "/analytics",
+      "backend_matches": []
+    },
+    {
+      "route": "/analytics/users/{end_user_id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/analytics/users",
+      "backend_matches": []
+    },
+    {
+      "route": "/api-keys",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/workspaces",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/my"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}/status"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/approvals",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/approvals",
+          "backend": [
+            {
+              "file": "approvals.py",
+              "method": "GET",
+              "path": "/approvals"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/audit",
+      "backend_matches": []
+    },
+    {
+      "route": "/billing/{period_id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/billing",
+      "backend_matches": []
+    },
+    {
+      "route": "/billing-summary",
+      "backend_matches": []
+    },
+    {
+      "route": "/budget-overrides",
+      "backend_matches": []
+    },
+    {
+      "route": "/budget-tiers",
+      "backend_matches": []
+    },
+    {
+      "route": "/budgets/{id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/budgets",
+      "backend_matches": []
+    },
+    {
+      "route": "/chargeback",
+      "backend_matches": []
+    },
+    {
+      "route": "/cost-savings",
+      "backend_matches": []
+    },
+    {
+      "route": "/dashboard",
+      "backend_matches": []
+    },
+    {
+      "route": "/data-capture",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/privacy/capture-policy",
+          "backend": [
+            {
+              "file": "privacy.py",
+              "method": "GET",
+              "path": "/privacy/capture-policy"
+            },
+            {
+              "file": "privacy.py",
+              "method": "PUT",
+              "path": "/privacy/capture-policy"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/datasets",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/datasets",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/datasets/${id}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets/{dataset_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "PUT",
+              "path": "/datasets/{dataset_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "DELETE",
+              "path": "/datasets/{dataset_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/datasets?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/engineering",
+      "backend_matches": []
+    },
+    {
+      "route": "/evaluation",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/datasets",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/datasets?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments/${id}/run",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "PUT",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "DELETE",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/experiments/{experiment_id}/run"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/evaluations",
+      "backend_matches": []
+    },
+    {
+      "route": "/experiments",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/datasets?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments/${id}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "PUT",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "DELETE",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/experiments/{experiment_id}/run"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments/${id}/run",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "PUT",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "DELETE",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/experiments/{experiment_id}/run"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/gateway",
+      "backend_matches": []
+    },
+    {
+      "route": "/global-dashboard",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/tenants",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/tenants"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/tenants"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/tenants/{tenant_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/tenants/{tenant_id}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/governance-pack",
+      "backend_matches": []
+    },
+    {
+      "route": "/guardrails",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/guardrails",
+          "backend": [
+            {
+              "file": "guardrails.py",
+              "method": "GET",
+              "path": "/guardrails"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/integrations",
+      "backend_matches": []
+    },
+    {
+      "route": "/ledger",
+      "backend_matches": []
+    },
+    {
+      "route": "/mcp",
+      "backend_matches": []
+    },
+    {
+      "route": "/mcp-registry",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/mcp-registry",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/${id}",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/{server_id}"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "PUT",
+              "path": "/mcp-registry/{server_id}"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "DELETE",
+              "path": "/mcp-registry/{server_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/permissions",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry/permissions"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/permissions"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "DELETE",
+              "path": "/mcp-registry/permissions/{perm_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/permissions/${id}",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry/permissions"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/permissions"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "DELETE",
+              "path": "/mcp-registry/permissions/{perm_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/seed-defaults",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry/seed-defaults"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/tool-calls?limit=${limit}",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/tool-calls"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/tools",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/tools"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry/tools/call"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/mcp-registry/tools/call",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/tools"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry/tools/call"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/model-budgets",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/api-keys/${keyId}/model-budgets",
+          "backend": [
+            {
+              "file": "auth.py",
+              "method": "DELETE",
+              "path": "/api-keys/{key_id}"
+            },
+            {
+              "file": "settings.py",
+              "method": "DELETE",
+              "path": "/api-keys/{key_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/api-keys/${keyId}/model-budgets/${budgetId}",
+          "backend": [
+            {
+              "file": "auth.py",
+              "method": "DELETE",
+              "path": "/api-keys/{key_id}"
+            },
+            {
+              "file": "settings.py",
+              "method": "DELETE",
+              "path": "/api-keys/{key_id}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/model-scorecards",
+      "backend_matches": []
+    },
+    {
+      "route": "/model-usage",
+      "backend_matches": []
+    },
+    {
+      "route": "/monitoring",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/tools/security-events",
+          "backend": [
+            {
+              "file": "tools.py",
+              "method": "GET",
+              "path": "/tools/security-events"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/onboarding",
+      "backend_matches": []
+    },
+    {
+      "route": "/optimization-opportunities",
+      "backend_matches": []
+    },
+    {
+      "route": "/optimization-simulator",
+      "backend_matches": []
+    },
+    {
+      "route": "/org-settings",
+      "backend_matches": []
+    },
+    {
+      "route": "/organization/dashboard",
+      "backend_matches": []
+    },
+    {
+      "route": "/organization",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/members",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/members"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/role"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/members/{user_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/status"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/members/${userId}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/members"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/role"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/members/{user_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/status"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/members/${userId}/role",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/members"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/role"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/members/{user_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/members/invite",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/profile",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/profile"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/profile"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/my"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}/status"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/${workspace.id}/members",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/${workspace.id}/members/${userId}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/${ws.id}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}/status"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/organizations",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/tenants",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/tenants"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/tenants"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/tenants/{tenant_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/tenants/{tenant_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/tenants/${tenantId}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/tenants"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/tenants"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/tenants/{tenant_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/tenants/{tenant_id}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/otlp",
+      "backend_matches": []
+    },
+    {
+      "route": "/outcomes",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/outcomes/trend?${params}",
+          "backend": [
+            {
+              "file": "outcomes.py",
+              "method": "GET",
+              "path": "/outcomes/trend"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/playground",
+      "backend_matches": []
+    },
+    {
+      "route": "/plugins",
+      "backend_matches": []
+    },
+    {
+      "route": "/policy-dry-run",
+      "backend_matches": []
+    },
+    {
+      "route": "/projects",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/workspaces",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/my"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}/status"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/prompts/{name}",
+      "backend_matches": []
+    },
+    {
+      "route": "/prompts",
+      "backend_matches": []
+    },
+    {
+      "route": "/provider-profiles",
+      "backend_matches": []
+    },
+    {
+      "route": "/rate-limits",
+      "backend_matches": []
+    },
+    {
+      "route": "/replay/{experiment_id}",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/replay/experiments/${id}/results",
+          "backend": [
+            {
+              "file": "replay.py",
+              "method": "POST",
+              "path": "/replay/experiments"
+            },
+            {
+              "file": "replay.py",
+              "method": "GET",
+              "path": "/replay/experiments"
+            },
+            {
+              "file": "replay.py",
+              "method": "GET",
+              "path": "/replay/experiments/{experiment_id}"
+            },
+            {
+              "file": "replay.py",
+              "method": "GET",
+              "path": "/replay/experiments/{experiment_id}/results"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/replay",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/datasets",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/datasets?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/datasets"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/datasets"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments/${id}/run",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "PUT",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "DELETE",
+              "path": "/experiments/{experiment_id}"
+            },
+            {
+              "file": "eval_experiments.py",
+              "method": "POST",
+              "path": "/experiments/{experiment_id}/run"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/experiments?limit=${limit}",
+          "backend": [
+            {
+              "file": "eval_experiments.py",
+              "method": "GET",
+              "path": "/experiments"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/request-explorer",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/runs/${runId}",
+          "backend": [
+            {
+              "file": "runs.py",
+              "method": "PATCH",
+              "path": "/runs/{run_id}/cancel"
+            },
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}"
+            },
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}/graph"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/runs/${runId}/graph",
+          "backend": [
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}"
+            },
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}/graph"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/request-flow/focus",
+      "backend_matches": []
+    },
+    {
+      "route": "/request-flow",
+      "backend_matches": []
+    },
+    {
+      "route": "/response-cache",
+      "backend_matches": []
+    },
+    {
+      "route": "/runbooks",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/runs/${runId}/runbook",
+          "backend": [
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/runs/{run_id}",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/runs/${runId}",
+          "backend": [
+            {
+              "file": "runs.py",
+              "method": "PATCH",
+              "path": "/runs/{run_id}/cancel"
+            },
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}"
+            },
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}/graph"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/runs/${runId}/graph",
+          "backend": [
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}"
+            },
+            {
+              "file": "runs.py",
+              "method": "GET",
+              "path": "/runs/{run_id}/graph"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/runs",
+      "backend_matches": []
+    },
+    {
+      "route": "/search-tools",
+      "backend_matches": []
+    },
+    {
+      "route": "/security",
+      "backend_matches": []
+    },
+    {
+      "route": "/sessions/{session_id}",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/sessions/${encodeURIComponent(sessionId)}",
+          "backend": [
+            {
+              "file": "sessions.py",
+              "method": "GET",
+              "path": "/sessions/{session_id}"
+            },
+            {
+              "file": "sessions.py",
+              "method": "GET",
+              "path": "/sessions/{session_id}/cost-over-turns"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/sessions",
+      "backend_matches": []
+    },
+    {
+      "route": "/settings",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/ledger/snapshots",
+          "backend": [
+            {
+              "file": "ledger.py",
+              "method": "GET",
+              "path": "/ledger/snapshots"
+            },
+            {
+              "file": "ledger.py",
+              "method": "POST",
+              "path": "/ledger/snapshots/generate"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/ledger/snapshots/generate",
+          "backend": [
+            {
+              "file": "ledger.py",
+              "method": "GET",
+              "path": "/ledger/snapshots"
+            },
+            {
+              "file": "ledger.py",
+              "method": "POST",
+              "path": "/ledger/snapshots/generate"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/ledger/verify/${snapshotDate}",
+          "backend": [
+            {
+              "file": "ledger.py",
+              "method": "GET",
+              "path": "/ledger/verify/{snapshot_date}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tags",
+      "backend_matches": []
+    },
+    {
+      "route": "/team-models",
+      "backend_matches": []
+    },
+    {
+      "route": "/tool-policies",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/mcp-registry/tools",
+          "backend": [
+            {
+              "file": "mcp_registry.py",
+              "method": "GET",
+              "path": "/mcp-registry/tools"
+            },
+            {
+              "file": "mcp_registry.py",
+              "method": "POST",
+              "path": "/mcp-registry/tools/call"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/tool-registry",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/tools/registry",
+          "backend": [
+            {
+              "file": "tools.py",
+              "method": "GET",
+              "path": "/tools/registry"
+            },
+            {
+              "file": "tools.py",
+              "method": "POST",
+              "path": "/tools/registry"
+            },
+            {
+              "file": "tools.py",
+              "method": "PATCH",
+              "path": "/tools/registry/{tool_name}"
+            },
+            {
+              "file": "tools.py",
+              "method": "DELETE",
+              "path": "/tools/registry/{tool_name}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/tools/registry/${encodeURIComponent(toolName)}",
+          "backend": [
+            {
+              "file": "tools.py",
+              "method": "GET",
+              "path": "/tools/registry"
+            },
+            {
+              "file": "tools.py",
+              "method": "POST",
+              "path": "/tools/registry"
+            },
+            {
+              "file": "tools.py",
+              "method": "PATCH",
+              "path": "/tools/registry/{tool_name}"
+            },
+            {
+              "file": "tools.py",
+              "method": "DELETE",
+              "path": "/tools/registry/{tool_name}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/users",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/members/${u.id}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/members"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/role"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/members/{user_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/status"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/users",
+          "backend": [
+            {
+              "file": "users.py",
+              "method": "POST",
+              "path": "/users"
+            },
+            {
+              "file": "users.py",
+              "method": "GET",
+              "path": "/users"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/users/${userId}",
+          "backend": [
+            {
+              "file": "analytics.py",
+              "method": "GET",
+              "path": "/users/{end_user_id}"
+            },
+            {
+              "file": "users.py",
+              "method": "PUT",
+              "path": "/users/{user_id}"
+            },
+            {
+              "file": "users.py",
+              "method": "PUT",
+              "path": "/users/{user_id}/role"
+            },
+            {
+              "file": "users.py",
+              "method": "DELETE",
+              "path": "/users/{user_id}"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/users/all",
+          "backend": [
+            {
+              "file": "users.py",
+              "method": "GET",
+              "path": "/users/all"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/vector-stores/{collection_id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/vector-stores",
+      "backend_matches": []
+    },
+    {
+      "route": "/workflows/{workflow_id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/workflows/{workflow_id}/runs/{run_id}",
+      "backend_matches": []
+    },
+    {
+      "route": "/workflows",
+      "backend_matches": []
+    },
+    {
+      "route": "/workspace",
+      "backend_matches": [
+        {
+          "ui_endpoint": "/org/members",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/members"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/role"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/members/{user_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/members/{user_id}/status"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/my"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}/status"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/${workspace.id}/members",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/${workspace.id}/members/${userId}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/${ws.id}",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "PUT",
+              "path": "/org/workspaces/{workspace_id}/status"
+            },
+            {
+              "file": "org.py",
+              "method": "DELETE",
+              "path": "/org/workspaces/{workspace_id}"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/{workspace_id}/members"
+            }
+          ]
+        },
+        {
+          "ui_endpoint": "/org/workspaces/my",
+          "backend": [
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "POST",
+              "path": "/org/workspaces"
+            },
+            {
+              "file": "org.py",
+              "method": "GET",
+              "path": "/org/workspaces/my"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
