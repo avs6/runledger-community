@@ -126,19 +126,20 @@ async def send_welcome_email(
     verify_url: str,
 ) -> None:
     name = full_name or to_email
+    reset_url = f"{settings.app_base_url}/reset-password?token={verify_url.split('token=')[-1]}" if "token=" in verify_url else verify_url
     subject = "Welcome to RunLedger — verify your email"
 
     text = textwrap.dedent(f"""\
         Hi {name},
 
-        Welcome to RunLedger! Here are your account details:
+        Welcome to RunLedger! Your account has been created.
 
-        Email:    {to_email}
-        Password: {password}
-        API Key:  {api_key}
+        Email: {to_email}
 
-        Please verify your email address to activate your account:
-        {verify_url}
+        Please verify your email and set your password:
+        {reset_url}
+
+        Your API key is available in the dashboard after login.
 
         This link expires in 24 hours.
 
@@ -162,38 +163,26 @@ async def send_welcome_email(
         <!-- Body -->
         <tr><td style="padding:36px 40px;">
           <p style="margin:0 0 8px;font-size:18px;font-weight:600;color:#f1f5f9;">Welcome, {name}!</p>
-          <p style="margin:0 0 28px;font-size:14px;color:#94a3b8;line-height:1.6;">Your RunLedger account is ready. Here are your credentials — save them somewhere safe.</p>
+          <p style="margin:0 0 28px;font-size:14px;color:#94a3b8;line-height:1.6;">Your RunLedger account is ready. Verify your email and set your password to get started.</p>
 
-          <!-- Credentials table -->
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;border-radius:8px;border:1px solid #334155;margin-bottom:28px;">
             <tr>
-              <td style="padding:14px 20px;border-bottom:1px solid #334155;">
+              <td style="padding:14px 20px;">
                 <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Email</p>
                 <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;font-family:monospace;">{to_email}</p>
               </td>
             </tr>
-            <tr>
-              <td style="padding:14px 20px;border-bottom:1px solid #334155;">
-                <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">Password</p>
-                <p style="margin:4px 0 0;font-size:14px;color:#e2e8f0;font-family:monospace;">{password}</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:14px 20px;">
-                <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;">API Key</p>
-                <p style="margin:4px 0 0;font-size:13px;color:#2dd4bf;font-family:monospace;word-break:break-all;">{api_key}</p>
-              </td>
-            </tr>
           </table>
 
-          <!-- Verify button -->
-          <p style="margin:0 0 16px;font-size:14px;color:#94a3b8;">Click the button below to verify your email and activate your account:</p>
+          <!-- Verify + set password button -->
+          <p style="margin:0 0 16px;font-size:14px;color:#94a3b8;">Click below to verify your email and set your password:</p>
           <table cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
             <tr><td style="background:linear-gradient(135deg,#0d9488,#0891b2);border-radius:8px;">
-              <a href="{verify_url}" style="display:inline-block;padding:14px 32px;font-size:14px;font-weight:600;color:#fff;text-decoration:none;">Verify Email Address</a>
+              <a href="{reset_url}" style="display:inline-block;padding:14px 32px;font-size:14px;font-weight:600;color:#fff;text-decoration:none;">Verify &amp; Set Password</a>
             </td></tr>
           </table>
 
+          <p style="margin:0 0 12px;font-size:13px;color:#94a3b8;">Your API key will be available in the dashboard under <strong style="color:#e2e8f0;">Settings &gt; API Keys</strong> after you log in.</p>
           <p style="margin:0;font-size:12px;color:#475569;">This link expires in 24 hours. If you didn't create this account, you can ignore this email.</p>
         </td></tr>
 

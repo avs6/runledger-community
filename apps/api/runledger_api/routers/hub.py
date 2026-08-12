@@ -27,7 +27,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.hub import HubModel
 from runledger_api.models.tenant import Workspace
@@ -59,7 +59,7 @@ def _to_response(m: HubModel) -> HubModelResponse:
 
 
 @router.post("/models", response_model=HubModelResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(management_rate_limit)])
+             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def add_model(body: HubModelCreate, ws: WorkspaceDep, db: DbDep) -> HubModelResponse:
     m = HubModel(
         id=uuid.uuid4(), workspace_id=ws.id, name=body.name, provider=body.provider,
@@ -106,7 +106,7 @@ async def get_model(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> HubMode
 
 
 @router.put("/models/{model_id}", response_model=HubModelResponse,
-            dependencies=[Depends(management_rate_limit)])
+            dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def update_model(model_id: uuid.UUID, body: HubModelUpdate, ws: WorkspaceDep, db: DbDep) -> HubModelResponse:
     m = (await db.execute(
         select(HubModel).where(HubModel.id == model_id, HubModel.workspace_id == ws.id)
@@ -122,7 +122,7 @@ async def update_model(model_id: uuid.UUID, body: HubModelUpdate, ws: WorkspaceD
 
 
 @router.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit)])
+               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def remove_model(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     m = (await db.execute(
         select(HubModel).where(HubModel.id == model_id, HubModel.workspace_id == ws.id)
@@ -133,7 +133,7 @@ async def remove_model(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None
     await db.commit()
 
 
-@router.post("/models/{model_id}/request-access", dependencies=[Depends(management_rate_limit)])
+@router.post("/models/{model_id}/request-access", dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def request_access(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> dict:
     m = (await db.execute(
         select(HubModel).where(HubModel.id == model_id, HubModel.workspace_id == ws.id)
@@ -175,7 +175,7 @@ DEFAULT_PROVIDER_MODELS: dict[str, list[dict]] = {
 }
 
 
-@router.post("/sync-provider", dependencies=[Depends(management_rate_limit)])
+@router.post("/sync-provider", dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def sync_provider_models(body: ProviderSyncRequest, ws: WorkspaceDep, db: DbDep) -> dict:
     p_key = body.provider.lower().strip()
     model_templates = DEFAULT_PROVIDER_MODELS.get(p_key, [])

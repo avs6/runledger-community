@@ -103,8 +103,14 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
 
 
 def get_client_ip(x_forwarded_for: str | None, fallback_host: str | None) -> str | None:
+    from runledger_api.core.config import settings  # noqa: PLC0415
     if x_forwarded_for:
-        return x_forwarded_for.split(",")[0].strip()
+        trusted = {p.strip() for p in settings.trusted_proxies.split(",") if p.strip()}
+        parts = [p.strip() for p in x_forwarded_for.split(",")]
+        if trusted:
+            client_candidates = [p for p in parts if p not in trusted]
+            return client_candidates[0] if client_candidates else parts[0]
+        return parts[0]
     return fallback_host
 
 
@@ -116,9 +122,6 @@ async def evaluate_ip_acl(
     team_name: str | None,
     client_ip: str | None,
 ) -> None:
-    if not client_ip:
-        return
-    ip_obj = ipaddress.ip_address(client_ip)
     rules = (
         (
             await db.execute(
@@ -133,6 +136,13 @@ async def evaluate_ip_acl(
         .scalars()
         .all()
     )
+    if not rules:
+        return
+
+    if not client_ip:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP required when ACL is active")
+
+    ip_obj = ipaddress.ip_address(client_ip)
     matching_rules = []
     for rule in rules:
         if rule.team_name and rule.team_name != team_name:
@@ -144,15 +154,11 @@ async def evaluate_ip_acl(
         if ip_obj in network:
             matching_rules.append(rule)
 
-    if not matching_rules:
-        return
-
     allow_rules = [rule for rule in matching_rules if rule.action == "allow"]
-    deny_rules = [rule for rule in matching_rules if rule.action == "deny"]
-    if deny_rules and not allow_rules:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP is denied by policy")
     if allow_rules:
         return
+
+    raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP is denied by policy")
 
 
 async def get_or_create_security_settings(

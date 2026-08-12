@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.cache_config import ResponseCacheConfig
@@ -271,7 +271,7 @@ async def _get_group_or_404(db: AsyncSession, workspace_id: uuid.UUID, group_id:
     "",
     response_model=TagResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def create_tag(body: TagCreate, ws: WorkspaceDep, db: DbDep) -> TagResponse:
     tag = Tag(
@@ -332,7 +332,7 @@ async def get_tag_tree(
 @tags_router.put(
     "/{tag_id}",
     response_model=TagResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def update_tag(tag_id: uuid.UUID, body: TagUpdate, ws: WorkspaceDep, db: DbDep) -> TagResponse:
     tag = (
@@ -353,7 +353,7 @@ async def update_tag(tag_id: uuid.UUID, body: TagUpdate, ws: WorkspaceDep, db: D
 @tags_router.delete(
     "/{tag_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def delete_tag(tag_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response:
     tag = (
@@ -373,7 +373,7 @@ async def delete_tag(tag_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response
     "/auto-rules",
     response_model=AutoTaggingRuleResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def create_auto_tag_rule(
     body: AutoTaggingRuleCreate,
@@ -421,7 +421,7 @@ async def list_auto_tag_rules(ws: WorkspaceDep, db: DbDep) -> AutoTaggingRuleLis
 @tags_router.put(
     "/auto-rules/{rule_id}",
     response_model=AutoTaggingRuleResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def update_auto_tag_rule(
     rule_id: uuid.UUID,
@@ -488,7 +488,7 @@ async def simulate_auto_tagging(
     "",
     response_model=SearchToolResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def create_search_tool(body: SearchToolCreate, ws: WorkspaceDep, db: DbDep) -> SearchToolResponse:
     tool = SearchTool(
@@ -551,7 +551,7 @@ async def get_search_tool(tool_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Se
 @search_tools_router.put(
     "/{tool_id}",
     response_model=SearchToolResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def update_search_tool(
     tool_id: uuid.UUID,
@@ -577,7 +577,7 @@ async def update_search_tool(
 @search_tools_router.delete(
     "/{tool_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def delete_search_tool(tool_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response:
     tool = (
@@ -632,7 +632,7 @@ async def get_search_tool_policies(
     "",
     response_model=ToolPolicyResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def create_tool_policy(
     body: ToolPolicyCreate,
@@ -705,7 +705,7 @@ async def list_tool_policies(
 @tool_policies_router.put(
     "/{policy_id}",
     response_model=ToolPolicyResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def update_tool_policy(
     policy_id: uuid.UUID,
@@ -731,7 +731,7 @@ async def update_tool_policy(
 @tool_policies_router.delete(
     "/{policy_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def delete_tool_policy(policy_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response:
     policy = (
@@ -876,7 +876,7 @@ async def get_tool_policy_analytics(
     "",
     response_model=AccessGroupResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def create_access_group(
     body: AccessGroupCreate,
@@ -923,7 +923,7 @@ async def list_access_groups(
 @access_groups_router.put(
     "/{group_id}",
     response_model=AccessGroupResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def update_access_group(
     group_id: uuid.UUID,
@@ -943,7 +943,7 @@ async def update_access_group(
 @access_groups_router.delete(
     "/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def delete_access_group(group_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response:
     group = await _get_group_or_404(db, ws.id, group_id)
@@ -957,7 +957,7 @@ async def delete_access_group(group_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) 
     "/{group_id}/members",
     response_model=AccessGroupMemberResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def add_access_group_member(
     group_id: uuid.UUID,
@@ -1007,7 +1007,7 @@ async def list_access_group_members(
 @access_groups_router.delete(
     "/{group_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def remove_access_group_member(
     group_id: uuid.UUID,
@@ -1069,7 +1069,7 @@ async def get_access_group_dashboard(
     "",
     response_model=ResponseCacheConfigResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def create_response_cache_config(
     body: ResponseCacheConfigCreate,
@@ -1120,7 +1120,7 @@ async def list_response_cache_configs(
 @response_cache_router.put(
     "/{config_id}",
     response_model=ResponseCacheConfigResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
 async def update_response_cache_config(
     config_id: uuid.UUID,

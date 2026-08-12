@@ -6,6 +6,8 @@ All functions are pure async with no FastAPI dependencies.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import secrets
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -16,11 +18,40 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.ledger import LedgerKey, LedgerSnapshot
 from runledger_api.schemas.ledger import LedgerVerifyResult
 
 log = structlog.get_logger()
+
+
+def _get_fernet():
+    master = settings.ledger_master_key
+    if not master:
+        return None
+    from cryptography.fernet import Fernet
+    if len(master) == 44 and master.endswith("="):
+        return Fernet(master.encode())
+    key = base64.urlsafe_b64encode(hashlib.sha256(master.encode()).digest())
+    return Fernet(key)
+
+
+def _encrypt_key(plaintext: str) -> str:
+    f = _get_fernet()
+    if f is None:
+        return plaintext
+    return f.encrypt(plaintext.encode()).decode()
+
+
+def _decrypt_key(stored: str) -> str:
+    f = _get_fernet()
+    if f is None:
+        return stored
+    try:
+        return f.decrypt(stored.encode()).decode()
+    except Exception:
+        return stored
 
 
 # ── Key management ────────────────────────────────────────────────────────────
@@ -46,10 +77,11 @@ async def get_or_create_active_key(
     if key is not None:
         return key
 
-    # Create a new 30-day key
+    # Create a new 30-day key (encrypted at rest when LEDGER_MASTER_KEY is set)
+    raw = secrets.token_hex(32)
     new_key = LedgerKey(
         workspace_id=workspace_id,
-        key_value=secrets.token_hex(32),
+        key_value=_encrypt_key(raw),
         active=True,
         expires_at=now + timedelta(days=30),
     )
@@ -158,7 +190,7 @@ async def verify_snapshot(
 
     # Re-build the snapshot data and re-compute hash
     snapshot_data = await build_daily_snapshot(db, workspace_id, snapshot_date)
-    computed = compute_snapshot_hash(snapshot_data, key.key_value)
+    computed = compute_snapshot_hash(snapshot_data, _decrypt_key(key.key_value))
     stored = snapshot.hash
     match = computed == stored
 

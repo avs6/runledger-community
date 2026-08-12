@@ -34,7 +34,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.projects import Project, ProjectKey, TeamModel
 from runledger_api.models.tenant import Workspace
@@ -81,7 +81,7 @@ def _project_to_response(p: Project, key_count: int = 0) -> ProjectResponse:
 
 
 @project_router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED,
-                     dependencies=[Depends(management_rate_limit)])
+                     dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def create_project(body: ProjectCreate, ws: WorkspaceDep, db: DbDep) -> ProjectResponse:
     p = Project(
         id=uuid.uuid4(), workspace_id=ws.id, name=body.name, description=body.description,
@@ -121,7 +121,7 @@ async def get_project(project_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Pro
 
 
 @project_router.put("/{project_id}", response_model=ProjectResponse,
-                    dependencies=[Depends(management_rate_limit)])
+                    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def update_project(project_id: uuid.UUID, body: ProjectUpdate, ws: WorkspaceDep, db: DbDep) -> ProjectResponse:
     p = (await db.execute(
         select(Project).where(Project.id == project_id, Project.workspace_id == ws.id)
@@ -138,7 +138,7 @@ async def update_project(project_id: uuid.UUID, body: ProjectUpdate, ws: Workspa
 
 
 @project_router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT,
-                       dependencies=[Depends(management_rate_limit)])
+                       dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def delete_project(project_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     await db.execute(
         update(Project)
@@ -149,7 +149,7 @@ async def delete_project(project_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> 
 
 
 @project_router.post("/{project_id}/keys", response_model=ProjectKeyResponse,
-                     status_code=status.HTTP_201_CREATED, dependencies=[Depends(management_rate_limit)])
+                     status_code=status.HTTP_201_CREATED, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def assign_key(project_id: uuid.UUID, body: ProjectKeyAssign, ws: WorkspaceDep, db: DbDep) -> ProjectKeyResponse:
     p = (await db.execute(
         select(Project).where(Project.id == project_id, Project.workspace_id == ws.id)
@@ -175,7 +175,7 @@ async def list_keys(project_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Proje
 
 
 @project_router.delete("/{project_id}/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT,
-                       dependencies=[Depends(management_rate_limit)])
+                       dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def remove_key(project_id: uuid.UUID, key_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     pk = (await db.execute(
         select(ProjectKey).where(ProjectKey.project_id == project_id, ProjectKey.api_key_id == key_id)
@@ -202,7 +202,7 @@ def _team_to_response(m: TeamModel) -> TeamModelResponse:
 
 
 @team_model_router.post("", response_model=TeamModelResponse, status_code=status.HTTP_201_CREATED,
-                        dependencies=[Depends(management_rate_limit)])
+                        dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def add_team_model(body: TeamModelCreate, ws: WorkspaceDep, db: DbDep) -> TeamModelResponse:
     m = TeamModel(
         id=uuid.uuid4(), workspace_id=ws.id, team_name=body.team_name,
@@ -244,7 +244,7 @@ async def get_team_model(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Te
 
 
 @team_model_router.put("/{model_id}", response_model=TeamModelResponse,
-                       dependencies=[Depends(management_rate_limit)])
+                       dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def update_team_model(model_id: uuid.UUID, body: TeamModelUpdate, ws: WorkspaceDep, db: DbDep) -> TeamModelResponse:
     m = (await db.execute(
         select(TeamModel).where(TeamModel.id == model_id, TeamModel.workspace_id == ws.id)
@@ -260,7 +260,7 @@ async def update_team_model(model_id: uuid.UUID, body: TeamModelUpdate, ws: Work
 
 
 @team_model_router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT,
-                          dependencies=[Depends(management_rate_limit)])
+                          dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def remove_team_model(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     await db.execute(
         update(TeamModel)

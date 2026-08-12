@@ -89,7 +89,8 @@ async def generate_snapshot(
     yesterday = (datetime.now(UTC) - timedelta(days=1)).date()
     snapshot_data = await build_daily_snapshot(db, workspace.id, yesterday)
     key = await get_or_create_active_key(db, workspace.id)
-    snapshot_hash = compute_snapshot_hash(snapshot_data, key.key_value)
+    from runledger_api.services.ledger import _decrypt_key  # noqa: PLC0415
+    snapshot_hash = compute_snapshot_hash(snapshot_data, _decrypt_key(key.key_value))
 
     total_cost = Decimal(snapshot_data["total_cost_usd"])
     call_count = snapshot_data["call_count"]
