@@ -3575,6 +3575,22 @@ export async function getAgentMemories(
   return apiFetch<import('@/types/api').AgentMemoryListResponse>(`/agents/${agentId}/memory${query}`, apiKey)
 }
 
+export async function registerMcpServer(
+  apiKey: string,
+  data: { name: string; transport: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; auth_type?: string; auth_config?: Record<string, unknown>; description?: string }
+): Promise<import('@/types/api').McpServerResponse> {
+  return apiFetch<import('@/types/api').McpServerResponse>('/mcp-registry', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function listMcpServers(apiKey: string, includeInactive = false): Promise<import('@/types/api').McpServerList> {
+  const qs = includeInactive ? '?include_inactive=true' : ''
+  return apiFetch<import('@/types/api').McpServerList>(`/mcp-registry${qs}`, apiKey)
+}
+
+export async function seedDefaultMcpServers(apiKey: string): Promise<{ status: string; servers_added: number; total: number }> {
+  return apiFetch<{ status: string; servers_added: number; total: number }>('/mcp-registry/seed-defaults', apiKey, { method: 'POST' })
+}
+
 export async function getAgentMemoryStats(
   apiKey: string,
   agentId: string
@@ -3723,28 +3739,6 @@ export async function comparePlaygroundModels(
   })
 }
 
-// ── MCP Server Registry ──────────────────────────────────────────────────
-
-export async function registerMcpServer(
-  apiKey: string,
-  data: { name: string; transport: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; auth_type?: string; auth_config?: Record<string, unknown>; description?: string }
-): Promise<import('@/types/api').McpServerResponse> {
-  return apiFetch<import('@/types/api').McpServerResponse>('/mcp-registry', apiKey, { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function listMcpServers(apiKey: string, includeInactive = false): Promise<import('@/types/api').McpServerList> {
-  const qs = includeInactive ? '?include_inactive=true' : ''
-  return apiFetch<import('@/types/api').McpServerList>(`/mcp-registry${qs}`, apiKey)
-}
-
-export async function getMcpServer(apiKey: string, id: string): Promise<import('@/types/api').McpServerResponse> {
-  return apiFetch<import('@/types/api').McpServerResponse>(`/mcp-registry/${id}`, apiKey)
-}
-
-export async function updateMcpServer(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').McpServerResponse> {
-  return apiFetch<import('@/types/api').McpServerResponse>(`/mcp-registry/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
-}
-
 export async function deleteMcpServer(apiKey: string, id: string): Promise<void> {
   await apiFetch<void>(`/mcp-registry/${id}`, apiKey, { method: 'DELETE' })
 }
@@ -3761,7 +3755,21 @@ export async function listMcpToolCalls(apiKey: string, limit = 50): Promise<impo
   return apiFetch<import('@/types/api').McpToolCallList>(`/mcp-registry/tool-calls?limit=${limit}`, apiKey)
 }
 
-export async function grantMcpPermission(apiKey: string, data: { mcp_server_id: string; scope_type: string; scope_id: string; allowed_tools: string[] }): Promise<import('@/types/api').McpPermissionResponse> {
+export async function syncHubProvider(
+  apiKey: string,
+  data: { provider: string; hf_token?: string }
+): Promise<{ status: string; provider: string; models_synced: number }> {
+  return apiFetch<{ status: string; provider: string; models_synced: number }>('/hub/sync-provider', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function seedDefaultPlugins(apiKey: string): Promise<{ status: string; plugins_added: number; total: number }> {
+  return apiFetch<{ status: string; plugins_added: number; total: number }>('/plugins/seed-defaults', apiKey, { method: 'POST' })
+}
+
+export async function grantMcpPermission(apiKey: string, data: { mcp_server_id: string; scope_type: string; scope_id?: string; allowed_tools: string[] }): Promise<import('@/types/api').McpPermissionResponse> {
   return apiFetch<import('@/types/api').McpPermissionResponse>('/mcp-registry/permissions', apiKey, { method: 'POST', body: JSON.stringify(data) })
 }
 
@@ -3971,6 +3979,30 @@ export async function getToolPolicies(
   return apiFetch<import('@/types/api').ToolPolicyListResponse>(`/tool-policies${query}`, apiKey)
 }
 
+export async function createToolPolicy(
+  apiKey: string,
+  data: {
+    name: string
+    description?: string
+    tool_name: string
+    action: string
+    condition_type?: string
+    condition_config?: Record<string, unknown>
+    scope_type?: string
+    scope_id?: string
+    priority?: number
+  }
+): Promise<import('@/types/api').ToolPolicyResponse> {
+  return apiFetch<import('@/types/api').ToolPolicyResponse>('/tool-policies', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteToolPolicy(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/tool-policies/${id}`, apiKey, { method: 'DELETE' })
+}
+
 export async function simulateToolPolicy(
   apiKey: string,
   data: {
@@ -4018,6 +4050,73 @@ export async function getAccessGroupDashboard(
 ): Promise<import('@/types/api').AccessGroupDashboardResponse> {
   const query = groupId ? `?group_id=${encodeURIComponent(groupId)}` : ''
   return apiFetch<import('@/types/api').AccessGroupDashboardResponse>(`/access-groups/dashboard${query}`, apiKey)
+}
+
+export async function createAccessGroup(
+  apiKey: string,
+  data: {
+    name: string
+    description?: string
+    budget_usd?: number
+    budget_period?: string
+    guardrail_profile?: string
+    is_active?: boolean
+    permissions?: Record<string, any>
+  }
+): Promise<import('@/types/api').AccessGroupResponse> {
+  return apiFetch<import('@/types/api').AccessGroupResponse>('/access-groups', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateAccessGroup(
+  apiKey: string,
+  groupId: string,
+  data: {
+    name?: string
+    description?: string
+    budget_usd?: number
+    budget_period?: string
+    guardrail_profile?: string
+    is_active?: boolean
+    permissions?: Record<string, any>
+  }
+): Promise<import('@/types/api').AccessGroupResponse> {
+  return apiFetch<import('@/types/api').AccessGroupResponse>(`/access-groups/${groupId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteAccessGroup(
+  apiKey: string,
+  groupId: string
+): Promise<void> {
+  await apiFetch(`/access-groups/${groupId}`, apiKey, {
+    method: 'DELETE',
+  })
+}
+
+export async function addAccessGroupMember(
+  apiKey: string,
+  groupId: string,
+  data: { user_id: string; role?: string }
+): Promise<import('@/types/api').AccessGroupMemberResponse> {
+  return apiFetch<import('@/types/api').AccessGroupMemberResponse>(`/access-groups/${groupId}/members`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function removeAccessGroupMember(
+  apiKey: string,
+  groupId: string,
+  userId: string
+): Promise<void> {
+  await apiFetch(`/access-groups/${groupId}/members/${userId}`, apiKey, {
+    method: 'DELETE',
+  })
 }
 
 export async function getResponseCacheConfigs(

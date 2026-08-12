@@ -891,9 +891,9 @@ export default function EvaluationPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Evaluation</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Evaluations Studio</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Compare models with A/B experiments, manage evaluation datasets, and version prompt templates.
+          Compare models with experiments, manage datasets and prompts, and run evaluator pipelines from one studio.
         </p>
       </div>
 

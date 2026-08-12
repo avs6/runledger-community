@@ -1,19 +1,17 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import {
   Activity,
   AlertCircle,
-  Bell,
   Bot,
   CheckCircle2,
   CircleDashed,
-  Cloud,
   Code2,
   DatabaseBackup,
-  GitBranch,
   KeyRound,
   Mail,
   MessageSquare,
@@ -38,7 +36,6 @@ import {
   listKafkaExportDeliveries,
   retryKafkaExportDelivery,
   testKafkaExportConfig,
-  testSlackWebhook,
   updateKafkaExportConfig,
 } from '@/lib/api'
 import type { KafkaExportConfig, KafkaExportDelivery, KafkaEventType, KafkaSaslMechanism, KafkaSecurityProtocol } from '@/types/api'
@@ -191,8 +188,8 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Adds a Devin bridge pattern for autonomous task lifecycle logging, budget checks, and outcomes.',
         status: 'published',
         icon: Bot,
-        href: '/integrations',
-        actionLabel: 'View bridge',
+        href: '/onboarding',
+        actionLabel: 'View setup guide',
         brand: {
           mark: 'D',
           name: 'Devin',
@@ -202,17 +199,17 @@ const integrationGroups: { title: string; description: string; cards: Integratio
       },
       {
         name: 'Windsurf',
-        description: 'Documents Cascade hooks, MCP setup, and wrapper telemetry for Windsurf/Cascade workflows.',
-        status: 'docs',
+        description: 'Adds Windsurf Cascade rules, MCP setup, and wrapper telemetry for Cascade workflows.',
+        status: 'published',
         icon: Workflow,
-        href: '/integrations',
-        actionLabel: 'View guide',
+        href: '/mcp',
+        actionLabel: 'Open MCP setup',
         brand: {
           mark: 'W',
           name: 'Windsurf',
           className: 'border-cyan-200 bg-cyan-50 text-cyan-700',
         },
-        details: ['Integration guide', 'Cascade hooks', 'MCP setup'],
+        details: ['runledger-connect-windsurf', 'Cascade hooks', 'MCP setup'],
       },
     ],
   },
@@ -233,6 +230,8 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Generate Claude instructions and MCP config so Claude can record agent work.',
         status: 'available',
         icon: Bot,
+        href: '/mcp',
+        actionLabel: 'Open MCP setup',
         details: ['Published skill', 'stdio/HTTP MCP bridge', 'Outcome capture'],
       },
       {
@@ -240,6 +239,8 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Add AGENTS.md and Codex hooks for sessions, subagents, tool use, and outcomes.',
         status: 'available',
         icon: Code2,
+        href: '/mcp',
+        actionLabel: 'Open MCP setup',
         details: ['Published skill', 'Codex hooks', 'Subagent telemetry'],
       },
       {
@@ -247,6 +248,8 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Provide publishable setup skills for IDE agents and hosted autonomous sessions.',
         status: 'available',
         icon: Workflow,
+        href: '/onboarding',
+        actionLabel: 'View setup guide',
         details: ['Cursor skill', 'Windsurf docs', 'Devin skill'],
       },
     ],
@@ -260,28 +263,18 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Test incoming webhook connectivity for budget notifications and alerts.',
         status: 'available',
         icon: MessageSquare,
+        href: '/org-settings?tab=slack',
+        actionLabel: 'Open Slack settings',
         details: ['Budget notifications', 'Alert Rules', 'Webhook smoke test'],
       },
       {
         name: 'Email / SMTP',
         description: 'Send welcome, invite, reset, backup, compliance, and budget alert emails.',
-        status: 'planned',
+        status: 'available',
         icon: Mail,
+        href: '/org-settings?tab=email',
+        actionLabel: 'Open email settings',
         details: ['Mailpit local', 'Google SMTP', 'SES/SendGrid/Postmark'],
-      },
-      {
-        name: 'Teams And Webhooks',
-        description: 'Deliver alerts to Microsoft Teams or any customer-owned webhook endpoint.',
-        status: 'coming-soon',
-        icon: Bell,
-        details: ['Teams cards', 'Generic webhook', 'Approval workflows'],
-      },
-      {
-        name: 'GitHub Actions',
-        description: 'Record CI agent runs, model-assisted changes, and test outcomes from pipelines.',
-        status: 'planned',
-        icon: GitBranch,
-        details: ['CI wrapper', 'PR metadata', 'Test outcome spans'],
       },
     ],
   },
@@ -302,20 +295,26 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Capture LLM spans from frameworks that emit OpenInference-compatible telemetry.',
         status: 'docs',
         icon: ShieldCheck,
+        href: '/onboarding',
+        actionLabel: 'View setup guide',
         details: ['LLM semantic spans', 'Prompt/tool traces', 'Framework adapters'],
       },
       {
         name: 'LiteLLM / Open WebUI / OpenHands',
         description: 'Route local AI stack traffic through Gateway and export telemetry out-of-band.',
-        status: 'planned',
+        status: 'available',
         icon: Server,
+        href: '/onboarding',
+        actionLabel: 'View setup guide',
         details: ['Gateway routing', 'Provider pricing', 'Optimization labs'],
       },
       {
         name: 'LangGraph / CrewAI / AutoGen',
         description: 'Use SDK wrappers and OTEL spans to track agent graphs and tool chains.',
-        status: 'planned',
+        status: 'docs',
         icon: Bot,
+        href: '/onboarding',
+        actionLabel: 'View setup guide',
         details: ['Run spans', 'Tool calls', 'Agent dependency graph'],
       },
       {
@@ -323,7 +322,7 @@ const integrationGroups: { title: string; description: string; cards: Integratio
         description: 'Export RunLedger events into customer Kafka-compatible streams in real time.',
         status: 'available',
         icon: RadioTower,
-        href: '/integrations',
+        href: '/integrations?tab=kafka',
         actionLabel: 'Configure Kafka',
         details: ['Event export', 'Delivery log', 'Dead-letter topics'],
       },
@@ -334,32 +333,22 @@ const integrationGroups: { title: string; description: string; cards: Integratio
     description: 'Connect the supporting services needed for real customer deployments.',
     cards: [
       {
-        name: 'API Keys',
-        description: 'Create scoped workspace keys for Gateway, MCP, SDK, and OTLP ingestion.',
-        status: 'available',
-        icon: KeyRound,
-        href: '/api-keys',
-        details: ['Workspace scoped', 'Gateway auth', 'MCP/OTLP keys'],
-      },
-      {
         name: 'S3 / MinIO Backup',
         description: 'Store backups, snapshots, exports, and trace archives in S3-compatible storage.',
-        status: 'planned',
+        status: 'available',
         icon: DatabaseBackup,
+        href: '/integrations?tab=infra-data',
+        actionLabel: 'Open backup flow',
         details: ['Backup restore', 'Snapshots', 'Compliance exports'],
       },
-      {
-        name: 'Local Firebase Emulator',
-        description: 'Optional local emulator suite for auth, storage, pub/sub, and integration demos.',
-        status: 'coming-soon',
-        icon: Cloud,
-        details: ['Local dev parity', 'Auth experiments', 'Pub/Sub demos'],
-      },
+
       {
         name: 'Generic REST Webhook',
         description: 'Receive external events from workflow tools that cannot use SDK, MCP, or OTLP.',
-        status: 'planned',
+        status: 'available',
         icon: PlugZap,
+        href: '/integrations?tab=webhooks',
+        actionLabel: 'Open webhook ingest',
         details: ['Signed ingestion', 'Event mapping', 'Smoke test'],
       },
     ],
@@ -462,14 +451,27 @@ function fulfilledValue<T>(result: PromiseSettledResult<T>): T | null {
   return result.status === 'fulfilled' ? result.value : null
 }
 
+import { PluginsTab } from '@/components/integrations/PluginsTab'
+
+const INTEGRATION_TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'published-skills', label: 'Published Skills & Agents' },
+  { id: 'plugins', label: 'Plugins & Interceptors' },
+  { id: 'telemetry-ai', label: 'Telemetry & AI Frameworks' },
+  { id: 'infra-data', label: 'Infra & Data (Kafka / S3 / Webhooks)' },
+  { id: 'notifications', label: 'Notifications & Collaboration' },
+] as const
+
 export default function IntegrationsPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
   const { canManageOrgSettings } = useRole()
 
-  const [slackWebhookUrl, setSlackWebhookUrl] = useState('')
-  const [slackTestResult, setSlackTestResult] = useState<{ ok: boolean; error: string | null } | null>(null)
-  const [testingSlack, setTestingSlack] = useState(false)
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const activeTab = searchParams.get('tab') || 'overview'
+  const setTab = (tab: string) => router.push(`/integrations?tab=${tab}`)
+
   const [healthItems, setHealthItems] = useState<HealthItem[]>([])
   const [healthLoading, setHealthLoading] = useState(false)
   const [healthError, setHealthError] = useState<string | null>(null)
@@ -587,8 +589,10 @@ export default function IntegrationsPage() {
         {
           name: 'Slack',
           description: 'Slack alerting is available through the webhook smoke test below and budget notification setup.',
-          status: slackTestResult?.ok ? 'healthy' : 'setup',
-          detail: slackTestResult?.ok ? 'Last test succeeded' : 'Test webhook below',
+          status: 'setup',
+          detail: 'Configure in Settings',
+          href: '/org-settings?tab=slack',
+          actionLabel: 'Open settings',
           icon: MessageSquare,
         },
         {
@@ -596,7 +600,7 @@ export default function IntegrationsPage() {
           description: 'Scheduled reports stay quiet until email delivery and scheduled reports are explicitly enabled.',
           status: reportsReady ? 'healthy' : opsStatus ? 'disabled' : 'unknown',
           detail: opsStatus ? (reportsReady ? 'Reports enabled' : 'Disabled by feature flag') : 'Unable to verify',
-          href: '/settings',
+          href: '/org-settings?tab=email',
           actionLabel: 'Open settings',
           icon: Mail,
         },
@@ -605,7 +609,7 @@ export default function IntegrationsPage() {
           description: 'Product-managed backup controls are gated by the backend backup feature flag.',
           status: opsStatus?.backup_enabled ? 'healthy' : opsStatus ? 'disabled' : 'unknown',
           detail: opsStatus?.backup_enabled ? 'Backup enabled' : opsStatus ? 'Disabled by feature flag' : 'Unable to verify',
-          href: '/settings',
+          href: '/settings?tab=backup',
           actionLabel: 'Open settings',
           icon: DatabaseBackup,
         },
@@ -622,36 +626,13 @@ export default function IntegrationsPage() {
     } finally {
       setHealthLoading(false)
     }
-  }, [apiKey, slackTestResult?.ok])
+  }, [apiKey])
 
   useEffect(() => {
     if (canManageOrgSettings) {
       void loadHealth()
     }
   }, [canManageOrgSettings, loadHealth])
-
-  async function handleTestSlack(e: React.FormEvent) {
-    e.preventDefault()
-    if (!apiKey || !slackWebhookUrl.trim()) return
-    setTestingSlack(true)
-    setSlackTestResult(null)
-    try {
-      const result = await testSlackWebhook(apiKey, slackWebhookUrl.trim())
-      setSlackTestResult(result)
-      if (result.ok) {
-        toast.success('Test message sent to Slack')
-        void loadHealth()
-      } else {
-        toast.error(`Slack test failed: ${result.error}`)
-      }
-    } catch (err) {
-      const msg = String(err)
-      setSlackTestResult({ ok: false, error: msg })
-      toast.error(`Slack test failed: ${msg}`)
-    } finally {
-      setTestingSlack(false)
-    }
-  }
 
   async function handleCreateKafka(e: React.FormEvent) {
     e.preventDefault()
@@ -758,7 +739,6 @@ export default function IntegrationsPage() {
   const healthyCount = healthItems.filter((item) => item.status === 'healthy').length
   const setupCount = healthItems.filter((item) => item.status === 'setup').length
   const disabledCount = healthItems.filter((item) => item.status === 'disabled').length
-  const plannedCount = healthItems.filter((item) => item.status === 'planned').length
 
   return (
     <div className="min-h-screen space-y-8 bg-[radial-gradient(circle_at_top_left,rgba(147,197,253,0.20),transparent_36rem)] p-8">
@@ -780,88 +760,63 @@ export default function IntegrationsPage() {
           </div>
         </div>
 
-        <section className="mt-8 rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-300 dark:bg-white/90">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-blue-700" />
-                <h2 className="text-xl font-semibold text-slate-950">Integration Health Center</h2>
-              </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                A quick readiness view for the paths agents use most: keys, MCP, Gateway, OTLP, notifications, backup, and streaming.
-              </p>
-              {healthError && (
-                <p className="mt-2 flex items-center gap-2 text-sm text-amber-700">
-                  <AlertCircle className="h-4 w-4" />
-                  Some health checks could not be loaded: {healthError}
-                </p>
-              )}
+        {activeTab === 'overview' && (
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-300 dark:bg-white/90">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-700" />
+              <h2 className="text-base font-bold text-slate-950">Integration Health Center</h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{healthyCount} healthy</span>
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{setupCount} needs setup</span>
-              <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{disabledCount} disabled</span>
-              <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{plannedCount} planned</span>
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">{healthyCount} healthy</span>
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">{setupCount} needs setup</span>
+              <span className="rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">{disabledCount} disabled</span>
               <button
                 type="button"
                 onClick={() => void loadHealth()}
                 disabled={healthLoading}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-blue-50 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 disabled:opacity-60"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${healthLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-3 w-3 ${healthLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </button>
             </div>
           </div>
           {healthLoading && healthItems.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
-              <CircleDashed className="mx-auto mb-2 h-5 w-5 animate-spin" />
+            <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
+              <CircleDashed className="mx-auto mb-1 h-4 w-4 animate-spin" />
               Checking integration readiness...
             </div>
           ) : (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
               {healthItems.map((item) => (
                 <HealthCard key={item.name} item={item} />
               ))}
             </div>
           )}
         </section>
+        )}
 
-        <div className="mt-8 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-300 dark:bg-white/90">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-blue-700 dark:text-blue-700" />
-                <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-950">Slack Webhook</h2>
-                <StatusBadge status="available" />
-              </div>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-600">
-                Paste an incoming webhook URL to test connectivity before configuring budget notifications via{' '}
-                <code className="rounded bg-slate-100 px-1 font-mono text-xs text-slate-700 dark:bg-slate-100 dark:text-slate-700">POST /budgets/{'{id}'}/notifications</code>.
-              </p>
-            </div>
-          </div>
-          <form onSubmit={handleTestSlack} className="mt-4 flex flex-wrap gap-2">
-            <input
-              type="url"
-              placeholder="https://hooks.slack.com/services/..."
-              value={slackWebhookUrl}
-              onChange={(e) => setSlackWebhookUrl(e.target.value)}
-              className={`min-w-72 flex-1 ${inputCls}`}
-              required
-            />
-            <button type="submit" disabled={testingSlack || !slackWebhookUrl.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-700">
-              {testingSlack ? 'Sending...' : 'Test'}
+        <div className="mt-8 flex gap-1 rounded-xl border border-slate-200 bg-white/80 p-1 shadow-sm dark:border-slate-300 dark:bg-white/80">
+          {INTEGRATION_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setTab(tab.id)}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+              }`}
+            >
+              {tab.label}
             </button>
-          </form>
-          {slackTestResult && (
-            <div className={`mt-3 rounded border px-3 py-2 text-sm ${slackTestResult.ok ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'}`}>
-              {slackTestResult.ok ? 'Test message sent successfully.' : <>Failed: {slackTestResult.error}</>}
-            </div>
-          )}
+          ))}
         </div>
 
-        <div className="mt-8 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-300 dark:bg-white/90">
+        {activeTab === 'plugins' && <PluginsTab />}
+
+        {activeTab === 'kafka' && (
+        <div id="kafka-export" className="mt-8 scroll-mt-24 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-300 dark:bg-white/90">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="flex items-center gap-2">
@@ -1156,22 +1111,100 @@ export default function IntegrationsPage() {
             )}
           </div>
         </div>
+        )}
 
-        <div className="mt-8 space-y-8">
-          {integrationGroups.map((group) => (
-            <section key={group.title}>
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{group.title}</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{group.description}</p>
+        {activeTab === 'webhooks' && (
+        <div id="webhook-ingest" className="mt-8 scroll-mt-24 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-300 dark:bg-white/90">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <PlugZap className="h-5 w-5 text-blue-700" />
+                <h2 className="text-lg font-semibold text-slate-950">Webhook Ingest</h2>
+                <StatusBadge status="available" />
               </div>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {group.cards.map((card) => (
-                  <IntegrationCardView key={card.name} card={card} />
-                ))}
-              </div>
-            </section>
-          ))}
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                Use webhook ingest when a third-party tool cannot adopt the SDK, MCP, or OTLP directly. RunLedger supports both unsigned and signed event ingestion paths for customer-managed environments.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Unsigned webhook</h3>
+              <p className="mt-2 text-xs leading-6 text-slate-600">
+                POST event envelopes to <code className="rounded bg-slate-100 px-1 py-0.5">/ingest/v1/webhook</code> when the sender can only call a simple HTTP endpoint.
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Signed webhook</h3>
+              <p className="mt-2 text-xs leading-6 text-slate-600">
+                POST signed payloads to <code className="rounded bg-slate-100 px-1 py-0.5">/ingest/v1/webhook/signed</code> when you need origin verification for customer-owned producers.
+              </p>
+            </div>
+          </div>
         </div>
+        )}
+
+        {activeTab === 'backup' && (
+        <div id="backup-recovery" className="mt-8 scroll-mt-24 rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-300 dark:bg-white/90">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <DatabaseBackup className="h-5 w-5 text-blue-700" />
+                <h2 className="text-lg font-semibold text-slate-950">Backup &amp; Recovery</h2>
+                <StatusBadge status="available" />
+              </div>
+              <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                S3-compatible backup configuration, connection testing, manual backup runs, restore drills, snapshot inventory, and operator status views are already shipped. The current control surface lives in Settings.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">S3 / MinIO target</span>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">Run backup now</span>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">Restore drill</span>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-600">Snapshot metadata</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/settings?tab=backup" className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
+                Open backup settings
+              </Link>
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* Render group cards per tab */}
+        {(() => {
+          let visibleGroups = integrationGroups
+          if (activeTab === 'published-skills') {
+            visibleGroups = integrationGroups.filter((g) =>
+              g.title.includes('Published') || g.title.includes('Control')
+            )
+          } else if (activeTab === 'telemetry-ai') {
+            visibleGroups = integrationGroups.filter((g) => g.title.includes('Telemetry'))
+          } else if (activeTab === 'infra-data') {
+            visibleGroups = integrationGroups.filter((g) => g.title.includes('Infrastructure'))
+          } else if (activeTab === 'notifications') {
+            visibleGroups = integrationGroups.filter((g) => g.title.includes('Notifications'))
+          }
+
+          return (
+            <div className="mt-8 space-y-8">
+              {visibleGroups.map((group) => (
+                <section key={group.title}>
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{group.title}</h2>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{group.description}</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {group.cards.map((card) => (
+                      <IntegrationCardView key={card.name} card={card} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

@@ -634,7 +634,37 @@ async def evaluate_guardrails(
         stmt = stmt.where(GuardrailRule.id.in_(guardrail_ids))
 
     result = await db.execute(stmt)
-    rules = result.scalars().all()
+    rules = list(result.scalars().all())
+
+    # ── Resolve Access Group Guardrail Profile if user_id is provided ───────
+    if user_id:
+        try:
+            from runledger_api.models.access_groups import AccessGroup, AccessGroupMember  # noqa: PLC0415
+            ag_stmt = (
+                select(AccessGroup.guardrail_profile)
+                .join(AccessGroupMember, AccessGroupMember.group_id == AccessGroup.id)
+                .where(
+                    AccessGroup.workspace_id == workspace_id,
+                    AccessGroup.is_active.is_(True),
+                    AccessGroupMember.user_id == user_id,
+                    AccessGroup.guardrail_profile.isnot(None),
+                )
+                .limit(1)
+            )
+            ag_profile = (await db.execute(ag_stmt)).scalar_one_or_none()
+            if ag_profile and ag_profile.startswith("rule:"):
+                target_rule_name = ag_profile.split("rule:", 1)[1].strip()
+                rule_match = await db.execute(
+                    select(GuardrailRule).where(
+                        GuardrailRule.workspace_id == workspace_id,
+                        GuardrailRule.name == target_rule_name,
+                    )
+                )
+                found_rule = rule_match.scalar_one_or_none()
+                if found_rule and found_rule not in rules:
+                    rules.append(found_rule)
+        except Exception as exc:
+            log.warning("access_group_guardrail_resolution_failed", error=str(exc))
 
     results: list[dict[str, Any]] = []
     overall_decision = "allow"

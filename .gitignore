@@ -45,6 +45,8 @@ vc_feedback*.md
 IMPLEMENTATION*.md
 rbac-plan.md
 RUNLEDGER-TODO.md
+SCRIPT-NORMALIZATION-PLAN.local.md
+TODO_ITEMS/
 
 # Local integration state with generated API keys
 scripts/.localai-runledger.json

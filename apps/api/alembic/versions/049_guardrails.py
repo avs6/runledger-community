@@ -1,7 +1,7 @@
 """Add guardrails tables for content safety and policy engine.
 
-Revision ID: 049
-Revises: 048
+Revision ID: 057_guardrails
+Revises: 057
 Create Date: 2026-08-04
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
-revision = "049"
-down_revision = "048"
+revision = "057_guardrails"
+down_revision = "057"
 branch_labels = None
 depends_on = None
 

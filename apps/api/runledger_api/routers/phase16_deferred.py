@@ -678,6 +678,24 @@ async def list_tool_policies(
     rows = (
         await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc()))
     ).scalars().all()
+
+    if not rows and not tool_name:
+        for pol_def in DEFAULT_POPULAR_TOOL_POLICIES:
+            pol = ToolPolicy(
+                id=uuid.uuid4(),
+                workspace_id=ws.id,
+                name=pol_def["name"],
+                description=pol_def["description"],
+                tool_name=pol_def["tool_name"],
+                action=pol_def["action"],
+                priority=pol_def["priority"],
+                is_active=True,
+            )
+            db.add(pol)
+        await db.commit()
+        rows = (
+            await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc()))
+        ).scalars().all()
     return ToolPolicyListResponse(
         items=[_policy_to_response(policy) for policy in rows],
         total=len(rows),

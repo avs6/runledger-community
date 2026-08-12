@@ -223,7 +223,16 @@ def _shadow_similarity(primary_text: str, mirror_text: str) -> float:
 
 
 async def check_cache(db: AsyncSession, workspace_id: Any, cache_key: str) -> PromptCache | None:
-    """Return a live (not-expired) cache entry, or None."""
+    """Return a live (not-expired) cache entry if caching is enabled for workspace."""
+    from runledger_api.models.cache_config import ResponseCacheConfig  # noqa: PLC0415
+
+    cfg_stmt = select(ResponseCacheConfig).where(
+        ResponseCacheConfig.workspace_id == workspace_id
+    ).limit(1)
+    cfg = (await db.execute(cfg_stmt)).scalar_one_or_none()
+    if cfg and not cfg.is_enabled:
+        return None
+
     now = datetime.now(UTC)
     stmt = select(PromptCache).where(
         PromptCache.workspace_id == workspace_id,
@@ -258,7 +267,14 @@ async def store_cache(
     if existing:
         return  # already cached by a concurrent request
 
-    expires_at = datetime.now(UTC) + timedelta(hours=_CACHE_TTL_HOURS)
+    from runledger_api.models.cache_config import ResponseCacheConfig  # noqa: PLC0415
+
+    cfg_stmt = select(ResponseCacheConfig.ttl_seconds).where(
+        ResponseCacheConfig.workspace_id == workspace_id
+    ).limit(1)
+    ttl = (await db.execute(cfg_stmt)).scalar_one_or_none() or (_CACHE_TTL_HOURS * 3600)
+
+    expires_at = datetime.now(UTC) + timedelta(seconds=int(ttl))
     entry = PromptCache(
         workspace_id=workspace_id,
         cache_key=cache_key,
@@ -273,7 +289,7 @@ async def store_cache(
     try:
         await db.commit()
     except Exception:
-        await db.rollback()  # duplicate key from concurrent insert — safe to ignore
+        await db.rollback()
 
 
 async def select_routes(
@@ -387,6 +403,23 @@ async def choose_route_for_alias(
         preferred_region=preferred_region,
     )
     if not filtered:
+        from runledger_api.models.projects import TeamModel  # noqa: PLC0415
+        tm_stmt = select(TeamModel).where(
+            TeamModel.workspace_id == workspace_id,
+            sa.or_(TeamModel.model_name == alias, TeamModel.team_name == alias),
+        ).limit(1)
+        tm = (await db.execute(tm_stmt)).scalar_one_or_none()
+        if tm and tm.api_base_url:
+            dynamic_route = GatewayRoute(
+                id=tm.id,
+                workspace_id=workspace_id,
+                alias=tm.model_name,
+                target_model=tm.model_name,
+                provider=tm.provider or "custom",
+                endpoint_url=tm.api_base_url,
+                is_active=True,
+            )
+            return dynamic_route, f"team_model:{tm.team_name}"
         return None, "no-routes"
 
     groups = await list_routing_groups_for_alias(db, workspace_id, alias)

@@ -9,7 +9,7 @@ export interface RoleContext {
   isPlatformAdmin: boolean
   tenantRole: TenantRole
   workspaceRole: WorkspaceRole
-  /** True if user can manage org-level settings (org_admin only) */
+  /** True if user can manage org-level settings */
   isOrgAdmin: boolean
   /** True if user has org_admin or org_manager role */
   isOrgElevated: boolean
@@ -36,7 +36,7 @@ export function useRole(): RoleContext {
   const isOrgAdmin = isPlatformAdmin || tenantRole === 'org_admin'
   const isOrgElevated = isPlatformAdmin || tenantRole === 'org_admin' || tenantRole === 'org_manager'
   const isWorkspaceAdmin = isOrgElevated || workspaceRole === 'workspace_admin'
-  const canManageOrgSettings = isOrgAdmin || isPlatformAdmin
+  const canManageOrgSettings = isOrgElevated
   const canManagePlatformSettings = isPlatformAdmin
   const canWrite = isOrgElevated || (
     workspaceRole === 'workspace_admin'

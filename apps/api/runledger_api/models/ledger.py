@@ -139,3 +139,38 @@ class CapturePolicy(Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
+
+
+class CapturePolicyScope(Base):
+    __tablename__ = "capture_policy_scopes"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "workspace_id",
+            "scope_type",
+            "scope_id",
+            name="uq_capture_policy_scopes_workspace_scope",
+        ),
+        sa.Index(
+            "ix_capture_policy_scopes_workspace",
+            "workspace_id",
+            "scope_type",
+            "scope_id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    scope_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    scope_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    privacy_mode: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'METADATA_ONLY'")
+    )
+    sampled_rate: Mapped[Decimal | None] = mapped_column(sa.Numeric(5, 4), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )

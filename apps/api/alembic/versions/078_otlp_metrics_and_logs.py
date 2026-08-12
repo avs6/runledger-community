@@ -1,7 +1,7 @@
 """078 - OTLP metrics and logs staging
 
-Revision ID: 078_otlp_metrics_and_logs
-Revises: 077_backup_config_and_snapshots
+Revision ID: 078
+Revises: 077
 Create Date: 2026-08-07 09:00:00.000000
 """
 
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "078_otlp_metrics_and_logs"
-down_revision = "077_backup_config_and_snapshots"
+revision = "078"
+down_revision = "077"
 branch_labels = None
 depends_on = None
 

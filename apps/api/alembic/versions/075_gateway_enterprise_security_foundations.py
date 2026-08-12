@@ -1,7 +1,7 @@
 """gateway enterprise routing and security foundations
 
-Revision ID: 075_gateway_enterprise_security_foundations
-Revises: 074_gateway_fallback_key_ownership_team_privacy
+Revision ID: 075
+Revises: 074
 Create Date: 2026-08-06
 """
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "075_gateway_enterprise_security_foundations"
-down_revision = "074_gateway_fallback_key_ownership_team_privacy"
+revision = "075"
+down_revision = "074"
 branch_labels = None
 depends_on = None
 
@@ -21,11 +21,21 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "gateway_routes",
-        sa.Column("required_tags", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column(
+            "required_tags",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
     )
     op.add_column(
         "gateway_routes",
-        sa.Column("excluded_tags", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column(
+            "excluded_tags",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
     )
     op.add_column("gateway_routes", sa.Column("retry_count", sa.Integer(), nullable=False, server_default="1"))
     op.add_column("gateway_routes", sa.Column("timeout_ms", sa.Integer(), nullable=True))
@@ -42,12 +52,27 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("slug", sa.String(length=80), nullable=False),
-        sa.Column("path_prefix", sa.Text(), nullable=False, server_default=sa.text("'/''")),
+        sa.Column("path_prefix", sa.Text(), nullable=False, server_default=sa.text("'/'")),
         sa.Column("upstream_base_url", sa.Text(), nullable=False),
         sa.Column("auth_type", sa.String(length=32), nullable=True),
-        sa.Column("auth_config", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("header_config", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("default_query", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
+        sa.Column(
+            "auth_config",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
+        sa.Column(
+            "header_config",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
+        sa.Column(
+            "default_query",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("timeout_ms", sa.Integer(), nullable=False, server_default="30000"),
         sa.Column("rate_limit_rpm", sa.Integer(), nullable=True),
         sa.Column("cost_per_call_usd", sa.Numeric(12, 6), nullable=True),
@@ -63,12 +88,37 @@ def upgrade() -> None:
         "workspace_security_settings",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("required_metadata_fields", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column(
+            "required_metadata_fields",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
         sa.Column("required_metadata_mode", sa.String(length=16), nullable=False, server_default=sa.text("'warn'")),
-        sa.Column("data_residency_regions", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'")),
-        sa.Column("callback_config", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("brand_config", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("oidc_session_config", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
+        sa.Column(
+            "data_residency_regions",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
+        sa.Column(
+            "callback_config",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
+        sa.Column(
+            "brand_config",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
+        sa.Column(
+            "oidc_session_config",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("NOW()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("NOW()")),
         sa.PrimaryKeyConstraint("id"),
@@ -85,7 +135,12 @@ def upgrade() -> None:
         sa.Column("audience", sa.Text(), nullable=True),
         sa.Column("discovery_url", sa.Text(), nullable=True),
         sa.Column("jwks_uri", sa.Text(), nullable=True),
-        sa.Column("claim_mappings", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'")),
+        sa.Column(
+            "claim_mappings",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=sa.text("'{}'::jsonb"),
+        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("NOW()")),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("NOW()")),

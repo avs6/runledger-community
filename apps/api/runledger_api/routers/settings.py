@@ -7,6 +7,7 @@ Auth: Bearer API key via get_current_workspace
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -26,6 +27,7 @@ from runledger_api.core.deps import (
 from runledger_api.core.redis import get_redis
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
+from runledger_api.models.ledger import CapturePolicyScope
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse
 from runledger_api.schemas.backup_ops import (
@@ -42,6 +44,15 @@ from runledger_api.schemas.email_prefs import (
     EmailPreferenceResponse,
     EmailPreferenceUpdate,
 )
+from runledger_api.schemas.privacy import (
+    CapturePolicyScopeList,
+    CapturePolicyScopeResponse,
+    CapturePolicyScopeUpsert,
+    PiiDetectionResponse,
+    PiiTestRequest,
+    PiiTestResultResponse,
+    RetentionPreviewResponse,
+)
 from runledger_api.services import backup_ops
 from runledger_api.services.auth import generate_api_key
 from runledger_api.services.demo_mode import launch_demo_process, read_demo_state
@@ -49,6 +60,7 @@ from runledger_api.services.email import send_email
 from runledger_api.services.email_utils import get_workspace_admin_users
 from runledger_api.services.ops import get_queue_depths
 from runledger_api.services.ops_policy import evaluate_infra_posture
+from runledger_api.services.gateway_redact import redact_text
 
 try:
     from redis.asyncio import Redis
@@ -69,6 +81,98 @@ WorkspaceAdminDep = Annotated[
     tuple[Workspace, Any, WorkspaceUser | None], Depends(require_workspace_admin)
 ]
 PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
+
+_PII_PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
+    ("email", "high", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")),
+    (
+        "phone",
+        "medium",
+        re.compile(
+            r"(?<!\d)(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.]?)\d{3}[\s\-.]?\d{4}(?!\d)"
+        ),
+    ),
+    ("ssn", "high", re.compile(r"\b\d{3}[\-\s]\d{2}[\-\s]\d{4}\b")),
+    (
+        "credit_card",
+        "medium",
+        re.compile(
+            r"\b(?:4\d{3}|5[1-5]\d{2}|6011|3[47]\d{2})[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{0,4}\b"
+        ),
+    ),
+]
+
+
+def _capture_policy_scope_to_response(scope: CapturePolicyScope) -> CapturePolicyScopeResponse:
+    return CapturePolicyScopeResponse(
+        scope_type=scope.scope_type,
+        scope_id=scope.scope_id,
+        privacy_mode=scope.privacy_mode,
+        sampled_rate=scope.sampled_rate,
+    )
+
+
+def _retention_preview(privacy_mode: str) -> RetentionPreviewResponse:
+    normalized = privacy_mode.upper()
+    previews: dict[str, RetentionPreviewResponse] = {
+        "METADATA_ONLY": RetentionPreviewResponse(
+            privacy_mode=normalized,
+            estimated_storage_mb_per_month="25",
+            fields_captured=["timings", "token counts", "status", "provider and model metadata"],
+            fields_redacted=["prompt bodies", "response bodies", "tool payloads", "span metadata"],
+            compliance_notes=[
+                "Strongest default for GDPR data minimization.",
+                "Suitable for low-retention enterprise deployments.",
+            ],
+        ),
+        "ERRORS_ONLY": RetentionPreviewResponse(
+            privacy_mode=normalized,
+            estimated_storage_mb_per_month="120",
+            fields_captured=["error payload excerpts", "timings", "token counts", "failure metadata"],
+            fields_redacted=["successful prompt and response payloads"],
+            compliance_notes=[
+                "Limits sensitive capture to failed requests only.",
+                "Review incident retention windows with security teams.",
+            ],
+        ),
+        "SAMPLED": RetentionPreviewResponse(
+            privacy_mode=normalized,
+            estimated_storage_mb_per_month="350",
+            fields_captured=["sampled prompt/response excerpts", "timings", "token counts", "metadata"],
+            fields_redacted=["non-sampled payloads"],
+            compliance_notes=[
+                "Use with a documented sampling policy.",
+                "Sampled payloads may still be in regulatory scope.",
+            ],
+        ),
+        "FULL": RetentionPreviewResponse(
+            privacy_mode=normalized,
+            estimated_storage_mb_per_month="1200",
+            fields_captured=["full prompts", "full responses", "tool payloads", "metadata", "timings"],
+            fields_redacted=[],
+            compliance_notes=[
+                "Highest observability, highest compliance burden.",
+                "Requires clear retention and consent posture for many teams.",
+            ],
+        ),
+    }
+    return previews.get(normalized, previews["METADATA_ONLY"])
+
+
+def _detect_pii_spans(text: str) -> list[PiiDetectionResponse]:
+    found: list[PiiDetectionResponse] = []
+    for pii_type, confidence, pattern in _PII_PATTERNS:
+        for match in pattern.finditer(text):
+            found.append(
+                PiiDetectionResponse(
+                    type=pii_type,
+                    value=match.group(0),
+                    start=match.start(),
+                    end=match.end(),
+                    confidence=confidence,
+                )
+            )
+    found.sort(key=lambda item: (item.start, item.end))
+    return found
 
 
 async def _org_workspaces(db: AsyncSession, tenant_id: uuid.UUID) -> dict[uuid.UUID, str]:
@@ -175,6 +279,84 @@ async def get_ops_feature_flags(auth: PlatformAdminDep) -> dict[str, Any]:
 async def get_ops_policy_evaluation(auth: PlatformAdminDep) -> dict[str, Any]:
     _workspace = auth[0]
     return evaluate_infra_posture()
+
+
+@router.get("/capture-policy/retention-preview", response_model=RetentionPreviewResponse)
+async def get_capture_policy_retention_preview(
+    auth: WorkspaceAdminDep,
+    privacy_mode: str = Query("METADATA_ONLY"),
+) -> RetentionPreviewResponse:
+    _workspace, _user, _workspace_membership = auth
+    return _retention_preview(privacy_mode)
+
+
+@router.post("/capture-policy/test-pii", response_model=PiiTestResultResponse)
+async def test_capture_policy_pii(
+    body: PiiTestRequest,
+    auth: WorkspaceAdminDep,
+) -> PiiTestResultResponse:
+    _workspace, _user, _workspace_membership = auth
+    return PiiTestResultResponse(
+        input_text=body.text,
+        detected_pii=_detect_pii_spans(body.text),
+        redacted_text=redact_text(body.text),
+    )
+
+
+@router.get("/capture-policy/scopes", response_model=CapturePolicyScopeList)
+async def list_capture_policy_scopes(
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> CapturePolicyScopeList:
+    workspace, _user, _workspace_membership = auth
+    items = list(
+        (
+            await db.execute(
+                select(CapturePolicyScope)
+                .where(CapturePolicyScope.workspace_id == workspace.id)
+                .order_by(CapturePolicyScope.scope_type.asc(), CapturePolicyScope.scope_id.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return CapturePolicyScopeList(
+        items=[_capture_policy_scope_to_response(item) for item in items]
+    )
+
+
+@router.put("/capture-policy/scopes", response_model=CapturePolicyScopeResponse)
+async def upsert_capture_policy_scope(
+    body: CapturePolicyScopeUpsert,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> CapturePolicyScopeResponse:
+    workspace, _user, _workspace_membership = auth
+    existing = (
+        await db.execute(
+            select(CapturePolicyScope).where(
+                CapturePolicyScope.workspace_id == workspace.id,
+                CapturePolicyScope.scope_type == body.scope_type,
+                CapturePolicyScope.scope_id == body.scope_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        existing = CapturePolicyScope(
+            workspace_id=workspace.id,
+            scope_type=body.scope_type,
+            scope_id=body.scope_id,
+            privacy_mode=body.privacy_mode,
+            sampled_rate=body.sampled_rate,
+        )
+        db.add(existing)
+    else:
+        existing.privacy_mode = body.privacy_mode
+        existing.sampled_rate = body.sampled_rate
+        existing.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(existing)
+    return _capture_policy_scope_to_response(existing)
 
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])

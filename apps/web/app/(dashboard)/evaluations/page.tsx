@@ -126,7 +126,7 @@ export default function EvaluationsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Evaluations</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Quality Scores</h1>
 
       {/* Two-column layout: form + summary */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

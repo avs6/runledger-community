@@ -1,7 +1,7 @@
 """073 - backup runs and kafka single-topic mode
 
-Revision ID: 073_backup_runs_and_kafka_single_topic
-Revises: 072_tags_tool_policies_access_groups_cache
+Revision ID: 073
+Revises: 072
 Create Date: 2026-08-06
 """
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "073_backup_runs_and_kafka_single_topic"
-down_revision = "072_tags_tool_policies_access_groups_cache"
+revision = "073"
+down_revision = "072"
 branch_labels = None
 depends_on = None
 

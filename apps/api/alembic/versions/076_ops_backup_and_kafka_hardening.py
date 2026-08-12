@@ -1,7 +1,7 @@
 """076 - ops backup and kafka hardening
 
-Revision ID: 076_ops_backup_and_kafka_hardening
-Revises: 075_gateway_enterprise_security_foundations
+Revision ID: 076
+Revises: 075
 Create Date: 2026-08-06
 """
 
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "076_ops_backup_and_kafka_hardening"
-down_revision = "075_gateway_enterprise_security_foundations"
+revision = "076"
+down_revision = "075"
 branch_labels = None
 depends_on = None
 

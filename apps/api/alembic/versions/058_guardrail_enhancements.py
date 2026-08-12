@@ -1,7 +1,7 @@
 """Add guardrail enhancements — alerts, bypass, per-key config, system message skip, feedback.
 
 Revision ID: 058
-Revises: 057
+Revises: 057_guardrails
 Create Date: 2026-08-04
 """
 
@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 revision = "058"
-down_revision = "057"
+down_revision = "057_guardrails"
 branch_labels = None
 depends_on = None
 

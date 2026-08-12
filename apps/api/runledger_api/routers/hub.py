@@ -142,3 +142,93 @@ async def request_access(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> di
     m.access_request_count = (m.access_request_count or 0) + 1
     await db.commit()
     return {"status": "requested", "model_id": str(model_id), "total_requests": m.access_request_count}
+
+
+class ProviderSyncRequest(BaseModel):
+    provider: str
+    token: str | None = None
+    endpoint_url: str | None = None
+
+
+DEFAULT_PROVIDER_MODELS: dict[str, list[dict]] = {
+    "huggingface": [
+        {"name": "meta-llama/Llama-3.3-70B-Instruct", "description": "State-of-the-art 70B open weight LLM by Meta", "context_window": 128000, "input_cost": 0.0007, "output_cost": 0.0009, "tags": ["huggingface", "open-weights", "llama3"]},
+        {"name": "deepseek-ai/DeepSeek-R1", "description": "Reasoning open model by DeepSeek AI", "context_window": 64000, "input_cost": 0.00055, "output_cost": 0.00219, "tags": ["huggingface", "reasoning", "deepseek"]},
+        {"name": "mistralai/Mistral-7B-Instruct-v0.3", "description": "High efficiency 7B instruction model", "context_window": 32768, "input_cost": 0.0001, "output_cost": 0.0002, "tags": ["huggingface", "mistral", "fast"]},
+        {"name": "Qwen/Qwen2.5-Coder-32B-Instruct", "description": "Specialized coding open model by Alibaba Qwen", "context_window": 131072, "input_cost": 0.0003, "output_cost": 0.0006, "tags": ["huggingface", "code", "qwen"]},
+        {"name": "google/gemma-2-27b-it", "description": "Lightweight open model family by Google", "context_window": 8192, "input_cost": 0.00027, "output_cost": 0.00027, "tags": ["huggingface", "gemma", "google"]},
+    ],
+    "openai": [
+        {"name": "gpt-4o", "description": "Flagship multimodal LLM by OpenAI", "context_window": 128000, "input_cost": 0.0025, "output_cost": 0.01, "tags": ["openai", "multimodal", "flagship"]},
+        {"name": "gpt-4o-mini", "description": "Fast, affordable small model by OpenAI", "context_window": 128000, "input_cost": 0.00015, "output_cost": 0.0006, "tags": ["openai", "fast", "cheap"]},
+        {"name": "o3-mini", "description": "High speed reasoning model by OpenAI", "context_window": 200000, "input_cost": 0.0011, "output_cost": 0.0044, "tags": ["openai", "reasoning"]},
+    ],
+    "anthropic": [
+        {"name": "claude-3-5-sonnet-20241022", "description": "State-of-the-art intelligent model by Anthropic", "context_window": 200000, "input_cost": 0.003, "output_cost": 0.015, "tags": ["anthropic", "sonnet", "flagship"]},
+        {"name": "claude-3-5-haiku-20241022", "description": "Blazing fast lightweight model by Anthropic", "context_window": 200000, "input_cost": 0.0008, "output_cost": 0.004, "tags": ["anthropic", "haiku", "fast"]},
+    ],
+    "ollama": [
+        {"name": "ollama/llama3.2", "description": "Local Llama 3.2 instance via Ollama", "context_window": 131072, "input_cost": 0.0, "output_cost": 0.0, "tags": ["ollama", "local"]},
+        {"name": "ollama/deepseek-r1:14b", "description": "Local DeepSeek R1 14B instance via Ollama", "context_window": 64000, "input_cost": 0.0, "output_cost": 0.0, "tags": ["ollama", "local", "reasoning"]},
+    ],
+}
+
+
+@router.post("/sync-provider", dependencies=[Depends(management_rate_limit)])
+async def sync_provider_models(body: ProviderSyncRequest, ws: WorkspaceDep, db: DbDep) -> dict:
+    from pydantic import BaseModel  # noqa: PLC0415
+    p_key = body.provider.lower().strip()
+    model_templates = DEFAULT_PROVIDER_MODELS.get(p_key, [])
+
+    if p_key == "huggingface" and body.token:
+        try:
+            import httpx  # noqa: PLC0415
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(
+                    "https://huggingface.co/api/models",
+                    headers={"Authorization": f"Bearer {body.token}"},
+                    params={"sort": "downloads", "direction": "-1", "limit": 8, "filter": "text-generation"},
+                )
+                if res.status_code == 200:
+                    hf_items = res.json()
+                    live_templates = []
+                    for hfm in hf_items:
+                        m_id = hfm.get("modelId", "")
+                        if m_id:
+                            live_templates.append({
+                                "name": m_id,
+                                "description": f"Hugging Face model {m_id} (downloads: {hfm.get('downloads', 0)})",
+                                "context_window": 32768,
+                                "input_cost": 0.0005,
+                                "output_cost": 0.0005,
+                                "tags": ["huggingface", "live-sync"],
+                            })
+                    if live_templates:
+                        model_templates = live_templates
+        except Exception as err:
+            log.warning("hf_hub_sync_failed", error=str(err))
+
+    added_count = 0
+    for tpl in model_templates:
+        existing = (await db.execute(
+            select(HubModel).where(HubModel.workspace_id == ws.id, HubModel.name == tpl["name"])
+        )).scalar_one_or_none()
+        if not existing:
+            m = HubModel(
+                id=uuid.uuid4(),
+                workspace_id=ws.id,
+                name=tpl["name"],
+                provider=p_key,
+                description=tpl.get("description"),
+                context_window=tpl.get("context_window"),
+                input_cost_per_1k=tpl.get("input_cost"),
+                output_cost_per_1k=tpl.get("output_cost"),
+                tags=tpl.get("tags", []),
+                is_featured=True,
+                is_public=True,
+            )
+            db.add(m)
+            added_count += 1
+
+    await db.commit()
+    return {"status": "synced", "provider": p_key, "models_added": added_count, "total_templates": len(model_templates)}
