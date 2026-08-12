@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Clock, DatabaseBackup, Lock, Mail, Trash2 } from 'lucide-react'
+import { DatabaseBackup, Lock, Trash2 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
   LedgerVerifyResult,
@@ -21,8 +21,6 @@ import type {
   BackupRun,
   BackupSnapshot,
   BackupTargetConfig,
-  EmailPreference,
-  EmailLogItem,
   OpsFeatureFlagsResponse,
   OpsFeatureStatus,
   OpsPolicyEvaluation,
@@ -33,15 +31,10 @@ import {
   getBackupConfig,
   getBackupHistory,
   getBackupSnapshots,
-  getEmailPreferences,
-  updateEmailPreferences,
-  getEmailLog,
   getOpsFeatureStatus,
   runBackupNow,
   runRestoreDrill,
   testBackupConnection,
-  testEmailSend,
-  testEmailReport,
   updateBackupConfig,
   getBackupStatus,
   getOpsFeatureFlags,
@@ -56,7 +49,6 @@ const inputCls =
 const TABS = [
   { id: 'compliance', label: 'Compliance', description: 'Signed ledgers and audit evidence', icon: Lock },
   { id: 'retention', label: 'Data Retention', description: 'Delete or scrub old records safely', icon: Trash2 },
-  { id: 'email', label: 'Email Delivery', description: 'SMTP, reporting, and notification policy', icon: Mail },
   { id: 'backup', label: 'Backup & Restore', description: 'External S3 schedules and recovery posture', icon: DatabaseBackup },
 ] as const
 
@@ -107,14 +99,7 @@ export default function SettingsPage() {
   const [loadingCompliance, setLoadingCompliance] = useState(false)
   const [complianceAttempted, setComplianceAttempted] = useState(false)
 
-  // ── Email Preferences ─────────────────────────────────────────────────────────
-  const [emailPrefs, setEmailPrefs] = useState<EmailPreference | null>(null)
-  const [emailLog, setEmailLog] = useState<EmailLogItem[]>([])
-  const [loadingEmailPrefs, setLoadingEmailPrefs] = useState(false)
-  const [emailPrefsAttempted, setEmailPrefsAttempted] = useState(false)
-  const [savingEmailPrefs, setSavingEmailPrefs] = useState(false)
-  const [testingEmail, setTestingEmail] = useState(false)
-  const [testingEmailReportState, setTestingEmailReportState] = useState(false)
+  // ── Operations Status ─────────────────────────────────────────────────────────
   const [opsStatus, setOpsStatus] = useState<OpsFeatureStatus | null>(null)
   const [opsStatusAttempted, setOpsStatusAttempted] = useState(false)
   const [backupRuns, setBackupRuns] = useState<BackupRun[]>([])
@@ -132,6 +117,8 @@ export default function SettingsPage() {
   const [testingBackupConnectionState, setTestingBackupConnectionState] = useState(false)
   const [runningRestoreDrillState, setRunningRestoreDrillState] = useState(false)
   const [savingBackupConfig, setSavingBackupConfig] = useState(false)
+
+
 
   const loadCompliance = useCallback(async () => {
     if (!apiKey || !canManagePlatformSettings) return
@@ -163,31 +150,7 @@ export default function SettingsPage() {
     }
   }, [apiKey, canManagePlatformSettings])
 
-  const loadEmailPrefs = useCallback(async () => {
-    if (!apiKey || !canManagePlatformSettings) return
-    setEmailPrefsAttempted(true)
-    setLoadingEmailPrefs(true)
-    try {
-      setOpsStatusAttempted(true)
-      const [prefs, logData, status] = await Promise.all([
-        getEmailPreferences(apiKey),
-        getEmailLog(apiKey),
-        getOpsFeatureStatus(apiKey),
-      ])
-      setEmailPrefs(prefs)
-      setEmailLog(logData.items.slice(0, 20))
-      setOpsStatus(status)
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to load email settings')
-    } finally {
-      setLoadingEmailPrefs(false)
-    }
-  }, [apiKey, canManagePlatformSettings])
 
-  useEffect(() => {
-    if (activeTab === 'email' && !emailPrefsAttempted) loadEmailPrefs()
-  }, [activeTab, emailPrefsAttempted, loadEmailPrefs])
 
   useEffect(() => {
     if (activeTab === 'backup' && !opsStatusAttempted) loadOpsStatus()
@@ -231,12 +194,6 @@ export default function SettingsPage() {
     if (activeTab === 'backup' && !backupAttempted) void loadBackupData()
   }, [activeTab, backupAttempted, loadBackupData])
 
-  const emailDeliveryDisabled = opsStatus
-    ? !opsStatus.email_enabled || !opsStatus.smtp_configured
-    : false
-  const scheduledReportsDisabled = opsStatus
-    ? !opsStatus.email_enabled || !opsStatus.email_reports_enabled || !opsStatus.smtp_configured
-    : false
   const backupSchedulerDisabled = opsStatus ? !opsStatus.backup_enabled : true
 
   // ── Compliance handlers ─────────────────────────────────────────────────────
@@ -448,320 +405,7 @@ export default function SettingsPage() {
           <RetentionTab apiKey={apiKey ?? ''} />
         )}
 
-        {/* ── Email Notifications ──────────────────────────────────────────────── */}
-        {activeTab === 'email' && (
-          <div className="space-y-6">
-            {opsStatus && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                <div className="font-semibold">Email delivery is currently quiet.</div>
-                <p className="mt-1">
-                  {opsStatus.email_enabled
-                    ? opsStatus.smtp_configured
-                      ? opsStatus.email_reports_enabled
-                        ? 'SMTP and scheduled reports are enabled.'
-                        : 'SMTP is configured, but scheduled reports are disabled with EMAIL_REPORTS_ENABLED=false.'
-                      : 'EMAIL_ENABLED=true, but SMTP credentials are missing, so delivery is still blocked.'
-                    : 'EMAIL_ENABLED=false, so welcome emails, alerts, tests, and reports are skipped by the backend.'}
-                </p>
-                {scheduledReportsDisabled && (
-                  <p className="mt-1 text-xs">
-                    Scheduled analytics reports will not be queued unless EMAIL_ENABLED=true, EMAIL_REPORTS_ENABLED=true, and SMTP credentials are set.
-                  </p>
-                )}
-              </div>
-            )}
 
-            {loadingEmailPrefs && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Loading email settings…</p>
-            )}
-
-            {/* Section 1: Email Preferences */}
-            {emailPrefs && (
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Email Notification Preferences</h3>
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-                    <div className="mb-4 flex items-start gap-2">
-                      <Clock className="mt-0.5 h-4 w-4 text-stone-600 dark:text-[#D8CAAA]" />
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Scheduled analytics report</h4>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          Worker checks schedules hourly. Weekly reports send on Monday; monthly reports send on the first day of the month.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                          Cadence
-                        </label>
-                        <select
-                          className={`${inputCls} w-full`}
-                          value={emailPrefs.report_frequency}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_frequency: e.target.value })}
-                        >
-                          <option value="never">Never</option>
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                          Delivery hour
-                        </label>
-                        <select
-                          className={`${inputCls} w-full`}
-                          value={emailPrefs.report_hour ?? 7}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_hour: Number(e.target.value) })}
-                        >
-                          {Array.from({ length: 24 }, (_, hour) => (
-                            <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                          Timezone
-                        </label>
-                        <input
-                          className={`${inputCls} w-full`}
-                          value={emailPrefs.report_timezone ?? 'UTC'}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_timezone: e.target.value })}
-                          placeholder="UTC"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                          Recipients
-                        </label>
-                        <select
-                          className={`${inputCls} w-full`}
-                          value={emailPrefs.report_recipient_mode ?? 'workspace_admins'}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_recipient_mode: e.target.value })}
-                        >
-                          <option value="workspace_admins">Workspace admins</option>
-                          <option value="custom">Custom list</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                          Report template
-                        </label>
-                        <select
-                          className={`${inputCls} w-full`}
-                          value={emailPrefs.report_template ?? 'detailed'}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_template: e.target.value })}
-                        >
-                          <option value="executive">Executive</option>
-                          <option value="summary">Summary</option>
-                          <option value="detailed">Detailed</option>
-                        </select>
-                      </div>
-                    </div>
-                    {emailPrefs.report_recipient_mode === 'custom' && (
-                      <div className="mt-3">
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                          Custom recipients
-                        </label>
-                        <textarea
-                          className={`${inputCls} min-h-20 w-full`}
-                          value={emailPrefs.report_recipients ?? ''}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, report_recipients: e.target.value })}
-                          placeholder="ops@example.com, finance@example.com"
-                        />
-                      </div>
-                    )}
-                    <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                      Last sent: {emailPrefs.report_last_sent_at ? new Date(emailPrefs.report_last_sent_at).toLocaleString() : 'No scheduled report sent yet.'}
-                    </p>
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                        disabled={testingEmailReportState || emailDeliveryDisabled}
-                        onClick={async () => {
-                          if (!apiKey) return
-                          setTestingEmailReportState(true)
-                          try {
-                            const result = await testEmailReport(apiKey)
-                            if (result.ok) {
-                              toast.success(`Test report sent${result.recipient ? ` to ${result.recipient}` : ''}`)
-                              void loadEmailPrefs()
-                            } else {
-                              toast.error(result.error ?? 'Failed to send test report')
-                            }
-                          } catch (err) {
-                            console.error(err)
-                            toast.error('Failed to send test report')
-                          } finally {
-                            setTestingEmailReportState(false)
-                          }
-                        }}
-                      >
-                        {testingEmailReportState ? 'Sending test report…' : emailDeliveryDisabled ? 'Report delivery disabled' : 'Send Test Report To Me'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {(
-                      [
-                        ['alerts_enabled', 'Alert rule firings'],
-                        ['approvals_enabled', 'Approval requests & decisions'],
-                        ['reconciliation_enabled', 'Invoice reconciliation complete'],
-                        ['budget_alerts_enabled', 'Budget breach & runaway protection'],
-                        ['billing_closed_enabled', 'Billing period closed'],
-                        ['score_regression_enabled', 'Score regressions'],
-                        ['dispute_flagged_enabled', 'Invoice lines disputed'],
-                      ] as [keyof EmailPreference, string][]
-                    ).map(([key, label]) => (
-                      <label key={key} className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={emailPrefs[key] as boolean}
-                          onChange={(e) => setEmailPrefs({ ...emailPrefs, [key]: e.target.checked })}
-                          className="h-4 w-4 rounded border-gray-300 text-stone-700 focus:ring-stone-500"
-                        />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <button
-                    className="rounded bg-stone-700 px-4 py-2 text-sm font-medium text-white hover:bg-stone-600 disabled:opacity-50 dark:bg-[#D8CAAA] dark:text-[#111318] dark:hover:bg-[#E8DDC9]"
-                    disabled={savingEmailPrefs}
-                    onClick={async () => {
-                      if (!apiKey || !emailPrefs) return
-                      setSavingEmailPrefs(true)
-                      try {
-                        const updated = await updateEmailPreferences(apiKey, {
-                          report_frequency: emailPrefs.report_frequency,
-                          report_hour: emailPrefs.report_hour,
-                          report_timezone: emailPrefs.report_timezone,
-                          report_recipient_mode: emailPrefs.report_recipient_mode,
-                          report_recipients: emailPrefs.report_recipients,
-                          report_template: emailPrefs.report_template,
-                          alerts_enabled: emailPrefs.alerts_enabled,
-                          approvals_enabled: emailPrefs.approvals_enabled,
-                          reconciliation_enabled: emailPrefs.reconciliation_enabled,
-                          budget_alerts_enabled: emailPrefs.budget_alerts_enabled,
-                          billing_closed_enabled: emailPrefs.billing_closed_enabled,
-                          score_regression_enabled: emailPrefs.score_regression_enabled,
-                          dispute_flagged_enabled: emailPrefs.dispute_flagged_enabled,
-                        })
-                        setEmailPrefs(updated)
-                        toast.success('Email preferences saved')
-                      } catch (err) {
-                        console.error(err)
-                        toast.error('Failed to save preferences')
-                      } finally {
-                        setSavingEmailPrefs(false)
-                      }
-                    }}
-                  >
-                    {savingEmailPrefs ? 'Saving…' : 'Save Preferences'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Section 2: SMTP Test */}
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">Test Email Delivery</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Sends a test email to the address associated with your session to verify SMTP is configured correctly.
-              </p>
-              <button
-                className="px-4 py-2 rounded bg-gray-700 text-white text-sm font-medium hover:bg-gray-600 disabled:opacity-50"
-                disabled={testingEmail || emailDeliveryDisabled}
-                onClick={async () => {
-                  if (!apiKey) return
-                  setTestingEmail(true)
-                  try {
-                    const result = await testEmailSend(apiKey)
-                    if (result.ok) {
-                      toast.success('Test email sent!')
-                    } else {
-                      toast.error(`Failed: ${result.error ?? 'unknown error'}`)
-                    }
-                  } catch (err) {
-                    toast.error('Failed to send test email')
-                    console.error(err)
-                  } finally {
-                    setTestingEmail(false)
-                  }
-                }}
-              >
-                {testingEmail ? 'Sending…' : emailDeliveryDisabled ? 'Email disabled' : 'Send Test Email'}
-              </button>
-            </div>
-
-            {/* Section 3: Email Delivery History */}
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Email Delivery History</h3>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Recent sends, failures, and test deliveries recorded by the backend mail pipeline.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void loadEmailPrefs()}
-                  disabled={loadingEmailPrefs}
-                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
-                >
-                  Refresh
-                </button>
-              </div>
-              {emailLog.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No emails sent yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sent At</th>
-                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">To</th>
-                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subject</th>
-                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Event Type</th>
-                        <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                        <th className="text-left py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {emailLog.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
-                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 font-mono text-xs">
-                            {new Date(item.sent_at).toLocaleString()}
-                          </td>
-                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 text-xs">{item.to_email}</td>
-                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300 text-xs">{item.subject}</td>
-                          <td className="py-2 pr-4 text-gray-500 dark:text-gray-400 text-xs font-mono">{item.event_type}</td>
-                          <td className="py-2 pr-4">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                item.status === 'sent'
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                              }`}
-                            >
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="py-2 text-xs text-slate-500 dark:text-slate-400">
-                            {item.error_message ?? '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {activeTab === 'backup' && (
           <div className="space-y-6">

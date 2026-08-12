@@ -203,13 +203,33 @@ async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> Mc
     )).scalar_one_or_none()
     if not srv or not srv.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found or inactive")
+
+    # 1. Govern and filter tool call through ToolPolicy, Guardrails & Plugin Hooks
+    from runledger_api.services.plugin_runner import govern_and_filter_tool_call  # noqa: PLC0415
+
+    gov_res = await govern_and_filter_tool_call(
+        db, ws.id, srv.id, body.tool_name, body.arguments
+    )
+
+    call_status = "success"
+    result_data = None
+    if gov_res.get("status") == "require_approval":
+        call_status = "pending_approval"
+        result_data = {
+            "status": "pending_approval",
+            "approval_id": gov_res.get("approval_id"),
+            "reason": gov_res.get("reason"),
+            "message": gov_res.get("message"),
+        }
+
     call = McpToolCall(
         id=uuid.uuid4(),
         workspace_id=ws.id,
         mcp_server_id=srv.id,
         tool_name=body.tool_name,
         arguments=body.arguments,
-        status="success",
+        status=call_status,
+        result=result_data,
     )
     db.add(call)
     await db.commit()
@@ -271,3 +291,94 @@ async def revoke_permission(perm_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> 
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Permission not found")
     await db.delete(perm)
     await db.commit()
+
+
+DEFAULT_POPULAR_MCP_SERVERS = [
+    {
+        "name": "GitHub MCP Server",
+        "description": "Repo inspection, PR management, issues, and code search via GitHub API",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "discovered_tools": [
+            {"name": "create_issue", "description": "Create an issue in a GitHub repository"},
+            {"name": "get_file_contents", "description": "Read file contents from a repository"},
+            {"name": "create_or_update_file", "description": "Commit file changes to a branch"},
+            {"name": "create_pull_request", "description": "Create a new pull request"},
+            {"name": "search_code", "description": "Search code across repositories"},
+        ],
+    },
+    {
+        "name": "PostgreSQL MCP Server",
+        "description": "Database schema inspection, query execution, and tabular data analysis",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres"],
+        "discovered_tools": [
+            {"name": "query", "description": "Run a read-only SQL query against Postgres"},
+            {"name": "list_tables", "description": "List all tables and views in database"},
+            {"name": "describe_table", "description": "Inspect column data types and foreign keys"},
+        ],
+    },
+    {
+        "name": "Brave Search MCP Server",
+        "description": "Web search & local site search capabilities powered by Brave Search API",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "discovered_tools": [
+            {"name": "brave_web_search", "description": "Execute web search query"},
+            {"name": "brave_local_search", "description": "Search local business & points of interest"},
+        ],
+    },
+    {
+        "name": "Puppeteer MCP Server",
+        "description": "Headless browser automation, web page rendering, and UI screenshot testing",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+        "discovered_tools": [
+            {"name": "puppeteer_navigate", "description": "Navigate to URL in headless Chromium"},
+            {"name": "puppeteer_screenshot", "description": "Capture screenshot of current page"},
+            {"name": "puppeteer_click", "description": "Click an element by CSS selector"},
+        ],
+    },
+    {
+        "name": "FileSystem MCP Server",
+        "description": "Secure workspace directory access, file reading, and editing",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "./workspace"],
+        "discovered_tools": [
+            {"name": "read_file", "description": "Read content from workspace file"},
+            {"name": "write_file", "description": "Write or update content of a file"},
+            {"name": "list_directory", "description": "List contents of a directory"},
+        ],
+    },
+]
+
+
+@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit)])
+async def seed_default_mcp_servers(ws: WorkspaceDep, db: DbDep) -> dict:
+    added = 0
+    for srv_def in DEFAULT_POPULAR_MCP_SERVERS:
+        existing = (await db.execute(
+            select(McpServer).where(McpServer.workspace_id == ws.id, McpServer.name == srv_def["name"])
+        )).scalar_one_or_none()
+        if not existing:
+            srv = McpServer(
+                id=uuid.uuid4(),
+                workspace_id=ws.id,
+                name=srv_def["name"],
+                description=srv_def["description"],
+                transport=srv_def["transport"],
+                command=srv_def.get("command"),
+                args=srv_def.get("args"),
+                discovered_tools=srv_def.get("discovered_tools"),
+                health_status="healthy",
+                is_active=True,
+            )
+            db.add(srv)
+            added += 1
+    await db.commit()
+    return {"status": "seeded", "servers_added": added, "total": len(DEFAULT_POPULAR_MCP_SERVERS)}

@@ -28,6 +28,7 @@ from runledger_api.models.guardrails import (
 from runledger_api.models.kafka import KafkaExportConfig, KafkaExportDelivery
 from runledger_api.models.ledger import (
     CapturePolicy,
+    CapturePolicyScope,
     LedgerKey,
     LedgerSnapshot,
     SecurityEvent,
@@ -99,6 +100,7 @@ __all__ = [
     "ToolRegistry",
     "SecurityEvent",
     "CapturePolicy",
+    "CapturePolicyScope",
     "ScoreEvent",
     "ScoreRollupDaily",
     "Prompt",

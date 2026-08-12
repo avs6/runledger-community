@@ -16,7 +16,14 @@ import {
   X,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
-import { createOrgUser, listOrgUsers, updateOrgUser, type OrgUser } from '@/lib/api'
+import {
+  createOrgUser,
+  listOrgUsers,
+  updateOrgUser,
+  getAccessGroups,
+  addAccessGroupMember,
+  type OrgUser,
+} from '@/lib/api'
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -62,6 +69,8 @@ export default function UsersPage() {
   const [cName, setCName] = useState('')
   const [cPassword, setCPassword] = useState('ChangeMe123!')
   const [cSkipVerify, setCSkipVerify] = useState(true)
+  const [cSelectedGroupIds, setCSelectedGroupIds] = useState<string[]>([])
+  const [accessGroups, setAccessGroups] = useState<{ id: string; name: string }[]>([])
   const [creating, setCreating] = useState(false)
 
   const [editing, setEditing] = useState<OrgUser | null>(null)
@@ -76,7 +85,12 @@ export default function UsersPage() {
     }
     setLoading(true)
     try {
-      setUsers(await listOrgUsers(apiKey))
+      const [uList, agRes] = await Promise.all([
+        listOrgUsers(apiKey),
+        getAccessGroups(apiKey).catch(() => ({ items: [], total: 0 })),
+      ])
+      setUsers(uList)
+      setAccessGroups(agRes.items || [])
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load users')
     } finally {
@@ -105,13 +119,23 @@ export default function UsersPage() {
         temporary_password: cPassword,
         skip_verification: cSkipVerify,
       })
+      if (cSelectedGroupIds.length > 0) {
+        await Promise.allSettled(
+          cSelectedGroupIds.map((groupId) =>
+            addAccessGroupMember(apiKey, groupId, { user_id: u.id })
+          )
+        )
+      }
       setUsers((prev) => [...prev, u])
       setShowCreate(false)
       setCEmail('')
       setCName('')
       setCPassword('ChangeMe123!')
       setCSkipVerify(true)
-      toast.success(`User ${u.email} created${u.email_verified ? ' (verified)' : ''}. Add them to a workspace so they can sign in.`)
+      setCSelectedGroupIds([])
+      toast.success(
+        `User ${u.email} created${cSelectedGroupIds.length > 0 ? ` and added to ${cSelectedGroupIds.length} Access Group(s)` : ''}.`
+      )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create user')
     } finally {
@@ -275,6 +299,32 @@ export default function UsersPage() {
               <input type="checkbox" checked={cSkipVerify} onChange={(e) => setCSkipVerify(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Skip email verification
             </label>
+            {accessGroups.length > 0 && (
+              <div className="pt-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Assign to Access Groups
+                </label>
+                <div className="max-h-32 overflow-y-auto space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                  {accessGroups.map((g) => {
+                    const checked = cSelectedGroupIds.includes(g.id)
+                    return (
+                      <label key={g.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) setCSelectedGroupIds((prev) => [...prev, g.id])
+                            else setCSelectedGroupIds((prev) => prev.filter((id) => id !== g.id))
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>{g.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300">Cancel</button>
               <button type="submit" disabled={creating} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creating ? 'Creating...' : 'Create user'}</button>

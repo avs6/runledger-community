@@ -1,7 +1,7 @@
 """077 - backup config and snapshots
 
-Revision ID: 077_backup_config_and_snapshots
-Revises: 076_ops_backup_and_kafka_hardening
+Revision ID: 077
+Revises: 076
 Create Date: 2026-08-06 12:30:00.000000
 """
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "077_backup_config_and_snapshots"
-down_revision = "076_ops_backup_and_kafka_hardening"
+revision = "077"
+down_revision = "076"
 branch_labels = None
 depends_on = None
 

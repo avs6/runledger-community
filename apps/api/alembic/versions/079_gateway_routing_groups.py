@@ -1,7 +1,7 @@
 """079 - gateway routing groups
 
-Revision ID: 079_gateway_routing_groups
-Revises: 078_otlp_metrics_and_logs
+Revision ID: 079
+Revises: 078
 Create Date: 2026-08-07 12:30:00.000000
 """
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "079_gateway_routing_groups"
-down_revision = "078_otlp_metrics_and_logs"
+revision = "079"
+down_revision = "078"
 branch_labels = None
 depends_on = None
 

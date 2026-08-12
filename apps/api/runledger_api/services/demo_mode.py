@@ -14,7 +14,18 @@ DemoStatus = Literal["idle", "queued", "running", "completed", "failed"]
 DemoProfile = Literal["full", "quick", "manual"]
 
 API_ROOT = Path(__file__).resolve().parents[2]
-REPO_ROOT = API_ROOT.parents[1]
+
+
+def _discover_repo_root() -> Path:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").exists() and (parent / "scripts").exists():
+            return parent
+    return current.parents[2]
+
+
+REPO_ROOT = _discover_repo_root()
+API_ROOT = REPO_ROOT / "apps" / "api" if (REPO_ROOT / "apps" / "api").exists() else REPO_ROOT
 DEFAULT_STATE_FILE = Path(tempfile.gettempdir()) / "runledger_demo_mode_state.json"
 RUNBOOK_PATH = REPO_ROOT / "docs" / "demo-runbook.md"
 

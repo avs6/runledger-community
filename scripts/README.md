@@ -2,6 +2,17 @@
 
 Utilities for running, resetting, and populating a RunLedger stack.
 
+## Normalization target
+
+The script folder is being normalized around one master runner plus explicit `seed`,
+`simulate`, `infra`, `integrations`, and `labs` responsibilities.
+
+Use these documents as the source of truth while that work is in progress:
+
+- [Feature coverage and normalization matrix](./FEATURE-COVERAGE-README.md)
+- [Scenario library overview](./scenarios/README.md)
+- [Hands-on labs workbook](./scenarios/labs/README.md)
+
 ## Demo modes at a glance
 
 There are now three cohesive demo paths:

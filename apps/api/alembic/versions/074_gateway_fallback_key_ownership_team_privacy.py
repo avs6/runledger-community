@@ -1,7 +1,7 @@
 """074 - gateway fallback, key ownership, team privacy
 
-Revision ID: 074_gateway_fallback_key_ownership_team_privacy
-Revises: 073_backup_runs_and_kafka_single_topic
+Revision ID: 074
+Revises: 073
 Create Date: 2026-08-06
 """
 
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision = "074_gateway_fallback_key_ownership_team_privacy"
-down_revision = "073_backup_runs_and_kafka_single_topic"
+revision = "074"
+down_revision = "073"
 branch_labels = None
 depends_on = None
 

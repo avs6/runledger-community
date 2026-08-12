@@ -206,7 +206,7 @@ async def list_guardrails(
     response_model=list[GuardrailTemplate],
     dependencies=[Depends(analytics_rate_limit)],
 )
-async def list_templates(auth: WorkspaceAdminDep) -> list[GuardrailTemplate]:
+async def list_templates(ws: WorkspaceDep) -> list[GuardrailTemplate]:
     return [GuardrailTemplate(**t) for t in get_templates()]
 
 
@@ -216,13 +216,12 @@ async def list_templates(auth: WorkspaceAdminDep) -> list[GuardrailTemplate]:
     dependencies=[Depends(analytics_rate_limit)],
 )
 async def list_content_filters(
-    auth: WorkspaceAdminDep,
+    ws: WorkspaceDep,
     db: DbDep,
 ) -> ContentFilterListResponse:
-    workspace = auth[0]
     result = await db.execute(
         select(GuardrailRule).where(
-            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.workspace_id == ws.id,
             GuardrailRule.rule_type == "builtin_filter",
         )
     )
@@ -495,103 +494,6 @@ async def list_events(
     return GuardrailEventList(
         items=[GuardrailEventResponse.model_validate(e) for e in items], total=total
     )
-
-
-@router.get(
-    "/{guardrail_id}",
-    response_model=GuardrailRuleResponse,
-    dependencies=[Depends(analytics_rate_limit)],
-)
-async def get_guardrail(
-    guardrail_id: uuid.UUID,
-    auth: WorkspaceAdminDep,
-    db: DbDep,
-) -> GuardrailRuleResponse:
-    workspace = auth[0]
-    result = await db.execute(
-        select(GuardrailRule).where(
-            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
-        )
-    )
-    rule = result.scalar_one_or_none()
-    if rule is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
-    return GuardrailRuleResponse.model_validate(rule)
-
-
-@router.put(
-    "/{guardrail_id}",
-    response_model=GuardrailRuleResponse,
-    dependencies=[Depends(management_rate_limit)],
-)
-async def update_guardrail(
-    guardrail_id: uuid.UUID,
-    body: GuardrailRuleUpdate,
-    auth: WorkspaceAdminDep,
-    db: DbDep,
-) -> GuardrailRuleResponse:
-    workspace = auth[0]
-    result = await db.execute(
-        select(GuardrailRule).where(
-            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
-        )
-    )
-    rule = result.scalar_one_or_none()
-    if rule is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
-
-    update_data = body.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(rule, field, value)
-    rule.updated_at = datetime.now(UTC)
-
-    await db.commit()
-    await db.refresh(rule)
-    log.info("guardrail_updated", guardrail_id=str(guardrail_id))
-    await emit_audit_event(
-        db,
-        workspace.id,
-        "guardrail.updated",
-        target_type="guardrail",
-        target_id=str(guardrail_id),
-        after=update_data,
-    )
-    return GuardrailRuleResponse.model_validate(rule)
-
-
-@router.delete(
-    "/{guardrail_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
-)
-async def delete_guardrail(
-    guardrail_id: uuid.UUID,
-    auth: WorkspaceAdminDep,
-    db: DbDep,
-) -> None:
-    workspace = auth[0]
-    result = await db.execute(
-        select(GuardrailRule).where(
-            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
-        )
-    )
-    rule = result.scalar_one_or_none()
-    if rule is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
-
-    await db.delete(rule)
-    await db.commit()
-    log.info("guardrail_deleted", guardrail_id=str(guardrail_id))
-    await emit_audit_event(
-        db,
-        workspace.id,
-        "guardrail.deleted",
-        target_type="guardrail",
-        target_id=str(guardrail_id),
-        after={"name": rule.name},
-    )
-
-
 # ── Test endpoints ───────────────────────────────────────────────────────────
 
 
@@ -777,14 +679,13 @@ async def create_test_case(
     dependencies=[Depends(analytics_rate_limit)],
 )
 async def list_test_cases(
-    auth: WorkspaceAdminDep,
+    ws: WorkspaceDep,
     db: DbDep,
     guardrail_rule_id: Annotated[uuid.UUID | None, Query()] = None,
     limit: Annotated[int, Query(le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> GuardrailTestCaseList:
-    workspace = auth[0]
-    stmt = select(GuardrailTestCase).where(GuardrailTestCase.workspace_id == workspace.id)
+    stmt = select(GuardrailTestCase).where(GuardrailTestCase.workspace_id == ws.id)
     if guardrail_rule_id:
         stmt = stmt.where(GuardrailTestCase.guardrail_rule_id == guardrail_rule_id)
 
@@ -954,14 +855,13 @@ async def create_partner_guardrail(
     "/partners", response_model=PartnerGuardrailList, dependencies=[Depends(analytics_rate_limit)]
 )
 async def list_partner_guardrails(
-    auth: WorkspaceAdminDep,
+    ws: WorkspaceDep,
     db: DbDep,
     provider: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> PartnerGuardrailList:
-    workspace = auth[0]
-    stmt = select(PartnerGuardrail).where(PartnerGuardrail.workspace_id == workspace.id)
+    stmt = select(PartnerGuardrail).where(PartnerGuardrail.workspace_id == ws.id)
     if provider:
         stmt = stmt.where(PartnerGuardrail.provider == provider)
 
@@ -983,13 +883,12 @@ async def list_partner_guardrails(
 )
 async def get_partner_guardrail(
     partner_id: uuid.UUID,
-    auth: WorkspaceAdminDep,
+    ws: WorkspaceDep,
     db: DbDep,
 ) -> PartnerGuardrailResponse:
-    workspace = auth[0]
     result = await db.execute(
         select(PartnerGuardrail).where(
-            PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == workspace.id
+            PartnerGuardrail.id == partner_id, PartnerGuardrail.workspace_id == ws.id
         )
     )
     pg = result.scalar_one_or_none()
@@ -1153,15 +1052,14 @@ async def submit_event_feedback(
     "/alerts", response_model=GuardrailAlertList, dependencies=[Depends(analytics_rate_limit)]
 )
 async def list_guardrail_alerts(
-    auth: WorkspaceAdminDep,
+    ws: WorkspaceDep,
     db: DbDep,
     alert_type: Annotated[str | None, Query()] = None,
     alert_status: Annotated[str | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> GuardrailAlertList:
-    workspace = auth[0]
-    stmt = select(GuardrailAlert).where(GuardrailAlert.workspace_id == workspace.id)
+    stmt = select(GuardrailAlert).where(GuardrailAlert.workspace_id == ws.id)
     if alert_type:
         stmt = stmt.where(GuardrailAlert.alert_type == alert_type)
     if alert_status:
@@ -1224,3 +1122,100 @@ async def acknowledge_alert(
     await db.commit()
     await db.refresh(alert)
     return GuardrailAlertResponse.model_validate(alert)
+
+
+# ── Single Rule CRUD Endpoints ───────────────────────────────────────────────
+
+
+@router.get(
+    "/{guardrail_id}",
+    response_model=GuardrailRuleResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
+async def get_guardrail(
+    guardrail_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
+) -> GuardrailRuleResponse:
+    result = await db.execute(
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == ws.id
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
+    return GuardrailRuleResponse.model_validate(rule)
+
+
+@router.put(
+    "/{guardrail_id}",
+    response_model=GuardrailRuleResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def update_guardrail(
+    guardrail_id: uuid.UUID,
+    body: GuardrailRuleUpdate,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> GuardrailRuleResponse:
+    workspace = auth[0]
+    result = await db.execute(
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(rule, field, value)
+    rule.updated_at = datetime.now(UTC)
+
+    await db.commit()
+    await db.refresh(rule)
+    log.info("guardrail_updated", guardrail_id=str(guardrail_id))
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "guardrail.updated",
+        target_type="guardrail",
+        target_id=str(guardrail_id),
+        after=update_data,
+    )
+    return GuardrailRuleResponse.model_validate(rule)
+
+
+@router.delete(
+    "/{guardrail_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def delete_guardrail(
+    guardrail_id: uuid.UUID,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    result = await db.execute(
+        select(GuardrailRule).where(
+            GuardrailRule.id == guardrail_id, GuardrailRule.workspace_id == workspace.id
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
+
+    await db.delete(rule)
+    await db.commit()
+    log.info("guardrail_deleted", guardrail_id=str(guardrail_id))
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "guardrail.deleted",
+        target_type="guardrail",
+        target_id=str(guardrail_id),
+        after={"name": rule.name},
+    )

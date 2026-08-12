@@ -200,7 +200,7 @@ curl -X POST https://YOUR_API/v1/traces \\
   -H "Content-Type: application/json" \\
   -d '{"resourceSpans": [...]}'`}</pre>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          See <a href="https://github.com/anthropics/runledger/blob/main/docs/otlp.md" className="text-indigo-500 hover:underline" target="_blank" rel="noreferrer">docs/otlp.md</a> for the full integration guide.
+          Full setup guidance also lives in the Integrations and Onboarding flows. The quick start above is enough to verify local OTLP ingestion against this stack.
         </p>
       </div>
 

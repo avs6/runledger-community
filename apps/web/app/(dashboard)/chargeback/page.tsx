@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Receipt, Trash2, Plus, Download, BarChart3 } from 'lucide-react';
+import { useRole } from '@/components/rbac/useRole';
 import {
   listChargebackRules,
   createChargebackRule,
@@ -43,6 +44,7 @@ type Tab = 'rules' | 'reports';
 export default function ChargebackPage() {
   const { data: session } = useSession();
   const apiKey = (session as { apiKey?: string })?.apiKey ?? '';
+  const { canManageOrgSettings } = useRole();
 
   const [activeTab, setActiveTab] = useState<Tab>('rules');
 
@@ -65,7 +67,7 @@ export default function ChargebackPage() {
 
   // ── Rules CRUD ────────────────────────────────────────────────────────────
   const fetchRules = useCallback(async () => {
-    if (!apiKey) return;
+    if (!apiKey || !canManageOrgSettings) return;
     try {
       setLoadingRules(true);
       const data = await listChargebackRules(apiKey);
@@ -75,7 +77,7 @@ export default function ChargebackPage() {
     } finally {
       setLoadingRules(false);
     }
-  }, [apiKey]);
+  }, [apiKey, canManageOrgSettings]);
 
   useEffect(() => {
     fetchRules();
@@ -118,7 +120,7 @@ export default function ChargebackPage() {
 
   // ── Reports ───────────────────────────────────────────────────────────────
   const fetchReport = useCallback(async () => {
-    if (!apiKey) return;
+    if (!apiKey || !canManageOrgSettings) return;
     try {
       setLoadingReport(true);
       const data = await getChargebackReport(apiKey, {
@@ -131,13 +133,14 @@ export default function ChargebackPage() {
     } finally {
       setLoadingReport(false);
     }
-  }, [apiKey, selectedPeriod, reportDimension]);
+  }, [apiKey, canManageOrgSettings, selectedPeriod, reportDimension]);
 
   useEffect(() => {
     if (activeTab === 'reports') fetchReport();
   }, [activeTab, fetchReport]);
 
   const handleExport = async (format: 'csv' | 'json') => {
+    if (!canManageOrgSettings) return;
     try {
       setExporting(true);
       const raw = await exportChargebackReport(apiKey, {
@@ -171,6 +174,22 @@ export default function ChargebackPage() {
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
+  if (!canManageOrgSettings) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 p-6">
+        <div className="flex items-center gap-3">
+          <Receipt className="h-7 w-7 text-indigo-500" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Chargeback &amp; Showback</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Chargeback management is available to organization admins and managers.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div className="flex items-center gap-3">

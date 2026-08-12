@@ -133,3 +133,87 @@ async def list_executions(
         id=e.id, plugin_id=e.plugin_id, hook=e.hook, latency_ms=e.latency_ms,
         status=e.status, error=e.error, created_at=e.created_at,
     ) for e in rows])
+
+
+DEFAULT_PREINTEGRATED_PLUGINS = [
+    {
+        "name": "PII & Secret Redactor Plugin",
+        "description": "Pre-gateway sanitizer that automatically redacts SSNs, API tokens, passwords, and credit card numbers before LLM processing.",
+        "plugin_type": "transformer",
+        "hooks": ["pre_ingest", "pre_gateway"],
+        "priority": 10,
+        "author": "RunLedger Security",
+        "version": "1.2.0",
+    },
+    {
+        "name": "LangSmith Trace Bridge",
+        "description": "Post-gateway telemetry enricher exporting spans, tool call traces, and token latencies directly to LangSmith & OpenInference collectors.",
+        "plugin_type": "enricher",
+        "hooks": ["post_ingest", "post_gateway"],
+        "priority": 20,
+        "author": "RunLedger Integrations",
+        "version": "2.0.1",
+    },
+    {
+        "name": "PagerDuty / Slack Emergency Dispatcher",
+        "description": "Instant notification webhook fired when a workspace project breaches cost budget limits or triggers high-severity guardrail alerts.",
+        "plugin_type": "webhook",
+        "hooks": ["on_budget_exceeded", "on_guardrail_violation"],
+        "priority": 5,
+        "author": "RunLedger Ops",
+        "version": "1.0.0",
+    },
+    {
+        "name": "Prompt Injection Firewall",
+        "description": "Pre-gateway validator inspecting incoming prompt payloads for jailbreaks, system prompt overrides, and adversarial instructions.",
+        "plugin_type": "validator",
+        "hooks": ["pre_gateway"],
+        "priority": 1,
+        "author": "RunLedger AI Safety",
+        "version": "3.1.0",
+    },
+    {
+        "name": "Kafka Realtime Event Mirror",
+        "description": "Streams completed LLM proxy transactions, tool execution logs, and usage telemetry directly to Kafka/Redpanda topic buffers.",
+        "plugin_type": "transformer",
+        "hooks": ["post_gateway"],
+        "priority": 50,
+        "author": "RunLedger Streaming",
+        "version": "1.4.0",
+    },
+    {
+        "name": "Cost Attribution Header Injector",
+        "description": "Injects Project ID, Access Group ID, and Workspace Metadata headers into upstream model provider calls for FinOps tracking.",
+        "plugin_type": "enricher",
+        "hooks": ["pre_gateway"],
+        "priority": 15,
+        "author": "RunLedger FinOps",
+        "version": "1.1.0",
+    },
+]
+
+
+@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit)])
+async def seed_default_plugins(ws: WorkspaceDep, db: DbDep) -> dict:
+    added = 0
+    for p_def in DEFAULT_PREINTEGRATED_PLUGINS:
+        existing = (await db.execute(
+            select(Plugin).where(Plugin.workspace_id == ws.id, Plugin.name == p_def["name"])
+        )).scalar_one_or_none()
+        if not existing:
+            p = Plugin(
+                id=uuid.uuid4(),
+                workspace_id=ws.id,
+                name=p_def["name"],
+                description=p_def["description"],
+                plugin_type=p_def["plugin_type"],
+                hooks=p_def["hooks"],
+                priority=p_def["priority"],
+                version=p_def["version"],
+                author=p_def["author"],
+                is_active=True,
+            )
+            db.add(p)
+            added += 1
+    await db.commit()
+    return {"status": "seeded", "plugins_added": added, "total": len(DEFAULT_PREINTEGRATED_PLUGINS)}

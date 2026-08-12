@@ -74,7 +74,7 @@ function RunsOverview({ items, total }: { items: RunListItem[]; total: number })
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Model Activity</p>
             <h2 className="mt-1 text-base font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">
-              Recent HelpDesk traffic mix
+              Live Workspace Model Activity
             </h2>
           </div>
           <Link

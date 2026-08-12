@@ -12,8 +12,10 @@ import {
   listOrgWorkspaces,
   getApiKeyRotationHistory,
   rotateApiKey,
+  listProjects,
+  assignProjectKey,
 } from '@/lib/api'
-import type { ApiKeyResponse, KeyRotationEventResponse } from '@/types/api'
+import type { ApiKeyResponse, KeyRotationEventResponse, ProjectResponse } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -34,9 +36,11 @@ export default function ApiKeysPage() {
   const [keyUserFilter, setKeyUserFilter] = useState('')
   const [newKeyName, setNewKeyName] = useState('')
   const [newKeyWs, setNewKeyWs] = useState('')
+  const [newProjectId, setNewProjectId] = useState('')
   const [newOwnershipType, setNewOwnershipType] = useState('user')
   const [newOwnerReference, setNewOwnerReference] = useState('')
   const [orgWorkspaces, setOrgWorkspaces] = useState<{ id: string; name: string }[]>([])
+  const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [creatingKey, setCreatingKey] = useState(false)
   const [newRawKey, setNewRawKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -44,13 +48,17 @@ export default function ApiKeysPage() {
   const load = useCallback(async () => {
     if (!apiKey || !canManageKeys) return
     try {
-      const keys = await listApiKeys(apiKey)
+      const [keys, projRes] = await Promise.all([
+        listApiKeys(apiKey),
+        listProjects(apiKey).catch(() => ({ items: [] })),
+      ])
       const orgWs = isOrgAdmin || isPlatformAdmin
         ? await listOrgWorkspaces(apiKey)
         : workspaceId
           ? [{ id: workspaceId, name: workspaceName ?? 'Current workspace' }]
           : []
       setOrgWorkspaces(orgWs)
+      setProjects(projRes.items || [])
       setApiKeys(keys.filter((k) => !k.is_session))
     } catch (err) {
       console.error(err)
@@ -72,13 +80,17 @@ export default function ApiKeysPage() {
         ownership_type: newOwnershipType,
         owner_reference: newOwnerReference.trim() || null,
       })
+      if (newProjectId) {
+        await assignProjectKey(apiKey, newProjectId, { api_key_id: created.id }).catch(() => {})
+      }
       setNewRawKey(created.key)
       setCopied(false)
       setApiKeys((prev) => [created, ...prev])
       setNewKeyName('')
+      setNewProjectId('')
       setNewOwnershipType('user')
       setNewOwnerReference('')
-      toast.success('API key created — save it now')
+      toast.success(`API key created${newProjectId ? ' and bound to project' : ''} — save it now`)
     } catch (err) {
       console.error(err)
       toast.error('Failed to create API key')
@@ -200,6 +212,12 @@ export default function ApiKeysPage() {
               <option value="">Current workspace ({workspaceName ?? 'default'})</option>
               {orgWorkspaces.map((w) => (
                 <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+            <select value={newProjectId} onChange={(e) => setNewProjectId(e.target.value)} className={inputCls}>
+              <option value="">Project (Optional)</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>Project: {p.name}</option>
               ))}
             </select>
             <button type="submit" disabled={creatingKey} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">

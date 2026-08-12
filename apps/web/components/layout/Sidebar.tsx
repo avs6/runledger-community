@@ -14,9 +14,11 @@ import {
   ChevronDown,
   Cpu,
   Database,
+  FolderLock,
   FileText,
   FlaskConical,
   GitBranch,
+  GraduationCap,
   Key,
   Landmark,
   LayoutDashboard,
@@ -36,6 +38,7 @@ import {
   Settings,
   Settings2,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   TableProperties,
   TrendingUp,
@@ -47,8 +50,6 @@ import {
   Wrench,
   Gauge,
   Layers,
-  ArrowUpCircle,
-  Crosshair,
   FileSpreadsheet,
   Server,
   Puzzle,
@@ -62,40 +63,52 @@ import { useRole } from '@/components/rbac/useRole'
 const STORAGE_KEY = 'runledger.sidebar.sections'
 
 const defaultSections = {
-  workspace: true,
-  improve: true,
-  controlPlane: true,
+  observe: true,
+  build: true,
+  gateway: true,
+  governance: true,
   finance: true,
-  governance: false,
-  ecosystem: true,
   organization: true,
   platform: true,
 } as const
 
 type SectionKey = keyof typeof defaultSections
 
-const workspaceNav = [
+const observeNav = [
   { href: '/dashboard', label: 'Workspace Dashboard', icon: LayoutDashboard },
-  { href: '/request-flow', label: 'Request Flow', icon: Route },
-  { href: '/request-explorer', label: 'Request Explorer', icon: Search },
-  { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
+  { href: '/request-flow', label: 'Request Flow', icon: Route },
+  { href: '/request-explorer', label: 'Request Explorer', icon: Search },
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
+  { href: '/evaluations', label: 'Quality Scores', icon: GraduationCap },
+  { href: '/outcomes', label: 'Outcomes & ROI', icon: TrendingUp },
+] as const
+
+const buildNav = [
   { href: '/agents', label: 'Agents', icon: Bot },
   { href: '/workflows', label: 'Workflows', icon: GitBranch },
-  { href: '/vector-stores', label: 'Vector Stores', icon: Database },
   { href: '/playground', label: 'Playground', icon: Play },
+  { href: '/prompts', label: 'Prompts', icon: FileText },
+  { href: '/evaluation', label: 'Evaluations Studio', icon: FlaskConical },
+  { href: '/datasets', label: 'Datasets', icon: TableProperties },
+  { href: '/experiments', label: 'Experiments', icon: Beaker },
+  { href: '/replay', label: 'Replay Lab', icon: Beaker },
+  { href: '/optimization-opportunities', label: 'Optimization Opportunities', icon: Lightbulb },
+  { href: '/optimization-simulator', label: 'Optimization Simulator', icon: FlaskConical },
+  { href: '/model-scorecards', label: 'Model Scorecards', icon: Trophy },
   { href: '/runbooks', label: 'Runbooks', icon: BookOpen },
+  { href: '/vector-stores', label: 'Vector Stores', icon: Database },
 ] as const
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { isPlatformAdmin, isOrgAdmin, isWorkspaceAdmin, canAccessSettings } = useRole()
-  const canAccessFinance = isWorkspaceAdmin || isOrgAdmin || isPlatformAdmin
-  const canAccessOrgControl = isOrgAdmin || isPlatformAdmin
+  const { isPlatformAdmin, isOrgElevated, isWorkspaceAdmin, canAccessSettings } = useRole()
+  const canAccessFinance = isWorkspaceAdmin || isOrgElevated || isPlatformAdmin
+  const canAccessOrgControl = isOrgElevated || isPlatformAdmin
   const canAccessApiKeys = isWorkspaceAdmin || canAccessOrgControl
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(defaultSections)
 
@@ -167,99 +180,90 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-60 flex-col border-r border-slate-200 bg-[#eef3f8]/95 px-3 py-4 backdrop-blur-xl dark:border-slate-300 dark:bg-[#dbe5ef]/95">
-      <div className="mb-5 px-2">
+    <aside className="flex h-full w-60 min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-[#eef3f8]/95 px-3 py-4 backdrop-blur-xl dark:border-slate-300 dark:bg-[#dbe5ef]/95">
+      <div className="mb-5 shrink-0 px-2">
         <RunLedgerLogo markSize={30} />
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        <Section id="workspace" label="Workspace">
-          {workspaceNav.map(({ href, label, icon }) => (
-            <NavLink key={href} href={href} label={label} icon={icon} />
-          ))}
-        </Section>
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <nav className="flex flex-col gap-0.5">
+          <Section id="observe" label="Observe">
+            {observeNav.map(({ href, label, icon }) => (
+              <NavLink key={href} href={href} label={label} icon={icon} />
+            ))}
+          </Section>
 
-        <Section id="improve" label="Improve">
-          <NavLink href="/optimization-opportunities" label="Optimization Opportunities" icon={Lightbulb} />
-          <NavLink href="/optimization-simulator" label="Optimization Simulator" icon={FlaskConical} />
-          <NavLink href="/model-scorecards" label="Model Scorecards" icon={Trophy} />
-          <NavLink href="/prompts" label="Prompts" icon={FileText} />
-          <NavLink href="/evaluation" label="Evaluations" icon={FlaskConical} />
-          <NavLink href="/experiments" label="Experiments" icon={Beaker} />
-          <NavLink href="/datasets" label="Datasets" icon={TableProperties} />
-          <NavLink href="/replay" label="Replay Lab" icon={Beaker} />
-        </Section>
+          <Section id="build" label="Build & Improve">
+            {buildNav.map(({ href, label, icon }) => (
+              <NavLink key={href} href={href} label={label} icon={icon} />
+            ))}
+          </Section>
 
-        {canAccessApiKeys && (
-          <Section id="controlPlane" label="Control Plane">
-            {canAccessOrgControl && (
-              <>
-                <NavLink href="/gateway" label="Model Gateway" icon={Network} />
-                <NavLink href="/provider-profiles" label="Provider Profiles" icon={Database} />
-              </>
-            )}
+          {canAccessApiKeys && (
+            <Section id="gateway" label="Gateway & Routing">
+              {canAccessOrgControl && (
+                <>
+                  <NavLink href="/gateway" label="Model Gateway" icon={Network} />
+                  <NavLink href="/provider-profiles" label="Provider Profiles" icon={Database} />
+                </>
+              )}
+              <NavLink href="/guardrails" label="Guardrails" icon={ShieldAlert} />
+              <NavLink href="/response-cache" label="Response Cache" icon={Database} />
+              <NavLink href="/rate-limits" label="Rate Limits" icon={Gauge} />
+            </Section>
+          )}
+
+          {canAccessApiKeys && (
+            <Section id="governance" label="Safety & Governance">
+              <NavLink href="/tool-registry" label="Tool Registry" icon={Wrench} />
+              <NavLink href="/search-tools" label="Search Tools" icon={Search} />
+              <NavLink href="/tool-policies" label="Tool Policies" icon={FolderLock} />
+              <NavLink href="/mcp" label="MCP Servers" icon={Plug} />
+              <NavLink href="/data-capture" label="Data Capture" icon={Shield} />
+              <NavLink href="/security" label="Security" icon={ShieldAlert} />
+              {isWorkspaceAdmin && <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />}
+              {isWorkspaceAdmin && <NavLink href="/audit" label="Audit Log" icon={ScrollText} />}
+              {isWorkspaceAdmin && <NavLink href="/policy-dry-run" label="Policy Dry Run" icon={Shield} />}
+              {isWorkspaceAdmin && <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />}
+              <NavLink href="/alert-rules" label="Alert Rules" icon={Bell} />
+              <NavLink href="/tags" label="Tags" icon={BookOpen} />
+            </Section>
+          )}
+
+          {canAccessFinance && (
+            <Section id="finance" label="FinOps">
+              <NavLink href="/cost-savings" label="Cost & Savings" icon={PiggyBank} />
+              <NavLink href="/budgets" label="Budgets" icon={Wallet} />
+              <NavLink href="/billing" label="Billing" icon={FileSpreadsheet} />
+              {canAccessOrgControl && <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />}
+            </Section>
+          )}
+        </nav>
+      </div>
+
+      <div className="mt-auto shrink-0 border-t border-slate-200/80 pt-2 pr-1 max-h-[50vh] overflow-y-auto dark:border-white/[0.06]">
+        {(canAccessApiKeys || canAccessOrgControl) && (
+          <Section id="organization" label="Organization & Access">
+            {canAccessOrgControl && <NavLink href="/organization/dashboard" label="Org Dashboard" icon={LayoutDashboard} />}
+            {canAccessOrgControl && <NavLink href="/organization" label="Profile" icon={Building2} />}
+            {canAccessOrgControl && <NavLink href="/users" label="Users" icon={Users} />}
+            {canAccessOrgControl && <NavLink href="/workspace" label="Teams / Workspaces" icon={LayoutGrid} />}
+            {canAccessOrgControl && <NavLink href="/projects" label="Projects" icon={FolderKanban} />}
+            {canAccessOrgControl && <NavLink href="/team-models" label="Team Models" icon={UsersRound} />}
+            {canAccessOrgControl && <NavLink href="/access-groups" label="Access Groups" icon={Layers} />}
             <NavLink href="/api-keys" label="API Keys" icon={Key} />
-            {canAccessOrgControl && (
-              <>
-                <NavLink href="/integrations" label="Integrations" icon={Settings2} />
-                <NavLink href="/mcp" label="MCP Servers" icon={Plug} />
-                <NavLink href="/data-capture" label="Data Capture" icon={Shield} />
-                <NavLink href="/otlp" label="OTLP Ingest" icon={Radio} />
-                <NavLink href="/alert-rules" label="Alert Rules" icon={Bell} />
-                <NavLink href="/tool-registry" label="Tool Registry" icon={Wrench} />
-              </>
-            )}
-          </Section>
-        )}
-
-        {canAccessFinance && (
-          <Section id="finance" label="Finance">
-            <NavLink href="/cost-savings" label="Cost & Savings" icon={PiggyBank} />
-            <NavLink href="/budgets" label="Budgets" icon={Wallet} />
-            <NavLink href="/budget-tiers" label="Budget Tiers" icon={Layers} />
-            <NavLink href="/budget-overrides" label="Budget Overrides" icon={ArrowUpCircle} />
-            <NavLink href="/model-budgets" label="Model Budgets" icon={Crosshair} />
-            <NavLink href="/rate-limits" label="Rate Limits" icon={Gauge} />
-            <NavLink href="/billing-summary" label="Billing Summary" icon={FileSpreadsheet} />
-            <NavLink href="/outcomes" label="Outcomes & ROI" icon={TrendingUp} />
-            <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />
-          </Section>
-        )}
-
-        {canAccessOrgControl && (
-          <Section id="ecosystem" label="Ecosystem">
-            <NavLink href="/mcp-registry" label="MCP Registry" icon={Server} />
-            <NavLink href="/plugins" label="Plugins" icon={Puzzle} />
-            <NavLink href="/ai-hub" label="AI Hub" icon={Store} />
-            <NavLink href="/projects" label="Projects" icon={FolderKanban} />
-            <NavLink href="/team-models" label="Team Models" icon={UsersRound} />
-          </Section>
-        )}
-
-        {isWorkspaceAdmin && (
-          <Section id="governance" label="Governance">
-            <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />
-            <NavLink href="/audit" label="Audit Log" icon={ScrollText} />
-            <NavLink href="/policy-dry-run" label="Policy Dry Run" icon={Shield} />
-            <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />
-          </Section>
-        )}
-      </nav>
-
-      <div className="mt-4 border-t border-slate-200/80 pt-4 dark:border-white/[0.06]">
-        {canAccessOrgControl && (
-          <Section id="organization" label="Organization">
-            <NavLink href="/organization/dashboard" label="Org Dashboard" icon={LayoutDashboard} />
-            <NavLink href="/organization" label="Profile" icon={Building2} />
-            <NavLink href="/users" label="Users" icon={Users} />
-            <NavLink href="/workspace" label="Workspaces" icon={LayoutGrid} />
-          </Section>
-        )}
-        {isPlatformAdmin && (
-          <Section id="platform" label="Platform">
-            <NavLink href="/global-dashboard" label="Global Dashboard" icon={Landmark} />
-            <NavLink href="/organizations" label="All Organizations" icon={Landmark} />
+            {canAccessOrgControl && <NavLink href="/otlp" label="OTLP Ingest" icon={Radio} />}
+            {canAccessOrgControl && <NavLink href="/mcp-registry" label="MCP Registry" icon={Server} />}
+            {canAccessOrgControl && <NavLink href="/ai-hub" label="AI Hub" icon={Store} />}
             <NavLink href="/onboarding" label="Getting Started" icon={Rocket} />
+            {canAccessOrgControl && <NavLink href="/integrations" label="Integrations" icon={Settings2} />}
+            {canAccessOrgControl && <NavLink href="/org-settings" label="Org Settings" icon={Settings} />}
+          </Section>
+        )}
+        {canAccessOrgControl && (
+          <Section id="platform" label="Platform">
+            {isPlatformAdmin && <NavLink href="/global-dashboard" label="Global Dashboard" icon={Landmark} />}
+            {isPlatformAdmin && <NavLink href="/organizations" label="All Organizations" icon={Landmark} />}
             {canAccessSettings && <NavLink href="/settings" label="Settings" icon={Settings} />}
           </Section>
         )}

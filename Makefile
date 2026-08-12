@@ -199,16 +199,17 @@ logs-api:
 #   make build-images TAG=v2          # build all 15 images as abijith13/runledger-*:v2
 #   make push-images TAG=v2           # push all 15 images to Docker Hub
 #   make deploy TAG=v2                # recreate running containers with v2 images
+#   make deploy TAG=v1alpha1          # deploy the current published alpha tag
 #   make deploy TAG=v1                # revert to v1 (no rebuild, just swap)
 #   make build-push TAG=v2            # build + push in one step
 #   make build-push-deploy TAG=v2     # build + push + deploy in one step
 #
-# The docker-compose.yml defaults to v1 via the image: tags. These Makefile
+# The docker-compose.yml defaults to v1alpha1 via the image: tags. These Makefile
 # targets let you build, test, and deploy a new tag without editing compose.
 # To revert after a bad deploy: make deploy TAG=v1
 
 REGISTRY ?= abijith13
-TAG ?= v1
+TAG ?= v1alpha1
 
 ## Build all 15 RunLedger images with TAG
 build-images:
