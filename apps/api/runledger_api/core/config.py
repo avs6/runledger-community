@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     admin_secret: str = ""
     # Shared secret used to verify HMAC-signed webhook ingest payloads.
     ingest_signing_secret: str = ""
+    # Pepper for API key HMAC hashing (falls back to secret_key if empty).
+    api_key_pepper: str = ""
+    # Fernet key for encrypting ledger signing keys at rest.
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    ledger_master_key: str = ""
+    # Comma-separated list of trusted reverse-proxy IPs for X-Forwarded-For validation.
+    trusted_proxies: str = ""
 
     # App
     environment: str = "development"
@@ -122,4 +129,30 @@ class Settings(BaseSettings):
         return "ephemeral"
 
 
+_KNOWN_WEAK_DEFAULTS = {
+    "dev-secret-key-change-in-production",
+    "change-me-in-production-32chars",
+    "change-me-to-a-random-32char-string",
+    "runledger-admin",
+}
+
+
+def _validate_production_secrets(s: Settings) -> None:
+    if s.environment == "development":
+        return
+    problems: list[str] = []
+    if s.secret_key in _KNOWN_WEAK_DEFAULTS:
+        problems.append("SECRET_KEY is a known default — set a real 32+ char random string")
+    if s.admin_secret in _KNOWN_WEAK_DEFAULTS:
+        problems.append("ADMIN_SECRET is a known default — set a real random string")
+    if s.database_url and "runledger:runledger@" in s.database_url:
+        problems.append("DATABASE_URL uses the default password 'runledger' — change POSTGRES_PASSWORD")
+    if problems:
+        import sys
+        for p in problems:
+            print(f"SECURITY ERROR: {p}", file=sys.stderr)
+        raise SystemExit(1)
+
+
 settings = Settings()
+_validate_production_secrets(settings)

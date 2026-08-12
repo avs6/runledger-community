@@ -31,7 +31,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.mcp_registry import McpPermission, McpServer, McpToolCall
 from runledger_api.models.tenant import Workspace
@@ -87,7 +87,7 @@ def _server_to_response(s: McpServer) -> McpServerResponse:
 
 
 @router.post("", response_model=McpServerResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(management_rate_limit)])
+             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def register_server(body: McpServerCreate, ws: WorkspaceDep, db: DbDep) -> McpServerResponse:
     srv = McpServer(
         id=uuid.uuid4(),
@@ -169,7 +169,7 @@ async def get_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> McpSe
     return _server_to_response(srv)
 
 
-@router.put("/{server_id}", response_model=McpServerResponse, dependencies=[Depends(management_rate_limit)])
+@router.put("/{server_id}", response_model=McpServerResponse, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def update_server(server_id: uuid.UUID, body: McpServerUpdate, ws: WorkspaceDep, db: DbDep) -> McpServerResponse:
     srv = (await db.execute(
         select(McpServer).where(McpServer.id == server_id, McpServer.workspace_id == ws.id)
@@ -185,7 +185,7 @@ async def update_server(server_id: uuid.UUID, body: McpServerUpdate, ws: Workspa
 
 
 @router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit)])
+               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def deactivate_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     await db.execute(
         update(McpServer)
@@ -196,7 +196,7 @@ async def deactivate_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -
 
 
 @router.post("/tools/call", response_model=McpToolCallResponse,
-             dependencies=[Depends(management_rate_limit)])
+             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> McpToolCallResponse:
     srv = (await db.execute(
         select(McpServer).where(McpServer.id == body.server_id, McpServer.workspace_id == ws.id)
@@ -246,7 +246,7 @@ async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> Mc
 
 
 @router.post("/permissions", response_model=McpPermissionResponse,
-             status_code=status.HTTP_201_CREATED, dependencies=[Depends(management_rate_limit)])
+             status_code=status.HTTP_201_CREATED, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def grant_permission(body: McpPermissionCreate, ws: WorkspaceDep, db: DbDep) -> McpPermissionResponse:
     perm = McpPermission(
         id=uuid.uuid4(),
@@ -281,7 +281,7 @@ async def list_permissions(ws: WorkspaceDep, db: DbDep) -> McpPermissionList:
 
 
 @router.delete("/permissions/{perm_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit)])
+               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def revoke_permission(perm_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     result = await db.execute(
         select(McpPermission).where(McpPermission.id == perm_id, McpPermission.workspace_id == ws.id)
@@ -358,7 +358,7 @@ DEFAULT_POPULAR_MCP_SERVERS = [
 ]
 
 
-@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit)])
+@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def seed_default_mcp_servers(ws: WorkspaceDep, db: DbDep) -> dict:
     added = 0
     for srv_def in DEFAULT_POPULAR_MCP_SERVERS:

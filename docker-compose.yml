@@ -51,7 +51,7 @@ services:
     command:
       - sh
       - -c
-      - redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly ${RUNLEDGER_REDIS_APPENDONLY:-no} --appendfsync ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec} --save "${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}"
+      - redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly ${RUNLEDGER_REDIS_APPENDONLY:-no} --appendfsync ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec} --save "${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}" ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -177,8 +177,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
-      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Allow both hostnames the dashboard is commonly opened at. If you browse the UI
@@ -285,8 +285,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
-      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
@@ -346,8 +346,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-32chars}
-      ADMIN_SECRET: ${ADMIN_SECRET:-runledger-admin}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}

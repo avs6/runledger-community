@@ -26,7 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.plugins import Plugin, PluginExecution
 from runledger_api.models.tenant import Workspace
@@ -56,7 +56,7 @@ def _to_response(p: Plugin) -> PluginResponse:
 
 
 @router.post("", response_model=PluginResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(management_rate_limit)])
+             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def create_plugin(body: PluginCreate, ws: WorkspaceDep, db: DbDep) -> PluginResponse:
     p = Plugin(
         id=uuid.uuid4(), workspace_id=ws.id, name=body.name, description=body.description,
@@ -91,7 +91,7 @@ async def get_plugin(plugin_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Plugi
     return _to_response(p)
 
 
-@router.put("/{plugin_id}", response_model=PluginResponse, dependencies=[Depends(management_rate_limit)])
+@router.put("/{plugin_id}", response_model=PluginResponse, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def update_plugin(plugin_id: uuid.UUID, body: PluginUpdate, ws: WorkspaceDep, db: DbDep) -> PluginResponse:
     p = (await db.execute(
         select(Plugin).where(Plugin.id == plugin_id, Plugin.workspace_id == ws.id)
@@ -107,7 +107,7 @@ async def update_plugin(plugin_id: uuid.UUID, body: PluginUpdate, ws: WorkspaceD
 
 
 @router.delete("/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit)])
+               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def uninstall_plugin(plugin_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     await db.execute(
         update(Plugin)
@@ -193,7 +193,7 @@ DEFAULT_PREINTEGRATED_PLUGINS = [
 ]
 
 
-@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit)])
+@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
 async def seed_default_plugins(ws: WorkspaceDep, db: DbDep) -> dict:
     added = 0
     for p_def in DEFAULT_PREINTEGRATED_PLUGINS:
