@@ -7,6 +7,7 @@ Requires:
 
 Optional:
   ORG_SLACK_WEBHOOK_URL
+  ORG_EXPORT_WEBHOOK_URL
 
 This script intentionally avoids org creation/deletion because those are
 platform lifecycle actions owned by /organizations, not the org console.
@@ -23,6 +24,7 @@ import httpx
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
 SESSION_KEY = os.getenv("RUNLEDGER_SESSION_KEY", "")
 SLACK_WEBHOOK_URL = os.getenv("ORG_SLACK_WEBHOOK_URL", "")
+EXPORT_WEBHOOK_URL = os.getenv("ORG_EXPORT_WEBHOOK_URL", "")
 
 if not SESSION_KEY:
     print("Error: RUNLEDGER_SESSION_KEY not set", file=sys.stderr)
@@ -85,6 +87,13 @@ def main() -> None:
         )
         print(f"[ok] Restored report template to {original_template}")
 
+        backup_config = expect_ok(
+            client.get("/settings/backups/config"),
+            "get backup config",
+            allowed=(200,),
+        )
+        print(f"[ok] Loaded storage override config: {backup_config.get('bucket', '') or 'not configured'}")
+
         created_workspace = expect_ok(
             client.post("/org/workspaces", json={"name": workspace_name}),
             "create workspace",
@@ -125,6 +134,41 @@ def main() -> None:
             print(f"[ok] Slack test result: {slack_result['ok']}")
         else:
             print("[skip] Slack test skipped because ORG_SLACK_WEBHOOK_URL is not set")
+
+        if EXPORT_WEBHOOK_URL:
+            destination = expect_ok(
+                client.post(
+                    "/budgets/notifications",
+                    json={
+                        "channel": "webhook",
+                        "destination_url": EXPORT_WEBHOOK_URL,
+                        "events": ["budget.breach"],
+                    },
+                ),
+                "create webhook destination",
+            )
+            destination_id = destination["id"]
+            print("[ok] Created webhook destination")
+
+            test_result = expect_ok(
+                client.post(f"/budgets/notifications/{destination_id}/test", json={}),
+                "test webhook destination",
+            )
+            print(f"[ok] Webhook test result: {test_result['ok']}")
+
+            deliveries = expect_ok(
+                client.get(f"/budgets/notifications/{destination_id}/deliveries"),
+                "list webhook deliveries",
+            )
+            print(f"[ok] Webhook deliveries recorded: {len(deliveries['items'])}")
+
+            expect_ok(
+                client.delete(f"/budgets/notifications/{destination_id}"),
+                "delete webhook destination",
+            )
+            print("[ok] Deleted webhook destination")
+        else:
+            print("[skip] Webhook destination smoke test skipped because ORG_EXPORT_WEBHOOK_URL is not set")
 
     print("[done] Organization Console smoke test completed")
 

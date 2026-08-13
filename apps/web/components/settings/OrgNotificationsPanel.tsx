@@ -23,7 +23,7 @@ import { useRole } from '@/components/rbac/useRole'
 const inputCls =
   'rounded border border-slate-300 bg-white text-gray-900 px-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500'
 
-export type OrgConsoleTab = 'overview' | 'email' | 'slack'
+export type OrgConsoleTab = 'overview' | 'email' | 'slack' | 'destinations'
 
 const TABS = [
   { id: 'email', label: 'Email & Notifications', description: 'Notification preferences, reports, and delivery', icon: Mail },

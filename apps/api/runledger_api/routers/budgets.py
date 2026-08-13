@@ -18,6 +18,7 @@ GET    /budgets/notifications    List notification channels
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -32,7 +33,12 @@ from runledger_api.core.deps import get_current_user, get_current_workspace, req
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.budget_overrides import BudgetOverride
-from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
+from runledger_api.models.budgets import (
+    Budget,
+    BudgetBreach,
+    BudgetNotification,
+    BudgetNotificationDelivery,
+)
 from runledger_api.models.tenant import TenantRoleEnum, TenantUser, Workspace
 from runledger_api.schemas.budget_overrides import (
     BudgetOverrideCreate,
@@ -51,14 +57,20 @@ from runledger_api.schemas.budgets import (
     BudgetRollupResponse,
     BudgetRollupWorkspace,
     NotificationCreate,
+    NotificationDeliveryList,
+    NotificationDeliveryResponse,
     NotificationList,
     NotificationResponse,
+    NotificationTestResult,
+    NotificationUpdate,
 )
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.budgets import (
+    build_delivery_record,
     check_budgets,
     get_budget_spend,
     invalidate_workspace_budgets_cache,
+    send_notification,
 )
 
 router = APIRouter(
@@ -66,6 +78,28 @@ router = APIRouter(
 )
 log = structlog.get_logger()
 _ORG_BUDGET_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
+
+
+def _notification_response(notification: BudgetNotification) -> NotificationResponse:
+    return NotificationResponse(
+        id=str(notification.id),
+        channel=notification.channel,
+        destination_url=notification.destination_url,
+        events=notification.events,
+        is_active=notification.is_active,
+        created_at=notification.created_at,
+    )
+
+
+async def _get_notification(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    notification_id: uuid.UUID,
+) -> BudgetNotification:
+    notification = await db.get(BudgetNotification, notification_id)
+    if notification is None or notification.workspace_id != workspace_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Webhook destination not found")
+    return notification
 
 
 async def _budget_rollup_workspace_ids(
@@ -518,17 +552,7 @@ async def list_notifications(
     notifications: list[BudgetNotification] = list(result.scalars())
 
     return NotificationList(
-        items=[
-            NotificationResponse(
-                id=str(n.id),
-                channel=n.channel,
-                destination_url=n.destination_url,
-                events=n.events,
-                is_active=n.is_active,
-                created_at=n.created_at,
-            )
-            for n in notifications
-        ]
+        items=[_notification_response(n) for n in notifications]
     )
 
 
@@ -563,14 +587,184 @@ async def create_notification(
         notification_id=str(notification.id),
         channel=notification.channel,
     )
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "notification.created",
+        target_type="webhook_destination",
+        target_id=str(notification.id),
+        after={
+            "channel": notification.channel,
+            "destination_url": notification.destination_url,
+            "events": notification.events,
+            "is_active": notification.is_active,
+        },
+    )
+    await db.commit()
 
-    return NotificationResponse(
-        id=str(notification.id),
-        channel=notification.channel,
-        destination_url=notification.destination_url,
-        events=notification.events,
-        is_active=notification.is_active,
-        created_at=notification.created_at,
+    return _notification_response(notification)
+
+
+@router.put("/notifications/{notification_id}", response_model=NotificationResponse)
+async def update_notification(
+    notification_id: uuid.UUID,
+    body: NotificationUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> NotificationResponse:
+    workspace: Workspace = auth[0]
+    notification = await _get_notification(db, workspace.id, notification_id)
+    before = {
+        "destination_url": notification.destination_url,
+        "events": list(notification.events or []),
+        "is_active": notification.is_active,
+    }
+
+    data = body.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(notification, key, value)
+
+    await db.commit()
+    await db.refresh(notification)
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "notification.updated",
+        target_type="webhook_destination",
+        target_id=str(notification.id),
+        before=before,
+        after={
+            "destination_url": notification.destination_url,
+            "events": list(notification.events or []),
+            "is_active": notification.is_active,
+        },
+    )
+    await db.commit()
+
+    return _notification_response(notification)
+
+
+@router.delete("/notifications/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_notification(
+    notification_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    workspace: Workspace = auth[0]
+    notification = await _get_notification(db, workspace.id, notification_id)
+    before = {
+        "channel": notification.channel,
+        "destination_url": notification.destination_url,
+        "events": list(notification.events or []),
+    }
+    await db.delete(notification)
+    await db.commit()
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "notification.deleted",
+        target_type="webhook_destination",
+        target_id=str(notification_id),
+        before=before,
+    )
+    await db.commit()
+
+
+@router.post("/notifications/{notification_id}/test", response_model=NotificationTestResult)
+async def test_notification(
+    notification_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> NotificationTestResult:
+    workspace: Workspace = auth[0]
+    notification = await _get_notification(db, workspace.id, notification_id)
+    payload = {
+        "event": "webhook.test",
+        "workspace_id": str(workspace.id),
+        "workspace_name": workspace.name,
+        "sent_at": datetime.now(UTC).isoformat(),
+        "source": "runledger.webhooks",
+        "message": "RunLedger webhook destination test event",
+    }
+    try:
+        result = await send_notification(notification, payload)
+        db.add(
+            build_delivery_record(
+                notification,
+                event_type="webhook.test",
+                status=str(result["status"]),
+                response_status=result.get("response_status"),
+                error_detail=result.get("error_detail"),
+                delivered_at=result.get("delivered_at"),
+            )
+        )
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "notification.tested",
+            target_type="webhook_destination",
+            target_id=str(notification.id),
+            after={"ok": True, "channel": notification.channel},
+        )
+        await db.commit()
+        return NotificationTestResult(ok=True)
+    except Exception as exc:
+        db.add(
+            build_delivery_record(
+                notification,
+                event_type="webhook.test",
+                status="failed",
+                error_detail=str(exc),
+            )
+        )
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "notification.tested",
+            target_type="webhook_destination",
+            target_id=str(notification.id),
+            after={"ok": False, "channel": notification.channel, "error": str(exc)},
+        )
+        await db.commit()
+        return NotificationTestResult(ok=False, error=str(exc))
+
+
+@router.get("/notifications/{notification_id}/deliveries", response_model=NotificationDeliveryList)
+async def list_notification_deliveries(
+    notification_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 20,
+) -> NotificationDeliveryList:
+    workspace: Workspace = auth[0]
+    notification = await _get_notification(db, workspace.id, notification_id)
+    rows = (
+        (
+            await db.execute(
+                select(BudgetNotificationDelivery)
+                .where(BudgetNotificationDelivery.notification_id == notification.id)
+                .order_by(BudgetNotificationDelivery.created_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return NotificationDeliveryList(
+        items=[
+            NotificationDeliveryResponse(
+                id=str(row.id),
+                notification_id=str(row.notification_id),
+                event_type=row.event_type,
+                attempt=row.attempt,
+                status=row.status,
+                response_status=row.response_status,
+                error_detail=row.error_detail,
+                delivered_at=row.delivered_at,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ]
     )
 
 

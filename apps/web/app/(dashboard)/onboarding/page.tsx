@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   Rocket, CheckCircle2, Circle, Network, Globe, Code,
   GitBranch, Bot, Terminal, MousePointer, Wind, Cpu,
-  Copy, Check, ChevronDown, ChevronUp,
+  Copy, Check, ChevronUp,
 } from 'lucide-react'
 import {
   getDemoModeStatus,
@@ -39,17 +40,80 @@ interface Integration {
   id: string
   name: string
   subtitle: string
+  category: 'desktop_agents' | 'gateway_clients' | 'telemetry_frameworks'
   icon: React.ComponentType<{ className?: string }>
   steps: string[]
   configTitle: string
   configSnippet: string
 }
 
+type SetupLane = {
+  id: string
+  title: string
+  description: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+}
+
+const SETUP_LANES: SetupLane[] = [
+  {
+    id: 'foundation',
+    title: 'Foundation',
+    description: 'Create the org, workspace, API key, and first controls before connecting external tools.',
+    href: '#foundation-checklist',
+    icon: Rocket,
+  },
+  {
+    id: 'desktop',
+    title: 'Desktop Agents',
+    description: 'Claude, Codex, Cursor, Windsurf, and similar tools connect here first.',
+    href: '#connection-paths',
+    icon: Bot,
+  },
+  {
+    id: 'telemetry',
+    title: 'Telemetry',
+    description: 'Use OTLP, OpenInference, and framework callbacks when you already have an instrumented stack.',
+    href: '/monitoring/telemetry',
+    icon: Network,
+  },
+  {
+    id: 'destinations',
+    title: 'Destinations',
+    description: 'Manage Kafka, export webhooks, and storage overrides in the Organization Console.',
+    href: '/organization?tab=destinations',
+    icon: Globe,
+  },
+]
+
+const INTEGRATION_GROUPS: Array<{
+  id: Integration['category']
+  title: string
+  description: string
+}> = [
+  {
+    id: 'desktop_agents',
+    title: 'Desktop Agents And MCP Clients',
+    description: 'Best when you want Claude, Codex, Cursor, Windsurf, or hosted coding tools to report work into RunLedger.',
+  },
+  {
+    id: 'gateway_clients',
+    title: 'Gateway-Routed Clients',
+    description: 'Best when you want a tool to send inference through the RunLedger gateway for routing, budgets, and control.',
+  },
+  {
+    id: 'telemetry_frameworks',
+    title: 'Telemetry And Framework Hooks',
+    description: 'Best when you already have app code, callback hooks, or orchestration frameworks that can emit traces out of band.',
+  },
+]
+
 const INTEGRATIONS: Integration[] = [
   {
     id: 'litellm',
     name: 'LiteLLM',
     subtitle: 'LLM proxy gateway',
+    category: 'gateway_clients',
     icon: Network,
     steps: [
       'Install the RunLedger callback package: pip install runledger-litellm',
@@ -66,6 +130,7 @@ const INTEGRATIONS: Integration[] = [
     id: 'openwebui',
     name: 'Open WebUI',
     subtitle: 'Chat interface',
+    category: 'gateway_clients',
     icon: Globe,
     steps: [
       'Navigate to Admin > Settings > Connections in Open WebUI.',
@@ -81,6 +146,7 @@ Model Filter: (leave empty to proxy all models)`,
     id: 'openhands',
     name: 'OpenHands',
     subtitle: 'AI coding agent',
+    category: 'gateway_clients',
     icon: Code,
     steps: [
       'Set the LLM base URL environment variable to your RunLedger gateway.',
@@ -96,6 +162,7 @@ export LLM_MODEL="gpt-4o"`,
     id: 'langgraph',
     name: 'LangGraph',
     subtitle: 'Agent orchestration',
+    category: 'telemetry_frameworks',
     icon: GitBranch,
     steps: [
       'Install the RunLedger LangChain integration: pip install runledger-langchain',
@@ -116,6 +183,7 @@ app.invoke(input, config={"callbacks": [handler]})`,
     id: 'claude-code',
     name: 'Claude Code',
     subtitle: 'Anthropic CLI agent',
+    category: 'desktop_agents',
     icon: Bot,
     steps: [
       'Add the RunLedger MCP server to your Claude Code configuration.',
@@ -139,6 +207,7 @@ app.invoke(input, config={"callbacks": [handler]})`,
     id: 'codex',
     name: 'Codex',
     subtitle: 'OpenAI CLI agent',
+    category: 'desktop_agents',
     icon: Terminal,
     steps: [
       'Set your API base URL to the RunLedger gateway.',
@@ -153,6 +222,7 @@ export OPENAI_API_KEY="rl_YOUR_API_KEY"`,
     id: 'cursor',
     name: 'Cursor',
     subtitle: 'AI-powered IDE',
+    category: 'desktop_agents',
     icon: MousePointer,
     steps: [
       'Create or edit the MCP config file in your project.',
@@ -176,6 +246,7 @@ export OPENAI_API_KEY="rl_YOUR_API_KEY"`,
     id: 'windsurf',
     name: 'Windsurf',
     subtitle: 'AI-powered IDE',
+    category: 'desktop_agents',
     icon: Wind,
     steps: [
       'Open Windsurf settings and navigate to the AI provider section.',
@@ -195,6 +266,7 @@ export OPENAI_API_KEY="rl_YOUR_API_KEY"`,
     id: 'devin',
     name: 'Devin',
     subtitle: 'Autonomous coding agent',
+    category: 'desktop_agents',
     icon: Cpu,
     steps: [
       'In the Devin dashboard, go to Settings > API Configuration.',
@@ -251,6 +323,7 @@ function CodeBlock({ title, code }: { title: string; code: string }) {
 
 export default function OnboardingPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
   const [status, setStatus] = useState<OnboardingStatus | null>(null)
   const [demoStatus, setDemoStatus] = useState<DemoModeStatus | null>(null)
@@ -328,6 +401,11 @@ export default function OnboardingPage() {
   const demoProfiles = demoStatus?.available_profiles ?? []
   const manualProfile = demoProfiles.find((profile) => profile.id === 'manual')
   const automatedProfiles = demoProfiles.filter((profile) => profile.kind === 'automated')
+  const showConnectionsSection = searchParams.get('section') === 'connections'
+  const groupedIntegrations = INTEGRATION_GROUPS.map((group) => ({
+    ...group,
+    items: INTEGRATIONS.filter((integration) => integration.category === group.id),
+  }))
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-10">
@@ -337,7 +415,47 @@ export default function OnboardingPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Getting Started</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">Complete these steps to get the most out of RunLedger</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            External-tool setup now lives here. Use this page for Claude, Codex, Cursor, Windsurf, MCP, telemetry, and existing-stack connection guidance.
+          </p>
         </div>
+      </div>
+
+      {showConnectionsSection && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-sm text-blue-800 shadow-sm dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+          The legacy <span className="font-semibold">Integrations</span> route now redirects into Onboarding. Setup guidance lives here, while deep operational surfaces stay in MCP, Telemetry, Organization Console, and Platform Settings.
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {SETUP_LANES.map((lane) => {
+          const Icon = lane.icon
+          const isAnchor = lane.href.startsWith('#')
+          const className = 'rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800'
+          const content = (
+            <>
+              <div className="flex items-center gap-2">
+                <Icon className="h-5 w-5 text-blue-500" />
+                <h2 className="font-medium">{lane.title}</h2>
+              </div>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{lane.description}</p>
+            </>
+          )
+
+          if (isAnchor) {
+            return (
+              <a key={lane.id} href={lane.href} className={className}>
+                {content}
+              </a>
+            )
+          }
+
+          return (
+            <Link key={lane.id} href={lane.href} className={className}>
+              {content}
+            </Link>
+          )
+        })}
       </div>
 
       {/* Progress bar */}
@@ -359,58 +477,14 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* ---- Integration Path Selector ---- */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">Choose Your Integration</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Select the tool you want to connect to RunLedger for tailored setup instructions.
-        </p>
-        <div className="grid grid-cols-3 gap-3">
-          {INTEGRATIONS.map((integration) => {
-            const Icon = integration.icon
-            const isSelected = selectedIntegration === integration.id
-            return (
-              <button
-                key={integration.id}
-                onClick={() => setSelectedIntegration(isSelected ? null : integration.id)}
-                className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
-                  isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-md dark:border-blue-400 dark:bg-blue-950/40'
-                    : 'border-slate-200 bg-white/90 shadow-sm hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-600 dark:hover:bg-slate-800'
-                }`}
-              >
-                <Icon className={`h-6 w-6 ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
-                <span className={`text-sm font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : ''}`}>{integration.name}</span>
-                <span className="text-xs text-slate-400 dark:text-slate-500">{integration.subtitle}</span>
-              </button>
-            )
-          })}
+      {/* ---- Foundation checklist ---- */}
+      <div id="foundation-checklist" className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">1. Lay The Foundation</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Start with organization, workspace, API key, first traffic, and baseline controls before connecting external tools.
+          </p>
         </div>
-      </div>
-
-      {/* ---- Integration-specific instructions ---- */}
-      {active && (
-        <div className="rounded-2xl border border-blue-200 bg-white/90 p-6 shadow-sm dark:border-blue-800 dark:bg-slate-900">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Connect {active.name} to RunLedger</h3>
-            <button
-              onClick={() => setSelectedIntegration(null)}
-              className="text-sm text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
-            >
-              <ChevronUp className="h-5 w-5" />
-            </button>
-          </div>
-          <ol className="mb-4 list-inside list-decimal space-y-2 text-sm text-slate-700 dark:text-slate-300">
-            {active.steps.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
-          </ol>
-          <CodeBlock title={active.configTitle} code={active.configSnippet} />
-        </div>
-      )}
-
-      {/* ---- Steps checklist ---- */}
-      <div className="space-y-3">
         {STEPS.map((step) => {
           const done = !!status[step.key]
           return (
@@ -440,11 +514,115 @@ export default function OnboardingPage() {
         })}
       </div>
 
+      {/* ---- Integration Path Selector ---- */}
+      <div id="connection-paths" className="space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">2. Choose A Connection Path</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Pick the path that matches how your tool connects to RunLedger: desktop agent, gateway-routed client, or telemetry/framework hook.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <Link
+            href="/mcp"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">MCP Setup</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Use MCP setup and registry flows for Claude, Cursor, and other MCP-aware tools.
+            </p>
+          </Link>
+          <Link
+            href="/settings"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Rocket className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">Platform Settings</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Use platform settings for SMTP, platform webhook defaults, and other deployment-wide controls.
+            </p>
+          </Link>
+        </div>
+
+        {groupedIntegrations.map((group) => (
+          <div key={group.id} className="space-y-3">
+            <div>
+              <h3 className="text-base font-semibold tracking-tight">{group.title}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{group.description}</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {group.items.map((integration) => {
+                const Icon = integration.icon
+                const isSelected = selectedIntegration === integration.id
+                return (
+                  <button
+                    key={integration.id}
+                    onClick={() => setSelectedIntegration(isSelected ? null : integration.id)}
+                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50 shadow-md dark:border-blue-400 dark:bg-blue-950/40'
+                        : 'border-slate-200 bg-white/90 shadow-sm hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-600 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Icon className={`h-6 w-6 ${isSelected ? 'text-blue-500 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                    <span className={`text-sm font-medium ${isSelected ? 'text-blue-700 dark:text-blue-300' : ''}`}>{integration.name}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">{integration.subtitle}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ---- Integration-specific instructions ---- */}
+      {active && (
+        <div className="rounded-2xl border border-blue-200 bg-white/90 p-6 shadow-sm dark:border-blue-800 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">3. Connect {active.name} To RunLedger</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Follow the smallest possible setup path, then validate the resulting traffic in Telemetry, Runs, or Request Explorer.
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedIntegration(null)}
+              className="text-sm text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              <ChevronUp className="h-5 w-5" />
+            </button>
+          </div>
+          <ol className="mb-4 list-inside list-decimal space-y-2 text-sm text-slate-700 dark:text-slate-300">
+            {active.steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          <CodeBlock title={active.configTitle} code={active.configSnippet} />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/monitoring/telemetry" className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:text-blue-300">
+              Validate in Telemetry
+            </Link>
+            <Link href="/runs" className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:text-blue-300">
+              Check Runs
+            </Link>
+            <Link href="/request-explorer" className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-700 dark:hover:text-blue-300">
+              Open Request Explorer
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ---- Demo mode ---- */}
       <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="mb-1 font-semibold">Demo Mode</h2>
+            <h2 className="mb-1 font-semibold">4. Demo Mode And Labs</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Use the full simulator for the complete Phase 13 story, the quick seed for a lighter REST-only setup, or the labs for a manual walkthrough.
             </p>

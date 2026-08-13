@@ -121,3 +121,36 @@ class BudgetNotification(Base):
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
+
+
+class BudgetNotificationDelivery(Base):
+    """
+    Delivery attempt record for webhook or Slack notification destinations.
+    """
+
+    __tablename__ = "budget_notification_deliveries"
+    __table_args__ = (
+        sa.Index("ix_budget_notification_deliveries_notification", "notification_id", "created_at"),
+        sa.Index("ix_budget_notification_deliveries_workspace", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    notification_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("budget_notifications.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    event_type: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    attempt: Mapped[int] = mapped_column(sa.Integer(), nullable=False, server_default=sa.text("1"))
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, server_default=sa.text("'pending'")
+    )
+    response_status: Mapped[int | None] = mapped_column(sa.Integer(), nullable=True)
+    error_detail: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )

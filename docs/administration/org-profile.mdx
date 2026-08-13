@@ -13,20 +13,21 @@ Use Organization Console when you want to manage the organization you are curren
 - Review organization metadata and current plan context.
 - Manage organization members and their org roles.
 - Create, suspend, reactivate, and delete workspaces inside the active organization.
+- Configure org-owned destinations such as workspace S3 overrides and Kafka export targets.
 - Review email delivery status and update org notification preferences.
 - Run Slack and email smoke tests for org-level notifications.
 - Confirm which organization the top bar breadcrumb is showing.
 
 After a rename, the dashboard session updates `tenant_name`, so the top bar breadcrumb reflects the new name immediately.
 
-The legacy `/org-settings` route now redirects into the Organization Console tabs at `/organization?tab=email` and `/organization?tab=slack`.
+The legacy `/org-settings` route now redirects into the Organization Console tabs such as `/organization?tab=destinations`, `/organization?tab=email`, and `/organization?tab=slack`.
 
 ## Organizations vs Organization Console
 
 | Page | Visible To | Purpose |
 |---|---|---|
 | **Organizations** | Platform admins | Platform-wide lifecycle: list, create, edit status/plan, delete orgs |
-| **Organization Console** | Org admins, org managers, and platform admins | Active-org profile, members, workspaces, and notification settings |
+| **Organization Console** | Org admins, org managers, and platform admins | Active-org profile, members, workspaces, org-owned destinations, and notification settings |
 
 Org admins do not see the platform-wide Organizations page.
 

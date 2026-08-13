@@ -22,7 +22,12 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
-from runledger_api.models.budgets import Budget, BudgetBreach, BudgetNotification
+from runledger_api.models.budgets import (
+    Budget,
+    BudgetBreach,
+    BudgetNotification,
+    BudgetNotificationDelivery,
+)
 from runledger_api.schemas.budgets import BudgetCheckResponse
 from runledger_api.services import kafka_export
 
@@ -411,7 +416,17 @@ async def fire_breach(
 
         for notification in notifications:
             try:
-                await send_notification(notification, payload)
+                result = await send_notification(notification, payload)
+                db.add(
+                    build_delivery_record(
+                        notification,
+                        event_type=str(payload["event"]),
+                        status=str(result["status"]),
+                        response_status=result.get("response_status"),
+                        error_detail=result.get("error_detail"),
+                        delivered_at=result.get("delivered_at"),
+                    )
+                )
                 # Mark notified_at on the breach
                 await db.execute(
                     update(BudgetBreach)
@@ -419,6 +434,14 @@ async def fire_breach(
                     .values(notified_at=datetime.now(UTC))
                 )
             except Exception as exc:
+                db.add(
+                    build_delivery_record(
+                        notification,
+                        event_type=str(payload["event"]),
+                        status="failed",
+                        error_detail=str(exc),
+                    )
+                )
                 log.warning(
                     "budget_notification_failed",
                     notification_id=str(notification.id),
@@ -437,7 +460,7 @@ async def fire_breach(
 async def send_notification(
     notification: BudgetNotification,
     payload: dict[str, Any],
-) -> None:
+) -> dict[str, Any]:
     """
     Dispatch a notification via Slack Block Kit or HMAC-signed generic webhook.
 
@@ -463,7 +486,13 @@ async def send_notification(
             f"/ ${payload.get('limit_usd', '0')} limit"
         )
         await send_slack_message(notification.destination_url, blocks, fallback)
-        return
+        return {
+            "status": "success",
+            "response_status": 200,
+            "error_detail": None,
+            "delivered_at": datetime.now(UTC),
+            "event_type": str(payload.get("event", "budget.breach")),
+        }
 
     body = json.dumps(payload, sort_keys=True).encode()
     sig = hmac.new(
@@ -473,7 +502,7 @@ async def send_notification(
     ).hexdigest()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        await client.post(
+        response = await client.post(
             notification.destination_url,
             content=body,
             headers={
@@ -482,3 +511,33 @@ async def send_notification(
                 "X-RunLedger-Event": payload.get("event", "budget.breach"),
             },
         )
+        response.raise_for_status()
+    return {
+        "status": "success",
+        "response_status": response.status_code,
+        "error_detail": None,
+        "delivered_at": datetime.now(UTC),
+        "event_type": str(payload.get("event", "budget.breach")),
+    }
+
+
+def build_delivery_record(
+    notification: BudgetNotification,
+    *,
+    event_type: str,
+    attempt: int = 1,
+    status: str,
+    response_status: int | None = None,
+    error_detail: str | None = None,
+    delivered_at: datetime | None = None,
+) -> BudgetNotificationDelivery:
+    return BudgetNotificationDelivery(
+        notification_id=notification.id,
+        workspace_id=notification.workspace_id,
+        event_type=event_type,
+        attempt=attempt,
+        status=status,
+        response_status=response_status,
+        error_detail=error_detail,
+        delivered_at=delivered_at,
+    )

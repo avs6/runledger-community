@@ -3,9 +3,10 @@
 import { useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Bell, Building2, MessageSquare } from 'lucide-react'
+import { Bell, Building2, MessageSquare, RadioTower } from 'lucide-react'
 import OrgTab from '@/components/settings/OrgTab'
 import { OrgNotificationsPanel } from '@/components/settings/OrgNotificationsPanel'
+import { OrgDestinationsPanel } from '@/components/settings/OrgDestinationsPanel'
 import type { OrgConsoleTab } from '@/components/settings/OrgNotificationsPanel'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -13,12 +14,13 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const TABS: { id: OrgConsoleTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Organization', icon: Building2 },
+  { id: 'destinations', label: 'Destinations', icon: RadioTower },
   { id: 'email', label: 'Email', icon: Bell },
   { id: 'slack', label: 'Slack', icon: MessageSquare },
 ]
 
 function normalizeTab(tab: string | null): OrgConsoleTab {
-  if (tab === 'email' || tab === 'slack') return tab
+  if (tab === 'email' || tab === 'slack' || tab === 'destinations') return tab
   return 'overview'
 }
 
@@ -76,7 +78,7 @@ export default function OrganizationPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Organization Console</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Manage your organization profile, members, workspaces, and notification settings.
+          Manage your organization profile, members, workspaces, destinations, and notification settings.
         </p>
       </div>
 
@@ -95,6 +97,8 @@ export default function OrganizationPage() {
 
       {activeTab === 'overview' ? (
         <OrgTab apiKey={apiKey} apiBase={apiBase} />
+      ) : activeTab === 'destinations' ? (
+        <OrgDestinationsPanel />
       ) : (
         <OrgNotificationsPanel activeTab={notificationTab} onTabChange={setTab} />
       )}

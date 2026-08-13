@@ -29,6 +29,7 @@ from runledger_api.core.redis import get_redis
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.ledger import CapturePolicyScope
+from runledger_api.models.platform_settings import PlatformWebhookSettings
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
 from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse, ApiKeyUpdate
 from runledger_api.schemas.backup_ops import (
@@ -44,6 +45,12 @@ from runledger_api.schemas.email_prefs import (
     EmailLogList,
     EmailPreferenceResponse,
     EmailPreferenceUpdate,
+)
+from runledger_api.schemas.platform_settings import (
+    PlatformWebhookSettingsResponse,
+    PlatformWebhookSettingsTestResult,
+    PlatformWebhookSettingsTestStatus,
+    PlatformWebhookSettingsUpdate,
 )
 from runledger_api.schemas.privacy import (
     CapturePolicyScopeList,
@@ -62,6 +69,8 @@ from runledger_api.services.email_utils import get_workspace_admin_users
 from runledger_api.services.ops import get_queue_depths
 from runledger_api.services.ops_policy import evaluate_infra_posture
 from runledger_api.services.gateway_redact import redact_text
+from runledger_api.services.notifications import build_test_blocks, send_slack_message
+import httpx
 
 try:
     from redis.asyncio import Redis
@@ -83,6 +92,41 @@ WorkspaceAdminDep = Annotated[
 ]
 OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 PlatformAdminDep = Annotated[tuple[Any, ...], Depends(require_platform_admin)]
+
+
+async def _get_or_create_platform_webhook_settings(
+    db: AsyncSession,
+) -> PlatformWebhookSettings:
+    settings_row = await db.get(PlatformWebhookSettings, 1)
+    if settings_row is None:
+        settings_row = PlatformWebhookSettings(
+            id=1,
+            generic_webhook_url=app_settings.platform_webhook_url or None,
+            slack_webhook_url=app_settings.platform_slack_webhook_url or None,
+            events=[
+                item.strip()
+                for item in app_settings.platform_webhook_events.split(",")
+                if item.strip()
+            ],
+        )
+        db.add(settings_row)
+        await db.commit()
+        await db.refresh(settings_row)
+    return settings_row
+
+
+def _platform_webhook_settings_response(
+    settings_row: PlatformWebhookSettings,
+) -> PlatformWebhookSettingsResponse:
+    return PlatformWebhookSettingsResponse(
+        generic_webhook_configured=bool(settings_row.generic_webhook_url),
+        slack_webhook_configured=bool(settings_row.slack_webhook_url),
+        events=list(settings_row.events or []),
+        generic_webhook_url=settings_row.generic_webhook_url,
+        slack_webhook_url=settings_row.slack_webhook_url,
+        created_at=settings_row.created_at,
+        updated_at=settings_row.updated_at,
+    )
 
 _PII_PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("email", "high", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")),
@@ -267,6 +311,76 @@ async def get_ops_storage_status(auth: PlatformAdminDep) -> dict[str, Any]:
             "retention_days": app_settings.compliance_export_retention_days,
         },
     }
+
+
+@router.get("/webhooks/defaults", response_model=PlatformWebhookSettingsResponse)
+async def get_platform_webhook_defaults(
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> PlatformWebhookSettingsResponse:
+    _workspace = auth[0]
+    settings_row = await _get_or_create_platform_webhook_settings(db)
+    return _platform_webhook_settings_response(settings_row)
+
+
+@router.put("/webhooks/defaults", response_model=PlatformWebhookSettingsResponse)
+async def update_platform_webhook_defaults(
+    payload: PlatformWebhookSettingsUpdate,
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> PlatformWebhookSettingsResponse:
+    _workspace = auth[0]
+    settings_row = await _get_or_create_platform_webhook_settings(db)
+    settings_row.generic_webhook_url = payload.generic_webhook_url or None
+    settings_row.slack_webhook_url = payload.slack_webhook_url or None
+    settings_row.events = list(payload.events)
+    settings_row.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(settings_row)
+    return _platform_webhook_settings_response(settings_row)
+
+
+@router.post("/webhooks/defaults/test", response_model=PlatformWebhookSettingsTestResult)
+async def test_platform_webhook_defaults(
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> PlatformWebhookSettingsTestResult:
+    _workspace = auth[0]
+    settings_row = await _get_or_create_platform_webhook_settings(db)
+    results: list[PlatformWebhookSettingsTestStatus] = []
+
+    if settings_row.generic_webhook_url:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    settings_row.generic_webhook_url,
+                    json={
+                        "event": "platform.webhook.test",
+                        "source": "runledger.platform",
+                        "message": "RunLedger platform webhook default test event",
+                    },
+                )
+                response.raise_for_status()
+            results.append(PlatformWebhookSettingsTestStatus(channel="webhook", ok=True, error=None))
+        except Exception as exc:
+            results.append(PlatformWebhookSettingsTestStatus(channel="webhook", ok=False, error=str(exc)))
+
+    if settings_row.slack_webhook_url:
+        try:
+            await send_slack_message(
+                settings_row.slack_webhook_url,
+                build_test_blocks(),
+                "RunLedger platform webhook test",
+            )
+            results.append(PlatformWebhookSettingsTestStatus(channel="slack", ok=True, error=None))
+        except Exception as exc:
+            results.append(PlatformWebhookSettingsTestStatus(channel="slack", ok=False, error=str(exc)))
+
+    return PlatformWebhookSettingsTestResult(
+        ok=all(item.ok for item in results) if results else False,
+        results=results,
+        message="No platform defaults configured." if not results else "Platform webhook default test completed.",
+    )
 
 
 @router.get("/ops/feature-flags")
@@ -710,7 +824,7 @@ async def test_email_report(
 
 @router.get("/backups/history", response_model=BackupRunList)
 async def get_backup_history(
-    auth: PlatformAdminDep,
+    auth: OrgAdminDep,
     db: DbDep,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> BackupRunList:
@@ -724,7 +838,7 @@ async def get_backup_history(
 
 @router.get("/backups/config", response_model=BackupTargetConfigResponse | None)
 async def get_backup_config(
-    auth: PlatformAdminDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> BackupTargetConfigResponse | None:
     workspace = auth[0]
@@ -737,7 +851,7 @@ async def get_backup_config(
 @router.put("/backups/config", response_model=BackupTargetConfigResponse)
 async def update_backup_config(
     payload: BackupTargetConfigUpdate,
-    auth: PlatformAdminDep,
+    auth: OrgAdminDep,
     db: DbDep,
 ) -> BackupTargetConfigResponse:
     workspace = auth[0]
@@ -749,7 +863,7 @@ async def update_backup_config(
 
 @router.get("/backups/snapshots", response_model=BackupSnapshotList)
 async def get_backup_snapshots(
-    auth: PlatformAdminDep,
+    auth: OrgAdminDep,
     db: DbDep,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> BackupSnapshotList:
@@ -762,7 +876,7 @@ async def get_backup_snapshots(
 
 
 @router.post("/backups/run", response_model=BackupRunResponse)
-async def run_backup_now(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
+async def run_backup_now(auth: OrgAdminDep, db: DbDep) -> BackupRunResponse:
     workspace = auth[0]
     if not app_settings.backup_enabled:
         raise HTTPException(
@@ -777,7 +891,7 @@ async def run_backup_now(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse
 
 
 @router.post("/backups/test", response_model=BackupActionResult)
-async def test_backup_connection(auth: PlatformAdminDep, db: DbDep) -> BackupActionResult:
+async def test_backup_connection(auth: OrgAdminDep, db: DbDep) -> BackupActionResult:
     workspace = auth[0]
     config = await backup_ops.get_backup_config(db, workspace.id)
     result = await backup_ops.test_backup_connection(config)
@@ -789,7 +903,7 @@ async def test_backup_connection(auth: PlatformAdminDep, db: DbDep) -> BackupAct
 
 
 @router.post("/backups/restore-drill", response_model=BackupRunResponse)
-async def run_restore_drill(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
+async def run_restore_drill(auth: OrgAdminDep, db: DbDep) -> BackupRunResponse:
     workspace = auth[0]
     actor = None
     if len(auth) > 1 and getattr(auth[1], "email", None):
@@ -799,7 +913,7 @@ async def run_restore_drill(auth: PlatformAdminDep, db: DbDep) -> BackupRunRespo
 
 
 @router.get("/backups/status", response_model=BackupActionResult)
-async def get_backup_status(auth: PlatformAdminDep, db: DbDep) -> BackupActionResult:
+async def get_backup_status(auth: OrgAdminDep, db: DbDep) -> BackupActionResult:
     workspace = auth[0]
     status_payload = await backup_ops.backup_alert_status(db, workspace.id)
     return BackupActionResult(

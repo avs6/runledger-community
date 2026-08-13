@@ -312,7 +312,7 @@ Configuration: `infra/otel-collector-config.yaml`
 
 ## Verifying Ingest
 
-After sending telemetry, check **Control Plane -> OTLP** in the RunLedger dashboard for:
+After sending telemetry, check **Observe -> Monitoring -> Telemetry** in the RunLedger dashboard for:
 
 - Batch count (last 24h / 7d)
 - Trace, span, metric, and log totals

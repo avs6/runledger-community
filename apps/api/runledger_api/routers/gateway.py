@@ -1567,11 +1567,53 @@ async def list_gateway_passthrough_stats(
 
 @router.api_route(
     "/passthrough/{slug}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    methods=["GET"],
+    operation_id="execute_gateway_passthrough_endpoint_root_get",
+)
+@router.api_route(
+    "/passthrough/{slug}",
+    methods=["POST"],
+    operation_id="execute_gateway_passthrough_endpoint_root_post",
+)
+@router.api_route(
+    "/passthrough/{slug}",
+    methods=["PUT"],
+    operation_id="execute_gateway_passthrough_endpoint_root_put",
+)
+@router.api_route(
+    "/passthrough/{slug}",
+    methods=["PATCH"],
+    operation_id="execute_gateway_passthrough_endpoint_root_patch",
+)
+@router.api_route(
+    "/passthrough/{slug}",
+    methods=["DELETE"],
+    operation_id="execute_gateway_passthrough_endpoint_root_delete",
 )
 @router.api_route(
     "/passthrough/{slug}/{upstream_path:path}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    methods=["GET"],
+    operation_id="execute_gateway_passthrough_endpoint_path_get",
+)
+@router.api_route(
+    "/passthrough/{slug}/{upstream_path:path}",
+    methods=["POST"],
+    operation_id="execute_gateway_passthrough_endpoint_path_post",
+)
+@router.api_route(
+    "/passthrough/{slug}/{upstream_path:path}",
+    methods=["PUT"],
+    operation_id="execute_gateway_passthrough_endpoint_path_put",
+)
+@router.api_route(
+    "/passthrough/{slug}/{upstream_path:path}",
+    methods=["PATCH"],
+    operation_id="execute_gateway_passthrough_endpoint_path_patch",
+)
+@router.api_route(
+    "/passthrough/{slug}/{upstream_path:path}",
+    methods=["DELETE"],
+    operation_id="execute_gateway_passthrough_endpoint_path_delete",
 )
 async def execute_gateway_passthrough_endpoint(
     slug: str,

@@ -74,18 +74,21 @@ Producer coverage includes run lifecycle, gateway outcomes, budget thresholds an
 
 ## Configure from the UI
 
-1. Open **Integrations** in the dashboard.
-2. Create a Kafka export config.
-3. Set bootstrap servers, topic prefix, and security options.
-4. Choose event types.
-5. Optionally enable:
+1. Open **Organization Console** in the dashboard.
+2. Switch to **Destinations**.
+3. Create a Kafka export config.
+4. Set bootstrap servers, topic prefix, and security options.
+5. Choose event types.
+6. Optionally enable:
    - single-topic mode
    - dead-letter topic
    - redaction mode
    - retry settings
-6. Save the config.
-7. Use **Test** to send a connectivity event.
-8. Review the delivery log.
+7. Save the config.
+8. Use **Test** to send a connectivity event.
+9. Review the delivery log.
+
+Kafka remains part of the integrations architecture, but the control surface now lives with other org-owned export destinations instead of the AI-focused Integrations page.
 
 ## API
 

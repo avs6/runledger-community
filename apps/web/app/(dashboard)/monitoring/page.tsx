@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
@@ -620,7 +621,14 @@ export default function MonitoringPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Monitoring</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Security events, alert firings, and gateway routing decisions across your workspace.
+            Security events, alert firings, gateway routing decisions, and telemetry ingest health across your workspace.
+          </p>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            OTLP traces, metrics, logs, and batch drill-in now live in{' '}
+            <Link href="/monitoring/telemetry" className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+              Telemetry
+            </Link>
+            .
           </p>
         </div>
         <button
