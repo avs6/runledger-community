@@ -471,7 +471,7 @@ async def list_traces_batches(
     """
     Paginated list of recent ingest batches for this workspace.
 
-    Useful for debugging ingestion issues in the Control Plane -> OTLP page.
+    Useful for debugging ingestion issues in the Observe -> Monitoring -> Telemetry page.
     """
     workspace = auth[0]
     rows = await db.execute(
@@ -507,6 +507,59 @@ async def list_traces_batches(
         "total": total,
         "limit": limit,
         "offset": offset,
+    }
+
+
+@router.get(
+    "/v1/traces/batches/{batch_id}",
+    summary="Inspect OTLP ingest batch detail",
+)
+async def get_trace_batch_detail(
+    batch_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    workspace = auth[0]
+    batch = await db.get(OtlpIngestBatch, batch_id)
+    if batch is None or batch.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "OTLP ingest batch not found")
+
+    payload_preview: str | None = None
+    resource_maps: list[dict[str, Any]] = []
+    resource_map_count = 0
+    if batch.raw_payload:
+        try:
+            payload = json.loads(batch.raw_payload)
+            payload_preview = json.dumps(payload, indent=2)[:12000]
+            parsed_resource_maps = _iter_resource_attribute_maps(payload)
+            resource_map_count = len(parsed_resource_maps)
+            resource_maps = [
+                {
+                    "service_name": attrs.get("service.name"),
+                    "attribute_keys": sorted(str(key) for key in attrs.keys())[:20],
+                    "attribute_count": len(attrs),
+                }
+                for attrs in parsed_resource_maps[:10]
+            ]
+        except Exception:
+            payload_preview = batch.raw_payload[:4000].decode("utf-8", errors="replace")
+
+    return {
+        "id": str(batch.id),
+        "created_at": batch.received_at.isoformat() if batch.received_at else None,
+        "signal_type": batch.signal_type,
+        "trace_count": batch.trace_count,
+        "span_count": batch.span_count,
+        "metric_count": batch.metric_count,
+        "log_record_count": batch.log_record_count,
+        "status": batch.status,
+        "error": batch.error,
+        "content_type": batch.content_type,
+        "encoding": batch.encoding,
+        "raw_payload_bytes": len(batch.raw_payload or b""),
+        "resource_map_count": resource_map_count,
+        "resource_maps": resource_maps,
+        "raw_payload_preview": payload_preview,
     }
 
 

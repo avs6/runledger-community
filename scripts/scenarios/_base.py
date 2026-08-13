@@ -829,6 +829,46 @@ class Workspace:
             expect=(200, 400),
         )
 
+    def create_notification_destination(
+        self,
+        *,
+        channel: str = "webhook",
+        destination_url: str,
+        events: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return self.sim.post(
+            "/budgets/notifications",
+            {
+                "channel": channel,
+                "destination_url": destination_url,
+                "events": events or ["budget.breach", "runaway.detected"],
+            },
+            key=self.admin_key or self.key,
+            label=f"notification destination {channel}",
+            expect=(200, 201, 422),
+        )
+
+    def list_notification_destinations(self) -> dict[str, Any]:
+        return self.sim.get("/budgets/notifications", key=self.admin_key or self.key) or {}
+
+    def test_notification_destination(self, notification_id: str) -> dict[str, Any]:
+        return self.sim.post(
+            f"/budgets/notifications/{notification_id}/test",
+            {},
+            key=self.admin_key or self.key,
+            label=f"test notification {notification_id[:8]}",
+            expect=(200, 400),
+        )
+
+    def list_notification_deliveries(self, notification_id: str) -> dict[str, Any]:
+        return (
+            self.sim.get(
+                f"/budgets/notifications/{notification_id}/deliveries",
+                key=self.admin_key or self.key,
+            )
+            or {}
+        )
+
     def update_backup_config(self, **config: Any) -> dict[str, Any]:
         return self.sim.put(
             "/settings/backups/config",

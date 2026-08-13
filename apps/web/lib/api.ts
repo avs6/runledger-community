@@ -42,7 +42,11 @@ import type {
   ExperimentResults,
   LedgerSnapshotList,
   NotificationList,
+  NotificationDeliveryList,
   NotificationResponse,
+  NotificationTestResult,
+  PlatformWebhookDefaults,
+  PlatformWebhookDefaultsTestResult,
   LedgerSnapshotResponse,
   LedgerVerifyResult,
   PeriodBreakdown,
@@ -81,6 +85,7 @@ import type {
   WorkflowTopList,
   OtlpStats,
   OtlpBatchList,
+  OtlpBatchDetail,
   OtlpInsights,
   AuditEventList,
   RetentionPolicy,
@@ -370,6 +375,55 @@ export async function createBudgetNotification(
   })
 }
 
+export async function updateBudgetNotification(
+  apiKey: string,
+  id: string,
+  body: { destination_url?: string; events?: string[]; is_active?: boolean }
+): Promise<NotificationResponse> {
+  return apiFetch<NotificationResponse>(`/budgets/notifications/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteBudgetNotification(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/budgets/notifications/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function testBudgetNotification(apiKey: string, id: string): Promise<NotificationTestResult> {
+  return apiFetch<NotificationTestResult>(`/budgets/notifications/${id}/test`, apiKey, {
+    method: 'POST',
+  })
+}
+
+export async function listBudgetNotificationDeliveries(
+  apiKey: string,
+  id: string,
+  limit = 20
+): Promise<NotificationDeliveryList> {
+  return apiFetch<NotificationDeliveryList>(`/budgets/notifications/${id}/deliveries?limit=${limit}`, apiKey)
+}
+
+export async function getPlatformWebhookDefaults(apiKey: string): Promise<PlatformWebhookDefaults> {
+  return apiFetch<PlatformWebhookDefaults>('/settings/webhooks/defaults', apiKey)
+}
+
+export async function updatePlatformWebhookDefaults(
+  apiKey: string,
+  body: { generic_webhook_url?: string | null; slack_webhook_url?: string | null; events: string[] }
+): Promise<PlatformWebhookDefaults> {
+  return apiFetch<PlatformWebhookDefaults>('/settings/webhooks/defaults', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function testPlatformWebhookDefaults(apiKey: string): Promise<PlatformWebhookDefaultsTestResult> {
+  return apiFetch<PlatformWebhookDefaultsTestResult>('/settings/webhooks/defaults/test', apiKey, {
+    method: 'POST',
+  })
+}
+
 // ── Billing helpers ────────────────────────────────────────────────────────────
 
 export async function getBillingPeriods(apiKey: string): Promise<BillingPeriodList> {
@@ -447,28 +501,51 @@ export async function exportPeriodNetsuite(apiKey: string, id: string): Promise<
 export async function listBillingWebhooks(
   apiKey: string
 ): Promise<import('@/types/api').BillingWebhookConfigList> {
-  return apiFetch('/billing/webhooks', apiKey)
+  const result = await listBudgetNotifications(apiKey)
+  return {
+    items: result.items
+      .filter((item) => item.channel === 'webhook')
+      .map((item) => ({
+        id: item.id,
+        workspace_id: '',
+        url: item.destination_url,
+        label: item.channel,
+        enabled: item.is_active,
+        created_at: item.created_at,
+      })),
+  }
 }
 
 export async function createBillingWebhook(
   apiKey: string,
   body: { url: string; secret: string; label?: string }
 ): Promise<import('@/types/api').BillingWebhookConfig> {
-  return apiFetch('/billing/webhooks', apiKey, {
-    method: 'POST',
-    body: JSON.stringify(body),
+  const result = await createBudgetNotification(apiKey, {
+    channel: 'webhook',
+    destination_url: body.url,
+    events: ['budget.breach', 'runaway.detected'],
   })
+  return {
+    id: result.id,
+    workspace_id: '',
+    url: result.destination_url,
+    label: body.label ?? 'webhook',
+    enabled: result.is_active,
+    created_at: result.created_at,
+  }
 }
 
 export async function deleteBillingWebhook(apiKey: string, id: string): Promise<void> {
-  await apiFetch(`/billing/webhooks/${id}`, apiKey, { method: 'DELETE' })
+  await deleteBudgetNotification(apiKey, id)
 }
 
 export async function listWebhookDeliveries(
   apiKey: string,
   webhookId: string
 ): Promise<import('@/types/api').BillingWebhookDeliveryList> {
-  return apiFetch(`/billing/webhooks/${webhookId}/deliveries`, apiKey)
+  void apiKey
+  void webhookId
+  return { items: [] }
 }
 
 export async function listChargebackRules(apiKey: string): Promise<ChargebackRuleList> {
@@ -2143,6 +2220,13 @@ export async function listOtlpBatches(
     `/v1/traces/batches?limit=${limit}&offset=${offset}`,
     apiKey
   )
+}
+
+export async function getOtlpBatchDetail(
+  apiKey: string,
+  batchId: string
+): Promise<OtlpBatchDetail> {
+  return apiFetch<OtlpBatchDetail>(`/v1/traces/batches/${batchId}`, apiKey)
 }
 
 export async function listAuditEvents(

@@ -80,7 +80,7 @@ Pick one, or mix them per service.
 |---|:---:|---|:---:|---|
 | **[Model Gateway](/gateway/overview)** | Yes | Full, blocking (cache · route · budget) | One hop | `base_url` swap |
 | **[SDK](/instrumentation/python-sdk)** (out-of-band) | No | Advisory pre-checks | None | ~2 lines |
-| **[OTLP](/otlp)** (passive) | No | Observe-only | None | None, if already on OTel |
+| **[OTLP](/monitoring/telemetry)** (passive) | No | Observe-only | None | None, if already on OTel |
 | **Hybrid** | Per service | Per service | Per service | Mixed |
 
 - **Inline gateway** — clients swap only their `base_url`; inference flows *through* RunLedger, so caching,

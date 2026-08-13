@@ -4,10 +4,10 @@
 
 This part covers the remaining control-plane pages plus the platform-level settings pages.
 
-## 7.1 - OTLP
+## 7.1 - Telemetry
 
-Open **Control Plane -> OTLP** and confirm the endpoint guidance matches the
-`LocalAIAgentStack / Langgraph` traffic from Lab 02.
+Open **Observe -> Telemetry** and confirm the endpoint guidance, ingest trends,
+and recent batches match the `LocalAIAgentStack / Langgraph` traffic from Lab 02.
 
 ## 7.2 - MCP
 

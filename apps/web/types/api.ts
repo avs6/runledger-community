@@ -510,6 +510,12 @@ export interface SlackTestResponse { ok: boolean; error: string | null }
 // ── Budget notification types ──────────────────────────────────────────────────
 export interface NotificationResponse { id: string; channel: string; destination_url: string; events: string[]; is_active: boolean; created_at: string }
 export interface NotificationList { items: NotificationResponse[] }
+export interface NotificationTestResult { ok: boolean; error: string | null }
+export interface NotificationDelivery { id: string; notification_id: string; event_type: string; attempt: number; status: string; response_status: number | null; error_detail: string | null; delivered_at: string | null; created_at: string }
+export interface NotificationDeliveryList { items: NotificationDelivery[] }
+export interface PlatformWebhookDefaultStatus { channel: string; ok: boolean; error: string | null }
+export interface PlatformWebhookDefaults { generic_webhook_configured: boolean; slack_webhook_configured: boolean; events: string[]; generic_webhook_url: string | null; slack_webhook_url: string | null; created_at?: string | null; updated_at?: string | null }
+export interface PlatformWebhookDefaultsTestResult { ok: boolean; message: string; results: PlatformWebhookDefaultStatus[] }
 
 // ── Chargeback rule types ──────────────────────────────────────────────────────
 export interface ChargebackRuleResponse { id: string; allocation_type: string; dimension: string; weight: string; created_at: string }
@@ -1418,6 +1424,20 @@ export interface OtlpBatchList {
   total: number
   limit: number
   offset: number
+}
+
+export interface OtlpBatchResourceMap {
+  service_name: string | null
+  attribute_keys: string[]
+  attribute_count: number
+}
+
+export interface OtlpBatchDetail extends OtlpBatchResponse {
+  encoding: string | null
+  raw_payload_bytes: number
+  resource_map_count: number
+  resource_maps: OtlpBatchResourceMap[]
+  raw_payload_preview: string | null
 }
 
 export interface OtlpInsightPoint {

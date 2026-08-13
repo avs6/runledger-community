@@ -152,10 +152,11 @@ Check the **Runs** page in the dashboard after ~5 seconds for the ingested resul
 
 ## Viewing ingestion history
 
-The **Control Plane -> OTLP** page shows:
+The **Observe -> Monitoring -> Telemetry** page shows:
 - 24h and 7d aggregate stats for batches, traces, spans, metrics, and logs
 - OTEL-derived 24h trend charts across traces, metrics, and logs
 - top instrumented services from `service.name`
 - semantic attribution coverage for `session`, `end_user`, `feature_tag`, deployment, workspace, and org labels
 - A table of recent ingest batches with status and error details
+- A batch drill-in view with payload preview and resource-map inspection
 - A quick-start code snippet for your exporter configuration

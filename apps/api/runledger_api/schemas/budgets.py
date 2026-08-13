@@ -122,6 +122,35 @@ class NotificationList(BaseModel):
     items: list[NotificationResponse]
 
 
+class NotificationUpdate(BaseModel):
+    destination_url: str | None = None
+    events: list[str] | None = None
+    is_active: bool | None = None
+
+
+class NotificationTestResult(BaseModel):
+    ok: bool
+    error: str | None = None
+
+
+class NotificationDeliveryResponse(BaseModel):
+    id: str
+    notification_id: str
+    event_type: str
+    attempt: int
+    status: str
+    response_status: int | None
+    error_detail: str | None
+    delivered_at: datetime | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationDeliveryList(BaseModel):
+    items: list[NotificationDeliveryResponse]
+
+
 # ── Billing summary ──────────────────────────────────────────────────────────
 
 

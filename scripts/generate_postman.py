@@ -49,7 +49,7 @@ TAG_ORDER = [
     ("retention", "Platform Settings - Data Retention"),
     ("replay", "Replay"),
     ("warehouse", "Warehouse"),
-    ("OTLP", "Control Plane - OTLP"),
+    ("OTLP", "Observability - Telemetry"),
     ("Kafka Export", "Kafka Export"),
     ("admin", "Bootstrap / Admin"),
     ("intelligence", "ML Intelligence"),
@@ -220,10 +220,18 @@ for tag, display_name in TAG_ORDER:
                 req["description"] = (
                     req.get("description") or "Organization lifecycle"
                 ) + "\n\nRBAC: platform-admin only. Use this for the Organizations lifecycle hub."
-            elif path.startswith("/retention") or path.startswith("/settings/email"):
+            elif path.startswith("/retention") or path.startswith("/settings/email") or path.startswith("/settings/webhooks/defaults"):
                 req["description"] = (
                     req.get("description") or "Platform setting"
                 ) + "\n\nRBAC: platform-admin only."
+            elif path.startswith("/settings/backups"):
+                req["description"] = (
+                    req.get("description") or "Organization storage override"
+                ) + "\n\nRBAC: org-admin or platform-admin dashboard session key. The Organization Console owns the working control surface for org-scoped storage overrides and backup operations."
+            elif path.startswith("/budgets/notifications"):
+                req["description"] = (
+                    req.get("description") or "Outbound webhook destination"
+                ) + "\n\nRBAC: org-admin or platform-admin dashboard session key. Use this surface for org-owned webhook and Slack destinations, delivery history, and smoke tests."
             elif path.startswith("/alerts"):
                 req["description"] = (
                     req.get("description") or "Alert rules"
@@ -239,8 +247,8 @@ for tag, display_name in TAG_ORDER:
                 req["description"] = (
                     (req.get("description") or "Kafka export")
                     + "\n\nRBAC: org-admin or platform-admin dashboard session key. "
-                    "Exports run.completed and run.failed events to Kafka topics for downstream "
-                    "analytics, SIEM, or warehouse pipelines."
+                    "Exports RunLedger events to Kafka topics for downstream analytics, SIEM, or warehouse pipelines. "
+                    "The working control surface lives in Organization Console -> Destinations."
                 )
             elif path.startswith("/integrations/slack"):
                 req["description"] = (
@@ -253,11 +261,11 @@ for tag, display_name in TAG_ORDER:
             elif path.startswith("/v1/traces/"):
                 desc = (req.get("description") or "OTLP ingest management").replace(
                     "Settings → OTLP tab",
-                    "Control Plane -> OTLP page",
+                    "Observe -> Monitoring -> Telemetry page",
                 )
                 desc = desc.replace(
                     "Settings â†’ OTLP tab",
-                    "Control Plane -> OTLP page",
+                    "Observe -> Monitoring -> Telemetry page",
                 )
                 req["description"] = (
                     desc + "\n\nRBAC: org-admin or platform-admin dashboard session key."

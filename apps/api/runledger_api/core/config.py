@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     smtp_password: str = ""  # Brevo SMTP key
     smtp_from: str = "runledger@gmail.com"
     app_base_url: str = "http://localhost:3000"  # used for verification links
+    platform_webhook_url: str = ""
+    platform_slack_webhook_url: str = ""
+    platform_webhook_events: str = "budget.breach,runaway.detected,backup.failed,backup.completed"
 
     # Backup/restore — product-managed scheduler is opt-in while S3 setup matures.
     backup_enabled: bool = False

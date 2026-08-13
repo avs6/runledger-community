@@ -5,10 +5,12 @@ import { useTheme } from 'next-themes'
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { DatabaseBackup, Lock, Trash2 } from 'lucide-react'
+import { DatabaseBackup, Lock, Mail, Server, Trash2 } from 'lucide-react'
 import type {
   LedgerSnapshotResponse,
   LedgerVerifyResult,
+  PlatformWebhookDefaults,
+  PlatformWebhookDefaultsTestResult,
 } from '@/types/api'
 import {
   listLedgerSnapshots,
@@ -41,6 +43,9 @@ import {
   getOpsPolicyEvaluation,
   getOpsQueueStatus,
   getOpsStorageStatus,
+  getPlatformWebhookDefaults,
+  testPlatformWebhookDefaults,
+  updatePlatformWebhookDefaults,
 } from '@/lib/api'
 
 const inputCls =
@@ -49,7 +54,17 @@ const inputCls =
 const TABS = [
   { id: 'compliance', label: 'Compliance', description: 'Signed ledgers and audit evidence', icon: Lock },
   { id: 'retention', label: 'Data Retention', description: 'Delete or scrub old records safely', icon: Trash2 },
-  { id: 'backup', label: 'Backup & Restore', description: 'External S3 schedules and recovery posture', icon: DatabaseBackup },
+  { id: 'delivery', label: 'Email & SMTP', description: 'Platform transport and delivery posture', icon: Mail },
+  { id: 'storage', label: 'Storage Defaults', description: 'Platform buckets, lifecycle, and compliance exports', icon: Server },
+  { id: 'backup', label: 'Backup & Restore', description: 'Recovery workflows and operator drills', icon: DatabaseBackup },
+] as const
+
+const PLATFORM_WEBHOOK_EVENT_OPTIONS = [
+  'budget.breach',
+  'runaway.detected',
+  'backup.failed',
+  'backup.completed',
+  'platform.webhook.test',
 ] as const
 
 function makeDefaultBackupConfig(): BackupTargetConfig {
@@ -111,12 +126,16 @@ export default function SettingsPage() {
   const [opsStorage, setOpsStorage] = useState<OpsStorageStatus | null>(null)
   const [opsFeatureFlags, setOpsFeatureFlags] = useState<OpsFeatureFlagsResponse | null>(null)
   const [opsPolicy, setOpsPolicy] = useState<OpsPolicyEvaluation | null>(null)
+  const [platformWebhookDefaults, setPlatformWebhookDefaults] = useState<PlatformWebhookDefaults | null>(null)
+  const [platformWebhookTestResult, setPlatformWebhookTestResult] = useState<PlatformWebhookDefaultsTestResult | null>(null)
+  const [savingPlatformWebhooks, setSavingPlatformWebhooks] = useState(false)
   const [loadingBackup, setLoadingBackup] = useState(false)
   const [backupAttempted, setBackupAttempted] = useState(false)
   const [runningBackup, setRunningBackup] = useState(false)
   const [testingBackupConnectionState, setTestingBackupConnectionState] = useState(false)
   const [runningRestoreDrillState, setRunningRestoreDrillState] = useState(false)
   const [savingBackupConfig, setSavingBackupConfig] = useState(false)
+  const [testingPlatformWebhooks, setTestingPlatformWebhooks] = useState(false)
 
 
 
@@ -143,7 +162,12 @@ export default function SettingsPage() {
     if (!apiKey || !canManagePlatformSettings) return
     setOpsStatusAttempted(true)
     try {
-      setOpsStatus(await getOpsFeatureStatus(apiKey))
+      const [status, defaults] = await Promise.all([
+        getOpsFeatureStatus(apiKey),
+        getPlatformWebhookDefaults(apiKey),
+      ])
+      setOpsStatus(status)
+      setPlatformWebhookDefaults(defaults)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load operational feature status')
@@ -153,7 +177,7 @@ export default function SettingsPage() {
 
 
   useEffect(() => {
-    if (activeTab === 'backup' && !opsStatusAttempted) loadOpsStatus()
+    if ((activeTab === 'backup' || activeTab === 'delivery' || activeTab === 'storage') && !opsStatusAttempted) loadOpsStatus()
   }, [activeTab, opsStatusAttempted, loadOpsStatus])
 
   const loadBackupData = useCallback(async () => {
@@ -191,7 +215,7 @@ export default function SettingsPage() {
   }, [apiKey, canManagePlatformSettings])
 
   useEffect(() => {
-    if (activeTab === 'backup' && !backupAttempted) void loadBackupData()
+    if ((activeTab === 'backup' || activeTab === 'storage') && !backupAttempted) void loadBackupData()
   }, [activeTab, backupAttempted, loadBackupData])
 
   const backupSchedulerDisabled = opsStatus ? !opsStatus.backup_enabled : true
@@ -403,6 +427,228 @@ export default function SettingsPage() {
         {/* ── Data Retention (Admin only) ───────────────────────────────────────── */}
         {activeTab === 'retention' && (
           <RetentionTab apiKey={apiKey ?? ''} />
+        )}
+
+        {activeTab === 'delivery' && (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-stone-200 bg-[#fbfaf7] p-6 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-stone-100 p-2 text-stone-700 dark:bg-stone-700/35 dark:text-[#D8CAAA]">
+                  <Mail className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Platform Email Transport</h3>
+                  <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+                    SMTP belongs to Platform Settings because it is shared delivery infrastructure. Organization Console owns notification preferences and smoke tests, while this surface owns the transport posture they depend on.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Email delivery</div>
+                  <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {opsStatus?.email_enabled ? 'Enabled' : 'Disabled'}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Controlled by `EMAIL_ENABLED`.</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">SMTP credentials</div>
+                  <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {opsStatus?.smtp_configured ? 'Configured' : 'Missing'}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Welcome mail, resets, alerts, and reports all depend on this.</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Scheduled reports</div>
+                  <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {opsStatus?.email_reports_enabled ? 'Enabled' : 'Disabled'}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Controlled by `EMAIL_REPORTS_ENABLED`.</p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                <div className="font-semibold">Ownership split</div>
+                <p className="mt-1">
+                  Organization admins manage delivery preferences in Organization Console. Platform admins manage whether the transport exists and whether the deployment is allowed to send mail at all.
+                </p>
+              </div>
+
+              <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Platform Webhook Defaults</h4>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Optional global fallback destinations for platform-operated notifications and exports. Org-owned webhook destinations live in Organization Console.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={savingPlatformWebhooks || !platformWebhookDefaults}
+                      onClick={async () => {
+                        if (!apiKey || !platformWebhookDefaults) return
+                        setSavingPlatformWebhooks(true)
+                        try {
+                          const updated = await updatePlatformWebhookDefaults(apiKey, {
+                            generic_webhook_url: platformWebhookDefaults.generic_webhook_url?.trim() || null,
+                            slack_webhook_url: platformWebhookDefaults.slack_webhook_url?.trim() || null,
+                            events: platformWebhookDefaults.events,
+                          })
+                          setPlatformWebhookDefaults(updated)
+                          setPlatformWebhookTestResult(null)
+                          toast.success('Platform webhook defaults saved')
+                        } catch (err) {
+                          console.error(err)
+                          toast.error('Failed to save platform webhook defaults')
+                        } finally {
+                          setSavingPlatformWebhooks(false)
+                        }
+                      }}
+                      className="rounded bg-stone-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-stone-600 disabled:opacity-50 dark:bg-[#D8CAAA] dark:text-[#111318]"
+                    >
+                      {savingPlatformWebhooks ? 'Saving...' : 'Save defaults'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={testingPlatformWebhooks || !(platformWebhookDefaults?.generic_webhook_url || platformWebhookDefaults?.slack_webhook_url)}
+                      onClick={async () => {
+                        if (!apiKey) return
+                        setTestingPlatformWebhooks(true)
+                        try {
+                          const result = await testPlatformWebhookDefaults(apiKey)
+                          setPlatformWebhookTestResult(result)
+                          result.ok ? toast.success('Platform webhook defaults tested') : toast.error(result.message)
+                        } catch (err) {
+                          console.error(err)
+                          toast.error('Failed to test platform webhook defaults')
+                        } finally {
+                          setTestingPlatformWebhooks(false)
+                        }
+                      }}
+                      className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+                    >
+                      {testingPlatformWebhooks ? 'Testing...' : 'Test defaults'}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                    <label className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Generic webhook</label>
+                    <input
+                      className={`${inputCls} mt-2 w-full`}
+                      placeholder="https://example.com/webhooks/runledger"
+                      value={platformWebhookDefaults?.generic_webhook_url ?? ''}
+                      onChange={(e) => setPlatformWebhookDefaults((prev) => prev ? { ...prev, generic_webhook_url: e.target.value, generic_webhook_configured: e.target.value.trim().length > 0 } : prev)}
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Used for generic export and alert payloads when an org has not defined its own destination.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+                    <label className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Slack webhook</label>
+                    <input
+                      className={`${inputCls} mt-2 w-full`}
+                      placeholder="https://hooks.slack.com/services/..."
+                      value={platformWebhookDefaults?.slack_webhook_url ?? ''}
+                      onChange={(e) => setPlatformWebhookDefaults((prev) => prev ? { ...prev, slack_webhook_url: e.target.value, slack_webhook_configured: e.target.value.trim().length > 0 } : prev)}
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      Used for platform-wide operator alerts and Slack-formatted test notifications.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Default events</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {PLATFORM_WEBHOOK_EVENT_OPTIONS.map((eventType) => {
+                      const selected = platformWebhookDefaults?.events.includes(eventType) ?? false
+                      return (
+                        <button
+                          key={eventType}
+                          type="button"
+                          onClick={() => setPlatformWebhookDefaults((prev) => {
+                            if (!prev) return prev
+                            const nextEvents = prev.events.includes(eventType)
+                              ? prev.events.filter((item) => item !== eventType)
+                              : [...prev.events, eventType]
+                            return { ...prev, events: nextEvents }
+                          })}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                            selected
+                              ? 'bg-blue-600 text-white dark:bg-blue-400 dark:text-slate-950'
+                              : 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-200 dark:hover:bg-blue-500/20'
+                          }`}
+                        >
+                          {eventType}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    Persisted in the database. Environment variables only seed the first row the first time this platform loads defaults.
+                  </div>
+                </div>
+                {platformWebhookTestResult && (
+                  <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${platformWebhookTestResult.ok ? 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100' : 'border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100'}`}>
+                    <div className="font-semibold">{platformWebhookTestResult.message}</div>
+                    <div className="mt-2 space-y-1 text-xs">
+                      {platformWebhookTestResult.results.map((item) => (
+                        <div key={item.channel}>
+                          {item.channel}: {item.ok ? 'ok' : item.error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'storage' && (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-stone-200 bg-[#fbfaf7] p-6 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-stone-100 p-2 text-stone-700 dark:bg-stone-700/35 dark:text-[#D8CAAA]">
+                  <Server className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Platform Storage Defaults</h3>
+                  <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+                    This platform surface owns default storage posture and compliance export buckets. Organization Console owns org-specific S3 overrides for backup and export workflows.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Backup default posture</h4>
+                  <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                    <div>Bucket: <span className="font-medium text-slate-900 dark:text-slate-100">{opsStorage?.backup.bucket ?? 'Not configured'}</span></div>
+                    <div>Lifecycle: <span className="font-medium text-slate-900 dark:text-slate-100">{opsStorage?.backup.lifecycle_enabled ? 'Enabled' : 'Disabled'}</span></div>
+                    <div>Retention: <span className="font-medium text-slate-900 dark:text-slate-100">{opsStorage?.backup.retention_days ?? 0} days</span></div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Compliance exports</h4>
+                  <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                    <div>Enabled: <span className="font-medium text-slate-900 dark:text-slate-100">{opsStorage?.compliance_exports.enabled ? 'Yes' : 'No'}</span></div>
+                    <div>Bucket: <span className="font-medium text-slate-900 dark:text-slate-100">{opsStorage?.compliance_exports.bucket ?? 'Not configured'}</span></div>
+                    <div>Prefix: <span className="font-medium text-slate-900 dark:text-slate-100">{opsStorage?.compliance_exports.prefix ?? 'Not configured'}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                <div className="font-semibold">Where org overrides live</div>
+                <p className="mt-1">
+                  Org-owned bucket, endpoint, credentials, and schedule overrides now live in Organization Console under Destinations so operators can manage one org at a time without mixing those controls into the platform posture.
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
 

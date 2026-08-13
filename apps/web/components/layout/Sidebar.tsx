@@ -36,7 +36,6 @@ import {
   ScrollText,
   Search,
   Settings,
-  Settings2,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -84,6 +83,7 @@ const observeNav = [
   { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
+  { href: '/monitoring/telemetry', label: 'Telemetry', icon: Radio },
   { href: '/evaluations', label: 'Quality Scores', icon: GraduationCap },
   { href: '/outcomes', label: 'Outcomes & ROI', icon: TrendingUp },
 ] as const
@@ -252,11 +252,9 @@ export default function Sidebar() {
             {canAccessOrgControl && <NavLink href="/team-models" label="Team Models" icon={UsersRound} />}
             {canAccessOrgControl && <NavLink href="/access-groups" label="Access Groups" icon={Layers} />}
             <NavLink href="/api-keys" label="API Keys" icon={Key} />
-            {canAccessOrgControl && <NavLink href="/otlp" label="OTLP Ingest" icon={Radio} />}
             {canAccessOrgControl && <NavLink href="/mcp-registry" label="MCP Registry" icon={Server} />}
             {canAccessOrgControl && <NavLink href="/ai-hub" label="AI Hub" icon={Store} />}
-            <NavLink href="/onboarding" label="Getting Started" icon={Rocket} />
-            {canAccessOrgControl && <NavLink href="/integrations" label="Integrations" icon={Settings2} />}
+            <NavLink href="/onboarding" label="Onboarding" icon={Rocket} />
           </Section>
         )}
         {canAccessOrgControl && (
