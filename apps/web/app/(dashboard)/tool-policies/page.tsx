@@ -23,7 +23,6 @@ import {
   simulateToolPolicy,
   getToolPolicyAnalytics,
   getAccessGroups,
-  listProjects,
   listMcpTools,
 } from '@/lib/api'
 import type {
@@ -31,7 +30,6 @@ import type {
   ToolPolicySimulationResponse,
   ToolUsageAnalyticsResponse,
   AccessGroupResponse,
-  ProjectResponse,
   McpToolListItem,
 } from '@/types/api'
 
@@ -45,7 +43,6 @@ export default function ToolPoliciesPage() {
   const [policies, setPolicies] = useState<ToolPolicyResponse[]>([])
   const [analytics, setAnalytics] = useState<ToolUsageAnalyticsResponse | null>(null)
   const [accessGroups, setAccessGroups] = useState<AccessGroupResponse[]>([])
-  const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [discoveredTools, setDiscoveredTools] = useState<McpToolListItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -70,17 +67,15 @@ export default function ToolPoliciesPage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [polRes, anaRes, agRes, projRes, toolsRes] = await Promise.all([
+      const [polRes, anaRes, agRes, toolsRes] = await Promise.all([
         getToolPolicies(apiKey).catch(() => ({ items: [], total: 0 })),
         getToolPolicyAnalytics(apiKey, 250).catch(() => null),
         getAccessGroups(apiKey).catch(() => ({ items: [], total: 0 })),
-        listProjects(apiKey).catch(() => ({ items: [] })),
         listMcpTools(apiKey).catch(() => ({ items: [], total: 0 })),
       ])
       setPolicies(polRes.items || [])
       setAnalytics(anaRes)
       setAccessGroups(agRes.items || [])
-      setProjects(projRes.items || [])
       setDiscoveredTools(toolsRes.items || [])
     } catch (err) {
       console.error(err)
@@ -166,7 +161,7 @@ export default function ToolPoliciesPage() {
             Tool Policies & Execution Rules
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Define allow/deny/approval rules for MCP tools scoped by Access Groups, Projects, and Workspaces.
+            Define allow/deny/approval rules for MCP tools scoped by Access Groups and Workspaces.
           </p>
         </div>
 
@@ -259,7 +254,6 @@ export default function ToolPoliciesPage() {
                 className={inputCls}
               >
                 <option value="access_group">Access Group Policy</option>
-                <option value="project">Project Workload Policy</option>
                 <option value="workspace">Workspace Wide Policy</option>
               </select>
             </div>
@@ -281,24 +275,11 @@ export default function ToolPoliciesPage() {
                     </option>
                   ))}
                 </select>
-              ) : scopeType === 'project' && projects.length > 0 ? (
-                <select
-                  value={scopeId}
-                  onChange={(e) => setScopeId(e.target.value)}
-                  className={inputCls}
-                >
-                  <option value="">-- All Projects --</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      Project: {p.name}
-                    </option>
-                  ))}
-                </select>
               ) : (
                 <input
                   value={scopeId}
                   onChange={(e) => setScopeId(e.target.value)}
-                  placeholder="Workspace/Project UUID..."
+                  placeholder="Workspace UUID..."
                   className={inputCls}
                 />
               )}

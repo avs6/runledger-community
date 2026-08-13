@@ -9,7 +9,7 @@ export type RequestFlowMode =
   | 'user-intent-model'
   | 'prompt-skill-agent-model-tool-result'
   | 'request-route-provider-outcome'
-  | 'team-app-agent-model-cost'
+  | 'workspace-app-agent-model-cost'
 
 export type RequestFlowMetric = 'requests' | 'cost' | 'tokens' | 'savings'
 export type RequestFlowScope = 'workspace' | 'org' | 'platform'
@@ -125,11 +125,11 @@ const FLOW_MODES: Array<{ key: RequestFlowMode; label: string; description: stri
     ],
   },
   {
-    key: 'team-app-agent-model-cost',
-    label: 'Team cost flow',
-    description: 'Groups traffic by team, app, agent, model, and cost band for FinOps triage.',
+    key: 'workspace-app-agent-model-cost',
+    label: 'Workspace cost flow',
+    description: 'Groups traffic by workspace, app, agent, model, and cost band for FinOps triage.',
     layers: [
-      { key: 'team', label: 'Team' },
+      { key: 'workspace', label: 'Workspace' },
       { key: 'application', label: 'Application' },
       { key: 'agent', label: 'Agent' },
       { key: 'model', label: 'Model' },
@@ -424,8 +424,8 @@ function categoryFor(run: EnrichedRun, key: string) {
         return record.outcome
       case 'user':
         return cleanLabel(record.end_user_id, 'Anonymous / Service')
-      case 'team':
-        return record.team
+      case 'workspace':
+        return record.workspace_name
       case 'application':
         return record.application
       case 'cost':
@@ -468,8 +468,11 @@ function categoryFor(run: EnrichedRun, key: string) {
       return outcome ? `${outcome.outcome_type}: ${outcome.success ? 'Success' : 'Miss'}` : item.status
     case 'user':
       return cleanLabel(item.end_user_id, 'Anonymous / Service')
-    case 'team':
-      return cleanLabel(metadataValue(detail, ['team', 'department', 'cost_center']), 'Team unknown')
+    case 'workspace':
+      return cleanLabel(
+        metadataValue(detail, ['workspace_name', 'workspace', 'workspace_id']) ?? item.feature_tag,
+        'Workspace unknown'
+      )
     case 'application':
       return cleanLabel(metadataValue(detail, ['application', 'app', 'service.name', 'service']), 'App unknown')
     case 'cost':

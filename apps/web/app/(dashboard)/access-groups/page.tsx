@@ -294,7 +294,7 @@ export default function AccessGroupsPage() {
         </div>
       ) : groups.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-          No access groups configured yet. Click &quot;Create Access Group&quot; to define team governance profiles.
+          No access groups configured yet. Click &quot;Create Access Group&quot; to define workspace governance profiles.
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">

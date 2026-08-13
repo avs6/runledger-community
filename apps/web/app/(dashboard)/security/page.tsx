@@ -63,7 +63,6 @@ export default function SecurityPage() {
   const [scopeType, setScopeType] = useState('workspace')
   const [cidr, setCidr] = useState('')
   const [aclAction, setAclAction] = useState('allow')
-  const [teamName, setTeamName] = useState('')
   const [apiKeyId, setApiKeyId] = useState('')
   const [priority, setPriority] = useState('100')
   const [description, setDescription] = useState('')
@@ -168,14 +167,12 @@ export default function SecurityPage() {
         scope_type: scopeType,
         cidr: cidr.trim(),
         action: aclAction,
-        team_name: teamName.trim() || null,
         api_key_id: apiKeyId.trim() || null,
         priority: parseInt(priority, 10) || 100,
         description: description.trim() || null,
       })
       setIpAclRules((prev) => [...prev, created])
       setCidr('')
-      setTeamName('')
       setApiKeyId('')
       setPriority('100')
       setDescription('')
@@ -240,12 +237,12 @@ export default function SecurityPage() {
         <div className="lg:col-span-2">
           <h2 className="text-base font-semibold dark:text-white">Workspace Security Posture</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Set request metadata enforcement, team callback routing defaults, branding, and residency constraints.
+            Set request metadata enforcement, callback routing defaults, branding, and residency constraints.
           </p>
         </div>
         <label className="text-sm">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Required metadata fields</span>
-          <input value={requiredFields} onChange={(e) => setRequiredFields(e.target.value)} className={inputCls + ' w-full'} placeholder="user_id, session_id, team" />
+          <input value={requiredFields} onChange={(e) => setRequiredFields(e.target.value)} className={inputCls + ' w-full'} placeholder="user_id, session_id, workflow_id" />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Enforcement mode</span>
@@ -322,13 +319,12 @@ export default function SecurityPage() {
           <div>
             <h2 className="text-base font-semibold dark:text-white">IP ACLs</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Allow or deny by workspace, key, or team, then simulate request outcomes before you roll changes out.
+              Allow or deny by workspace, key, or globally, then simulate request outcomes before you roll changes out.
             </p>
           </div>
           <form onSubmit={handleCreateIpAclRule} className="grid gap-3 sm:grid-cols-2">
             <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls}>
               <option value="workspace">workspace</option>
-              <option value="team">team</option>
               <option value="api_key">api_key</option>
               <option value="global">global</option>
             </select>
@@ -337,8 +333,7 @@ export default function SecurityPage() {
               <option value="deny">deny</option>
             </select>
             <input value={cidr} onChange={(e) => setCidr(e.target.value)} className={inputCls + ' sm:col-span-2'} placeholder="203.0.113.0/24" required />
-            <input value={teamName} onChange={(e) => setTeamName(e.target.value)} className={inputCls} placeholder="Team name (optional)" />
-            <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={inputCls} placeholder="API key ID (optional)" />
+            <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={inputCls + ' sm:col-span-2'} placeholder="API key ID (optional)" />
             <input value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls} placeholder="100" />
             <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Description" />
             <div className="sm:col-span-2">

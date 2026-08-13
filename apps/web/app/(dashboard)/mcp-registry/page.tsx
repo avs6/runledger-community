@@ -29,14 +29,12 @@ import {
   listMcpPermissions,
   grantMcpPermission,
   revokeMcpPermission,
-  listProjects,
 } from '@/lib/api'
 import type {
   McpServerResponse,
   McpToolListItem,
   McpToolCallResponse,
   McpPermissionResponse,
-  ProjectResponse,
 } from '@/types/api'
 
 type Tab = 'servers' | 'tools' | 'calls' | 'permissions'
@@ -53,7 +51,6 @@ export default function McpRegistryPage() {
   const [tools, setTools] = useState<McpToolListItem[]>([])
   const [calls, setCalls] = useState<McpToolCallResponse[]>([])
   const [permissions, setPermissions] = useState<McpPermissionResponse[]>([])
-  const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [loading, setLoading] = useState(true)
 
   // Server Registration State
@@ -85,17 +82,15 @@ export default function McpRegistryPage() {
         await seedDefaultMcpServers(apiKey).catch(() => null)
         s = await listMcpServers(apiKey).catch(() => ({ items: [], total: 0 }))
       }
-      const [t, c, p, projRes] = await Promise.all([
+      const [t, c, p] = await Promise.all([
         listMcpTools(apiKey).catch(() => ({ items: [], total: 0 })),
         listMcpToolCalls(apiKey).catch(() => ({ items: [], total: 0 })),
         listMcpPermissions(apiKey).catch(() => ({ items: [], total: 0 })),
-        listProjects(apiKey).catch(() => ({ items: [] })),
       ])
       setServers(s.items || [])
       setTools(t.items || [])
       setCalls(c.items || [])
       setPermissions(p.items || [])
-      setProjects(projRes.items || [])
     } catch (err) {
       console.error(err)
       toast.error('Failed to load MCP registry data')
@@ -632,36 +627,20 @@ export default function McpRegistryPage() {
                   className={inputCls}
                 >
                   <option value="workspace">Workspace (All Keys)</option>
-                  <option value="project">Project Workload</option>
                   <option value="api_key">Specific API Key</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Target Project / Key ID (Optional)
+                  Target Workspace / Key ID (Optional)
                 </label>
-                {permScopeType === 'project' && projects.length > 0 ? (
-                  <select
-                    value={permScopeId}
-                    onChange={(e) => setPermScopeId(e.target.value)}
-                    className={inputCls}
-                  >
-                    <option value="">-- Select Project --</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    value={permScopeId}
-                    onChange={(e) => setPermScopeId(e.target.value)}
-                    placeholder="Project / Key UUID..."
-                    className={inputCls}
-                  />
-                )}
+                <input
+                  value={permScopeId}
+                  onChange={(e) => setPermScopeId(e.target.value)}
+                  placeholder="Workspace / Key UUID..."
+                  className={inputCls}
+                />
               </div>
             </div>
 

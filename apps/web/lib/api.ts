@@ -3951,70 +3951,7 @@ export async function requestHubAccess(apiKey: string, id: string): Promise<{ st
 
 // ── Projects ─────────────────────────────────────────────────────────────
 
-export async function createProject(
-  apiKey: string,
-  data: { name: string; description?: string; owner?: string; budget_usd?: number; budget_period?: string; config?: Record<string, unknown> }
-): Promise<import('@/types/api').ProjectResponse> {
-  return apiFetch<import('@/types/api').ProjectResponse>('/projects', apiKey, { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function listProjects(apiKey: string, includeInactive = false): Promise<import('@/types/api').ProjectList> {
-  const qs = includeInactive ? '?include_inactive=true' : ''
-  return apiFetch<import('@/types/api').ProjectList>(`/projects${qs}`, apiKey)
-}
-
-export async function getProject(apiKey: string, id: string): Promise<import('@/types/api').ProjectResponse> {
-  return apiFetch<import('@/types/api').ProjectResponse>(`/projects/${id}`, apiKey)
-}
-
-export async function updateProject(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').ProjectResponse> {
-  return apiFetch<import('@/types/api').ProjectResponse>(`/projects/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
-}
-
-export async function deleteProject(apiKey: string, id: string): Promise<void> {
-  await apiFetch<void>(`/projects/${id}`, apiKey, { method: 'DELETE' })
-}
-
-export async function assignProjectKey(apiKey: string, projectId: string, data: { api_key_id: string }): Promise<import('@/types/api').ProjectKeyResponse> {
-  return apiFetch<import('@/types/api').ProjectKeyResponse>(`/projects/${projectId}/keys`, apiKey, { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function listProjectKeys(apiKey: string, projectId: string): Promise<import('@/types/api').ProjectKeyList> {
-  return apiFetch<import('@/types/api').ProjectKeyList>(`/projects/${projectId}/keys`, apiKey)
-}
-
-export async function removeProjectKey(apiKey: string, projectId: string, keyId: string): Promise<void> {
-  await apiFetch<void>(`/projects/${projectId}/keys/${keyId}`, apiKey, { method: 'DELETE' })
-}
-
 // ── Team Models ──────────────────────────────────────────────────────────
-
-export async function addTeamModel(
-  apiKey: string,
-  data: { team_name: string; model_name: string; provider: string; api_base_url?: string; description?: string; budget_usd?: number; budget_period?: string; logging_opt_out?: boolean; config?: Record<string, unknown> }
-): Promise<import('@/types/api').TeamModelResponse> {
-  return apiFetch<import('@/types/api').TeamModelResponse>('/team-models', apiKey, { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function listTeamModels(apiKey: string, params: { team_name?: string; include_inactive?: boolean } = {}): Promise<import('@/types/api').TeamModelList> {
-  const qs = new URLSearchParams()
-  if (params.team_name) qs.set('team_name', params.team_name)
-  if (params.include_inactive) qs.set('include_inactive', 'true')
-  const query = qs.toString() ? `?${qs.toString()}` : ''
-  return apiFetch<import('@/types/api').TeamModelList>(`/team-models${query}`, apiKey)
-}
-
-export async function getTeamModel(apiKey: string, id: string): Promise<import('@/types/api').TeamModelResponse> {
-  return apiFetch<import('@/types/api').TeamModelResponse>(`/team-models/${id}`, apiKey)
-}
-
-export async function updateTeamModel(apiKey: string, id: string, data: Record<string, unknown>): Promise<import('@/types/api').TeamModelResponse> {
-  return apiFetch<import('@/types/api').TeamModelResponse>(`/team-models/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
-}
-
-export async function deleteTeamModel(apiKey: string, id: string): Promise<void> {
-  await apiFetch<void>(`/team-models/${id}`, apiKey, { method: 'DELETE' })
-}
 
 // Phase 16 deferred management surfaces
 

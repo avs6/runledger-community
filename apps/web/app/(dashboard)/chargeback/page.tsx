@@ -18,7 +18,6 @@ const ALLOCATION_TYPES = ['proportional', 'fixed', 'per_user', 'per_feature'] as
 
 const DIMENSIONS = [
   'workspace',
-  'team',
   'user',
   'app',
   'model',
@@ -197,7 +196,7 @@ export default function ChargebackPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Chargeback &amp; Showback</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Allocate AI costs to teams, features, or departments
+            Allocate AI costs to workspaces, workflows, cost centers, or departments
           </p>
         </div>
       </div>

@@ -277,7 +277,7 @@ export default async function OptimizationOpportunitiesPage({
   const win = getDashboardWindow(searchParams?.range ?? '30d')
   const flow = await getRunFlow(session.apiKey, {
     scope: selectedScope,
-    mode: 'team-app-agent-model-cost',
+    mode: 'workspace-app-agent-model-cost',
     metric: 'cost',
     limit: 1000,
     from: win.from,

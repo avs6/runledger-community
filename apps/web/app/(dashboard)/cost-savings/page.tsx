@@ -98,8 +98,8 @@ function modelName(item: RunFlowRecord) {
 }
 
 function dimensionValue(item: RunFlowRecord, dimension: string) {
-  if (dimension === 'Team') return item.team || item.workspace_name || 'Unassigned'
-  if (dimension === 'Project') return item.feature_tag || item.application || 'Unassigned'
+  if (dimension === 'Workspace') return item.workspace_name || item.application || 'Unassigned'
+  if (dimension === 'Workflow') return item.feature_tag || item.application || 'Unassigned'
   if (dimension === 'Application') return item.application || 'Unassigned'
   if (dimension === 'User') return item.end_user_id || 'Anonymous'
   if (dimension === 'Agent') return item.agent || 'Direct request'
@@ -128,7 +128,7 @@ function buildBreakdown(items: RunFlowRecord[], dimension: string): CostBreakdow
 function buildRoiRows(items: RunFlowRecord[]): RoiRow[] {
   const map = new Map<string, RoiRow>()
   for (const item of items) {
-    const name = item.team || item.workspace_name || item.application || 'Unassigned'
+    const name = item.workspace_name || item.application || item.feature_tag || 'Unassigned'
     const existing = map.get(name) ?? { name, spend: 0, saved: 0, requests: 0, successes: 0 }
     existing.spend += parseMoney(item.total_cost_usd)
     existing.saved += parseMoney(item.savings_usd)
@@ -175,7 +175,7 @@ function buildHeatmap(items: RunFlowRecord[]): HeatmapRow[] {
     const date = new Date(item.started_at)
     if (Number.isNaN(date.getTime())) continue
     const day = date.toLocaleDateString('en-US', { weekday: 'short' })
-    const name = item.team || item.workspace_name || item.application || 'Unassigned'
+    const name = item.workspace_name || item.application || item.feature_tag || 'Unassigned'
     const existing = map.get(name) ?? { name, values: {} }
     existing.values[day] = (existing.values[day] ?? 0) + parseMoney(item.total_cost_usd)
     map.set(name, existing)
@@ -222,14 +222,14 @@ export default async function CostSavingsPage({
   const tenantRole = String(s.tenantRole ?? '')
   const isOrgAdmin = isPlatformAdmin || tenantRole === 'org_admin'
   const selectedScope = allowedScope(searchParams?.scope, isPlatformAdmin, isOrgAdmin)
-  const dimension = ['Team', 'Project', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].includes(searchParams?.dimension ?? '')
+  const dimension = ['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].includes(searchParams?.dimension ?? '')
     ? String(searchParams?.dimension)
-    : 'Team'
+    : 'Workspace'
   const win = getDashboardWindow(searchParams?.range ?? '30d')
   const [flow, budgetRollup] = await Promise.all([
     getRunFlow(session.apiKey, {
       scope: selectedScope,
-      mode: 'team-app-agent-model-cost',
+      mode: 'workspace-app-agent-model-cost',
       metric: 'cost',
       limit: 1000,
       from: win.from,
@@ -292,7 +292,7 @@ export default async function CostSavingsPage({
         context={`${requests.toLocaleString()} requests in ${win.label.toLowerCase()}`}
         activeRange={win.range}
         basePath={`/cost-savings?scope=${selectedScope}&dimension=${dimension}`}
-        dimensions={['Team', 'Project', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time', 'Budget']}
+        dimensions={['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time', 'Budget']}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -332,9 +332,9 @@ export default async function CostSavingsPage({
       <Card className="border-slate-200 bg-white/90 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold">Cost Breakdown</CardTitle>
-          <p className="text-xs text-muted-foreground">Drill into spend by team, project, application, user, agent, model, tool, or time.</p>
+          <p className="text-xs text-muted-foreground">Drill into spend by workspace, workflow, application, user, agent, model, tool, or time.</p>
           <div className="flex flex-wrap gap-2 pt-2">
-            {['Team', 'Project', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].map((item) => (
+            {['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].map((item) => (
               <Link
                 key={item}
                 href={`/cost-savings?scope=${selectedScope}&range=${win.range}&dimension=${item}`}
@@ -355,7 +355,7 @@ export default async function CostSavingsPage({
       <Card className="overflow-hidden border-slate-200 bg-white/90 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base font-semibold">ROI Table</CardTitle>
-          <p className="text-xs text-muted-foreground">Spend, saved, optimization percentage, requests, cost/request, and outcome rate by team or workspace.</p>
+          <p className="text-xs text-muted-foreground">Spend, saved, optimization percentage, requests, cost/request, and outcome rate by workspace or workload.</p>
         </CardHeader>
         <CardContent className="p-0">
           {roiRows.length === 0 ? (
@@ -364,7 +364,7 @@ export default async function CostSavingsPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-y border-slate-200 bg-slate-50/80">
-                  {['Team / workspace', 'Spend', 'Saved', 'Optimization', 'Requests', 'Cost/request', 'Outcome rate'].map((heading) => (
+                  {['Workspace / workload', 'Spend', 'Saved', 'Optimization', 'Requests', 'Cost/request', 'Outcome rate'].map((heading) => (
                     <th key={heading} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                       {heading}
                     </th>
@@ -412,7 +412,7 @@ export default async function CostSavingsPage({
         <Card className="border-slate-200 bg-white/90 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base font-semibold">Cost Heatmap</CardTitle>
-            <p className="text-xs text-muted-foreground">Rows are teams/workspaces/applications. Columns are day of week. Darker cells burn more spend.</p>
+            <p className="text-xs text-muted-foreground">Rows are workspaces, workflows, or applications. Columns are day of week. Darker cells burn more spend.</p>
           </CardHeader>
           <CardContent>
             <CostHeatmap rows={heatmapRows} columns={heatmapColumns} />
