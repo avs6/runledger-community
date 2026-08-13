@@ -1,14 +1,14 @@
 ---
 title: "API Reference"
-description: "RunLedger exposes a complete REST API — browse it interactively with Scalar, or import the Postman collection."
+description: "RunLedger exposes a complete REST API — browse it interactively with Scalar today, and use the OpenAPI spec as the source for future embedded explorer UX."
 ---
 
 Everything the dashboard and SDKs do is a REST call. The full, always-current API surface is available
 interactively on your running instance.
 
-## Interactive reference (Scalar)
+## Interactive reference (current state)
 
-Every RunLedger instance serves a live, interactive API reference generated from the OpenAPI spec:
+As of **Thursday, August 13, 2026**, every RunLedger instance serves a live, interactive API reference generated from the OpenAPI spec using **Scalar**:
 
 ```
 http://localhost:8201/reference
@@ -16,6 +16,16 @@ http://localhost:8201/reference
 
 Try requests directly from the browser with your workspace API key. The raw spec is at
 `http://localhost:8201/openapi.json`.
+
+## Planned API explorer direction
+
+The long-term product direction is to make the OpenAPI spec the single source for:
+
+- the live browser-based API explorer
+- any future Swagger-style or embedded API GUI
+- downstream generated artifacts
+
+That means the spec remains the durable contract even if the presentation layer changes away from today's Scalar UI.
 
 ## Postman
 

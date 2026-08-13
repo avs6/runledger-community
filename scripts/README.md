@@ -64,6 +64,9 @@ uv run python scripts/run_demo.py labs
 | [`localai/`](./localai) | Local AI stack-specific helper flows |
 | [`runledger/`](./runledger) | Focused feature verification scripts |
 
+Focused feature verification now includes `scripts/runledger/exercise_ai_hub_catalog.py` for the AI Hub model-catalog CRUD, sync, and access-request flow.
+Focused feature verification also includes `scripts/runledger/exercise_mcp_registry.py` for MCP server CRUD, permission policies, tool-call testing, and re-activation.
+
 ## Local backup profile
 
 RunLedger now includes a local MinIO-backed backup profile:

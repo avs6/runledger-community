@@ -248,7 +248,7 @@ export default function Sidebar() {
             {canAccessOrgControl && <NavLink href="/workspace" label="Workspaces" icon={LayoutGrid} />}
             {canAccessOrgControl && <NavLink href="/access-groups" label="Access Groups" icon={Layers} />}
             <NavLink href="/api-keys" label="API Keys" icon={Key} />
-            {canAccessOrgControl && <NavLink href="/mcp-registry" label="MCP Registry" icon={Server} />}
+            {canAccessOrgControl && <NavLink href="/mcp-registry?tab=setup" label="MCP" icon={Server} />}
             {canAccessOrgControl && <NavLink href="/ai-hub" label="AI Hub" icon={Store} />}
             <NavLink href="/onboarding" label="Onboarding" icon={Rocket} />
           </Section>
