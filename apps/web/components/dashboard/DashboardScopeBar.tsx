@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Filter, FolderKanban, Layers } from 'lucide-react'
-import { listProjects, getAccessGroups } from '@/lib/api'
-import type { ProjectResponse, AccessGroupResponse } from '@/types/api'
+import { Filter, Layers } from 'lucide-react'
+import { getAccessGroups } from '@/lib/api'
+import type { AccessGroupResponse } from '@/types/api'
 
 const ranges = [
   { key: '24h', label: '24h' },
@@ -53,21 +53,15 @@ export default function DashboardScopeBar({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [accessGroups, setAccessGroups] = useState<AccessGroupResponse[]>([])
 
-  const selectedProjectId = searchParams.get('project_id') || ''
   const selectedGroupId = searchParams.get('group_id') || ''
 
   useEffect(() => {
     if (!apiKey) return
     let isMounted = true
-    Promise.all([
-      listProjects(apiKey).catch(() => ({ items: [] })),
-      getAccessGroups(apiKey).catch(() => ({ items: [], total: 0 })),
-    ]).then(([projRes, agRes]) => {
+    getAccessGroups(apiKey).catch(() => ({ items: [], total: 0 })).then((agRes) => {
       if (isMounted) {
-        setProjects(projRes.items || [])
         setAccessGroups(agRes.items || [])
       }
     })
@@ -125,27 +119,10 @@ export default function DashboardScopeBar({
         </div>
       </div>
 
-      {/* Project and Access Group Filter Selectors */}
+      {/* Access Group Filter Selectors */}
       <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
           <Filter className="h-3.5 w-3.5 text-blue-600" /> Filter By:
-        </div>
-
-        {/* Project Selector */}
-        <div className="flex items-center gap-1.5">
-          <FolderKanban className="h-3.5 w-3.5 text-slate-400" />
-          <select
-            value={selectedProjectId}
-            onChange={(e) => updateFilter('project_id', e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                Project: {p.name}
-              </option>
-            ))}
-          </select>
         </div>
 
         {/* Access Group Selector */}
@@ -165,11 +142,10 @@ export default function DashboardScopeBar({
           </select>
         </div>
 
-        {(selectedProjectId || selectedGroupId) && (
+        {selectedGroupId && (
           <button
             onClick={() => {
               const params = new URLSearchParams(searchParams.toString())
-              params.delete('project_id')
               params.delete('group_id')
               router.push(`${basePath}?${params.toString()}`)
             }}

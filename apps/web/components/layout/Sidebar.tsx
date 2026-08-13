@@ -53,8 +53,6 @@ import {
   Server,
   Puzzle,
   Store,
-  FolderKanban,
-  UsersRound,
 } from 'lucide-react'
 import RunLedgerLogo from '@/components/brand/RunLedgerLogo'
 import { useRole } from '@/components/rbac/useRole'
@@ -247,9 +245,7 @@ export default function Sidebar() {
             {canAccessOrgControl && <NavLink href="/organization/dashboard" label="Org Dashboard" icon={LayoutDashboard} />}
             {canAccessOrgControl && <NavLink href="/organization" label="Organization" icon={Building2} />}
             {canAccessOrgControl && <NavLink href="/users" label="Users" icon={Users} />}
-            {canAccessOrgControl && <NavLink href="/workspace" label="Teams / Workspaces" icon={LayoutGrid} />}
-            {canAccessOrgControl && <NavLink href="/projects" label="Projects" icon={FolderKanban} />}
-            {canAccessOrgControl && <NavLink href="/team-models" label="Team Models" icon={UsersRound} />}
+            {canAccessOrgControl && <NavLink href="/workspace" label="Workspaces" icon={LayoutGrid} />}
             {canAccessOrgControl && <NavLink href="/access-groups" label="Access Groups" icon={Layers} />}
             <NavLink href="/api-keys" label="API Keys" icon={Key} />
             {canAccessOrgControl && <NavLink href="/mcp-registry" label="MCP Registry" icon={Server} />}

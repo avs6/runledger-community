@@ -27,7 +27,7 @@ const flowModes: RequestFlowMode[] = [
   'user-intent-model',
   'prompt-skill-agent-model-tool-result',
   'request-route-provider-outcome',
-  'team-app-agent-model-cost',
+  'workspace-app-agent-model-cost',
 ]
 
 const flowMetrics: RequestFlowMetric[] = ['requests', 'cost', 'tokens', 'savings']
@@ -35,6 +35,7 @@ const flowScopes: RequestFlowScope[] = ['workspace', 'org', 'platform']
 const flowDensities: RequestFlowDensity[] = ['compact', 'comfortable', 'presentation']
 
 function parseMode(value: string | undefined): RequestFlowMode {
+  if (value === 'team-app-agent-model-cost') return 'workspace-app-agent-model-cost'
   return flowModes.includes(value as RequestFlowMode) ? (value as RequestFlowMode) : 'request-intent-model-result'
 }
 

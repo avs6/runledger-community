@@ -1,9 +1,9 @@
 ---
 title: "Workspaces"
-description: "Create, rename, and manage team-level isolation inside an organization."
+description: "Create, rename, and manage workspace-level isolation inside an organization."
 ---
 
-A **workspace** is RunLedger's team boundary. Runs, sessions, API keys, budgets, cache entries, gateway requests, outcomes, and audit events are scoped to a workspace.
+A **workspace** is RunLedger's primary isolation boundary inside an organization. Runs, sessions, API keys, budgets, cache entries, gateway requests, outcomes, and audit events are scoped to a workspace.
 
 ## Who Can Manage Workspaces
 
@@ -14,7 +14,7 @@ A **workspace** is RunLedger's team boundary. Runs, sessions, API keys, budgets,
 
 ## Common Actions
 
-- Create a workspace for a new team.
+- Create a workspace for a new operating group or workload boundary.
 - Rename a workspace from the Workspace page.
 - Add members and set workspace roles.
 - Switch workspaces from the top bar.
@@ -34,4 +34,4 @@ Workspace admins do not see org-level Gateway, Provider Profiles, Alert Rules, M
 
 ## Isolation
 
-Every workspace has its own API keys and data boundary. Switching keys is how scripts and agents switch which team receives traffic.
+Every workspace has its own API keys and data boundary. Switching keys is how scripts and agents switch which workspace receives traffic.

@@ -114,7 +114,7 @@ function StatCard({
   )
 }
 
-function bucketDrivers(items: RunFlowRecord[], key: 'workspace_name' | 'team' | 'application'): Driver[] {
+function bucketDrivers(items: RunFlowRecord[], key: 'workspace_name' | 'application'): Driver[] {
   const map = new Map<string, Driver>()
   for (const item of items) {
     const label = item[key] || 'Unassigned'
@@ -175,7 +175,7 @@ function estimateSavings(items: RunFlowRecord[]) {
 
 function csvHref(drivers: Driver[]) {
   const rows = [
-    ['Workspace/Team', 'Spend', 'Saved', 'Requests', 'Optimization %'],
+    ['Workspace', 'Spend', 'Saved', 'Requests', 'Optimization %'],
     ...drivers.map((driver) => [
       driver.name,
       driver.spend.toFixed(6),
@@ -202,7 +202,7 @@ export default async function GlobalDashboardPage({
     listPlatformOrganizations(session!.apiKey),
     getRunFlow(session!.apiKey, {
       scope: 'platform',
-      mode: 'team-app-agent-model-cost',
+      mode: 'workspace-app-agent-model-cost',
       metric: 'cost',
       limit: 1000,
       from: win.from,
@@ -288,7 +288,7 @@ export default async function GlobalDashboardPage({
         context="All organizations"
         activeRange={win.range}
         basePath="/global-dashboard"
-        dimensions={['Platform', 'Time range', 'Organization', 'Workspace', 'Team', 'Application', 'Model', 'Outcome']}
+        dimensions={['Platform', 'Time range', 'Organization', 'Workspace', 'Application', 'Model', 'Outcome']}
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -396,7 +396,7 @@ export default async function GlobalDashboardPage({
               <CardTitle className="text-base font-semibold">Top Workspaces By Spend</CardTitle>
               <p className="mt-0.5 text-xs text-muted-foreground">Spend, savings, requests, and optimization rate.</p>
             </div>
-            <Link href="/request-flow?scope=platform&mode=team-app-agent-model-cost&metric=cost" className="text-xs font-semibold text-blue-700 hover:underline">
+            <Link href="/request-flow?scope=platform&mode=workspace-app-agent-model-cost&metric=cost" className="text-xs font-semibold text-blue-700 hover:underline">
               Flow detail →
             </Link>
           </CardHeader>

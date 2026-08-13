@@ -321,7 +321,7 @@ export interface BillingPeriodList {
 
 export interface ChargebackRule {
   id: string
-  allocation_type: 'cost_center' | 'team' | 'env'
+  allocation_type: 'cost_center' | 'env'
   dimension: string
   weight: string
   created_at: string
@@ -3485,62 +3485,7 @@ export interface HubModelList {
 
 // ── Projects ─────────────────────────────────────────────────────────────
 
-export interface ProjectResponse {
-  id: string
-  workspace_id: string
-  name: string
-  description: string | null
-  owner: string | null
-  budget_usd: number | null
-  budget_period: string | null
-  is_active: boolean
-  config: Record<string, unknown>
-  key_count: number
-  created_at: string
-  updated_at: string
-}
-
-export interface ProjectList {
-  items: ProjectResponse[]
-}
-
-export interface ProjectKeyResponse {
-  id: string
-  project_id: string
-  api_key_id: string
-  created_at: string
-}
-
-export interface ProjectKeyList {
-  items: ProjectKeyResponse[]
-}
-
 // ── Team Models ──────────────────────────────────────────────────────────
-
-export interface TeamModelResponse {
-  id: string
-  workspace_id: string
-  team_name: string
-  model_name: string
-  provider: string
-  api_base_url: string | null
-  description: string | null
-  budget_usd: number | null
-  budget_period: string | null
-  is_active: boolean
-  logging_opt_out: boolean
-  health_status: string
-  last_health_check: string | null
-  total_calls: number
-  total_cost_usd: number
-  config: Record<string, unknown>
-  created_at: string
-  updated_at: string
-}
-
-export interface TeamModelList {
-  items: TeamModelResponse[]
-}
 
 // Phase 16 deferred management surfaces
 
