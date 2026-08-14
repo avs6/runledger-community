@@ -82,7 +82,7 @@
         "gateway/caching",
         "gateway/runtime-controls",
         "gateway/providers",
-        "gateway/gateway-service-split"
+        "gateway/gateway-rs-spec"
       ]
     },
     {

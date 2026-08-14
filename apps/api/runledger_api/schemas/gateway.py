@@ -333,6 +333,273 @@ class GatewayRequestList(BaseModel):
     total: int
 
 
+class GatewayRuntimeAuthKeySnapshot(BaseModel):
+    api_key_id: uuid.UUID
+    workspace_id: uuid.UUID
+    key_prefix: str
+    key_hash: str
+    name: str | None = None
+    scopes: list[str] = Field(default_factory=list)
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    is_session: bool = False
+    is_active: bool = True
+    ownership_type: str
+    owner_reference: str | None = None
+    budget_tier_id: uuid.UUID | None = None
+    guardrail_config: dict[str, Any] = Field(default_factory=dict)
+
+
+class GatewayRuntimeAuthSnapshot(BaseModel):
+    mode: str
+    api_keys: list[GatewayRuntimeAuthKeySnapshot] = Field(default_factory=list)
+
+
+class GatewayRuntimeWorkspaceSnapshot(BaseModel):
+    workspace_id: uuid.UUID
+    tenant_id: uuid.UUID
+    name: str
+    status: str
+    is_restricted: bool = False
+    guardrail_bypass: bool = False
+
+
+class GatewayRuntimeRoutingGroupSnapshot(BaseModel):
+    routing_group_id: uuid.UUID
+    workspace_id: uuid.UUID
+    alias: str
+    name: str
+    description: str | None = None
+    match_tags: list[str] = Field(default_factory=list)
+    default_tags: list[str] = Field(default_factory=list)
+    strategy_type: str
+    strategy_config: dict[str, Any] = Field(default_factory=dict)
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class GatewayRuntimeRouteControlsSnapshot(BaseModel):
+    daily_cost_limit_usd: Decimal | None = None
+    monthly_cost_limit_usd: Decimal | None = None
+    per_user_rpm_limit: int | None = None
+    pii_redaction_enabled: bool = False
+
+
+class GatewayRuntimeRouteSnapshot(BaseModel):
+    route_id: uuid.UUID
+    workspace_id: uuid.UUID
+    routing_group_id: uuid.UUID | None = None
+    alias: str
+    provider: str
+    target_model: str
+    base_url: str | None = None
+    api_key_env_var: str | None = None
+    priority: int
+    config: dict[str, Any] = Field(default_factory=dict)
+    required_tags: list[str] = Field(default_factory=list)
+    excluded_tags: list[str] = Field(default_factory=list)
+    region: str | None = None
+    retry_count: int
+    timeout_ms: int | None = None
+    cooldown_seconds: int
+    cooldown_until: datetime | None = None
+    mirror_config: dict[str, Any] = Field(default_factory=dict)
+    fallback_config: dict[str, Any] = Field(default_factory=dict)
+    semantic_cache_enabled: bool = False
+    context_compiler_enabled: bool = False
+    context_compiler_config: dict[str, Any] = Field(default_factory=dict)
+    intelligent_routing_enabled: bool = False
+    routing_config: dict[str, Any] = Field(default_factory=dict)
+    health_auto_disable: bool = True
+    deployment_status: str
+    health_summary: str | None = None
+    runtime_controls: GatewayRuntimeRouteControlsSnapshot
+    created_at: datetime
+    last_health_check_at: datetime | None = None
+
+
+class GatewayRuntimePolicySnapshot(BaseModel):
+    policy_id: uuid.UUID
+    workspace_id: uuid.UUID
+    alias: str
+    policy_type: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class GatewayRuntimeSnapshotResponse(BaseModel):
+    version: str
+    published_at: datetime
+    last_config_change_at: datetime
+    workspace: GatewayRuntimeWorkspaceSnapshot
+    auth: GatewayRuntimeAuthSnapshot
+    routing_groups: list[GatewayRuntimeRoutingGroupSnapshot] = Field(default_factory=list)
+    routes: list[GatewayRuntimeRouteSnapshot] = Field(default_factory=list)
+    routing_policies: list[GatewayRuntimePolicySnapshot] = Field(default_factory=list)
+
+
+class GatewayRuntimeEvent(BaseModel):
+    event_type: str
+    request_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID
+    route_id: uuid.UUID | None = None
+    model_requested: str | None = None
+    model_used: str | None = None
+    provider: str | None = None
+    status: str | None = None
+    decision_reason: str | None = None
+    cache_hit: bool | None = None
+    semantic_cache_hit: bool | None = None
+    stream: bool | None = None
+    latency_ms: int | None = Field(default=None, ge=0)
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    cost_usd: Decimal | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    action: str | None = None
+    source: str | None = None
+    policy_version: int | None = None
+    detail: dict[str, Any] | None = None
+    deployment_status: str | None = None
+    consecutive_failures: int | None = Field(default=None, ge=0)
+    health_summary: str | None = None
+
+
+class GatewayRuntimeEventBatchRequest(BaseModel):
+    workspace_id: uuid.UUID
+    source_service: str = "runledger-gateway-rs"
+    events: list[GatewayRuntimeEvent] = Field(default_factory=list)
+
+
+class GatewayRuntimeEventBatchResponse(BaseModel):
+    accepted: int
+
+
+class GatewayRuntimeApiKeyResolveRequest(BaseModel):
+    raw_key: str = Field(..., min_length=1)
+
+
+class GatewayRuntimeApiKeyResolveResponse(BaseModel):
+    api_key_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID
+    tenant_id: uuid.UUID
+    auth_mode: str = "api_key"
+    key_prefix: str
+    ownership_type: str
+    owner_reference: str | None = None
+    budget_tier_id: uuid.UUID | None = None
+    guardrail_config: dict[str, Any] = Field(default_factory=dict)
+    scopes: list[str] = Field(default_factory=list)
+
+
+class GatewayRuntimeExecutionStep(BaseModel):
+    route_id: uuid.UUID
+    alias: str
+    provider: str
+    target_model: str
+    execution_mode: str = "direct_http"
+    base_url: str | None = None
+    api_key_env_var: str | None = None
+    priority: int
+    timeout_ms: int | None = None
+    retry_count: int = 0
+    region: str | None = None
+    deployment_status: str = "unknown"
+    trigger: str = "primary"
+    required_error_triggers: list[str] = Field(default_factory=list)
+    decision_reason: str | None = None
+    request_method: str = "POST"
+    request_url: str | None = None
+    request_headers: dict[str, str] = Field(default_factory=dict)
+    request_body: dict[str, Any] = Field(default_factory=dict)
+
+
+class GatewayRuntimePreflightRequest(BaseModel):
+    raw_key: str = Field(..., min_length=1)
+    body: GatewayCompletionRequest
+    end_user_id: str | None = None
+    tags_header: str | None = None
+    region_header: str | None = None
+    timeout_ms: int | None = Field(default=None, ge=1000, le=300000)
+    completion_timeout_ms: int | None = Field(default=None, ge=1000, le=300000)
+    stream_timeout_ms: int | None = Field(default=None, ge=1000, le=300000)
+    client_ip: str | None = None
+
+
+class GatewayRuntimePreflightResponse(BaseModel):
+    api_key_id: uuid.UUID | None = None
+    workspace_id: uuid.UUID
+    tenant_id: uuid.UUID
+    auth_mode: str = "api_key"
+    model_requested: str
+    route_alias: str
+    preferred_region: str | None = None
+    request_tags: list[str] = Field(default_factory=list)
+    missing_metadata: list[str] = Field(default_factory=list)
+    cache_hit_kind: str | None = None
+    cached_response: dict[str, Any] | None = None
+    prepared_messages: list[dict[str, Any]] = Field(default_factory=list)
+    effective_tools: list[dict[str, Any]] | None = None
+    effective_reasoning_effort: str | None = None
+    compiler_enabled: bool = False
+    compiler_config: dict[str, Any] | None = None
+    semantic_cache_enabled: bool = False
+    guardrails_enabled: bool = True
+    ir_decision: dict[str, Any] | None = None
+    decision_reason: str | None = None
+    execution_steps: list[GatewayRuntimeExecutionStep] = Field(default_factory=list)
+
+
+class GatewayRuntimeFinalizeRequest(BaseModel):
+    workspace_id: uuid.UUID
+    route_id: uuid.UUID
+    model_requested: str
+    prepared_messages: list[dict[str, Any]] = Field(default_factory=list)
+    response_json: dict[str, Any]
+    latency_ms: int | None = Field(default=None, ge=0)
+    total_wall_ms: int | None = Field(default=None, ge=0)
+    decision_reason: str | None = None
+    end_user_id: str | None = None
+    cache: bool = True
+    semantic_cache_enabled: bool = False
+    guardrails_enabled: bool = True
+    compiler_enabled: bool = False
+    compiler_config: dict[str, Any] | None = None
+    ir_decision: dict[str, Any] | None = None
+
+
+class GatewayRuntimeFinalizeResponse(BaseModel):
+    ok: bool = True
+
+
+class GatewayRuntimeProviderExecuteRequest(BaseModel):
+    route_id: uuid.UUID
+    request_body: dict[str, Any] = Field(default_factory=dict)
+    stream: bool = False
+    timeout_ms: int | None = Field(default=None, ge=1000, le=300000)
+
+
+class GatewayRuntimeRouteResultRequest(BaseModel):
+    route_id: uuid.UUID
+    success: bool
+    transient: bool = False
+    error_detail: str | None = None
+
+
+class GatewayRuntimeMirrorRequest(BaseModel):
+    workspace_id: uuid.UUID
+    route_id: uuid.UUID
+    model_requested: str
+    request_body: dict[str, Any] = Field(default_factory=dict)
+    response_json: dict[str, Any]
+    request_tags: list[str] = Field(default_factory=list)
+    preferred_region: str | None = None
+
+
 class GatewayPassThroughEndpointCreate(BaseModel):
     slug: str = Field(..., min_length=1, max_length=80)
     path_prefix: str = "/"

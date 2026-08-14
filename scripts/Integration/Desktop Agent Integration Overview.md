@@ -37,7 +37,7 @@ Use these variables in wrappers, MCP bridges, and local tool config:
 
 ```env
 RUNLEDGER_BASE_URL=http://localhost:8201
-RUNLEDGER_GATEWAY_BASE_URL=http://localhost:8201/gateway
+RUNLEDGER_GATEWAY_BASE_URL=http://localhost:8210/gateway
 RUNLEDGER_MCP_URL=http://localhost:8206/mcp
 RUNLEDGER_OTLP_HTTP=http://localhost:4318/v1/traces
 

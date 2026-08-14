@@ -169,9 +169,14 @@ for tag, display_name in TAG_ORDER:
                 continue
 
             raw_parts, path_vars = make_url(path)
+            host_var = "{{base_url}}"
+            auth_var = "{{api_key}}"
+            if path == "/gateway/chat/completions":
+                host_var = "{{gateway_base_url}}"
+                auth_var = "{{workspace_api_key}}"
             url_obj: dict = {
-                "raw": "{{base_url}}/" + "/".join(raw_parts),
-                "host": ["{{base_url}}"],
+                "raw": host_var + "/" + "/".join(raw_parts),
+                "host": [host_var],
                 "path": raw_parts,
             }
             if path_vars:
@@ -195,7 +200,7 @@ for tag, display_name in TAG_ORDER:
                 "method": method.upper(),
                 "header": [
                     {"key": "Content-Type", "value": "application/json"},
-                    {"key": "Authorization", "value": "Bearer {{api_key}}"},
+                    {"key": "Authorization", "value": f"Bearer {auth_var}"},
                 ],
                 "url": url_obj,
                 "description": op.get("description", op.get("summary", "")),
@@ -215,6 +220,12 @@ for tag, display_name in TAG_ORDER:
                     (req.get("description") or "Gateway management")
                     + "\n\nRBAC: requires an org-admin or platform-admin dashboard session key. "
                     "The data-plane /gateway/chat/completions endpoint still accepts workspace API keys."
+                )
+            elif path == "/gateway/chat/completions":
+                req["description"] = (
+                    (req.get("description") or "Gateway chat completions")
+                    + "\n\nData plane: served by the Rust gateway runtime at `gateway_base_url`, "
+                    "not the control-plane `base_url`. Use `workspace_api_key` for this request."
                 )
             elif path.startswith("/org/tenants"):
                 req["description"] = (
@@ -291,11 +302,11 @@ for tag, display_name in TAG_ORDER:
 # The semantic cache and context compiler are standalone microservices; their toggles
 # ride on the gateway. These curated requests demonstrate both, and give direct access
 # to each microservice for testing.
-def _req(name, method, raw_url, desc, body=None, auth=True):
+def _req(name, method, raw_url, desc, body=None, auth=True, auth_token_var="api_key"):
     parts = raw_url.split("/")
     headers = [{"key": "Content-Type", "value": "application/json"}]
     if auth:
-        headers.append({"key": "Authorization", "value": "Bearer {{api_key}}"})
+        headers.append({"key": "Authorization", "value": f"Bearer {{{{{auth_token_var}}}}}"})
     r = {
         "method": method,
         "header": headers,
@@ -319,7 +330,7 @@ def _add_optimization_extras(items: list[dict]) -> None:
             _req(
                 "Gateway Chat Completions (Semantic Cache)",
                 "POST",
-                "{{base_url}}/gateway/chat/completions",
+                "{{gateway_base_url}}/gateway/chat/completions",
                 "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).",
                 {
                     "model": "llama3.2",
@@ -329,11 +340,12 @@ def _add_optimization_extras(items: list[dict]) -> None:
                     ],
                     "semantic_cache": True,
                 },
+                auth_token_var="workspace_api_key",
             ),
             _req(
                 "Gateway Chat Completions (Context Compiler)",
                 "POST",
-                "{{base_url}}/gateway/chat/completions",
+                "{{gateway_base_url}}/gateway/chat/completions",
                 "Request shrunk (dedup/tool-output/rerank/compaction) before routing.",
                 {
                     "model": "llama3.2",
@@ -343,11 +355,12 @@ def _add_optimization_extras(items: list[dict]) -> None:
                     ],
                     "context_compiler": True,
                 },
+                auth_token_var="workspace_api_key",
             ),
             _req(
                 "Gateway Chat Completions (Intelligent Routing)",
                 "POST",
-                "{{base_url}}/gateway/chat/completions",
+                "{{gateway_base_url}}/gateway/chat/completions",
                 "Classify complexity × risk and route to a model tier (decision_reason shows the tier).",
                 {
                     "model": "auto",
@@ -360,6 +373,7 @@ def _add_optimization_extras(items: list[dict]) -> None:
                     ],
                     "intelligent_routing": True,
                 },
+                auth_token_var="workspace_api_key",
             ),
             _req(
                 "Create Gateway Route (Semantic Cache + Compiler on)",
@@ -851,6 +865,13 @@ environment = {
             "type": "default",
             "enabled": True,
             "description": "RunLedger API base URL. Change to your deployed URL for production.",
+        },
+        {
+            "key": "gateway_base_url",
+            "value": "http://localhost:8210",
+            "type": "default",
+            "enabled": True,
+            "description": "RunLedger Rust gateway runtime base URL for live /gateway/chat/completions traffic.",
         },
         {
             "key": "semantic_cache_url",

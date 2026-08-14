@@ -1400,6 +1400,9 @@ export async function updateGatewayRoute(
     api_key_env_var?: string | null
     priority?: number
     is_active?: boolean
+    config?: Record<string, unknown> | null
+    daily_cost_limit_usd?: number | null
+    monthly_cost_limit_usd?: number | null
     pii_redaction_enabled?: boolean
     semantic_cache_enabled?: boolean
     context_compiler_enabled?: boolean

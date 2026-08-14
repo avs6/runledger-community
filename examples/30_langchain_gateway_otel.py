@@ -43,10 +43,11 @@ from typing import Annotated, TypedDict
 
 RUNLEDGER_API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 RUNLEDGER_BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+RUNLEDGER_GATEWAY_BASE_URL = os.environ.get("RUNLEDGER_GATEWAY_BASE_URL", "http://localhost:8210/gateway")
 OTEL_ENDPOINT = os.environ.get("OTEL_ENDPOINT", "http://localhost:4318")
 
 # The gateway endpoint is OpenAI-API-compatible — drop it in as the base_url
-GATEWAY_BASE_URL = f"{RUNLEDGER_BASE_URL}/gateway"
+GATEWAY_BASE_URL = RUNLEDGER_GATEWAY_BASE_URL
 
 if not RUNLEDGER_API_KEY:
     raise SystemExit(

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "d0ad658a-2a07-429d-b928-e920396fcaf8",
     "name": "RunLedger API",
-    "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**RBAC token model:** use a dashboard session key from `POST /auth/login` for management APIs (Organizations, Gateway routes, Provider Profiles, Control Plane, Budgets). Use a workspace API key minted from Control Plane -> API Keys for data-plane APIs (`/ingest`, `/gateway/chat/completions`, `/v1/traces`). Keep the active token in `api_key`.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`\n4. Run `POST /admin/bootstrap` once on a fresh install\n5. Log in with `POST /auth/login`; copy the returned key into `api_key` and `session_api_key`\n6. For agent traffic, create a workspace key with `POST /settings/api-keys`; copy it into `workspace_api_key` and swap `api_key` when calling data-plane endpoints",
+    "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**RBAC token model:** use a dashboard session key from `POST /auth/login` for management APIs (Organizations, Gateway routes, Provider Profiles, Control Plane, Budgets). Use a workspace API key minted from Control Plane -> API Keys for data-plane APIs (`/ingest`, `/gateway/chat/completions`, `/v1/traces`). Keep the active token in `api_key`.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url` for the control plane and `gateway_base_url` for Rust gateway traffic\n4. Run `POST /admin/bootstrap` once on a fresh install\n5. Log in with `POST /auth/login`; copy the returned key into `api_key` and `session_api_key`\n6. For agent traffic, create a workspace key with `POST /settings/api-keys`; copy it into `workspace_api_key` and swap `api_key` when calling data-plane endpoints",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -4343,13 +4343,13 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{api_key}}"
+                "value": "Bearer {{workspace_api_key}}"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/gateway/chat/completions",
+              "raw": "{{gateway_base_url}}/gateway/chat/completions",
               "host": [
-                "{{base_url}}"
+                "{{gateway_base_url}}"
               ],
               "path": [
                 "gateway",
@@ -4357,7 +4357,7 @@
                 "completions"
               ]
             },
-            "description": "OpenAI-compatible chat completions proxy.\n\nFlow:\n  1. Check prompt cache (if body.cache=True)\n  2. If cache hit: record + return cached response\n  3. Select target route by priority\n  4. Check runtime controls: cost cap + per-user rate limit\n  5. Apply PII redaction (if enabled on route)\n  6. Forward to provider (with retry + fallback)\n  7. Store result in cache + record GatewayRequest\n  8. If body.stream=True: return SSE StreamingResponse",
+            "description": "Compatibility marker for the retired Python inline gateway route.\n\nLive data-plane traffic belongs on `{{gateway_base_url}}/gateway/chat/completions` with `workspace_api_key`. Use the control plane for route, policy, and stats management.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"model\": \"string\",\n  \"messages\": [\n    {\n      \"role\": \"string\",\n      \"content\": null\n    }\n  ]\n}",
@@ -5798,13 +5798,13 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{api_key}}"
+                "value": "Bearer {{workspace_api_key}}"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/gateway/chat/completions",
+              "raw": "{{gateway_base_url}}/gateway/chat/completions",
               "host": [
-                "{{base_url}}"
+                "{{gateway_base_url}}"
               ],
               "path": [
                 "gateway",
@@ -5812,7 +5812,7 @@
                 "completions"
               ]
             },
-            "description": "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).",
+            "description": "Near-duplicate prompt served from the semantic cache (decision_reason=semantic_cache_hit).\n\nData plane: served by the Rust gateway runtime at `gateway_base_url`, not the control-plane `base_url`. Use `workspace_api_key` for this request.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"model\": \"llama3.2\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"how much parental leave do employees get\"\n    }\n  ],\n  \"semantic_cache\": true\n}",
@@ -5836,13 +5836,13 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{api_key}}"
+                "value": "Bearer {{workspace_api_key}}"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/gateway/chat/completions",
+              "raw": "{{gateway_base_url}}/gateway/chat/completions",
               "host": [
-                "{{base_url}}"
+                "{{gateway_base_url}}"
               ],
               "path": [
                 "gateway",
@@ -5850,7 +5850,7 @@
                 "completions"
               ]
             },
-            "description": "Request shrunk (dedup/tool-output/rerank/compaction) before routing.",
+            "description": "Request shrunk (dedup/tool-output/rerank/compaction) before routing.\n\nData plane: served by the Rust gateway runtime at `gateway_base_url`, not the control-plane `base_url`. Use `workspace_api_key` for this request.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"model\": \"llama3.2\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"How much parental leave do employees get?\"\n    }\n  ],\n  \"context_compiler\": true\n}",
@@ -5874,13 +5874,13 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{api_key}}"
+                "value": "Bearer {{workspace_api_key}}"
               }
             ],
             "url": {
-              "raw": "{{base_url}}/gateway/chat/completions",
+              "raw": "{{gateway_base_url}}/gateway/chat/completions",
               "host": [
-                "{{base_url}}"
+                "{{gateway_base_url}}"
               ],
               "path": [
                 "gateway",
@@ -5888,7 +5888,7 @@
                 "completions"
               ]
             },
-            "description": "Classify complexity \u00d7 risk and route to a model tier (decision_reason shows the tier).",
+            "description": "Classify complexity \u00d7 risk and route to a model tier (decision_reason shows the tier).\n\nData plane: served by the Rust gateway runtime at `gateway_base_url`, not the control-plane `base_url`. Use `workspace_api_key` for this request.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"model\": \"auto\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a concise HR assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Does this contract create regulatory exposure?\"\n    }\n  ],\n  \"intelligent_routing\": true\n}",

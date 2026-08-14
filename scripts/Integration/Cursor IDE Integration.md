@@ -50,7 +50,7 @@ Expose the same RunLedger MCP tools used by other IDEs:
 If Cursor supports a custom OpenAI-compatible provider in the active environment, configure:
 
 ```env
-OPENAI_BASE_URL=http://localhost:8201/gateway
+OPENAI_BASE_URL=http://localhost:8210/gateway
 OPENAI_API_KEY=rl_...
 ```
 

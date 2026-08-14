@@ -66,6 +66,7 @@ uv run python scripts/run_demo.py labs
 
 Focused feature verification now includes `scripts/runledger/exercise_ai_hub_catalog.py` for the AI Hub model-catalog CRUD, sync, and access-request flow.
 Focused feature verification also includes `scripts/runledger/exercise_mcp_registry.py` for MCP server CRUD, permission policies, tool-call testing, and re-activation.
+Focused feature verification also includes `scripts/runledger/exercise_gateway_runtime_split.py` for the gateway split contracts: runtime snapshot parity, signed runtime-event ingest, and the control-plane runtime bridge used by the Rust data plane.
 
 ## Local backup profile
 
@@ -293,7 +294,7 @@ This posts OTLP/HTTP JSON to `/v1/traces` and creates raw trace batches, spans, 
 Inline RunLedger control is possible when a tool can point its model calls at an OpenAI-compatible base URL, for example:
 
 ```text
-http://localhost:8201/gateway
+http://localhost:8210/gateway
 ```
 
 That works well for Python clients, LiteLLM, Open WebUI, OpenHands, LangGraph, and any SDK/client where you control `base_url`.
@@ -310,7 +311,7 @@ Claude Desktop and Codex are different: their native hosted model calls are not 
 To showcase true inline interception for a demo, run a Python/OpenAI-compatible client through:
 
 ```text
-RUNLEDGER_GATEWAY_BASE_URL=http://localhost:8201/gateway
+RUNLEDGER_GATEWAY_BASE_URL=http://localhost:8210/gateway
 ```
 
 ## Adding scenarios
