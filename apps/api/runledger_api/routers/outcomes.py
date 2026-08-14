@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,7 @@ from runledger_api.schemas.outcomes import (
     OutcomeSummaryItem,
     OutcomeTrend,
     OutcomeTrendPoint,
+    OutcomeUpdate,
     QualityOutcomeCorrelation,
     WorkflowROIItem,
     WorkflowROIList,
@@ -108,6 +109,23 @@ async def create_outcome(
     return OutcomeResponse.model_validate(outcome)
 
 
+async def _load_outcome_or_404(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    outcome_id: uuid.UUID,
+) -> Outcome:
+    result = await db.execute(
+        select(Outcome).where(
+            Outcome.id == outcome_id,
+            Outcome.workspace_id == workspace_id,
+        )
+    )
+    outcome = result.scalar_one_or_none()
+    if outcome is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outcome not found")
+    return outcome
+
+
 # ── List outcomes ──────────────────────────────────────────────────────────────
 
 
@@ -153,6 +171,62 @@ async def list_outcomes(
         items=[OutcomeResponse.model_validate(o) for o in items],
         total=total,
     )
+
+
+@router.get(
+    "/{outcome_id}",
+    response_model=OutcomeResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
+async def get_outcome(
+    outcome_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> OutcomeResponse:
+    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    return OutcomeResponse.model_validate(outcome)
+
+
+@router.put(
+    "/{outcome_id}",
+    response_model=OutcomeResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def update_outcome(
+    outcome_id: uuid.UUID,
+    body: OutcomeUpdate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> OutcomeResponse:
+    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    outcome.outcome_type = body.outcome_type
+    outcome.success = body.success
+    outcome.run_id = body.run_id
+    outcome.session_id = body.session_id
+    outcome.end_user_id = body.end_user_id
+    outcome.value_usd = body.value_usd
+    outcome.labels = body.labels
+    await db.commit()
+    await db.refresh(outcome)
+    log.info("outcome_updated", workspace_id=str(workspace.id), outcome_id=str(outcome.id))
+    return OutcomeResponse.model_validate(outcome)
+
+
+@router.delete(
+    "/{outcome_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def delete_outcome(
+    outcome_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> Response:
+    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    await db.delete(outcome)
+    await db.commit()
+    log.info("outcome_deleted", workspace_id=str(workspace.id), outcome_id=str(outcome_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── Summary: cost-per-outcome + ROI ───────────────────────────────────────────

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getRun, getRunGraph } from '@/lib/api'
+import CancelRunButton from '@/components/runs/CancelRunButton'
 import RunSummaryBar from '@/components/runs/RunSummaryBar'
 import RunGraph from '@/components/dag/RunGraph'
 import PayloadViewer from '@/components/runs/PayloadViewer'
@@ -236,6 +237,14 @@ export default async function RunDetailPage({
 
       {/* Summary bar */}
       <RunSummaryBar run={run} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Run actions</p>
+          <p className="mt-1 text-xs text-slate-500">Cancel a stuck run directly from the UI when it is still marked as running.</p>
+        </div>
+        <CancelRunButton runId={run.id} status={run.status} />
+      </div>
 
       {/* Error banner */}
       {hasError && (

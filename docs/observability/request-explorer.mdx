@@ -1,43 +1,52 @@
 ---
 title: "Request Explorer"
-description: "Filterable, paginated log of every provider call — search by model, provider, intent, or optimization type."
+description: "Filterable, paginated request investigation surface with run drill-in, route evidence, payload capture, and request-level debugging."
 ---
 
-The Request Explorer is the drill-down companion to the Analytics and Engineering dashboards. It shows individual provider calls with full metadata, so you can investigate cost outliers, latency spikes, or unexpected model usage.
+The Request Explorer is the request-level drill-down companion to Analytics Overview and Request Flow. It shows individual requests with enough runtime evidence to investigate cost outliers, latency spikes, routing surprises, cache behavior, and unexpected model usage.
 
 ## Features
 
-- **Full-text filtering** — narrow by model name, provider, intent, or optimization type
-- **Pagination** — browse large volumes (configurable page size, max 100)
-- **Time-range scoping** — same `from` / `to` window as all other analytics endpoints
-- **Per-request detail** — model, provider, status, tokens (in/out/cached), cost, latency, intent, and optimization applied
+- **Full-text filtering** - narrow by run id, user, model, provider, intent, or optimization markers
+- **Status filters** - isolate succeeded, failed, running, or cancelled traffic
+- **Pagination** - browse large volumes (configurable page size, max 100)
+- **Per-request detail** - inspect prompt/response capture, route hints, model/provider calls, tool calls, spans, outcomes, and gateway evidence
+- **Run drill-in** - jump from a request into the dedicated run detail page when you need the full DAG and execution tree
+- **Session pivot** - follow the same issue into Sessions when the problem spans multiple turns
 
 ## API
 
 ```
-GET /analytics/request-explorer?from=&to=&model=&provider=&intent=&optimization=&page=1&page_size=50
+GET /analytics/request-explorer?q=&status=&end_user_id=&model=&provider=&intent=&optimization=&page=1&page_size=50
 ```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `from` | ISO-8601 | Start of time window (default: 7 days ago) |
-| `to` | ISO-8601 | End of time window (default: now) |
+| `q` | string | Free-text search over run id, user, model, provider, and related request fields |
+| `status` | string | Filter by request/run status (`succeeded`, `failed`, `running`, `cancelled`) |
+| `end_user_id` | string | Filter by end user |
 | `model` | string | Filter by model name |
 | `provider` | string | Filter by provider |
 | `intent` | string | Filter by run intent |
 | `optimization` | string | Filter by optimization type applied |
 | `page` | int | Page number (default: 1) |
-| `page_size` | int | Results per page, 1–100 (default: 50) |
+| `page_size` | int | Results per page, 1-100 (default: 50) |
 
 Returns `RequestExplorerResponse` with `total_count`, `page`, `page_size`, and `records` array.
 
 ## Related
 
 <CardGroup cols={2}>
+  <Card title="Request Flow" icon="route" href="/observability/request-flow">
+    Start with routing causality and then drill into the exact requests behind an edge.
+  </Card>
   <Card title="Engineering Dashboard" icon="wrench" href="/observability/engineering">
     Aggregate latency, errors, and cache metrics.
   </Card>
   <Card title="Analytics" icon="chart-bar" href="/observability/analytics">
     Spend charts and anomaly detection.
+  </Card>
+  <Card title="Run Explorer" icon="list" href="/observability/runs">
+    Open the full run detail view and execution DAG.
   </Card>
 </CardGroup>

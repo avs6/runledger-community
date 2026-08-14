@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   FlaskConical, Database, BookText, Plus, Trash2, Play,
-  CheckCircle, Clock, XCircle, Loader2,
+  CheckCircle, Clock, XCircle, Loader2, Star,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
@@ -19,10 +19,11 @@ import type {
   EvalDataset, EvalExperiment, DatasetItem, PromptResponse,
   EvaluatorResponse, CostQualityPoint, BestValueModel,
 } from '@/types/api'
+import QualityScoresTab from '@/components/evaluation/QualityScoresTab'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type Tab = 'experiments' | 'datasets' | 'prompts' | 'evaluators'
+type Tab = 'scores' | 'experiments' | 'datasets' | 'prompts' | 'evaluators'
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -793,9 +794,18 @@ function EvaluatorsTab({
 export default function EvaluationPage() {
   const { data: session } = useSession()
   const { canWrite } = useRole()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
-  const [tab, setTab] = useState<Tab>('experiments')
+  const parseTab = useCallback((value: string | null): Tab => {
+    if (value === 'scores' || value === 'experiments' || value === 'datasets' || value === 'prompts' || value === 'evaluators') {
+      return value
+    }
+    return 'experiments'
+  }, [])
+
+  const [tab, setTab] = useState<Tab>(parseTab(searchParams.get('tab')))
   const [loading, setLoading] = useState(true)
 
   const [experiments, setExperiments] = useState<EvalExperiment[]>([])
@@ -832,6 +842,10 @@ export default function EvaluationPage() {
   }, [apiKey])
 
   useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    const next = parseTab(searchParams.get('tab'))
+    setTab((current) => (current === next ? current : next))
+  }, [parseTab, searchParams])
 
   async function handleCreateExperiment(data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) {
     try {
@@ -881,7 +895,13 @@ export default function EvaluationPage() {
     } catch { toast.error('Failed to queue evaluation') }
   }
 
+  function handleTabChange(next: Tab) {
+    setTab(next)
+    router.replace(`/evaluation?tab=${next}`)
+  }
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
+    { id: 'scores', label: 'Scores', icon: <Star className="h-4 w-4" /> },
     { id: 'experiments', label: 'Experiments', icon: <FlaskConical className="h-4 w-4" />, count: experiments.length },
     { id: 'datasets', label: 'Datasets', icon: <Database className="h-4 w-4" />, count: datasets.length },
     { id: 'prompts', label: 'Prompts', icon: <BookText className="h-4 w-4" />, count: prompts.length },
@@ -902,7 +922,7 @@ export default function EvaluationPage() {
         {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => handleTabChange(t.id)}
             className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
               tab === t.id
                 ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm'
@@ -922,6 +942,7 @@ export default function EvaluationPage() {
         ))}
       </div>
 
+      {tab === 'scores' && <QualityScoresTab apiKey={apiKey} />}
       {tab === 'experiments' && (
         <ExperimentsTab
           experiments={experiments}

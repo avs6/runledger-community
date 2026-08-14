@@ -1931,14 +1931,17 @@ async def request_explorer(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    q: Annotated[str | None, Query()] = None,
+    status: Annotated[str | None, Query()] = None,
     model: Annotated[str | None, Query()] = None,
     provider: Annotated[str | None, Query()] = None,
     intent: Annotated[str | None, Query()] = None,
+    end_user_id: Annotated[str | None, Query()] = None,
     optimization: Annotated[str | None, Query()] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> RequestExplorerResponse:
-    """Paginated request explorer with filtering by model, provider, intent, and optimization."""
+    """Paginated request explorer with filtering by run, user, status, model, provider, intent, and optimization."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
 
@@ -1951,8 +1954,12 @@ async def request_explorer(
         filters.append(ProviderCall.model == model)
     if provider:
         filters.append(ProviderCall.provider == provider)
+    if status:
+        filters.append(ProviderCall.status == status)
     if optimization:
         filters.append(ProviderCall.optimization_applied == optimization)
+    if end_user_id:
+        filters.append(ProviderCall.end_user_id == end_user_id)
 
     # Join with AgentRun for intent filtering
     query = (
@@ -1962,6 +1969,7 @@ async def request_explorer(
             ProviderCall.provider,
             ProviderCall.model,
             AgentRun.intent,
+            ProviderCall.end_user_id,
             ProviderCall.cost_usd,
             ProviderCall.baseline_cost_usd,
             ProviderCall.savings_usd,
@@ -1977,6 +1985,18 @@ async def request_explorer(
     )
     if intent:
         query = query.where(AgentRun.intent == intent)
+    if q:
+        q_like = f"%{q.strip()}%"
+        if q.strip():
+            query = query.where(
+                or_(
+                    cast(ProviderCall.run_id, String).ilike(q_like),
+                    ProviderCall.model.ilike(q_like),
+                    ProviderCall.provider.ilike(q_like),
+                    ProviderCall.end_user_id.ilike(q_like),
+                    AgentRun.intent.ilike(q_like),
+                )
+            )
 
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar_one()
@@ -1997,6 +2017,7 @@ async def request_explorer(
                 provider=r.provider,
                 model=r.model,
                 intent=r.intent,
+                end_user_id=r.end_user_id,
                 cost_usd=r.cost_usd,
                 baseline_cost_usd=r.baseline_cost_usd,
                 savings_usd=r.savings_usd,

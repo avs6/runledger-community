@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Trophy, Star, ArrowUpDown, ChevronDown, ChevronRight, Lightbulb, AlertTriangle } from 'lucide-react'
 import {
@@ -414,6 +415,40 @@ export default function ModelScorecardsPage() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Model Intelligence Flow</p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Use scorecards after usage concentration is clear</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Start in Model Usage to see where traffic and spend concentrate, then use this page to compare quality, latency, cache, retries, and recommendation signals model by model.
+          </p>
+        </div>
+        <Link
+          href="/model-usage"
+          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-400 dark:hover:bg-slate-800"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Open Model Usage</h2>
+            <Trophy className="h-5 w-5 text-blue-600" />
+          </div>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Cross-check whether the models with the highest traffic or spend are also the ones with the best quality-for-cost behavior.
+          </p>
+        </Link>
+        <Link
+          href="/evaluation"
+          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-400 dark:hover:bg-slate-800"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Open Evaluation Studio</h2>
+            <Lightbulb className="h-5 w-5 text-blue-600" />
+          </div>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Move from observed scorecards into explicit evaluation datasets, experiments, and replay when you need deeper proof before changing routing.
+          </p>
+        </Link>
       </div>
     </div>
   )

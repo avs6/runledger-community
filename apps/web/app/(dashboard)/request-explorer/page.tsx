@@ -20,15 +20,15 @@ import {
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getRun, getRunGraph, getRuns, listGatewayRequests, listOutcomes } from '@/lib/api'
+import { getRequestExplorer, getRun, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId } from '@/lib/utils'
 import type {
   GatewayRequestLog,
   OutcomeResponse,
   ProviderCallDetail,
+  RequestRecord,
   RunDetailResponse,
-  RunListItem,
   SpanDetail,
   ToolCallDetail,
 } from '@/types/api'
@@ -36,12 +36,15 @@ import type {
 interface PageProps {
   searchParams: {
     run_id?: string
-    q?: string
-    status?: string
-    feature_tag?: string
-    end_user_id?: string
-    model?: string
-  }
+  q?: string
+  status?: string
+  feature_tag?: string
+  end_user_id?: string
+  model?: string
+  provider?: string
+  optimization?: string
+  page?: string
+}
 }
 
 type DebugFact = {
@@ -176,8 +179,8 @@ function FactCard({ fact }: { fact: DebugFact }) {
   )
 }
 
-function RunList({ runs, selectedId, searchParams }: { runs: RunListItem[]; selectedId: string | null; searchParams: PageProps['searchParams'] }) {
-  if (runs.length === 0) {
+function RunList({ requests, selectedRunId, searchParams }: { requests: RequestRecord[]; selectedRunId: string | null; searchParams: PageProps['searchParams'] }) {
+  if (requests.length === 0) {
     return (
       <Card className="p-8 text-center">
         <p className="text-sm font-semibold text-slate-950">No requests found</p>
@@ -193,24 +196,28 @@ function RunList({ runs, selectedId, searchParams }: { runs: RunListItem[]; sele
         <p className="mt-1 text-xs text-slate-500">Select one request to inspect prompt, route, tools, cost, and outcome.</p>
       </div>
       <div className="max-h-[640px] overflow-y-auto">
-        {runs.map((run) => {
-          const selected = run.id === selectedId
-          const totalTokens = (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0)
+        {requests.map((request) => {
+          const selected = request.run_id === selectedRunId
+          const totalTokens = (request.input_tokens ?? 0) + (request.output_tokens ?? 0)
           return (
             <Link
-              key={run.id}
-              href={requestHref(searchParams, { run_id: run.id })}
+              key={request.id}
+              href={requestHref(searchParams, { run_id: request.run_id })}
               className={`block border-b border-slate-100 px-4 py-3 transition hover:bg-blue-50 ${selected ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}`}
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-xs font-semibold text-slate-950">{truncateId(run.id, 10)}</span>
-                <RunStatusBadge status={run.status} />
+                <span className="font-mono text-xs font-semibold text-slate-950">{truncateId(request.run_id, 10)}</span>
+                <RunStatusBadge status={request.status === 'success' ? 'succeeded' : request.status === 'error' ? 'failed' : request.status as 'running' | 'succeeded' | 'failed' | 'cancelled'} />
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                <span className="truncate">{run.feature_tag ?? 'General / Untagged'}</span>
-                <span className="truncate text-right font-mono">{run.primary_model ?? 'Model unknown'}</span>
-                <span>{formatCost(run.total_cost_usd)}</span>
+                <span className="truncate">{request.intent ?? 'General / Untagged'}</span>
+                <span className="truncate text-right font-mono">{request.model}</span>
+                <span>{formatCost(request.cost_usd)}</span>
                 <span className="text-right">{formatTokens(totalTokens)} tokens</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                <span>{request.provider}</span>
+                <span>{request.end_user_id ?? 'No user'}</span>
               </div>
             </Link>
           )
@@ -222,13 +229,13 @@ function RunList({ runs, selectedId, searchParams }: { runs: RunListItem[]; sele
 
 function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }) {
   return (
-    <form action="/request-explorer" className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-300 dark:bg-white/80 md:grid-cols-6">
+    <form action="/request-explorer" className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-300 dark:bg-white/80 md:grid-cols-8">
       <div className="md:col-span-2">
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Search</label>
         <input
           name="q"
           defaultValue={searchParams.q ?? ''}
-          placeholder="Run ID, user, feature..."
+          placeholder="Run ID, user, model..."
           className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/30"
         />
       </div>
@@ -249,6 +256,14 @@ function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }
       <div>
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Model</label>
         <input name="model" defaultValue={searchParams.model ?? ''} placeholder="gpt, claude..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Provider</label>
+        <input name="provider" defaultValue={searchParams.provider ?? ''} placeholder="openai, anthropic..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Optimization</label>
+        <input name="optimization" defaultValue={searchParams.optimization ?? ''} placeholder="cache, routing..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
       </div>
       <div className="flex items-end gap-2">
         <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
@@ -509,15 +524,19 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
-  const runs = await getRuns(session.apiKey, {
-    limit: 50,
-    search: searchParams.q,
+  const page = Number.parseInt(searchParams.page ?? '1', 10)
+  const requestExplorer = await getRequestExplorer(session.apiKey, {
+    q: searchParams.q,
     status: searchParams.status,
-    feature_tag: searchParams.feature_tag,
+    intent: searchParams.feature_tag,
     end_user_id: searchParams.end_user_id,
     model: searchParams.model,
+    provider: searchParams.provider,
+    optimization: searchParams.optimization,
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    page_size: 50,
   })
-  const selectedId = searchParams.run_id ?? runs.items[0]?.id ?? null
+  const selectedId = searchParams.run_id ?? requestExplorer.items[0]?.run_id ?? null
 
   const [runResult, graphResult, outcomesResult, gatewayResult] = selectedId
     ? await Promise.allSettled([
@@ -533,11 +552,12 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   const outcomes = outcomesResult?.status === 'fulfilled' ? outcomesResult.value.items : []
   const gatewayRequests = gatewayResult?.status === 'fulfilled' ? gatewayResult.value.items : []
   const gatewayMatch = selectedRun ? matchingGatewayRequest(selectedRun, gatewayRequests) : null
-  const failedCount = runs.items.filter((run) => run.status === 'failed').length
-  const highCostRun = runs.items.reduce<RunListItem | null>((winner, run) => {
-    if (!winner) return run
-    return numericCost(run.total_cost_usd) > numericCost(winner.total_cost_usd) ? run : winner
+  const failedCount = requestExplorer.items.filter((request) => request.status === 'error' || request.status === 'failed').length
+  const highCostRequest = requestExplorer.items.reduce<RequestRecord | null>((winner, request) => {
+    if (!winner) return request
+    return numericCost(request.cost_usd) > numericCost(winner.cost_usd) ? request : winner
   }, null)
+  const pageCount = Math.max(1, Math.ceil(requestExplorer.total / requestExplorer.page_size))
 
   return (
     <div className="space-y-6">
@@ -549,11 +569,14 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/analytics" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
+            Analytics Overview <ArrowRight className="h-4 w-4" />
+          </Link>
           <Link href="/request-flow" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
             Back to flow <Route className="h-4 w-4" />
           </Link>
-          {highCostRun && (
-            <Link href={requestHref(searchParams, { run_id: highCostRun.id })} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+          {highCostRequest && (
+            <Link href={requestHref(searchParams, { run_id: highCostRequest.run_id })} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
               Inspect highest cost <DollarSign className="h-4 w-4" />
             </Link>
           )}
@@ -563,14 +586,14 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       <FilterBar searchParams={searchParams} />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <FactCard fact={{ label: 'Requests loaded', value: runs.items.length.toLocaleString(), icon: GitBranch }} />
+        <FactCard fact={{ label: 'Requests loaded', value: requestExplorer.items.length.toLocaleString(), icon: GitBranch }} />
         <FactCard fact={{ label: 'Failures', value: failedCount.toLocaleString(), icon: ShieldCheck }} />
-        <FactCard fact={{ label: 'Highest cost', value: highCostRun ? formatCost(highCostRun.total_cost_usd) : '$0.00', icon: DollarSign }} />
+        <FactCard fact={{ label: 'Highest cost', value: highCostRequest ? formatCost(highCostRequest.cost_usd) : '$0.00', icon: DollarSign }} />
         <FactCard fact={{ label: 'Gateway log', value: gatewayResult?.status === 'fulfilled' ? 'Available' : 'Unavailable for role', icon: Route }} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <RunList runs={runs.items} selectedId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
+        <RunList requests={requestExplorer.items} selectedRunId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
         {selectedRun ? (
           <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} />
         ) : (
@@ -579,6 +602,60 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
             <p className="mt-2 text-sm text-slate-500">Choose a recent run from the list to open its engineering debug view.</p>
           </Card>
         )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Observe Workflow</p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-950">Use this after the flow view narrows the problem</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Start in Analytics Overview for scope health, move to Request Flow for routing causality, then use Request Explorer to inspect the exact run, prompt path, tools, route, and outcome evidence behind an edge.
+          </p>
+        </div>
+        <Link
+          href="/runs"
+          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Run Detail</p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-950">Open the full run investigation page</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Jump into the run DAG, provider-call breakdown, payload capture, and cancellation flow when you need the dedicated execution-level view.
+          </p>
+        </Link>
+        <Link
+          href="/sessions"
+          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conversation Context</p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-950">Pivot into Sessions</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Follow the same issue across multiple turns when cost, latency, or failure patterns span a whole conversation rather than a single request.
+          </p>
+        </Link>
+      </div>
+
+      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm">
+        <span>
+          Page {requestExplorer.page} of {pageCount} • {requestExplorer.total.toLocaleString()} requests
+        </span>
+        <div className="flex items-center gap-2">
+          {requestExplorer.page > 1 && (
+            <Link
+              href={requestHref(searchParams, { page: String(requestExplorer.page - 1) })}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Previous
+            </Link>
+          )}
+          {requestExplorer.page < pageCount && (
+            <Link
+              href={requestHref(searchParams, { page: String(requestExplorer.page + 1) })}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Next
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   )

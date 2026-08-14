@@ -61,6 +61,7 @@ import type {
   RunDetailResponse,
   RunEconomics,
   RunGraphResponse,
+  RunListItem,
   RunListResponse,
   ScoreEvent,
   ScoreList,
@@ -218,6 +219,10 @@ export async function getRunGraph(apiKey: string, runId: string): Promise<RunGra
   return apiFetch<RunGraphResponse>(`/runs/${runId}/graph`, apiKey)
 }
 
+export async function cancelRun(apiKey: string, runId: string): Promise<RunListItem> {
+  return apiFetch<RunListItem>(`/runs/${runId}/cancel`, apiKey, { method: 'PATCH' })
+}
+
 export async function getRunFlow(
   apiKey: string,
   params: {
@@ -245,13 +250,13 @@ export async function getRunFlow(
 interface TimeWindow {
   from?: string
   to?: string
-  [key: string]: string | undefined
+  [key: string]: string | number | undefined
 }
 
-function _analyticsQs(params: TimeWindow & Record<string, string | undefined>): string {
+function _analyticsQs(params: TimeWindow & Record<string, string | number | undefined>): string {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined) qs.set(k, v)
+    if (v !== undefined) qs.set(k, String(v))
   })
   const s = qs.toString()
   return s ? `?${s}` : ''
@@ -1239,17 +1244,27 @@ export async function getPromptMetrics(
 export async function listSessions(
   apiKey: string,
   params: {
+    q?: string
     end_user_id?: string
     from?: string
     to?: string
-    limit?: number
+    min_turns?: number
+    min_cost?: string
+    max_cost?: string
+    page?: number
+    page_size?: number
   } = {}
 ): Promise<SessionList> {
   const qs = new URLSearchParams()
+  if (params.q) qs.set('q', params.q)
   if (params.end_user_id) qs.set('end_user_id', params.end_user_id)
   if (params.from) qs.set('from', params.from)
   if (params.to) qs.set('to', params.to)
-  if (params.limit) qs.set('limit', String(params.limit))
+  if (params.min_turns) qs.set('min_turns', String(params.min_turns))
+  if (params.min_cost) qs.set('min_cost', params.min_cost)
+  if (params.max_cost) qs.set('max_cost', params.max_cost)
+  if (params.page) qs.set('page', String(params.page))
+  if (params.page_size) qs.set('page_size', String(params.page_size))
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<SessionList>(`/sessions${query}`, apiKey)
 }
@@ -2112,7 +2127,7 @@ export async function getQualityCorrelation(
 
 export async function listOutcomes(
   apiKey: string,
-  params?: { outcome_type?: string; success?: boolean; run_id?: string; end_user_id?: string; limit?: number }
+  params?: { outcome_type?: string; success?: boolean; run_id?: string; end_user_id?: string; limit?: number; offset?: number }
 ): Promise<import('@/types/api').OutcomeList> {
   const q = new URLSearchParams()
   if (params?.outcome_type) q.set('outcome_type', params.outcome_type)
@@ -2120,10 +2135,59 @@ export async function listOutcomes(
   if (params?.run_id) q.set('run_id', params.run_id)
   if (params?.end_user_id) q.set('end_user_id', params.end_user_id)
   if (params?.limit) q.set('limit', String(params.limit))
+  if (params?.offset !== undefined) q.set('offset', String(params.offset))
   return apiFetch<import('@/types/api').OutcomeList>(
     `/outcomes${q.toString() ? '?' + q.toString() : ''}`,
     apiKey
   )
+}
+
+export async function getOutcome(
+  apiKey: string,
+  outcomeId: string
+): Promise<import('@/types/api').OutcomeResponse> {
+  return apiFetch<import('@/types/api').OutcomeResponse>(`/outcomes/${encodeURIComponent(outcomeId)}`, apiKey)
+}
+
+export async function createOutcome(
+  apiKey: string,
+  body: {
+    outcome_type: string
+    success: boolean
+    run_id?: string | null
+    session_id?: string | null
+    end_user_id?: string | null
+    value_usd?: string | number | null
+    labels?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').OutcomeResponse> {
+  return apiFetch<import('@/types/api').OutcomeResponse>('/outcomes', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateOutcome(
+  apiKey: string,
+  outcomeId: string,
+  body: {
+    outcome_type: string
+    success: boolean
+    run_id?: string | null
+    session_id?: string | null
+    end_user_id?: string | null
+    value_usd?: string | number | null
+    labels?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').OutcomeResponse> {
+  return apiFetch<import('@/types/api').OutcomeResponse>(`/outcomes/${encodeURIComponent(outcomeId)}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteOutcome(apiKey: string, outcomeId: string): Promise<void> {
+  await apiFetch<void>(`/outcomes/${encodeURIComponent(outcomeId)}`, apiKey, { method: 'DELETE' })
 }
 
 // ── Approvals ─────────────────────────────────────────────────────────────────
@@ -2764,9 +2828,12 @@ export async function getTrends(
 export async function getRequestExplorer(
   apiKey: string,
   params: {
+    q?: string
+    status?: string
     model?: string
     provider?: string
     intent?: string
+    end_user_id?: string
     optimization?: string
     page?: number
     page_size?: number
@@ -2775,9 +2842,12 @@ export async function getRequestExplorer(
   const qs: Record<string, string | undefined> = {}
   if (params.from) qs.from = params.from
   if (params.to) qs.to = params.to
+  if (params.q) qs.q = params.q
+  if (params.status) qs.status = params.status
   if (params.model) qs.model = params.model
   if (params.provider) qs.provider = params.provider
   if (params.intent) qs.intent = params.intent
+  if (params.end_user_id) qs.end_user_id = params.end_user_id
   if (params.optimization) qs.optimization = params.optimization
   if (params.page) qs.page = String(params.page)
   if (params.page_size) qs.page_size = String(params.page_size)

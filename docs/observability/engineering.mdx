@@ -1,9 +1,15 @@
 ---
 title: "Engineering Dashboard"
-description: "Latency percentiles, error rates, cache hit ratios, cost breakdowns, prompt lifecycle pipeline, and quality funnel — the engineering view of your AI stack."
+description: "Latency, retries, cache performance, cost dimensions, and quality funnel for the live request path."
 ---
 
-The Engineering dashboard gives backend and platform teams a real-time view of system health, performance, and optimization effectiveness.
+The Engineering dashboard is the operator-focused health surface for the request path. It is intentionally investigative rather than CRUD-oriented and is meant to answer:
+
+- Is latency getting worse?
+- Are retries or errors rising?
+- Is caching helping?
+- Which models, tools, and workflows are driving cost?
+- Are requests turning into successful outcomes?
 
 <Frame caption="Engineering — latency, errors, cache, cost dimensions, pipeline, and quality funnel.">
   <img src="/images/engineering.png" alt="Engineering Dashboard" />
@@ -13,41 +19,45 @@ The Engineering dashboard gives backend and platform teams a real-time view of s
 
 | Card | What it shows |
 |------|---------------|
-| Total Requests | Provider calls in the time window |
 | Avg Latency | Mean response time across all calls |
 | P95 Latency | 95th-percentile response time |
 | Error Rate | Percentage of calls that returned an error |
-| Input / Output Tokens | Total token consumption |
+| Retry Rate | How often the runtime had to retry |
+| Cache Rate | Percentage of calls served from cache |
+| Total Requests | Provider calls in the time window |
+| Total Tokens | Aggregate token usage |
 | Total Cost | Aggregate spend in USD |
-| Cache Hit Rate | Percentage of calls served from cache |
 
-## Prompt Lifecycle Pipeline
+## Request lifecycle pipeline
 
-A horizontal pipeline showing how requests flow through optimization stages:
+The page visualizes how requests move through the runtime path:
 
 ```
-Received → Optimized → Cached → Routed → Completed → Errored
+Received → Routed → Cached → Completed → With outcome → Positive
 ```
 
-Each stage shows a count and percentage relative to total requests.
+Each stage shows counts and percentages relative to total traffic in the selected window.
 
-## Cost Breakdown
+## Cost breakdowns
 
-Two-dimensional cost analysis:
+The shipped page currently breaks engineering cost and activity down by:
 
-- **By Model** — cost attribution across all models used in the window
-- **By Provider** — cost attribution across providers (OpenAI, Anthropic, Ollama, etc.)
+- **Feature / workflow area**
+- **Model**
+- **Tool usage**
 
 ## Quality Funnel
 
-Visualizes the pass-through quality of your AI pipeline:
+Visualizes the drop-off from total requests to positive outcomes:
 
 | Stage | Description |
 |-------|-------------|
 | Total | All requests received |
-| Completed | Requests that returned a response |
-| Cached | Responses served from cache (exact or semantic) |
-| Optimized | Requests where token optimization was applied |
+| Successful | Requests that completed successfully |
+| Routed | Requests that flowed through the gateway runtime |
+| Cached | Requests served from response cache |
+| With outcome | Requests linked to an outcome event |
+| Positive outcome | Requests that ended in a positive business result |
 
 ## API
 
@@ -55,15 +65,15 @@ Visualizes the pass-through quality of your AI pipeline:
 GET /analytics/engineering?from=&to=
 ```
 
-Returns `EngineeringMetrics` with all KPIs, lifecycle stages, cost dimensions, and quality funnel in a single response. See the [API reference](http://localhost:8201/reference) for the full schema.
+Returns `EngineeringMetrics` with KPIs, lifecycle stages, cost dimensions, and quality funnel in a single response. See the [API reference](http://localhost:8201/reference) for the full schema.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="AI Ops Dashboards" icon="chart-bar" href="/observability/ai-ops-dashboards">
-    Executive-level cost and usage views.
-  </Card>
   <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
-    Drill into individual requests.
+    Inspect the requests behind the health metrics.
+  </Card>
+  <Card title="Model Usage" icon="cpu" href="/observability/model-usage">
+    Continue into deeper model and routing economics.
   </Card>
 </CardGroup>

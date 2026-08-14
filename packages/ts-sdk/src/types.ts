@@ -57,6 +57,7 @@ export interface ProviderCallEvent {
   model: string
   latency_ms: number
   status: 'success' | 'error'
+  cost_usd?: number
   input_tokens?: number
   output_tokens?: number
   cached_input_tokens?: number

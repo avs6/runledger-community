@@ -1,0 +1,49 @@
+---
+title: "Analytics Users"
+description: "Top spenders, cohort tiers, anomaly flags, and per-user cost drilldowns across the observability workflow."
+---
+
+The Analytics Users area answers a simple question: **which end users are driving spend, and is that spend healthy?**
+
+Use it when you want to find:
+
+- heavy spenders
+- new users ramping quickly
+- anomalous spend patterns
+- which models and features one user is consuming over time
+
+## What the list page shows
+
+- **Top spenders** - end users ranked by spend
+- **Cohort tiers** - P0 to P3 distribution by spend band
+- **Anomaly flags** - user spend anomalies surfaced from the nightly worker
+- **Quick segmentation** - all, heavy, anomalous, and new-this-week views
+
+## What the detail page shows
+
+- **Per-user totals** - spend, runs, calls, and average cost per run
+- **Spend over time** - how the user's activity changes across the selected window
+- **Models used** - which models are driving that user's cost
+- **Features used** - which workflows or feature tags are responsible
+- **Workflow bridges** - direct pivots into Request Explorer, Request Flow, and Outcomes & ROI
+
+## Best used with
+
+| Question | Best next page |
+|---|---|
+| Which exact requests caused the spike? | [Request Explorer](/observability/request-explorer) |
+| Is this user part of a broader routing pattern? | [Request Flow](/observability/request-flow) |
+| Is the spend producing business value? | [Outcomes & ROI](/finops/outcomes) |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Analytics Overview" icon="chart-bar" href="/observability/analytics">
+    Start at the aggregate layer before drilling into individual users.
+  </Card>
+  <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
+    Inspect the exact runs, models, routes, and outcomes behind a user profile.
+  </Card>
+</CardGroup>
+
+See [`examples/07_analytics_query.py`](https://github.com/avs6/runledger-community/blob/master/examples/07_analytics_query.py) and [`examples/10_replay_experiment.py`](https://github.com/avs6/runledger-community/blob/master/examples/10_replay_experiment.py).

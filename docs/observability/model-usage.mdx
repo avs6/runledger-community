@@ -1,25 +1,36 @@
 ---
 title: "Model Usage"
-description: "Detailed model-level usage analytics — request counts, token consumption, cost distribution, latency, and error rates per model and provider."
+description: "Model, provider, route, latency, cache, and quality behavior across workspace, org, or platform scope."
 ---
 
-The Model Usage dashboard gives you a per-model breakdown of how your AI infrastructure is being used, helping you spot cost concentration, under-utilized models, and performance outliers.
+The Model Usage page explains which models are actually being used in live traffic and what that means for cost, latency, cache behavior, routing, and observed quality.
 
-## Key features
+## What the page shows
 
-- **Per-model metrics** — request count, total tokens, cost, average latency, and error rate.
-- **Provider breakdown** — see which providers are serving each model.
-- **Cost distribution** — donut chart showing spend concentration across models.
-- **Time-series trends** — track model usage changes over time.
-- **Scoped views** — filter by workspace, time range, or agent.
+- **Scope-aware usage** - workspace, organization, or platform view depending on role
+- **Model concentration** - which models are taking the most traffic and spend
+- **Timeline mix** - how model families shift over time
+- **Route distribution** - which gateway routes and providers are carrying the load
+- **Cost / latency / quality comparison** - compare models on real traffic rather than static catalog metadata
+- **Best-value signals** - spot which models appear to deliver better quality-for-cost tradeoffs
+
+## Best used for
+
+- understanding whether routing is spreading traffic as intended
+- spotting high-cost or high-latency model lanes
+- comparing local versus hosted model behavior
+- validating whether AI Hub and Provider Profiles are showing up in real usage
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Model scorecards" icon="trophy" href="/observability/model-scorecards">
-    Quality metrics and routing recommendations per model.
+  <Card title="Economics Overview" icon="chart-line" href="/observability/economics">
+    Start with regressions and change impact before diving into model-level behavior.
   </Card>
-  <Card title="Gateway routing" icon="route" href="/gateway/routing">
-    How models are selected for requests.
+  <Card title="Cost & Savings" icon="sparkles" href="/finops/cost-savings">
+    Move from model behavior into realized savings and optimization ROI.
+  </Card>
+  <Card title="AI Hub" icon="boxes-stacked" href="/administration/ai-hub">
+    Cross-check observed traffic against the curated model catalog.
   </Card>
 </CardGroup>

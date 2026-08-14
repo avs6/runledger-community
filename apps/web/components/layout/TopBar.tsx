@@ -5,7 +5,7 @@ import { Moon, Sun, LogOut, User, ChevronDown, Shield, LayoutGrid, Check, Buildi
 import { useTheme } from 'next-themes'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useRole } from '@/components/rbac/useRole'
 
 interface Workspace {
@@ -26,6 +26,7 @@ export default function TopBar() {
   const { data: session, update } = useSession()
   const { resolvedTheme, setTheme } = useTheme()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -45,11 +46,16 @@ export default function TopBar() {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   const badge = roleBadge(workspaceRole || tenantRole, isPlatformAdmin)
+  const analyticsScope = pathname === '/analytics' ? searchParams.get('scope') : null
   const dashboardScope = pathname.startsWith('/global-dashboard')
     ? 'Platform'
     : pathname.startsWith('/organization/dashboard')
       ? 'Org'
-      : pathname === '/' || pathname.startsWith('/dashboard')
+      : analyticsScope === 'platform'
+        ? 'Platform'
+        : analyticsScope === 'org'
+          ? 'Org'
+          : pathname === '/' || pathname.startsWith('/dashboard') || pathname === '/analytics'
         ? 'Workspace'
         : null
 

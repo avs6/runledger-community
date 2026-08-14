@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from fastapi.responses import StreamingResponse
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -40,15 +43,28 @@ def _duration_ms(started: datetime, ended: datetime | None) -> int | None:
 async def list_sessions(
     workspace: WorkspaceDep,
     db: DbDep,
+    q: str | None = Query(None),
     end_user_id: str | None = Query(None),
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
-    limit: int = Query(50, ge=1, le=200),
+    min_turns: int | None = Query(None, ge=1),
+    min_cost: Decimal | None = Query(None),
+    max_cost: Decimal | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
 ) -> SessionList:
     base_where = [
         AgentRun.workspace_id == workspace.id,
         AgentRun.session_id.isnot(None),
     ]
+    if q and q.strip():
+        q_like = f"%{q.strip()}%"
+        base_where.append(
+            or_(
+                cast(AgentRun.session_id, String).ilike(q_like),
+                AgentRun.end_user_id.ilike(q_like),
+            )
+        )
     if end_user_id:
         base_where.append(AgentRun.end_user_id == end_user_id)
     if from_dt:
@@ -56,27 +72,38 @@ async def list_sessions(
     if to_dt:
         base_where.append(AgentRun.started_at <= to_dt)
 
-    stmt = (
+    grouped = (
         select(
             AgentRun.session_id,
             func.max(AgentRun.end_user_id).label("end_user_id"),
             func.count(AgentRun.id).label("run_count"),
-            func.sum(AgentRun.total_cost_usd).label("total_cost_usd"),
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")).label("total_cost_usd"),
             func.min(AgentRun.started_at).label("started_at"),
             func.max(AgentRun.ended_at).label("ended_at"),
         )
         .where(*base_where)
         .group_by(AgentRun.session_id)
+    )
+    if min_turns is not None:
+        grouped = grouped.having(func.count(AgentRun.id) >= min_turns)
+    if min_cost is not None:
+        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost)
+    if max_cost is not None:
+        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost)
+
+    total = (
+        await db.execute(select(func.count()).select_from(grouped.subquery()))
+    ).scalar_one()
+
+    stmt = (
+        grouped
         .order_by(func.max(AgentRun.started_at).desc())
-        .limit(limit)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
 
     result = await db.execute(stmt)
     rows = result.all()
-
-    # Total distinct session count
-    count_stmt = select(func.count(AgentRun.session_id.distinct())).where(*base_where)
-    total = (await db.execute(count_stmt)).scalar_one()
 
     items = [
         SessionItem(
@@ -90,7 +117,96 @@ async def list_sessions(
         )
         for row in rows
     ]
-    return SessionList(items=items, total=total)
+    return SessionList(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/export", response_model=None)
+async def export_sessions(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    q: str | None = Query(None),
+    end_user_id: str | None = Query(None),
+    from_dt: datetime | None = Query(None, alias="from"),
+    to_dt: datetime | None = Query(None, alias="to"),
+    min_turns: int | None = Query(None, ge=1),
+    min_cost: Decimal | None = Query(None),
+    max_cost: Decimal | None = Query(None),
+    limit: int = Query(5000, ge=1, le=10000),
+) -> StreamingResponse:
+    base_where = [
+        AgentRun.workspace_id == workspace.id,
+        AgentRun.session_id.isnot(None),
+    ]
+    if q and q.strip():
+        q_like = f"%{q.strip()}%"
+        base_where.append(
+            or_(
+                cast(AgentRun.session_id, String).ilike(q_like),
+                AgentRun.end_user_id.ilike(q_like),
+            )
+        )
+    if end_user_id:
+        base_where.append(AgentRun.end_user_id == end_user_id)
+    if from_dt:
+        base_where.append(AgentRun.started_at >= from_dt)
+    if to_dt:
+        base_where.append(AgentRun.started_at <= to_dt)
+
+    grouped = (
+        select(
+            AgentRun.session_id,
+            func.max(AgentRun.end_user_id).label("end_user_id"),
+            func.count(AgentRun.id).label("run_count"),
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")).label("total_cost_usd"),
+            func.min(AgentRun.started_at).label("started_at"),
+            func.max(AgentRun.ended_at).label("ended_at"),
+        )
+        .where(*base_where)
+        .group_by(AgentRun.session_id)
+    )
+    if min_turns is not None:
+        grouped = grouped.having(func.count(AgentRun.id) >= min_turns)
+    if min_cost is not None:
+        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost)
+    if max_cost is not None:
+        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost)
+
+    rows = (
+        await db.execute(
+            grouped.order_by(func.max(AgentRun.started_at).desc()).limit(limit)
+        )
+    ).all()
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(
+        buf,
+        fieldnames=[
+            "session_id",
+            "end_user_id",
+            "run_count",
+            "total_cost_usd",
+            "started_at",
+            "ended_at",
+        ],
+    )
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(
+            {
+                "session_id": row.session_id,
+                "end_user_id": row.end_user_id,
+                "run_count": row.run_count,
+                "total_cost_usd": str(row.total_cost_usd),
+                "started_at": row.started_at.isoformat() if row.started_at else "",
+                "ended_at": row.ended_at.isoformat() if row.ended_at else "",
+            }
+        )
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="sessions.csv"'},
+    )
 
 
 # ── Session detail ─────────────────────────────────────────────────────────────

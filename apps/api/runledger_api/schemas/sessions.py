@@ -20,6 +20,8 @@ class SessionItem(BaseModel):
 class SessionList(BaseModel):
     items: list[SessionItem]
     total: int
+    page: int
+    page_size: int
 
 
 class SessionRunItem(BaseModel):
