@@ -164,8 +164,8 @@ LiteLLM Proxy.  RunLedger adds:
 
 ```
 your app
-  └── openai.OpenAI(base_url="http://runledger-api:8000/gateway/v1")
-        └── RunLedger Gateway :8000
+  └── openai.OpenAI(base_url="http://runledger-gateway-rs:3000/gateway/v1")
+        └── RunLedger Gateway (Rust data plane)
               ├── prompt cache  (cache hit → return immediately)
               ├── cost-cap check
               ├── PII redaction
@@ -192,8 +192,8 @@ curl -X POST http://localhost:8201/gateway/routes \
   }'
 ```
 
-Set `LITELLM_PROXY_KEY` in the RunLedger API server's environment (e.g.
-`apps/api/.env`).
+Set `LITELLM_PROXY_KEY` in the Rust gateway runtime environment so the data
+plane can authenticate to LiteLLM.
 
 ### 2. Send completions through the RunLedger Gateway
 
@@ -201,7 +201,7 @@ Set `LITELLM_PROXY_KEY` in the RunLedger API server's environment (e.g.
 import openai
 
 client = openai.OpenAI(
-    base_url="http://localhost:8201/gateway/v1",
+    base_url="http://localhost:8210/gateway/v1",
     api_key="rl_live_...",    # your RunLedger workspace API key
 )
 

@@ -4,9 +4,9 @@ Example 18 — Model Gateway
 Demonstrates the OpenAI-compatible proxy built into RunLedger:
   1. POST /gateway/routes      — add a provider route
   2. GET  /gateway/routes      — list configured routes
-  3. POST /gateway/chat/completions — send a completion through the gateway
+  3. POST /chat/completions on the Rust gateway runtime — send a completion through the gateway
      (cache miss → provider call → response cached)
-  4. POST /gateway/chat/completions — repeat same prompt (cache hit)
+  4. POST /chat/completions on the Rust gateway runtime — repeat same prompt
   5. GET  /gateway/stats        — request counts, cache hit rate, avg latency
   6. DELETE /gateway/routes/{id} — cleanup
 
@@ -22,9 +22,9 @@ RunLedger:
 
 Provider API key
 ────────────────
-The gateway reads the key from an environment variable on the API server.
+The gateway reads the key from an environment variable on the Rust gateway runtime.
 Set api_key_env_var to the name of that variable (e.g. "OPENAI_API_KEY").
-The variable must be set in the server environment (e.g. apps/api/.env).
+The variable must be set in the runtime service environment.
 
 Install
 ───────
@@ -32,12 +32,13 @@ Install
 
 Run it
 ──────
-    # Set OPENAI_API_KEY in apps/api/.env (server-side)
+    # Set OPENAI_API_KEY in the Rust gateway runtime environment
     python 18_gateway.py
 
 Key .env variables:
-    RUNLEDGER_API_KEY   — your workspace API key
-    RUNLEDGER_BASE_URL  — http://localhost:8000  (default)
+    RUNLEDGER_API_KEY          — your workspace API key
+    RUNLEDGER_BASE_URL         — control-plane API (default)
+    RUNLEDGER_GATEWAY_BASE_URL — Rust gateway runtime (default: http://localhost:8210/gateway)
 """
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+GATEWAY_BASE_URL = os.getenv("RUNLEDGER_GATEWAY_BASE_URL", "http://localhost:8210/gateway")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
@@ -75,7 +77,7 @@ route_payload = {
     "alias": "gpt-4o-mini",          # what the client sends as model name
     "provider": "openai",
     "target_model": "gpt-4o-mini",   # what the gateway sends to OpenAI
-    "api_key_env_var": "OPENAI_API_KEY",  # env var on the API server
+    "api_key_env_var": "OPENAI_API_KEY",  # env var on the Rust gateway runtime
     "priority": 10,
 }
 
@@ -116,7 +118,7 @@ else:
 
 # ── Step 3 — Send a completion (cache miss) ────────────────────────────────────
 
-sep("Step 3 — POST /gateway/chat/completions (cache miss)")
+sep("Step 3 — POST Rust gateway /chat/completions")
 
 PROMPT_MESSAGES = [
     {"role": "system", "content": "You are a helpful assistant."},
@@ -131,8 +133,8 @@ completion_payload = {
 }
 
 t0 = time.monotonic()
-with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=30) as client:
-    resp = client.post("/gateway/chat/completions", json=completion_payload)
+with httpx.Client(base_url=GATEWAY_BASE_URL, headers=HEADERS, timeout=30) as client:
+    resp = client.post("/chat/completions", json=completion_payload)
 elapsed_ms = int((time.monotonic() - t0) * 1000)
 
 if resp.status_code == 200:
@@ -144,8 +146,8 @@ if resp.status_code == 200:
     print(f"  Latency:   {elapsed_ms}ms  (first call — cache miss, real provider call)")
     print(f"  Tokens:    in={usage.get('prompt_tokens')}  out={usage.get('completion_tokens')}")
 elif resp.status_code == 502:
-    print("  502 — No routes reachable or no provider key set on the server.")
-    print("  Set OPENAI_API_KEY in apps/api/.env, then restart the API.")
+    print("  502 — No routes reachable or no provider key set on the Rust gateway runtime.")
+    print("  Set OPENAI_API_KEY for runledger-gateway-rs, then restart that service.")
     print(f"  Detail: {resp.json().get('detail', '')}")
 else:
     print(f"  ERROR {resp.status_code}: {resp.text}")
@@ -153,11 +155,11 @@ else:
 
 # ── Step 4 — Same prompt again (cache hit) ────────────────────────────────────
 
-sep("Step 4 — POST /gateway/chat/completions (cache hit)")
+sep("Step 4 — POST Rust gateway /chat/completions again")
 
 t0 = time.monotonic()
-with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=30) as client:
-    resp2 = client.post("/gateway/chat/completions", json=completion_payload)
+with httpx.Client(base_url=GATEWAY_BASE_URL, headers=HEADERS, timeout=30) as client:
+    resp2 = client.post("/chat/completions", json=completion_payload)
 elapsed_ms_2 = int((time.monotonic() - t0) * 1000)
 
 if resp2.status_code == 200:

@@ -1,0 +1,67 @@
+---
+title: "MCP Registry"
+description: "Manage workspace MCP servers, setup paths, tool permissions, and call history from one consolidated control-plane surface."
+---
+
+The **MCP Registry** is the canonical workspace surface for Model Context Protocol connectivity in RunLedger.
+
+It combines two responsibilities that used to be split across separate pages:
+
+- **setup and connection guidance** for Claude, Codex, Cursor, Windsurf, hosted agents, and local stdio bridges
+- **ongoing registry management** for MCP servers, discovered tools, permission policies, and tool-call review
+
+The legacy `/mcp` route now exists only as a compatibility redirect into this consolidated area.
+
+## What MCP Registry Owns
+
+- Register a custom MCP server.
+- Edit the server definition after registration.
+- Deactivate and re-activate servers.
+- Inspect discovered tools, resources, and prompts on each server.
+- Execute a test tool call through RunLedger.
+- Grant and revoke MCP permission policies.
+- Review recent MCP tool calls and governance outcomes.
+
+This is the working control-plane home for MCP server lifecycle management. Setup guidance may also be linked from **Onboarding**, but MCP Registry owns the actual managed entity surface.
+
+## Who Can Manage It
+
+- Workspace admins can manage MCP servers for their active workspace.
+- Org admins and org managers can manage the registry while operating inside a workspace they control.
+- Platform admins inherit workspace-elevated access while operating inside an organization.
+
+## Common Workflow
+
+1. Open **MCP Registry** and use **Setup & Connect** to choose the right client path.
+2. Register or seed the server definitions the workspace intends to allow.
+3. Review discovered tools, resources, and prompts for each server.
+4. Edit server metadata, auth hints, command arguments, or URLs as the integration evolves.
+5. Add permission policies for narrower scopes when governance requires it.
+6. Run a test tool call and review the resulting call log.
+7. Deactivate unused or risky servers instead of leaving them available indefinitely.
+
+## Relationship To Nearby Surfaces
+
+- **Onboarding**: setup/discovery guide for external tools, not the durable management home.
+- **API Keys**: workspace keys used by MCP clients and bridges.
+- **Approvals / Policy surfaces**: downstream governance around risky tool use.
+- **Request and run observability**: where resulting workflow traffic shows up after agents use MCP-enabled tools.
+
+## API Coverage
+
+The backing API supports the full server lifecycle plus tool and permission actions:
+
+- `POST /mcp-registry`
+- `GET /mcp-registry`
+- `GET /mcp-registry/{id}`
+- `PUT /mcp-registry/{id}`
+- `DELETE /mcp-registry/{id}`
+- `GET /mcp-registry/tools`
+- `POST /mcp-registry/tools/call`
+- `GET /mcp-registry/tool-calls`
+- `POST /mcp-registry/permissions`
+- `GET /mcp-registry/permissions`
+- `DELETE /mcp-registry/permissions/{id}`
+- `POST /mcp-registry/seed-defaults`
+
+Use a dashboard session key from `POST /auth/login` for management actions.

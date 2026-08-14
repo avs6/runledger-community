@@ -117,6 +117,8 @@ RunLedger Community currently includes:
 - [Workflows](docs/agentic/workflows.mdx)
 - [Vector stores](docs/agentic/vector-stores.mdx)
 - [API playground](docs/agentic/playground.mdx)
+- [MCP registry](docs/administration/mcp-registry.mdx)
+- [AI Hub model catalog](docs/administration/ai-hub.mdx)
 - [Backup and restore](docs/backup-restore.md)
 - [Email delivery and reporting](docs/administration/email-delivery.md)
 - tag management, search tools, tool policies, access groups, response cache controls, and security settings in the dashboard

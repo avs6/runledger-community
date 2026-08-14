@@ -1,0 +1,58 @@
+---
+title: "AI Hub"
+description: "Manage the workspace model catalog: curate model cards, sync provider baselines, and mark cards for promotion or deprecation."
+---
+
+The **AI Hub** page is the workspace model catalog for RunLedger. It is where admins curate the model cards that appear in model-management workflows before those cards show up in routing, usage review, and governance conversations.
+
+## What AI Hub Owns
+
+- Create model cards for hosted or local models your workspace wants to track.
+- Edit metadata such as provider, description, tags, capabilities, context window, and cost hints.
+- Mark cards as featured, private, or deprecated.
+- Add deprecation notices so model transitions are visible to operators.
+- Sync a baseline catalog from supported providers, then tune the resulting cards locally.
+- Record access requests for sensitive or gated model entries.
+
+AI Hub is intentionally a **catalog surface**, not a routing engine. Use it to define and govern the model inventory your workspace cares about, then connect that inventory to adjacent control-plane and observability surfaces.
+
+## Who Can Manage AI Hub
+
+- Workspace admins can manage the catalog for their active workspace.
+- Org admins and org managers can manage AI Hub while operating inside a workspace they control.
+- Platform admins inherit workspace-elevated rights when operating inside an organization.
+
+Members can review downstream usage surfaces, but they should not treat AI Hub as a free-form marketplace.
+
+## Common Workflow
+
+1. Open **AI Hub** and create a model card manually or sync a provider baseline.
+2. Add tags and capabilities that make the card meaningful to your routing and review workflow.
+3. Set pricing hints if the workspace wants local cost expectations on the card itself.
+4. Mark stable models as `Featured`.
+5. Mark retiring models as `Deprecated` and add a migration note.
+6. Follow through into **Provider Profiles** for provider-level pricing and connection management.
+7. Review **Model Usage** to see where the catalog inventory is actually showing up in traffic.
+
+## Relationship To Nearby Surfaces
+
+- **Provider Profiles**: provider pricing, endpoints, and import/repricing concerns.
+- **Model Usage**: observed request volume, cost, and model behavior in real traffic.
+- **Gateway Routes**: runtime routing and alias behavior.
+- **Onboarding**: setup and discovery entry point, not the long-term catalog home.
+
+AI Hub should stay cohesive with those surfaces without collapsing into them.
+
+## API Coverage
+
+The backing API supports full CRUD plus sync and access-request actions:
+
+- `POST /hub/models`
+- `GET /hub/models`
+- `GET /hub/models/{id}`
+- `PUT /hub/models/{id}`
+- `DELETE /hub/models/{id}`
+- `POST /hub/models/{id}/request-access`
+- `POST /hub/sync-provider`
+
+Use a dashboard session key from `POST /auth/login` for these management actions.

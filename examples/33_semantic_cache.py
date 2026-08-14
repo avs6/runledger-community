@@ -52,7 +52,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+GATEWAY_BASE_URL = os.getenv("RUNLEDGER_GATEWAY_BASE_URL", "http://localhost:8210/gateway")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
@@ -108,7 +109,7 @@ first = {
 }
 
 t0 = time.monotonic()
-with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=30) as client:
+with httpx.Client(base_url=GATEWAY_BASE_URL, headers=HEADERS, timeout=30) as client:
     resp = client.post("/gateway/chat/completions", json=first)
 miss_ms = int((time.monotonic() - t0) * 1000)
 
@@ -117,7 +118,7 @@ if resp.status_code == 200:
     print(f"  Response:  {content[:80]!r}")
     print(f"  Latency:   {miss_ms}ms  (miss — real provider call)")
 elif resp.status_code == 502:
-    print("  502 — set OPENAI_API_KEY on the API server and restart, then re-run.")
+    print("  502 - set OPENAI_API_KEY on the Rust gateway runtime and restart it, then re-run.")
     sys.exit(0)
 else:
     print(f"  ERROR {resp.status_code}: {resp.text}")
@@ -134,7 +135,7 @@ paraphrase = {
 }
 
 t0 = time.monotonic()
-with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=30) as client:
+with httpx.Client(base_url=GATEWAY_BASE_URL, headers=HEADERS, timeout=30) as client:
     resp2 = client.post("/gateway/chat/completions", json=paraphrase)
 hit_ms = int((time.monotonic() - t0) * 1000)
 

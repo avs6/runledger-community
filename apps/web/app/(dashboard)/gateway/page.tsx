@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
-  Network, RefreshCw, Plus, Trash2, Activity,
+  Network, RefreshCw, Plus, Trash2, Activity, Pencil,
   ChevronDown, ChevronUp, BarChart2, TrendingDown, Sparkles,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
@@ -32,6 +32,62 @@ function parseCsvTags(value: string): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+interface RouteEditState {
+  id: string
+  alias: string
+  targetModel: string
+  baseUrl: string
+  apiKeyEnvVar: string
+  routingGroupId: string
+  priority: string
+  region: string
+  requiredTags: string
+  excludedTags: string
+  dailyCostLimitUsd: string
+  monthlyCostLimitUsd: string
+  perUserRpmLimit: string
+  fallbackAliases: string
+  routeConfigStr: string
+  routingConfigStr: string
+  piiRedactionEnabled: boolean
+  semanticCacheEnabled: boolean
+  contextCompilerEnabled: boolean
+  intelligentRoutingEnabled: boolean
+}
+
+interface RoutingGroupEditState {
+  id: string
+  alias: string
+  name: string
+  description: string
+  matchTags: string
+  defaultTags: string
+  strategyType: GatewayRoutingGroupStrategy
+  strategyConfigStr: string
+  isActive: boolean
+}
+
+interface RoutingPolicyEditState {
+  id: string
+  policyType: RoutingPolicyType
+  configStr: string
+  isActive: boolean
+}
+
+interface PassThroughEditState {
+  id: string
+  pathPrefix: string
+  upstreamBaseUrl: string
+  authType: string
+  authConfigStr: string
+  timeoutMs: string
+  rateLimitRpm: string
+  costPerCallUsd: string
+  headerConfigStr: string
+  defaultQueryStr: string
+  isActive: boolean
 }
 
 export default function GatewayPage() {
@@ -95,6 +151,9 @@ export default function GatewayPage() {
   const [newRouteFallbackAliases, setNewRouteFallbackAliases] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
+  const [routeEditState, setRouteEditState] = useState<RouteEditState | null>(null)
+  const [savingRouteEdit, setSavingRouteEdit] = useState(false)
+  const [routeEditError, setRouteEditError] = useState('')
 
   const [routingGroups, setRoutingGroups] = useState<GatewayRoutingGroup[]>([])
   const [strategyComparison, setStrategyComparison] = useState<GatewayRoutingStrategyComparisonItem[]>([])
@@ -108,6 +167,9 @@ export default function GatewayPage() {
   const [newGroupStrategyType, setNewGroupStrategyType] = useState<GatewayRoutingGroupStrategy>('manual')
   const [newGroupStrategyConfig, setNewGroupStrategyConfig] = useState('{}')
   const [newGroupStrategyError, setNewGroupStrategyError] = useState('')
+  const [groupEditState, setGroupEditState] = useState<RoutingGroupEditState | null>(null)
+  const [savingGroupEdit, setSavingGroupEdit] = useState(false)
+  const [groupEditError, setGroupEditError] = useState('')
 
   const [routingPolicies, setRoutingPolicies] = useState<RoutingPolicy[]>([])
   const [policyAlias, setPolicyAlias] = useState('')
@@ -116,6 +178,9 @@ export default function GatewayPage() {
   const [creatingPolicy, setCreatingPolicy] = useState(false)
   const [policyConfigError, setPolicyConfigError] = useState('')
   const [showPolicyForm, setShowPolicyForm] = useState(false)
+  const [policyEditState, setPolicyEditState] = useState<RoutingPolicyEditState | null>(null)
+  const [savingPolicyEdit, setSavingPolicyEdit] = useState(false)
+  const [policyEditError, setPolicyEditError] = useState('')
   const [policyAnalysis, setPolicyAnalysis] = useState<Record<string, RoutingPolicyAnalysis>>({})
   const [loadingPolicyAnalysis, setLoadingPolicyAnalysis] = useState<Record<string, boolean>>({})
 
@@ -173,6 +238,168 @@ export default function GatewayPage() {
     const aliases = route.fallback_config?.aliases
     if (!Array.isArray(aliases)) return []
     return aliases.filter((alias): alias is string => typeof alias === 'string' && alias.trim().length > 0)
+  }
+
+  function beginRouteEdit(route: GatewayRoute) {
+    setGroupEditState(null)
+    setPolicyEditState(null)
+    setRouteEditError('')
+    setRouteEditState({
+      id: route.id,
+      alias: route.alias,
+      targetModel: route.target_model,
+      baseUrl: route.base_url ?? '',
+      apiKeyEnvVar: route.api_key_env_var ?? '',
+      routingGroupId: route.routing_group_id ?? '',
+      priority: String(route.priority),
+      region: route.region ?? '',
+      requiredTags: route.required_tags.join(', '),
+      excludedTags: route.excluded_tags.join(', '),
+      dailyCostLimitUsd: route.daily_cost_limit_usd ?? '',
+      monthlyCostLimitUsd: route.monthly_cost_limit_usd ?? '',
+      perUserRpmLimit: route.per_user_rpm_limit != null ? String(route.per_user_rpm_limit) : '',
+      fallbackAliases: getRouteFallbackAliases(route).join(', '),
+      routeConfigStr: route.config ? JSON.stringify(route.config, null, 2) : '{}',
+      routingConfigStr: route.routing_config ? JSON.stringify(route.routing_config, null, 2) : '{}',
+      piiRedactionEnabled: route.pii_redaction_enabled,
+      semanticCacheEnabled: route.semantic_cache_enabled,
+      contextCompilerEnabled: route.context_compiler_enabled,
+      intelligentRoutingEnabled: route.intelligent_routing_enabled,
+    })
+  }
+
+  async function handleSaveRouteEdit() {
+    if (!apiKey || !routeEditState) return
+    let routeConfig: Record<string, unknown> | null = null
+    let routingConfig: Record<string, unknown> | null = null
+    try {
+      routeConfig = routeEditState.routeConfigStr.trim() ? JSON.parse(routeEditState.routeConfigStr) : null
+      routingConfig = routeEditState.routingConfigStr.trim() ? JSON.parse(routeEditState.routingConfigStr) : null
+    } catch {
+      setRouteEditError('Route config and routing config must be valid JSON')
+      return
+    }
+    setSavingRouteEdit(true)
+    setRouteEditError('')
+    try {
+      const updated = await updateGatewayRoute(apiKey, routeEditState.id, {
+        alias: routeEditState.alias.trim(),
+        routing_group_id: routeEditState.routingGroupId || null,
+        target_model: routeEditState.targetModel.trim(),
+        base_url: routeEditState.baseUrl.trim() || null,
+        api_key_env_var: routeEditState.apiKeyEnvVar.trim() || null,
+        priority: parseInt(routeEditState.priority, 10) || 10,
+        config: routeConfig,
+        daily_cost_limit_usd: routeEditState.dailyCostLimitUsd ? parseFloat(routeEditState.dailyCostLimitUsd) : null,
+        monthly_cost_limit_usd: routeEditState.monthlyCostLimitUsd ? parseFloat(routeEditState.monthlyCostLimitUsd) : null,
+        pii_redaction_enabled: routeEditState.piiRedactionEnabled,
+        semantic_cache_enabled: routeEditState.semanticCacheEnabled,
+        context_compiler_enabled: routeEditState.contextCompilerEnabled,
+        intelligent_routing_enabled: routeEditState.intelligentRoutingEnabled,
+        routing_config: routeEditState.intelligentRoutingEnabled ? routingConfig : null,
+        per_user_rpm_limit: routeEditState.perUserRpmLimit ? parseInt(routeEditState.perUserRpmLimit, 10) : null,
+        fallback_config: parseCsvTags(routeEditState.fallbackAliases).length > 0 ? { aliases: parseCsvTags(routeEditState.fallbackAliases) } : null,
+        required_tags: parseCsvTags(routeEditState.requiredTags),
+        excluded_tags: parseCsvTags(routeEditState.excludedTags),
+        region: routeEditState.region.trim() || null,
+      })
+      setGatewayRoutes((prev) => prev.map((route) => (route.id === updated.id ? updated : route)))
+      setRouteEditState(null)
+      toast.success('Gateway route updated')
+      await load()
+    } catch {
+      toast.error('Failed to update route')
+    } finally {
+      setSavingRouteEdit(false)
+    }
+  }
+
+  function beginGroupEdit(group: GatewayRoutingGroup) {
+    setRouteEditState(null)
+    setPolicyEditState(null)
+    setGroupEditError('')
+    setGroupEditState({
+      id: group.id,
+      alias: group.alias,
+      name: group.name,
+      description: group.description ?? '',
+      matchTags: group.match_tags.join(', '),
+      defaultTags: group.default_tags.join(', '),
+      strategyType: group.strategy_type,
+      strategyConfigStr: group.strategy_config ? JSON.stringify(group.strategy_config, null, 2) : '{}',
+      isActive: group.is_active,
+    })
+  }
+
+  async function handleSaveGroupEdit() {
+    if (!apiKey || !groupEditState) return
+    let strategyConfig: Record<string, unknown> | null = null
+    try {
+      strategyConfig = groupEditState.strategyConfigStr.trim() ? JSON.parse(groupEditState.strategyConfigStr) : null
+    } catch {
+      setGroupEditError('Strategy config must be valid JSON')
+      return
+    }
+    setSavingGroupEdit(true)
+    setGroupEditError('')
+    try {
+      await updateGatewayRoutingGroup(apiKey, groupEditState.id, {
+        alias: groupEditState.alias.trim(),
+        name: groupEditState.name.trim(),
+        description: groupEditState.description.trim() || null,
+        match_tags: parseCsvTags(groupEditState.matchTags),
+        default_tags: parseCsvTags(groupEditState.defaultTags),
+        strategy_type: groupEditState.strategyType,
+        strategy_config: strategyConfig,
+        is_active: groupEditState.isActive,
+      })
+      setGroupEditState(null)
+      toast.success('Routing group updated')
+      await load()
+    } catch {
+      toast.error('Failed to update routing group')
+    } finally {
+      setSavingGroupEdit(false)
+    }
+  }
+
+  function beginPolicyEdit(policy: RoutingPolicy) {
+    setRouteEditState(null)
+    setGroupEditState(null)
+    setPolicyEditError('')
+    setPolicyEditState({
+      id: policy.id,
+      policyType: policy.policy_type,
+      configStr: JSON.stringify(policy.config ?? {}, null, 2),
+      isActive: policy.is_active,
+    })
+  }
+
+  async function handleSavePolicyEdit() {
+    if (!apiKey || !policyEditState) return
+    let config: Record<string, unknown> = {}
+    try {
+      config = JSON.parse(policyEditState.configStr || '{}')
+    } catch {
+      setPolicyEditError('Policy config must be valid JSON')
+      return
+    }
+    setSavingPolicyEdit(true)
+    setPolicyEditError('')
+    try {
+      const updated = await updateRoutingPolicy(apiKey, policyEditState.id, {
+        policy_type: policyEditState.policyType,
+        config,
+        is_active: policyEditState.isActive,
+      })
+      setRoutingPolicies((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setPolicyEditState(null)
+      toast.success('Routing policy updated')
+    } catch {
+      toast.error('Failed to update policy')
+    } finally {
+      setSavingPolicyEdit(false)
+    }
   }
 
   function getDeploymentStatusTone(status: string): string {
@@ -666,10 +893,47 @@ export default function GatewayPage() {
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-700 dark:text-slate-300">routes: {group.route_count}</span>
                   </div>
                 </div>
-                <button onClick={() => void handleDeleteRoutingGroup(group.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => beginGroupEdit(group)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => void handleDeleteRoutingGroup(group.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
+              {groupEditState?.id === group.id && (
+                <div className="mt-4 grid gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/10 p-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Edit routing group</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Update the alias mapping, tag defaults, and strategy config without leaving the gateway page.</p>
+                  </div>
+                  <input value={groupEditState.alias} onChange={(e) => setGroupEditState({ ...groupEditState, alias: e.target.value })} className={inputCls} placeholder="Alias" />
+                  <input value={groupEditState.name} onChange={(e) => setGroupEditState({ ...groupEditState, name: e.target.value })} className={inputCls} placeholder="Group name" />
+                  <input value={groupEditState.matchTags} onChange={(e) => setGroupEditState({ ...groupEditState, matchTags: e.target.value })} className={inputCls} placeholder="Match tags (csv)" />
+                  <input value={groupEditState.defaultTags} onChange={(e) => setGroupEditState({ ...groupEditState, defaultTags: e.target.value })} className={inputCls} placeholder="Default tags (csv)" />
+                  <input value={groupEditState.description} onChange={(e) => setGroupEditState({ ...groupEditState, description: e.target.value })} className={`${inputCls} sm:col-span-2`} placeholder="Description" />
+                  <select value={groupEditState.strategyType} onChange={(e) => setGroupEditState({ ...groupEditState, strategyType: e.target.value as GatewayRoutingGroupStrategy })} className={inputCls}>
+                    <option value="manual">manual</option>
+                    <option value="latency_optimized">latency_optimized</option>
+                    <option value="round_robin">round_robin</option>
+                  </select>
+                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={groupEditState.isActive} onChange={(e) => setGroupEditState({ ...groupEditState, isActive: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    Group active
+                  </label>
+                  <textarea value={groupEditState.strategyConfigStr} onChange={(e) => { setGroupEditState({ ...groupEditState, strategyConfigStr: e.target.value }); setGroupEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"notes":"optional"}' />
+                  {groupEditError && <p className="text-xs text-red-500 sm:col-span-2">{groupEditError}</p>}
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <button onClick={() => void handleSaveGroupEdit()} disabled={savingGroupEdit} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                      {savingGroupEdit ? 'Saving...' : 'Save changes'}
+                    </button>
+                    <button onClick={() => setGroupEditState(null)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1022,6 +1286,7 @@ export default function GatewayPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                 {gatewayRoutes.map((route) => (
+                  <>
                   <tr key={route.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     {(() => {
                       const fallbackAliases = getRouteFallbackAliases(route)
@@ -1128,15 +1393,82 @@ export default function GatewayPage() {
                     </td>
                     {canManage && (
                       <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => handleDeleteRoute(route.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => beginRouteEdit(route)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteRoute(route.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     )}
                         </>
                       )
                     })()}
                   </tr>
+                  {routeEditState?.id === route.id && (
+                    <tr>
+                      <td colSpan={canManage ? 6 : 5} className="bg-indigo-50/40 dark:bg-indigo-900/10 px-4 py-4">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Edit route configuration</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Adjust provider target, routing group assignment, runtime caps, fallback aliases, and JSON config in place.</p>
+                          </div>
+                          <input value={routeEditState.alias} onChange={(e) => setRouteEditState({ ...routeEditState, alias: e.target.value })} className={inputCls} placeholder="Alias" />
+                          <input value={routeEditState.targetModel} onChange={(e) => setRouteEditState({ ...routeEditState, targetModel: e.target.value })} className={inputCls} placeholder="Target model" />
+                          <select value={routeEditState.routingGroupId} onChange={(e) => setRouteEditState({ ...routeEditState, routingGroupId: e.target.value })} className={inputCls}>
+                            <option value="">No routing group</option>
+                            {routingGroups
+                              .filter((group) => group.alias === routeEditState.alias.trim() || routeEditState.alias.trim().length === 0)
+                              .map((group) => (
+                                <option key={group.id} value={group.id}>
+                                  {group.alias} / {group.name}
+                                </option>
+                              ))}
+                          </select>
+                          <input value={routeEditState.baseUrl} onChange={(e) => setRouteEditState({ ...routeEditState, baseUrl: e.target.value })} className={inputCls} placeholder="Base URL" />
+                          <input value={routeEditState.apiKeyEnvVar} onChange={(e) => setRouteEditState({ ...routeEditState, apiKeyEnvVar: e.target.value })} className={inputCls} placeholder="API key env var" />
+                          <input value={routeEditState.priority} onChange={(e) => setRouteEditState({ ...routeEditState, priority: e.target.value })} className={inputCls} placeholder="Priority" />
+                          <input value={routeEditState.region} onChange={(e) => setRouteEditState({ ...routeEditState, region: e.target.value })} className={inputCls} placeholder="Region" />
+                          <input value={routeEditState.requiredTags} onChange={(e) => setRouteEditState({ ...routeEditState, requiredTags: e.target.value })} className={inputCls} placeholder="Required tags (csv)" />
+                          <input value={routeEditState.excludedTags} onChange={(e) => setRouteEditState({ ...routeEditState, excludedTags: e.target.value })} className={inputCls} placeholder="Excluded tags (csv)" />
+                          <input value={routeEditState.dailyCostLimitUsd} onChange={(e) => setRouteEditState({ ...routeEditState, dailyCostLimitUsd: e.target.value })} className={inputCls} placeholder="Daily cap USD" />
+                          <input value={routeEditState.monthlyCostLimitUsd} onChange={(e) => setRouteEditState({ ...routeEditState, monthlyCostLimitUsd: e.target.value })} className={inputCls} placeholder="Monthly cap USD" />
+                          <input value={routeEditState.perUserRpmLimit} onChange={(e) => setRouteEditState({ ...routeEditState, perUserRpmLimit: e.target.value })} className={inputCls} placeholder="Per-user RPM" />
+                          <input value={routeEditState.fallbackAliases} onChange={(e) => setRouteEditState({ ...routeEditState, fallbackAliases: e.target.value })} className={`${inputCls} sm:col-span-2 lg:col-span-3`} placeholder="Fallback aliases (csv)" />
+                          <textarea value={routeEditState.routeConfigStr} onChange={(e) => { setRouteEditState({ ...routeEditState, routeConfigStr: e.target.value }); setRouteEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder="Provider config JSON" />
+                          <textarea value={routeEditState.routingConfigStr} onChange={(e) => { setRouteEditState({ ...routeEditState, routingConfigStr: e.target.value }); setRouteEditError('') }} className={`${inputCls} min-h-[120px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder="Routing config JSON" />
+                          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" checked={routeEditState.piiRedactionEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, piiRedactionEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            PII redaction
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" checked={routeEditState.semanticCacheEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, semanticCacheEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            Semantic cache
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" checked={routeEditState.contextCompilerEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, contextCompilerEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            Context compiler
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" checked={routeEditState.intelligentRoutingEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, intelligentRoutingEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            Intelligent routing
+                          </label>
+                          {routeEditError && <p className="text-xs text-red-500 sm:col-span-2 lg:col-span-3">{routeEditError}</p>}
+                          <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-2">
+                            <button onClick={() => void handleSaveRouteEdit()} disabled={savingRouteEdit} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                              {savingRouteEdit ? 'Saving...' : 'Save changes'}
+                            </button>
+                            <button onClick={() => setRouteEditState(null)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </>
                 ))}
               </tbody>
             </table>
@@ -1276,12 +1608,51 @@ export default function GatewayPage() {
                       </td>
                       {canManage && (
                         <td className="px-4 py-2.5 text-right">
-                          <button onClick={() => handleDeletePolicy(p.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => beginPolicyEdit(p)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => handleDeletePolicy(p.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
+                    {policyEditState?.id === p.id && (
+                      <tr>
+                        <td colSpan={canManage ? 7 : 6} className="px-4 py-4 bg-indigo-50/40 dark:bg-indigo-900/10">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="sm:col-span-2">
+                              <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Edit routing policy</p>
+                              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Change policy type, active state, and raw config JSON while keeping analysis and promotion tools nearby.</p>
+                            </div>
+                            <select value={policyEditState.policyType} onChange={(e) => setPolicyEditState({ ...policyEditState, policyType: e.target.value as RoutingPolicyType })} className={inputCls}>
+                              <option value="manual">manual</option>
+                              <option value="weighted">weighted</option>
+                              <option value="canary">canary</option>
+                              <option value="ab_test">ab_test</option>
+                              <option value="cost_optimized">cost_optimized</option>
+                              <option value="latency_optimized">latency_optimized</option>
+                            </select>
+                            <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                              <input type="checkbox" checked={policyEditState.isActive} onChange={(e) => setPolicyEditState({ ...policyEditState, isActive: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                              Policy active
+                            </label>
+                            <textarea value={policyEditState.configStr} onChange={(e) => { setPolicyEditState({ ...policyEditState, configStr: e.target.value }); setPolicyEditError('') }} className={`${inputCls} min-h-[140px] font-mono text-xs sm:col-span-2`} />
+                            {policyEditError && <p className="text-xs text-red-500 sm:col-span-2">{policyEditError}</p>}
+                            <div className="sm:col-span-2 flex items-center gap-2">
+                              <button onClick={() => void handleSavePolicyEdit()} disabled={savingPolicyEdit} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                                {savingPolicyEdit ? 'Saving...' : 'Save changes'}
+                              </button>
+                              <button onClick={() => setPolicyEditState(null)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {expandedRec === p.alias && recommendations[p.alias] && (
                       <tr key={`${p.id}-rec`}>
                         <td colSpan={canManage ? 7 : 6} className="px-4 py-0 bg-violet-50/50 dark:bg-violet-900/10">
@@ -1503,6 +1874,9 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
   const [costPerCallUsd, setCostPerCallUsd] = useState('')
   const [headerConfigStr, setHeaderConfigStr] = useState('{}')
   const [defaultQueryStr, setDefaultQueryStr] = useState('{}')
+  const [editState, setEditState] = useState<PassThroughEditState | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1603,6 +1977,62 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
     }
   }
 
+  function beginEdit(item: GatewayPassThroughEndpoint) {
+    setEditError('')
+    setEditState({
+      id: item.id,
+      pathPrefix: item.path_prefix,
+      upstreamBaseUrl: item.upstream_base_url,
+      authType: item.auth_type ?? '',
+      authConfigStr: JSON.stringify(item.auth_config ?? {}, null, 2),
+      timeoutMs: String(item.timeout_ms),
+      rateLimitRpm: item.rate_limit_rpm != null ? String(item.rate_limit_rpm) : '',
+      costPerCallUsd: item.cost_per_call_usd ?? '',
+      headerConfigStr: JSON.stringify(item.header_config ?? {}, null, 2),
+      defaultQueryStr: JSON.stringify(item.default_query ?? {}, null, 2),
+      isActive: item.is_active,
+    })
+  }
+
+  async function handleSaveEdit() {
+    if (!editState) return
+    let authConfig: Record<string, unknown> | null = null
+    let headerConfig: Record<string, unknown> | null = null
+    let defaultQuery: Record<string, unknown> | null = null
+    try {
+      authConfig = editState.authConfigStr.trim() ? JSON.parse(editState.authConfigStr) : null
+      headerConfig = editState.headerConfigStr.trim() ? JSON.parse(editState.headerConfigStr) : null
+      defaultQuery = editState.defaultQueryStr.trim() ? JSON.parse(editState.defaultQueryStr) : null
+    } catch {
+      setEditError('Auth, header, and query config must be valid JSON')
+      return
+    }
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      const updated = await updateGatewayPassThroughEndpoint(apiKey, editState.id, {
+        path_prefix: editState.pathPrefix.trim() || '/',
+        upstream_base_url: editState.upstreamBaseUrl.trim(),
+        auth_type: editState.authType.trim() || null,
+        auth_config: authConfig,
+        timeout_ms: parseInt(editState.timeoutMs, 10) || 30000,
+        rate_limit_rpm: editState.rateLimitRpm ? parseInt(editState.rateLimitRpm, 10) : null,
+        cost_per_call_usd: editState.costPerCallUsd ? parseFloat(editState.costPerCallUsd) : null,
+        header_config: headerConfig,
+        default_query: defaultQuery,
+        is_active: editState.isActive,
+      })
+      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setEditState(null)
+      toast.success('Pass-through endpoint updated')
+      await load()
+    } catch {
+      toast.error('Failed to update pass-through endpoint')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1652,6 +2082,7 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
                 const itemStats = stats[item.id]
                 const testResult = testResults[item.id]
                 return (
+              <>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1704,6 +2135,9 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
                     <button onClick={() => void handleTest(item)} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-950/30">
                       {testingId === item.id ? 'Testing...' : 'Test'}
                     </button>
+                    <button onClick={() => beginEdit(item)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      Edit
+                    </button>
                     <button onClick={() => void handleToggle(item)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
                       {item.is_active ? 'Disable' : 'Enable'}
                     </button>
@@ -1713,6 +2147,37 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
                   </div>
                 )}
               </div>
+              {editState?.id === item.id && (
+                <div className="mt-4 grid gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/10 p-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Edit pass-through endpoint</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Tune upstream pathing, auth, timeout, headers, query defaults, and cost metadata without recreating the endpoint.</p>
+                  </div>
+                  <input value={editState.pathPrefix} onChange={(e) => setEditState({ ...editState, pathPrefix: e.target.value })} className={inputCls} placeholder="/v1" />
+                  <input value={editState.upstreamBaseUrl} onChange={(e) => setEditState({ ...editState, upstreamBaseUrl: e.target.value })} className={inputCls} placeholder="https://upstream.example.com" />
+                  <input value={editState.authType} onChange={(e) => setEditState({ ...editState, authType: e.target.value })} className={inputCls} placeholder="bearer | api_key | none" />
+                  <input value={editState.timeoutMs} onChange={(e) => setEditState({ ...editState, timeoutMs: e.target.value })} className={inputCls} placeholder="30000" />
+                  <input value={editState.rateLimitRpm} onChange={(e) => setEditState({ ...editState, rateLimitRpm: e.target.value })} className={inputCls} placeholder="Rate limit RPM" />
+                  <input value={editState.costPerCallUsd} onChange={(e) => setEditState({ ...editState, costPerCallUsd: e.target.value })} className={inputCls} placeholder="Cost per call USD" />
+                  <textarea value={editState.authConfigStr} onChange={(e) => { setEditState({ ...editState, authConfigStr: e.target.value }); setEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"token":"secret"}' />
+                  <textarea value={editState.headerConfigStr} onChange={(e) => { setEditState({ ...editState, headerConfigStr: e.target.value }); setEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"x-api-version":"2026-08"}' />
+                  <textarea value={editState.defaultQueryStr} onChange={(e) => { setEditState({ ...editState, defaultQueryStr: e.target.value }); setEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"region":"us"}' />
+                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 sm:col-span-2">
+                    <input type="checkbox" checked={editState.isActive} onChange={(e) => setEditState({ ...editState, isActive: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    Endpoint active
+                  </label>
+                  {editError && <p className="text-xs text-red-500 sm:col-span-2">{editError}</p>}
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <button onClick={() => void handleSaveEdit()} disabled={savingEdit} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                      {savingEdit ? 'Saving...' : 'Save changes'}
+                    </button>
+                    <button onClick={() => setEditState(null)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
                 )
               })()}
             </div>

@@ -1,14 +1,14 @@
 ---
 title: "API Reference"
-description: "RunLedger exposes a complete REST API — browse it interactively with Scalar, or import the Postman collection."
+description: "RunLedger exposes a complete REST API — browse it interactively with Scalar today, and use the OpenAPI spec as the source for future embedded explorer UX."
 ---
 
 Everything the dashboard and SDKs do is a REST call. The full, always-current API surface is available
 interactively on your running instance.
 
-## Interactive reference (Scalar)
+## Interactive reference (current state)
 
-Every RunLedger instance serves a live, interactive API reference generated from the OpenAPI spec:
+As of **Friday, August 14, 2026**, every RunLedger control-plane instance serves a live, interactive API reference generated from the OpenAPI spec using **Scalar**:
 
 ```
 http://localhost:8201/reference
@@ -16,6 +16,24 @@ http://localhost:8201/reference
 
 Try requests directly from the browser with your workspace API key. The raw spec is at
 `http://localhost:8201/openapi.json`.
+
+The live gateway data plane is separate:
+
+```text
+http://localhost:8210/gateway/chat/completions
+```
+
+Use the control plane for route, policy, stats, and operator APIs; use the Rust gateway for live OpenAI-compatible completions traffic.
+
+## Planned API explorer direction
+
+The long-term product direction is to make the OpenAPI spec the single source for:
+
+- the live browser-based API explorer
+- any future Swagger-style or embedded API GUI
+- downstream generated artifacts
+
+That means the spec remains the durable contract even if the presentation layer changes away from today's Scalar UI.
 
 ## Postman
 
@@ -34,11 +52,20 @@ python scripts/generate_postman.py /tmp/openapi.json \
 
 ## Authentication
 
-All endpoints are workspace-scoped via a Bearer API key:
+Control-plane endpoints use the API host:
 
 ```bash
 curl http://localhost:8201/gateway/stats \
   -H "Authorization: Bearer rl_..."
+```
+
+Live gateway completions use the Rust data-plane host:
+
+```bash
+curl http://localhost:8210/gateway/chat/completions \
+  -H "Authorization: Bearer rl_..." \
+  -H "Content-Type: application/json" \
+  -d '{"model":"chat","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 Create workspace API keys from **Control Plane -> API Keys** in the dashboard. Org admins and org managers can mint keys for any workspace in their org; workspace admins can mint keys for their active workspace. `POST /auth/login` returns a dashboard session key, not a long-lived agent key.
@@ -48,7 +75,7 @@ Create workspace API keys from **Control Plane -> API Keys** in the dashboard. O
 | Area | Prefix |
 |---|---|
 | Ingest / runs | `/ingest` · `/runs` · `/sessions` |
-| Gateway | `/gateway/*` (routes, chat/completions, flywheel) |
+| Gateway | Control plane: `/gateway/routes`, `/gateway/stats`, `/gateway/requests`, `/gateway/flywheel` ? Data plane: Rust `/gateway/chat/completions` |
 | FinOps | `/budgets` · `/outcomes` · `/ledger` · `/analytics` |
 | Quality | `/evaluations` · `/scores` · `/prompts` · `/approvals` |
 | Agentic | `/agents` · `/workflows` · `/vector-stores` · `/playground` |

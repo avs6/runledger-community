@@ -17,6 +17,9 @@ RunLedger supports both:
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Get a local stack running in a few minutes with Docker Compose.
   </Card>
+  <Card title="Platform overview" icon="sitemap" href="/platform-overview">
+    See the hierarchy of admins, workspaces, runtime paths, and improvement loops.
+  </Card>
   <Card title="Core concepts" icon="diagram-project" href="/concepts">
     Learn the domain model, data plane vs control plane split, and ingestion paths.
   </Card>
@@ -42,6 +45,32 @@ RunLedger supports both:
 </CardGroup>
 
 RunLedger closes all of these in one self-hosted system with no vendor lock-in and support for both hosted and local models.
+
+---
+
+## How the product is used
+
+The most useful way to understand RunLedger is as a layered operating system for AI traffic:
+
+```mermaid
+flowchart TD
+  deploy["Deploy and configure platform"] --> org["Create orgs and workspaces"]
+  org --> connect["Connect apps, agents, gateway, OTLP, MCP"]
+  connect --> control["Apply routing, cache, budgets, and policy"]
+  control --> observe["Observe runs, requests, telemetry, and quality"]
+  observe --> improve["Improve prompts, routes, budgets, and workflows"]
+```
+
+Most users move through the product in that same order:
+
+1. platform setup
+2. org and workspace setup
+3. connectivity and ingestion
+4. runtime controls
+5. observability and governance
+6. continuous improvement
+
+For the full hierarchy, use the [Platform Overview](/platform-overview).
 
 ---
 

@@ -3479,6 +3479,13 @@ export interface HubModelResponse {
   updated_at: string
 }
 
+export interface HubProviderSyncResponse {
+  status: string
+  provider: string
+  models_added: number
+  total_templates: number
+}
+
 export interface HubModelList {
   items: HubModelResponse[]
 }

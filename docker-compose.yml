@@ -12,6 +12,7 @@
 # Ports are namespaced so RunLedger never clashes with other local products:
 #   Dashboard:        http://localhost:3201
 #   API / docs:       http://localhost:8201  (/reference)
+#   Rust gateway:     http://localhost:8210  (/gateway)
 #   Qdrant:           http://localhost:8202
 #   Embedding svc:    http://localhost:8204
 #   Semantic cache:   http://localhost:8205
@@ -271,6 +272,39 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  runledger-gateway-rs:
+    build:
+      context: ./apps/gateway-rs
+      dockerfile: Dockerfile
+    container_name: runledger-gateway-rs
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_RUNTIME_PORT:-8210}:8210"
+    environment:
+      RUNLEDGER_GATEWAY_BIND: 0.0.0.0:8210
+      RUNLEDGER_CONTROL_PLANE_URL: http://runledger-api:8000
+      RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
+      RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET: ${INGEST_SIGNING_SECRET:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      runledger-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8210/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ── Celery Worker (event pipeline, metering, rollups, optimizer jobs) ──────
 

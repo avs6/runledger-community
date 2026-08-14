@@ -297,7 +297,7 @@ For host-side tools like Claude Desktop, use `http://localhost:...` URLs instead
 
 ```env
 RUNLEDGER_HOST_API_URL=http://localhost:8201
-RUNLEDGER_HOST_GATEWAY_BASE_URL=http://localhost:8201/gateway
+RUNLEDGER_HOST_GATEWAY_BASE_URL=http://localhost:8210/gateway
 RUNLEDGER_HOST_MCP_URL=http://localhost:8206/mcp
 ```
 
@@ -448,7 +448,7 @@ $body = @{
   model = "local-chat"
   messages = @(@{ role = "user"; content = "Say hello from LocalAIAgentStack" })
 } | ConvertTo-Json -Depth 10
-Invoke-RestMethod -Method Post -Uri "http://localhost:8201/gateway/chat/completions" -Headers $headers -ContentType "application/json" -Body $body
+Invoke-RestMethod -Method Post -Uri "http://localhost:8210/gateway/chat/completions" -Headers $headers -ContentType "application/json" -Body $body
 ```
 
 Verify in RunLedger:
@@ -847,7 +847,7 @@ Possible outcomes:
 
 Later, if any tool supports configurable model provider/base URL, point it at:
 
-- `http://localhost:8201/gateway`
+- `http://localhost:8210/gateway`
 - API key: `RUNLEDGER_KEY_DESKTOP_AGENTS`
 - model alias: `dev-agent-auto`
 

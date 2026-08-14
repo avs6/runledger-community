@@ -1400,6 +1400,9 @@ export async function updateGatewayRoute(
     api_key_env_var?: string | null
     priority?: number
     is_active?: boolean
+    config?: Record<string, unknown> | null
+    daily_cost_limit_usd?: number | null
+    monthly_cost_limit_usd?: number | null
     pii_redaction_enabled?: boolean
     semantic_cache_enabled?: boolean
     context_compiler_enabled?: boolean
@@ -3691,6 +3694,32 @@ export async function listMcpServers(apiKey: string, includeInactive = false): P
   return apiFetch<import('@/types/api').McpServerList>(`/mcp-registry${qs}`, apiKey)
 }
 
+export async function getMcpServer(apiKey: string, id: string): Promise<import('@/types/api').McpServerResponse> {
+  return apiFetch<import('@/types/api').McpServerResponse>(`/mcp-registry/${id}`, apiKey)
+}
+
+export async function updateMcpServer(
+  apiKey: string,
+  id: string,
+  data: {
+    name?: string
+    description?: string
+    transport?: string
+    url?: string
+    command?: string
+    args?: string[]
+    env?: Record<string, string>
+    auth_type?: string
+    auth_config?: Record<string, unknown>
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').McpServerResponse> {
+  return apiFetch<import('@/types/api').McpServerResponse>(`/mcp-registry/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function seedDefaultMcpServers(apiKey: string): Promise<{ status: string; servers_added: number; total: number }> {
   return apiFetch<{ status: string; servers_added: number; total: number }>('/mcp-registry/seed-defaults', apiKey, { method: 'POST' })
 }
@@ -3861,9 +3890,9 @@ export async function listMcpToolCalls(apiKey: string, limit = 50): Promise<impo
 
 export async function syncHubProvider(
   apiKey: string,
-  data: { provider: string; hf_token?: string }
-): Promise<{ status: string; provider: string; models_synced: number }> {
-  return apiFetch<{ status: string; provider: string; models_synced: number }>('/hub/sync-provider', apiKey, {
+  data: { provider: string; token?: string; endpoint_url?: string }
+): Promise<import('@/types/api').HubProviderSyncResponse> {
+  return apiFetch<import('@/types/api').HubProviderSyncResponse>('/hub/sync-provider', apiKey, {
     method: 'POST',
     body: JSON.stringify(data),
   })

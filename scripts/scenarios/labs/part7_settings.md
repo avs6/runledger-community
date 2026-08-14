@@ -26,22 +26,28 @@ Store and recall an example fact such as:
 
 `LocalAIAgentStack uses Qdrant for semantic cache`
 
+Then work through [Part 7B - MCP Registry](./part7_mcp_registry.md) to validate the full MCP server lifecycle surface.
+
 ## 7.3 - Integrations
 
 Wire a Slack webhook and send a test message.
 
-## 7.4 - Data capture
+## 7.4 - AI Hub
+
+Work through [Part 7A - AI Hub Model Catalog](./part7_ai_hub_model_catalog.md).
+
+## 7.5 - Data capture
 
 Review metadata-only, sampled, errors-only, and full capture modes.
 
-## 7.5 - Compliance
+## 7.6 - Compliance
 
 Open **Settings -> Compliance** as the platform admin.
 
-## 7.6 - Data retention
+## 7.7 - Data retention
 
 Open **Settings -> Data Retention** and review policy plus purge flows.
 
-## 7.7 - Email
+## 7.8 - Email
 
 Open **Settings -> Email** and review notification and report settings.

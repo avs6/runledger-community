@@ -42,72 +42,13 @@
       "group": "Getting Started",
       "pages": [
         "introduction",
+        "platform-overview",
         "quickstart",
         "concepts"
       ]
     },
     {
-      "group": "Instrumentation",
-      "pages": [
-        "instrumentation/python-sdk",
-        "instrumentation/typescript-sdk",
-        "otlp",
-        "openinference",
-        "collector"
-      ]
-    },
-    {
-      "group": "Model Gateway",
-      "pages": [
-        "gateway/overview",
-        "gateway/routing",
-        "gateway/caching",
-        "gateway/runtime-controls",
-        "gateway/providers"
-      ]
-    },
-    {
-      "group": "Cost & FinOps",
-      "pages": [
-        "finops/metering",
-        "finops/pricing",
-        "finops/attribution",
-        "finops/budgets",
-        "finops/outcomes",
-        "finops/ledger",
-        "finops/chargeback",
-        "finops/cost-savings"
-      ]
-    },
-    {
-      "group": "Token Optimization",
-      "pages": [
-        "optimization",
-        "optimization/semantic-cache",
-        "optimization/local-models",
-        "optimization/context-compiler",
-        "optimization/prompt-compression",
-        "optimization/intelligent-routing",
-        "optimization/cognitive-layer",
-        "optimization/tool-filtering",
-        "optimization/flywheel"
-      ]
-    },
-    {
-      "group": "Quality & Governance",
-      "pages": [
-        "governance/evaluations",
-        "governance/prompts",
-        "governance/approvals",
-        "governance/alerts",
-        "governance/retention",
-        "governance/policy-dry-run",
-        "governance/governance-audit-pack",
-        "governance/data-capture-studio"
-      ]
-    },
-    {
-      "group": "Administration",
+      "group": "Administration & Access",
       "pages": [
         "administration/organizations",
         "administration/org-profile",
@@ -115,7 +56,33 @@
         "administration/workspaces",
         "administration/access-groups",
         "administration/api-keys",
+        "administration/mcp-registry",
+        "administration/ai-hub",
         "governance/rbac"
+      ]
+    },
+    {
+      "group": "Ingest & Connectivity",
+      "pages": [
+        "instrumentation/python-sdk",
+        "instrumentation/typescript-sdk",
+        "otlp",
+        "openinference",
+        "collector",
+        "integration-options-mcp",
+        "litellm",
+        "integrations/kafka-export"
+      ]
+    },
+    {
+      "group": "Gateway & Routing",
+      "pages": [
+        "gateway/overview",
+        "gateway/routing",
+        "gateway/caching",
+        "gateway/runtime-controls",
+        "gateway/providers",
+        "gateway/gateway-rs-spec"
       ]
     },
     {
@@ -129,43 +96,70 @@
         "observability/request-flow",
         "observability/request-explorer",
         "observability/model-usage",
-        "observability/optimization-simulator",
-        "observability/runbooks",
         "observability/model-scorecards",
+        "observability/runbooks",
         "observability/replay-lab",
+        "observability/optimization-simulator",
         "observability/onboarding",
         "observability/product-tour"
       ]
     },
     {
-      "group": "Agentic Operations",
+      "group": "Governance & Safety",
       "pages": [
+        "governance/evaluations",
+        "governance/prompts",
+        "governance/approvals",
+        "governance/alerts",
+        "governance/retention",
+        "governance/policy-dry-run",
+        "governance/governance-audit-pack",
+        "governance/data-capture-studio"
+      ]
+    },
+    {
+      "group": "FinOps",
+      "pages": [
+        "finops/metering",
+        "finops/pricing",
+        "finops/attribution",
+        "finops/budgets",
+        "finops/outcomes",
+        "finops/ledger",
+        "finops/chargeback",
+        "finops/cost-savings"
+      ]
+    },
+    {
+      "group": "Build & Improve",
+      "pages": [
+        "optimization",
+        "optimization/semantic-cache",
+        "optimization/local-models",
+        "optimization/context-compiler",
+        "optimization/prompt-compression",
+        "optimization/intelligent-routing",
+        "optimization/cognitive-layer",
+        "optimization/tool-filtering",
         "agentic/agents",
         "agentic/workflows",
         "agentic/vector-stores",
-        "agentic/playground"
+        "agentic/playground",
+        "optimization/flywheel"
       ]
     },
     {
-      "group": "Integrations",
+      "group": "Operations & Self-Hosting",
       "pages": [
-        "integration-options-mcp",
-        "litellm",
-        "integrations/kafka-export"
-      ]
-    },
-    {
-      "group": "Deployment & Self-Hosting",
-      "pages": [
+        "architecture",
         "deployment/docker-compose",
+        "deployment/configuration",
         "helm",
         "ha",
-        "architecture",
         "infra-hardening",
         "backup-restore",
         "upgrade",
-        "deployment",
-        "deployment/configuration"
+        "deployment"
       ]
     },
     {

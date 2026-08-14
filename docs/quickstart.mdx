@@ -400,7 +400,7 @@ import openai
 
 client = openai.OpenAI(
     api_key="rl_...",
-    base_url="http://localhost:8201/gateway",
+    base_url="http://localhost:8210/gateway",
 )
 
 resp = client.chat.completions.create(
@@ -412,7 +412,7 @@ resp = client.chat.completions.create(
 ```
 
 ```bash
-# Create a route
+# Create a route on the control plane
 curl -X POST "$BASE/gateway/routes" -H "Authorization: Bearer $KEY" \
      -d '{"alias":"gpt-4o-mini","provider":"openai","target_model":"gpt-4o-mini","api_key_env_var":"OPENAI_API_KEY","priority":10}'
 

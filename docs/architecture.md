@@ -86,6 +86,22 @@ flowchart LR
   workers -. backups / exports .-> minio
 ```
 
+## Operational hierarchy
+
+The practical operating hierarchy looks like this:
+
+```mermaid
+flowchart TD
+  platform["Platform services and admins"]
+  org["Organization admins and workspace setup"]
+  ingest["Ingest and connectivity paths"]
+  runtime["Gateway and runtime enforcement"]
+  review["Observability, governance, and FinOps"]
+  improve["Prompt, route, and workflow improvement"]
+
+  platform --> org --> ingest --> runtime --> review --> improve
+```
+
 ## Core components
 
 ## 1. Web application
@@ -121,6 +137,56 @@ The product can call into specialized services for optimization-heavy paths, inc
 - flywheel service
 
 These are profile-aware in local deployment and can be brought up only when needed.
+
+## Target architecture evolution
+
+The current architecture is still heavily centered on the Python API service, even when the gateway path becomes performance-sensitive.
+
+The planned target state is a cleaner split between:
+
+- a **Python control plane** for management, analytics, governance, and operator workflows
+- a **dedicated high-performance gateway service** for hot-path routing, cache, runtime enforcement, and budget checks
+- a **future pipeline studio** that visualizes and eventually authors execution paths from ingest through final reporting
+
+```mermaid
+flowchart LR
+  subgraph control["Control plane"]
+    web["Next.js UI"]
+    api["Python API"]
+    docs["Embedded docs/help"]
+    workers["Workers / exports / rollups"]
+  end
+
+  subgraph dataplane["Future data plane"]
+    rust["Rust gateway service"]
+    cache["Cache / routing / runtime enforcement"]
+  end
+
+  subgraph studio["Future flow experience"]
+    flow["Pipeline studio / flow builder"]
+  end
+
+  subgraph inputs["Ingress paths"]
+    sdk["SDK"]
+    otlp["OTLP"]
+    mcp["MCP"]
+    gw["OpenAI-compatible clients"]
+  end
+
+  inputs --> rust
+  gw --> rust
+  sdk --> api
+  otlp --> api
+  mcp --> api
+  rust --> cache
+  web --> api
+  docs --> web
+  flow --> api
+  api --> rust
+  api --> workers
+```
+
+This split should let the gateway scale independently while preserving one control-plane source of truth for routing definitions, policy, pricing, and workspace scope.
 
 ## Storage model
 

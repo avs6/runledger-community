@@ -186,6 +186,8 @@ Work through the rest of the guided parts from this same foundation:
 - [Part 5 - Governance & Control](./part5_governance.md)
 - [Part 6 - Operations](./part6_operations.md)
 - [Part 7 - Control Plane & Platform Settings](./part7_settings.md)
+- [Part 7B - MCP Registry](./part7_mcp_registry.md)
+- [Part 7A - AI Hub Model Catalog](./part7_ai_hub_model_catalog.md)
 - [Part 8 - Integrating an Existing Stack](./part8_integrating_existing_stack.md)
 - [Part 9 - Guardrails & Content Safety](./part9_guardrails.md)
 - [Guided Demo Scenarios](./guided_demo_scenarios.md)

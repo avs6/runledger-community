@@ -3,7 +3,7 @@ title: "Model Gateway"
 description: "An OpenAI-compatible proxy that puts caching, routing, optimization, and budget enforcement in the request path with a single base_url swap."
 ---
 
-The Model Gateway is RunLedger's **inline data plane**. Point any OpenAI-compatible client at it, change only `base_url`, and every request flows through caching, optimization, routing, and enforcement before reaching the provider.
+The Model Gateway is RunLedger's **Rust data plane**. Point any OpenAI-compatible client at it, change only `base_url`, and every request flows through caching, optimization, routing, and enforcement before reaching the provider.
 
 <Frame caption="The Gateway page: routes, routing log, pass-through endpoints, benchmarking, and per-route runtime controls.">
   <img src="/images/gateway.png" alt="Model Gateway" />
@@ -43,7 +43,7 @@ import openai
 
 client = openai.OpenAI(
     api_key="rl_...",
-    base_url="http://localhost:8201/gateway",
+    base_url="http://localhost:8210/gateway",
 )
 
 resp = client.chat.completions.create(
