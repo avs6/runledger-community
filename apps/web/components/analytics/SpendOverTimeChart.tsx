@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import type { SpendOverTime } from '@/types/api'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import {
   CartesianGrid,
   Line,
@@ -15,6 +16,18 @@ import {
 
 interface Props {
   data: SpendOverTime
+}
+
+function valueToNumber(value: ValueType | undefined): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return valueToNumber(value[0])
+  }
+  return null
 }
 
 function fmtPeriod(period: string, granularity: string): string {
@@ -71,7 +84,10 @@ export default function SpendOverTimeChart({ data }: Props) {
           width={60}
         />
         <Tooltip
-          formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
+          formatter={(value) => {
+            const numeric = valueToNumber(value) ?? 0
+            return [`$${numeric.toFixed(6)}`, 'Cost']
+          }}
           labelStyle={{ fontSize: 12, color: isDark ? '#f3f4f6' : '#111827' }}
           contentStyle={tooltipStyle}
         />

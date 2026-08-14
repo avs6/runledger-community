@@ -308,6 +308,24 @@ class GatewayStats(BaseModel):
     routes: list[GatewayRouteStats]
 
 
+class GatewayRateLimitTier(BaseModel):
+    key: str
+    name: str
+    description: str
+    rpm: int
+    endpoints: list[str]
+
+
+class GatewayRateLimitOverview(BaseModel):
+    tiers: list[GatewayRateLimitTier]
+    route_rate_limited_count: int
+    route_rate_limited_aliases: list[str]
+    passthrough_rate_limited_count: int
+    passthrough_rate_limited_slugs: list[str]
+    budget_tier_rate_limited_count: int
+    model_budget_rate_limited_count: int
+
+
 # ── Request log schema ─────────────────────────────────────────────────────────
 
 

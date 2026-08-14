@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
+  listApiKeys,
   listGatewayRoutes, createGatewayRoute, updateGatewayRoute, deleteGatewayRoute,
   listGatewayRoutingGroups, createGatewayRoutingGroup, updateGatewayRoutingGroup, deleteGatewayRoutingGroup, getGatewayRoutingStrategyComparison,
   getGatewayStats, listRoutingPolicies, createRoutingPolicy, updateRoutingPolicy, getRoutingPolicyAnalysis, promoteRoutingPolicyWinner, advanceCanaryRollout, rollbackRoutingPolicy,
@@ -16,12 +17,18 @@ import {
   getFlywheelSettings, updateFlywheelSettings, listFlywheelRecommendations,
   applyFlywheelRecommendation, dismissFlywheelRecommendation, runFlywheel,
   listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint, testGatewayPassThroughEndpoint, listGatewayPassThroughStats, getGatewayBenchmarkComparison,
+  getGatewayRateLimitOverview,
+  getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
+  listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
+  listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
 } from '@/lib/api'
 import type {
+  ApiKeyResponse, BudgetTier, ModelBudget,
   GatewayRoute, GatewayRoutingGroup, GatewayRoutingGroupStrategy, GatewayRoutingStrategyComparisonItem, GatewayStats, GatewayRequestLog,
   RoutingPolicy, RoutingPolicyAnalysis, RoutingPolicyType, ProviderPricingResponse,
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
+  GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
 } from '@/types/api'
 
 const inputCls =
@@ -88,6 +95,19 @@ interface PassThroughEditState {
   headerConfigStr: string
   defaultQueryStr: string
   isActive: boolean
+}
+
+interface CacheConfigEditState {
+  id: string
+  name: string
+  isEnabled: boolean
+  ttlSeconds: string
+  maxEntries: string
+  evictionPolicy: string
+  similarityThreshold: string
+  embeddingModel: string
+  scopeModels: string
+  configStr: string
 }
 
 export default function GatewayPage() {
@@ -193,6 +213,26 @@ export default function GatewayPage() {
   const [expandedRec, setExpandedRec] = useState<string | null>(null)
 
   const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
+  const [rateLimitOverview, setRateLimitOverview] = useState<GatewayRateLimitOverview | null>(null)
+  const [cacheConfigs, setCacheConfigs] = useState<ResponseCacheConfigResponse[]>([])
+  const [cacheStats, setCacheStats] = useState<ResponseCacheStatsResponse | null>(null)
+  const [showCacheForm, setShowCacheForm] = useState(false)
+  const [creatingCacheConfig, setCreatingCacheConfig] = useState(false)
+  const [cacheEditState, setCacheEditState] = useState<CacheConfigEditState | null>(null)
+  const [savingCacheEdit, setSavingCacheEdit] = useState(false)
+  const [cacheConfigError, setCacheConfigError] = useState('')
+  const [expandedCacheId, setExpandedCacheId] = useState<string | null>(null)
+  const [cacheDetails, setCacheDetails] = useState<Record<string, ResponseCacheConfigResponse>>({})
+  const [loadingCacheDetail, setLoadingCacheDetail] = useState<Record<string, boolean>>({})
+  const [newCacheName, setNewCacheName] = useState('')
+  const [newCacheEnabled, setNewCacheEnabled] = useState(true)
+  const [newCacheTtlSeconds, setNewCacheTtlSeconds] = useState('3600')
+  const [newCacheMaxEntries, setNewCacheMaxEntries] = useState('10000')
+  const [newCacheEvictionPolicy, setNewCacheEvictionPolicy] = useState('lru')
+  const [newCacheSimilarityThreshold, setNewCacheSimilarityThreshold] = useState('0.95')
+  const [newCacheEmbeddingModel, setNewCacheEmbeddingModel] = useState('')
+  const [newCacheScopeModels, setNewCacheScopeModels] = useState('')
+  const [newCacheConfigStr, setNewCacheConfigStr] = useState('{}')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -202,13 +242,25 @@ export default function GatewayPage() {
     }
     setLoading(true)
     try {
-      const [routesData, groupsData, comparisonData, statsData, policiesData, pricingData] = await Promise.all([
+      const [routesData, groupsData, comparisonData, statsData, policiesData, pricingData, rateLimitOverviewData, cacheConfigsData, cacheStatsData] = await Promise.all([
         listGatewayRoutes(apiKey, true).catch(() => ({ items: [] })),
         listGatewayRoutingGroups(apiKey, { include_inactive: true }).catch(() => ({ items: [] })),
         getGatewayRoutingStrategyComparison(apiKey).catch(() => ({ items: [] })),
         getGatewayStats(apiKey).catch(() => ({ total_requests: 0, cache_hits: 0, cache_hit_rate: '0', avg_latency_ms: null, routes: [] })),
         listRoutingPolicies(apiKey).catch(() => ({ items: [] })),
         listProviderPricing(apiKey).catch(() => ({ items: [] })),
+        getGatewayRateLimitOverview(apiKey).catch(() => null),
+        getResponseCacheConfigs(apiKey).catch(() => ({ items: [], total: 0 })),
+        getResponseCacheStats(apiKey).catch(() => ({
+          config_count: 0,
+          enabled_config_count: 0,
+          total_hits: 0,
+          total_misses: 0,
+          hit_rate: null,
+          total_savings_usd: 0,
+          live_entry_count: 0,
+          top_models: [],
+        })),
       ])
       setGatewayRoutes(routesData.items)
       setRoutingGroups(groupsData.items)
@@ -216,6 +268,9 @@ export default function GatewayPage() {
       setGatewayStats(statsData as any)
       setRoutingPolicies(policiesData.items)
       setPricing(pricingData.items)
+      setRateLimitOverview(rateLimitOverviewData)
+      setCacheConfigs(cacheConfigsData.items)
+      setCacheStats(cacheStatsData as ResponseCacheStatsResponse)
     } catch {
       toast.error('Failed to load gateway data')
     } finally {
@@ -238,6 +293,25 @@ export default function GatewayPage() {
     const aliases = route.fallback_config?.aliases
     if (!Array.isArray(aliases)) return []
     return aliases.filter((alias): alias is string => typeof alias === 'string' && alias.trim().length > 0)
+  }
+
+  function beginCacheEdit(config: ResponseCacheConfigResponse) {
+    setRouteEditState(null)
+    setGroupEditState(null)
+    setPolicyEditState(null)
+    setCacheConfigError('')
+    setCacheEditState({
+      id: config.id,
+      name: config.name,
+      isEnabled: config.is_enabled,
+      ttlSeconds: String(config.ttl_seconds),
+      maxEntries: String(config.max_entries),
+      evictionPolicy: config.eviction_policy,
+      similarityThreshold: String(config.similarity_threshold),
+      embeddingModel: config.embedding_model ?? '',
+      scopeModels: config.scope_models.join(', '),
+      configStr: JSON.stringify(config.config ?? {}, null, 2),
+    })
   }
 
   function beginRouteEdit(route: GatewayRoute) {
@@ -266,6 +340,124 @@ export default function GatewayPage() {
       contextCompilerEnabled: route.context_compiler_enabled,
       intelligentRoutingEnabled: route.intelligent_routing_enabled,
     })
+  }
+
+  async function handleCreateCacheConfig(e: React.FormEvent) {
+    e.preventDefault()
+    if (!apiKey || !newCacheName.trim()) return
+    let config: Record<string, unknown> = {}
+    try {
+      config = JSON.parse(newCacheConfigStr || '{}')
+    } catch {
+      setCacheConfigError('Cache config must be valid JSON')
+      return
+    }
+    setCreatingCacheConfig(true)
+    setCacheConfigError('')
+    try {
+      const created = await createResponseCacheConfig(apiKey, {
+        name: newCacheName.trim(),
+        is_enabled: newCacheEnabled,
+        ttl_seconds: parseInt(newCacheTtlSeconds, 10) || 3600,
+        max_entries: parseInt(newCacheMaxEntries, 10) || 10000,
+        eviction_policy: newCacheEvictionPolicy.trim() || 'lru',
+        similarity_threshold: parseFloat(newCacheSimilarityThreshold) || 0.95,
+        embedding_model: newCacheEmbeddingModel.trim() || null,
+        scope_models: parseCsvTags(newCacheScopeModels),
+        config,
+      })
+      setCacheConfigs((prev) => [created, ...prev])
+      setNewCacheName('')
+      setNewCacheEnabled(true)
+      setNewCacheTtlSeconds('3600')
+      setNewCacheMaxEntries('10000')
+      setNewCacheEvictionPolicy('lru')
+      setNewCacheSimilarityThreshold('0.95')
+      setNewCacheEmbeddingModel('')
+      setNewCacheScopeModels('')
+      setNewCacheConfigStr('{}')
+      setShowCacheForm(false)
+      toast.success('Response cache profile created')
+      await load()
+    } catch {
+      toast.error('Failed to create response cache profile')
+    } finally {
+      setCreatingCacheConfig(false)
+    }
+  }
+
+  async function handleLoadCacheDetails(configId: string) {
+    if (!apiKey) return
+    if (expandedCacheId === configId) {
+      setExpandedCacheId(null)
+      return
+    }
+    setExpandedCacheId(configId)
+    if (cacheDetails[configId]) return
+    setLoadingCacheDetail((prev) => ({ ...prev, [configId]: true }))
+    try {
+      const detail = await getResponseCacheConfig(apiKey, configId)
+      setCacheDetails((prev) => ({ ...prev, [configId]: detail }))
+    } catch {
+      toast.error('Failed to load cache profile details')
+      setExpandedCacheId(null)
+    } finally {
+      setLoadingCacheDetail((prev) => ({ ...prev, [configId]: false }))
+    }
+  }
+
+  async function handleSaveCacheEdit() {
+    if (!apiKey || !cacheEditState) return
+    let config: Record<string, unknown> = {}
+    try {
+      config = JSON.parse(cacheEditState.configStr || '{}')
+    } catch {
+      setCacheConfigError('Cache config must be valid JSON')
+      return
+    }
+    setSavingCacheEdit(true)
+    setCacheConfigError('')
+    try {
+      const updated = await updateResponseCacheConfig(apiKey, cacheEditState.id, {
+        name: cacheEditState.name.trim(),
+        is_enabled: cacheEditState.isEnabled,
+        ttl_seconds: parseInt(cacheEditState.ttlSeconds, 10) || 3600,
+        max_entries: parseInt(cacheEditState.maxEntries, 10) || 10000,
+        eviction_policy: cacheEditState.evictionPolicy.trim() || 'lru',
+        similarity_threshold: parseFloat(cacheEditState.similarityThreshold) || 0.95,
+        embedding_model: cacheEditState.embeddingModel.trim() || null,
+        scope_models: parseCsvTags(cacheEditState.scopeModels),
+        config,
+      })
+      setCacheConfigs((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+      setCacheDetails((prev) => ({ ...prev, [updated.id]: updated }))
+      setCacheEditState(null)
+      toast.success('Response cache profile updated')
+      await load()
+    } catch {
+      toast.error('Failed to update response cache profile')
+    } finally {
+      setSavingCacheEdit(false)
+    }
+  }
+
+  async function handleDeleteCacheConfig(configId: string) {
+    if (!apiKey || !confirm('Delete this response cache profile?')) return
+    try {
+      await deleteResponseCacheConfig(apiKey, configId)
+      setCacheConfigs((prev) => prev.filter((item) => item.id !== configId))
+      setCacheDetails((prev) => {
+        const next = { ...prev }
+        delete next[configId]
+        return next
+      })
+      if (expandedCacheId === configId) setExpandedCacheId(null)
+      if (cacheEditState?.id === configId) setCacheEditState(null)
+      toast.success('Response cache profile deleted')
+      await load()
+    } catch {
+      toast.error('Failed to delete response cache profile')
+    }
   }
 
   async function handleSaveRouteEdit() {
@@ -830,6 +1022,253 @@ export default function GatewayPage() {
       )}
 
       {/* ── Routes ── */}
+      {rateLimitOverview && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Rate Limit Controls</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Rate limits are now owned here and in FinOps control pages. Runtime throttles stay in Gateway, while API-key and per-model quotas live in Budget Tiers and Model Budgets.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {rateLimitOverview.tiers.map((tier) => (
+              <div key={tier.key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold dark:text-white">{tier.name}</h3>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                    {tier.rpm.toLocaleString()} rpm
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{tier.description}</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                  {tier.endpoints.map((endpoint) => (
+                    <span key={endpoint} className="rounded-full bg-indigo-100 px-2 py-0.5 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                      {endpoint}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-4">
+              <h3 className="text-sm font-semibold dark:text-white">Gateway-owned runtime throttles</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-white px-3 py-3 dark:bg-slate-900/50">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Routes with per-user RPM</p>
+                  <p className="mt-1 text-2xl font-semibold dark:text-white">{rateLimitOverview.route_rate_limited_count}</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {rateLimitOverview.route_rate_limited_aliases.length > 0 ? rateLimitOverview.route_rate_limited_aliases.join(', ') : 'No route-level per-user throttles configured yet.'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white px-3 py-3 dark:bg-slate-900/50">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Pass-through endpoints with RPM</p>
+                  <p className="mt-1 text-2xl font-semibold dark:text-white">{rateLimitOverview.passthrough_rate_limited_count}</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {rateLimitOverview.passthrough_rate_limited_slugs.length > 0 ? rateLimitOverview.passthrough_rate_limited_slugs.join(', ') : 'No pass-through endpoint throttles configured yet.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-4">
+              <h3 className="text-sm font-semibold dark:text-white">FinOps-owned quota controls</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-white px-3 py-3 dark:bg-slate-900/50">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Budget tiers with RPM/TPM</p>
+                  <p className="mt-1 text-2xl font-semibold dark:text-white">{rateLimitOverview.budget_tier_rate_limited_count}</p>
+                  <a href="#gateway-quota-tiers" className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-300">
+                    Open Budget Tiers
+                  </a>
+                </div>
+                <div className="rounded-lg bg-white px-3 py-3 dark:bg-slate-900/50">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Model budgets with RPM/TPM</p>
+                  <p className="mt-1 text-2xl font-semibold dark:text-white">{rateLimitOverview.model_budget_rate_limited_count}</p>
+                  <a href="#gateway-model-quotas" className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-300">
+                    Open Model Budgets
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Response Cache Profiles</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Cache lifecycle is collapsed into Gateway. Manage cache profiles here, then apply route-level cache toggles further down this page.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowCacheForm((value) => !value)
+              setCacheConfigError('')
+            }}
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          >
+            {showCacheForm ? <ChevronUp className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {showCacheForm ? 'Cancel' : 'Add Cache Profile'}
+          </button>
+        </div>
+
+        {cacheStats && (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              { label: 'Profiles', value: cacheStats.config_count.toLocaleString() },
+              { label: 'Enabled', value: cacheStats.enabled_config_count.toLocaleString() },
+              { label: 'Hit Rate', value: cacheStats.hit_rate != null ? `${(cacheStats.hit_rate * 100).toFixed(1)}%` : '—' },
+              { label: 'Savings', value: `$${Number(cacheStats.total_savings_usd || 0).toFixed(2)}` },
+              { label: 'Live Capacity', value: cacheStats.live_entry_count.toLocaleString() },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{item.label}</p>
+                <p className="mt-0.5 text-xl font-semibold dark:text-white">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showCacheForm && (
+          <form onSubmit={handleCreateCacheConfig} className="grid gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <input value={newCacheName} onChange={(e) => setNewCacheName(e.target.value)} className={inputCls} placeholder="Profile name" required />
+            <input value={newCacheTtlSeconds} onChange={(e) => setNewCacheTtlSeconds(e.target.value)} className={inputCls} placeholder="TTL seconds" type="number" min="1" />
+            <input value={newCacheMaxEntries} onChange={(e) => setNewCacheMaxEntries(e.target.value)} className={inputCls} placeholder="Max entries" type="number" min="1" />
+            <input value={newCacheEvictionPolicy} onChange={(e) => setNewCacheEvictionPolicy(e.target.value)} className={inputCls} placeholder="Eviction policy" />
+            <input value={newCacheSimilarityThreshold} onChange={(e) => setNewCacheSimilarityThreshold(e.target.value)} className={inputCls} placeholder="Similarity threshold" type="number" min="0" max="1" step="0.01" />
+            <input value={newCacheEmbeddingModel} onChange={(e) => setNewCacheEmbeddingModel(e.target.value)} className={inputCls} placeholder="Embedding model (optional)" />
+            <input value={newCacheScopeModels} onChange={(e) => setNewCacheScopeModels(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="Scoped models (csv)" />
+            <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <input type="checkbox" checked={newCacheEnabled} onChange={(e) => setNewCacheEnabled(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              Profile enabled
+            </label>
+            <textarea value={newCacheConfigStr} onChange={(e) => { setNewCacheConfigStr(e.target.value); setCacheConfigError('') }} className={`${inputCls} min-h-[110px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder='{"mode":"semantic"}' />
+            {cacheConfigError && <p className="text-xs text-red-500 sm:col-span-2 lg:col-span-3">{cacheConfigError}</p>}
+            <div className="sm:col-span-2 lg:col-span-3">
+              <button type="submit" disabled={creatingCacheConfig} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                {creatingCacheConfig ? 'Creating...' : 'Create cache profile'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          {cacheConfigs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400 lg:col-span-2">
+              No response cache profiles configured yet.
+            </div>
+          ) : cacheConfigs.map((config) => {
+            const detail = cacheDetails[config.id] ?? config
+            const isExpanded = expandedCacheId === config.id
+            return (
+              <div key={config.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm dark:text-slate-100">{config.name}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${config.is_enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                        {config.is_enabled ? 'enabled' : 'disabled'}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        {config.eviction_policy}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">ttl: {config.ttl_seconds}s</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">entries: {config.max_entries.toLocaleString()}</span>
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">threshold: {Number(config.similarity_threshold).toFixed(2)}</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">hits: {config.total_hits.toLocaleString()}</span>
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">misses: {config.total_misses.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => void handleLoadCacheDetails(config.id)} className="rounded-lg px-2 py-1 text-xs text-slate-500 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                      {isExpanded ? 'Hide details' : 'Details'}
+                    </button>
+                    <button onClick={() => beginCacheEdit(config)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => void handleDeleteCacheConfig(config.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 p-4">
+                    {loadingCacheDetail[config.id] ? (
+                      <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Loading cache details...
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Embedding</p>
+                            <p className="mt-1 text-sm dark:text-white">{detail.embedding_model || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Scoped models</p>
+                            <p className="mt-1 text-sm dark:text-white">{detail.scope_models.length ? detail.scope_models.join(', ') : 'All models'}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Savings</p>
+                            <p className="mt-1 text-sm dark:text-white">${Number(detail.total_savings_usd || 0).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Updated</p>
+                            <p className="mt-1 text-sm dark:text-white">{new Date(detail.updated_at).toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Config JSON</p>
+                          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950/95 px-3 py-3 text-xs text-slate-100">{JSON.stringify(detail.config ?? {}, null, 2)}</pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {cacheEditState?.id === config.id && (
+                  <div className="mt-4 grid gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/10 p-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">Edit cache profile</p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Update TTL, scope, and JSON config without leaving Gateway.</p>
+                    </div>
+                    <input value={cacheEditState.name} onChange={(e) => setCacheEditState({ ...cacheEditState, name: e.target.value })} className={inputCls} placeholder="Profile name" />
+                    <input value={cacheEditState.ttlSeconds} onChange={(e) => setCacheEditState({ ...cacheEditState, ttlSeconds: e.target.value })} className={inputCls} placeholder="TTL seconds" type="number" min="1" />
+                    <input value={cacheEditState.maxEntries} onChange={(e) => setCacheEditState({ ...cacheEditState, maxEntries: e.target.value })} className={inputCls} placeholder="Max entries" type="number" min="1" />
+                    <input value={cacheEditState.evictionPolicy} onChange={(e) => setCacheEditState({ ...cacheEditState, evictionPolicy: e.target.value })} className={inputCls} placeholder="Eviction policy" />
+                    <input value={cacheEditState.similarityThreshold} onChange={(e) => setCacheEditState({ ...cacheEditState, similarityThreshold: e.target.value })} className={inputCls} placeholder="Similarity threshold" type="number" min="0" max="1" step="0.01" />
+                    <input value={cacheEditState.embeddingModel} onChange={(e) => setCacheEditState({ ...cacheEditState, embeddingModel: e.target.value })} className={inputCls} placeholder="Embedding model" />
+                    <input value={cacheEditState.scopeModels} onChange={(e) => setCacheEditState({ ...cacheEditState, scopeModels: e.target.value })} className={`${inputCls} sm:col-span-2`} placeholder="Scoped models (csv)" />
+                    <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                      <input type="checkbox" checked={cacheEditState.isEnabled} onChange={(e) => setCacheEditState({ ...cacheEditState, isEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                      Profile enabled
+                    </label>
+                    <textarea value={cacheEditState.configStr} onChange={(e) => { setCacheEditState({ ...cacheEditState, configStr: e.target.value }); setCacheConfigError('') }} className={`${inputCls} min-h-[110px] font-mono text-xs sm:col-span-2`} placeholder='{"mode":"semantic"}' />
+                    {cacheConfigError && <p className="text-xs text-red-500 sm:col-span-2">{cacheConfigError}</p>}
+                    <div className="sm:col-span-2 flex items-center gap-2">
+                      <button onClick={() => void handleSaveCacheEdit()} disabled={savingCacheEdit} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                        {savingCacheEdit ? 'Saving...' : 'Save changes'}
+                      </button>
+                      <button onClick={() => setCacheEditState(null)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -1738,6 +2177,8 @@ export default function GatewayPage() {
       {/* ── Optimization flywheel ── */}
       {apiKey && <BenchmarkPanel apiKey={apiKey} />}
       {apiKey && <PassThroughPanel apiKey={apiKey} canManage={canManage} />}
+      {apiKey && <BudgetTierPanel apiKey={apiKey} canManage={canManage} />}
+      {apiKey && <ModelQuotaPanel apiKey={apiKey} canManage={canManage} />}
       {apiKey && <FlywheelPanel apiKey={apiKey} canManage={canManage} />}
     </div>
   )
@@ -2180,6 +2621,481 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
               </>
                 )
               })()}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {
+  const emptyForm = {
+    name: '',
+    max_spend_usd: '',
+    period_type: 'monthly',
+    rpm_limit: '',
+    tpm_limit: '',
+    allowed_models: '',
+    is_default: false,
+  }
+  const [tiers, setTiers] = useState<BudgetTier[]>([])
+  const [keys, setKeys] = useState<ApiKeyResponse[]>([])
+  const [form, setForm] = useState(emptyForm)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [assigningKeyId, setAssigningKeyId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [tierData, keyData] = await Promise.all([
+        listBudgetTiers(apiKey),
+        listApiKeys(apiKey),
+      ])
+      setTiers(tierData.items)
+      setKeys(keyData.filter((item) => !item.is_session))
+    } catch {
+      toast.error('Failed to load quota tiers')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiKey])
+
+  useEffect(() => { void load() }, [load])
+
+  function startEdit(tier: BudgetTier) {
+    setEditId(tier.id)
+    setForm({
+      name: tier.name,
+      max_spend_usd: tier.max_spend_usd != null ? String(tier.max_spend_usd) : '',
+      period_type: tier.period_type,
+      rpm_limit: tier.rpm_limit != null ? String(tier.rpm_limit) : '',
+      tpm_limit: tier.tpm_limit != null ? String(tier.tpm_limit) : '',
+      allowed_models: tier.allowed_models?.join(', ') ?? '',
+      is_default: tier.is_default,
+    })
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const body: {
+        name: string
+        max_spend_usd?: number
+        period_type?: string
+        rpm_limit?: number
+        tpm_limit?: number
+        allowed_models?: string[]
+        is_default?: boolean
+      } = {
+        name: form.name.trim(),
+        period_type: form.period_type,
+        is_default: form.is_default,
+      }
+      if (form.max_spend_usd) body.max_spend_usd = parseFloat(form.max_spend_usd)
+      if (form.rpm_limit) body.rpm_limit = parseInt(form.rpm_limit, 10)
+      if (form.tpm_limit) body.tpm_limit = parseInt(form.tpm_limit, 10)
+      if (form.allowed_models.trim()) body.allowed_models = parseCsvTags(form.allowed_models)
+      if (editId) {
+        await updateBudgetTier(apiKey, editId, body)
+        toast.success('Budget tier updated')
+      } else {
+        await createBudgetTier(apiKey, body)
+        toast.success('Budget tier created')
+      }
+      setForm(emptyForm)
+      setEditId(null)
+      await load()
+    } catch {
+      toast.error('Failed to save budget tier')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(tierId: string) {
+    if (!confirm('Delete this budget tier?')) return
+    try {
+      await deleteBudgetTier(apiKey, tierId)
+      setTiers((prev) => prev.filter((item) => item.id !== tierId))
+      toast.success('Budget tier deleted')
+      await load()
+    } catch {
+      toast.error('Failed to delete budget tier')
+    }
+  }
+
+  async function handleAssign(keyId: string, tierId: string) {
+    setAssigningKeyId(keyId)
+    try {
+      const assignedTierId = tierId || null
+      await assignTierToKey(apiKey, keyId, assignedTierId)
+      setKeys((prev) => prev.map((item) => (item.id === keyId ? { ...item, budget_tier_id: assignedTierId } : item)))
+      toast.success('API key quota tier updated')
+    } catch {
+      toast.error('Failed to assign tier')
+    } finally {
+      setAssigningKeyId(null)
+    }
+  }
+
+  const tierNameById = Object.fromEntries(tiers.map((tier) => [tier.id, tier.name]))
+
+  return (
+    <section id="gateway-quota-tiers" className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold dark:text-white">API Key Quota Tiers</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Manage reusable RPM and TPM quota profiles here inside Gateway, then assign them directly to API keys.
+          </p>
+        </div>
+        <button
+          onClick={() => void load()}
+          disabled={loading}
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+
+      {canManage && (
+        <form onSubmit={handleSubmit} className="grid gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Tier name" required />
+          <input value={form.max_spend_usd} onChange={(e) => setForm({ ...form, max_spend_usd: e.target.value })} className={inputCls} placeholder="Max spend USD" type="number" step="0.01" />
+          <select value={form.period_type} onChange={(e) => setForm({ ...form, period_type: e.target.value })} className={inputCls}>
+            <option value="daily">Daily</option>
+            <option value="monthly">Monthly</option>
+            <option value="total">Total</option>
+          </select>
+          <input value={form.rpm_limit} onChange={(e) => setForm({ ...form, rpm_limit: e.target.value })} className={inputCls} placeholder="RPM limit" type="number" />
+          <input value={form.tpm_limit} onChange={(e) => setForm({ ...form, tpm_limit: e.target.value })} className={inputCls} placeholder="TPM limit" type="number" />
+          <input value={form.allowed_models} onChange={(e) => setForm({ ...form, allowed_models: e.target.value })} className={`${inputCls} lg:col-span-2`} placeholder="Allowed models (csv)" />
+          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+            Default tier
+          </label>
+          <div className="lg:col-span-3 flex items-center gap-2">
+            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? 'Saving...' : editId ? 'Update tier' : 'Create tier'}
+            </button>
+            {editId && (
+              <button type="button" onClick={() => { setEditId(null); setForm(emptyForm) }} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        {tiers.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400 lg:col-span-2">
+            No quota tiers configured yet.
+          </div>
+        ) : tiers.map((tier) => (
+          <div key={tier.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm dark:text-slate-100">{tier.name}</span>
+                  {tier.is_default && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">default</span>}
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tier.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                    {tier.is_active ? 'active' : 'inactive'}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">rpm: {tier.rpm_limit ?? '—'}</span>
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">tpm: {tier.tpm_limit ?? '—'}</span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">keys: {tier.key_count}</span>
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">spend: {tier.max_spend_usd != null ? `$${Number(tier.max_spend_usd).toFixed(2)}` : '—'}</span>
+                </div>
+                {tier.allowed_models?.length ? (
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{tier.allowed_models.join(', ')}</p>
+                ) : null}
+              </div>
+              {canManage && (
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(tier)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                    Edit
+                  </button>
+                  <button onClick={() => void handleDelete(tier.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold dark:text-white">Assign tiers to API keys</h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">API keys inherit RPM and TPM quotas from the selected tier.</p>
+          </div>
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="border-b border-slate-200 dark:border-slate-700 text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">API Key</th>
+                <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Workspace</th>
+                <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Current Tier</th>
+                <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide">Assign</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              {keys.map((key) => (
+                <tr key={key.id}>
+                  <td className="px-3 py-2">
+                    <div className="font-mono text-slate-700 dark:text-slate-100">{key.name || key.key_prefix}</div>
+                    <div className="text-slate-400">{key.key_prefix}</div>
+                  </td>
+                  <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{key.workspace_name || '—'}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{key.budget_tier_id ? (tierNameById[key.budget_tier_id] || 'Assigned') : 'Unassigned'}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={key.budget_tier_id ?? ''}
+                      onChange={(e) => void handleAssign(key.id, e.target.value)}
+                      disabled={assigningKeyId === key.id}
+                      className={`${inputCls} min-w-[220px]`}
+                    >
+                      <option value="">No tier</option>
+                      {tiers.map((tier) => (
+                        <option key={tier.id} value={tier.id}>{tier.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ModelQuotaPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {
+  const emptyForm = {
+    model_pattern: '',
+    max_spend_usd: '',
+    period_type: 'monthly',
+    rpm_limit: '',
+    tpm_limit: '',
+    action: 'block',
+  }
+  const [keys, setKeys] = useState<ApiKeyResponse[]>([])
+  const [selectedKeyId, setSelectedKeyId] = useState('')
+  const [items, setItems] = useState<ModelBudget[]>([])
+  const [form, setForm] = useState(emptyForm)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [loadingKeys, setLoadingKeys] = useState(false)
+  const [loadingItems, setLoadingItems] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const loadKeys = useCallback(async () => {
+    setLoadingKeys(true)
+    try {
+      const data = await listApiKeys(apiKey)
+      const filtered = data.filter((item) => !item.is_session)
+      setKeys(filtered)
+      if (!selectedKeyId && filtered.length > 0) {
+        setSelectedKeyId(filtered[0].id)
+      }
+    } catch {
+      toast.error('Failed to load API keys for model quotas')
+    } finally {
+      setLoadingKeys(false)
+    }
+  }, [apiKey, selectedKeyId])
+
+  const loadItems = useCallback(async () => {
+    if (!selectedKeyId) {
+      setItems([])
+      return
+    }
+    setLoadingItems(true)
+    try {
+      const data = await listModelBudgets(apiKey, selectedKeyId)
+      setItems(data.items)
+    } catch {
+      toast.error('Failed to load model quotas')
+    } finally {
+      setLoadingItems(false)
+    }
+  }, [apiKey, selectedKeyId])
+
+  useEffect(() => { void loadKeys() }, [loadKeys])
+  useEffect(() => { void loadItems() }, [loadItems])
+
+  function startEdit(item: ModelBudget) {
+    setEditId(item.id)
+    setForm({
+      model_pattern: item.model_pattern,
+      max_spend_usd: item.max_spend_usd != null ? String(item.max_spend_usd) : '',
+      period_type: item.period_type,
+      rpm_limit: item.rpm_limit != null ? String(item.rpm_limit) : '',
+      tpm_limit: item.tpm_limit != null ? String(item.tpm_limit) : '',
+      action: item.action,
+    })
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedKeyId) return
+    setSaving(true)
+    try {
+      const createBody: {
+        model_pattern: string
+        max_spend_usd?: number
+        period_type?: string
+        rpm_limit?: number
+        tpm_limit?: number
+        action?: string
+      } = {
+        model_pattern: form.model_pattern.trim(),
+        period_type: form.period_type,
+        action: form.action,
+      }
+      if (form.max_spend_usd) createBody.max_spend_usd = parseFloat(form.max_spend_usd)
+      if (form.rpm_limit) createBody.rpm_limit = parseInt(form.rpm_limit, 10)
+      if (form.tpm_limit) createBody.tpm_limit = parseInt(form.tpm_limit, 10)
+      if (editId) {
+        await updateModelBudget(apiKey, selectedKeyId, editId, createBody)
+        toast.success('Model quota updated')
+      } else {
+        await createModelBudget(apiKey, selectedKeyId, createBody)
+        toast.success('Model quota created')
+      }
+      setForm(emptyForm)
+      setEditId(null)
+      await loadItems()
+    } catch {
+      toast.error('Failed to save model quota')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(budgetId: string) {
+    if (!selectedKeyId || !confirm('Delete this model quota?')) return
+    try {
+      await deleteModelBudget(apiKey, selectedKeyId, budgetId)
+      setItems((prev) => prev.filter((item) => item.id !== budgetId))
+      toast.success('Model quota deleted')
+    } catch {
+      toast.error('Failed to delete model quota')
+    }
+  }
+
+  const selectedKey = keys.find((item) => item.id === selectedKeyId)
+
+  return (
+    <section id="gateway-model-quotas" className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold dark:text-white">Per-Model Quotas</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Manage per-model RPM, TPM, and spend limits for a selected API key directly from Gateway.
+          </p>
+        </div>
+        <button
+          onClick={() => { void loadKeys(); void loadItems() }}
+          disabled={loadingKeys || loadingItems}
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+        >
+          {loadingKeys || loadingItems ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <label className="block">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">API Key</span>
+            <select value={selectedKeyId} onChange={(e) => setSelectedKeyId(e.target.value)} className={`${inputCls} mt-1 w-full`}>
+              {keys.length === 0 && <option value="">No API keys</option>}
+              {keys.map((key) => (
+                <option key={key.id} value={key.id}>
+                  {(key.name || key.key_prefix)} {key.workspace_name ? `• ${key.workspace_name}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="text-xs text-slate-500 dark:text-slate-400">
+            {selectedKey ? `Current tier: ${selectedKey.budget_tier_id ? 'assigned' : 'none'}` : 'Select a key to manage quotas.'}
+          </div>
+        </div>
+      </div>
+
+      {canManage && selectedKeyId && (
+        <form onSubmit={handleSubmit} className="grid gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <input value={form.model_pattern} onChange={(e) => setForm({ ...form, model_pattern: e.target.value })} className={inputCls} placeholder="Model pattern" required />
+          <input value={form.max_spend_usd} onChange={(e) => setForm({ ...form, max_spend_usd: e.target.value })} className={inputCls} placeholder="Max spend USD" type="number" step="0.01" />
+          <select value={form.period_type} onChange={(e) => setForm({ ...form, period_type: e.target.value })} className={inputCls}>
+            <option value="daily">Daily</option>
+            <option value="monthly">Monthly</option>
+            <option value="total">Total</option>
+          </select>
+          <input value={form.rpm_limit} onChange={(e) => setForm({ ...form, rpm_limit: e.target.value })} className={inputCls} placeholder="RPM limit" type="number" />
+          <input value={form.tpm_limit} onChange={(e) => setForm({ ...form, tpm_limit: e.target.value })} className={inputCls} placeholder="TPM limit" type="number" />
+          <select value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })} className={inputCls}>
+            <option value="block">Block</option>
+            <option value="notify">Notify</option>
+            <option value="throttle">Throttle</option>
+            <option value="downgrade">Downgrade</option>
+            <option value="fallback">Fallback</option>
+          </select>
+          <div className="lg:col-span-3 flex items-center gap-2">
+            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? 'Saving...' : editId ? 'Update model quota' : 'Create model quota'}
+            </button>
+            {editId && (
+              <button type="button" onClick={() => { setEditId(null); setForm(emptyForm) }} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+
+      {selectedKeyId && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {items.length === 0 && !loadingItems ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400 lg:col-span-2">
+              No per-model quotas configured for this API key yet.
+            </div>
+          ) : items.map((item) => (
+            <div key={item.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm dark:text-slate-100">{item.model_pattern}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{item.period_type}</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">{item.action}</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">rpm: {item.rpm_limit ?? '—'}</span>
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">tpm: {item.tpm_limit ?? '—'}</span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">spend: {item.max_spend_usd != null ? `$${Number(item.max_spend_usd).toFixed(2)}` : '—'}</span>
+                  </div>
+                </div>
+                {canManage && (
+                  <div className="flex gap-2">
+                    <button onClick={() => startEdit(item)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                      Edit
+                    </button>
+                    <button onClick={() => void handleDelete(item.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

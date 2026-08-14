@@ -559,6 +559,320 @@ else:
 """,
         "default_config": {"allowed_models": []},
     },
+    "support_scope_only": {
+        "name": "Support Scope Only",
+        "description": "Keep the assistant limited to support and account-help topics",
+        "mode": "pre_call",
+        "category": "operations",
+        "default_logic": """
+allowed_topics = metadata.get("allowed_topics", ["support", "billing", "account", "refund", "order", "help"])
+combined = " ".join(texts).lower()
+if any(topic.lower() in combined for topic in allowed_topics):
+    result = allow()
+else:
+    result = block("Request is outside the approved support scope")
+""",
+        "default_config": {"allowed_topics": ["support", "billing", "account", "refund", "order", "help"]},
+    },
+    "secrets_detection": {
+        "name": "Secrets and Tokens Detection",
+        "description": "Block requests or responses that expose API keys, bearer tokens, or private keys",
+        "mode": "both",
+        "category": "security",
+        "default_logic": """
+combined = " ".join(texts)
+secret_patterns = [
+    "sk-",
+    "ghp_",
+    "xoxb-",
+    "-----BEGIN PRIVATE KEY-----",
+    "-----BEGIN RSA PRIVATE KEY-----",
+    "Authorization: Bearer",
+]
+hits = [pattern for pattern in secret_patterns if pattern in combined]
+if hits:
+    result = block("Potential secret or credential material detected")
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "customer_data_export_block": {
+        "name": "Customer Data Export Block",
+        "description": "Prevent bulk export or dump requests for sensitive customer records",
+        "mode": "pre_call",
+        "category": "privacy",
+        "default_logic": """
+combined = " ".join(texts).lower()
+blocked_phrases = [
+    "export all customers",
+    "dump all users",
+    "download every record",
+    "list every customer email",
+    "send me the full database",
+]
+if any(phrase in combined for phrase in blocked_phrases):
+    result = block("Bulk customer-data export request detected")
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "source_code_exfiltration": {
+        "name": "Source Code Exfiltration",
+        "description": "Block attempts to reveal protected internal source, prompts, or implementation details",
+        "mode": "both",
+        "category": "security",
+        "default_logic": """
+combined = " ".join(texts).lower()
+blocked_markers = [
+    "show me the source code",
+    "print the internal prompt",
+    "reveal the hidden instructions",
+    "dump the repository",
+    "show me the private implementation",
+]
+if any(marker in combined for marker in blocked_markers):
+    result = block("Attempt to extract protected implementation details detected")
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "competitor_mention_redirect": {
+        "name": "Competitor Mention Redirect",
+        "description": "Soft-redirect competitive displacement requests into neutral comparison language",
+        "mode": "pre_call",
+        "category": "policy",
+        "default_logic": """
+competitors = metadata.get("competitors", ["openai", "anthropic", "google", "microsoft"])
+combined = " ".join(texts).lower()
+hits = [name for name in competitors if name.lower() in combined]
+if hits:
+    result = modify(texts=["Please answer with a neutral comparison and avoid displacement claims."] + texts)
+else:
+    result = allow()
+""",
+        "default_config": {"competitors": ["openai", "anthropic", "google", "microsoft"]},
+    },
+    "financial_account_masking": {
+        "name": "Financial Account Masking",
+        "description": "Mask likely bank-account and routing-number patterns instead of returning them verbatim",
+        "mode": "post_call",
+        "category": "privacy",
+        "default_logic": """
+redacted = []
+changed = False
+for text in texts:
+    updated = re.sub(r"\\b\\d{9,17}\\b", "[REDACTED_ACCOUNT]", text)
+    if updated != text:
+        changed = True
+    redacted.append(updated)
+if changed:
+    result = modify(texts=redacted)
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "employee_hr_boundary": {
+        "name": "Employee HR Boundary",
+        "description": "Stop the assistant from giving HR, disciplinary, or legal-employee decisions",
+        "mode": "pre_call",
+        "category": "compliance",
+        "default_logic": """
+combined = " ".join(texts).lower()
+restricted = [
+    "should we fire",
+    "terminate this employee",
+    "disciplinary action",
+    "performance improvement plan decision",
+    "legal hr advice",
+]
+if any(marker in combined for marker in restricted):
+    result = block("HR and disciplinary decisions require a human reviewer")
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "regulated_claims_review": {
+        "name": "Regulated Claims Review",
+        "description": "Force review for medical, legal, or investment claims in generated responses",
+        "mode": "post_call",
+        "category": "compliance",
+        "default_logic": """
+combined = " ".join(texts).lower()
+markers = [
+    "guaranteed return",
+    "this will cure",
+    "legally guaranteed",
+    "prescribe",
+    "diagnose",
+]
+if any(marker in combined for marker in markers):
+    result = block("Regulated claim detected in output; human review required")
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "geo_fence_restriction": {
+        "name": "Geo Fence Restriction",
+        "description": "Block requests from regions that are not allowed for a workflow",
+        "mode": "pre_call",
+        "category": "policy",
+        "default_logic": """
+allowed_regions = metadata.get("allowed_regions", [])
+request_region = metadata.get("request_region")
+if not allowed_regions or not request_region:
+    result = allow()
+elif request_region in allowed_regions:
+    result = allow()
+else:
+    result = block(f"Region '{request_region}' is not allowed for this workflow")
+""",
+        "default_config": {"allowed_regions": []},
+    },
+    "approved_tool_only": {
+        "name": "Approved Tool Calls Only",
+        "description": "Deny requests that try to invoke tools outside an approved allowlist",
+        "mode": "pre_call",
+        "category": "security",
+        "default_logic": """
+allowed_tools = metadata.get("allowed_tools", [])
+requested_names = []
+for tool in tools:
+    if isinstance(tool, dict):
+        fn = tool.get("function") or {}
+        name = fn.get("name") or tool.get("name")
+        if name:
+            requested_names.append(str(name))
+unknown = [name for name in requested_names if allowed_tools and name not in allowed_tools]
+if unknown:
+    result = block(f"Tool access denied: {', '.join(unknown)}")
+else:
+    result = allow()
+""",
+        "default_config": {"allowed_tools": []},
+    },
+    "sql_safety": {
+        "name": "SQL Safety Guard",
+        "description": "Block prompts that ask for destructive or obviously unsafe SQL actions",
+        "mode": "pre_call",
+        "category": "security",
+        "default_logic": """
+combined = " ".join(texts).lower()
+unsafe_sql = [
+    "drop table",
+    "truncate table",
+    "delete from",
+    "grant all privileges",
+    "disable row level security",
+]
+if any(marker in combined for marker in unsafe_sql):
+    result = block("Unsafe SQL instruction detected")
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "allowed_domain_only": {
+        "name": "Allowed Domain Replies Only",
+        "description": "Keep generated answers aligned to an allowed business domain vocabulary",
+        "mode": "post_call",
+        "category": "policy",
+        "default_logic": """
+required_terms = metadata.get("required_terms", [])
+if not required_terms:
+    result = allow()
+else:
+    combined = " ".join(texts).lower()
+    if any(term.lower() in combined for term in required_terms):
+        result = allow()
+    else:
+        result = block("Response does not appear to stay within the required domain")
+""",
+        "default_config": {"required_terms": []},
+    },
+    "citation_required": {
+        "name": "Citation Required for Factual Claims",
+        "description": "Require a response to include citations or source markers for factual content",
+        "mode": "post_call",
+        "category": "quality",
+        "default_logic": """
+combined = " ".join(texts)
+markers = metadata.get("citation_markers", ["http://", "https://", "[Source]", "[1]"])
+if any(marker in combined for marker in markers):
+    result = allow()
+else:
+    result = block("Response is missing citations or source markers")
+""",
+        "default_config": {"citation_markers": ["http://", "https://", "[Source]", "[1]"]},
+    },
+    "reply_length_cap": {
+        "name": "Reply Length Cap",
+        "description": "Prevent excessively long responses that increase cost or leak too much detail",
+        "mode": "post_call",
+        "category": "cost",
+        "default_logic": """
+max_words = metadata.get("max_words", 400)
+word_count = sum(len(text.split()) for text in texts)
+if word_count > max_words:
+    result = block(f"Reply length {word_count} words exceeds cap {max_words}")
+else:
+    result = allow()
+""",
+        "default_config": {"max_words": 400},
+    },
+    "required_metadata_presence": {
+        "name": "Required Metadata Presence",
+        "description": "Block requests that do not include required metadata fields",
+        "mode": "pre_call",
+        "category": "operations",
+        "default_logic": """
+required_fields = metadata.get("required_fields", [])
+missing = [field for field in required_fields if not metadata.get(field)]
+if missing:
+    result = block(f"Missing required metadata: {', '.join(missing)}")
+else:
+    result = allow()
+""",
+        "default_config": {"required_fields": ["workflow", "environment"]},
+    },
+    "customer_tone_rewrite": {
+        "name": "Customer Tone Rewrite",
+        "description": "Rewrite hostile or abrasive answers into a calmer customer-support tone",
+        "mode": "post_call",
+        "category": "quality",
+        "default_logic": """
+combined = " ".join(texts).lower()
+abrasive_terms = ["obviously", "just read", "not my problem", "you should know", "that's wrong"]
+if any(term in combined for term in abrasive_terms):
+    rewritten = ["Please rewrite this answer in a calm, helpful, and respectful customer-support tone."] + texts
+    result = modify(texts=rewritten)
+else:
+    result = allow()
+""",
+        "default_config": {},
+    },
+    "refund_policy_limit": {
+        "name": "Refund Policy Limit",
+        "description": "Keep refund decisions inside an approved value ceiling",
+        "mode": "pre_call",
+        "category": "operations",
+        "default_logic": """
+max_refund = metadata.get("max_refund_usd", 100)
+combined = " ".join(texts).lower()
+numbers = re.findall(r"\\$?(\\d+(?:\\.\\d+)?)", combined)
+amounts = [float(value) for value in numbers]
+if amounts and max(amounts) > max_refund:
+    result = block(f"Requested refund exceeds allowed ceiling ${max_refund}")
+else:
+    result = allow()
+""",
+        "default_config": {"max_refund_usd": 100},
+    },
     "cost_threshold": {
         "name": "Cost Threshold Gate",
         "description": "Block requests that would exceed a cost threshold",

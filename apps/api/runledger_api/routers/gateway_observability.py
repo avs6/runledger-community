@@ -3,6 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from .gateway_shared import *
+from runledger_api.core.config import settings
+from runledger_api.models.budget_tiers import BudgetTier
+from runledger_api.models.model_budgets import ModelBudget
 
 router = APIRouter()
 
@@ -162,6 +165,98 @@ async def gateway_stats(
         cache_hit_rate=overall_hit_rate,
         avg_latency_ms=overall_latency,
         routes=route_stats,
+    )
+
+
+@router.get("/rate-limits/overview", response_model=GatewayRateLimitOverview)
+async def gateway_rate_limit_overview(
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayRateLimitOverview:
+    workspace = auth[0]
+
+    route_rows = (
+        await db.execute(
+            select(GatewayRoute.alias)
+            .where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.per_user_rpm_limit.is_not(None),
+            )
+            .order_by(GatewayRoute.alias.asc())
+        )
+    ).scalars().all()
+
+    passthrough_rows = (
+        await db.execute(
+            select(GatewayPassThroughEndpoint.slug)
+            .where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+                GatewayPassThroughEndpoint.rate_limit_rpm.is_not(None),
+            )
+            .order_by(GatewayPassThroughEndpoint.slug.asc())
+        )
+    ).scalars().all()
+
+    budget_tier_count = (
+        await db.execute(
+            select(func.count(BudgetTier.id)).where(
+                BudgetTier.workspace_id == workspace.id,
+                BudgetTier.is_active.is_(True),
+                sa.or_(BudgetTier.rpm_limit.is_not(None), BudgetTier.tpm_limit.is_not(None)),
+            )
+        )
+    ).scalar_one()
+
+    model_budget_count = (
+        await db.execute(
+            select(func.count(ModelBudget.id))
+            .select_from(ModelBudget)
+            .join(ApiKey, ApiKey.id == ModelBudget.api_key_id)
+            .where(
+                ApiKey.workspace_id == workspace.id,
+                ModelBudget.is_active.is_(True),
+                sa.or_(ModelBudget.rpm_limit.is_not(None), ModelBudget.tpm_limit.is_not(None)),
+            )
+        )
+    ).scalar_one()
+
+    return GatewayRateLimitOverview(
+        tiers=[
+            GatewayRateLimitTier(
+                key="ingest",
+                name="Ingest",
+                description="Gateway runtime, OTLP ingest, and write-heavy request paths.",
+                rpm=settings.ingest_rate_limit_per_minute,
+                endpoints=["/gateway/*", "/v1/chat/completions", "/otlp/*"],
+            ),
+            GatewayRateLimitTier(
+                key="analytics",
+                name="Analytics",
+                description="Read-oriented dashboards, reports, and observability queries.",
+                rpm=settings.analytics_rate_limit_per_minute,
+                endpoints=["/analytics/*", "/runs/*", "/outcomes/*"],
+            ),
+            GatewayRateLimitTier(
+                key="management",
+                name="Management",
+                description="Admin CRUD for settings, budgets, keys, and governance surfaces.",
+                rpm=settings.management_rate_limit_per_minute,
+                endpoints=["/gateway/config/*", "/budgets/*", "/settings/*"],
+            ),
+            GatewayRateLimitTier(
+                key="system",
+                name="System",
+                description="Privileged platform and auth surfaces with tighter safety limits.",
+                rpm=settings.system_rate_limit_per_minute,
+                endpoints=["/auth/*", "/health/*", "/system/*"],
+            ),
+        ],
+        route_rate_limited_count=len(route_rows),
+        route_rate_limited_aliases=list(route_rows),
+        passthrough_rate_limited_count=len(passthrough_rows),
+        passthrough_rate_limited_slugs=list(passthrough_rows),
+        budget_tier_rate_limited_count=int(budget_tier_count or 0),
+        model_budget_rate_limited_count=int(model_budget_count or 0),
     )
 
 

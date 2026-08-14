@@ -24,20 +24,20 @@ export default async function BudgetsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/budget-tiers" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-900">
+        <Link href="/gateway#gateway-quota-tiers" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500">Budget Tiers</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{tiers.items.length}</p>
-          <p className="mt-2 text-sm text-slate-500">Shared policy presets for spend, RPM, TPM, and allowed model sets.</p>
+          <p className="mt-2 text-sm text-slate-500">Shared policy presets for spend, RPM, TPM, and allowed model sets now live in Gateway quota controls.</p>
         </Link>
         <Link href="/budget-overrides" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500">Overrides</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Temporary</p>
           <p className="mt-2 text-sm text-slate-500">Review short-lived budget exceptions without leaving the spend-control workflow.</p>
         </Link>
-        <Link href="/model-budgets" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-900">
+        <Link href="/gateway#gateway-model-quotas" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500">Model Budgets</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">Per Key</p>
-          <p className="mt-2 text-sm text-slate-500">Pin tighter limits to expensive models or wildcard model families for sensitive keys.</p>
+          <p className="mt-2 text-sm text-slate-500">Per-key model RPM, TPM, and spend quotas are now managed from Gateway.</p>
         </Link>
       </div>
 

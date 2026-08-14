@@ -13,11 +13,24 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { getExperimentResults, createRouteRecommendation } from '@/lib/api'
 import type { ExperimentResults } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
+
+function valueToNumber(value: ValueType | undefined): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return valueToNumber(value[0])
+  }
+  return null
+}
 
 export default function ExperimentResultsPage() {
   const { data: session } = useSession()
@@ -287,7 +300,12 @@ export default function ExperimentResultsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${v.toFixed(3)}`} />
-                <Tooltip formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Projected cost']} />
+                <Tooltip
+                  formatter={(value) => {
+                    const numeric = valueToNumber(value) ?? 0
+                    return [`$${numeric.toFixed(6)}`, 'Projected cost']
+                  }}
+                />
                 <Bar dataKey="cost" fill="#2563eb" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

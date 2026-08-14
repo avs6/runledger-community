@@ -24,6 +24,7 @@ from runledger_api.schemas.model_budgets import (
     ModelBudgetCreate,
     ModelBudgetList,
     ModelBudgetResponse,
+    ModelBudgetUpdate,
 )
 
 router = APIRouter(
@@ -122,3 +123,30 @@ async def delete_model_budget(
     await db.execute(update(ModelBudget).where(ModelBudget.id == budget_id).values(is_active=False))
     await db.commit()
     log.info("model_budget_deleted", id=str(budget_id))
+
+
+@router.put("/{budget_id}", response_model=ModelBudgetResponse)
+async def update_model_budget(
+    key_id: uuid.UUID,
+    budget_id: uuid.UUID,
+    body: ModelBudgetUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ModelBudgetResponse:
+    workspace: Workspace = auth[0]
+    await _verify_key(key_id, workspace, db)
+
+    result = await db.execute(
+        select(ModelBudget).where(ModelBudget.id == budget_id, ModelBudget.api_key_id == key_id)
+    )
+    mb = result.scalar_one_or_none()
+    if mb is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Model budget not found")
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(mb, field, value)
+
+    await db.commit()
+    await db.refresh(mb)
+    log.info("model_budget_updated", id=str(budget_id), pattern=mb.model_pattern)
+    return _to_response(mb)

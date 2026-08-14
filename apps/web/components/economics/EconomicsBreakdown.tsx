@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import type { RunEconomics } from '@/types/api'
 
 const SPAN_COLOURS: Record<string, string> = {
@@ -26,6 +27,18 @@ function spanColour(spanType: string): string {
 
 interface Props {
   data: RunEconomics
+}
+
+function valueToNumber(value: ValueType | undefined): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return valueToNumber(value[0])
+  }
+  return null
 }
 
 export default function EconomicsBreakdown({ data }: Props) {
@@ -68,7 +81,10 @@ export default function EconomicsBreakdown({ data }: Props) {
               width={72}
             />
             <Tooltip
-              formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
+              formatter={(value) => {
+                const numeric = valueToNumber(value) ?? 0
+                return [`$${numeric.toFixed(6)}`, 'Cost']
+              }}
               contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '6px', color: '#f3f4f6' }}
             />
             <Bar dataKey="cost" radius={[4, 4, 0, 0]}>

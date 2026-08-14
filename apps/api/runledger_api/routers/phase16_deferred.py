@@ -1146,6 +1146,31 @@ async def update_response_cache_config(
     return _cache_to_response(config)
 
 
+@response_cache_router.delete(
+    "/{config_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
+async def delete_response_cache_config(
+    config_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
+) -> Response:
+    config = (
+        await db.execute(
+            select(ResponseCacheConfig).where(
+                ResponseCacheConfig.id == config_id,
+                ResponseCacheConfig.workspace_id == ws.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not config:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Response cache config not found")
+    await db.delete(config)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @response_cache_router.get(
     "/stats",
     response_model=ResponseCacheStatsResponse,
@@ -1181,3 +1206,26 @@ async def get_response_cache_stats(ws: WorkspaceDep, db: DbDep) -> ResponseCache
             for row in cache_entries
         ],
     )
+
+
+@response_cache_router.get(
+    "/{config_id}",
+    response_model=ResponseCacheConfigResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
+async def get_response_cache_config(
+    config_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
+) -> ResponseCacheConfigResponse:
+    config = (
+        await db.execute(
+            select(ResponseCacheConfig).where(
+                ResponseCacheConfig.id == config_id,
+                ResponseCacheConfig.workspace_id == ws.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not config:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Response cache config not found")
+    return _cache_to_response(config)
