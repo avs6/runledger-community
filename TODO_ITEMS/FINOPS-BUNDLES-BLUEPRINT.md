@@ -1009,10 +1009,10 @@ Bundle C is derived from the matrix cluster around:
 And from the section `5` FinOps audit findings in
 [FEATURE-AUDIT.md](C:/Users/Abi/Desktop/github/runledger-community/TODO_ITEMS/FEATURE-AUDIT.md):
 
-- rules and reports are shipped
+- rules, reports, and exports are shipped
 - the active dimension list no longer advertises legacy `team`
-- rule management still lacks update/edit
-- deeper cohesion with access groups and workflow attribution is still missing
+- rule management now includes update/edit and an exceptions view
+- deeper cohesion with access groups and API-key-native attribution is still missing
 
 The section `11` matrix shows Chargeback is already naturally close to:
 
@@ -1059,9 +1059,9 @@ Recommended `/chargeback` tabs:
 
 #### Chargeback domain gaps from section 5
 
-- `/chargeback` is still only `PARTIAL` across backend, UI, actions, and completion
-- rule management lacks update/edit
-- deeper alignment to access groups and workflows is still missing
+- `/chargeback` core backend, UI, actions, docs, Postman, scripts, and examples are now in place
+- rule management now includes update/edit/delete plus report export flows
+- deeper alignment to access groups and API-key-native ownership is still missing
 
 #### Scope-model gaps
 
@@ -1412,6 +1412,26 @@ Current relevant web files:
 - [apps/web/components/budgets/CreateBudgetModal.tsx](C:/Users/Abi/Desktop/github/runledger-community/apps/web/components/budgets/CreateBudgetModal.tsx)
 - [apps/web/lib/api.ts](C:/Users/Abi/Desktop/github/runledger-community/apps/web/lib/api.ts)
 - [apps/web/types/api.ts](C:/Users/Abi/Desktop/github/runledger-community/apps/web/types/api.ts)
+
+### Current audited state after the Bundle D pass
+
+The current codebase now implements the intended ownership normalization:
+
+- `/ledger` is a compatibility entry, not the primary operating surface
+- `Platform Settings -> Compliance` is the real operator home
+- backend now exposes `GET /ledger/closure-summary` in addition to snapshot list,
+  generate, and verify
+- the Compliance tab shows closure readiness, evidence-chain status, latest closed
+  period, chargeback evidence, backup evidence, audit activity, and snapshot
+  actions in one place
+- docs, Postman, manual lab, smoke script, and the ledger example now reflect
+  this operator flow
+
+What is still intentionally deeper future work rather than a blocker for this pass:
+
+- dedicated anomaly objects or anomaly-review screens
+- period-specific closure drill-ins or export bundles
+- richer evidence packaging beyond the current readiness summary and linked surfaces
 
 ### Target architecture
 
@@ -2465,20 +2485,18 @@ Recommended important fields:
 
 ### API contract changes
 
-Bundle D should expose or normalize:
+Current shipped contract after this pass:
 
-- `GET /ledger`
-- `POST /ledger/snapshots`
+- `GET /ledger/closure-summary`
 - `GET /ledger/snapshots`
-- `GET /ledger/snapshots/{snapshot_id}`
-- `POST /ledger/snapshots/{snapshot_id}/verify`
-- `GET /ledger/snapshots/{snapshot_id}/anomalies`
-- `GET /ledger/snapshots/{snapshot_id}/evidence`
+- `POST /ledger/snapshots/generate`
+- `GET /ledger/verify/{snapshot_date}`
 
-Recommended additions:
+Future deepening options, if we want a richer closure domain later:
 
-- `GET /ledger/close-readiness`
 - `GET /ledger/periods/{period_id}/closure`
+- `GET /ledger/snapshots/{snapshot_id}/evidence`
+- `GET /ledger/snapshots/{snapshot_id}/anomalies`
 
 ### UI requirements
 
@@ -2529,10 +2547,16 @@ Bundle D must visibly integrate with:
 
 ### Acceptance criteria
 
-Bundle D is complete when:
+Bundle D is complete for the current shipped scope when:
 
 - the closure workflow is conceptually owned by Platform Settings / Compliance
-- ledger verification and anomaly flows are explicit and operator-usable
+- ledger verification is explicit and operator-usable
 - billing and chargeback outputs link cleanly into closure
-- evidence completeness can be reviewed and exported
+- evidence completeness can be reviewed from one operator surface
 - docs/Postman/scripts/examples are aligned
+
+Current status:
+
+- completed on Friday, August 14, 2026 for the shipped scope above
+- anomaly-specific screens and richer export packaging remain optional future deepening,
+  not blockers for closing Bundle D

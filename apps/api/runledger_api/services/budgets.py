@@ -165,6 +165,10 @@ def _matching_budgets(
     budgets: list[dict[str, Any]],
     end_user_id: str | None,
     feature_tag: str | None,
+    app_id: str | None,
+    api_key_id: str | None,
+    access_group_id: str | None,
+    provider_profile_id: str | None,
 ) -> list[dict[str, Any]]:
     """
     Filter budget list to those that match this specific call.
@@ -172,7 +176,10 @@ def _matching_budgets(
     - workspace scope: always matches
     - end_user scope: matches when scope_id == end_user_id
     - feature_tag scope: matches when scope_id == feature_tag
-    - app scope: reserved, never matches for now
+    - app scope: matches when scope_id == app_id
+    - api_key scope: matches when scope_id == api_key_id
+    - access_group scope: matches when scope_id == access_group_id
+    - provider_profile scope: matches when scope_id == provider_profile_id
     """
     matched = []
     for b in budgets:
@@ -181,6 +188,18 @@ def _matching_budgets(
             (scope_type == "workspace")
             or (scope_type == "end_user" and end_user_id and b["scope_id"] == end_user_id)
             or (scope_type == "feature_tag" and feature_tag and b["scope_id"] == feature_tag)
+            or (scope_type == "app" and app_id and b["scope_id"] == app_id)
+            or (scope_type == "api_key" and api_key_id and b["scope_id"] == api_key_id)
+            or (
+                scope_type == "access_group"
+                and access_group_id
+                and b["scope_id"] == access_group_id
+            )
+            or (
+                scope_type == "provider_profile"
+                and provider_profile_id
+                and b["scope_id"] == provider_profile_id
+            )
         ):
             matched.append(b)
     return matched
@@ -195,6 +214,10 @@ async def check_budgets(
     workspace_id: uuid.UUID,
     end_user_id: str | None,
     feature_tag: str | None,
+    app_id: str | None = None,
+    api_key_id: str | None = None,
+    access_group_id: str | None = None,
+    provider_profile_id: str | None = None,
 ) -> BudgetCheckResponse:
     """
     Hot-path budget check: reads cache + Redis counters only.
@@ -203,7 +226,15 @@ async def check_budgets(
     downgrade budget is exceeded.  Notify-only budgets do not block.
     """
     budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
-    matched = _matching_budgets(budgets, end_user_id, feature_tag)
+    matched = _matching_budgets(
+        budgets,
+        end_user_id,
+        feature_tag,
+        app_id,
+        api_key_id,
+        access_group_id,
+        provider_profile_id,
+    )
 
     throttled = False
     throttle_budget_id: str | None = None

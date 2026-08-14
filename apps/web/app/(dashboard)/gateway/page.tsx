@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
@@ -1027,7 +1028,7 @@ export default function GatewayPage() {
           <div>
             <h2 className="text-base font-semibold dark:text-white">Rate Limit Controls</h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Rate limits are now owned here and in FinOps control pages. Runtime throttles stay in Gateway, while API-key and per-model quotas live in Budget Tiers and Model Budgets.
+              Gateway owns live throttles and quota mechanics on traffic. FinOps budgets own the spend policy around that traffic, so these controls should be reviewed together.
             </p>
           </div>
 
@@ -1052,7 +1053,7 @@ export default function GatewayPage() {
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-3">
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-4">
               <h3 className="text-sm font-semibold dark:text-white">Gateway-owned runtime throttles</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1090,6 +1091,19 @@ export default function GatewayPage() {
                     Open Model Budgets
                   </a>
                 </div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-4">
+              <h3 className="text-sm font-semibold dark:text-white">Spend policy linkage</h3>
+              <div className="mt-3 rounded-lg bg-white px-3 py-3 dark:bg-slate-900/50">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Budget policy control plane</p>
+                <p className="mt-1 text-2xl font-semibold dark:text-white">Budgets</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Use Budgets for provider-profile, API-key, access-group, and workspace spend actions. Keep runtime throttles here, but review enforcement outcomes in FinOps.
+                </p>
+                <Link href="/budgets" className="mt-2 inline-block text-xs font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-300">
+                  Open Budgets
+                </Link>
               </div>
             </div>
           </div>

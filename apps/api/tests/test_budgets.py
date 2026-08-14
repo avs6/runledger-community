@@ -88,7 +88,15 @@ def test_matching_budgets_workspace_scope() -> None:
     budgets = [
         {"scope_type": "workspace", "scope_id": None, "limit_usd": "10"},
     ]
-    result = _matching_budgets(budgets, end_user_id="u_123", feature_tag="chat")
+    result = _matching_budgets(
+        budgets,
+        end_user_id="u_123",
+        feature_tag="chat",
+        app_id=None,
+        api_key_id=None,
+        access_group_id=None,
+        provider_profile_id=None,
+    )
     assert len(result) == 1
 
 
@@ -98,7 +106,15 @@ def test_matching_budgets_end_user_scope() -> None:
         {"scope_type": "end_user", "scope_id": "u_123", "limit_usd": "5"},
         {"scope_type": "end_user", "scope_id": "u_999", "limit_usd": "5"},
     ]
-    result = _matching_budgets(budgets, end_user_id="u_123", feature_tag=None)
+    result = _matching_budgets(
+        budgets,
+        end_user_id="u_123",
+        feature_tag=None,
+        app_id=None,
+        api_key_id=None,
+        access_group_id=None,
+        provider_profile_id=None,
+    )
     assert len(result) == 1
     assert result[0]["scope_id"] == "u_123"
 
@@ -108,8 +124,34 @@ def test_matching_budgets_feature_tag_scope() -> None:
         {"scope_type": "feature_tag", "scope_id": "support-chat", "limit_usd": "5"},
         {"scope_type": "feature_tag", "scope_id": "other-feature", "limit_usd": "5"},
     ]
-    result = _matching_budgets(budgets, end_user_id=None, feature_tag="support-chat")
+    result = _matching_budgets(
+        budgets,
+        end_user_id=None,
+        feature_tag="support-chat",
+        app_id=None,
+        api_key_id=None,
+        access_group_id=None,
+        provider_profile_id=None,
+    )
     assert len(result) == 1
+
+
+def test_matching_budgets_api_key_scope() -> None:
+    budgets = [
+        {"scope_type": "api_key", "scope_id": "key_1", "limit_usd": "5"},
+        {"scope_type": "api_key", "scope_id": "key_2", "limit_usd": "5"},
+    ]
+    result = _matching_budgets(
+        budgets,
+        end_user_id=None,
+        feature_tag=None,
+        app_id=None,
+        api_key_id="key_1",
+        access_group_id=None,
+        provider_profile_id=None,
+    )
+    assert len(result) == 1
+    assert result[0]["scope_id"] == "key_1"
 
 
 # ── incr_budget_spend ─────────────────────────────────────────────────────────

@@ -7,12 +7,14 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { DatabaseBackup, Lock, Mail, Server, Trash2 } from 'lucide-react'
 import type {
+  LedgerClosureSummary,
   LedgerSnapshotResponse,
   LedgerVerifyResult,
   PlatformWebhookDefaults,
   PlatformWebhookDefaultsTestResult,
 } from '@/types/api'
 import {
+  getLedgerClosureSummary,
   listLedgerSnapshots,
   generateLedgerSnapshot,
   verifyLedgerSnapshot,
@@ -109,6 +111,7 @@ export default function SettingsPage() {
   // ── Compliance (Ledger) ────────────────────────────────────────────────────────
   const [snapshots, setSnapshots] = useState<LedgerSnapshotResponse[]>([])
   const [verifyResults, setVerifyResults] = useState<Record<string, LedgerVerifyResult>>({})
+  const [closureSummary, setClosureSummary] = useState<LedgerClosureSummary | null>(null)
   const [generatingSnap, setGeneratingSnap] = useState(false)
   const [verifyingSnap, setVerifyingSnap] = useState<string | null>(null)
   const [loadingCompliance, setLoadingCompliance] = useState(false)
@@ -144,8 +147,12 @@ export default function SettingsPage() {
     setComplianceAttempted(true)
     setLoadingCompliance(true)
     try {
-      const snapList = await listLedgerSnapshots(apiKey)
+      const [snapList, summary] = await Promise.all([
+        listLedgerSnapshots(apiKey),
+        getLedgerClosureSummary(apiKey),
+      ])
       setSnapshots(snapList.items)
+      setClosureSummary(summary)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load compliance data')
@@ -228,6 +235,8 @@ export default function SettingsPage() {
     try {
       const snap = await generateLedgerSnapshot(apiKey)
       setSnapshots((prev) => [snap, ...prev.filter((s) => s.snapshot_date !== snap.snapshot_date)])
+      const summary = await getLedgerClosureSummary(apiKey)
+      setClosureSummary(summary)
       toast.success('Snapshot generated')
     } catch { toast.error('Failed to generate snapshot') }
     finally { setGeneratingSnap(false) }
@@ -239,6 +248,8 @@ export default function SettingsPage() {
     try {
       const result = await verifyLedgerSnapshot(apiKey, snap.snapshot_date)
       setVerifyResults((prev) => ({ ...prev, [snap.snapshot_date]: result }))
+      const summary = await getLedgerClosureSummary(apiKey)
+      setClosureSummary(summary)
       if (result.match) toast.success('Snapshot integrity verified')
       else toast.error(`Integrity check failed: ${result.status}`)
     } catch { toast.error('Failed to verify snapshot') }
@@ -324,7 +335,7 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-xl font-semibold dark:text-white">Compliance</h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  Tamper-evident HMAC-signed ledger snapshots and agent tool audit registry.
+                  Closure workspace for ledger verification, period-close posture, chargeback evidence, backups, and audit linkage.
                 </p>
               </div>
               <button
@@ -339,10 +350,127 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            {/* Ledger Snapshots */}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Closure readiness</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {closureSummary?.readiness_status ?? 'Unknown'}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Evidence score {closureSummary?.evidence_score ?? 0}/5 as of {closureSummary ? new Date(closureSummary.generated_at).toLocaleString() : 'now'}.
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Latest closed period</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {closureSummary?.latest_closed_period ? `${closureSummary.latest_closed_period.period_start} → ${closureSummary.latest_closed_period.period_end}` : 'Missing'}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Net cost {closureSummary?.latest_closed_period?.net_cost_usd ? `$${Number.parseFloat(closureSummary.latest_closed_period.net_cost_usd).toFixed(2)}` : '—'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Ledger verification</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {closureSummary?.verification.latest_status ?? 'Pending'}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {closureSummary?.verification.ok_count ?? 0} ok · {closureSummary?.verification.tampered_count ?? 0} tampered · {closureSummary?.verification.pending_count ?? 0} pending
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Chargeback evidence</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {closureSummary?.chargeback ? `$${Number.parseFloat(closureSummary.chargeback.total_cost_usd).toFixed(2)}` : 'Missing'}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Unallocated {closureSummary?.chargeback ? `$${Number.parseFloat(closureSummary.chargeback.unallocated_cost_usd).toFixed(2)}` : '—'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">Audit activity</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  {(closureSummary?.recent_audit_event_count ?? 0).toLocaleString()}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Audit events in the last 30 days.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/40">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Evidence chain</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Compliance closure should link Billing period close, Chargeback ownership, Ledger verification, backup evidence, and audit history as one operator story.
+                </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {[
+                    ['Billing close', Boolean(closureSummary?.latest_closed_period), '/billing'],
+                    ['Chargeback allocation', Boolean(closureSummary?.chargeback), '/chargeback'],
+                    ['Ledger snapshot', Boolean(closureSummary?.latest_snapshot), '/settings?tab=compliance'],
+                    ['Verified backup', Boolean(closureSummary?.latest_backup_snapshot), '/settings?tab=backup'],
+                    ['Audit trail', (closureSummary?.recent_audit_event_count ?? 0) > 0, '/audit'],
+                  ].map(([label, ok, href]) => (
+                    <a
+                      key={String(label)}
+                      href={String(href)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition hover:border-stone-300 hover:bg-[#fffdf8] dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-slate-900 dark:text-slate-100">{label}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          ok
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200'
+                            : 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200'
+                        }`}>
+                          {ok ? 'Present' : 'Missing'}
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+                {closureSummary && closureSummary.missing_evidence.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                    <div className="font-semibold">Missing evidence</div>
+                    <p className="mt-1">
+                      {closureSummary.missing_evidence.join(', ')}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950/40">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Latest evidence anchors</h3>
+                <div className="mt-4 space-y-4 text-sm">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Latest snapshot</div>
+                    <div className="mt-1 text-slate-900 dark:text-slate-100">
+                      {closureSummary?.latest_snapshot ? closureSummary.latest_snapshot.snapshot_date : 'No snapshot yet'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Latest backup evidence</div>
+                    <div className="mt-1 text-slate-900 dark:text-slate-100">
+                      {closureSummary?.latest_backup_snapshot ? `${closureSummary.latest_backup_snapshot.bucket} · ${closureSummary.latest_backup_snapshot.integrity_status}` : 'No backup snapshot yet'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Chargeback scope</div>
+                    <div className="mt-1 text-slate-900 dark:text-slate-100">
+                      {closureSummary?.chargeback ? `${closureSummary.chargeback.period} · ${closureSummary.chargeback.dimension}` : 'No chargeback summary yet'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                    Compliance lives here under Platform Settings. `/ledger` remains a compatibility route only.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-medium dark:text-gray-100">Daily Snapshots</h3>
+                <h3 className="text-base font-medium dark:text-gray-100">Ledger snapshots</h3>
                 <button
                   onClick={handleGenerateSnapshot}
                   disabled={generatingSnap}
@@ -352,7 +480,7 @@ export default function SettingsPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Each snapshot is an HMAC-SHA256 signed record of daily spend. Use Verify to confirm integrity hasn&apos;t been tampered.
+                Each snapshot is an HMAC-SHA256 signed record of daily spend. Use Verify to confirm integrity and preserve the final close chain.
               </p>
               <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-sm">
@@ -413,13 +541,25 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Tool Registry link */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-600 dark:text-slate-300">
-              <p className="font-medium">Tool Registry</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Tool governance has moved to its own page.{' '}
-                <a href="/tool-registry" className="text-stone-700 hover:underline dark:text-[#D8CAAA]">Go to Tool Registry →</a>
-              </p>
+            <div className="grid gap-4 md:grid-cols-3">
+              <a href="/billing" className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-600 dark:text-slate-300 hover:border-stone-300 hover:bg-[#fffdf8] dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                <p className="font-medium">Billing period detail</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Review the closed accounting period that should feed ledger closure.
+                </p>
+              </a>
+              <a href="/chargeback" className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-600 dark:text-slate-300 hover:border-stone-300 hover:bg-[#fffdf8] dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                <p className="font-medium">Chargeback allocation</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Confirm ownership allocation before treating the close package as complete.
+                </p>
+              </a>
+              <a href="/audit" className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-600 dark:text-slate-300 hover:border-stone-300 hover:bg-[#fffdf8] dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                <p className="font-medium">Audit log and governance evidence</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Use Audit Log and Tool Registry as the downstream evidence companions to ledger verification.
+                </p>
+              </a>
             </div>
           </div>
         )}

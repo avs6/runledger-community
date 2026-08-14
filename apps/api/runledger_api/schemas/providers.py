@@ -39,6 +39,8 @@ class ProviderPricingResponse(BaseModel):
     effective_to: datetime | None
     workspace_id: uuid.UUID | None  # None means global
     source: str | None = "manual"
+    budget_count: int = 0
+    active_budget_count: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}

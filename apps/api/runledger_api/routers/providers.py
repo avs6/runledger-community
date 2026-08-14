@@ -21,12 +21,13 @@ import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.models.budgets import Budget
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import TenantUser, User, Workspace
@@ -71,7 +72,43 @@ async def list_pricing(auth: OrgAdminDep, db: DbDep) -> ProviderPricingList:
         )
     )
     rows = list(result.scalars().all())
-    return ProviderPricingList(items=[ProviderPricingResponse.model_validate(r) for r in rows])
+    budget_counts: dict[str, dict[str, int]] = {}
+    pricing_ids = [str(row.id) for row in rows]
+    if pricing_ids:
+        budget_result = await db.execute(
+            select(
+                Budget.scope_id,
+                func.count(Budget.id),
+                func.sum(case((Budget.is_active.is_(True), 1), else_=0)),
+            )
+            .where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "provider_profile",
+                Budget.scope_id.in_(pricing_ids),
+            )
+            .group_by(Budget.scope_id)
+        )
+        budget_counts = {
+            scope_id: {
+                "budget_count": int(total_count or 0),
+                "active_budget_count": int(active_count or 0),
+            }
+            for scope_id, total_count, active_count in budget_result.all()
+            if scope_id is not None
+        }
+
+    items = []
+    for row in rows:
+        counts = budget_counts.get(str(row.id), {})
+        base = ProviderPricingResponse.model_validate(row).model_dump()
+        items.append(
+            ProviderPricingResponse(
+                **base,
+                budget_count=counts.get("budget_count", 0),
+                active_budget_count=counts.get("active_budget_count", 0),
+            )
+        )
+    return ProviderPricingList(items=items)
 
 
 @router.post("/pricing/import", response_model=PricingImportResult)

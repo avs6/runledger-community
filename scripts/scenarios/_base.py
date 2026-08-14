@@ -978,24 +978,26 @@ class Workspace:
 
     def add_chargeback_rule(
         self,
-        name: str,
-        match_field: str,
-        match_value: str,
-        cost_center: str,
         *,
-        split_percent: float = 100.0,
+        allocation_type: str = "direct",
+        dimension: str = "feature_tag",
+        weight: float = 1.0,
+        require_approval: bool = False,
+        cost_center_id: str | None = None,
     ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "allocation_type": allocation_type,
+            "dimension": dimension,
+            "weight": weight,
+            "require_approval": require_approval,
+        }
+        if cost_center_id:
+            body["cost_center_id"] = cost_center_id
         return self.sim.post(
             "/billing/chargeback-rules",
-            {
-                "name": name,
-                "match_field": match_field,
-                "match_value": match_value,
-                "cost_center": cost_center,
-                "split_percent": split_percent,
-            },
+            body,
             key=self.admin_key or self.key,
-            label=f"chargeback rule {name}",
+            label=f"chargeback rule {allocation_type}:{dimension}",
             expect=(200, 201, 401, 403),
         )
 

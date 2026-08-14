@@ -8,20 +8,23 @@ imported directly from Celery workers.
 from __future__ import annotations
 
 import csv
+import calendar
 import hashlib
 import hmac
 import io
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
 import structlog
+import sqlalchemy as sa
 from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
+from runledger_api.models.budgets import Budget
 from runledger_api.models.billing import (
     BillingAdjustment,
     BillingPeriod,
@@ -32,16 +35,195 @@ from runledger_api.models.billing import (
 )
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import UsageDaily
+from runledger_api.models.tenant import Application, Workspace
 from runledger_api.schemas.billing import (
     BillingAdjustmentResponse,
     BreakdownApp,
     BreakdownUser,
+    ChargebackBreakdownItem,
+    ChargebackReport,
     CostCenterNode,
     PeriodBreakdown,
     ReconciliationResult,
 )
 
 log = structlog.get_logger()
+
+
+_CHARGEBACK_DIMENSIONS = {
+    "workspace",
+    "end_user",
+    "application",
+    "feature_tag",
+    "workflow",
+    "model",
+    "provider",
+    "intent",
+}
+
+
+def _chargeback_period_bounds(period: str | None) -> tuple[str, date, date]:
+    now = datetime.now(UTC)
+    normalized = period or f"{now.year}-{now.month:02d}"
+    year_str, month_str = normalized.split("-", 1)
+    year = int(year_str)
+    month = int(month_str)
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    return normalized, start, end
+
+
+async def build_chargeback_report(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    *,
+    period: str | None = None,
+    dimension: str | None = None,
+) -> ChargebackReport:
+    chosen_dimension = dimension or "feature_tag"
+    if chosen_dimension not in _CHARGEBACK_DIMENSIONS:
+        raise ValueError(f"Unsupported chargeback dimension: {chosen_dimension}")
+
+    period_label, period_start, period_end = _chargeback_period_bounds(period)
+
+    joins = []
+    group_expr = None
+    label_expr = None
+    budget_scope_type: str | None = None
+    budget_key_expr = None
+
+    if chosen_dimension == "workspace":
+        joins.append(("workspace",))
+        group_expr = Workspace.id
+        label_expr = Workspace.name
+        budget_scope_type = "workspace"
+        budget_key_expr = func.cast(Workspace.id, sa.Text)
+    elif chosen_dimension == "end_user":
+        group_expr = ProviderCall.end_user_id
+        label_expr = ProviderCall.end_user_id
+        budget_scope_type = "end_user"
+        budget_key_expr = ProviderCall.end_user_id
+    elif chosen_dimension == "application":
+        joins.append(("agent_run",))
+        joins.append(("application",))
+        group_expr = AgentRun.application_id
+        label_expr = Application.name
+        budget_scope_type = "app"
+        budget_key_expr = func.cast(AgentRun.application_id, sa.Text)
+    elif chosen_dimension in {"feature_tag", "workflow"}:
+        joins.append(("agent_run",))
+        group_expr = AgentRun.feature_tag
+        label_expr = AgentRun.feature_tag
+        budget_scope_type = "feature_tag"
+        budget_key_expr = AgentRun.feature_tag
+    elif chosen_dimension == "model":
+        group_expr = ProviderCall.model
+        label_expr = ProviderCall.model
+    elif chosen_dimension == "provider":
+        group_expr = ProviderCall.provider
+        label_expr = ProviderCall.provider
+    elif chosen_dimension == "intent":
+        joins.append(("agent_run",))
+        group_expr = AgentRun.intent
+        label_expr = AgentRun.intent
+
+    stmt = select(
+        group_expr.label("dimension_key"),
+        label_expr.label("dimension_label"),
+        func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost_usd"),
+        func.count(ProviderCall.id).label("call_count"),
+        func.count(func.distinct(ProviderCall.run_id)).label("run_count"),
+        budget_key_expr.label("budget_key") if budget_key_expr is not None else sa.literal(None).label("budget_key"),
+    ).select_from(ProviderCall)
+
+    joined_agent = False
+    for join_step in joins:
+        if join_step[0] == "agent_run" and not joined_agent:
+            stmt = stmt.join(AgentRun, AgentRun.id == ProviderCall.run_id)
+            joined_agent = True
+        elif join_step[0] == "application":
+            if not joined_agent:
+                stmt = stmt.join(AgentRun, AgentRun.id == ProviderCall.run_id)
+                joined_agent = True
+            stmt = stmt.outerjoin(Application, Application.id == AgentRun.application_id)
+        elif join_step[0] == "workspace":
+            stmt = stmt.join(Workspace, Workspace.id == ProviderCall.workspace_id)
+
+    stmt = (
+        stmt.where(
+            ProviderCall.workspace_id == workspace_id,
+            func.date(ProviderCall.created_at) >= period_start,
+            func.date(ProviderCall.created_at) <= period_end,
+            ProviderCall.status == "success",
+        )
+        .group_by(group_expr, label_expr, budget_key_expr if budget_key_expr is not None else sa.literal(None))
+        .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
+    )
+
+    rows = (await db.execute(stmt)).all()
+    total_cost = sum((row.cost_usd or Decimal(0) for row in rows), Decimal(0))
+
+    budget_map: dict[str, Decimal] = {}
+    if budget_scope_type is not None:
+        budget_rows = (
+            await db.execute(
+                select(Budget.scope_id, Budget.limit_usd).where(
+                    Budget.workspace_id == workspace_id,
+                    Budget.scope_type == budget_scope_type,
+                    Budget.is_active.is_(True),
+                )
+            )
+        ).all()
+        budget_map = {
+            str(scope_id): limit_usd
+            for scope_id, limit_usd in budget_rows
+            if scope_id is not None
+        }
+
+    items: list[ChargebackBreakdownItem] = []
+    covered_cost = Decimal(0)
+    unallocated_cost = Decimal(0)
+
+    for row in rows:
+        raw_label = row.dimension_label or row.dimension_key
+        dimension_value = str(raw_label) if raw_label is not None else "Unallocated"
+        allocation_status = "allocated" if raw_label is not None else "unallocated"
+        if allocation_status == "unallocated":
+            unallocated_cost += row.cost_usd or Decimal(0)
+        budget_value = None
+        coverage_status = "unbudgeted"
+        budget_key = str(row.budget_key) if row.budget_key is not None else None
+        if budget_key is not None and budget_key in budget_map:
+            budget_value = budget_map[budget_key]
+            coverage_status = "budgeted"
+            covered_cost += row.cost_usd or Decimal(0)
+        variance = (row.cost_usd - budget_value) if budget_value is not None else None
+        pct_of_total = (
+            ((row.cost_usd or Decimal(0)) / total_cost * Decimal(100)) if total_cost > 0 else Decimal(0)
+        )
+        items.append(
+            ChargebackBreakdownItem(
+                dimension="feature_tag" if chosen_dimension == "workflow" else chosen_dimension,
+                dimension_value=dimension_value,
+                cost_usd=row.cost_usd or Decimal(0),
+                pct_of_total=pct_of_total.quantize(Decimal("0.01")),
+                budget_usd=budget_value,
+                variance_usd=variance.quantize(Decimal("0.01")) if variance is not None else None,
+                call_count=int(row.call_count or 0),
+                run_count=int(row.run_count or 0),
+                allocation_status=allocation_status,
+                coverage_status=coverage_status,
+            )
+        )
+
+    return ChargebackReport(
+        period=period_label,
+        dimension=chosen_dimension,
+        total_cost_usd=total_cost.quantize(Decimal("0.0001")) if total_cost else Decimal("0"),
+        covered_cost_usd=covered_cost.quantize(Decimal("0.0001")) if covered_cost else Decimal("0"),
+        unallocated_cost_usd=unallocated_cost.quantize(Decimal("0.0001")) if unallocated_cost else Decimal("0"),
+        breakdown=items,
+    )
 
 
 # ── HMAC signing ──────────────────────────────────────────────────────────────

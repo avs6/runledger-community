@@ -22,11 +22,24 @@ class BillingPeriodCreate(BaseModel):
 
 
 class ChargebackRuleCreate(BaseModel):
-    allocation_type: str = Field(..., pattern="^(cost_center|team|env)$")
+    allocation_type: str = Field(
+        ..., pattern="^(direct|proportional|fixed|shared_weight|showback|cost_center|env)$"
+    )
     dimension: str
     weight: Decimal = Field(..., ge=0, le=1)
     cost_center_id: uuid.UUID | None = None
     require_approval: bool = False
+
+
+class ChargebackRuleUpdate(BaseModel):
+    allocation_type: str | None = Field(
+        default=None,
+        pattern="^(direct|proportional|fixed|shared_weight|showback|cost_center|env)$",
+    )
+    dimension: str | None = None
+    weight: Decimal | None = Field(default=None, ge=0, le=1)
+    cost_center_id: uuid.UUID | None = None
+    status: str | None = Field(default=None, pattern="^(active|inactive|pending_approval|denied)$")
 
 
 class CostCenterCreate(BaseModel):
@@ -46,6 +59,15 @@ class CostCenterUpdate(BaseModel):
 class BillingAdjustmentCreate(BaseModel):
     adjustment_type: str = Field(..., pattern="^(credit|refund|prepaid_deduction|surcharge)$")
     amount_usd: Decimal = Field(..., gt=0)
+    description: str | None = None
+    reference_id: str | None = None
+
+
+class BillingAdjustmentUpdate(BaseModel):
+    adjustment_type: str | None = Field(
+        default=None, pattern="^(credit|refund|prepaid_deduction|surcharge)$"
+    )
+    amount_usd: Decimal | None = Field(default=None, gt=0)
     description: str | None = None
     reference_id: str | None = None
 
@@ -88,6 +110,32 @@ class ChargebackRuleResponse(BaseModel):
 
 class ChargebackRuleList(BaseModel):
     items: list[ChargebackRuleResponse]
+
+
+class ChargebackBreakdownItem(BaseModel):
+    dimension: str
+    dimension_value: str
+    cost_usd: Decimal
+    pct_of_total: Decimal
+    budget_usd: Decimal | None = None
+    variance_usd: Decimal | None = None
+    call_count: int = 0
+    run_count: int = 0
+    allocation_status: str = "allocated"
+    coverage_status: str = "unbudgeted"
+
+
+class ChargebackReport(BaseModel):
+    period: str
+    dimension: str
+    total_cost_usd: Decimal
+    covered_cost_usd: Decimal
+    unallocated_cost_usd: Decimal
+    breakdown: list[ChargebackBreakdownItem]
+
+
+class ChargebackReportList(BaseModel):
+    items: list[ChargebackReport]
 
 
 class CostCenterResponse(BaseModel):

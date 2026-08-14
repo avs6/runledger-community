@@ -128,7 +128,7 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `add_alert(name, metric, operator, threshold)` | Alert rules |
 | `create_approval_request(request_type, reason, metadata=)` | Approval requests (budget increase, premium model use, etc.) |
 | `add_auto_approval_policy(request_type, max_amount=, conditions=)` | Auto-approval policies for low-risk requests |
-| `add_chargeback_rule(name, match_field, match_value, cost_center, split_percent=)` | Chargeback rules for cost attribution to business units |
+| `add_chargeback_rule(allocation_type=, dimension=, weight=, require_approval=, cost_center_id=)` | Chargeback rule lifecycle for workspace, workflow tag, application, provider, model, and end-user attribution |
 | `generate_runbook(run)` | Incident-style runbook for a run |
 | `create_route_recommendation(experiment_id, config_index, reason)` | Route recommendations from replay experiments |
 | `get_governance_audit_pack()` | Governance audit pack (compliance evidence export) |
@@ -170,3 +170,12 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `list_budget_overrides(budget_id)` | List overrides for a budget |
 | `revoke_budget_override(budget_id, override_id)` | Revoke an active override immediately |
 | `get_billing_summary(months=)` | Billable vs non-billable cost breakdown by period |
+
+## Billing labs
+
+- `labs/part13_billing_reconciliation.md`
+  Covers the Bundle B workflow: period creation, reconciliation review, adjustment lifecycle, shared-cost policy management, and signed export verification.
+- `labs/part13_chargeback.md`
+  Covers the Bundle C workflow: chargeback rule CRUD, report review, workflow-tag allocation, and finance-ready CSV/JSON exports.
+- `labs/part13_ledger_closure.md`
+  Covers the Bundle D workflow: compliance closure readiness, ledger verification, and the evidence chain across billing, chargeback, backup, and audit.

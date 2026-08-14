@@ -10,10 +10,12 @@ POST   /billing/periods                          Create a billing period
 GET    /billing/periods                          List periods (optional ?status=)
 GET    /billing/periods/{id}                     Single period
 POST   /billing/periods/{id}/close               Close + sign snapshot
+GET    /billing/periods/{id}/reconciliation      Reconciliation details for a period
 GET    /billing/periods/{id}/breakdown           Hierarchical breakdown by app/user
 GET    /billing/periods/{id}/export              Export CSV / signed JSON
 POST   /billing/periods/{id}/adjustments         Add a credit/refund/surcharge line
 GET    /billing/periods/{id}/adjustments         List adjustments for a period
+PUT    /billing/periods/{id}/adjustments/{adj}   Update an adjustment
 DELETE /billing/periods/{id}/adjustments/{adj}   Remove an adjustment
 POST   /billing/shared-cost-policies             Create a shared-cost policy
 GET    /billing/shared-cost-policies             List shared-cost policies
@@ -21,11 +23,17 @@ GET    /billing/shared-cost-policies/{id}        Get a shared-cost policy
 PUT    /billing/shared-cost-policies/{id}        Update a shared-cost policy
 DELETE /billing/shared-cost-policies/{id}        Delete a shared-cost policy
 POST   /billing/shared-cost-policies/{id}/allocate  Compute cost allocation for a pool
+PUT    /billing/chargeback-rules/{id}            Update a chargeback rule
+GET    /billing/chargeback-report                Generate a chargeback report
+GET    /billing/chargeback-report/export         Export a chargeback report
 """
 
 from __future__ import annotations
 
 import asyncio as _asyncio
+import csv
+import io
+import json
 import uuid
 from typing import Annotated, Any
 
@@ -51,12 +59,15 @@ from runledger_api.schemas.billing import (
     BillingAdjustmentCreate,
     BillingAdjustmentList,
     BillingAdjustmentResponse,
+    BillingAdjustmentUpdate,
+    ChargebackReportList,
     BillingPeriodCreate,
     BillingPeriodList,
     BillingPeriodResponse,
     ChargebackRuleCreate,
     ChargebackRuleList,
     ChargebackRuleResponse,
+    ChargebackRuleUpdate,
     PeriodBreakdown,
     SharedCostAllocationResult,
     SharedCostPolicyCreate,
@@ -67,12 +78,14 @@ from runledger_api.schemas.billing import (
 )
 from runledger_api.services.billing import (
     add_adjustment,
+    build_chargeback_report,
     close_billing_period,
     compute_shared_cost_allocation,
     export_csv,
     export_signed_json,
     get_period_adjustments,
     get_period_breakdown,
+    run_reconciliation,
 )
 from runledger_api.services.email import send_billing_period_closed_email
 from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
@@ -270,6 +283,30 @@ async def get_breakdown(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
+@router.get("/periods/{period_id}/reconciliation", response_model=ReconciliationResult)
+async def get_period_reconciliation(
+    period_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ReconciliationResult:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(BillingPeriod).where(
+            BillingPeriod.id == period_id,
+            BillingPeriod.workspace_id == workspace.id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
+
+    try:
+        return await run_reconciliation(db, period_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
 # ── GET /billing/periods/{id}/export ──────────────────────────────────────────
 
 
@@ -390,6 +427,61 @@ async def list_adjustments(
         total_surcharges_usd=total_surcharges,
         net_adjustment_usd=net_adj,
     )
+
+
+@router.put(
+    "/periods/{period_id}/adjustments/{adjustment_id}",
+    response_model=BillingAdjustmentResponse,
+)
+async def update_adjustment(
+    period_id: uuid.UUID,
+    adjustment_id: uuid.UUID,
+    body: BillingAdjustmentUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BillingAdjustmentResponse:
+    workspace: Workspace = auth[0]
+
+    period_result = await db.execute(
+        select(BillingPeriod).where(
+            BillingPeriod.id == period_id,
+            BillingPeriod.workspace_id == workspace.id,
+        )
+    )
+    period = period_result.scalar_one_or_none()
+    if period is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
+        )
+    if period.status == "closed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot update adjustments on a closed billing period",
+        )
+
+    result = await db.execute(
+        select(BillingAdjustment).where(
+            BillingAdjustment.id == adjustment_id,
+            BillingAdjustment.billing_period_id == period_id,
+            BillingAdjustment.workspace_id == workspace.id,
+        )
+    )
+    adjustment = result.scalar_one_or_none()
+    if adjustment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Adjustment not found")
+
+    if body.adjustment_type is not None:
+        adjustment.adjustment_type = body.adjustment_type
+    if body.amount_usd is not None:
+        adjustment.amount_usd = body.amount_usd
+    if body.description is not None:
+        adjustment.description = body.description
+    if body.reference_id is not None:
+        adjustment.reference_id = body.reference_id
+
+    await db.commit()
+    await db.refresh(adjustment)
+    return BillingAdjustmentResponse.model_validate(adjustment)
 
 
 @router.delete(
@@ -654,6 +746,40 @@ async def get_chargeback_rule(
     return ChargebackRuleResponse.model_validate(rule)
 
 
+@router.put("/chargeback-rules/{rule_id}", response_model=ChargebackRuleResponse)
+async def update_chargeback_rule(
+    rule_id: uuid.UUID,
+    body: ChargebackRuleUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChargebackRuleResponse:
+    workspace: Workspace = auth[0]
+    result = await db.execute(
+        select(ChargebackRule).where(
+            ChargebackRule.id == rule_id,
+            ChargebackRule.workspace_id == workspace.id,
+        )
+    )
+    rule = result.scalar_one_or_none()
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+
+    if body.allocation_type is not None:
+        rule.allocation_type = body.allocation_type
+    if body.dimension is not None:
+        rule.dimension = body.dimension
+    if body.weight is not None:
+        rule.weight = body.weight
+    if body.cost_center_id is not None:
+        rule.cost_center_id = body.cost_center_id
+    if body.status is not None:
+        rule.status = body.status
+
+    await db.commit()
+    await db.refresh(rule)
+    return ChargebackRuleResponse.model_validate(rule)
+
+
 @router.delete("/chargeback-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chargeback_rule(
     rule_id: uuid.UUID,
@@ -672,3 +798,93 @@ async def delete_chargeback_rule(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
     await db.delete(rule)
     await db.commit()
+
+
+@router.get("/chargeback-report", response_model=ChargebackReportList)
+async def get_chargeback_report(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period: Annotated[str | None, Query()] = None,
+    dimension: Annotated[str | None, Query()] = None,
+) -> ChargebackReportList:
+    workspace: Workspace = auth[0]
+    try:
+        report = await build_chargeback_report(
+            db,
+            workspace.id,
+            period=period,
+            dimension=dimension,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return ChargebackReportList(items=[report])
+
+
+@router.get("/chargeback-report/export")
+async def export_chargeback_report(
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    period: Annotated[str | None, Query()] = None,
+    dimension: Annotated[str | None, Query()] = None,
+    format: Annotated[str, Query(pattern="^(csv|json)$")] = "csv",
+) -> Response:
+    workspace: Workspace = auth[0]
+    try:
+        report = await build_chargeback_report(
+            db,
+            workspace.id,
+            period=period,
+            dimension=dimension,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if format == "json":
+        return Response(
+            content=json.dumps(report.model_dump(mode="json"), default=str),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename=chargeback_{report.period}_{report.dimension}.json"
+            },
+        )
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "period",
+            "dimension",
+            "dimension_value",
+            "cost_usd",
+            "pct_of_total",
+            "budget_usd",
+            "variance_usd",
+            "call_count",
+            "run_count",
+            "allocation_status",
+            "coverage_status",
+        ]
+    )
+    for item in report.breakdown:
+        writer.writerow(
+            [
+                report.period,
+                report.dimension,
+                item.dimension_value,
+                str(item.cost_usd),
+                str(item.pct_of_total),
+                str(item.budget_usd) if item.budget_usd is not None else "",
+                str(item.variance_usd) if item.variance_usd is not None else "",
+                item.call_count,
+                item.run_count,
+                item.allocation_status,
+                item.coverage_status,
+            ]
+        )
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=chargeback_{report.period}_{report.dimension}.csv"
+        },
+    )

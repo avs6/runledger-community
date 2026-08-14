@@ -59,12 +59,34 @@ async def test_list_provider_pricing(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute.return_value = _scalars_list([])
+    empty_budget_rows = MagicMock()
+    empty_budget_rows.all.return_value = []
+    mock_db_session.execute.side_effect = [_scalars_list([]), empty_budget_rows]
 
     resp = await authed_client.get("/providers/pricing")
 
     assert resp.status_code == 200
     assert resp.json() == {"items": []}
+
+
+@pytest.mark.asyncio
+async def test_list_provider_pricing_includes_budget_counts(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    pricing = _make_pricing(workspace_id=mock_workspace.id)
+    budget_rows = MagicMock()
+    budget_rows.all.return_value = [(str(pricing.id), 2, 1)]
+    mock_db_session.execute.side_effect = [_scalars_list([pricing]), budget_rows]
+
+    resp = await authed_client.get("/providers/pricing")
+
+    assert resp.status_code == 200
+    data = resp.json()["items"][0]
+    assert data["id"] == str(pricing.id)
+    assert data["budget_count"] == 2
+    assert data["active_budget_count"] == 1
 
 
 @pytest.mark.asyncio
