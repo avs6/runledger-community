@@ -1,45 +1,42 @@
 ---
 title: "Policy Dry Run"
-description: "Test budget, routing, tool, and data capture policies before enforcement — see what would be blocked without blocking it."
+description: "Test budget, routing, tool, and data capture policies before enforcement and review the outcome from the tool-governance dry-run surface."
 ---
 
-Policy dry-run mode lets you preview the impact of a policy change before it affects live traffic. Run any policy in shadow mode, review what it would have blocked, rerouted, or allowed, then promote it to enforcement with one click.
+Policy dry-run mode lets you preview the impact of a policy change before it affects live traffic. The main operator surface now lives inside the **Tool Policies** page as the dry-run tab, while `/policy-dry-run` remains as a compatibility route.
 
 ## Key features
 
 - **Shadow evaluation** — policies run against real traffic but take no action.
-- **Dry-run reports** — see requests that would be rejected, agents that would need approval, MCP tools that would be blocked, models that would be rerouted, and expected savings.
+- **Dry-run reports** — see requests that would be rejected, require approval, or be rerouted.
 - **Promote to enforcement** — after review, promote a dry-run policy to active enforcement.
-- **Audit trail** — every dry-run decision is logged to the [audit log](/governance/approvals).
+- **Audit trail** — every dry-run decision can be pivoted into the audit log.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  policy[New policy · dry-run mode] --> shadow[Shadow evaluation on live traffic]
-  shadow --> report[Dry-run report]
-  report --> review{Admin review}
-  review -- promote --> enforce[Active enforcement]
+  policy["New policy in dry-run mode"] --> shadow["Shadow evaluation on live traffic"]
+  shadow --> report["Dry-run report"]
+  report --> review{"Admin review"}
+  review -- promote --> enforce["Active enforcement"]
   review -- keep testing --> shadow
-  enforce --> audit[Audit event]
+  enforce --> audit["Audit event"]
 ```
 
-## Report contents
+## Current ownership
 
-| Column | Description |
-|---|---|
-| Request ID | The request that was evaluated |
-| Action | `would_block`, `would_allow`, or `would_reroute` |
-| Policy type | Budget, routing, tool filter, or data capture |
-| Reason | Why the policy would have acted |
+- use **Tool Policies** for the live dry-run and simulation workflow
+- use **Tool Registry** for runtime registrations and search-provider setup
+- keep `/policy-dry-run` only as a compatibility entry point
 
 ## Related
 
 <CardGroup cols={2}>
+  <Card title="Tool Governance" icon="wrench" href="/governance/tool-governance">
+    Registry, policy rules, simulation, and dry-run ownership.
+  </Card>
   <Card title="Approvals" icon="shield-check" href="/governance/approvals">
     Approval workflows for sensitive actions.
-  </Card>
-  <Card title="Governance audit pack" icon="file-check" href="/governance/governance-audit-pack">
-    Exportable compliance evidence.
   </Card>
 </CardGroup>

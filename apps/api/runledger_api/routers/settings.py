@@ -490,6 +490,29 @@ async def upsert_capture_policy_scope(
     return _capture_policy_scope_to_response(existing)
 
 
+@router.delete("/capture-policy/scopes", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_capture_policy_scope(
+    scope_type: str,
+    scope_id: str,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> None:
+    workspace, _user, _workspace_membership = auth
+    existing = (
+        await db.execute(
+            select(CapturePolicyScope).where(
+                CapturePolicyScope.workspace_id == workspace.id,
+                CapturePolicyScope.scope_type == scope_type,
+                CapturePolicyScope.scope_id == scope_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Scoped capture policy not found")
+    await db.delete(existing)
+    await db.commit()
+
+
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
 async def list_api_keys(auth: WorkspaceAdminDep, db: DbDep) -> list[dict[str, Any]]:
     """List keys across ALL workspaces in the caller's org (org-admin only)."""

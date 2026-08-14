@@ -716,10 +716,21 @@ export async function listToolRegistry(apiKey: string): Promise<ToolRegistryList
 
 export async function upsertToolRegistry(
   apiKey: string,
-  body: { tool_name: string; policy?: string; description?: string | null }
+  body: { tool_name: string; policy?: string; runtime_enforcement?: boolean; description?: string | null }
 ): Promise<ToolRegistryResponse> {
   return apiFetch<ToolRegistryResponse>('/tools/registry', apiKey, {
     method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateToolRegistry(
+  apiKey: string,
+  toolName: string,
+  body: { policy?: string; runtime_enforcement?: boolean; description?: string | null }
+): Promise<ToolRegistryResponse> {
+  return apiFetch<ToolRegistryResponse>(`/tools/registry/${encodeURIComponent(toolName)}`, apiKey, {
+    method: 'PATCH',
     body: JSON.stringify(body),
   })
 }
@@ -793,6 +804,17 @@ export async function upsertCapturePolicyScope(
   return apiFetch<CapturePolicyScope>('/settings/capture-policy/scopes', apiKey, {
     method: 'PUT',
     body: JSON.stringify(scope),
+  })
+}
+
+export async function deleteCapturePolicyScope(
+  apiKey: string,
+  scopeType: string,
+  scopeId: string
+): Promise<void> {
+  const query = new URLSearchParams({ scope_type: scopeType, scope_id: scopeId }).toString()
+  await apiFetch<void>(`/settings/capture-policy/scopes?${query}`, apiKey, {
+    method: 'DELETE',
   })
 }
 
@@ -1319,6 +1341,8 @@ export async function updateAlertRule(
   ruleId: string,
   body: {
     name?: string
+    metric?: string
+    operator?: string
     threshold?: number
     window_minutes?: number
     is_active?: boolean
@@ -2274,6 +2298,17 @@ export async function createAutoApprovalPolicy(
   })
 }
 
+export async function updateAutoApprovalPolicy(
+  apiKey: string,
+  policyId: string,
+  body: { request_type?: string; condition?: string }
+): Promise<import('@/types/api').AutoApprovalPolicy> {
+  return apiFetch<import('@/types/api').AutoApprovalPolicy>(`/approvals/auto-policies/${policyId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function deleteAutoApprovalPolicy(
   apiKey: string,
   policyId: string
@@ -2322,6 +2357,13 @@ export async function listAuditEvents(
   q.set('limit', String(params.limit ?? 50))
   q.set('offset', String(params.offset ?? 0))
   return apiFetch<AuditEventList>(`/audit/events?${q.toString()}`, apiKey)
+}
+
+export async function getAuditEvent(
+  apiKey: string,
+  eventId: string
+): Promise<import('@/types/api').AuditEvent> {
+  return apiFetch<import('@/types/api').AuditEvent>(`/audit/events/${eventId}`, apiKey)
 }
 
 export async function listRetentionPolicies(apiKey: string): Promise<RetentionPolicyList> {
@@ -4093,7 +4135,7 @@ export async function requestHubAccess(apiKey: string, id: string): Promise<{ st
 
 // ── Team Models ──────────────────────────────────────────────────────────
 
-// Phase 16 deferred management surfaces
+// Workspace control surfaces
 
 export async function getTags(
   apiKey: string,
@@ -4122,6 +4164,90 @@ export async function getAutoTagRules(
   return apiFetch<import('@/types/api').AutoTaggingRuleListResponse>('/tags/auto-rules', apiKey)
 }
 
+export async function createTag(
+  apiKey: string,
+  data: {
+    category: string
+    key: string
+    value: string
+    description?: string | null
+    parent_tag_id?: string | null
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').TagResponse> {
+  return apiFetch<import('@/types/api').TagResponse>('/tags', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateTag(
+  apiKey: string,
+  tagId: string,
+  data: Partial<{
+    category: string
+    key: string
+    value: string
+    description: string | null
+    parent_tag_id: string | null
+    is_active: boolean
+  }>
+): Promise<import('@/types/api').TagResponse> {
+  return apiFetch<import('@/types/api').TagResponse>(`/tags/${tagId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteTag(apiKey: string, tagId: string): Promise<void> {
+  await apiFetch<void>(`/tags/${tagId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function createAutoTagRule(
+  apiKey: string,
+  data: {
+    name: string
+    description?: string | null
+    match_type: 'equals' | 'contains' | 'regex' | 'prefix' | 'suffix'
+    match_field: string
+    match_pattern: string
+    tag_key: string
+    tag_value: string
+    priority?: number
+    is_active?: boolean
+  }
+): Promise<import('@/types/api').AutoTaggingRuleResponse> {
+  return apiFetch<import('@/types/api').AutoTaggingRuleResponse>('/tags/auto-rules', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateAutoTagRule(
+  apiKey: string,
+  ruleId: string,
+  data: Partial<{
+    name: string
+    description: string | null
+    match_type: 'equals' | 'contains' | 'regex' | 'prefix' | 'suffix'
+    match_field: string
+    match_pattern: string
+    tag_key: string
+    tag_value: string
+    priority: number
+    is_active: boolean
+  }>
+): Promise<import('@/types/api').AutoTaggingRuleResponse> {
+  return apiFetch<import('@/types/api').AutoTaggingRuleResponse>(`/tags/auto-rules/${ruleId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteAutoTagRule(apiKey: string, ruleId: string): Promise<void> {
+  await apiFetch<void>(`/tags/auto-rules/${ruleId}`, apiKey, { method: 'DELETE' })
+}
+
 export async function simulateAutoTagging(
   apiKey: string,
   data: { fields: Record<string, string> }
@@ -4140,6 +4266,57 @@ export async function getSearchTools(
   if (params.include_inactive) qs.set('include_inactive', 'true')
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<import('@/types/api').SearchToolListResponse>(`/search-tools${query}`, apiKey)
+}
+
+export async function createSearchTool(
+  apiKey: string,
+  data: {
+    name: string
+    description?: string | null
+    tool_type: string
+    endpoint_url?: string | null
+    auth_type?: string | null
+    auth_config?: Record<string, unknown>
+    rate_limit_rpm?: number | null
+    cost_per_query?: number
+    is_active?: boolean
+    avg_quality_score?: number | null
+    config?: Record<string, unknown>
+  }
+): Promise<import('@/types/api').SearchToolResponse> {
+  return apiFetch<import('@/types/api').SearchToolResponse>('/search-tools', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateSearchTool(
+  apiKey: string,
+  toolId: string,
+  data: Partial<{
+    name: string
+    description: string | null
+    tool_type: string
+    endpoint_url: string | null
+    auth_type: string | null
+    auth_config: Record<string, unknown>
+    rate_limit_rpm: number | null
+    cost_per_query: number
+    is_active: boolean
+    avg_quality_score: number | null
+    config: Record<string, unknown>
+  }>
+): Promise<import('@/types/api').SearchToolResponse> {
+  return apiFetch<import('@/types/api').SearchToolResponse>(`/search-tools/${toolId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteSearchTool(apiKey: string, toolId: string): Promise<void> {
+  await apiFetch<void>(`/search-tools/${toolId}`, apiKey, {
+    method: 'DELETE',
+  })
 }
 
 export async function getSearchToolPolicies(
@@ -4176,6 +4353,28 @@ export async function createToolPolicy(
 ): Promise<import('@/types/api').ToolPolicyResponse> {
   return apiFetch<import('@/types/api').ToolPolicyResponse>('/tool-policies', apiKey, {
     method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateToolPolicy(
+  apiKey: string,
+  id: string,
+  data: Partial<{
+    name: string
+    description: string
+    tool_name: string
+    action: string
+    condition_type: string | null
+    condition_config: Record<string, unknown>
+    scope_type: string
+    scope_id: string | null
+    priority: number
+    is_active: boolean
+  }>
+): Promise<import('@/types/api').ToolPolicyResponse> {
+  return apiFetch<import('@/types/api').ToolPolicyResponse>(`/tool-policies/${id}`, apiKey, {
+    method: 'PUT',
     body: JSON.stringify(data),
   })
 }

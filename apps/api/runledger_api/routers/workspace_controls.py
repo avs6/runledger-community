@@ -1,4 +1,4 @@
-"""Deferred Phase 16 management routers."""
+"""Workspace control routers for tags, tool governance, access groups, and cache configs."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from runledger_api.models.search_tools import SearchTool
 from runledger_api.models.tags import AutoTaggingRule, Tag
 from runledger_api.models.tenant import Workspace
 from runledger_api.models.tool_policies import ToolPolicy
-from runledger_api.schemas.phase16_deferred import (
+from runledger_api.schemas.workspace_controls import (
     AccessGroupCreate,
     AccessGroupDashboardItem,
     AccessGroupDashboardResponse,
@@ -242,6 +242,12 @@ def _policy_matches(policy: ToolPolicy, request: ToolPolicySimulationRequest) ->
     return False, f"unsupported condition:{condition}"
 
 
+def _normalize_policy_action(action: str) -> str:
+    if action == "deny":
+        return "block"
+    return action
+
+
 async def _get_policy_count(db: AsyncSession, workspace_id: uuid.UUID, tool_name: str) -> int:
     result = await db.execute(
         select(func.count(ToolPolicy.id)).where(
@@ -445,6 +451,27 @@ async def update_auto_tag_rule(
     await db.commit()
     await db.refresh(rule)
     return _rule_to_response(rule)
+
+
+@tags_router.delete(
+    "/auto-rules/{rule_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
+async def delete_auto_tag_rule(rule_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response:
+    rule = (
+        await db.execute(
+            select(AutoTaggingRule).where(
+                AutoTaggingRule.id == rule_id,
+                AutoTaggingRule.workspace_id == ws.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Auto-tagging rule not found")
+    await db.delete(rule)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @tags_router.post(
@@ -779,10 +806,14 @@ async def simulate_tool_policy(
         matched_ids.append(policy.id)
         matched_names.append(policy.name)
         reasons.append(reason)
-        if policy.action == "deny":
-            final_action = "deny"
+        normalized_action = _normalize_policy_action(policy.action)
+        if normalized_action == "block":
+            final_action = "block"
             break
-        if policy.action == "audit" and final_action == "allow":
+        if normalized_action == "require_approval" and final_action not in {"block"}:
+            final_action = "require_approval"
+            continue
+        if normalized_action == "audit" and final_action == "allow":
             final_action = "audit"
     return ToolPolicySimulationResponse(
         tool_name=body.tool_name,

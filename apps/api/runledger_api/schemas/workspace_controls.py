@@ -1,4 +1,4 @@
-"""Schemas for deferred Phase 16 management surfaces."""
+"""Schemas for workspace control surfaces."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 TagMatchType = Literal["equals", "contains", "regex", "prefix", "suffix"]
-ToolPolicyAction = Literal["allow", "deny", "audit"]
-ScopeType = Literal["workspace", "project", "agent", "group", "search_tool"]
+ToolPolicyAction = Literal["allow", "audit", "block", "require_approval", "deny"]
+ScopeType = Literal["workspace", "access_group", "group", "search_tool"]
 
 
 class TagCreate(BaseModel):
@@ -395,4 +395,3 @@ class ResponseCacheStatsResponse(BaseModel):
     total_savings_usd: Decimal
     live_entry_count: int
     top_models: list[dict[str, Any]]
-

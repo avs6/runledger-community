@@ -19,6 +19,11 @@ class AlertRuleCreate(BaseModel):
 
 class AlertRuleUpdate(BaseModel):
     name: str | None = None
+    metric: str | None = Field(
+        None,
+        pattern="^(error_rate|p95_latency|avg_score|spend_velocity|model_availability|gateway_overhead_p95)$",
+    )
+    operator: str | None = Field(None, pattern="^(gt|lt)$")
     threshold: Decimal | None = None
     window_minutes: int | None = Field(None, ge=5, le=1440)
     is_active: bool | None = None

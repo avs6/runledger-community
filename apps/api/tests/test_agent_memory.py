@@ -1,4 +1,4 @@
-"""Tests for Phase 16 — Agent Memory Management.
+"""Tests for agent memory management.
 
 Covers:
   Store memory (with PII detection, audit log)

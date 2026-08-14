@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { listAuditEvents, exportAuditEvents } from '@/lib/api'
+import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
+import { listAuditEvents, exportAuditEvents, getAuditEvent } from '@/lib/api'
 import type { AuditEvent } from '@/types/api'
 import { toast } from 'sonner'
 
@@ -48,6 +48,8 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(false)
   const [actionFilter, setActionFilter] = useState('')
   const [targetTypeFilter, setTargetTypeFilter] = useState('')
+  const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const fetchEvents = useCallback(async () => {
     if (!apiKey) return
@@ -76,6 +78,19 @@ export default function AuditPage() {
   function handleFilterChange() {
     setOffset(0)
     fetchEvents()
+  }
+
+  async function openEventDetail(eventId: string) {
+    if (!apiKey) return
+    setDetailLoading(true)
+    try {
+      const event = await getAuditEvent(apiKey, eventId)
+      setSelectedEvent(event)
+    } catch {
+      toast.error('Failed to load audit event detail')
+    } finally {
+      setDetailLoading(false)
+    }
   }
 
   return (
@@ -191,7 +206,7 @@ export default function AuditPage() {
                   </td>
                 </tr>
               ) : events.map(ev => (
-                <tr key={ev.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                <tr key={ev.id} onClick={() => openEventDetail(ev.id)} className="cursor-pointer border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                   <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono text-xs">
                     {new Date(ev.created_at).toLocaleString()}
                   </td>
@@ -251,6 +266,57 @@ export default function AuditPage() {
           </div>
         )}
       </div>
+      {(selectedEvent || detailLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40">
+          <div className="h-full w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-950">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Audit event detail</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Inspect the full before/after payload for governance evidence and operator review.
+                </p>
+              </div>
+              <button onClick={() => setSelectedEvent(null)} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {detailLoading || !selectedEvent ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400">Loading event detail...</div>
+            ) : (
+              <div className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Action</p>
+                    <p className="mt-1 font-medium text-slate-900 dark:text-white">{selectedEvent.action}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Created</p>
+                    <p className="mt-1 font-medium text-slate-900 dark:text-white">{new Date(selectedEvent.created_at).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Target</p>
+                    <p className="mt-1 text-slate-900 dark:text-white">{selectedEvent.target_type ?? '-'} {selectedEvent.target_id ?? ''}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Actor</p>
+                    <p className="mt-1 text-slate-900 dark:text-white">{selectedEvent.actor_api_key_prefix ?? selectedEvent.actor_user_id ?? 'system'}</p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Before</p>
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">{JSON.stringify(selectedEvent.before, null, 2)}</pre>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                  <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">After</p>
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">{JSON.stringify(selectedEvent.after, null, 2)}</pre>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

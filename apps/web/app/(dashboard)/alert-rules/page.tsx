@@ -32,6 +32,14 @@ export default function AlertRulesPage() {
   const [newAlertEmailEnabled, setNewAlertEmailEnabled] = useState(false)
   const [creatingAlert, setCreatingAlert] = useState(false)
   const [sendingReport, setSendingReport] = useState(false)
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
+  const [editAlertName, setEditAlertName] = useState('')
+  const [editAlertMetric, setEditAlertMetric] = useState('error_rate')
+  const [editAlertOperator, setEditAlertOperator] = useState('gt')
+  const [editAlertThreshold, setEditAlertThreshold] = useState('')
+  const [editAlertWindow, setEditAlertWindow] = useState('60')
+  const [editAlertEmailEnabled, setEditAlertEmailEnabled] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const load = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
@@ -97,6 +105,49 @@ export default function AlertRulesPage() {
     } catch (err) {
       console.error(err)
       toast.error('Failed to delete rule')
+    }
+  }
+
+  function startEditing(rule: AlertRule) {
+    setEditingRuleId(rule.id)
+    setEditAlertName(rule.name)
+    setEditAlertMetric(rule.metric)
+    setEditAlertOperator(rule.operator)
+    setEditAlertThreshold(String(rule.threshold))
+    setEditAlertWindow(String(rule.window_minutes))
+    setEditAlertEmailEnabled(rule.email_enabled)
+  }
+
+  function resetEditing() {
+    setEditingRuleId(null)
+    setEditAlertName('')
+    setEditAlertMetric('error_rate')
+    setEditAlertOperator('gt')
+    setEditAlertThreshold('')
+    setEditAlertWindow('60')
+    setEditAlertEmailEnabled(false)
+  }
+
+  async function handleSaveEdit() {
+    if (!apiKey || !editingRuleId || !editAlertName.trim() || !editAlertThreshold) return
+    setSavingEdit(true)
+    try {
+      const updated = await updateAlertRule(apiKey, editingRuleId, {
+        name: editAlertName.trim(),
+        metric: editAlertMetric,
+        operator: editAlertOperator,
+        threshold: parseFloat(editAlertThreshold),
+        window_minutes: parseInt(editAlertWindow, 10),
+        email_enabled: editAlertEmailEnabled,
+      })
+      setAlertRules((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+      toast.success('Alert rule updated')
+      resetEditing()
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to update rule')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -199,7 +250,10 @@ export default function AlertRulesPage() {
                     </button>
                   </td>
                   <td className="px-4 py-2">
-                    <button onClick={() => handleDeleteAlert(rule.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => startEditing(rule)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => handleDeleteAlert(rule.id)} className="text-xs text-red-500 hover:underline">Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -249,6 +303,52 @@ export default function AlertRulesPage() {
           {sendingReport ? 'Sending…' : 'Send Report Now'}
         </button>
       </div>
+      {editingRuleId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Edit alert rule</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Update thresholds and delivery settings without leaving the governance workflow.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input className={inputCls} value={editAlertName} onChange={(e) => setEditAlertName(e.target.value)} />
+              <select className={inputCls} value={editAlertMetric} onChange={(e) => setEditAlertMetric(e.target.value)}>
+                <option value="error_rate">Error Rate</option>
+                <option value="p95_latency">P95 Latency (ms)</option>
+                <option value="avg_score">Avg Score</option>
+                <option value="spend_velocity">Spend Velocity ($)</option>
+                <option value="model_availability">Model Availability (%)</option>
+                <option value="gateway_overhead_p95">Gateway Overhead P95 (ms)</option>
+              </select>
+              <div className="flex gap-2">
+                <select className={`${inputCls} w-24`} value={editAlertOperator} onChange={(e) => setEditAlertOperator(e.target.value)}>
+                  <option value="gt">&gt; (above)</option>
+                  <option value="lt">&lt; (below)</option>
+                </select>
+                <input className={`${inputCls} flex-1`} type="number" step="any" min="0" value={editAlertThreshold} onChange={(e) => setEditAlertThreshold(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2">
+                <input className={`${inputCls} w-24`} type="number" min="5" max="1440" value={editAlertWindow} onChange={(e) => setEditAlertWindow(e.target.value)} />
+                <span className="text-sm text-slate-600">min window</span>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={editAlertEmailEnabled} onChange={(e) => setEditAlertEmailEnabled(e.target.checked)} className="rounded border-slate-300" />
+                Email workspace admins
+              </label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={resetEditing} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} disabled={savingEdit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                {savingEdit ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

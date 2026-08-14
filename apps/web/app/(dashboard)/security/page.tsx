@@ -3,27 +3,25 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Shield, RefreshCw, Trash2 } from 'lucide-react'
+import { Pencil, RefreshCw, Shield, Trash2, X } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
-  getSecuritySettings,
-  updateSecuritySettings,
-  listOidcProviders,
-  createOidcProvider,
-  deleteOidcProvider,
-  listIpAclRules,
   createIpAclRule,
+  createOidcProvider,
   deleteIpAclRule,
+  deleteOidcProvider,
+  getSecuritySettings,
+  listIpAclRules,
+  listOidcProviders,
   testIpAcl,
+  updateIpAclRule,
+  updateOidcProvider,
+  updateSecuritySettings,
 } from '@/lib/api'
-import type {
-  WorkspaceSecuritySettings,
-  OIDCProviderResponse,
-  IpAclRuleResponse,
-} from '@/types/api'
+import type { IpAclRuleResponse, OIDCProviderResponse, WorkspaceSecuritySettings } from '@/types/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-indigo-400'
 
 function parseJsonOrToast(value: string, label: string): Record<string, unknown> | null {
   try {
@@ -53,13 +51,16 @@ export default function SecurityPage() {
   const [brandConfigStr, setBrandConfigStr] = useState('{}')
   const [oidcSessionConfigStr, setOidcSessionConfigStr] = useState('{}')
 
+  const [editingOidcId, setEditingOidcId] = useState<string | null>(null)
   const [oidcName, setOidcName] = useState('')
   const [oidcIssuerUrl, setOidcIssuerUrl] = useState('')
   const [oidcAudience, setOidcAudience] = useState('')
   const [oidcDiscoveryUrl, setOidcDiscoveryUrl] = useState('')
   const [oidcJwksUri, setOidcJwksUri] = useState('')
   const [oidcClaimMappingsStr, setOidcClaimMappingsStr] = useState('{"workspace_id":"workspace_id"}')
+  const [oidcIsActive, setOidcIsActive] = useState(true)
 
+  const [editingAclId, setEditingAclId] = useState<string | null>(null)
   const [scopeType, setScopeType] = useState('workspace')
   const [cidr, setCidr] = useState('')
   const [aclAction, setAclAction] = useState('allow')
@@ -69,6 +70,27 @@ export default function SecurityPage() {
 
   const [testIp, setTestIp] = useState('')
   const [testResult, setTestResult] = useState<string | null>(null)
+
+  const resetOidcForm = useCallback(() => {
+    setEditingOidcId(null)
+    setOidcName('')
+    setOidcIssuerUrl('')
+    setOidcAudience('')
+    setOidcDiscoveryUrl('')
+    setOidcJwksUri('')
+    setOidcClaimMappingsStr('{"workspace_id":"workspace_id"}')
+    setOidcIsActive(true)
+  }, [])
+
+  const resetAclForm = useCallback(() => {
+    setEditingAclId(null)
+    setScopeType('workspace')
+    setCidr('')
+    setAclAction('allow')
+    setApiKeyId('')
+    setPriority('100')
+    setDescription('')
+  }, [])
 
   const load = useCallback(async () => {
     if (!apiKey || !canManage) return
@@ -95,7 +117,9 @@ export default function SecurityPage() {
     }
   }, [apiKey, canManage])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+  }, [load])
 
   async function handleSaveSettings() {
     if (!apiKey) return
@@ -122,31 +146,52 @@ export default function SecurityPage() {
     }
   }
 
-  async function handleCreateOidcProvider(e: React.FormEvent) {
+  async function handleSaveOidcProvider(e: React.FormEvent) {
     e.preventDefault()
     if (!apiKey) return
     const claimMappings = parseJsonOrToast(oidcClaimMappingsStr, 'OIDC claim mappings')
     if (!claimMappings) return
     try {
-      const created = await createOidcProvider(apiKey, {
-        name: oidcName.trim(),
-        issuer_url: oidcIssuerUrl.trim(),
-        audience: oidcAudience.trim() || null,
-        discovery_url: oidcDiscoveryUrl.trim() || null,
-        jwks_uri: oidcJwksUri.trim() || null,
-        claim_mappings: claimMappings,
-      })
-      setOidcProviders((prev) => [...prev, created])
-      setOidcName('')
-      setOidcIssuerUrl('')
-      setOidcAudience('')
-      setOidcDiscoveryUrl('')
-      setOidcJwksUri('')
-      setOidcClaimMappingsStr('{"workspace_id":"workspace_id"}')
-      toast.success('OIDC provider added')
+      if (editingOidcId) {
+        const updated = await updateOidcProvider(apiKey, editingOidcId, {
+          name: oidcName.trim(),
+          issuer_url: oidcIssuerUrl.trim(),
+          audience: oidcAudience.trim() || null,
+          discovery_url: oidcDiscoveryUrl.trim() || null,
+          jwks_uri: oidcJwksUri.trim() || null,
+          claim_mappings: claimMappings,
+          is_active: oidcIsActive,
+        })
+        setOidcProviders((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+        toast.success('OIDC provider updated')
+      } else {
+        const created = await createOidcProvider(apiKey, {
+          name: oidcName.trim(),
+          issuer_url: oidcIssuerUrl.trim(),
+          audience: oidcAudience.trim() || null,
+          discovery_url: oidcDiscoveryUrl.trim() || null,
+          jwks_uri: oidcJwksUri.trim() || null,
+          claim_mappings: claimMappings,
+          is_active: oidcIsActive,
+        })
+        setOidcProviders((prev) => [...prev, created])
+        toast.success('OIDC provider added')
+      }
+      resetOidcForm()
     } catch {
-      toast.error('Failed to add OIDC provider')
+      toast.error(editingOidcId ? 'Failed to update OIDC provider' : 'Failed to add OIDC provider')
     }
+  }
+
+  function startEditOidcProvider(provider: OIDCProviderResponse) {
+    setEditingOidcId(provider.id)
+    setOidcName(provider.name)
+    setOidcIssuerUrl(provider.issuer_url)
+    setOidcAudience(provider.audience ?? '')
+    setOidcDiscoveryUrl(provider.discovery_url ?? '')
+    setOidcJwksUri(provider.jwks_uri ?? '')
+    setOidcClaimMappingsStr(JSON.stringify(provider.claim_mappings ?? {}, null, 2))
+    setOidcIsActive(provider.is_active)
   }
 
   async function handleDeleteOidcProvider(id: string) {
@@ -154,32 +199,53 @@ export default function SecurityPage() {
     try {
       await deleteOidcProvider(apiKey, id)
       setOidcProviders((prev) => prev.filter((item) => item.id !== id))
+      if (editingOidcId === id) resetOidcForm()
+      toast.success('OIDC provider deleted')
     } catch {
       toast.error('Failed to delete OIDC provider')
     }
   }
 
-  async function handleCreateIpAclRule(e: React.FormEvent) {
+  async function handleSaveIpAclRule(e: React.FormEvent) {
     e.preventDefault()
     if (!apiKey) return
     try {
-      const created = await createIpAclRule(apiKey, {
-        scope_type: scopeType,
-        cidr: cidr.trim(),
-        action: aclAction,
-        api_key_id: apiKeyId.trim() || null,
-        priority: parseInt(priority, 10) || 100,
-        description: description.trim() || null,
-      })
-      setIpAclRules((prev) => [...prev, created])
-      setCidr('')
-      setApiKeyId('')
-      setPriority('100')
-      setDescription('')
-      toast.success('IP ACL rule created')
+      if (editingAclId) {
+        const updated = await updateIpAclRule(apiKey, editingAclId, {
+          api_key_id: apiKeyId.trim() || null,
+          cidr: cidr.trim(),
+          action: aclAction,
+          priority: parseInt(priority, 10) || 100,
+          description: description.trim() || null,
+        })
+        setIpAclRules((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+        toast.success('IP ACL rule updated')
+      } else {
+        const created = await createIpAclRule(apiKey, {
+          scope_type: scopeType,
+          cidr: cidr.trim(),
+          action: aclAction,
+          api_key_id: apiKeyId.trim() || null,
+          priority: parseInt(priority, 10) || 100,
+          description: description.trim() || null,
+        })
+        setIpAclRules((prev) => [...prev, created])
+        toast.success('IP ACL rule created')
+      }
+      resetAclForm()
     } catch {
-      toast.error('Failed to create IP ACL rule')
+      toast.error(editingAclId ? 'Failed to update IP ACL rule' : 'Failed to create IP ACL rule')
     }
+  }
+
+  function startEditIpAclRule(rule: IpAclRuleResponse) {
+    setEditingAclId(rule.id)
+    setScopeType(rule.scope_type)
+    setCidr(rule.cidr)
+    setAclAction(rule.action)
+    setApiKeyId(rule.api_key_id ?? '')
+    setPriority(String(rule.priority))
+    setDescription(rule.description ?? '')
   }
 
   async function handleDeleteIpAclRule(id: string) {
@@ -187,6 +253,8 @@ export default function SecurityPage() {
     try {
       await deleteIpAclRule(apiKey, id)
       setIpAclRules((prev) => prev.filter((item) => item.id !== id))
+      if (editingAclId === id) resetAclForm()
+      toast.success('IP ACL rule deleted')
     } catch {
       toast.error('Failed to delete IP ACL rule')
     }
@@ -195,7 +263,7 @@ export default function SecurityPage() {
   async function handleTestIp() {
     if (!apiKey || !testIp.trim()) return
     try {
-      const result = await testIpAcl(apiKey, { ip: testIp.trim() })
+      const result = await testIpAcl(apiKey, { ip: testIp.trim(), api_key_id: apiKeyId.trim() || null })
       setTestResult(result.allowed ? 'Allowed' : 'Denied')
     } catch {
       toast.error('Failed to run ACL simulation')
@@ -212,7 +280,7 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="space-y-8 p-8 max-w-6xl">
+    <div className="max-w-6xl space-y-8 p-8">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -226,46 +294,46 @@ export default function SecurityPage() {
         <button
           onClick={() => void load()}
           disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
-      <section className="grid gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4 lg:grid-cols-2">
+      <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40 lg:grid-cols-2">
         <div className="lg:col-span-2">
           <h2 className="text-base font-semibold dark:text-white">Workspace Security Posture</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
             Set request metadata enforcement, callback routing defaults, branding, and residency constraints.
           </p>
         </div>
         <label className="text-sm">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Required metadata fields</span>
-          <input value={requiredFields} onChange={(e) => setRequiredFields(e.target.value)} className={inputCls + ' w-full'} placeholder="user_id, session_id, workflow_id" />
+          <input value={requiredFields} onChange={(e) => setRequiredFields(e.target.value)} className={`${inputCls} w-full`} placeholder="user_id, session_id, workflow_id" />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Enforcement mode</span>
-          <select value={requiredMode} onChange={(e) => setRequiredMode(e.target.value)} className={inputCls + ' w-full'}>
+          <select value={requiredMode} onChange={(e) => setRequiredMode(e.target.value)} className={`${inputCls} w-full`}>
             <option value="warn">Warn only</option>
             <option value="reject">Reject request</option>
           </select>
         </label>
         <label className="text-sm lg:col-span-2">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Residency regions</span>
-          <input value={residencyRegions} onChange={(e) => setResidencyRegions(e.target.value)} className={inputCls + ' w-full'} placeholder="us, eu-west-1" />
+          <input value={residencyRegions} onChange={(e) => setResidencyRegions(e.target.value)} className={`${inputCls} w-full`} placeholder="us, eu-west-1" />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Callback config JSON</span>
-          <textarea value={callbackConfigStr} onChange={(e) => setCallbackConfigStr(e.target.value)} className={inputCls + ' min-h-[150px] w-full'} />
+          <textarea value={callbackConfigStr} onChange={(e) => setCallbackConfigStr(e.target.value)} className={`${inputCls} min-h-[150px] w-full`} />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Brand config JSON</span>
-          <textarea value={brandConfigStr} onChange={(e) => setBrandConfigStr(e.target.value)} className={inputCls + ' min-h-[150px] w-full'} />
+          <textarea value={brandConfigStr} onChange={(e) => setBrandConfigStr(e.target.value)} className={`${inputCls} min-h-[150px] w-full`} />
         </label>
         <label className="text-sm lg:col-span-2">
           <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">OIDC session config JSON</span>
-          <textarea value={oidcSessionConfigStr} onChange={(e) => setOidcSessionConfigStr(e.target.value)} className={inputCls + ' min-h-[120px] w-full'} />
+          <textarea value={oidcSessionConfigStr} onChange={(e) => setOidcSessionConfigStr(e.target.value)} className={`${inputCls} min-h-[120px] w-full`} />
         </label>
         <div className="lg:col-span-2">
           <button onClick={() => void handleSaveSettings()} disabled={saving || !settings} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
@@ -275,22 +343,33 @@ export default function SecurityPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
-          <div>
-            <h2 className="text-base font-semibold dark:text-white">OIDC Providers</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Add external issuers for gateway-level bearer auth with custom claim mapping.
-            </p>
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold dark:text-white">OIDC Providers</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Manage external issuers for gateway-level bearer auth and claim mapping.
+              </p>
+            </div>
+            {editingOidcId && (
+              <button onClick={resetOidcForm} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          <form onSubmit={handleCreateOidcProvider} className="grid gap-3">
+          <form onSubmit={handleSaveOidcProvider} className="grid gap-3">
             <input value={oidcName} onChange={(e) => setOidcName(e.target.value)} className={inputCls} placeholder="Okta production" required />
             <input value={oidcIssuerUrl} onChange={(e) => setOidcIssuerUrl(e.target.value)} className={inputCls} placeholder="https://issuer.example.com" required />
             <input value={oidcAudience} onChange={(e) => setOidcAudience(e.target.value)} className={inputCls} placeholder="Audience (optional)" />
             <input value={oidcDiscoveryUrl} onChange={(e) => setOidcDiscoveryUrl(e.target.value)} className={inputCls} placeholder="Discovery URL (optional)" />
             <input value={oidcJwksUri} onChange={(e) => setOidcJwksUri(e.target.value)} className={inputCls} placeholder="JWKS URI (optional)" />
-            <textarea value={oidcClaimMappingsStr} onChange={(e) => setOidcClaimMappingsStr(e.target.value)} className={inputCls + ' min-h-[100px]'} />
+            <textarea value={oidcClaimMappingsStr} onChange={(e) => setOidcClaimMappingsStr(e.target.value)} className={`${inputCls} min-h-[100px]`} />
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <input type="checkbox" checked={oidcIsActive} onChange={(e) => setOidcIsActive(e.target.checked)} />
+              Active
+            </label>
             <button type="submit" className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
-              Add OIDC provider
+              {editingOidcId ? 'Save OIDC provider' : 'Add OIDC provider'}
             </button>
           </form>
           <div className="space-y-2">
@@ -298,32 +377,45 @@ export default function SecurityPage() {
               <p className="text-sm text-slate-400">No OIDC providers configured.</p>
             ) : (
               oidcProviders.map((provider) => (
-                <div key={provider.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                <div key={provider.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                   <div className="min-w-0">
                     <p className="font-medium dark:text-slate-100">{provider.name}</p>
-                    <p className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400 break-all">{provider.issuer_url}</p>
+                    <p className="mt-1 break-all font-mono text-xs text-slate-500 dark:text-slate-400">{provider.issuer_url}</p>
                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                       audience {provider.audience ?? 'unset'} · {provider.is_active ? 'active' : 'inactive'}
                     </p>
                   </div>
-                  <button onClick={() => void handleDeleteOidcProvider(provider.id)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => startEditOidcProvider(provider)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => void handleDeleteOidcProvider(provider.id)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
           </div>
         </div>
 
-        <div className="space-y-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
-          <div>
-            <h2 className="text-base font-semibold dark:text-white">IP ACLs</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Allow or deny by workspace, key, or globally, then simulate request outcomes before you roll changes out.
-            </p>
+        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold dark:text-white">IP ACLs</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Allow or deny traffic by workspace, key, or global scope, then simulate request outcomes.
+              </p>
+            </div>
+            {editingAclId && (
+              <button onClick={resetAclForm} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          <form onSubmit={handleCreateIpAclRule} className="grid gap-3 sm:grid-cols-2">
-            <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls}>
+
+          <form onSubmit={handleSaveIpAclRule} className="grid gap-3 sm:grid-cols-2">
+            <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls} disabled={Boolean(editingAclId)}>
               <option value="workspace">workspace</option>
               <option value="api_key">api_key</option>
               <option value="global">global</option>
@@ -332,25 +424,29 @@ export default function SecurityPage() {
               <option value="allow">allow</option>
               <option value="deny">deny</option>
             </select>
-            <input value={cidr} onChange={(e) => setCidr(e.target.value)} className={inputCls + ' sm:col-span-2'} placeholder="203.0.113.0/24" required />
-            <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={inputCls + ' sm:col-span-2'} placeholder="API key ID (optional)" />
+            <input value={cidr} onChange={(e) => setCidr(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="203.0.113.0/24" required />
+            <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="API key ID (optional)" />
             <input value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls} placeholder="100" />
             <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Description" />
             <div className="sm:col-span-2">
               <button type="submit" className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
-                Add ACL rule
+                {editingAclId ? 'Save ACL rule' : 'Add ACL rule'}
               </button>
             </div>
           </form>
 
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Policy Simulator</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <input value={testIp} onChange={(e) => setTestIp(e.target.value)} className={inputCls + ' min-w-[220px]'} placeholder="198.51.100.10" />
-              <button onClick={() => void handleTestIp()} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+              <input value={testIp} onChange={(e) => setTestIp(e.target.value)} className={`${inputCls} min-w-[220px]`} placeholder="198.51.100.10" />
+              <button onClick={() => void handleTestIp()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
                 Simulate
               </button>
-              {testResult && <span className={`rounded-full px-2 py-1 text-xs font-semibold ${testResult === 'Allowed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>{testResult}</span>}
+              {testResult && (
+                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${testResult === 'Allowed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>
+                  {testResult}
+                </span>
+              )}
             </div>
           </div>
 
@@ -359,17 +455,22 @@ export default function SecurityPage() {
               <p className="text-sm text-slate-400">No IP ACL rules configured.</p>
             ) : (
               ipAclRules.map((rule) => (
-                <div key={rule.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                <div key={rule.id} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
                   <div>
                     <p className="font-mono text-sm dark:text-slate-100">{rule.cidr}</p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {rule.action} · {rule.scope_type} · priority {rule.priority}{rule.team_name ? ` · team ${rule.team_name}` : ''}
+                      {rule.action} · {rule.scope_type} · priority {rule.priority}
                     </p>
                     {rule.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{rule.description}</p>}
                   </div>
-                  <button onClick={() => void handleDeleteIpAclRule(rule.id)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => startEditIpAclRule(rule)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => void handleDeleteIpAclRule(rule.id)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               ))
             )}

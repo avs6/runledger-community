@@ -3,33 +3,36 @@ title: "Governance Audit Pack"
 description: "Generate and export a compliance-ready evidence bundle covering model usage, policy enforcements, approvals, data capture, and budget alerts."
 ---
 
-The governance audit pack bundles everything an auditor or compliance team needs into a single exportable report — who used which models, what policies were enforced, which approvals happened, and what data was captured or redacted.
+The governance audit pack is the evidence view for Safety and Governance. It packages the current governance posture into a single exportable report so operators, auditors, and security teams can answer what happened, which controls fired, and what was retained.
 
-## Key features
-
-- **Exportable evidence bundle** — generate a pack covering any date range, org, or workspace.
-- **Comprehensive coverage** — model usage, route selections, policy enforcements, approval records, data capture policies, and budget alerts.
-- **Compliance summary** — a checklist of governance controls with pass/fail status.
-- **Export formats** — JSON and CSV for integration with GRC tools.
-
-## What's included
+## What the pack includes
 
 | Section | Details |
 |---|---|
-| Model usage | Who used which model, when, token counts |
-| Policy enforcements | Which policies fired, action taken, affected requests |
-| Approvals | Request type, requester, decision, timestamp |
-| Data capture | Active capture policies, privacy modes, retention |
-| Budget alerts | Over-budget events, severity, affected scope |
-| Compliance summary | Governance controls checklist |
+| Model usage | Which models were used, by whom, and over what period |
+| Policy enforcements | Runtime policy actions, including blocked or audited tool activity |
+| Approvals | Request type, requester, decision, and timestamp |
+| Data capture | Active capture policies and scoped override posture |
+| Budget alerts | Budget breaches and governance-related alert activity |
+
+## Operator workflow
+
+1. Use filters to choose the evidence window.
+2. Review the summary counts and included sections.
+3. Pivot into the linked operational owners such as Approvals, Audit Log, Alert Rules, and Data Capture.
+4. Export the pack as JSON or CSV for external compliance workflows.
+
+## Why it belongs with the audit log
+
+The audit log is the event stream. The governance audit pack is the reporting bundle built on top of that evidence story. They should be treated as one compliance evidence area rather than two disconnected governance features.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Audit log" icon="scroll" href="/governance/approvals">
-    Full audit trail of governance events.
+  <Card title="Audit log" icon="scroll" href="/audit">
+    Review the detailed event trail behind the summarized governance pack.
   </Card>
-  <Card title="Policy dry run" icon="shield" href="/governance/policy-dry-run">
-    Test policies before enforcement.
+  <Card title="Approvals" icon="shield-check" href="/approvals">
+    Inspect the approval records included in the evidence bundle.
   </Card>
 </CardGroup>

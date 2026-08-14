@@ -69,7 +69,7 @@ from runledger_api.models.tenant import (
     WorkspaceUser,
 )
 from runledger_api.models.agents import Agent, AgentMemory, AgentMemoryAudit, WorkflowDefinition, WorkflowRun, WorkflowStep
-from runledger_api.models.approvals import Approval
+from runledger_api.models.approvals import Approval, AutoApprovalPolicy
 from runledger_api.models.billing import (
     BillingAdjustment,
     BillingPeriod,
@@ -177,6 +177,7 @@ __all__ = [
     "WorkflowRun",
     "WorkflowStep",
     "Approval",
+    "AutoApprovalPolicy",
     "BillingAdjustment",
     "BillingPeriod",
     "ChargebackRule",

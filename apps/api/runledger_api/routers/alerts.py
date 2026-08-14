@@ -109,6 +109,10 @@ async def update_alert_rule(
 
     if body.name is not None:
         rule.name = body.name
+    if body.metric is not None:
+        rule.metric = body.metric
+    if body.operator is not None:
+        rule.operator = body.operator
     if body.threshold is not None:
         rule.threshold = body.threshold
     if body.window_minutes is not None:

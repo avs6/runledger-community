@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   FileCheck,
@@ -134,6 +135,25 @@ export default function GovernancePackPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Link href="/approvals" className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-700 shadow-sm hover:border-violet-300 hover:bg-violet-50/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <p className="font-semibold text-slate-900 dark:text-white">Approvals</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Review pending decisions and auto-approval policies.</p>
+        </Link>
+        <Link href="/audit" className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-700 shadow-sm hover:border-violet-300 hover:bg-violet-50/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <p className="font-semibold text-slate-900 dark:text-white">Audit log</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Drill into the raw governance trail behind this evidence pack.</p>
+        </Link>
+        <Link href="/alert-rules" className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-700 shadow-sm hover:border-violet-300 hover:bg-violet-50/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <p className="font-semibold text-slate-900 dark:text-white">Alert rules</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Tune governance notifications and threshold-based monitoring.</p>
+        </Link>
+        <Link href="/data-capture" className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-sm text-slate-700 shadow-sm hover:border-violet-300 hover:bg-violet-50/40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <p className="font-semibold text-slate-900 dark:text-white">Data capture</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Adjust privacy mode and scoped capture posture behind this report.</p>
+        </Link>
       </div>
 
       {loading && (

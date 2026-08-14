@@ -35,13 +35,13 @@ from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import flywheel as flywheel_router
 from runledger_api.routers import gateway as gateway_router
 from runledger_api.routers import guardrails as guardrails_router
+from runledger_api.routers import governance as governance_router
 from runledger_api.routers import integrations as integrations_router
 from runledger_api.routers import intelligence as intelligence_router
 from runledger_api.routers import model_budgets as model_budgets_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
 from runledger_api.routers import outcomes as outcomes_router
-from runledger_api.routers import phase16_deferred as phase16_deferred_router
 from runledger_api.routers import playground as playground_router
 from runledger_api.routers import policies as policies_router
 from runledger_api.routers import prompts as prompts_router
@@ -56,6 +56,7 @@ from runledger_api.routers import workflows as workflows_router
 from runledger_api.routers import mcp_registry as mcp_registry_router
 from runledger_api.routers import plugins as plugins_router
 from runledger_api.routers import hub as hub_router
+from runledger_api.routers import workspace_controls as workspace_controls_router
 
 configure_logging()
 log = structlog.get_logger()
@@ -123,6 +124,7 @@ app.include_router(retention_router.router)
 app.include_router(otlp_router.router)
 app.include_router(eval_experiments_router.router)
 app.include_router(guardrails_router.router)
+app.include_router(governance_router.router)
 app.include_router(intelligence_router.router)
 app.include_router(budget_tiers_router.router)
 app.include_router(model_budgets_router.router)
@@ -130,11 +132,11 @@ app.include_router(agents_router.router)
 app.include_router(workflows_router.router)
 app.include_router(vector_stores_router.router)
 app.include_router(playground_router.router)
-app.include_router(phase16_deferred_router.tags_router)
-app.include_router(phase16_deferred_router.search_tools_router)
-app.include_router(phase16_deferred_router.tool_policies_router)
-app.include_router(phase16_deferred_router.access_groups_router)
-app.include_router(phase16_deferred_router.response_cache_router)
+app.include_router(workspace_controls_router.tags_router)
+app.include_router(workspace_controls_router.search_tools_router)
+app.include_router(workspace_controls_router.tool_policies_router)
+app.include_router(workspace_controls_router.access_groups_router)
+app.include_router(workspace_controls_router.response_cache_router)
 app.include_router(mcp_registry_router.router)
 app.include_router(plugins_router.router)
 app.include_router(hub_router.router)

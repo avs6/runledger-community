@@ -1,4 +1,4 @@
-"""Tests for Phase 16 — Agent Registry & Workflow Runs.
+"""Tests for agent registry and workflow runs.
 
 Covers:
   Agent CRUD — create, list, get, update, retire

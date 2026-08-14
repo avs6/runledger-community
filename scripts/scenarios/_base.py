@@ -1034,6 +1034,129 @@ class Workspace:
 
     # ── Phase 14: Guardrails ─────────────────────────────────────────────────
 
+    def upsert_capture_policy_scope(
+        self,
+        scope_type: str,
+        scope_id: str,
+        privacy_mode: str,
+        *,
+        sampled_rate: float | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "privacy_mode": privacy_mode,
+        }
+        if sampled_rate is not None:
+            body["sampled_rate"] = sampled_rate
+        return self.sim.put(
+            "/settings/capture-policy/scopes",
+            body,
+            key=self.admin_key or self.key,
+            label=f"capture scope {scope_type}:{scope_id}",
+            expect=(200, 201, 401, 403, 404, 422),
+        )
+
+    def create_oidc_provider(
+        self,
+        name: str,
+        issuer_url: str,
+        *,
+        audience: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "name": name,
+            "issuer_url": issuer_url,
+            "claim_mappings": {"workspace_id": "workspace_id"},
+        }
+        if audience:
+            body["audience"] = audience
+        return self.sim.post(
+            "/security/oidc-providers",
+            body,
+            key=self.admin_key or self.key,
+            label=f"OIDC provider {name}",
+            expect=(200, 201, 401, 403, 404, 422),
+        )
+
+    def create_ip_acl_rule(
+        self,
+        cidr: str,
+        *,
+        scope_type: str = "workspace",
+        action: str = "allow",
+        priority: int = 100,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "scope_type": scope_type,
+            "cidr": cidr,
+            "action": action,
+            "priority": priority,
+        }
+        if description:
+            body["description"] = description
+        return self.sim.post(
+            "/security/ip-acl",
+            body,
+            key=self.admin_key or self.key,
+            label=f"IP ACL {cidr}",
+            expect=(200, 201, 401, 403, 404, 422),
+        )
+
+    def create_tag(
+        self,
+        category: str,
+        key: str,
+        value: str,
+        *,
+        description: str | None = None,
+        parent_tag_id: str | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "category": category,
+            "key": key,
+            "value": value,
+        }
+        if description:
+            body["description"] = description
+        if parent_tag_id:
+            body["parent_tag_id"] = parent_tag_id
+        return self.sim.post(
+            "/tags",
+            body,
+            key=self.admin_key or self.key,
+            label=f"tag {key}={value}",
+            expect=(200, 201, 401, 403, 404, 422),
+        )
+
+    def create_auto_tag_rule(
+        self,
+        name: str,
+        match_field: str,
+        match_pattern: str,
+        tag_key: str,
+        tag_value: str,
+        *,
+        match_type: str = "contains",
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        return self.sim.post(
+            "/tags/auto-rules",
+            {
+                "name": name,
+                "match_type": match_type,
+                "match_field": match_field,
+                "match_pattern": match_pattern,
+                "tag_key": tag_key,
+                "tag_value": tag_value,
+                "priority": priority,
+            },
+            key=self.admin_key or self.key,
+            label=f"auto-tag rule {name}",
+            expect=(200, 201, 401, 403, 404, 422),
+        )
+
     def create_guardrail_rule(
         self,
         name: str,
@@ -1218,7 +1341,7 @@ class Workspace:
     def _analytics_get(self, path: str, label: str) -> dict[str, Any]:
         return self.sim.get(path, key=self.admin_key or self.key) or {}
 
-    # ── Phase 16: Agentic Operations ───────────────────────────────────
+    # -- Agentic Operations -----------------------------------
 
     def register_agent(
         self,

@@ -227,4 +227,4 @@ staleness, accuracy metrics, and health status (healthy/stale/degraded).
 End of Part 10. You've set up anomaly detection, cost forecasting, Top-K analysis,
 pattern recognition, complexity scoring, cost-per-outcome optimization, adaptive
 alert thresholds, and ML observability. Next: review **[Part 11 - Agentic Operations](./part11_agentic.md)**
-for agent lifecycle management (Phase 16).
+for agent lifecycle management.
