@@ -1,7 +1,8 @@
-# RunLedger — Feature Audit Matrix
+# RunLedger Delivery Surface Audit
 
-**Purpose:** Track audit status of every feature across all delivery surfaces.
-**How to use:** Mark each cell as you audit: `✅` = verified working, `⚠️` = partial/buggy, `❌` = missing/broken, `—` = N/A, `🔲` = not yet audited.
+**Purpose:** This is the secondary audit matrix for delivery completeness across backend, UI, docs, README, examples, Postman, manual labs, automated scripts, and infrastructure.
+**Relationship to FEATURE-AUDIT:** Use `FEATURE-AUDIT.md` as the primary shipped-feature audit and gap-tracking file. Use this file as the broader delivery-surface cross-check once a feature has been audited there.
+**How to use:** Mark each cell as you audit: `OK` = verified working, `PARTIAL` = present but incomplete, `MISSING` = absent or broken, `N/A` = not applicable, `PENDING` = not yet audited.
 
 **Last updated:** 2026-08-14
 
