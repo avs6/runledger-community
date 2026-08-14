@@ -630,6 +630,20 @@ export default function MonitoringPage() {
             </Link>
             .
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/security" className="rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300">
+              Open Security
+            </Link>
+            <Link href="/alert-rules" className="rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300">
+              Alert Rules
+            </Link>
+            <Link href="/gateway" className="rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300">
+              Gateway
+            </Link>
+            <Link href="/monitoring/telemetry" className="rounded-full border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:text-blue-700 dark:hover:text-blue-300">
+              Telemetry
+            </Link>
+          </div>
         </div>
         <button
           onClick={() => load(true)}

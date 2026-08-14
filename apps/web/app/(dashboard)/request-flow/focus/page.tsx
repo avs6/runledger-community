@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
-import { ArrowLeft, Route } from 'lucide-react'
+import { ArrowLeft, Route, Search } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
@@ -99,14 +99,22 @@ export default async function RequestFlowFocusPage({ searchParams }: PageProps) 
             Focus mode
           </div>
           <h1 className="mt-2 font-display text-2xl font-semibold tracking-[-0.03em]">AI Request Flow</h1>
-          <p className="text-sm text-slate-500">Large canvas with pan, zoom, density, top-N, and SVG export for demos and debugging.</p>
+          <p className="text-sm text-slate-500">Large-canvas mode for the same request-analysis dataset, with pan, zoom, density, top-N, and SVG export for demos and debugging.</p>
         </div>
-        <Link
-          href={exitHref(mode, metric, scope, density, topN, collapseSmall)}
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back to page
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/request-explorer"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700"
+          >
+            <Search className="h-4 w-4" /> Request Explorer
+          </Link>
+          <Link
+            href={exitHref(mode, metric, scope, density, topN, collapseSmall)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to page
+          </Link>
+        </div>
       </div>
 
       <RequestFlowSankey

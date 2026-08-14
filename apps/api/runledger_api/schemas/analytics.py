@@ -210,6 +210,7 @@ class RequestRecord(BaseModel):
     provider: str
     model: str
     intent: str | None
+    end_user_id: str | None
     cost_usd: Decimal | None
     baseline_cost_usd: Decimal | None
     savings_usd: Decimal | None

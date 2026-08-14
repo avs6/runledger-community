@@ -1,389 +1,304 @@
-'use client'
-
-import { useSession } from 'next-auth/react'
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { MessageSquare, Search, X, SlidersHorizontal, RefreshCw } from 'lucide-react'
-import { toast } from 'sonner'
+import { getServerSession } from 'next-auth'
+import Link from 'next/link'
+import { MessageSquare, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { authOptions } from '@/lib/auth'
 import { listSessions } from '@/lib/api'
-import type { SessionItem } from '@/types/api'
+import SessionsExportButton from '@/components/sessions/SessionsExportButton'
 import { formatCost, formatDuration } from '@/lib/utils'
 
 type TimePreset = 'all' | '1d' | '7d' | '30d'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const inputCls =
-  'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
-
-function cutoff(preset: TimePreset): Date | null {
-  if (preset === 'all') return null
+function cutoff(preset: TimePreset): string | undefined {
+  if (preset === 'all') return undefined
   const d = new Date()
   if (preset === '1d') d.setDate(d.getDate() - 1)
   if (preset === '7d') d.setDate(d.getDate() - 7)
   if (preset === '30d') d.setDate(d.getDate() - 30)
-  return d
+  return d.toISOString()
 }
 
-function TimeToggle({ value, onChange }: { value: TimePreset; onChange: (v: TimePreset) => void }) {
-  const opts: { v: TimePreset; label: string }[] = [
-    { v: 'all', label: 'All time' },
-    { v: '1d', label: 'Today' },
-    { v: '7d', label: '7 days' },
-    { v: '30d', label: '30 days' },
-  ]
-  return (
-    <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-sm shrink-0">
-      {opts.map(({ v, label }) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          className={`px-3 py-1.5 transition-colors ${
-            value === v
-              ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 font-medium'
-              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
+function queryStringFrom(params: Record<string, string | undefined>) {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value) qs.set(key, value)
+  }
+  return qs.toString()
 }
 
-function ResultCount({ filtered, total }: { filtered: number; total: number }) {
-  if (filtered === total)
+function withParams(
+  current: Record<string, string | undefined>,
+  updates: Record<string, string | undefined | null>,
+) {
+  const next = new URLSearchParams()
+  for (const [key, value] of Object.entries(current)) {
+    if (value) next.set(key, value)
+  }
+  for (const [key, value] of Object.entries(updates)) {
+    if (value) next.set(key, value)
+    else next.delete(key)
+  }
+  const query = next.toString()
+  return `/sessions${query ? `?${query}` : ''}`
+}
+
+function ResultCount({ loaded, total }: { loaded: number; total: number }) {
+  if (loaded === total) {
     return <span className="text-xs text-slate-400">{total} session{total !== 1 ? 's' : ''}</span>
+  }
   return (
     <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
-      {filtered} of {total} sessions
+      {loaded} of {total} sessions
     </span>
   )
 }
 
-function SkeletonRows({ cols }: { cols: number }) {
-  return (
-    <>
-      {[0, 1, 2, 3, 4].map((i) => (
-        <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
-          {Array.from({ length: cols }).map((_, j) => (
-            <td key={j} className="px-4 py-3">
-              <div className="h-4 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-            </td>
-          ))}
-        </tr>
-      ))}
-    </>
+export default async function SessionsPage({
+  searchParams,
+}: {
+  searchParams?: {
+    q?: string
+    end_user_id?: string
+    time?: string
+    min_turns?: string
+    min_cost?: string
+    max_cost?: string
+    page?: string
+  }
+}) {
+  const session = await getServerSession(authOptions)
+  if (!session) return null
+
+  const timePreset: TimePreset =
+    searchParams?.time === '1d' || searchParams?.time === '7d' || searchParams?.time === '30d'
+      ? searchParams.time
+      : 'all'
+  const from = cutoff(timePreset)
+  const page = Math.max(1, Number.parseInt(searchParams?.page ?? '1', 10) || 1)
+
+  const activeParams: Record<string, string | undefined> = {
+    q: searchParams?.q,
+    end_user_id: searchParams?.end_user_id,
+    time: timePreset !== 'all' ? timePreset : undefined,
+    min_turns: searchParams?.min_turns,
+    min_cost: searchParams?.min_cost,
+    max_cost: searchParams?.max_cost,
+    page: page > 1 ? String(page) : undefined,
+  }
+
+  const data = await listSessions(session.apiKey, {
+    q: searchParams?.q,
+    end_user_id: searchParams?.end_user_id,
+    from,
+    min_turns: searchParams?.min_turns ? Number.parseInt(searchParams.min_turns, 10) : undefined,
+    min_cost: searchParams?.min_cost,
+    max_cost: searchParams?.max_cost,
+    page,
+    page_size: 50,
+  })
+
+  const pageCount = Math.max(1, Math.ceil(data.total / data.page_size))
+  const hasFilters = Boolean(
+    searchParams?.q ||
+    searchParams?.end_user_id ||
+    (timePreset !== 'all') ||
+    searchParams?.min_turns ||
+    searchParams?.min_cost ||
+    searchParams?.max_cost,
   )
-}
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
-export default function SessionsPage() {
-  const { data: authSession } = useSession()
-  const router = useRouter()
-
-  const [sessions, setSessions] = useState<SessionItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-
-  // Filters
-  const [timePreset, setTimePreset] = useState<TimePreset>('all')
-  const [userFilter, setUserFilter] = useState('')
-  const [minTurns, setMinTurns] = useState('')
-  const [minCost, setMinCost] = useState('')
-  const [maxCost, setMaxCost] = useState('')
-
-  // Search (applied on top of filters)
-  const [search, setSearch] = useState('')
-
-  const load = useCallback(async (isRefresh = false) => {
-    if (!authSession?.apiKey) return
-    isRefresh ? setRefreshing(true) : setLoading(true)
-    try {
-      const data = await listSessions(authSession.apiKey, { limit: 200 })
-      setSessions(data.items)
-    } catch {
-      toast.error('Failed to load sessions')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [authSession?.apiKey])
-
-  useEffect(() => { load() }, [load])
-
-  // ── Step 1: filters ──────────────────────────────────────────────────────
-
-  const afterFilters = useMemo(() => {
-    let rows = sessions
-    const since = cutoff(timePreset)
-    if (since) rows = rows.filter((s) => new Date(s.started_at) >= since)
-    if (userFilter.trim()) {
-      const u = userFilter.toLowerCase()
-      rows = rows.filter((s) => (s.end_user_id ?? '').toLowerCase().includes(u))
-    }
-    if (minTurns !== '') {
-      const n = parseInt(minTurns, 10)
-      if (!isNaN(n)) rows = rows.filter((s) => s.run_count >= n)
-    }
-    if (minCost !== '') {
-      const n = parseFloat(minCost)
-      if (!isNaN(n)) rows = rows.filter((s) => parseFloat(s.total_cost_usd ?? '0') >= n)
-    }
-    if (maxCost !== '') {
-      const n = parseFloat(maxCost)
-      if (!isNaN(n)) rows = rows.filter((s) => parseFloat(s.total_cost_usd ?? '0') <= n)
-    }
-    return rows
-  }, [sessions, timePreset, userFilter, minTurns, minCost, maxCost])
-
-  // ── Step 2: search on top ────────────────────────────────────────────────
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return afterFilters
-    const q = search.toLowerCase()
-    return afterFilters.filter(
-      (s) =>
-        s.session_id.toLowerCase().includes(q) ||
-        (s.end_user_id ?? '').toLowerCase().includes(q)
-    )
-  }, [afterFilters, search])
-
-  const hasFilters = timePreset !== 'all' || userFilter.trim() || minTurns || minCost || maxCost
-  const hasSearch = !!search.trim()
-
-  function clearFilters() {
-    setTimePreset('all')
-    setUserFilter('')
-    setMinTurns('')
-    setMinCost('')
-    setMaxCost('')
-  }
-
-  function clearAll() {
-    clearFilters()
-    setSearch('')
-  }
+  const exportQuery = queryStringFrom({
+    q: searchParams?.q,
+    end_user_id: searchParams?.end_user_id,
+    from,
+    min_turns: searchParams?.min_turns,
+    min_cost: searchParams?.min_cost,
+    max_cost: searchParams?.max_cost,
+  })
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Sessions</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Multi-turn conversations grouped by session_id.
+            Multi-turn conversations grouped by session ID with server-side filtering, paging, and export.
           </p>
         </div>
-        <button
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={withParams(activeParams, { page: null })}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Link>
+          <SessionsExportButton queryString={exportQuery} />
+        </div>
       </div>
 
-      {/* Filter panel */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+      <form action="/sessions" className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          {/* Time range */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 w-20 shrink-0">Time range</span>
-            <TimeToggle value={timePreset} onChange={setTimePreset} />
-          </div>
-
-          {/* End user */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 w-20 shrink-0">End user</span>
-            <div className="relative">
+        <div className="grid gap-3 lg:grid-cols-6">
+          <div className="lg:col-span-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Search</label>
+            <div className="relative mt-1">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
-                value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
-                placeholder="user ID…"
-                className={`${inputCls} w-44`}
+                name="q"
+                defaultValue={searchParams?.q ?? ''}
+                placeholder="Session ID or user..."
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-900"
               />
-              {userFilter && (
-                <button onClick={() => setUserFilter('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
           </div>
 
-          {/* Min turns */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 w-20 shrink-0">Min turns</span>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">End user</label>
+            <input
+              name="end_user_id"
+              defaultValue={searchParams?.end_user_id ?? ''}
+              placeholder="user ID"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Time</label>
+            <select
+              name="time"
+              defaultValue={timePreset}
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              <option value="all">All time</option>
+              <option value="1d">Today</option>
+              <option value="7d">7 days</option>
+              <option value="30d">30 days</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Min turns</label>
             <input
               type="number"
               min={1}
-              value={minTurns}
-              onChange={(e) => setMinTurns(e.target.value)}
-              placeholder="e.g. 3"
-              className={`${inputCls} w-24`}
+              name="min_turns"
+              defaultValue={searchParams?.min_turns ?? ''}
+              placeholder="3"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
             />
           </div>
 
-          {/* Cost range */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 w-20 shrink-0">Cost ($)</span>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Min cost</label>
             <input
               type="number"
+              step="0.0001"
               min={0}
-              step={0.0001}
-              value={minCost}
-              onChange={(e) => setMinCost(e.target.value)}
-              placeholder="min"
-              className={`${inputCls} w-24`}
-            />
-            <span className="text-xs text-slate-400">–</span>
-            <input
-              type="number"
-              min={0}
-              step={0.0001}
-              value={maxCost}
-              onChange={(e) => setMaxCost(e.target.value)}
-              placeholder="max"
-              className={`${inputCls} w-24`}
+              name="min_cost"
+              defaultValue={searchParams?.min_cost ?? ''}
+              placeholder="0.0100"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
             />
           </div>
         </div>
 
-        {hasFilters && (
-          <div className="flex items-center pt-1">
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white"
-            >
-              <X className="h-3.5 w-3.5" /> Clear filters
-            </button>
-            <span className="ml-3 text-xs text-slate-400">
-              {afterFilters.length} of {sessions.length} sessions match
-            </span>
+        <div className="grid gap-3 lg:grid-cols-6">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Max cost</label>
+            <input
+              type="number"
+              step="0.0001"
+              min={0}
+              name="max_cost"
+              defaultValue={searchParams?.max_cost ?? ''}
+              placeholder="0.5000"
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+            />
           </div>
-        )}
-      </div>
-
-      {/* Search bar */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search within ${afterFilters.length} filtered sessions by ID or user…`}
-            className={`${inputCls} pl-8 w-full`}
-          />
-          {hasSearch && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
         </div>
-        <ResultCount filtered={filtered.length} total={sessions.length} />
-        {(hasFilters || hasSearch) && (
+
+        <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={clearAll}
-            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 whitespace-nowrap"
+            type="submit"
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
           >
-            Reset all
+            Apply filters
           </button>
-        )}
-      </div>
+          {hasFilters && (
+            <Link
+              href="/sessions"
+              className="text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+            >
+              Reset all
+            </Link>
+          )}
+          <ResultCount loaded={data.items.length} total={data.total} />
+        </div>
+      </form>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <table className="min-w-full text-sm">
-          <thead className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+          <thead className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/60">
             <tr>
-              {['Session ID', 'User', 'Turns', 'Total Cost', 'Duration', 'Avg Score', 'Started'].map((h) => (
+              {['Session ID', 'User', 'Turns', 'Total Cost', 'Duration', 'Avg Score', 'Started'].map((header) => (
                 <th
-                  key={h}
+                  key={header}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
                 >
-                  {h}
+                  {header}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {loading ? (
-              <SkeletonRows cols={7} />
-            ) : filtered.length === 0 ? (
+            {data.items.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-16 text-center">
                   <MessageSquare className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
                   <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                    {sessions.length === 0
-                      ? <>No sessions yet. Tag runs with a <code className="font-mono">session_id</code> to group them here.</>
-                      : hasSearch
-                      ? 'No sessions match your search.'
-                      : 'No sessions match your filters.'}
+                    No sessions match the current filters.
                   </p>
-                  {(hasFilters || hasSearch) && (
-                    <button onClick={clearAll} className="mt-2 text-xs text-violet-600 hover:underline">
+                  {hasFilters && (
+                    <Link href="/sessions" className="mt-2 inline-block text-xs text-violet-600 hover:underline">
                       Reset all filters
-                    </button>
+                    </Link>
                   )}
                 </td>
               </tr>
             ) : (
-              filtered.map((s) => {
+              data.items.map((item) => {
                 const durationMs =
-                  s.started_at && s.ended_at
-                    ? new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()
+                  item.started_at && item.ended_at
+                    ? new Date(item.ended_at).getTime() - new Date(item.started_at).getTime()
                     : null
 
                 return (
-                  <tr
-                    key={s.session_id}
-                    onClick={() => router.push(`/sessions/${encodeURIComponent(s.session_id)}`)}
-                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                  >
+                  <tr key={item.session_id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
-                      <span title={s.session_id}>
-                        {s.session_id.length > 16 ? s.session_id.slice(0, 16) + '…' : s.session_id}
-                      </span>
+                      <Link href={`/sessions/${encodeURIComponent(item.session_id)}`} className="hover:text-violet-700 hover:underline">
+                        <span title={item.session_id}>
+                          {item.session_id.length > 16 ? `${item.session_id.slice(0, 16)}…` : item.session_id}
+                        </span>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                      {s.end_user_id ? (
-                        <span className="rounded-full bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 text-xs font-mono text-indigo-700 dark:text-indigo-300">
-                          {s.end_user_id}
+                      {item.end_user_id ? (
+                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-mono text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                          {item.end_user_id}
                         </span>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-500">—</span>
+                        <span className="text-xs text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                      <span className="tabular-nums">{s.run_count}</span>
-                      <span className="ml-1 text-xs text-slate-400">turn{s.run_count !== 1 ? 's' : ''}</span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">
-                      {formatCost(s.total_cost_usd)}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                      {durationMs != null ? formatDuration(durationMs) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.avg_score != null ? (
-                        <span className="inline-flex items-center rounded-full bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                          {parseFloat(s.avg_score).toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-500">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
-                      {new Date(s.started_at).toLocaleString()}
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{item.run_count}</td>
+                    <td className="px-4 py-3 font-mono text-slate-700 dark:text-slate-200">{formatCost(item.total_cost_usd)}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{durationMs != null ? formatDuration(durationMs) : '—'}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{item.avg_score ?? '—'}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {new Date(item.started_at).toLocaleString()}
                     </td>
                   </tr>
                 )
@@ -391,6 +306,30 @@ export default function SessionsPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+        <span>
+          Page {data.page} of {pageCount} • {data.total.toLocaleString()} sessions
+        </span>
+        <div className="flex items-center gap-2">
+          {data.page > 1 && (
+            <Link
+              href={withParams(activeParams, { page: String(data.page - 1) })}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200"
+            >
+              Previous
+            </Link>
+          )}
+          {data.page < pageCount && (
+            <Link
+              href={withParams(activeParams, { page: String(data.page + 1) })}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200"
+            >
+              Next
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   )

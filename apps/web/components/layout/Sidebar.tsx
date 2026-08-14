@@ -71,12 +71,12 @@ const defaultSections = {
 type SectionKey = keyof typeof defaultSections
 
 const observeNav = [
-  { href: '/dashboard', label: 'Workspace Dashboard', icon: LayoutDashboard },
+  { href: '/analytics', label: 'Overview', icon: LayoutDashboard },
   { href: '/runs', label: 'Runs', icon: LayoutList },
   { href: '/sessions', label: 'Sessions', icon: MessageSquare },
   { href: '/request-flow', label: 'Request Flow', icon: Route },
   { href: '/request-explorer', label: 'Request Explorer', icon: Search },
-  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/analytics/breakdown', label: 'Analytics Breakdown', icon: BarChart2 },
   { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
@@ -128,7 +128,7 @@ export default function Sidebar() {
   }
 
   const isActive = (href: string) => {
-    if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
+    if (href === '/analytics') return pathname === '/analytics'
     if (href === '/organization') return pathname === '/organization'
     return pathname === href || pathname.startsWith(`${href}/`)
   }

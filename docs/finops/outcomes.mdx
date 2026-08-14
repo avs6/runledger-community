@@ -1,32 +1,21 @@
 ---
 title: "Outcomes & ROI"
-description: "Tie cost to business results — record outcomes per run and get cost-per-success, ROI by workflow, and success-rate trends."
+description: "Record and manage business outcomes, then review cost-per-success, workflow ROI, success-rate trends, and quality correlation."
 ---
 
-Cost alone doesn't tell you if the spend was *worth it*. Record a business **outcome** on a run and
-RunLedger joins it to the metered cost to produce cost-per-success and ROI — the signal the
-[optimization flywheel](/optimization/flywheel) and `outcome_optimized` routing learn from.
+Cost alone does not tell you whether the spend was worth it. Record a business **outcome** on a run, session, or user and RunLedger joins it to the metered cost so you can see cost-per-success, ROI, and workflow-level business impact.
 
-<Frame caption="Outcomes & ROI — cost-per-success, workflow ROI, and success-rate trends.">
+<Frame caption="Outcomes & ROI - outcome ledger plus cost-per-success, workflow ROI, and success-rate trends.">
   <img src="/images/outcomes.png" alt="Outcomes & ROI" />
 </Frame>
 
-## Key features
+## What the page includes
 
-- **Outcome events** — `success` (bool) + optional `value_usd`, tagged by `outcome_type` and linked to a run.
-- **Cost-per-success** — total cost ÷ successful outcomes, per workflow.
-- **ROI** — value produced vs cost spent.
-- **Trends & alerts** — success-rate and cost-per-success over time, with spike/drop alerts.
-
-## How it works
-
-```mermaid
-flowchart LR
-  run[AgentRun + cost] --> out[Outcome: success · value]
-  out --> roll[Daily outcome rollup]
-  roll --> cps[cost_per_success · ROI · success_rate]
-  cps --> flywheel[Feeds outcome_optimized routing + flywheel]
-```
+- **Outcome ledger** - create, filter, edit, and delete recorded outcomes
+- **Outcome summary** - success rate, cost-per-success, and ROI by outcome type
+- **Trend view** - success-rate trend for recent windows
+- **Workflow ROI** - cost and value by feature tag and outcome type
+- **Quality correlation** - how average score relates to successful business outcomes
 
 ## Record an outcome
 
@@ -34,23 +23,40 @@ flowchart LR
 rl.outcome("refund_resolved", True, run_id=run_id, value_usd=12.00)
 ```
 
-`outcome(outcome_type, success, ...)` — type and success are positional; `run_id` defaults to the current
-context. Or `POST /outcomes` with the run id. Outcomes roll up nightly into per-workflow metrics.
+You can also use the UI form on the Outcomes page or call `POST /outcomes` directly.
+
+## Manage recorded outcomes
+
+RunLedger now supports the full lifecycle for recorded outcomes:
+
+- create
+- list and filter
+- get by id
+- update
+- delete
+
+This makes the outcomes page both an analytics surface and the operator ledger behind that analysis.
 
 ## Why it matters
 
-Cost-per-success is the headline FinOps metric — it lets you compare a cheaper model that fails more often
-against a pricier one that succeeds, on the only axis that matters: **cost to actually get the job done.**
-It's also the ground-truth quality signal the flywheel holds against your SLA.
+Cost-per-success is the headline ROI metric. It lets you compare:
+
+- a cheaper model that fails more often
+- a costlier model that succeeds more often
+
+on the only axis that matters: **cost to actually get the job done**.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Optimization flywheel" icon="arrows-spin" href="/optimization/flywheel">
-    Cheapest config that holds the SLA.
+  <Card title="Cost & Savings" icon="sparkles" href="/finops/cost-savings">
+    Move from business value proof into realized optimization analysis.
   </Card>
-  <Card title="Routing & fallback" icon="route" href="/gateway/routing">
-    outcome_optimized route selection.
+  <Card title="Optimization flywheel" icon="arrows-spin" href="/optimization/flywheel">
+    Cheapest configuration that still holds the SLA.
+  </Card>
+  <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
+    Investigate the exact runs behind a good or bad outcome.
   </Card>
 </CardGroup>
 

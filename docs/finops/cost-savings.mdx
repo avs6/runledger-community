@@ -1,35 +1,36 @@
 ---
 title: "Cost & Savings"
-description: "Track realized savings from caching, routing, compression, and optimization — with category breakdowns and trend charts."
+description: "Spend breakdown, realized savings, ROI targeting, and budget-aware optimization across business dimensions."
 ---
 
-The Cost & Savings dashboard shows how much you're saving through RunLedger's optimization features, broken down by category and tracked over time.
+The Cost & Savings page is the primary FinOps drilldown for optimization. It explains where spend is concentrated, how much RunLedger saved, and which workspace, workflow, agent, model, or tool is the next best optimization target.
 
-## Key features
+## What the page shows
 
-- **Savings breakdown** — see savings from exact cache, semantic cache, prompt compression, intelligent routing, and tool filtering.
-- **Realized vs projected** — compare actual measured savings against projected estimates.
-- **Trend charts** — track savings over time with daily and monthly rollups.
-- **Optimization opportunities** — see recommendations for further savings with projected impact.
-- **Scoped views** — filter by workspace, model, agent, or time range.
+- **Spend versus saved** - actual observed spend alongside realized savings
+- **Optimization rate** - percent of spend avoided through optimization behavior
+- **Dimension breakdown** - workspace, workflow, application, user, agent, model, tool, or time
+- **Savings attribution** - cache hits, smart routing, local models, prompt compression, duplicate detection, and tool optimization
+- **Budget context** - workspace budget rollups alongside savings analysis
+- **Next target recommendation** - the highest-value optimization candidate in the current window
 
-## Savings categories
+## Best used for
 
-| Category | Source |
-|---|---|
-| Exact cache | Repeated identical requests served from cache |
-| Semantic cache | Semantically similar requests served from cache |
-| Prompt compression | Tokens saved by compressing prompt content |
-| Intelligent routing | Cost savings from routing to cheaper models when quality allows |
-| Tool filtering | Tokens saved by removing irrelevant tools from context |
+- explaining where savings are already working
+- finding which business segment should be optimized next
+- comparing optimization value across workspaces or workflows
+- validating whether budgets and routing changes are actually improving unit economics
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Metering" icon="gauge" href="/finops/metering">
-    How costs are measured.
+  <Card title="Economics Overview" icon="chart-line" href="/observability/economics">
+    Start with regressions and version-change impact before opening the savings drilldown.
   </Card>
-  <Card title="Optimization flywheel" icon="arrows-spin" href="/optimization/flywheel">
-    Automated optimization recommendations.
+  <Card title="Billing" icon="receipt" href="/finops/billing">
+    Move from optimization analysis into billing-period reconciliation and exports.
+  </Card>
+  <Card title="Optimization Opportunities" icon="sparkles" href="/optimization/flywheel">
+    Review recommended next actions after the current savings story is clear.
   </Card>
 </CardGroup>

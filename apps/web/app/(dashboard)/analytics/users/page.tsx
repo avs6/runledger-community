@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { ChevronLeft, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, AlertTriangle, Search, DollarSign } from 'lucide-react'
 import { getSpendByUser, getUserCohorts, getUserAnomalies } from '@/lib/api'
 import type { UserSpend, CohortSummary, AnomalyItem } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -181,6 +181,40 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">User Analytics Flow</p>
+          <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Start with spend, then inspect the traffic behind it</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Use this page to find costly or unusual end users, then open the user detail drilldown or Request Explorer to understand which requests, models, and workflows drove the spend.
+          </p>
+        </div>
+        <Link
+          href="/request-explorer"
+          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-400 dark:hover:bg-slate-800"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Open Request Explorer</h2>
+            <Search className="h-5 w-5 text-blue-600" />
+          </div>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Investigate the exact requests behind a user’s cost spike, model usage, or anomaly flag.
+          </p>
+        </Link>
+        <Link
+          href="/outcomes"
+          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-400 dark:hover:bg-slate-800"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Compare Against Outcomes</h2>
+            <DollarSign className="h-5 w-5 text-blue-600" />
+          </div>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Cross-check whether high-spend users are also producing high-value or high-success business outcomes.
+          </p>
+        </Link>
+      </div>
     </div>
   )
 }

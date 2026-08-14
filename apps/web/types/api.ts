@@ -663,6 +663,8 @@ export interface SessionItem {
 export interface SessionList {
   items: SessionItem[]
   total: number
+  page: number
+  page_size: number
 }
 
 export interface SessionRunItem {
@@ -2175,6 +2177,7 @@ export interface RequestRecord {
   provider: string
   model: string
   intent: string | null
+  end_user_id: string | null
   cost_usd: string | null
   baseline_cost_usd: string | null
   savings_usd: string | null

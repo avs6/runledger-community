@@ -329,6 +329,18 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
           >
             Request Explorer <Search className="h-4 w-4" />
           </Link>
+          <Link
+            href="/request-flow"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50"
+          >
+            Request Flow <Route className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/model-usage"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50"
+          >
+            Model Usage <Cpu className="h-4 w-4" />
+          </Link>
         </div>
       </div>
 

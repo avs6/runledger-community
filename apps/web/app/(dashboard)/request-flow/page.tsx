@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
-import { ArrowRight, GitBranch, Layers3, Route as RouteIcon, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Expand, GitBranch, Layers3, Route as RouteIcon, Search, ShieldCheck } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
@@ -95,12 +95,26 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
             Follow AI traffic from incoming request to intent, skill, agent, model, tool, route, provider, outcome, and cost. Click any flow line to inspect the matching requests.
           </p>
         </div>
-        <Link
-          href="/request-explorer"
-          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
-        >
-          Open Request Explorer <ArrowRight className="h-4 w-4" />
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/analytics?scope=${scope}&view=overview`}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
+          >
+            Analytics Overview <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/request-explorer"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
+          >
+            Request Explorer <Search className="h-4 w-4" />
+          </Link>
+          <Link
+            href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}`}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
+          >
+            Focus Mode <Expand className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -131,14 +145,44 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
           </div>
 
           <RequestFlowSankey
-        flow={flow}
-        scope={scope}
-        mode={mode}
-        metric={metric}
-        density={density}
-        topN={topN}
-        collapseSmall={collapseSmall}
-      />
+            flow={flow}
+            scope={scope}
+            mode={mode}
+            metric={metric}
+            density={density}
+            topN={topN}
+            collapseSmall={collapseSmall}
+          />
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Request Analysis Flow</p>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Start broad, then drill into evidence</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Use Analytics Overview for scope health, Request Flow for routing causality, and Request Explorer when you need the exact run, prompt path, and gateway evidence.
+              </p>
+            </div>
+            <Link
+              href="/request-explorer"
+              className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Drill-in</p>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Open Request Explorer</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Filter the exact requests behind a suspicious edge, inspect run detail, and correlate route, model, cache, and outcome behavior.
+              </p>
+            </Link>
+            <Link
+              href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}`}
+              className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Presentation Mode</p>
+              <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Launch Focus Mode</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Expand the same flow into a larger canvas for demos, incident review, and dense route-to-outcome debugging without changing the underlying dataset.
+              </p>
+            </Link>
+          </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/35 dark:text-slate-300">
             <p className="font-semibold text-slate-950 dark:text-white">Scope note</p>

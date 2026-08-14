@@ -22,6 +22,16 @@ class OutcomeCreate(BaseModel):
     labels: dict[str, Any] = Field(default_factory=dict)
 
 
+class OutcomeUpdate(BaseModel):
+    outcome_type: str = Field(..., min_length=1, max_length=128)
+    success: bool
+    run_id: uuid.UUID | None = None
+    session_id: str | None = None
+    end_user_id: str | None = None
+    value_usd: Decimal | None = Field(None, ge=0)
+    labels: dict[str, Any] = Field(default_factory=dict)
+
+
 class OutcomeResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID

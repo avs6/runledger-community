@@ -1,0 +1,40 @@
+---
+title: "Economics Overview"
+description: "Observe regressions, compare versions, annotate changes, and route into Model Usage, Cost & Savings, and Billing."
+---
+
+The Economics Overview page is the bridge into RunLedger's cost-analysis workflow. It is not the deepest drilldown itself. Instead, it helps you answer:
+
+- Which workflows are now expensive?
+- Did a version change worsen cost or latency?
+- What notes or rollout events explain the shift?
+- Which deeper page should I open next?
+
+## What belongs here
+
+- **Top workflows by cost** - highest-cost feature tags that deserve deeper inspection
+- **Version compare** - cost, token, and latency comparison between two rollout versions
+- **Regressions** - last 7 days versus prior 7 days
+- **Annotations** - release notes and cost-change context
+
+## Where to go next
+
+| Question | Best page |
+|---|---|
+| Which models and routes are driving spend? | [Model Usage](/observability/model-usage) |
+| Where did savings come from and what should we optimize next? | [Cost & Savings](/finops/cost-savings) |
+| Which billing periods, billable totals, and exports matter for finance? | Billing summary inside [Billing](/finops/billing) |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Model Usage" icon="chart-bar" href="/observability/model-usage">
+    Model, provider, route, latency, and quality behavior.
+  </Card>
+  <Card title="Cost & Savings" icon="sparkles" href="/finops/cost-savings">
+    Realized optimization and savings attribution.
+  </Card>
+  <Card title="Billing" icon="receipt" href="/finops/billing">
+    Billing periods, summary, and export workflows.
+  </Card>
+</CardGroup>

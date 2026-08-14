@@ -1,56 +1,50 @@
 ---
 title: "Analytics"
-description: "Spend charts, top spenders, cohorts, unit economics, and anomaly detection — the aggregate view across all your runs."
+description: "Scoped observability overview for workspace, organization, and platform operators."
 ---
 
-Analytics is the aggregate view: where the money goes, who spends it, how it trends, and when something
-looks wrong.
+Analytics is the main Observe landing surface. It is the shared overview shell for:
 
-<Frame caption="Analytics — spend charts, top spenders, cohorts, and anomalies.">
+- workspace operators coming from `/dashboard`
+- organization administrators coming from `/organization/dashboard`
+- platform administrators coming from `/global-dashboard`
+
+<Frame caption="Analytics overview — one scoped entry point for workload health, spend, model mix, and request-analysis drill-downs.">
   <img src="/images/analytics.png" alt="Analytics" />
 </Frame>
 
 ## Key features
 
-- **Spend charts** — over time, by model, provider, feature, and tenant.
-- **Top spenders** — the users, features, and workflows driving cost.
-- **Cohorts** — compare segments of traffic.
-- **Unit economics** — cost per run, per outcome, per step.
-- **Anomaly detection** — surfaces sudden spend or usage spikes.
-- **Scoped summary** — workspace, org, or platform-level aggregates with savings and intent breakdown.
-- **Savings attribution** — realized savings by category (cache, routing, compression) over time.
-- **Optimization opportunities** — auto-detected patterns where caching, routing, or model changes would cut cost.
-- **Trends** — cost, usage, and savings trends with period-over-period comparison (hourly/daily/weekly).
+- **Scoped overview** — switch between workspace, organization, and platform perspectives.
+- **Top intents** — see which workflows are driving demand and cost in the current scope.
+- **Request-analysis bridge** — jump directly into Runs, Request Flow, and Request Explorer.
+- **Model mix** — inspect which providers and models dominate the selected window.
+- **Recent activity** — review the latest runs or scope summary without leaving the overview.
+- **Breakdown handoff** — use Analytics Breakdown for denser workspace charting when you need deeper charts.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  events[Runs · provider calls] --> roll[Hourly / daily rollups]
-  roll --> charts[Spend · cohorts · economics]
-  roll --> anom[Anomaly detection]
+  dashboards["/dashboard · /organization/dashboard · /global-dashboard"] --> overview["/analytics overview shell"]
+  overview --> runs["Runs / Sessions"]
+  overview --> request["Request Flow / Request Explorer"]
+  overview --> economics["Economics / Model Usage / Cost & Savings"]
 ```
 
-Analytics reads from the same rollups the budgets and dashboards use, so numbers are consistent across the
-product. Everything is queryable via the API for your own BI.
+The page reads from the same scoped summary and request-analysis APIs that power deeper economics and observability drill-downs, so the numbers stay aligned across the product.
 
 ## Related
 
 <CardGroup cols={3}>
-  <Card title="Cost attribution" icon="building" href="/finops/attribution">
-    The dimensions analytics slices by.
+  <Card title="Runs" icon="activity" href="/observability/runs">
+    Inspect the concrete executions behind the overview metrics.
   </Card>
-  <Card title="Alerts" icon="bell" href="/governance/alerts">
-    Get notified on anomalies.
+  <Card title="Request Flow" icon="git-branch" href="/observability/request-flow">
+    Follow routing and outcome causality across the request path.
   </Card>
-  <Card title="Engineering Dashboard" icon="wrench" href="/observability/engineering">
-    Latency, errors, cache hit rates, and quality funnel.
-  </Card>
-  <Card title="Request Explorer" icon="search" href="/observability/request-explorer">
-    Drill into individual provider calls.
-  </Card>
-  <Card title="Optimization Simulator" icon="flask" href="/observability/optimization-simulator">
-    What-if analysis for model and optimization changes.
+  <Card title="Economics" icon="wallet" href="/observability/economics">
+    Continue into spend, savings, and optimization outcomes.
   </Card>
 </CardGroup>
 
