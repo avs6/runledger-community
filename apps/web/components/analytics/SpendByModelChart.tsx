@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import type { ModelSpend } from '@/types/api'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import {
   Bar,
   BarChart,
@@ -16,6 +17,18 @@ import {
 
 interface Props {
   items: ModelSpend[]
+}
+
+function valueToNumber(value: ValueType | undefined): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return valueToNumber(value[0])
+  }
+  return null
 }
 
 export default function SpendByModelChart({ items }: Props) {
@@ -71,7 +84,10 @@ export default function SpendByModelChart({ items }: Props) {
           width={120}
         />
         <Tooltip
-          formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, undefined]}
+          formatter={(value) => {
+            const numeric = valueToNumber(value) ?? 0
+            return [`$${numeric.toFixed(6)}`, 'Cost']
+          }}
           contentStyle={tooltipStyle}
         />
         <Legend wrapperStyle={{ fontSize: 11, color: tickColor }} />

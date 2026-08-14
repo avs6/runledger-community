@@ -47,7 +47,6 @@ import {
   FileCheck,
   Play,
   Wrench,
-  Gauge,
   Layers,
   FileSpreadsheet,
   Server,
@@ -206,8 +205,7 @@ export default function Sidebar() {
                 </>
               )}
               <NavLink href="/guardrails" label="Guardrails" icon={ShieldAlert} />
-              <NavLink href="/response-cache" label="Response Cache" icon={Database} />
-              <NavLink href="/rate-limits" label="Rate Limits" icon={Gauge} />
+              <NavLink href="/guardrails/violations" label="Guardrail Violations" icon={ShieldAlert} />
             </Section>
           )}
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import type { FeatureSpend } from '@/types/api'
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 
 const COLORS = [
   '#6366f1',
@@ -18,6 +19,18 @@ const COLORS = [
 
 interface Props {
   items: FeatureSpend[]
+}
+
+function valueToNumber(value: ValueType | undefined): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return valueToNumber(value[0])
+  }
+  return null
 }
 
 export default function SpendByFeatureChart({ items }: Props) {
@@ -64,7 +77,10 @@ export default function SpendByFeatureChart({ items }: Props) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(v: number | undefined) => [`$${(v ?? 0).toFixed(6)}`, 'Cost']}
+          formatter={(value) => {
+            const numeric = valueToNumber(value) ?? 0
+            return [`$${numeric.toFixed(6)}`, 'Cost']
+          }}
           contentStyle={tooltipStyle}
         />
         <Legend wrapperStyle={{ fontSize: 11, color: legendColor }} />

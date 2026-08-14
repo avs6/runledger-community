@@ -1494,6 +1494,15 @@ export async function getGatewayStats(apiKey: string): Promise<GatewayStats> {
   return apiFetch<GatewayStats>('/gateway/stats', apiKey)
 }
 
+export async function getGatewayRateLimitOverview(
+  apiKey: string,
+): Promise<import('@/types/api').GatewayRateLimitOverview> {
+  return apiFetch<import('@/types/api').GatewayRateLimitOverview>(
+    '/gateway/rate-limits/overview',
+    apiKey,
+  )
+}
+
 export async function listGatewayRequests(
   apiKey: string,
   params?: { alias?: string; status?: string; limit?: number; offset?: number }
@@ -3144,11 +3153,22 @@ export async function getGuardrailStats(
 
 export async function listGuardrailEvents(
   apiKey: string,
-  params?: { decision?: string; guardrail_name?: string; limit?: number; offset?: number }
+  params?: {
+    decision?: string
+    guardrail_name?: string
+    mode?: string
+    violations_only?: boolean
+    false_positive?: boolean
+    limit?: number
+    offset?: number
+  }
 ): Promise<import('@/types/api').GuardrailEventList> {
   const q = new URLSearchParams()
   if (params?.decision) q.set('decision', params.decision)
   if (params?.guardrail_name) q.set('guardrail_name', params.guardrail_name)
+  if (params?.mode) q.set('mode', params.mode)
+  if (params?.violations_only !== undefined) q.set('violations_only', String(params.violations_only))
+  if (params?.false_positive !== undefined) q.set('false_positive', String(params.false_positive))
   if (params?.limit) q.set('limit', String(params.limit))
   if (params?.offset) q.set('offset', String(params.offset))
   const qs = q.toString() ? `?${q}` : ''
@@ -3171,6 +3191,18 @@ export async function createPartnerGuardrail(
 ): Promise<import('@/types/api').PartnerGuardrailResponse> {
   return apiFetch<import('@/types/api').PartnerGuardrailResponse>('/guardrails/partners', apiKey, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updatePartnerGuardrail(
+  apiKey: string,
+  id: string,
+  body: Record<string, unknown>
+): Promise<import('@/types/api').PartnerGuardrailResponse> {
+  return apiFetch<import('@/types/api').PartnerGuardrailResponse>(`/guardrails/partners/${id}`, apiKey, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -3483,6 +3515,15 @@ export async function createModelBudget(
   body: { model_pattern: string; max_spend_usd?: number; period_type?: string; rpm_limit?: number; tpm_limit?: number; action?: string }
 ): Promise<import('@/types/api').ModelBudget> {
   return apiFetch<import('@/types/api').ModelBudget>(`/api-keys/${keyId}/model-budgets`, apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function updateModelBudget(
+  apiKey: string,
+  keyId: string,
+  budgetId: string,
+  body: { model_pattern?: string; max_spend_usd?: number | null; period_type?: string; rpm_limit?: number | null; tpm_limit?: number | null; action?: string; is_active?: boolean }
+): Promise<import('@/types/api').ModelBudget> {
+  return apiFetch<import('@/types/api').ModelBudget>(`/api-keys/${keyId}/model-budgets/${budgetId}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
 }
 
 export async function deleteModelBudget(
@@ -4193,6 +4234,47 @@ export async function getResponseCacheConfigs(
   apiKey: string
 ): Promise<import('@/types/api').ResponseCacheConfigListResponse> {
   return apiFetch<import('@/types/api').ResponseCacheConfigListResponse>('/response-cache', apiKey)
+}
+
+export async function createResponseCacheConfig(
+  apiKey: string,
+  body: import('@/types/api').ResponseCacheConfigCreate
+): Promise<import('@/types/api').ResponseCacheConfigResponse> {
+  return apiFetch<import('@/types/api').ResponseCacheConfigResponse>('/response-cache', apiKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getResponseCacheConfig(
+  apiKey: string,
+  configId: string,
+): Promise<import('@/types/api').ResponseCacheConfigResponse> {
+  return apiFetch<import('@/types/api').ResponseCacheConfigResponse>(
+    `/response-cache/${configId}`,
+    apiKey,
+  )
+}
+
+export async function updateResponseCacheConfig(
+  apiKey: string,
+  configId: string,
+  body: import('@/types/api').ResponseCacheConfigUpdate,
+): Promise<import('@/types/api').ResponseCacheConfigResponse> {
+  return apiFetch<import('@/types/api').ResponseCacheConfigResponse>(
+    `/response-cache/${configId}`,
+    apiKey,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+}
+
+export async function deleteResponseCacheConfig(apiKey: string, configId: string): Promise<void> {
+  await apiFetch<void>(`/response-cache/${configId}`, apiKey, { method: 'DELETE' })
 }
 
 export async function getResponseCacheStats(

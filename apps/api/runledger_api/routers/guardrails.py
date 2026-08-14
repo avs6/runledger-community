@@ -475,6 +475,9 @@ async def list_events(
     db: DbDep,
     decision: Annotated[str | None, Query()] = None,
     guardrail_name: Annotated[str | None, Query()] = None,
+    mode: Annotated[str | None, Query()] = None,
+    violations_only: Annotated[bool, Query()] = False,
+    false_positive: Annotated[bool | None, Query()] = None,
     limit: Annotated[int, Query(le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> GuardrailEventList:
@@ -484,6 +487,12 @@ async def list_events(
         stmt = stmt.where(GuardrailEvent.decision == decision)
     if guardrail_name:
         stmt = stmt.where(GuardrailEvent.guardrail_name.ilike(f"%{guardrail_name}%"))
+    if mode:
+        stmt = stmt.where(GuardrailEvent.mode == mode)
+    if violations_only:
+        stmt = stmt.where(GuardrailEvent.decision.in_(["block", "modify"]))
+    if false_positive is not None:
+        stmt = stmt.where(GuardrailEvent.is_false_positive.is_(false_positive))
 
     count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = int(count_result.scalar() or 0)

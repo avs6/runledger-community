@@ -137,6 +137,7 @@ class ApiKeyResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
     workspace_name: str | None = None
+    budget_tier_id: uuid.UUID | None = None
     key_prefix: str
     name: str | None
     scopes: list[str]

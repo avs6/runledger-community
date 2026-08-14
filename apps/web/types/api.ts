@@ -491,7 +491,7 @@ export interface CapturePolicyResponse { id: string; workspace_id: string; priva
 
 // ── Phase 12 — Settings ────────────────────────────────────────────────────────
 
-export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null; ownership_type: string; owner_reference: string | null }
+export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; budget_tier_id: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null; ownership_type: string; owner_reference: string | null }
 export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 export interface ApiKeyUpdateRequest { name?: string | null; ownership_type?: string | null; owner_reference?: string | null; scopes?: string[] }
 
@@ -865,6 +865,24 @@ export interface GatewayStats {
   cache_hit_rate: string
   avg_latency_ms: string | null
   routes: GatewayRouteStats[]
+}
+
+export interface GatewayRateLimitTier {
+  key: string
+  name: string
+  description: string
+  rpm: number
+  endpoints: string[]
+}
+
+export interface GatewayRateLimitOverview {
+  tiers: GatewayRateLimitTier[]
+  route_rate_limited_count: number
+  route_rate_limited_aliases: string[]
+  passthrough_rate_limited_count: number
+  passthrough_rate_limited_slugs: string[]
+  budget_tier_rate_limited_count: number
+  model_budget_rate_limited_count: number
 }
 
 export interface GatewayRequestLog {
@@ -3703,6 +3721,30 @@ export interface ResponseCacheConfigResponse {
   config: Record<string, unknown>
   created_at: string
   updated_at: string
+}
+
+export interface ResponseCacheConfigCreate {
+  name: string
+  is_enabled?: boolean
+  ttl_seconds?: number
+  max_entries?: number
+  eviction_policy?: string
+  similarity_threshold?: number
+  embedding_model?: string | null
+  scope_models?: string[]
+  config?: Record<string, unknown>
+}
+
+export interface ResponseCacheConfigUpdate {
+  name?: string
+  is_enabled?: boolean
+  ttl_seconds?: number
+  max_entries?: number
+  eviction_policy?: string
+  similarity_threshold?: number
+  embedding_model?: string | null
+  scope_models?: string[]
+  config?: Record<string, unknown>
 }
 
 export interface ResponseCacheConfigListResponse {

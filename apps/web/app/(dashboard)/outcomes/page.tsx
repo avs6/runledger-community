@@ -15,6 +15,7 @@ import type {
   WorkflowROIList,
   QualityOutcomeCorrelation,
 } from '@/types/api'
+import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import {
   LineChart,
   Line,
@@ -28,6 +29,18 @@ import {
 
 const WINDOWS = [7, 14, 30, 90]
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#3b82f6', '#8b5cf6']
+
+function valueToNumber(value: ValueType | undefined): number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return valueToNumber(value[0])
+  }
+  return null
+}
 
 export default function OutcomesPage() {
   const { data: session } = useSession()
@@ -182,7 +195,12 @@ export default function OutcomesPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={v => `${v.toFixed(0)}%`} domain={[0, 100]} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number | undefined) => v !== undefined ? `${v.toFixed(1)}%` : ''} />
+                  <Tooltip
+                    formatter={(value) => {
+                      const numeric = valueToNumber(value)
+                      return numeric !== null ? `${numeric.toFixed(1)}%` : ''
+                    }}
+                  />
                   <Line
                     type="monotone"
                     dataKey="success_rate"
