@@ -253,20 +253,19 @@ def run(sim: Sim) -> None:
     )
 
     ws.add_chargeback_rule(
-        "Support team — all chat",
-        "feature_tag", "support-chat",
-        "SUPPORT-OPS",
+        dimension="feature_tag",
+        allocation_type="direct",
+        weight=1.0,
     )
     ws.add_chargeback_rule(
-        "Billing team — refund + billing",
-        "feature_tag", "billing-help",
-        "BILLING-OPS",
-        split_percent=80.0,
+        dimension="feature_tag",
+        allocation_type="showback",
+        weight=0.8,
     )
     ws.add_chargeback_rule(
-        "Trust team — fraud checks",
-        "feature_tag", "fraud-check",
-        "TRUST-SAFETY",
+        dimension="workspace",
+        allocation_type="shared_weight",
+        weight=0.6,
     )
 
     for r in ws.sample(runs, 8):

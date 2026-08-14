@@ -1,49 +1,72 @@
 ---
-title: "Tamper-Evident Ledger"
-description: "An HMAC-signed, hash-chained usage ledger — so internal cost accounting is verifiable and billing disputes can be settled with cryptographic evidence."
+title: "Ledger & Compliance Closure"
+description: "Platform-owned compliance closure for signed ledger snapshots, verification posture, billing close linkage, chargeback evidence, and backup readiness."
 ---
 
-For metering to be trustworthy enough to bill on, it has to be **tamper-evident**. RunLedger periodically
-snapshots usage into a signed, hash-chained ledger — any later modification to the underlying data breaks
-the chain and is detectable.
+RunLedger's ledger is the compliance-close layer for FinOps. It is no longer best understood as a standalone workspace page. The real operator home is **Platform Settings -> Compliance**, while `/ledger` remains a compatibility route for legacy navigation and API entry.
 
-## Key features
+## What exists today
 
-- **HMAC-signed snapshots** — each snapshot carries a `snapshot_hash` over its contents.
-- **Hash chaining** — each snapshot references the previous one, so the sequence is append-only.
-- **Verifiable** — re-compute the hash over the raw data and compare; a mismatch proves modification.
-- **Suspicious-sequence detection** — a background job flags gaps or reordering.
+- **Signed daily snapshots** - daily spend snapshots are signed with HMAC-SHA256.
+- **On-demand generation** - platform admins can generate the latest snapshot immediately.
+- **Integrity verification** - snapshots can be recomputed and verified against the stored hash.
+- **Closure summary** - the Compliance tab now shows ledger status together with latest billing close, chargeback evidence, backup evidence, and audit activity.
+- **Evidence chain links** - operators can jump from compliance closure into Billing, Chargeback, Audit Log, and Tool Registry.
 
-## How it works
+## Platform ownership
+
+Ledger is now owned under **Platform Settings -> Compliance** because the user question is not just:
+
+- "Did a snapshot exist?"
+
+It is also:
+
+- "Was the billing period closed?"
+- "Was ownership allocation reviewed?"
+- "Is there backup evidence?"
+- "Do we have audit activity and governance evidence for the close?"
+
+That makes Ledger a **closure workflow**, not a standalone daily operating page.
+
+## API surfaces
+
+- `GET /ledger/closure-summary`
+- `GET /ledger/snapshots`
+- `POST /ledger/snapshots/generate`
+- `GET /ledger/verify/{snapshot_date}`
+
+## Closure workflow
 
 ```mermaid
 flowchart LR
-  s1[Snapshot N-1 · hash h1] --> s2[Snapshot N · prev=h1 · hash h2]
-  s2 --> s3[Snapshot N+1 · prev=h2 · hash h3]
-  raw[Raw usage rows] -. signed over .- s2
+  billing["Billing close"] --> chargeback["Chargeback allocation"]
+  chargeback --> ledger["Ledger snapshot + verify"]
+  ledger --> backup["Backup evidence"]
+  backup --> audit["Audit + governance evidence"]
 ```
 
-Snapshots are produced on a schedule (daily) and on demand. Each is signed with the workspace key; because
-each references the prior hash, you can't alter or drop a snapshot without breaking every one after it.
+## Closure summary fields
 
-## Verify
-
-```python
-# List recent snapshots and re-verify their hashes
-snapshots = client.get("/ledger/snapshots?limit=5")
-# Each snapshot_hash can be recomputed from the raw rows; a mismatch = tampering.
-```
-
-Or via the API: `GET /ledger/snapshots`.
+| Field | Purpose |
+|---|---|
+| `readiness_status` | Overall close posture: `ready`, `partial`, `at_risk`, or `empty` |
+| `evidence_score` | Quick score across billing, snapshot, verification, chargeback, and backup evidence |
+| `missing_evidence` | Explicit list of what is still missing before the close package is trustworthy |
+| `latest_closed_period` | Most recent closed billing period |
+| `latest_snapshot` | Most recent signed ledger snapshot |
+| `verification` | Counts of verified, tampered, and pending snapshots |
+| `chargeback` | Current allocation posture used as ownership evidence |
+| `latest_backup_snapshot` | Latest backup evidence record |
+| `recent_audit_event_count` | Recent audit activity that supports the close trail |
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Metering" icon="gauge-high" href="/finops/metering">
-    The data the ledger signs.
+  <Card title="Billing" icon="receipt" href="/finops/billing">
+    Close accounting periods and prepare the upstream evidence chain.
   </Card>
-  <Card title="Backup & restore" icon="database" href="/backup-restore">
-    Verify ledger integrity after a restore.
+  <Card title="Chargeback" icon="building" href="/finops/chargeback">
+    Review ownership allocation before treating the close package as complete.
   </Card>
 </CardGroup>
 

@@ -27,6 +27,7 @@ from runledger_api.core.deps import require_platform_admin
 from runledger_api.models.ledger import LedgerSnapshot
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.ledger import (
+    LedgerClosureSummary,
     LedgerSnapshotList,
     LedgerSnapshotResponse,
     LedgerVerifyResult,
@@ -34,6 +35,7 @@ from runledger_api.schemas.ledger import (
 from runledger_api.services.ledger import (
     build_daily_snapshot,
     compute_snapshot_hash,
+    get_ledger_closure_summary,
     get_or_create_active_key,
     verify_snapshot,
 )
@@ -75,6 +77,15 @@ async def list_snapshots(
     )
     snaps = result.scalars().all()
     return LedgerSnapshotList(items=[_snap_to_response(s) for s in snaps])
+
+
+@router.get("/closure-summary", response_model=LedgerClosureSummary)
+async def get_closure_summary(
+    auth: PlatformAdminDep,
+    db: DbDep,
+) -> LedgerClosureSummary:
+    workspace: Workspace = auth[0]
+    return await get_ledger_closure_summary(db, workspace.id)
 
 
 # ── POST /ledger/snapshots/generate ──────────────────────────────────────────

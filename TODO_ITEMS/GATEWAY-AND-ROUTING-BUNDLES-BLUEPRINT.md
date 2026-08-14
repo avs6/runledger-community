@@ -145,6 +145,16 @@ Weaknesses:
 - the user-facing explanation of technical quota vs financial policy can still improve
 - some remaining consumers and support assets still need to stay aligned to the Rust runtime model
 
+### Implementation update - Friday, August 14, 2026
+
+This bundle has now started closing the highest-value Gateway x FinOps seams:
+
+- provider-profile list responses now include attached budget counts from the backend
+- `/provider-profiles` now shows active and total budget posture per profile and links directly into scoped budget views and scoped budget creation
+- `/budgets` now accepts scoped deep links for `provider_profile` budgets and can auto-open the create flow with the scope prefilled
+- `/budgets/{id}` now links operators back to the owning surface for provider profiles, API keys, and access groups
+- `/gateway` now explains the runtime-throttle versus spend-policy split more clearly and links directly to the Budgets control plane
+
 ### Bundle-level route ownership
 
 - `/provider-profiles`
@@ -162,10 +172,10 @@ Weaknesses:
 
 FinOps gaps:
 
-- `Provider profiles x Budgets = GAP`
-- `Provider profiles x Budget detail = GAP`
+- `Provider profiles x Budgets = PARTIAL`
+- `Provider profiles x Budget detail = PARTIAL`
 - `Model gateway x Budgets = PARTIAL`
-- `Model gateway x Budget detail = GAP`
+- `Model gateway x Budget detail = PARTIAL`
 
 These are strong signs that Gateway and FinOps still need a clearer operator relationship.
 

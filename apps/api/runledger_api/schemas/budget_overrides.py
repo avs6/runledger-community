@@ -15,6 +15,7 @@ class BudgetOverrideCreate(BaseModel):
     starts_at: datetime
     expires_at: datetime
     reason: str | None = None
+    require_approval: bool = False
 
 
 class BudgetOverrideResponse(BaseModel):
@@ -27,6 +28,8 @@ class BudgetOverrideResponse(BaseModel):
     reason: str | None
     approved_by: str | None
     status: str
+    approval_id: str | None = None
+    approval_status: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

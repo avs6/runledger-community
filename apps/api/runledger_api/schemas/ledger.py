@@ -33,3 +33,52 @@ class LedgerVerifyResult(BaseModel):
     stored_hash: str | None
     computed_hash: str | None
     match: bool
+
+
+class LedgerVerificationSummary(BaseModel):
+    total_snapshots: int
+    ok_count: int
+    tampered_count: int
+    pending_count: int
+    latest_status: str | None = None
+
+
+class LedgerClosedPeriodSummary(BaseModel):
+    id: str
+    period_start: date
+    period_end: date
+    total_cost_usd: Decimal | None
+    net_cost_usd: Decimal | None
+    closed_at: datetime | None
+
+
+class LedgerChargebackSummary(BaseModel):
+    period: str
+    dimension: str
+    total_cost_usd: Decimal
+    covered_cost_usd: Decimal
+    unallocated_cost_usd: Decimal
+    breakdown_count: int
+
+
+class LedgerBackupEvidenceSummary(BaseModel):
+    id: str
+    bucket: str
+    manifest_key: str | None
+    checksum: str | None
+    integrity_status: str
+    artifact_count: int
+    created_at: datetime
+
+
+class LedgerClosureSummary(BaseModel):
+    generated_at: datetime
+    readiness_status: str
+    evidence_score: int
+    missing_evidence: list[str]
+    latest_snapshot: LedgerSnapshotResponse | None = None
+    verification: LedgerVerificationSummary
+    latest_closed_period: LedgerClosedPeriodSummary | None = None
+    chargeback: LedgerChargebackSummary | None = None
+    latest_backup_snapshot: LedgerBackupEvidenceSummary | None = None
+    recent_audit_event_count: int = 0

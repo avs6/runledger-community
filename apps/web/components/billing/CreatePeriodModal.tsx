@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import type { BillingPeriod } from '@/types/api'
 import { createBillingPeriod } from '@/lib/api'
-import { X } from 'lucide-react'
 
 function lastDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate()
@@ -12,7 +12,7 @@ function lastDayOfMonth(year: number, month: number): number {
 function defaultDates() {
   const now = new Date()
   const year = now.getFullYear()
-  const month = now.getMonth() + 1 // 1-indexed
+  const month = now.getMonth() + 1
   const start = `${year}-${String(month).padStart(2, '0')}-01`
   const end = `${year}-${String(month).padStart(2, '0')}-${lastDayOfMonth(year, month)}`
   return { start, end }
@@ -50,54 +50,54 @@ export default function CreatePeriodModal({ apiKey, onCreated, onClose }: Props)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">New Billing Period</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-white">New Billing Period</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Period Start</label>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-700 dark:text-slate-300">Period Start</span>
             <input
               type="date"
               value={periodStart}
               onChange={(e) => setPeriodStart(e.target.value)}
               required
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
-          </div>
+          </label>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Period End</label>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-700 dark:text-slate-300">Period End</span>
             <input
               type="date"
               value={periodEnd}
               onChange={(e) => setPeriodEnd(e.target.value)}
               required
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             />
-          </div>
+          </label>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-              {saving ? 'Creating…' : 'Create'}
+              {saving ? 'Creating...' : 'Create'}
             </button>
           </div>
         </form>

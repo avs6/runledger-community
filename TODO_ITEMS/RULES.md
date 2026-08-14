@@ -25,6 +25,107 @@ Do not start from:
 
 Start from `FEATURE-AUDIT.md`, then follow the flow below.
 
+## Fresh Audit Trigger Rule
+
+Every feature request must trigger a fresh audit before implementation work continues.
+
+This applies even when:
+
+- the feature was worked on earlier
+- the feature previously showed `COMPLETE`, `IN PROGRESS`, or similar fix-state history
+- a bundle blueprint already exists
+- a prior pass claimed the feature was finished
+
+The reason is simple:
+
+- the `Feature Gap Matrix` and `Feature Cohesion Matrix` are now the primary audit and remediation drivers
+- older `Fix Status` values may predate that matrix-driven workflow
+- feature work must be re-grounded in the current matrix state, not inherited from older momentum
+
+For this reason:
+
+- treat `Fix Status = RE-AUDIT REQUIRED` as the default starting posture unless a fresh audit in the current request proves otherwise
+- do not resume implementation directly from a historical `Fix Status` value without re-checking the matrices first
+
+## Cohesion Completion Goal
+
+The goal is not only to make individual pages or APIs work in isolation.
+
+The goal is to close the matrices.
+
+That means the intended end state for an audited feature family is:
+
+- no unresolved `PARTIAL` relationships in the relevant `Feature Cohesion Matrix` scope
+- no unresolved `GAP` relationships in the relevant `Feature Cohesion Matrix` scope
+- remaining cells should resolve to either:
+  - `STRONG`, when the relationship should exist and is now cohesive
+  - `N/A`, when the relationship truly does not need to exist
+
+If a feature row looks complete in the Feature Gap Matrix but its cohesion block still carries unresolved `PARTIAL` or `GAP` cells, the feature family is not actually finished.
+
+Use this rule when deciding whether to:
+
+- keep implementing
+- keep the bundle open
+- move to the next feature family
+
+## Cross-Feature Pairing Rule
+
+If a `Feature Cohesion Matrix` cell is marked `PARTIAL` or `GAP`, that relationship
+must be treated as shared delivery work by both feature families named in the cell.
+
+This means:
+
+- if `Feature Family A x Feature Family B` has a weak relationship
+- and work is picked up under `Feature Family A`
+- then the implementation pass must also include the `Feature Family B` side of that relationship
+  where needed to close the matrix cell
+
+The same rule applies in reverse:
+
+- if work is picked up under `Feature Family B`
+- the paired `Feature Family A` side must also be implemented where needed
+
+Do not treat weak cohesion cells as:
+
+- someone else’s future problem
+- a note to defer indefinitely
+- a one-sided feature polish item
+
+They are joint remediation requirements.
+
+### Example
+
+If `Gateway & Routing x FinOps` shows `PARTIAL` or `GAP` for the relationship between:
+
+- `Rate limits`
+- and `Budgets`
+
+then that relationship must be implemented as one cross-feature change set:
+
+- either when `Gateway & Routing` is taken up
+- or when `FinOps` is taken up
+
+but not left half-fixed on only one side.
+
+The same logic applies to:
+
+- `Provider profiles x Budgets`
+- `Model gateway x Budget detail`
+- `Response cache x Billing periods`
+- and any other weak cell in the matrix
+
+### Implementation expectation
+
+When a request touches a feature family, the audit must identify:
+
+1. which `PARTIAL` or `GAP` cells involve that family
+2. which paired feature family owns the other side
+3. whether this request is expected to close that relationship now
+4. what backend, UI, docs, Postman, scripts, and examples need to change on both sides
+
+If the relationship is in scope for the current request, both sides must be updated together.
+
 ## Required Flow
 
 When taking up any major feature family, the workflow must be:
@@ -53,7 +154,36 @@ When taking up any major feature family, the workflow must be:
    - how the major feature relates to other major and minor features
    - what internal gaps exist inside the feature family
    - which relationships are `STRONG`, `PARTIAL`, `GAP`, or `N/A`
-7. Only after steps `1-6`, create or update a major-feature bundle blueprint file.
+7. Reconcile the current request against both matrices.
+   Confirm:
+   - which gaps are still real in the Feature Gap Matrix
+   - which cross-feature relationships are still weak in the Feature Cohesion Matrix
+   - whether the existing `Fix Status` is still valid or must be reset/updated
+   - what must change for the relevant cohesion cells to move from `PARTIAL` or `GAP` to `STRONG` or justified `N/A`
+8. Only after steps `1-7`, create or update a major-feature bundle blueprint file or begin implementation.
+
+## Per-Request Audit Rule
+
+For every implementation request, follow this minimum audit loop before making feature claims or continuing work:
+
+1. locate the feature row in the `Feature Gap Matrix`
+2. read the current route, status columns, merge/collapse notes, and notes
+3. read the related `Delivery Audit Crosswalk` rows
+4. read the relevant block in the `Feature Cohesion Matrix`
+5. restate the current gap in matrix terms
+6. identify which `PARTIAL` and `GAP` cohesion cells this request is expected to close
+7. only then implement or update the blueprint
+
+This is mandatory for:
+
+- new feature work
+- continuation of earlier feature work
+- polish passes
+- cleanup passes
+- architecture passes
+- collapse or merge decisions
+
+Do not skip the matrix audit just because the same feature was touched earlier in the project.
 
 ## Bundle Blueprint Naming
 
@@ -88,6 +218,13 @@ That means:
 - bundles are implementation groupings derived from those findings
 
 If the cohesion matrix changes materially, the bundle blueprint must be updated.
+
+If an implementation pass changes the real feature state materially, update:
+
+- the relevant row in `FEATURE-AUDIT.md`
+- the relevant bundle blueprint
+- the `Fix Status` value after the fresh audit, not before it
+- the relevant `Feature Cohesion Matrix` cells so the matrix records whether the relationship is now `STRONG`, remains `PARTIAL`, or is truly `N/A`
 
 ## Required Bundle Blueprint Contents
 
@@ -569,6 +706,28 @@ When work is complete, update:
 The audit files are not optional notes.
 
 They are part of the product-delivery source of truth.
+
+## Mandatory Completion Marking Rule
+
+When a feature, subfeature, collapsed surface, or bundle-level implementation
+pass is actually finished, it must be marked complete in both audit systems.
+
+That means:
+
+- update the relevant row in `FEATURE-AUDIT.md`
+- update the corresponding row or audited override in `DELIVERY-AUDIT.md`
+
+Do not treat one audit file as sufficient on its own.
+
+The expected close-out is:
+
+- `FEATURE-AUDIT.md` reflects shipped feature truth, ownership, collapse state,
+  cohesion, and fix status
+- `DELIVERY-AUDIT.md` reflects delivery completeness across docs, Postman,
+  scripts, examples, README, and infrastructure where relevant
+
+If the implementation is complete in code but either audit file still shows the
+old state, the work is not fully closed.
 
 ## Step 9 - Close The Item Carefully
 

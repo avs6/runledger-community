@@ -1,12 +1,13 @@
 ---
 title: "Billing"
-description: "Billing periods, billing summary, exports, and finance-ready reconciliation for RunLedger usage."
+description: "Billing periods, reconciliation, adjustments, shared-cost policies, and finance-ready exports for RunLedger usage."
 ---
 
-The Billing area is the finance-facing companion to observability and FinOps. It combines two related views in one place:
+The Billing area is the finance-facing companion to observability and FinOps. It now combines three related operational surfaces in one place:
 
 - **Billing periods** - managed periods that can be opened, closed, exported, and reconciled
 - **Billing summary** - rollup view for billable versus non-billable usage across recent periods
+- **Shared-cost policies** - workspace-owned policies for allocating overhead before downstream chargeback and ledger close
 
 ## Billing summary
 
@@ -26,8 +27,37 @@ Use the periods view when you need:
 
 - period lifecycle management
 - close-period actions
-- export per-period CSV, signed JSON, QuickBooks, or NetSuite payloads
-- detailed reconciliation and breakdown per period
+- per-period reconciliation status
+- detailed application and user breakdown per period
+- billing-adjustment lifecycle for credits, refunds, prepaid deductions, and surcharges
+- export per-period CSV or signed JSON evidence
+
+## Billing detail
+
+Open a billing period when you need to:
+
+- inspect gross versus net cost
+- review reconciliation issues and warnings
+- manage adjustments before close
+- review which adjustments are already reflected in net cost
+- export finance evidence for downstream workflows
+
+The billing detail page now includes:
+
+- **Summary** - period metadata, status, and readiness posture
+- **Reconciliation** - provider-call versus metering comparison, issues, and warnings
+- **Breakdown** - application and end-user allocation view
+- **Adjustments** - create, edit, and delete finance adjustments while a period is open
+- **Exports** - CSV and signed JSON output
+
+## Shared costs
+
+Use the shared-costs tab when you need to:
+
+- define how overhead should be split before chargeback
+- preview allocation outcomes against a cost pool
+- maintain active and inactive policy states
+- prepare a period for cleaner downstream allocation and compliance closure
 
 ## Related
 

@@ -239,11 +239,19 @@ export interface UserSpendDetail {
 
 export interface Budget {
   id: string
-  scope_type: 'workspace' | 'end_user' | 'feature_tag' | 'app'
+  scope_type:
+    | 'workspace'
+    | 'end_user'
+    | 'feature_tag'
+    | 'app'
+    | 'access_group'
+    | 'api_key'
+    | 'provider_profile'
   scope_id: string | null
+  scope_display_name: string | null
   period_type: 'daily' | 'monthly' | 'total'
   limit_usd: string
-  action: 'notify' | 'block' | 'downgrade'
+  action: 'notify' | 'block' | 'downgrade' | 'throttle' | 'fallback'
   downgrade_to_model: string | null
   is_active: boolean
   created_at: string
@@ -310,6 +318,9 @@ export interface BillingPeriod {
   period_end: string
   status: 'open' | 'closing' | 'closed'
   total_cost_usd: string | null
+  net_cost_usd: string | null
+  currency: string
+  exchange_rate_to_usd: string
   snapshot_hash: string | null
   closed_at: string | null
   created_at: string
@@ -336,7 +347,7 @@ export interface ReconciliationResult {
   orphaned_calls: number
   duplicate_calls: number
   issues: string[]
-  warnings?: string[]
+  warnings: string[]
 }
 
 export interface BreakdownUser {
@@ -353,8 +364,12 @@ export interface BreakdownApp {
 
 export interface PeriodBreakdown {
   period_id: string
+  gross_cost_usd: string
+  net_cost_usd: string
+  total_adjustments_usd: string
   total_cost_usd: string
   by_application: BreakdownApp[]
+  adjustments: BillingAdjustment[]
 }
 
 export interface UsageSnapshot {
@@ -363,6 +378,62 @@ export interface UsageSnapshot {
   signature: string
   signing_key_id: string
   created_at: string
+}
+
+export interface BillingAdjustment {
+  id: string
+  billing_period_id: string
+  adjustment_type: 'credit' | 'refund' | 'prepaid_deduction' | 'surcharge'
+  amount_usd: string
+  description: string | null
+  reference_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface BillingAdjustmentList {
+  items: BillingAdjustment[]
+  total_credits_usd: string
+  total_surcharges_usd: string
+  net_adjustment_usd: string
+}
+
+export interface SharedCostAllocation {
+  label: string
+  cost_center_id: string | null
+  weight: string | null
+  denominator_value: string | null
+}
+
+export interface SharedCostPolicy {
+  id: string
+  workspace_id: string
+  name: string
+  description: string | null
+  formula_type: 'equal_split' | 'proportional' | 'fixed_weight'
+  allocations: SharedCostAllocation[]
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface SharedCostPolicyList {
+  items: SharedCostPolicy[]
+  total: number
+}
+
+export interface SharedCostAllocationPreview {
+  label: string
+  cost_center_id: string | null
+  allocated_usd: string
+}
+
+export interface SharedCostAllocationResult {
+  policy_id: string
+  policy_name: string
+  pool_usd: string
+  formula_type: 'equal_split' | 'proportional' | 'fixed_weight'
+  allocations: SharedCostAllocationPreview[]
 }
 
 // ── Economics (Phase 9) ────────────────────────────────────────────────────────
@@ -477,6 +548,11 @@ export interface ExperimentResults { experiment_id: string; experiment_name: str
 export interface LedgerSnapshotResponse { id: string; workspace_id: string; snapshot_date: string; total_cost_usd: string; model_breakdown: Record<string, string>; call_count: number; hash: string; key_id: string; created_at: string }
 export interface LedgerSnapshotList { items: LedgerSnapshotResponse[] }
 export interface LedgerVerifyResult { snapshot_date: string; status: 'ok' | 'tampered' | 'not_found'; stored_hash: string | null; computed_hash: string | null; match: boolean }
+export interface LedgerVerificationSummary { total_snapshots: number; ok_count: number; tampered_count: number; pending_count: number; latest_status: string | null }
+export interface LedgerClosedPeriodSummary { id: string; period_start: string; period_end: string; total_cost_usd: string | null; net_cost_usd: string | null; closed_at: string | null }
+export interface LedgerChargebackSummary { period: string; dimension: string; total_cost_usd: string; covered_cost_usd: string; unallocated_cost_usd: string; breakdown_count: number }
+export interface LedgerBackupEvidenceSummary { id: string; bucket: string; manifest_key: string | null; checksum: string | null; integrity_status: string; artifact_count: number; created_at: string }
+export interface LedgerClosureSummary { generated_at: string; readiness_status: string; evidence_score: number; missing_evidence: string[]; latest_snapshot: LedgerSnapshotResponse | null; verification: LedgerVerificationSummary; latest_closed_period: LedgerClosedPeriodSummary | null; chargeback: LedgerChargebackSummary | null; latest_backup_snapshot: LedgerBackupEvidenceSummary | null; recent_audit_event_count: number }
 
 // ── Phase 11 — Tools ──────────────────────────────────────────────────────────
 
@@ -497,7 +573,7 @@ export interface ApiKeyUpdateRequest { name?: string | null; ownership_type?: st
 
 // ── Phase 12 — Providers ───────────────────────────────────────────────────────
 
-export interface ProviderPricingResponse { id: string; provider: string; model: string; input_cost_per_1m: string; output_cost_per_1m: string; cached_input_cost_per_1m: string | null; tags: string[]; display_name: string | null; effective_from: string; effective_to: string | null; workspace_id: string | null; created_at: string }
+export interface ProviderPricingResponse { id: string; provider: string; model: string; input_cost_per_1m: string; output_cost_per_1m: string; cached_input_cost_per_1m: string | null; tags: string[]; display_name: string | null; effective_from: string; effective_to: string | null; workspace_id: string | null; budget_count: number; active_budget_count: number; created_at: string }
 export interface ProviderPricingList { items: ProviderPricingResponse[] }
 export interface PricingImportResult { inserted: number; updated: number; unchanged: number; total: number; providers: string[]; tags: string[]; errors: string[] }
 
@@ -518,7 +594,16 @@ export interface PlatformWebhookDefaults { generic_webhook_configured: boolean; 
 export interface PlatformWebhookDefaultsTestResult { ok: boolean; message: string; results: PlatformWebhookDefaultStatus[] }
 
 // ── Chargeback rule types ──────────────────────────────────────────────────────
-export interface ChargebackRuleResponse { id: string; allocation_type: string; dimension: string; weight: string; created_at: string }
+export interface ChargebackRuleResponse {
+  id: string
+  allocation_type: string
+  dimension: string
+  weight: string
+  cost_center_id: string | null
+  status: 'active' | 'inactive' | 'pending_approval' | 'denied'
+  approval_id: string | null
+  created_at: string
+}
 export interface ChargebackRuleList { items: ChargebackRuleResponse[] }
 
 // ── Admin / multi-tenancy types ─────────────────────────────────────────────────
@@ -2417,7 +2502,10 @@ export interface DemoModeTriggerResponse {
 
 export interface ChargebackReport {
   period: string
+  dimension: string
   total_cost_usd: string
+  covered_cost_usd: string
+  unallocated_cost_usd: string
   breakdown: ChargebackBreakdownItem[]
 }
 
@@ -2428,6 +2516,10 @@ export interface ChargebackBreakdownItem {
   pct_of_total: string
   budget_usd: string | null
   variance_usd: string | null
+  call_count: number
+  run_count: number
+  allocation_status: 'allocated' | 'unallocated'
+  coverage_status: 'budgeted' | 'unbudgeted'
 }
 
 export interface ChargebackReportList {
@@ -3025,6 +3117,8 @@ export interface BudgetOverride {
   reason: string | null
   approved_by: string | null
   status: 'pending' | 'active' | 'expired' | 'revoked'
+  approval_id: string | null
+  approval_status: 'pending' | 'approved' | 'denied' | 'cancelled' | null
   created_at: string
 }
 

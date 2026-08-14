@@ -272,7 +272,209 @@ async def test_export_csv_columns(
     assert "cost_usd" in response.text
 
 
+@pytest.mark.asyncio
+async def test_get_reconciliation(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    period = _make_period()
+    mock_db_session.execute = AsyncMock(return_value=_scalar_result(period))
+
+    from runledger_api.schemas.billing import ReconciliationResult
+
+    recon = ReconciliationResult(
+        period_id=str(period.id),
+        status="warning",
+        provider_calls_sum=Decimal("10.0"),
+        usage_daily_sum=Decimal("10.0"),
+        delta_pct=Decimal("0"),
+        orphaned_calls=0,
+        duplicate_calls=1,
+        issues=[],
+        warnings=["legacy duplicate rows"],
+    )
+
+    with patch(
+        "runledger_api.routers.billing.run_reconciliation",
+        new=AsyncMock(return_value=recon),
+    ):
+        response = await authed_client.get(f"/billing/periods/{period.id}/reconciliation")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["period_id"] == str(period.id)
+    assert data["status"] == "warning"
+
+
+@pytest.mark.asyncio
+async def test_update_adjustment(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    period = _make_period()
+    adjustment_id = uuid.uuid4()
+    adjustment = SimpleNamespace(
+        id=adjustment_id,
+        billing_period_id=period.id,
+        workspace_id=period.workspace_id,
+        adjustment_type="credit",
+        amount_usd=Decimal("2.50"),
+        description="Initial credit",
+        reference_id="ref-1",
+        created_by="tester",
+        created_at=datetime.now(UTC),
+    )
+
+    first = _scalar_result(period)
+    second = _scalar_result(adjustment)
+    mock_db_session.execute = AsyncMock(side_effect=[first, second])
+    mock_db_session.refresh = AsyncMock()
+
+    response = await authed_client.put(
+        f"/billing/periods/{period.id}/adjustments/{adjustment_id}",
+        json={
+            "adjustment_type": "surcharge",
+            "amount_usd": "4.00",
+            "description": "Late surcharge",
+            "reference_id": "ref-2",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["adjustment_type"] == "surcharge"
+    assert data["amount_usd"] == "4.00"
+    assert data["description"] == "Late surcharge"
+    assert data["reference_id"] == "ref-2"
+
+
 # ── apply_chargeback_rules ────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_update_chargeback_rule(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    workspace_id = uuid.uuid4()
+    rule_id = uuid.uuid4()
+    rule = SimpleNamespace(
+        id=rule_id,
+        workspace_id=workspace_id,
+        allocation_type="direct",
+        dimension="feature_tag",
+        weight=Decimal("1.00"),
+        cost_center_id=None,
+        status="active",
+        approval_id=None,
+        created_at=datetime.now(UTC),
+    )
+
+    mock_db_session.execute = AsyncMock(return_value=_scalar_result(rule))
+    mock_db_session.refresh = AsyncMock()
+
+    response = await authed_client.put(
+        f"/billing/chargeback-rules/{rule_id}",
+        json={
+            "allocation_type": "showback",
+            "dimension": "workspace",
+            "weight": "0.75",
+            "status": "inactive",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["allocation_type"] == "showback"
+    assert data["dimension"] == "workspace"
+    assert data["weight"] == "0.75"
+    assert data["status"] == "inactive"
+
+
+@pytest.mark.asyncio
+async def test_get_chargeback_report(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    from runledger_api.schemas.billing import ChargebackBreakdownItem, ChargebackReport
+
+    report = ChargebackReport(
+        period="2026-08",
+        dimension="feature_tag",
+        total_cost_usd=Decimal("25.00"),
+        covered_cost_usd=Decimal("20.00"),
+        unallocated_cost_usd=Decimal("5.00"),
+        breakdown=[
+            ChargebackBreakdownItem(
+                dimension="feature_tag",
+                dimension_value="agent-support",
+                cost_usd=Decimal("25.00"),
+                pct_of_total=Decimal("100.0"),
+                budget_usd=Decimal("30.00"),
+                variance_usd=Decimal("-5.00"),
+                call_count=12,
+                run_count=6,
+                allocation_status="allocated",
+                coverage_status="budgeted",
+            )
+        ],
+    )
+
+    with patch(
+        "runledger_api.routers.billing.build_chargeback_report",
+        new=AsyncMock(return_value=report),
+    ):
+        response = await authed_client.get(
+            "/billing/chargeback-report?period=2026-08&dimension=feature_tag"
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["period"] == "2026-08"
+    assert payload["items"][0]["dimension"] == "feature_tag"
+    assert payload["items"][0]["covered_cost_usd"] == "20.00"
+    assert payload["items"][0]["breakdown"][0]["call_count"] == 12
+
+
+@pytest.mark.asyncio
+async def test_export_chargeback_report_csv(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    from runledger_api.schemas.billing import ChargebackBreakdownItem, ChargebackReport
+
+    report = ChargebackReport(
+        period="2026-08",
+        dimension="workspace",
+        total_cost_usd=Decimal("10.00"),
+        covered_cost_usd=Decimal("8.00"),
+        unallocated_cost_usd=Decimal("2.00"),
+        breakdown=[
+            ChargebackBreakdownItem(
+                dimension="workspace",
+                dimension_value="AgentTest",
+                cost_usd=Decimal("10.00"),
+                pct_of_total=Decimal("100.0"),
+                call_count=4,
+                run_count=2,
+                allocation_status="allocated",
+                coverage_status="unbudgeted",
+            )
+        ],
+    )
+
+    with patch(
+        "runledger_api.routers.billing.build_chargeback_report",
+        new=AsyncMock(return_value=report),
+    ):
+        response = await authed_client.get(
+            "/billing/chargeback-report/export?period=2026-08&dimension=workspace&format=csv"
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "dimension_value" in response.text
+    assert "AgentTest" in response.text
 
 
 @pytest.mark.asyncio

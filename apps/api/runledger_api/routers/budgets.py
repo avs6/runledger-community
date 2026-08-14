@@ -29,9 +29,16 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_user, get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import (
+    get_current_api_key,
+    get_current_user,
+    get_current_workspace,
+    require_workspace_admin,
+)
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
+from runledger_api.models.access_groups import AccessGroup
+from runledger_api.models.approvals import Approval
 from runledger_api.models.budget_overrides import BudgetOverride
 from runledger_api.models.budgets import (
     Budget,
@@ -39,7 +46,8 @@ from runledger_api.models.budgets import (
     BudgetNotification,
     BudgetNotificationDelivery,
 )
-from runledger_api.models.tenant import TenantRoleEnum, TenantUser, Workspace
+from runledger_api.models.metering import ProviderPricing
+from runledger_api.models.tenant import ApiKey, TenantRoleEnum, TenantUser, User, Workspace
 from runledger_api.schemas.budget_overrides import (
     BudgetOverrideCreate,
     BudgetOverrideList,
@@ -56,6 +64,7 @@ from runledger_api.schemas.budgets import (
     BudgetResponse,
     BudgetRollupResponse,
     BudgetRollupWorkspace,
+    BudgetUpdate,
     NotificationCreate,
     NotificationDeliveryList,
     NotificationDeliveryResponse,
@@ -78,6 +87,271 @@ router = APIRouter(
 )
 log = structlog.get_logger()
 _ORG_BUDGET_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
+
+
+def _budget_response(
+    budget: Budget,
+    *,
+    current_spend_usd: Decimal,
+    scope_display_name: str | None = None,
+) -> BudgetResponse:
+    pct = (
+        (current_spend_usd / budget.limit_usd * 100)
+        if budget.limit_usd > 0
+        else Decimal(0)
+    )
+    return BudgetResponse(
+        id=str(budget.id),
+        scope_type=budget.scope_type,
+        scope_id=budget.scope_id,
+        scope_display_name=scope_display_name,
+        period_type=budget.period_type,
+        limit_usd=budget.limit_usd,
+        action=budget.action,
+        downgrade_to_model=budget.downgrade_to_model,
+        is_active=budget.is_active,
+        created_at=budget.created_at,
+        current_spend_usd=current_spend_usd,
+        pct_used=pct,
+    )
+
+
+def _validate_budget_payload(
+    *,
+    scope_type: str,
+    scope_id: str | None,
+    action: str,
+    downgrade_to_model: str | None,
+) -> None:
+    if scope_type == "workspace":
+        return
+    if scope_type in {
+        "end_user",
+        "feature_tag",
+        "app",
+        "access_group",
+        "api_key",
+        "provider_profile",
+    } and not scope_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "scope_id is required for non-workspace budgets",
+        )
+    if action in {"downgrade", "fallback"} and not downgrade_to_model:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "downgrade_to_model is required for downgrade or fallback actions",
+        )
+
+
+async def _resolve_scope_display_name(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    scope_type: str,
+    scope_id: str | None,
+) -> str | None:
+    if scope_type == "workspace":
+        return "All workspace traffic"
+    if not scope_id:
+        return None
+    if scope_type in {"end_user", "feature_tag", "app"}:
+        return scope_id
+    if scope_type == "access_group":
+        try:
+            group_id = uuid.UUID(scope_id)
+        except ValueError:
+            return scope_id
+        group = (
+            await db.execute(
+                select(AccessGroup.name).where(
+                    AccessGroup.id == group_id,
+                    AccessGroup.workspace_id == workspace_id,
+                )
+            )
+        ).scalar_one_or_none()
+        return group or scope_id
+    if scope_type == "api_key":
+        try:
+            key_id = uuid.UUID(scope_id)
+        except ValueError:
+            return scope_id
+        api_key = (
+            await db.execute(
+                select(ApiKey.name, ApiKey.key_prefix).where(
+                    ApiKey.id == key_id,
+                    ApiKey.workspace_id == workspace_id,
+                )
+            )
+        ).one_or_none()
+        if api_key is None:
+            return scope_id
+        name, key_prefix = api_key
+        return str(name or key_prefix)
+    if scope_type == "provider_profile":
+        try:
+            pricing_id = uuid.UUID(scope_id)
+        except ValueError:
+            return scope_id
+        pricing = (
+            await db.execute(
+                select(
+                    ProviderPricing.provider,
+                    ProviderPricing.model,
+                    ProviderPricing.display_name,
+                ).where(
+                    ProviderPricing.id == pricing_id,
+                    (ProviderPricing.workspace_id == workspace_id)
+                    | (ProviderPricing.workspace_id.is_(None)),
+                )
+            )
+        ).one_or_none()
+        if pricing is None:
+            return scope_id
+        provider, model, display_name = pricing
+        return str(display_name or f"{provider} / {model}")
+    return scope_id
+
+
+async def _validate_scope_reference(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    scope_type: str,
+    scope_id: str | None,
+) -> None:
+    if scope_type == "workspace" or not scope_id:
+        return
+    if scope_type in {"end_user", "feature_tag", "app"}:
+        return
+    if scope_type == "access_group":
+        try:
+            group_id = uuid.UUID(scope_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "scope_id must be a valid access-group UUID",
+            ) from exc
+        exists = (
+            await db.execute(
+                select(AccessGroup.id).where(
+                    AccessGroup.id == group_id,
+                    AccessGroup.workspace_id == workspace_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Access group not found")
+        return
+    if scope_type == "api_key":
+        try:
+            key_id = uuid.UUID(scope_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "scope_id must be a valid API key UUID",
+            ) from exc
+        exists = (
+            await db.execute(
+                select(ApiKey.id).where(
+                    ApiKey.id == key_id,
+                    ApiKey.workspace_id == workspace_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+        return
+    if scope_type == "provider_profile":
+        try:
+            pricing_id = uuid.UUID(scope_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "scope_id must be a valid provider-profile UUID",
+            ) from exc
+        exists = (
+            await db.execute(
+                select(ProviderPricing.id).where(
+                    ProviderPricing.id == pricing_id,
+                    (ProviderPricing.workspace_id == workspace_id)
+                    | (ProviderPricing.workspace_id.is_(None)),
+                )
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Provider profile not found")
+
+
+async def _get_workspace_budget(
+    *,
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    budget_id: uuid.UUID,
+) -> Budget:
+    budget = (
+        await db.execute(
+            select(Budget).where(
+                Budget.id == budget_id,
+                Budget.workspace_id == workspace_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if budget is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Budget not found",
+        )
+    return budget
+
+
+async def _override_approval_map(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    override_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, Approval]:
+    if not override_ids:
+        return {}
+    approvals = (
+        await db.execute(
+            select(Approval).where(
+                Approval.workspace_id == workspace_id,
+                Approval.request_type == "budget_increase",
+            )
+        )
+    ).scalars().all()
+    mapped: dict[uuid.UUID, Approval] = {}
+    for approval in approvals:
+        if not approval.request:
+            continue
+        override_id = approval.request.get("budget_override_id")
+        if not override_id:
+            continue
+        try:
+            parsed = uuid.UUID(str(override_id))
+        except ValueError:
+            continue
+        if parsed in override_ids:
+            mapped[parsed] = approval
+    return mapped
+
+
+def _override_response(
+    override: BudgetOverride,
+    approval: Approval | None = None,
+) -> BudgetOverrideResponse:
+    return BudgetOverrideResponse(
+        id=str(override.id),
+        budget_id=str(override.budget_id),
+        original_limit_usd=override.original_limit_usd,
+        override_limit_usd=override.override_limit_usd,
+        starts_at=override.starts_at,
+        expires_at=override.expires_at,
+        reason=override.reason,
+        approved_by=str(override.approved_by) if override.approved_by else None,
+        status=override.status,
+        approval_id=str(approval.id) if approval else None,
+        approval_status=approval.status if approval else None,
+        created_at=override.created_at,
+    )
 
 
 def _notification_response(notification: BudgetNotification) -> NotificationResponse:
@@ -164,6 +438,13 @@ async def create_budget(
 ) -> BudgetResponse:
     workspace: Workspace = auth[0]
     """Create a new budget for this workspace."""
+    _validate_budget_payload(
+        scope_type=body.scope_type,
+        scope_id=body.scope_id,
+        action=body.action,
+        downgrade_to_model=body.downgrade_to_model,
+    )
+    await _validate_scope_reference(db, workspace.id, body.scope_type, body.scope_id)
     budget = Budget(
         workspace_id=workspace.id,
         scope_type=body.scope_type,
@@ -201,20 +482,16 @@ async def create_budget(
         },
     )
 
-    from decimal import Decimal  # noqa: PLC0415
-
-    return BudgetResponse(
-        id=str(budget.id),
-        scope_type=budget.scope_type,
-        scope_id=budget.scope_id,
-        period_type=budget.period_type,
-        limit_usd=budget.limit_usd,
-        action=budget.action,
-        downgrade_to_model=budget.downgrade_to_model,
-        is_active=budget.is_active,
-        created_at=budget.created_at,
+    scope_display_name = await _resolve_scope_display_name(
+        db,
+        workspace.id,
+        budget.scope_type,
+        budget.scope_id,
+    )
+    return _budget_response(
+        budget,
         current_spend_usd=Decimal(0),
-        pct_used=Decimal(0),
+        scope_display_name=scope_display_name,
     )
 
 
@@ -242,20 +519,17 @@ async def list_budgets(
     items = []
     for b in budgets:
         spend = await get_budget_spend(redis, b.id, b.period_type)
-        pct = (spend / b.limit_usd * 100) if b.limit_usd > 0 else Decimal(0)
+        scope_display_name = await _resolve_scope_display_name(
+            db,
+            workspace.id,
+            b.scope_type,
+            b.scope_id,
+        )
         items.append(
-            BudgetResponse(
-                id=str(b.id),
-                scope_type=b.scope_type,
-                scope_id=b.scope_id,
-                period_type=b.period_type,
-                limit_usd=b.limit_usd,
-                action=b.action,
-                downgrade_to_model=b.downgrade_to_model,
-                is_active=b.is_active,
-                created_at=b.created_at,
+            _budget_response(
+                b,
                 current_spend_usd=spend,
-                pct_used=pct,
+                scope_display_name=scope_display_name,
             )
         )
 
@@ -515,10 +789,14 @@ async def budget_rollup(
 @router.get("/check", response_model=BudgetCheckResponse)
 async def budget_check(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    api_key: Annotated[ApiKey, Depends(get_current_api_key)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
     end_user_id: Annotated[str | None, Query()] = None,
     feature_tag: Annotated[str | None, Query()] = None,
+    app_id: Annotated[str | None, Query()] = None,
+    access_group_id: Annotated[str | None, Query()] = None,
+    provider_profile_id: Annotated[str | None, Query()] = None,
 ) -> BudgetCheckResponse:
     """
     Hot-path budget check.
@@ -532,6 +810,10 @@ async def budget_check(
         workspace_id=workspace.id,
         end_user_id=end_user_id,
         feature_tag=feature_tag,
+        app_id=app_id,
+        api_key_id=str(api_key.id),
+        access_group_id=access_group_id,
+        provider_profile_id=provider_profile_id,
     )
 
 
@@ -771,6 +1053,115 @@ async def list_notification_deliveries(
 # ── GET /budgets/{id}/breaches ────────────────────────────────────────────────
 
 
+@router.get("/{budget_id}", response_model=BudgetResponse)
+async def get_budget(
+    budget_id: uuid.UUID,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> BudgetResponse:
+    """Return a single budget with live spend state."""
+    budget = await _get_workspace_budget(
+        db=db,
+        workspace_id=workspace.id,
+        budget_id=budget_id,
+    )
+    spend = await get_budget_spend(redis, budget.id, budget.period_type)
+    scope_display_name = await _resolve_scope_display_name(
+        db,
+        workspace.id,
+        budget.scope_type,
+        budget.scope_id,
+    )
+    return _budget_response(
+        budget,
+        current_spend_usd=spend,
+        scope_display_name=scope_display_name,
+    )
+
+
+@router.put("/{budget_id}", response_model=BudgetResponse)
+async def update_budget(
+    budget_id: uuid.UUID,
+    body: BudgetUpdate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> BudgetResponse:
+    """Update a budget policy in place."""
+    workspace: Workspace = auth[0]
+    budget = await _get_workspace_budget(
+        db=db,
+        workspace_id=workspace.id,
+        budget_id=budget_id,
+    )
+    before = {
+        "scope_type": budget.scope_type,
+        "scope_id": budget.scope_id,
+        "period_type": budget.period_type,
+        "limit_usd": str(budget.limit_usd),
+        "action": budget.action,
+        "downgrade_to_model": budget.downgrade_to_model,
+        "is_active": budget.is_active,
+    }
+
+    data = body.model_dump(exclude_unset=True)
+    next_scope_type = data.get("scope_type", budget.scope_type)
+    next_scope_id = data.get("scope_id", budget.scope_id)
+    next_action = data.get("action", budget.action)
+    next_downgrade_model = data.get(
+        "downgrade_to_model",
+        budget.downgrade_to_model,
+    )
+
+    _validate_budget_payload(
+        scope_type=next_scope_type,
+        scope_id=next_scope_id,
+        action=next_action,
+        downgrade_to_model=next_downgrade_model,
+    )
+    await _validate_scope_reference(db, workspace.id, next_scope_type, next_scope_id)
+
+    for key, value in data.items():
+        setattr(budget, key, value)
+
+    await db.commit()
+    await db.refresh(budget)
+    await invalidate_workspace_budgets_cache(redis, workspace.id)
+
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "budget.updated",
+        target_type="budget",
+        target_id=str(budget.id),
+        before=before,
+        after={
+            "scope_type": budget.scope_type,
+            "scope_id": budget.scope_id,
+            "period_type": budget.period_type,
+            "limit_usd": str(budget.limit_usd),
+            "action": budget.action,
+            "downgrade_to_model": budget.downgrade_to_model,
+            "is_active": budget.is_active,
+        },
+    )
+    await db.commit()
+
+    spend = await get_budget_spend(redis, budget.id, budget.period_type)
+    scope_display_name = await _resolve_scope_display_name(
+        db,
+        workspace.id,
+        budget.scope_type,
+        budget.scope_id,
+    )
+    return _budget_response(
+        budget,
+        current_spend_usd=spend,
+        scope_display_name=scope_display_name,
+    )
+
+
 @router.get("/{budget_id}/breaches", response_model=BreachList)
 async def get_breaches(
     budget_id: uuid.UUID,
@@ -872,6 +1263,7 @@ async def create_override(
     budget_id: uuid.UUID,
     body: BudgetOverrideCreate,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    api_key: Annotated[ApiKey, Depends(get_current_api_key)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> BudgetOverrideResponse:
@@ -891,6 +1283,8 @@ async def create_override(
             "expires_at must be after starts_at",
         )
 
+    requested_by = api_key.created_by
+    override_status = "pending" if body.require_approval or body.starts_at > datetime.now(UTC) else "active"
     override = BudgetOverride(
         budget_id=budget_id,
         original_limit_usd=budget.limit_usd,
@@ -898,9 +1292,32 @@ async def create_override(
         starts_at=body.starts_at,
         expires_at=body.expires_at,
         reason=body.reason,
-        status="active",
+        status=override_status,
     )
     db.add(override)
+    await db.flush()
+
+    approval: Approval | None = None
+    if body.require_approval:
+        approval = Approval(
+            workspace_id=workspace.id,
+            request_type="budget_increase",
+            request={
+                "budget_id": str(budget.id),
+                "budget_override_id": str(override.id),
+                "current_limit": str(budget.limit_usd),
+                "requested_limit": str(body.override_limit_usd),
+                "scope_type": budget.scope_type,
+                "scope_id": budget.scope_id,
+                "starts_at": body.starts_at.isoformat(),
+                "expires_at": body.expires_at.isoformat(),
+                "_reason": body.reason,
+            },
+            status="pending",
+            requested_by=requested_by,
+        )
+        db.add(approval)
+
     await db.commit()
     await db.refresh(override)
     await invalidate_workspace_budgets_cache(redis, workspace.id)
@@ -911,18 +1328,33 @@ async def create_override(
         budget_id=str(budget_id),
         override_limit=str(override.override_limit_usd),
     )
-    return BudgetOverrideResponse(
-        id=str(override.id),
-        budget_id=str(override.budget_id),
-        original_limit_usd=override.original_limit_usd,
-        override_limit_usd=override.override_limit_usd,
-        starts_at=override.starts_at,
-        expires_at=override.expires_at,
-        reason=override.reason,
-        approved_by=str(override.approved_by) if override.approved_by else None,
-        status=override.status,
-        created_at=override.created_at,
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "budget_override.created",
+        target_type="budget_override",
+        target_id=str(override.id),
+        after={
+            "budget_id": str(budget.id),
+            "override_limit_usd": str(override.override_limit_usd),
+            "status": override.status,
+            "approval_id": str(approval.id) if approval else None,
+        },
     )
+    if approval is not None:
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "approval.requested",
+            target_type="approval",
+            target_id=str(approval.id),
+            after={
+                "request_type": approval.request_type,
+                "budget_override_id": str(override.id),
+            },
+        )
+    await db.commit()
+    return _override_response(override, approval)
 
 
 # ── GET /budgets/{id}/overrides ──────────────────────────────────────────────
@@ -949,22 +1381,13 @@ async def list_overrides(
         .limit(limit)
     )
     overrides = list(result.scalars())
+    approvals = await _override_approval_map(
+        db,
+        workspace.id,
+        [override.id for override in overrides],
+    )
     return BudgetOverrideList(
-        items=[
-            BudgetOverrideResponse(
-                id=str(o.id),
-                budget_id=str(o.budget_id),
-                original_limit_usd=o.original_limit_usd,
-                override_limit_usd=o.override_limit_usd,
-                starts_at=o.starts_at,
-                expires_at=o.expires_at,
-                reason=o.reason,
-                approved_by=str(o.approved_by) if o.approved_by else None,
-                status=o.status,
-                created_at=o.created_at,
-            )
-            for o in overrides
-        ]
+        items=[_override_response(override, approvals.get(override.id)) for override in overrides]
     )
 
 
@@ -1003,20 +1426,19 @@ async def revoke_override(
     await db.execute(
         update(BudgetOverride).where(BudgetOverride.id == override_id).values(status="revoked")
     )
+    approvals = await _override_approval_map(db, workspace.id, [override.id])
     await db.commit()
     await invalidate_workspace_budgets_cache(redis, workspace.id)
     override.status = "revoked"
 
     log.info("budget_override_revoked", override_id=str(override_id))
-    return BudgetOverrideResponse(
-        id=str(override.id),
-        budget_id=str(override.budget_id),
-        original_limit_usd=override.original_limit_usd,
-        override_limit_usd=override.override_limit_usd,
-        starts_at=override.starts_at,
-        expires_at=override.expires_at,
-        reason=override.reason,
-        approved_by=str(override.approved_by) if override.approved_by else None,
-        status=override.status,
-        created_at=override.created_at,
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "budget_override.revoked",
+        target_type="budget_override",
+        target_id=str(override.id),
+        after={"status": override.status},
     )
+    await db.commit()
+    return _override_response(override, approvals.get(override.id))

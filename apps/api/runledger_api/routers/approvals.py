@@ -563,6 +563,8 @@ async def approve_approval(
     # Side-effects on the referenced resource
     if approval.request_type == "chargeback_rule":
         await _activate_chargeback_rule(db, approval)
+    elif approval.request_type == "budget_increase":
+        await _activate_budget_override(db, approval)
 
     await db.commit()
     await db.refresh(approval)
@@ -645,6 +647,8 @@ async def deny_approval(
     # Side-effects on the referenced resource
     if approval.request_type == "chargeback_rule":
         await _deny_chargeback_rule(db, approval)
+    elif approval.request_type == "budget_increase":
+        await _deny_budget_override(db, approval)
 
     await db.commit()
     await db.refresh(approval)
@@ -718,6 +722,8 @@ async def cancel_approval(
         )
 
     approval.status = "cancelled"
+    if approval.request_type == "budget_increase":
+        await _cancel_budget_override(db, approval)
     await db.commit()
     await db.refresh(approval)
 
@@ -782,6 +788,69 @@ async def _deny_chargeback_rule(db: AsyncSession, approval: Approval) -> None:
         .values(status="denied")
     )
     log.info("chargeback_rule_denied", rule_id=rule_id_str, approval_id=str(approval.id))
+
+
+async def _activate_budget_override(
+    db: AsyncSession,
+    approval: Approval,
+) -> None:
+    override_id_str = approval.request.get("budget_override_id") if approval.request else None
+    if not override_id_str:
+        return
+    try:
+        override_id = uuid.UUID(str(override_id_str))
+    except ValueError:
+        return
+    from sqlalchemy import update as sa_update  # noqa: PLC0415
+
+    from runledger_api.models.budget_overrides import BudgetOverride  # noqa: PLC0415
+
+    await db.execute(
+        sa_update(BudgetOverride)
+        .where(BudgetOverride.id == override_id, BudgetOverride.status == "pending")
+        .values(status="active")
+    )
+    log.info("budget_override_activated", override_id=override_id_str, approval_id=str(approval.id))
+
+
+async def _deny_budget_override(db: AsyncSession, approval: Approval) -> None:
+    override_id_str = approval.request.get("budget_override_id") if approval.request else None
+    if not override_id_str:
+        return
+    try:
+        override_id = uuid.UUID(str(override_id_str))
+    except ValueError:
+        return
+    from sqlalchemy import update as sa_update  # noqa: PLC0415
+
+    from runledger_api.models.budget_overrides import BudgetOverride  # noqa: PLC0415
+
+    await db.execute(
+        sa_update(BudgetOverride)
+        .where(BudgetOverride.id == override_id)
+        .values(status="revoked")
+    )
+    log.info("budget_override_denied", override_id=override_id_str, approval_id=str(approval.id))
+
+
+async def _cancel_budget_override(db: AsyncSession, approval: Approval) -> None:
+    override_id_str = approval.request.get("budget_override_id") if approval.request else None
+    if not override_id_str:
+        return
+    try:
+        override_id = uuid.UUID(str(override_id_str))
+    except ValueError:
+        return
+    from sqlalchemy import update as sa_update  # noqa: PLC0415
+
+    from runledger_api.models.budget_overrides import BudgetOverride  # noqa: PLC0415
+
+    await db.execute(
+        sa_update(BudgetOverride)
+        .where(BudgetOverride.id == override_id, BudgetOverride.status == "pending")
+        .values(status="revoked")
+    )
+    log.info("budget_override_cancelled", override_id=override_id_str, approval_id=str(approval.id))
 
 
 # ── Validation helper (used by other routers) ──────────────────────────────────

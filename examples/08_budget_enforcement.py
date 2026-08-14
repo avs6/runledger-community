@@ -9,6 +9,7 @@ What this demonstrates
 - Catching RunLedgerBudgetExceededError on the blocking call
 - Listing budgets with live Redis spend counters
 - Fetching breach history for the exceeded budget
+- Opening the budget detail page for edits, overrides, and breach review
 
 Prerequisites
 ─────────────
@@ -306,7 +307,7 @@ def main() -> None:
     print("Demo complete.")
     print(
         f"\nTip: open http://localhost:3000/budgets to see the budget in the dashboard,\n"
-        f"     or http://localhost:3000/budgets/{budget_id} for breach history.\n"
+        f"     or http://localhost:3000/budgets/{budget_id} for policy detail, overrides, and breach history.\n"
     )
 
 

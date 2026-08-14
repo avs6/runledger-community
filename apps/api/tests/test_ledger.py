@@ -16,7 +16,7 @@ import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -262,6 +262,44 @@ async def test_verify_snapshot_tampered(
     data = resp.json()
     assert data["status"] == "tampered"
     assert data["match"] is False
+
+
+@pytest.mark.asyncio
+async def test_get_closure_summary(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    summary = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "readiness_status": "partial",
+        "evidence_score": 3,
+        "missing_evidence": ["chargeback_allocation", "backup_snapshot"],
+        "latest_snapshot": None,
+        "verification": {
+            "total_snapshots": 2,
+            "ok_count": 1,
+            "tampered_count": 0,
+            "pending_count": 1,
+            "latest_status": "ok",
+        },
+        "latest_closed_period": None,
+        "chargeback": None,
+        "latest_backup_snapshot": None,
+        "recent_audit_event_count": 12,
+    }
+
+    with patch(
+        "runledger_api.routers.ledger.get_ledger_closure_summary",
+        new=AsyncMock(return_value=summary),
+    ):
+        resp = await authed_client.get("/ledger/closure-summary")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["readiness_status"] == "partial"
+    assert data["evidence_score"] == 3
+    assert data["verification"]["ok_count"] == 1
+    assert data["recent_audit_event_count"] == 12
 
 
 # ── test_ledger_requires_auth ─────────────────────────────────────────────────

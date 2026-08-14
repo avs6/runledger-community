@@ -2876,6 +2876,80 @@
           "response": []
         },
         {
+          "name": "Get Budget",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budgets/:budget_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "budgets",
+                ":budget_id"
+              ],
+              "variable": [
+                {
+                  "key": "budget_id",
+                  "value": "{{budget_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get Budget detail with live spend state."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Budget",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit_usd\": 25,\n  \"period_type\": \"monthly\",\n  \"action\": \"notify\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/budgets/:budget_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "budgets",
+                ":budget_id"
+              ],
+              "variable": [
+                {
+                  "key": "budget_id",
+                  "value": "{{budget_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update a budget policy in place."
+          },
+          "response": []
+        },
+        {
           "name": "Delete Budget",
           "request": {
             "method": "DELETE",
@@ -3119,7 +3193,7 @@
             "description": "Create Chargeback Rule",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"allocation_type\": \"string\",\n  \"dimension\": \"string\",\n  \"weight\": null\n}",
+              "raw": "{\n  \"allocation_type\": \"direct\",\n  \"dimension\": \"feature_tag\",\n  \"weight\": \"1.0\",\n  \"require_approval\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3202,6 +3276,51 @@
           "response": []
         },
         {
+          "name": "Update Chargeback Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-rules/:rule_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "chargeback-rules",
+                ":rule_id"
+              ],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "{{rule_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Chargeback Rule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allocation_type\": \"showback\",\n  \"dimension\": \"workspace\",\n  \"weight\": \"0.8\",\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Delete Chargeback Rule",
           "request": {
             "method": "DELETE",
@@ -3234,6 +3353,87 @@
               ]
             },
             "description": "Delete Chargeback Rule"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Chargeback Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-report?period=2026-08&dimension=feature_tag",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "chargeback-report"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "2026-08"
+                },
+                {
+                  "key": "dimension",
+                  "value": "feature_tag"
+                }
+              ]
+            },
+            "description": "Get Chargeback Report"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Chargeback Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/chargeback-report/export?period=2026-08&dimension=workspace&format=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "chargeback-report",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "2026-08"
+                },
+                {
+                  "key": "dimension",
+                  "value": "workspace"
+                },
+                {
+                  "key": "format",
+                  "value": "csv"
+                }
+              ]
+            },
+            "description": "Export Chargeback Report"
           },
           "response": []
         },
@@ -3473,6 +3673,58 @@
           "response": []
         },
         {
+          "name": "Update Adjustment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/periods/:period_id/adjustments/:adjustment_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "periods",
+                ":period_id",
+                "adjustments",
+                ":adjustment_id"
+              ],
+              "variable": [
+                {
+                  "key": "period_id",
+                  "value": "{{period_id}}",
+                  "description": ""
+                },
+                {
+                  "key": "adjustment_id",
+                  "value": "{{adjustment_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Adjustment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adjustment_type\": \"surcharge\",\n  \"amount_usd\": \"4.00\",\n  \"description\": \"Late surcharge\",\n  \"reference_id\": \"invoice-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Get Breakdown",
           "request": {
             "method": "GET",
@@ -3506,6 +3758,43 @@
               ]
             },
             "description": "Get Breakdown"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reconciliation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/periods/:period_id/reconciliation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "periods",
+                ":period_id",
+                "reconciliation"
+              ],
+              "variable": [
+                {
+                  "key": "period_id",
+                  "value": "{{period_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get Reconciliation"
           },
           "response": []
         },
@@ -9465,6 +9754,34 @@
     {
       "name": "Ledger",
       "item": [
+        {
+          "name": "Closure Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/ledger/closure-summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ledger",
+                "closure-summary"
+              ]
+            },
+            "description": "Get Closure Summary"
+          },
+          "response": []
+        },
         {
           "name": "List Snapshots",
           "request": {

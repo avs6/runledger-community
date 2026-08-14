@@ -13,7 +13,10 @@ from pydantic import BaseModel, Field
 
 
 class BudgetCreate(BaseModel):
-    scope_type: str = Field(..., pattern="^(workspace|end_user|feature_tag|app)$")
+    scope_type: str = Field(
+        ...,
+        pattern="^(workspace|end_user|feature_tag|app|access_group|api_key|provider_profile)$",
+    )
     scope_id: str | None = None
     period_type: str = Field(..., pattern="^(daily|monthly|total)$")
     limit_usd: Decimal = Field(..., gt=0)
@@ -21,10 +24,24 @@ class BudgetCreate(BaseModel):
     downgrade_to_model: str | None = None
 
 
+class BudgetUpdate(BaseModel):
+    scope_type: str | None = Field(
+        None,
+        pattern="^(workspace|end_user|feature_tag|app|access_group|api_key|provider_profile)$",
+    )
+    scope_id: str | None = None
+    period_type: str | None = Field(None, pattern="^(daily|monthly|total)$")
+    limit_usd: Decimal | None = Field(None, gt=0)
+    action: str | None = Field(None, pattern="^(notify|block|downgrade|throttle|fallback)$")
+    downgrade_to_model: str | None = None
+    is_active: bool | None = None
+
+
 class BudgetResponse(BaseModel):
     id: str
     scope_type: str
     scope_id: str | None
+    scope_display_name: str | None = None
     period_type: str
     limit_usd: Decimal
     action: str

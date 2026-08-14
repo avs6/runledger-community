@@ -21,6 +21,8 @@ import type {
   AnomalyList,
   ApiKeyCreateResponse,
   ApiKeyResponse,
+  BillingAdjustment,
+  BillingAdjustmentList,
   BillingPeriod,
   BillingPeriodList,
   BreachList,
@@ -48,6 +50,7 @@ import type {
   PlatformWebhookDefaults,
   PlatformWebhookDefaultsTestResult,
   LedgerSnapshotResponse,
+  LedgerClosureSummary,
   LedgerVerifyResult,
   PeriodBreakdown,
   PromptList,
@@ -68,6 +71,9 @@ import type {
   ScoreSummary,
   SessionDetail,
   SessionList,
+  SharedCostAllocationResult,
+  SharedCostPolicy,
+  SharedCostPolicyList,
   TurnCostResponse,
   VersionList,
   SecurityEventList,
@@ -358,6 +364,29 @@ export async function createBudget(
   })
 }
 
+export async function getBudget(apiKey: string, id: string): Promise<Budget> {
+  return apiFetch<Budget>(`/budgets/${id}`, apiKey)
+}
+
+export async function updateBudget(
+  apiKey: string,
+  id: string,
+  body: Partial<{
+    scope_type: string
+    scope_id: string | null
+    period_type: string
+    limit_usd: number
+    action: string
+    downgrade_to_model: string | null
+    is_active: boolean
+  }>
+): Promise<Budget> {
+  return apiFetch<Budget>(`/budgets/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function deleteBudget(apiKey: string, id: string): Promise<void> {
   await apiFetch<void>(`/budgets/${id}`, apiKey, { method: 'DELETE' })
 }
@@ -467,6 +496,60 @@ export async function getPeriodBreakdown(
   return apiFetch<PeriodBreakdown>(`/billing/periods/${id}/breakdown`, apiKey)
 }
 
+export async function listBillingAdjustments(
+  apiKey: string,
+  id: string
+): Promise<BillingAdjustmentList> {
+  return apiFetch<BillingAdjustmentList>(`/billing/periods/${id}/adjustments`, apiKey)
+}
+
+export async function createBillingAdjustment(
+  apiKey: string,
+  id: string,
+  body: {
+    adjustment_type: 'credit' | 'refund' | 'prepaid_deduction' | 'surcharge'
+    amount_usd: string
+    description?: string | null
+    reference_id?: string | null
+  }
+): Promise<BillingAdjustment> {
+  return apiFetch<BillingAdjustment>(`/billing/periods/${id}/adjustments`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateBillingAdjustment(
+  apiKey: string,
+  periodId: string,
+  adjustmentId: string,
+  body: {
+    adjustment_type?: 'credit' | 'refund' | 'prepaid_deduction' | 'surcharge'
+    amount_usd?: string
+    description?: string | null
+    reference_id?: string | null
+  }
+): Promise<BillingAdjustment> {
+  return apiFetch<BillingAdjustment>(
+    `/billing/periods/${periodId}/adjustments/${adjustmentId}`,
+    apiKey,
+    {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }
+  )
+}
+
+export async function deleteBillingAdjustment(
+  apiKey: string,
+  periodId: string,
+  adjustmentId: string
+): Promise<void> {
+  await apiFetch<void>(`/billing/periods/${periodId}/adjustments/${adjustmentId}`, apiKey, {
+    method: 'DELETE',
+  })
+}
+
 export async function exportPeriodCsv(apiKey: string, id: string): Promise<string> {
   const res = await fetch(`${API_URL}/billing/periods/${id}/export?format=csv`, {
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -483,24 +566,76 @@ export async function exportPeriodSignedJson(apiKey: string, id: string): Promis
   return apiFetch<object>(`/billing/periods/${id}/export?format=signed_json`, apiKey)
 }
 
-async function _exportPeriodCsvFormat(apiKey: string, id: string, format: string): Promise<string> {
-  const res = await fetch(`${API_URL}/billing/periods/${id}/export?format=${format}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`API ${res.status}: ${text}`)
+export async function listSharedCostPolicies(
+  apiKey: string,
+  activeOnly = false
+): Promise<SharedCostPolicyList> {
+  const qs = activeOnly ? '?active_only=true' : ''
+  return apiFetch<SharedCostPolicyList>(`/billing/shared-cost-policies${qs}`, apiKey)
+}
+
+export async function createSharedCostPolicy(
+  apiKey: string,
+  body: {
+    name: string
+    description?: string | null
+    formula_type: 'equal_split' | 'proportional' | 'fixed_weight'
+    allocations: Array<{
+      label: string
+      cost_center_id?: string | null
+      weight?: string | null
+      denominator_value?: string | null
+    }>
+    is_active?: boolean
   }
-  return res.text()
+): Promise<SharedCostPolicy> {
+  return apiFetch<SharedCostPolicy>('/billing/shared-cost-policies', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
-export async function exportPeriodQuickbooks(apiKey: string, id: string): Promise<string> {
-  return _exportPeriodCsvFormat(apiKey, id, 'quickbooks')
+export async function updateSharedCostPolicy(
+  apiKey: string,
+  policyId: string,
+  body: {
+    name?: string
+    description?: string | null
+    formula_type?: 'equal_split' | 'proportional' | 'fixed_weight'
+    allocations?: Array<{
+      label: string
+      cost_center_id?: string | null
+      weight?: string | null
+      denominator_value?: string | null
+    }>
+    is_active?: boolean
+  }
+): Promise<SharedCostPolicy> {
+  return apiFetch<SharedCostPolicy>(`/billing/shared-cost-policies/${policyId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
 }
 
-export async function exportPeriodNetsuite(apiKey: string, id: string): Promise<string> {
-  return _exportPeriodCsvFormat(apiKey, id, 'netsuite')
+export async function deleteSharedCostPolicy(apiKey: string, policyId: string): Promise<void> {
+  await apiFetch<void>(`/billing/shared-cost-policies/${policyId}`, apiKey, {
+    method: 'DELETE',
+  })
+}
+
+export async function previewSharedCostAllocation(
+  apiKey: string,
+  policyId: string,
+  poolUsd: string
+): Promise<SharedCostAllocationResult> {
+  return apiFetch<SharedCostAllocationResult>(
+    `/billing/shared-cost-policies/${policyId}/allocate`,
+    apiKey,
+    {
+      method: 'POST',
+      body: JSON.stringify({ pool_usd: poolUsd }),
+    }
+  )
 }
 
 export async function listBillingWebhooks(
@@ -559,10 +694,27 @@ export async function listChargebackRules(apiKey: string): Promise<ChargebackRul
 
 export async function createChargebackRule(
   apiKey: string,
-  body: { allocation_type: string; dimension: string; weight: string }
+  body: { allocation_type: string; dimension: string; weight: string; cost_center_id?: string | null; require_approval?: boolean }
 ): Promise<ChargebackRuleResponse> {
   return apiFetch<ChargebackRuleResponse>('/billing/chargeback-rules', apiKey, {
     method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function updateChargebackRule(
+  apiKey: string,
+  ruleId: string,
+  body: {
+    allocation_type?: string
+    dimension?: string
+    weight?: string
+    cost_center_id?: string | null
+    status?: 'active' | 'inactive' | 'pending_approval' | 'denied'
+  }
+): Promise<ChargebackRuleResponse> {
+  return apiFetch<ChargebackRuleResponse>(`/billing/chargeback-rules/${ruleId}`, apiKey, {
+    method: 'PUT',
     body: JSON.stringify(body),
   })
 }
@@ -706,6 +858,10 @@ export async function verifyLedgerSnapshot(
   snapshotDate: string
 ): Promise<LedgerVerifyResult> {
   return apiFetch<LedgerVerifyResult>(`/ledger/verify/${snapshotDate}`, apiKey)
+}
+
+export async function getLedgerClosureSummary(apiKey: string): Promise<LedgerClosureSummary> {
+  return apiFetch<LedgerClosureSummary>('/ledger/closure-summary', apiKey)
 }
 
 // ── Phase 11 — Tool registry helpers ──────────────────────────────────────────
@@ -3649,7 +3805,13 @@ export async function deleteModelBudget(
 export async function createBudgetOverride(
   apiKey: string,
   budgetId: string,
-  body: { override_limit_usd: number; starts_at: string; expires_at: string; reason?: string }
+  body: {
+    override_limit_usd: number
+    starts_at: string
+    expires_at: string
+    reason?: string
+    require_approval?: boolean
+  }
 ): Promise<import('@/types/api').BudgetOverride> {
   return apiFetch<import('@/types/api').BudgetOverride>(`/budgets/${budgetId}/override`, apiKey, { method: 'POST', body: JSON.stringify(body) })
 }
