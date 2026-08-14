@@ -1,34 +1,41 @@
 ---
 title: "Data Capture Policy Studio"
-description: "Define what RunLedger stores per scope — global and scoped capture policies, retention previews, PII redaction testing, and compliance explanations."
+description: "Define what RunLedger stores per scope with global policy management, editable scoped overrides, retention previews, and PII redaction testing."
 ---
 
-The data capture policy studio gives you fine-grained control over what RunLedger stores, with per-scope overrides, retention previews, and a built-in PII testing sandbox.
+The data capture policy studio lets org admins decide how much request and response content RunLedger keeps, where scoped exceptions apply, and what the compliance tradeoffs look like before a policy is turned on.
 
 ## Capture modes
 
 | Mode | What's stored |
 |---|---|
-| `full` | Full prompt and response payloads |
-| `redacted` | Payloads with PII redacted |
-| `metadata_only` | Token counts, cost, timing — no content |
-| `none` | No body capture at all |
+| `METADATA_ONLY` | Token counts, model metadata, timing, and status only |
+| `ERRORS_ONLY` | Metadata plus failed-request payload context |
+| `SAMPLED` | Full payloads on a configurable sample of traffic |
+| `FULL` | Full prompt, response, tool, and payload capture |
 
 ## Key features
 
-- **Global policy** — set the default capture mode for your workspace.
-- **Scoped overrides** — override capture per org, workspace, API key, model route, user, intent, or agent.
-- **Retention preview** — see estimated storage, fields captured vs redacted, and compliance notes before applying.
-- **PII redaction testing** — paste sample text and see detected PII types (email, phone, SSN, etc.) with confidence scores and redacted output.
-- **Compliance explanations** — each mode shows what data is stored and regulatory implications.
+- **Global policy** - set the default privacy mode for the workspace.
+- **Scoped overrides** - create, edit, and delete overrides per org, workspace, API key, model route, user, intent, or agent.
+- **Retention preview** - review estimated storage footprint, fields captured, fields redacted, and compliance notes before saving.
+- **PII testing sandbox** - paste sample text and inspect detected entities plus the redacted result.
+- **Operator-friendly workflow** - the UI now exposes the full scoped-override lifecycle instead of only upsert-style creation.
+
+## Typical flow
+
+1. Start with `METADATA_ONLY` as the baseline.
+2. Add a scoped override for a route, API key, or agent that needs deeper debugging.
+3. Use the PII sandbox on representative payloads before switching that scope to `SAMPLED` or `FULL`.
+4. Remove the scoped override once the investigation window closes.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Data retention" icon="clock" href="/governance/retention">
-    Retention policies and pruning schedules.
+  <Card title="Governance audit pack" icon="file-check" href="/governance-pack">
+    Export active capture policy posture as part of compliance evidence.
   </Card>
-  <Card title="Governance audit pack" icon="file-check" href="/governance/governance-audit-pack">
-    Export capture policies as part of compliance evidence.
+  <Card title="Audit log" icon="scroll" href="/audit">
+    Review the broader governance trail alongside capture policy changes.
   </Card>
 </CardGroup>

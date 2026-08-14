@@ -116,7 +116,7 @@ async def govern_and_filter_tool_call(
     gr_res = await evaluate_guardrails(db, workspace_id, "tool_call", [arg_str])
 
     # Case A: Block Action
-    if (matched_policy and matched_policy.action == "block") or (gr_res and gr_res.action == "block"):
+    if (matched_policy and matched_policy.action in {"block", "deny"}) or (gr_res and gr_res.action == "block"):
         violation_reason = (
             gr_res.violation_details if gr_res and gr_res.action == "block"
             else f"Blocked by tool policy '{matched_policy.name}'" if matched_policy

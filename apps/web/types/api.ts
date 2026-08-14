@@ -480,7 +480,7 @@ export interface LedgerVerifyResult { snapshot_date: string; status: 'ok' | 'tam
 
 // ── Phase 11 — Tools ──────────────────────────────────────────────────────────
 
-export interface ToolRegistryResponse { id: string; workspace_id: string; tool_name: string; policy: string; description: string | null; created_at: string; updated_at: string }
+export interface ToolRegistryResponse { id: string; workspace_id: string; tool_name: string; policy: string; runtime_enforcement: boolean; description: string | null; created_at: string; updated_at: string }
 export interface ToolRegistryList { items: ToolRegistryResponse[] }
 export interface SecurityEventResponse { id: string; workspace_id: string; event_type: string; tool_name: string | null; end_user_id: string | null; run_id: string | null; details: Record<string, unknown>; detected_at: string }
 export interface SecurityEventList { items: SecurityEventResponse[] }
@@ -3515,7 +3515,7 @@ export interface HubModelList {
 
 // ── Team Models ──────────────────────────────────────────────────────────
 
-// Phase 16 deferred management surfaces
+// Workspace control surfaces
 
 export interface TagResponse {
   id: string
@@ -3610,7 +3610,7 @@ export interface ToolPolicyResponse {
   name: string
   description: string | null
   tool_name: string
-  action: 'allow' | 'deny' | 'audit' | string
+  action: 'allow' | 'audit' | 'block' | 'require_approval' | 'deny' | string
   condition_type: string | null
   condition_config: Record<string, unknown>
   scope_type: string

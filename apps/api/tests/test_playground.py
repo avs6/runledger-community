@@ -1,4 +1,4 @@
-"""Tests for Phase 16 — API Playground.
+"""Tests for API playground.
 
 Covers:
   Session CRUD — create, list, get, update, delete

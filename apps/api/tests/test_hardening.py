@@ -1,5 +1,5 @@
 """
-Tests for Phase 16 — Production Hardening.
+Tests for production hardening.
 
 Covers:
   Rate limiting — ingest (600/min), analytics (120/min), management (60/min)

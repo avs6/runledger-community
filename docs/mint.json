@@ -110,14 +110,17 @@
     {
       "group": "Governance & Safety",
       "pages": [
+        "governance/tool-governance",
         "governance/evaluations",
         "governance/prompts",
         "governance/approvals",
         "governance/alerts",
+        "governance/security-controls",
         "governance/retention",
         "governance/policy-dry-run",
         "governance/governance-audit-pack",
-        "governance/data-capture-studio"
+        "governance/data-capture-studio",
+        "governance/tags-taxonomy"
       ]
     },
     {

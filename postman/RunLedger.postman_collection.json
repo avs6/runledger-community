@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "df6d49ff-7022-48d1-9719-b5870eb38d4c",
+    "_postman_id": "1b1cc6b1-d67c-45f5-a1fd-ac8ea9f6a086",
     "name": "RunLedger API",
     "description": "RunLedger \u2014 Agent FinOps Control Plane.\n\nFull API surface: ingest, analytics, budgets, billing, model gateway, evaluations, prompts, SSO, SCIM, warehouse, OTLP and more.\n\n**RBAC token model:** use a dashboard session key from `POST /auth/login` for management APIs (Organizations, Gateway routes, Provider Profiles, Control Plane, Budgets). Use a workspace API key minted from Control Plane -> API Keys for data-plane APIs (`/ingest`, `/gateway/chat/completions`, `/v1/traces`). Keep the active token in `api_key`.\n\n**Setup:**\n1. Import this collection\n2. Import the companion environment (RunLedger Environment)\n3. Set `base_url`\n4. Run `POST /admin/bootstrap` once on a fresh install\n5. Log in with `POST /auth/login`; copy the returned key into `api_key` and `session_api_key`\n6. For agent traffic, create a workspace key with `POST /settings/api-keys`; copy it into `workspace_api_key` and swap `api_key` when calling data-plane endpoints",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
@@ -4336,6 +4336,152 @@
           "response": []
         },
         {
+          "name": "List Auto Approval Policies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies"
+              ]
+            },
+            "description": "List Auto Approval Policies"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Auto Approval Policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies"
+              ]
+            },
+            "description": "Create Auto Approval Policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_type\": \"budget_increase\",\n  \"condition\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Auto Approval Policy",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies/:policy_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies",
+                ":policy_id"
+              ],
+              "variable": [
+                {
+                  "key": "policy_id",
+                  "value": "{{policy_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Auto Approval Policy",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_type\": null,\n  \"condition\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Auto Approval Policy",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/approvals/auto-policies/:policy_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "approvals",
+                "auto-policies",
+                ":policy_id"
+              ],
+              "variable": [
+                {
+                  "key": "policy_id",
+                  "value": "{{policy_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete Auto Approval Policy"
+          },
+          "response": []
+        },
+        {
           "name": "Approval Summary",
           "request": {
             "method": "GET",
@@ -4525,6 +4671,103 @@
         }
       ],
       "description": "RunLedger Governance - Approvals endpoints"
+    },
+    {
+      "name": "Governance - Evidence",
+      "item": [
+        {
+          "name": "Get Governance Audit Pack",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/governance/audit-pack",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "governance",
+                "audit-pack"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get Governance Audit Pack"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Governance Audit Pack",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/governance/audit-pack/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "governance",
+                "audit-pack",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Export Governance Audit Pack"
+          },
+          "response": []
+        }
+      ],
+      "description": "RunLedger Governance - Evidence endpoints"
     },
     {
       "name": "Model Gateway",
@@ -8304,7 +8547,7 @@
             "description": "Update Alert Rule\n\nRBAC: org-admin or platform-admin dashboard session key.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": null,\n  \"threshold\": null,\n  \"window_minutes\": null,\n  \"is_active\": null\n}",
+              "raw": "{\n  \"name\": null,\n  \"metric\": null,\n  \"operator\": null,\n  \"threshold\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -8352,6 +8595,872 @@
         }
       ],
       "description": "RunLedger Control Plane - Alert Rules endpoints"
+    },
+    {
+      "name": "Governance - Security",
+      "item": [
+        {
+          "name": "Rotate Api Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/api-keys/:key_id/rotate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "api-keys",
+                ":key_id",
+                "rotate"
+              ],
+              "variable": [
+                {
+                  "key": "key_id",
+                  "value": "{{key_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Rotate Api Key",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grace_hours\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Key Rotation History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/api-keys/:key_id/rotation-history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "api-keys",
+                ":key_id",
+                "rotation-history"
+              ],
+              "variable": [
+                {
+                  "key": "key_id",
+                  "value": "{{key_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Get Key Rotation History"
+          },
+          "response": []
+        },
+        {
+          "name": "List Ip Acl Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/ip-acl",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "ip-acl"
+              ]
+            },
+            "description": "List Ip Acl Rules"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Ip Acl Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/ip-acl",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "ip-acl"
+              ]
+            },
+            "description": "Create Ip Acl Rule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope_type\": \"string\",\n  \"cidr\": \"string\",\n  \"action\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Test Ip Acl",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/ip-acl/test",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "ip-acl",
+                "test"
+              ]
+            },
+            "description": "Test Ip Acl",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ip\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Ip Acl Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/ip-acl/:rule_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "ip-acl",
+                ":rule_id"
+              ],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "{{rule_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Ip Acl Rule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"api_key_id\": null,\n  \"team_name\": null,\n  \"cidr\": null,\n  \"action\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Ip Acl Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/ip-acl/:rule_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "ip-acl",
+                ":rule_id"
+              ],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "{{rule_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete Ip Acl Rule"
+          },
+          "response": []
+        },
+        {
+          "name": "List Oidc Providers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/oidc-providers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "oidc-providers"
+              ]
+            },
+            "description": "List Oidc Providers"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Oidc Provider",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/oidc-providers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "oidc-providers"
+              ]
+            },
+            "description": "Create Oidc Provider",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"string\",\n  \"issuer_url\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Oidc Provider",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/oidc-providers/:provider_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "oidc-providers",
+                ":provider_id"
+              ],
+              "variable": [
+                {
+                  "key": "provider_id",
+                  "value": "{{provider_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Oidc Provider",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": null,\n  \"issuer_url\": null,\n  \"audience\": null,\n  \"discovery_url\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Oidc Provider",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/oidc-providers/:provider_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "oidc-providers",
+                ":provider_id"
+              ],
+              "variable": [
+                {
+                  "key": "provider_id",
+                  "value": "{{provider_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete Oidc Provider"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Security Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "settings"
+              ]
+            },
+            "description": "Get Security Settings"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Security Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/security/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "security",
+                "settings"
+              ]
+            },
+            "description": "Update Security Settings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"required_metadata_fields\": null,\n  \"required_metadata_mode\": null,\n  \"data_residency_regions\": null,\n  \"callback_config\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "RunLedger Governance - Security endpoints"
+    },
+    {
+      "name": "Governance - Tags",
+      "item": [
+        {
+          "name": "Create Tag",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags"
+              ]
+            },
+            "description": "Create Tag",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"string\",\n  \"key\": \"string\",\n  \"value\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Tags",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "include_inactive",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List Tags"
+          },
+          "response": []
+        },
+        {
+          "name": "List Auto Tag Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/auto-rules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "auto-rules"
+              ]
+            },
+            "description": "List Auto Tag Rules"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Auto Tag Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/auto-rules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "auto-rules"
+              ]
+            },
+            "description": "Create Auto Tag Rule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"string\",\n  \"match_type\": \"equals\",\n  \"match_field\": \"string\",\n  \"match_pattern\": \"string\",\n  \"tag_key\": \"string\",\n  \"tag_value\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Simulate Auto Tagging",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/auto-rules/simulate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "auto-rules",
+                "simulate"
+              ]
+            },
+            "description": "Simulate Auto Tagging",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fields\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Auto Tag Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/auto-rules/:rule_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "auto-rules",
+                ":rule_id"
+              ],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "{{rule_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Auto Tag Rule",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": null,\n  \"description\": null,\n  \"match_type\": null,\n  \"match_field\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Auto Tag Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/auto-rules/:rule_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "auto-rules",
+                ":rule_id"
+              ],
+              "variable": [
+                {
+                  "key": "rule_id",
+                  "value": "{{rule_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete Auto Tag Rule"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tag Tree",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/tree",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                "tree"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get Tag Tree"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Tag",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/:tag_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ":tag_id"
+              ],
+              "variable": [
+                {
+                  "key": "tag_id",
+                  "value": "{{tag_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Update Tag",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": null,\n  \"key\": null,\n  \"value\": null,\n  \"description\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Tag",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tags/:tag_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tags",
+                ":tag_id"
+              ],
+              "variable": [
+                {
+                  "key": "tag_id",
+                  "value": "{{tag_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Delete Tag"
+          },
+          "response": []
+        }
+      ],
+      "description": "RunLedger Governance - Tags endpoints"
     },
     {
       "name": "Ledger",
@@ -9692,6 +10801,49 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Capture Policy Scope",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/settings/capture-policy/scopes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "settings",
+                "capture-policy",
+                "scopes"
+              ],
+              "query": [
+                {
+                  "key": "scope_type",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "scope_id",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Delete Capture Policy Scope"
           },
           "response": []
         },

@@ -1,0 +1,24 @@
+---
+title: "Enterprise Security Controls"
+description: "Manage security posture, OIDC providers, and IP allow or deny controls from the Security console."
+---
+
+The Security console is the governance home for enterprise auth posture and request-edge network controls.
+
+## What lives here
+
+- **Security posture** - required metadata fields, enforcement mode, callback defaults, branding, and residency constraints
+- **OIDC providers** - create, edit, activate, deactivate, and delete issuer configurations for gateway auth
+- **IP ACL rules** - create, edit, simulate, and delete allow or deny rules for workspace, API-key, or global scope
+
+## Operator workflow
+
+1. Set the workspace security posture first.
+2. Register or update OIDC providers used by your tenant.
+3. Add IP ACL rules for sensitive traffic paths.
+4. Run the simulator before saving broader deny rules.
+
+## Notes
+
+- The current product direction avoids expanding legacy team-based controls. IP ACL management should stay workspace, API-key, or global scoped.
+- Security is a managed admin surface, so completion is based on full lifecycle controls rather than read-only observability.

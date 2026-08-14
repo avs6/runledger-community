@@ -60,4 +60,25 @@ Simulate a routing or budget policy before enforcing it.
 Export the audit pack and confirm policies, approvals, budgets, and tool events are
 included.
 
+## 5.10 - Data capture policy studio
+
+Set a global capture mode, add a scoped override for a specific API key or route,
+edit that override in place, then delete it and confirm the global policy takes
+effect again. Run the PII sandbox with a sample email and SSN to verify the
+redacted output.
+
+## 5.11 - Enterprise security
+
+Create an OIDC provider, edit its audience or active flag, and save it in place.
+Add an IP ACL rule, simulate an allowed and denied address, then update the rule
+priority or CIDR to confirm the security console is managing the real backend
+contract rather than a decorative form.
+
+## 5.12 - Tags and auto-tagging
+
+Create a small tag hierarchy such as `workflow=support`, `channel=chat`, and
+`tenant=homelab`. Then add an auto-tagging rule that matches prompt content,
+simulate it against a sample payload, edit the rule, and finally retire one tag to
+confirm the taxonomy lifecycle and rule lifecycle are both working end to end.
+
 Next: [Part 6 - Operations](./part6_operations.md)

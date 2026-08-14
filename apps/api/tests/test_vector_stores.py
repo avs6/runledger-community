@@ -1,4 +1,4 @@
-"""Tests for Phase 16 — Vector Store Management.
+"""Tests for vector store management.
 
 Covers:
   Collection CRUD — create, list, get, update, delete (soft)

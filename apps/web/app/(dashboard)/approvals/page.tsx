@@ -14,6 +14,7 @@ import {
   cancelApproval,
   listAutoApprovalPolicies,
   createAutoApprovalPolicy,
+  updateAutoApprovalPolicy,
   deleteAutoApprovalPolicy,
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
@@ -83,6 +84,7 @@ export default function ApprovalsPage() {
   const [policyType, setPolicyType] = useState<ApprovalRequestType>('budget_increase')
   const [policyCondition, setPolicyCondition] = useState('')
   const [creatingPolicy, setCreatingPolicy] = useState(false)
+  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     if (!apiKey || !isWorkspaceAdmin) return
@@ -171,19 +173,36 @@ export default function ApprovalsPage() {
     if (!apiKey || !policyCondition.trim()) return
     setCreatingPolicy(true)
     try {
-      await createAutoApprovalPolicy(apiKey, {
-        request_type: policyType,
-        condition: policyCondition.trim(),
-      })
-      toast.success('Auto-approval policy created')
+      if (editingPolicyId) {
+        await updateAutoApprovalPolicy(apiKey, editingPolicyId, {
+          request_type: policyType,
+          condition: policyCondition.trim(),
+        })
+        toast.success('Auto-approval policy updated')
+      } else {
+        await createAutoApprovalPolicy(apiKey, {
+          request_type: policyType,
+          condition: policyCondition.trim(),
+        })
+        toast.success('Auto-approval policy created')
+      }
       setShowPolicyForm(false)
+      setEditingPolicyId(null)
+      setPolicyType('budget_increase')
       setPolicyCondition('')
       loadPolicies()
     } catch {
-      toast.error('Failed to create policy')
+      toast.error(`Failed to ${editingPolicyId ? 'update' : 'create'} policy`)
     } finally {
       setCreatingPolicy(false)
     }
+  }
+
+  const handleEditPolicy = (policy: AutoApprovalPolicy) => {
+    setEditingPolicyId(policy.id)
+    setShowPolicyForm(true)
+    setPolicyType(policy.request_type)
+    setPolicyCondition(policy.condition)
   }
 
   const handleDeletePolicy = async (id: string) => {
@@ -370,7 +389,16 @@ export default function ApprovalsPage() {
             </p>
           </div>
           <button
-            onClick={() => setShowPolicyForm(!showPolicyForm)}
+            onClick={() => {
+              if (showPolicyForm) {
+                setShowPolicyForm(false)
+                setEditingPolicyId(null)
+                setPolicyType('budget_increase')
+                setPolicyCondition('')
+              } else {
+                setShowPolicyForm(true)
+              }
+            }}
             className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
           >
             <Plus className="h-4 w-4" />
@@ -407,7 +435,7 @@ export default function ApprovalsPage() {
               disabled={creatingPolicy}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
-              {creatingPolicy ? 'Creating…' : 'Create'}
+              {creatingPolicy ? (editingPolicyId ? 'Saving...' : 'Creating...') : (editingPolicyId ? 'Save' : 'Create')}
             </button>
           </div>
         )}
@@ -436,12 +464,20 @@ export default function ApprovalsPage() {
                     <td className="py-3 text-xs text-slate-500">{p.created_by ?? '—'}</td>
                     <td className="py-3 text-xs text-slate-500">{new Date(p.created_at).toLocaleDateString()}</td>
                     <td className="py-3 text-right">
-                      <button
-                        onClick={() => handleDeletePolicy(p.id)}
-                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditPolicy(p)}
+                          className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeletePolicy(p.id)}
+                          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

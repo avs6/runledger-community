@@ -13,7 +13,7 @@ This runbook explains how Phase 13 demo mode maps to the existing script surface
 - Phase 13 governance and finops data
 - Phase 14 guardrails
 - Phase 15 intelligence and forecasting
-- Phase 16 agentic operations
+- agentic operations
 - richer demo entities across apps, teams, team models, tool policies, MCP permissions, approvals, email, backups, traces, intents, outcomes, and savings categories
 
 ### Quick Seed

@@ -1,37 +1,23 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { CheckCircle2, Database, Eye, Info, Loader2, Pencil, Plus, Search, Shield, Trash2, X } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
+  deleteCapturePolicyScope,
   getCapturePolicy,
-  upsertCapturePolicy,
   getRetentionPreview,
-  testPiiRedaction,
   listCapturePolicyScopes,
+  testPiiRedaction,
+  upsertCapturePolicy,
   upsertCapturePolicyScope,
 } from '@/lib/api'
-import type {
-  CapturePolicyResponse,
-  CapturePolicyScope,
-  RetentionPreview,
-  PiiTestResult,
-} from '@/types/api'
-import {
-  Database,
-  Shield,
-  Eye,
-  Search,
-  Plus,
-  Loader2,
-  CheckCircle2,
-  AlertTriangle,
-  Info,
-} from 'lucide-react'
+import type { CapturePolicyResponse, CapturePolicyScope, PiiTestResult, RetentionPreview } from '@/types/api'
 
 const inputCls =
-  'rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-indigo-400'
 
 type Tab = 'global' | 'scoped' | 'pii'
 
@@ -44,20 +30,25 @@ const COMPLIANCE_NOTES: Record<string, { icon: typeof CheckCircle2; color: strin
     note: 'Compliant with GDPR Art. 5(1)(c) data minimization. No personal data stored.',
   },
   ERRORS_ONLY: {
-    icon: AlertTriangle,
+    icon: Info,
     color: 'text-amber-600 dark:text-amber-400',
-    note: 'Error messages may contain PII. Review retention policy.',
+    note: 'Error payloads can still carry sensitive context. Review retention posture.',
   },
   SAMPLED: {
-    icon: AlertTriangle,
+    icon: Info,
     color: 'text-amber-600 dark:text-amber-400',
-    note: 'Sampled payloads are subject to data retention policies.',
+    note: 'Sampled payload capture still falls within data retention and consent policies.',
   },
   FULL: {
-    icon: AlertTriangle,
+    icon: Info,
     color: 'text-red-600 dark:text-red-400',
-    note: 'Full capture requires user consent under GDPR/CCPA. Ensure DPA is in place.',
+    note: 'Full capture stores request and response bodies. Use only with explicit approval.',
   },
+}
+
+function sampledRatePct(rate: string | null | undefined) {
+  if (!rate) return '—'
+  return `${(parseFloat(rate) * 100).toFixed(0)}%`
 }
 
 export default function DataCapturePage() {
@@ -66,8 +57,6 @@ export default function DataCapturePage() {
   const { canManageOrgSettings } = useRole()
 
   const [tab, setTab] = useState<Tab>('global')
-
-  // Global policy
   const [capturePolicy, setCapturePolicy] = useState<CapturePolicyResponse | null>(null)
   const [privacyMode, setPrivacyMode] = useState('METADATA_ONLY')
   const [sampledRate, setSampledRate] = useState('')
@@ -75,20 +64,28 @@ export default function DataCapturePage() {
   const [retention, setRetention] = useState<RetentionPreview | null>(null)
   const [loadingRetention, setLoadingRetention] = useState(false)
 
-  // Scoped policies
   const [scopes, setScopes] = useState<CapturePolicyScope[]>([])
   const [loadingScopes, setLoadingScopes] = useState(false)
   const [showScopeForm, setShowScopeForm] = useState(false)
+  const [editingScopeKey, setEditingScopeKey] = useState<string | null>(null)
   const [scopeType, setScopeType] = useState<string>(SCOPE_TYPES[0])
   const [scopeId, setScopeId] = useState('')
   const [scopeMode, setScopeMode] = useState('METADATA_ONLY')
   const [scopeRate, setScopeRate] = useState('')
   const [savingScope, setSavingScope] = useState(false)
 
-  // PII Testing
   const [piiText, setPiiText] = useState('')
   const [piiResult, setPiiResult] = useState<PiiTestResult | null>(null)
   const [testingPii, setTestingPii] = useState(false)
+
+  const resetScopeForm = useCallback(() => {
+    setEditingScopeKey(null)
+    setScopeType(SCOPE_TYPES[0])
+    setScopeId('')
+    setScopeMode('METADATA_ONLY')
+    setScopeRate('')
+    setShowScopeForm(false)
+  }, [])
 
   const loadPolicy = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
@@ -104,17 +101,6 @@ export default function DataCapturePage() {
     }
   }, [apiKey, canManageOrgSettings])
 
-  useEffect(() => { loadPolicy() }, [loadPolicy])
-
-  useEffect(() => {
-    if (!apiKey || !canManageOrgSettings) return
-    setLoadingRetention(true)
-    getRetentionPreview(apiKey, privacyMode)
-      .then(setRetention)
-      .catch(() => setRetention(null))
-      .finally(() => setLoadingRetention(false))
-  }, [apiKey, canManageOrgSettings, privacyMode])
-
   const loadScopes = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
     setLoadingScopes(true)
@@ -129,7 +115,22 @@ export default function DataCapturePage() {
   }, [apiKey, canManageOrgSettings])
 
   useEffect(() => {
-    if (tab === 'scoped') loadScopes()
+    void loadPolicy()
+  }, [loadPolicy])
+
+  useEffect(() => {
+    if (!apiKey || !canManageOrgSettings) return
+    setLoadingRetention(true)
+    getRetentionPreview(apiKey, privacyMode)
+      .then(setRetention)
+      .catch(() => setRetention(null))
+      .finally(() => setLoadingRetention(false))
+  }, [apiKey, canManageOrgSettings, privacyMode])
+
+  useEffect(() => {
+    if (tab === 'scoped') {
+      void loadScopes()
+    }
   }, [tab, loadScopes])
 
   async function handleSavePrivacy(e: React.FormEvent) {
@@ -137,13 +138,9 @@ export default function DataCapturePage() {
     if (!apiKey) return
     setSavingPrivacy(true)
     try {
-      const rate =
-        privacyMode === 'SAMPLED' && sampledRate.trim()
-          ? parseFloat(sampledRate) / 100
-          : null
       const updated = await upsertCapturePolicy(apiKey, {
         privacy_mode: privacyMode,
-        sampled_rate: rate,
+        sampled_rate: privacyMode === 'SAMPLED' && sampledRate.trim() ? parseFloat(sampledRate) / 100 : null,
       })
       setCapturePolicy(updated)
       toast.success('Capture policy saved')
@@ -154,7 +151,7 @@ export default function DataCapturePage() {
     }
   }
 
-  async function handleCreateScope() {
+  async function handleSaveScope() {
     if (!apiKey || !scopeId.trim()) return
     setSavingScope(true)
     try {
@@ -164,14 +161,36 @@ export default function DataCapturePage() {
         privacy_mode: scopeMode,
         sampled_rate: scopeMode === 'SAMPLED' && scopeRate.trim() ? parseFloat(scopeRate) / 100 : null,
       })
-      toast.success('Scoped policy saved')
-      setShowScopeForm(false)
-      setScopeId('')
-      loadScopes()
+      toast.success(editingScopeKey ? 'Scoped policy updated' : 'Scoped policy created')
+      resetScopeForm()
+      await loadScopes()
     } catch {
       toast.error('Failed to save scoped policy')
     } finally {
       setSavingScope(false)
+    }
+  }
+
+  function handleEditScope(scope: CapturePolicyScope) {
+    setEditingScopeKey(`${scope.scope_type}:${scope.scope_id}`)
+    setScopeType(scope.scope_type)
+    setScopeId(scope.scope_id)
+    setScopeMode(scope.privacy_mode)
+    setScopeRate(scope.sampled_rate ? String(parseFloat(scope.sampled_rate) * 100) : '')
+    setShowScopeForm(true)
+  }
+
+  async function handleDeleteScope(scope: CapturePolicyScope) {
+    if (!apiKey || !confirm(`Delete scoped override ${scope.scope_type}:${scope.scope_id}?`)) return
+    try {
+      await deleteCapturePolicyScope(apiKey, scope.scope_type, scope.scope_id)
+      toast.success('Scoped policy deleted')
+      if (editingScopeKey === `${scope.scope_type}:${scope.scope_id}`) {
+        resetScopeForm()
+      }
+      await loadScopes()
+    } catch {
+      toast.error('Failed to delete scoped policy')
     }
   }
 
@@ -180,8 +199,7 @@ export default function DataCapturePage() {
     setTestingPii(true)
     setPiiResult(null)
     try {
-      const result = await testPiiRedaction(apiKey, piiText)
-      setPiiResult(result)
+      setPiiResult(await testPiiRedaction(apiKey, piiText))
     } catch {
       toast.error('PII test failed')
     } finally {
@@ -202,8 +220,7 @@ export default function DataCapturePage() {
   const ComplianceIcon = compliance?.icon ?? Info
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      {/* Header */}
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40">
           <Database className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
@@ -211,18 +228,17 @@ export default function DataCapturePage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Data Capture Policy Studio</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Controls what payload data RunLedger stores. Affects privacy, storage, and compliance.
+            Control privacy mode, per-scope overrides, and PII redaction behavior.
           </p>
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
-        {([
+        {[
           { key: 'global' as Tab, label: 'Global Policy', icon: Shield },
           { key: 'scoped' as Tab, label: 'Scoped Policies', icon: Eye },
           { key: 'pii' as Tab, label: 'PII Testing', icon: Search },
-        ]).map(({ key, label, icon: Icon }) => (
+        ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -238,75 +254,59 @@ export default function DataCapturePage() {
         ))}
       </div>
 
-      {/* ── Global Policy Tab ──────────────────────────────────────────── */}
       {tab === 'global' && (
         <div className="space-y-4">
           {capturePolicy && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Current:</span>
-              <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Current:</span>
+              <span className="rounded bg-indigo-100 px-2 py-0.5 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
                 {capturePolicy.privacy_mode}
               </span>
-              {capturePolicy.sampled_rate && (
-                <span className="text-xs text-slate-500">
-                  @ {(parseFloat(capturePolicy.sampled_rate) * 100).toFixed(0)}% sample rate
-                </span>
-              )}
+              <span>{sampledRatePct(capturePolicy.sampled_rate)}</span>
             </div>
           )}
 
           <form onSubmit={handleSavePrivacy} className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Privacy Mode
-            </p>
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Privacy Mode</p>
             <div className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-col gap-1">
-                <select value={privacyMode} onChange={(e) => setPrivacyMode(e.target.value)} className={inputCls}>
-                  <option value="METADATA_ONLY">METADATA_ONLY — tokens, model, latency only</option>
-                  <option value="ERRORS_ONLY">ERRORS_ONLY — metadata + error messages</option>
-                  <option value="SAMPLED">SAMPLED — full payload on a % of runs</option>
-                  <option value="FULL">FULL — complete request/response payloads</option>
-                </select>
-              </div>
+              <select value={privacyMode} onChange={(e) => setPrivacyMode(e.target.value)} className={inputCls}>
+                <option value="METADATA_ONLY">METADATA_ONLY</option>
+                <option value="ERRORS_ONLY">ERRORS_ONLY</option>
+                <option value="SAMPLED">SAMPLED</option>
+                <option value="FULL">FULL</option>
+              </select>
               {privacyMode === 'SAMPLED' && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-slate-500">Sample rate (%)</label>
                   <input
-                    type="number" min="0" max="100" step="1" placeholder="10"
-                    value={sampledRate} onChange={(e) => setSampledRate(e.target.value)}
-                    className={`w-24 ${inputCls}`} required
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={sampledRate}
+                    onChange={(e) => setSampledRate(e.target.value)}
+                    className={`w-24 ${inputCls}`}
+                    required
                   />
                 </div>
               )}
             </div>
 
-            {/* Compliance note */}
-            {compliance && (
-              <div className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-                <ComplianceIcon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${compliance.color}`} />
-                <p className={`text-xs ${compliance.color}`}>{compliance.note}</p>
-              </div>
-            )}
-
-            {privacyMode === 'FULL' && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                <strong>FULL</strong> mode stores raw prompts and completions. Ensure you have user consent and appropriate data retention policies before enabling.
-              </div>
-            )}
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+              <ComplianceIcon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${compliance.color}`} />
+              <p className={`text-xs ${compliance.color}`}>{compliance.note}</p>
+            </div>
 
             <button type="submit" disabled={savingPrivacy} className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-              {savingPrivacy ? 'Saving…' : 'Save Policy'}
+              {savingPrivacy ? 'Saving...' : 'Save Policy'}
             </button>
           </form>
 
-          {/* Retention Preview */}
           <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Retention Preview
-            </p>
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Retention Preview</p>
             {loadingRetention ? (
               <div className="flex items-center gap-2 text-sm text-slate-400">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading preview…
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading preview...
               </div>
             ) : retention ? (
               <div className="space-y-4">
@@ -316,13 +316,13 @@ export default function DataCapturePage() {
                     {retention.estimated_storage_mb_per_month} MB/month
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-4">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <p className="mb-1 text-xs font-medium text-slate-500">Fields Captured</p>
                     <div className="flex flex-wrap gap-1">
-                      {retention.fields_captured.map((f) => (
-                        <span key={f} className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          {f}
+                      {retention.fields_captured.map((item) => (
+                        <span key={item} className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          {item}
                         </span>
                       ))}
                     </div>
@@ -330,24 +330,22 @@ export default function DataCapturePage() {
                   <div>
                     <p className="mb-1 text-xs font-medium text-slate-500">Fields Redacted</p>
                     <div className="flex flex-wrap gap-1">
-                      {retention.fields_redacted.map((f) => (
-                        <span key={f} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                          {f}
+                      {retention.fields_redacted.map((item) => (
+                        <span key={item} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          {item}
                         </span>
                       ))}
                     </div>
                   </div>
-                </div>
-                {retention.compliance_notes.length > 0 && (
                   <div>
                     <p className="mb-1 text-xs font-medium text-slate-500">Compliance Notes</p>
                     <ul className="list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                      {retention.compliance_notes.map((n, i) => (
-                        <li key={i}>{n}</li>
+                      {retention.compliance_notes.map((note) => (
+                        <li key={note}>{note}</li>
                       ))}
                     </ul>
                   </div>
-                )}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-slate-400">Unable to load retention preview.</p>
@@ -356,123 +354,135 @@ export default function DataCapturePage() {
         </div>
       )}
 
-      {/* ── Scoped Policies Tab ────────────────────────────────────────── */}
       {tab === 'scoped' && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Per-Scope Overrides
-              </p>
-              <button
-                onClick={() => setShowScopeForm(!showScopeForm)}
-                className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
-              >
-                <Plus className="h-4 w-4" />
-                {showScopeForm ? 'Cancel' : 'Add Scope'}
-              </button>
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Per-Scope Overrides</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Override the global policy for a workspace, API key, route, user, or agent context.</p>
             </div>
-
-            {showScopeForm && (
-              <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-500">Scope Type</label>
-                  <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls}>
-                    {SCOPE_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-500">Scope ID</label>
-                  <input
-                    type="text" placeholder="e.g. ws_abc123"
-                    value={scopeId} onChange={(e) => setScopeId(e.target.value)}
-                    className={inputCls}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-500">Privacy Mode</label>
-                  <select value={scopeMode} onChange={(e) => setScopeMode(e.target.value)} className={inputCls}>
-                    <option value="METADATA_ONLY">METADATA_ONLY</option>
-                    <option value="ERRORS_ONLY">ERRORS_ONLY</option>
-                    <option value="SAMPLED">SAMPLED</option>
-                    <option value="FULL">FULL</option>
-                  </select>
-                </div>
-                {scopeMode === 'SAMPLED' && (
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-500">Rate (%)</label>
-                    <input
-                      type="number" min="0" max="100" step="1" placeholder="10"
-                      value={scopeRate} onChange={(e) => setScopeRate(e.target.value)}
-                      className={`w-20 ${inputCls}`}
-                    />
-                  </div>
-                )}
-                <button onClick={handleCreateScope} disabled={savingScope} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-                  {savingScope ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            )}
-
-            {loadingScopes ? (
-              <p className="text-sm text-slate-400">Loading…</p>
-            ) : scopes.length === 0 ? (
-              <p className="text-sm text-slate-400">No scoped overrides. The global policy applies everywhere.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-700">
-                      <th className="pb-2 font-medium text-slate-500">Scope Type</th>
-                      <th className="pb-2 font-medium text-slate-500">Scope ID</th>
-                      <th className="pb-2 font-medium text-slate-500">Privacy Mode</th>
-                      <th className="pb-2 font-medium text-slate-500">Sample Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scopes.map((s, i) => (
-                      <tr key={`${s.scope_type}-${s.scope_id}-${i}`} className="border-b border-slate-100 dark:border-slate-800">
-                        <td className="py-3 font-mono text-xs">{s.scope_type}</td>
-                        <td className="py-3 font-mono text-xs">{s.scope_id}</td>
-                        <td className="py-3">
-                          <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                            {s.privacy_mode}
-                          </span>
-                        </td>
-                        <td className="py-3 text-slate-500">
-                          {s.sampled_rate ? `${(parseFloat(s.sampled_rate) * 100).toFixed(0)}%` : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <button
+              onClick={() => (showScopeForm ? resetScopeForm() : setShowScopeForm(true))}
+              className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+            >
+              {showScopeForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {showScopeForm ? 'Cancel' : 'Add Scope'}
+            </button>
           </div>
+
+          {showScopeForm && (
+            <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-4">
+              <label className="text-sm">
+                <span className="mb-1 block text-xs text-slate-500">Scope Type</span>
+                <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={`${inputCls} w-full`} disabled={Boolean(editingScopeKey)}>
+                  {SCOPE_TYPES.map((item) => (
+                    <option key={item} value={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs text-slate-500">Scope ID</span>
+                <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={`${inputCls} w-full`} disabled={Boolean(editingScopeKey)} />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs text-slate-500">Privacy Mode</span>
+                <select value={scopeMode} onChange={(e) => setScopeMode(e.target.value)} className={`${inputCls} w-full`}>
+                  <option value="METADATA_ONLY">METADATA_ONLY</option>
+                  <option value="ERRORS_ONLY">ERRORS_ONLY</option>
+                  <option value="SAMPLED">SAMPLED</option>
+                  <option value="FULL">FULL</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs text-slate-500">Sample rate (%)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={scopeRate}
+                  onChange={(e) => setScopeRate(e.target.value)}
+                  className={`${inputCls} w-full`}
+                  disabled={scopeMode !== 'SAMPLED'}
+                  placeholder="10"
+                />
+              </label>
+              <div className="md:col-span-4 flex gap-2">
+                <button onClick={() => void handleSaveScope()} disabled={savingScope || !scopeId.trim()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                  {savingScope ? 'Saving...' : editingScopeKey ? 'Save Changes' : 'Create Override'}
+                </button>
+                {editingScopeKey && (
+                  <button onClick={resetScopeForm} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {loadingScopes ? (
+            <p className="text-sm text-slate-400">Loading...</p>
+          ) : scopes.length === 0 ? (
+            <p className="text-sm text-slate-400">No scoped overrides. The global policy applies everywhere.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="pb-2 font-medium text-slate-500">Scope</th>
+                    <th className="pb-2 font-medium text-slate-500">Privacy Mode</th>
+                    <th className="pb-2 font-medium text-slate-500">Sample Rate</th>
+                    <th className="pb-2 text-right font-medium text-slate-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scopes.map((scope) => (
+                    <tr key={`${scope.scope_type}:${scope.scope_id}`} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="py-3">
+                        <p className="font-mono text-xs text-slate-700 dark:text-slate-200">{scope.scope_type}</p>
+                        <p className="font-mono text-xs text-slate-500">{scope.scope_id}</p>
+                      </td>
+                      <td className="py-3">
+                        <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                          {scope.privacy_mode}
+                        </span>
+                      </td>
+                      <td className="py-3 text-slate-500">{sampledRatePct(scope.sampled_rate)}</td>
+                      <td className="py-3">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => handleEditScope(scope)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => void handleDeleteScope(scope)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── PII Testing Tab ────────────────────────────────────────────── */}
       {tab === 'pii' && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Test PII Redaction
-            </p>
+            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Test PII Redaction</p>
             <p className="mb-3 text-sm text-slate-500">
               Paste sample text to see how RunLedger detects and redacts personally identifiable information.
             </p>
             <textarea
               value={piiText}
               onChange={(e) => setPiiText(e.target.value)}
-              placeholder="e.g. My email is john@example.com and my SSN is 123-45-6789"
               rows={4}
               className={`w-full resize-none ${inputCls}`}
+              placeholder="My email is john@example.com and my SSN is 123-45-6789"
             />
             <button
-              onClick={handleTestPii}
+              onClick={() => void handleTestPii()}
               disabled={testingPii || !piiText.trim()}
               className="mt-3 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
@@ -482,34 +492,27 @@ export default function DataCapturePage() {
           </div>
 
           {piiResult && (
-            <div className="space-y-4">
-              {/* Detected PII */}
+            <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Detected PII ({piiResult.detected_pii.length} items)
+                  Detected PII ({piiResult.detected_pii.length})
                 </p>
                 {piiResult.detected_pii.length === 0 ? (
                   <p className="text-sm text-emerald-600 dark:text-emerald-400">No PII detected in the input text.</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {piiResult.detected_pii.map((d, i) => (
-                      <div key={i} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
-                        <span className="text-xs font-semibold text-red-700 dark:text-red-400">{d.type}</span>
-                        <p className="mt-0.5 font-mono text-xs text-red-600 dark:text-red-300">{d.value}</p>
-                        <p className="mt-0.5 text-xs text-red-400">
-                          Confidence: {(Number(d.confidence) * 100).toFixed(0)}%
-                        </p>
+                    {piiResult.detected_pii.map((item, index) => (
+                      <div key={`${item.type}-${index}`} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
+                        <span className="text-xs font-semibold text-red-700 dark:text-red-400">{item.type}</span>
+                        <p className="mt-0.5 font-mono text-xs text-red-600 dark:text-red-300">{item.value}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Redacted output */}
               <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Redacted Output
-                </p>
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Redacted Output</p>
                 <pre className="overflow-x-auto rounded-lg bg-slate-50 p-4 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
                   {piiResult.redacted_text}
                 </pre>

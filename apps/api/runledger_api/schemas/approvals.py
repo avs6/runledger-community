@@ -14,6 +14,12 @@ ApprovalRequestType = Literal[
     "tool_allow",
     "capture_policy_full",
     "shadow_routing",
+    "premium_model_use",
+    "external_mcp_tool",
+    "long_agent_session",
+    "sensitive_export",
+    "route_policy_change",
+    "chargeback_rule",
 ]
 
 ApprovalStatus = Literal["pending", "approved", "denied", "cancelled"]
@@ -67,3 +73,28 @@ class ApprovalSummary(BaseModel):
     approved: int
     denied: int
     cancelled: int
+
+
+class AutoApprovalPolicyCreate(BaseModel):
+    request_type: ApprovalRequestType
+    condition: str = Field(..., min_length=1, max_length=500)
+
+
+class AutoApprovalPolicyUpdate(BaseModel):
+    request_type: ApprovalRequestType | None = None
+    condition: str | None = Field(None, min_length=1, max_length=500)
+
+
+class AutoApprovalPolicyResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    request_type: str
+    condition: str
+    created_at: datetime
+    created_by: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class AutoApprovalPolicyList(BaseModel):
+    items: list[AutoApprovalPolicyResponse]

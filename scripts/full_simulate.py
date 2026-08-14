@@ -460,8 +460,8 @@ def main() -> None:
         except Exception:  # noqa: BLE001
             pass
 
-    # 7. Phase 16 agentic operations seeding (agents, workflows, vector stores, playground).
-    say("\n→ seeding Phase 16 agentic operations", "b")
+    # 7. Agentic operations seeding (agents, workflows, vector stores, playground).
+    say("\n-> seeding agentic operations", "b")
     for ws in sim.workspaces:
         if not ws.key:
             continue

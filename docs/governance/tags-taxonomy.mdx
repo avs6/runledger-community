@@ -1,0 +1,24 @@
+---
+title: "Tags and Taxonomy"
+description: "Manage hierarchical tags and auto-tagging rules for workflow metadata, governance, and reporting."
+---
+
+The Tags page is the taxonomy surface for workflow-centered metadata. It is where operators define the reusable tag vocabulary and the runtime rules that classify traffic automatically.
+
+## What lives here
+
+- **Tag catalog** - create, edit, retire, and nest tags into a hierarchy
+- **Hierarchy view** - review the active taxonomy as a tree
+- **Auto-tagging rules** - create, edit, delete, activate, and simulate rules that apply tags from request fields
+- **Simulation** - validate how a payload would be tagged before enabling stricter automation
+
+## Cohesion guidance
+
+Tags should support workflow analytics, governance, routing, and FinOps dimensions without introducing a parallel "project" or "team model" concept. Keep the taxonomy aligned to workflow, tenant, route, channel, product area, and similar operational dimensions.
+
+## Typical flow
+
+1. Define the tag vocabulary first.
+2. Add auto-tagging rules for common prompt, feature, or provider patterns.
+3. Simulate against realistic payloads.
+4. Retire outdated tags instead of leaving dead vocabulary active forever.

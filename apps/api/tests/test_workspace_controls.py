@@ -1,4 +1,4 @@
-"""Tests for deferred Phase 16 management surfaces."""
+"""Tests for workspace control surfaces."""
 
 from __future__ import annotations
 
@@ -300,7 +300,7 @@ async def test_tool_policy_simulation_deny(
         json={"tool_name": "web-search", "risk_score": 90},
     )
     assert resp.status_code == 200
-    assert resp.json()["final_action"] == "deny"
+    assert resp.json()["final_action"] == "block"
 
 
 @pytest.mark.asyncio

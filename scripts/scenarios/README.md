@@ -132,6 +132,11 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `generate_runbook(run)` | Incident-style runbook for a run |
 | `create_route_recommendation(experiment_id, config_index, reason)` | Route recommendations from replay experiments |
 | `get_governance_audit_pack()` | Governance audit pack (compliance evidence export) |
+| `upsert_capture_policy_scope(scope_type, scope_id, privacy_mode, sampled_rate=)` | Data-capture scoped overrides |
+| `create_oidc_provider(name, issuer_url, audience=)` | Enterprise OIDC provider setup |
+| `create_ip_acl_rule(cidr, scope_type=, action=, priority=)` | IP allow/deny controls |
+| `create_tag(category, key, value, description=)` | Taxonomy tag creation |
+| `create_auto_tag_rule(name, match_field, match_pattern, tag_key, tag_value)` | Auto-tagging rule lifecycle |
 | `create_guardrail_rule(name, mode, rule_type, logic, ...)` | Custom/template guardrail rule |
 | `activate_content_filters(filters)` | Activate built-in content filters with severity |
 | `create_partner_guardrail(provider, name, mode, ...)` | Partner guardrail integration |
