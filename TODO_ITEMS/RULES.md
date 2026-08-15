@@ -235,6 +235,94 @@ File: `{folder}/WORK-UNITS/WU-NNN-<slug>.md`
 
 ---
 
+## RE-AUDIT Trigger
+
+**Trigger**: When the user says `RE-AUDIT <Major-Feature> <Minor-Feature>`, execute the full audit workflow below.
+
+**Format**: `RE-AUDIT 01-ORG-AND-ACCESS Organization profile`
+
+The major feature is the folder name (e.g., `01-ORG-AND-ACCESS`, `05-FINOPS`). The minor feature is the sub-feature name as it appears in GAP-MATRIX rows (e.g., `Budgets`, `Provider profiles`, `Playground`).
+
+### RE-AUDIT Workflow
+
+#### Step 1: Load Context
+
+Read these files for the target major feature folder:
+1. `{folder}/GAP-MATRIX.md` — find the row for the minor feature
+2. `{folder}/COHESION-MATRIX.md` — find all cells involving the minor feature
+3. `{folder}/DELIVERY-STATUS.md` — find the delivery row for the minor feature
+4. `{folder}/BLUEPRINT.md` — understand bundle ownership and scope
+
+#### Step 2: Audit the Codebase
+
+For the target minor feature, audit the real codebase against each surface:
+
+| Surface | What to check |
+|---------|---------------|
+| **Backend** | API router exists, endpoints return correct data, CRUD operations work, auth is present |
+| **UI** | Page renders at the route, data loads, actions work, navigation is correct |
+| **Actions** | Create/update/delete/list operations work end to end (or equivalent for the feature class) |
+| **Docs** | `docs/` coverage exists — setup, usage, architecture references |
+| **Postman** | Request exists in `postman/RunLedger.postman_collection.json` |
+| **Scripts/Examples** | `scripts/` or `examples/` coverage exercises the feature |
+| **Complete** | Overall feature completeness per Rule 3 (feature class determines the bar) |
+| **Cohesion** | Cross-feature relationships are real in code, not just claimed |
+
+Search the codebase using the feature's route, model names, router files, and UI components. Do not rely on prior conversation context or assumptions.
+
+#### Step 3: Determine Statuses
+
+Assign a status to each surface based on what the code actually shows:
+- `OK` — verified working
+- `PARTIAL` — present but incomplete, buggy, or unclear
+- `MISSING` — absent, broken, or disconnected
+- `LEGACY` — compatibility-only surface; do not expand
+- `N/A` — not applicable for this feature class
+
+For cohesion cells, audit the relationship between the minor feature and each target feature:
+- `STRONG` — relationship is real and directionally cohesive in the code
+- `PARTIAL` — some integration exists but incomplete or not operator-friendly
+- `GAP` — relationship should exist but is missing or too weak
+- `N/A` — no meaningful direct dependency
+
+#### Step 4: Update GAP-MATRIX
+
+Update the minor feature's row in `{folder}/GAP-MATRIX.md` with the audited statuses. Replace `PENDING` values with the determined status. Update the Fix Status column to reflect current state.
+
+#### Step 5: Update COHESION-MATRIX
+
+For every sub-matrix in `{folder}/COHESION-MATRIX.md`:
+1. Find the row for the target minor feature
+2. Update each cell with the audited cohesion status
+3. Update the Finding column with a one-sentence summary of the current relationship
+
+Then update the **paired feature's** COHESION-MATRIX (Rule 5): if the target is `05-FINOPS: Budgets` and a cell involves `01-ORG-AND-ACCESS: Workspaces`, also update `01-ORG-AND-ACCESS/COHESION-MATRIX.md` to reflect the same relationship from the other side.
+
+#### Step 6: Update DELIVERY-STATUS
+
+Update the minor feature's row in `{folder}/DELIVERY-STATUS.md` with audited delivery surface statuses: Backend, UI, Docs, README, Examples, Postman, Manual Lab, Auto Script, Infra, Supporting Infra.
+
+#### Step 7: Report
+
+After all updates, output a **compact one-line summary only** — no verbose breakdown, no per-surface listing, no per-sub-matrix counts:
+
+```
+RE-AUDIT COMPLETE: {Major Feature} → {Minor Feature} | GAP-MATRIX: {Fix Status} | COHESION: {n} cells set | DELIVERY: {confirmed or updated}
+```
+
+Do not narrate the audit process, do not list individual surface findings, and do not explain cohesion determinations. The files are the record — the report is just a confirmation line.
+
+### RE-AUDIT Scope Rules
+
+- **One minor feature per RE-AUDIT**. Do not batch multiple sub-features in a single pass.
+- **Audit the code, not the docs**. If docs say a feature works but the code disagrees, trust the code.
+- **Do not change N/A cells**. If a cohesion cell is `N/A`, it stays `N/A` — the audit only changes `PENDING` cells or corrects previously-set statuses.
+- **Do not implement fixes during audit**. The RE-AUDIT workflow only observes and records. If the audit reveals gaps, they stay as `GAP` or `MISSING` until a work unit addresses them.
+- **Keep output terse**. Do not narrate codebase searches, do not list per-file findings inline, do not explain each status determination. Work silently, update files, print the one-line summary.
+- **Update the `Last updated` line** in each file touched, using the current date.
+
+---
+
 ## Required Flow Summary
 
 ```
