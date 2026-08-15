@@ -304,17 +304,13 @@ Update the minor feature's row in `{folder}/DELIVERY-STATUS.md` with audited del
 
 #### Step 7: Report
 
-After all updates, output a summary:
+After all updates, output a **compact one-line summary only** — no verbose breakdown, no per-surface listing, no per-sub-matrix counts:
 
 ```
-RE-AUDIT COMPLETE: {Major Feature} → {Minor Feature}
-
-GAP-MATRIX: {row summary — which columns changed from PENDING}
-COHESION-MATRIX: {count of cells updated, count remaining PENDING}
-DELIVERY-STATUS: {row summary}
-
-Paired files updated: {list of other family COHESION-MATRIX files touched}
+RE-AUDIT COMPLETE: {Major Feature} → {Minor Feature} | GAP-MATRIX: {Fix Status} | COHESION: {n} cells set | DELIVERY: {confirmed or updated}
 ```
+
+Do not narrate the audit process, do not list individual surface findings, and do not explain cohesion determinations. The files are the record — the report is just a confirmation line.
 
 ### RE-AUDIT Scope Rules
 
@@ -322,6 +318,7 @@ Paired files updated: {list of other family COHESION-MATRIX files touched}
 - **Audit the code, not the docs**. If docs say a feature works but the code disagrees, trust the code.
 - **Do not change N/A cells**. If a cohesion cell is `N/A`, it stays `N/A` — the audit only changes `PENDING` cells or corrects previously-set statuses.
 - **Do not implement fixes during audit**. The RE-AUDIT workflow only observes and records. If the audit reveals gaps, they stay as `GAP` or `MISSING` until a work unit addresses them.
+- **Keep output terse**. Do not narrate codebase searches, do not list per-file findings inline, do not explain each status determination. Work silently, update files, print the one-line summary.
 - **Update the `Last updated` line** in each file touched, using the current date.
 
 ---
