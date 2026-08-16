@@ -1,6 +1,6 @@
 # Platform & Utility — Cohesion Matrix
 
-Last updated: PENDING AUDIT
+Last updated: 2026-08-15
 
 This file tracks how Platform & Utility features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -16,14 +16,14 @@ Current row major feature under audit: `Platform / Utility`
 
 | Row Major Feature | Row Subfeature | Budgets | Billing periods | Chargeback | Ledger | Organization profile | Onboarding | Workspaces | API keys | All organizations | Platform settings | Plugins | Finding |
 |-------------------|----------------|---------|-----------------|------------|--------|----------------------|------------|------------|----------|-------------------|-------------------|---------|---------|
-| Platform / Utility | All organizations | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `N/A` | All Organizations is the true platform-admin lifecycle owner and should remain the parent to org creation and suspension. |
-| Platform / Utility | Platform settings | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `N/A` | Platform Settings is strategically important as a convergence surface, but is still an umbrella rather than one cohesive product area. |
-| Platform / Utility | Plugins | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PENDING` | `N/A` | `N/A` | `N/A` | `N/A` | `PENDING` | Plugins is now correctly collapsed under onboarding/discovery rather than preserved as a first-class admin plane. |
+| Platform / Utility | All organizations | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | All organizations is the platform-admin counterpart to org profile (STRONG). Creates default workspace on org creation (STRONG to Workspaces). Shares require_platform_admin context with Platform settings (STRONG). Orgs scope budgets, billing, chargeback, and ledger but no direct management from this page (PARTIAL). API keys and onboarding are org-scoped but managed elsewhere (PARTIAL). |
+| Platform / Utility | Platform settings | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | Compliance tab manages ledger closures and snapshots directly (STRONG to Ledger). Shares require_platform_admin/require_org_admin context with All organizations (STRONG). Webhook defaults include budget.breach events (PARTIAL to Budgets). Retention/capture policy affects billing and chargeback data (PARTIAL). API keys, onboarding-status, org profile, and workspaces are settings sub-endpoints but managed on their own pages (PARTIAL). |
+| Platform / Utility | Plugins | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `STRONG` | UI redirects to /onboarding?section=connections (STRONG to Onboarding). Backend plugin management is used programmatically by MCP governance, and the plugins route still has a real self-relationship even though the UI surface is collapsed. |
 
 ### 11.8b Platform / Utility x Gateway / Observe / Governance / Build
 
 | Row Major Feature | Row Subfeature | Model gateway | Guardrails | Monitoring | Telemetry | Audit log | Governance pack | Evaluation studio | Optimization simulator | Finding |
 |-------------------|----------------|---------------|------------|------------|-----------|-----------|-----------------|-------------------|------------------------|---------|
-| Platform / Utility | All organizations | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `N/A` | `N/A` | Platform org management should summarize downstream posture, but not absorb each control plane. |
-| Platform / Utility | Platform settings | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `N/A` | `N/A` | Platform Settings is already the clearest home for cross-cutting compliance and operational defaults. |
-| Platform / Utility | Plugins | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PENDING` | `N/A` | Plugins now belong in the guided onboarding and tool-connection story, not in a separate ops island. |
+| Platform / Utility | All organizations | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Orgs contain workspaces with gateway routes, guardrails, telemetry, and downstream evaluation/optimization posture, but no direct management from this page (PARTIAL). Org console has /org/audit-log endpoint (PARTIAL to Audit log). Governance is org-scoped (PARTIAL). |
+| Platform / Utility | Platform settings | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | Retention, compliance, and backup are governance pack components (STRONG). Capture policy interacts with guardrail data (PARTIAL). Ops status/queues are monitoring primitives (PARTIAL). Backup/retention operations should produce audit events (PARTIAL). Onboarding-status checks telemetry setup (PARTIAL). Platform defaults and compliance posture still have a real but indirect relationship to the gateway runtime. |
+| Platform / Utility | Plugins | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | Collapsed redirect — backend plugin governance is consumed by MCP tool calls and the UI route effectively feeds the onboarding/tool-connection story, so Evaluation Studio at least has a light adjacent relationship. |

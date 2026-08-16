@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Purpose
 
@@ -169,18 +169,18 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
-| A | MCP servers | `LEGACY` | `LEGACY` | `OK` | `RE-AUDIT REQUIRED` |
-| A | Search tools | `LEGACY` | `LEGACY` | `OK` | `RE-AUDIT REQUIRED` |
-| A | Tool registry | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| A | Tool policies | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| A | Policy dry run | `LEGACY` | `LEGACY` | `OK` | `RE-AUDIT REQUIRED` |
-| B | Approvals | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Alert rules | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Data capture | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
-| C | Security | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
-| C | Tags | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| D | Audit log | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| D | Governance pack | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
+| A | MCP servers | `LEGACY` | `LEGACY` | `OK` | `RE-AUDITED: OK` |
+| A | Search tools | `LEGACY` | `LEGACY` | `OK` | `RE-AUDITED: OK` |
+| A | Tool registry | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Tool policies | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Policy dry run | `LEGACY` | `LEGACY` | `OK` | `RE-AUDITED: OK` |
+| B | Approvals | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Alert rules | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Data capture | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
+| C | Security | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
+| C | Tags | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Audit log | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Governance pack | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
 
 ### 05 — FinOps
 
@@ -198,50 +198,50 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
-| A | Playground | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| A | Prompts list | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| A | Prompt detail and versions | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
-| B | Agents list | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Agent detail | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Agent memory | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Workflows list | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Workflow detail | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Workflow run detail | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Vector stores list | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Vector store detail | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Datasets | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Evaluation studio | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Experiments | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Replay lab | `PARTIAL` | `PARTIAL` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Replay experiment detail | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| C | Runbooks | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| D | Optimization opportunities | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| D | Optimization simulator | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| D | Model scorecards | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
+| A | Playground | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Prompts list | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Prompt detail and versions | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
+| B | Agents list | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Agent detail | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Agent memory | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Workflows list | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Workflow detail | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Workflow run detail | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Vector stores list | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Vector store detail | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Datasets | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Evaluation studio | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Experiments | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Replay lab | `PARTIAL` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Replay experiment detail | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Runbooks | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Optimization opportunities | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Optimization simulator | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Model scorecards | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
 
 ### 07 — Platform & Utility
 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
-| A | All organizations | `OK` | `OK` | `NO` | `RE-AUDIT REQUIRED` |
-| B | Platform settings | `PARTIAL` | `PARTIAL` | `NO` | `RE-AUDIT REQUIRED` |
-| C | Plugins | `PARTIAL` | `LEGACY` | `OK` | `RE-AUDIT REQUIRED` |
+| A | All organizations | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
+| B | Platform settings | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Plugins | `PARTIAL` | `LEGACY` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
 
 ### 08 — Planned Architecture
 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
-| A | Gateway service split | `PARTIAL` | `MISSING` | `NO` | `RE-AUDIT REQUIRED` |
-| A | Gateway module review | `PARTIAL` | `N/A` | `NO` | `RE-AUDIT REQUIRED` |
-| A | Router collapse | `PARTIAL` | `N/A` | `NO` | `RE-AUDIT REQUIRED` |
-| A | Legacy deprecation | `PARTIAL` | `PARTIAL` | `NO` | `RE-AUDIT REQUIRED` |
-| B | Scope-aware enforcement | `PARTIAL` | `N/A` | `NO` | `RE-AUDIT REQUIRED` |
-| C | Pipeline studio | `MISSING` | `MISSING` | `NO` | `RE-AUDIT REQUIRED` |
-| C | API explorer | `PARTIAL` | `PARTIAL` | `NO` | `RE-AUDIT REQUIRED` |
-| C | Help hub | `MISSING` | `MISSING` | `NO` | `RE-AUDIT REQUIRED` |
-| D | Theme refresh | `PARTIAL` | `PARTIAL` | `NO` | `RE-AUDIT REQUIRED` |
-| D | Docs IA | `PARTIAL` | `N/A` | `NO` | `RE-AUDIT REQUIRED` |
-| D | Repo naming cleanup | `PARTIAL` | `N/A` | `NO` | `RE-AUDIT REQUIRED` |
+| A | Gateway service split | `PARTIAL` | `MISSING` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Gateway module review | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Router collapse | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Legacy deprecation | `PARTIAL` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Scope-aware enforcement | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Pipeline studio | `MISSING` | `MISSING` | `MISSING` | `RE-AUDITED: MISSING` |
+| C | API explorer | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| C | Help hub | `MISSING` | `MISSING` | `MISSING` | `RE-AUDITED: MISSING` |
+| D | Theme refresh | `PARTIAL` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Docs IA | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Repo naming cleanup | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
 
 ---
 
@@ -291,6 +291,15 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-011 | 01-ORG-AND-ACCESS | API keys × Observe dimension | 03-OBSERVE | NOT_STARTED | 01-B |
 | WU-012 | 01-ORG-AND-ACCESS | Workspace × Observe/FinOps strengthen | 03/05 | NOT_STARTED | 01-B |
 | WU-013 | 01-ORG-AND-ACCESS | Internal cohesion tightening | 07-PLATFORM | NOT_STARTED | 01-A/B/C/D |
+| WU-014 | 01-ORG-AND-ACCESS | Organization profile cross-suite rollups refresh | 03/04/05 | NOT_STARTED | 01-A |
+| WU-015 | 01-ORG-AND-ACCESS | Onboarding cross-suite readiness refresh | 02/03/04/05 | NOT_STARTED | 01-C |
+| WU-016 | 01-ORG-AND-ACCESS | Users scope attribution and governance refresh | 03/04/05 | NOT_STARTED | 01-B |
+| WU-017 | 01-ORG-AND-ACCESS | Workspaces scope backbone refresh | 03/04/05 | NOT_STARTED | 01-B |
+| WU-018 | 01-ORG-AND-ACCESS | Access groups scope propagation refresh | 02/03/04/05/06 | NOT_STARTED | 01-B |
+| WU-019 | 01-ORG-AND-ACCESS | API keys runtime FinOps and Observe refresh | 02/03/04/05 | NOT_STARTED | 01-B |
+| WU-020 | 01-ORG-AND-ACCESS | Telemetry FinOps and governance bridge refresh | 04/05 | NOT_STARTED | 01-C |
+| WU-021 | 01-ORG-AND-ACCESS | MCP registry runtime governance and Observe refresh | 02/03/04/05/06 | NOT_STARTED | 01-C |
+| WU-022 | 01-ORG-AND-ACCESS | AI hub catalog runtime FinOps refresh | 02/03/04/05 | NOT_STARTED | 01-D |
 | WU-001 | 02-GATEWAY-AND-ROUTING | Provider profiles × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 02-A |
 | WU-002 | 02-GATEWAY-AND-ROUTING | Performance controls × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 02-C |
 | WU-003 | 02-GATEWAY-AND-ROUTING | Model gateway × FinOps deepening | 05-FINOPS | NOT_STARTED | 02-A |
@@ -303,6 +312,11 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-010 | 02-GATEWAY-AND-ROUTING | Gateway × Build & Improve integration | 06-BUILD-AND-IMPROVE | NOT_STARTED | 02-A/B/C |
 | WU-011 | 02-GATEWAY-AND-ROUTING | Performance controls × Org & scope | 01/07 | NOT_STARTED | 02-C |
 | WU-012 | 02-GATEWAY-AND-ROUTING | Gateway internal & platform cohesion | 02/06/07 | NOT_STARTED | 02-A/B/C/D |
+| WU-013 | 02-GATEWAY-AND-ROUTING | Provider profiles runtime FinOps and governance refresh | 01/03/04/05/06 | NOT_STARTED | 02-A |
+| WU-014 | 02-GATEWAY-AND-ROUTING | Model gateway control plane bridge refresh | 01/03/04/07 | NOT_STARTED | 02-A |
+| WU-015 | 02-GATEWAY-AND-ROUTING | Guardrails runtime traceability refresh | 01/03/04/05/06 | NOT_STARTED | 02-B |
+| WU-016 | 02-GATEWAY-AND-ROUTING | Response cache economics and evidence refresh | 01/03/04/05/06 | NOT_STARTED | 02-C |
+| WU-017 | 02-GATEWAY-AND-ROUTING | Rate limits scope and throttle explainability refresh | 01/03/04/05/06 | NOT_STARTED | 02-C |
 | WU-001 | 03-OBSERVE | Investigation × access-group scope | 01-ORG-AND-ACCESS | NOT_STARTED | 03-B |
 | WU-002 | 03-OBSERVE | Investigation × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 03-B |
 | WU-003 | 03-OBSERVE | Overview & economics × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 03-A/C |
@@ -314,6 +328,15 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-009 | 03-OBSERVE | Economics & model intel × Gateway links | 01/02/03/04 | NOT_STARTED | 03-C |
 | WU-010 | 03-OBSERVE | Monitoring & ops × governance integration | 01/02/03/04 | NOT_STARTED | 03-D |
 | WU-011 | 03-OBSERVE | User analytics & overview × Org links | 01/03 | NOT_STARTED | 03-A/C |
+| WU-012 | 03-OBSERVE | Analytics overview scope posture refresh | 01/02/04 | NOT_STARTED | 03-A |
+| WU-013 | 03-OBSERVE | Runs list investigation bridge refresh | 01/02/04/05 | NOT_STARTED | 03-B |
+| WU-014 | 03-OBSERVE | Run detail runtime evidence refresh | 01/02/04/05 | NOT_STARTED | 03-B |
+| WU-015 | 03-OBSERVE | Sessions investigation scope refresh | 01/05 | NOT_STARTED | 03-B |
+| WU-016 | 03-OBSERVE | Request analysis scope and evidence refresh | 01/02/04/05 | NOT_STARTED | 03-B |
+| WU-017 | 03-OBSERVE | Model usage economics and runtime refresh | 01/02/05 | NOT_STARTED | 03-C |
+| WU-018 | 03-OBSERVE | Analytics users outcomes and identity refresh | 01/02/05 | NOT_STARTED | 03-C |
+| WU-019 | 03-OBSERVE | Monitoring telemetry ops and governance refresh | 01/02/04/05 | NOT_STARTED | 03-D |
+| WU-020 | 03-OBSERVE | Scorecards replay and runbooks support refresh | 01/02/04 | NOT_STARTED | 03-C/D |
 | WU-001 | 04-SAFETY-AND-GOVERNANCE | Tool registry × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 04-A |
 | WU-002 | 04-SAFETY-AND-GOVERNANCE | Approvals & alert rules × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 04-B |
 | WU-003 | 04-SAFETY-AND-GOVERNANCE | Tags × FinOps budget detail bridge | 05-FINOPS | NOT_STARTED | 04-C |
@@ -325,6 +348,15 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-009 | 04-SAFETY-AND-GOVERNANCE | Data protection × Gateway & Observe | 02/03 | NOT_STARTED | 04-C |
 | WU-010 | 04-SAFETY-AND-GOVERNANCE | Evidence & audit × cross-feature linkage | 01/02/03/05 | NOT_STARTED | 04-D |
 | WU-011 | 04-SAFETY-AND-GOVERNANCE | Internal cohesion tightening | 04-SELF | NOT_STARTED | 04-A/B/C/D |
+| WU-012 | 04-SAFETY-AND-GOVERNANCE | Tool registry runtime FinOps scope refresh | 01/02/03/05 | NOT_STARTED | 04-A |
+| WU-013 | 04-SAFETY-AND-GOVERNANCE | Tool policies runtime scope refresh | 01/02/03/05 | NOT_STARTED | 04-A |
+| WU-014 | 04-SAFETY-AND-GOVERNANCE | Approvals exception cross suite refresh | 01/02/03/05 | NOT_STARTED | 04-B |
+| WU-015 | 04-SAFETY-AND-GOVERNANCE | Data capture evidence runtime refresh | 01/02/03/05 | NOT_STARTED | 04-C |
+| WU-016 | 04-SAFETY-AND-GOVERNANCE | Security scope runtime evidence refresh | 01/02/03/05 | NOT_STARTED | 04-C |
+| WU-017 | 04-SAFETY-AND-GOVERNANCE | Alert rules ops FinOps governance refresh | 01/02/03/05 | NOT_STARTED | 04-B |
+| WU-018 | 04-SAFETY-AND-GOVERNANCE | Audit log evidence lineage refresh | 01/02/03/05 | NOT_STARTED | 04-D |
+| WU-019 | 04-SAFETY-AND-GOVERNANCE | Governance pack compliance closure refresh | 01/02/03/05 | NOT_STARTED | 04-D |
+| WU-020 | 04-SAFETY-AND-GOVERNANCE | Tags taxonomy attribution refresh | 01/02/03/05 | NOT_STARTED | 04-C |
 | WU-001 | 05-FINOPS | Budget control × Org & Access scope | 01-ORG-AND-ACCESS | NOT_STARTED | 05-A |
 | WU-002 | 05-FINOPS | Budget control × Gateway & Routing | 02-GATEWAY-AND-ROUTING | NOT_STARTED | 05-A |
 | WU-003 | 05-FINOPS | Budget detail × Observe surfaces bridge | 03-OBSERVE | NOT_STARTED | 05-A |
@@ -338,6 +370,12 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-011 | 05-FINOPS | Billing × cross-feature strengthen | 02/04/07 | NOT_STARTED | 05-B |
 | WU-012 | 05-FINOPS | Chargeback × cross-feature strengthen | 01/02/04/07 | NOT_STARTED | 05-C |
 | WU-013 | 05-FINOPS | Ledger × cross-feature strengthen | 01/03/04/07 | NOT_STARTED | 05-D |
+| WU-014 | 05-FINOPS | Budgets scope runtime governance refresh | 01/02/03/04/07 | NOT_STARTED | 05-A |
+| WU-015 | 05-FINOPS | Budget detail drillback refresh | 01/02/03/04/06 | NOT_STARTED | 05-A |
+| WU-016 | 05-FINOPS | Budget overrides exception refresh | 01/02/03/04/07 | NOT_STARTED | 05-A |
+| WU-017 | 05-FINOPS | Billing periods reconciliation refresh | 01/02/03/04/06/07 | NOT_STARTED | 05-B |
+| WU-018 | 05-FINOPS | Billing detail evidence refresh | 01/02/03/04/06/07 | NOT_STARTED | 05-B |
+| WU-019 | 05-FINOPS | Chargeback attribution refresh | 01/02/03/04/06/07 | NOT_STARTED | 05-C |
 | WU-001 | 06-BUILD-AND-IMPROVE | Interactive Build × Org & Gateway scope | 01/02 | NOT_STARTED | 06-A |
 | WU-002 | 06-BUILD-AND-IMPROVE | Interactive Build × Observe bridge | 03-OBSERVE | NOT_STARTED | 06-A |
 | WU-003 | 06-BUILD-AND-IMPROVE | Managed assets × cross-feature strengthen | 01/02/03/05 | NOT_STARTED | 06-B |
@@ -347,10 +385,32 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-007 | 06-BUILD-AND-IMPROVE | Optimization × Observe bridge | 03-OBSERVE | NOT_STARTED | 06-D |
 | WU-008 | 06-BUILD-AND-IMPROVE | Build × FinOps strengthen | 05-FINOPS | NOT_STARTED | 06-A/C/D |
 | WU-009 | 06-BUILD-AND-IMPROVE | Internal Build cohesion tightening | 06-SELF | NOT_STARTED | 06-A/B/C/D |
+| WU-010 | 06-BUILD-AND-IMPROVE | Playground live lab refresh | 01/02/03/05 | NOT_STARTED | 06-A |
+| WU-011 | 06-BUILD-AND-IMPROVE | Prompts list registry refresh | 01/02/03/05 | NOT_STARTED | 06-A |
+| WU-012 | 06-BUILD-AND-IMPROVE | Prompt detail runtime loop refresh | 01/02/03/05 | NOT_STARTED | 06-A |
+| WU-013 | 06-BUILD-AND-IMPROVE | Agents list lifecycle refresh | 01/02/03/05 | NOT_STARTED | 06-B |
+| WU-014 | 06-BUILD-AND-IMPROVE | Agent detail memory governance refresh | 02/03/04 | NOT_STARTED | 06-B |
+| WU-015 | 06-BUILD-AND-IMPROVE | Workflows list catalog refresh | 01/02/03/05 | NOT_STARTED | 06-B |
+| WU-016 | 06-BUILD-AND-IMPROVE | Workflow detail cross loop refresh | 01/02/03/05 | NOT_STARTED | 06-B |
+| WU-017 | 06-BUILD-AND-IMPROVE | Workflow run evidence refresh | 02/03/04/05 | NOT_STARTED | 06-B |
+| WU-018 | 06-BUILD-AND-IMPROVE | Datasets evaluation asset refresh | 01/03/05 | NOT_STARTED | 06-C |
+| WU-019 | 06-BUILD-AND-IMPROVE | Evaluation studio parent refresh | 01/02/03/05 | NOT_STARTED | 06-C |
+| WU-020 | 06-BUILD-AND-IMPROVE | Experiments comparison refresh | 01/02/03/05 | NOT_STARTED | 06-C |
+| WU-021 | 06-BUILD-AND-IMPROVE | Replay lab mode refresh | 02/03/05 | NOT_STARTED | 06-C |
+| WU-022 | 06-BUILD-AND-IMPROVE | Replay result analysis refresh | 02/03/05 | NOT_STARTED | 06-C |
+| WU-023 | 06-BUILD-AND-IMPROVE | Runbooks remediation loop refresh | 02/03/04/05 | NOT_STARTED | 06-C |
+| WU-024 | 06-BUILD-AND-IMPROVE | Optimization opportunities rationale refresh | 02/03/05 | NOT_STARTED | 06-D |
+| WU-025 | 06-BUILD-AND-IMPROVE | Optimization simulator decision refresh | 02/03/05 | NOT_STARTED | 06-D |
+| WU-026 | 06-BUILD-AND-IMPROVE | Model scorecards intelligence refresh | 01/02/03/05 | NOT_STARTED | 06-D |
+| WU-027 | 06-BUILD-AND-IMPROVE | Vector stores list lifecycle refresh | 01/03/05 | NOT_STARTED | 06-B |
+| WU-028 | 06-BUILD-AND-IMPROVE | Vector store detail evidence refresh | 03/05 | NOT_STARTED | 06-B |
 | WU-001 | 07-PLATFORM-AND-UTILITY | All organizations delivery & posture completion | 01/02/04/05 | NOT_STARTED | 07-A |
 | WU-002 | 07-PLATFORM-AND-UTILITY | Platform settings convergence & delivery completeness | 01/02/03/04/05 | NOT_STARTED | 07-B |
 | WU-003 | 07-PLATFORM-AND-UTILITY | Plugins collapse & discovery ownership cleanup | 01/06 | NOT_STARTED | 07-C |
 | WU-004 | 07-PLATFORM-AND-UTILITY | Platform admin cohesion & posture rollups | 01/02/03/04/06 | NOT_STARTED | 07-A/B/C |
+| WU-005 | 07-PLATFORM-AND-UTILITY | All organizations posture refresh | 01/02/03/04/05/06 | NOT_STARTED | 07-A |
+| WU-006 | 07-PLATFORM-AND-UTILITY | Platform settings converged posture refresh | 01/02/03/04/05/06 | NOT_STARTED | 07-B |
+| WU-007 | 07-PLATFORM-AND-UTILITY | Plugins collapse ownership refresh | 01/03/04/06 | NOT_STARTED | 07-C |
 | WU-001 | 08-PLANNED-ARCHITECTURE | Rust runtime boundary cleanup | 02/03/04/05 | NOT_STARTED | 08-A |
 | WU-002 | 08-PLANNED-ARCHITECTURE | Sidecar collapse and runtime consolidation | 02/03/04 | NOT_STARTED | 08-A |
 | WU-003 | 08-PLANNED-ARCHITECTURE | Consumer migration and legacy cleanup | 02/03/05/06 | NOT_STARTED | 08-A |
@@ -362,6 +422,16 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-009 | 08-PLANNED-ARCHITECTURE | Design system and dark-mode refresh | ALL | NOT_STARTED | 08-D |
 | WU-010 | 08-PLANNED-ARCHITECTURE | Documentation IA and hierarchy | ALL | NOT_STARTED | 08-D |
 | WU-011 | 08-PLANNED-ARCHITECTURE | Repo naming and historical cleanup | ALL | NOT_STARTED | 08-D |
+| WU-012 | 08-PLANNED-ARCHITECTURE | Rust gateway split posture refresh | 02/03/04/05 | NOT_STARTED | 08-A |
+| WU-013 | 08-PLANNED-ARCHITECTURE | Python hot path migration refresh | 02/03/04 | NOT_STARTED | 08-A |
+| WU-014 | 08-PLANNED-ARCHITECTURE | Router collapse refresh | 02/03/05 | NOT_STARTED | 08-A |
+| WU-015 | 08-PLANNED-ARCHITECTURE | Consumer migration refresh | 02/03/05/06 | NOT_STARTED | 08-A |
+| WU-016 | 08-PLANNED-ARCHITECTURE | Scope aware governance runtime refresh | 01/02/03/04 | NOT_STARTED | 08-B |
+| WU-017 | 08-PLANNED-ARCHITECTURE | Pipeline studio concept refresh | 02/03/04/05/06 | NOT_STARTED | 08-C |
+| WU-018 | 08-PLANNED-ARCHITECTURE | API explorer surface refresh | 01/02/06/07 | NOT_STARTED | 08-C |
+| WU-019 | 08-PLANNED-ARCHITECTURE | Help hub concept refresh | 01/02/03/07 | NOT_STARTED | 08-C |
+| WU-020 | 08-PLANNED-ARCHITECTURE | Design system refresh pass | 06/07 | NOT_STARTED | 08-D |
+| WU-021 | 08-PLANNED-ARCHITECTURE | Docs IA and repo cleanup refresh | 07/08-SUPPORT | NOT_STARTED | 08-D |
 
 ---
 
