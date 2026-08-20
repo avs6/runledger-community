@@ -24,6 +24,7 @@ from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
+from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.budgets import Budget
 from runledger_api.models.billing import (
     BillingAdjustment,
@@ -35,7 +36,7 @@ from runledger_api.models.billing import (
 )
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import UsageDaily
-from runledger_api.models.tenant import Application, Workspace
+from runledger_api.models.tenant import ApiKey, Application, Workspace
 from runledger_api.schemas.billing import (
     BillingAdjustmentResponse,
     BreakdownApp,
@@ -54,6 +55,8 @@ _CHARGEBACK_DIMENSIONS = {
     "workspace",
     "end_user",
     "application",
+    "api_key",
+    "access_group",
     "feature_tag",
     "workflow",
     "model",
@@ -73,12 +76,59 @@ def _chargeback_period_bounds(period: str | None) -> tuple[str, date, date]:
     return normalized, start, end
 
 
+async def _validate_access_group_scope(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    access_group_id: uuid.UUID,
+) -> AccessGroup:
+    group = (
+        await db.execute(
+            select(AccessGroup).where(
+                AccessGroup.id == access_group_id,
+                AccessGroup.workspace_id == workspace_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if group is None:
+        raise ValueError(f"AccessGroup {access_group_id} not found")
+    return group
+
+
+async def _validate_api_key_scope(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    api_key_id: uuid.UUID,
+) -> ApiKey:
+    key = (
+        await db.execute(
+            select(ApiKey).where(
+                ApiKey.id == api_key_id,
+                ApiKey.workspace_id == workspace_id,
+                ApiKey.revoked_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if key is None:
+        raise ValueError(f"ApiKey {api_key_id} not found")
+    return key
+
+
+def _access_group_member_filter(access_group_id: uuid.UUID) -> sa.ColumnElement[bool]:
+    member_ids = select(sa.cast(AccessGroupMember.user_id, sa.String)).where(
+        AccessGroupMember.group_id == access_group_id
+    )
+    return ProviderCall.end_user_id.in_(member_ids)
+
+
 async def build_chargeback_report(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     *,
     period: str | None = None,
     dimension: str | None = None,
+    access_group_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
+    end_user_id: str | None = None,
 ) -> ChargebackReport:
     chosen_dimension = dimension or "feature_tag"
     if chosen_dimension not in _CHARGEBACK_DIMENSIONS:
@@ -110,6 +160,18 @@ async def build_chargeback_report(
         label_expr = Application.name
         budget_scope_type = "app"
         budget_key_expr = func.cast(AgentRun.application_id, sa.Text)
+    elif chosen_dimension == "api_key":
+        joins.append(("api_key",))
+        group_expr = ProviderCall.api_key_id
+        label_expr = func.coalesce(ApiKey.name, ApiKey.key_prefix)
+        budget_scope_type = "api_key"
+        budget_key_expr = func.cast(ProviderCall.api_key_id, sa.Text)
+    elif chosen_dimension == "access_group":
+        joins.append(("access_group",))
+        group_expr = AccessGroup.id
+        label_expr = AccessGroup.name
+        budget_scope_type = "access_group"
+        budget_key_expr = func.cast(AccessGroup.id, sa.Text)
     elif chosen_dimension in {"feature_tag", "workflow"}:
         joins.append(("agent_run",))
         group_expr = AgentRun.feature_tag
@@ -148,14 +210,37 @@ async def build_chargeback_report(
             stmt = stmt.outerjoin(Application, Application.id == AgentRun.application_id)
         elif join_step[0] == "workspace":
             stmt = stmt.join(Workspace, Workspace.id == ProviderCall.workspace_id)
+        elif join_step[0] == "api_key":
+            stmt = stmt.outerjoin(ApiKey, ApiKey.id == ProviderCall.api_key_id)
+        elif join_step[0] == "access_group":
+            stmt = stmt.outerjoin(
+                AccessGroupMember,
+                sa.cast(AccessGroupMember.user_id, sa.String) == ProviderCall.end_user_id,
+            ).outerjoin(
+                AccessGroup,
+                sa.and_(
+                    AccessGroup.id == AccessGroupMember.group_id,
+                    AccessGroup.workspace_id == workspace_id,
+                ),
+            )
+
+    filters: list[sa.ColumnElement[bool]] = [
+        ProviderCall.workspace_id == workspace_id,
+        func.date(ProviderCall.created_at) >= period_start,
+        func.date(ProviderCall.created_at) <= period_end,
+        ProviderCall.status == "success",
+]
+    if access_group_id is not None:
+        await _validate_access_group_scope(db, workspace_id, access_group_id)
+        filters.append(_access_group_member_filter(access_group_id))
+    if api_key_id is not None:
+        await _validate_api_key_scope(db, workspace_id, api_key_id)
+        filters.append(ProviderCall.api_key_id == api_key_id)
+    if end_user_id is not None:
+        filters.append(ProviderCall.end_user_id == end_user_id)
 
     stmt = (
-        stmt.where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) >= period_start,
-            func.date(ProviderCall.created_at) <= period_end,
-            ProviderCall.status == "success",
-        )
+        stmt.where(*filters)
         .group_by(group_expr, label_expr, budget_key_expr if budget_key_expr is not None else sa.literal(None))
         .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
     )
@@ -262,6 +347,8 @@ async def get_period_total_cost(
 async def run_reconciliation(
     db: AsyncSession,
     billing_period_id: uuid.UUID,
+    access_group_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
 ) -> ReconciliationResult:
     """
     Cross-check provider_calls vs usage_daily for consistency.
@@ -283,39 +370,44 @@ async def run_reconciliation(
     workspace_id = period.workspace_id
     period_start = period.period_start
     period_end = period.period_end
+    scoped_filters: list[sa.ColumnElement[bool]] = [
+        ProviderCall.workspace_id == workspace_id,
+        func.date(ProviderCall.created_at) >= period_start,
+        func.date(ProviderCall.created_at) <= period_end,
+    ]
+    if access_group_id is not None:
+        await _validate_access_group_scope(db, workspace_id, access_group_id)
+        scoped_filters.append(_access_group_member_filter(access_group_id))
+    if api_key_id is not None:
+        await _validate_api_key_scope(db, workspace_id, api_key_id)
+        scoped_filters.append(ProviderCall.api_key_id == api_key_id)
 
     # Sum from provider_calls
     calls_result = await db.execute(
-        select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) >= period_start,
-            func.date(ProviderCall.created_at) <= period_end,
-            ProviderCall.cost_usd.is_not(None),
-        )
+        select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(*scoped_filters, ProviderCall.cost_usd.is_not(None))
     )
     calls_sum: Decimal = calls_result.scalar_one() or Decimal(0)
 
-    # Sum from usage_daily
-    daily_result = await db.execute(
-        select(func.coalesce(func.sum(UsageDaily.cost_usd), Decimal(0))).where(
-            UsageDaily.workspace_id == workspace_id,
-            UsageDaily.day >= period_start,
-            UsageDaily.day <= period_end,
+    if access_group_id is None and api_key_id is None:
+        daily_result = await db.execute(
+            select(func.coalesce(func.sum(UsageDaily.cost_usd), Decimal(0))).where(
+                UsageDaily.workspace_id == workspace_id,
+                UsageDaily.day >= period_start,
+                UsageDaily.day <= period_end,
+            )
         )
-    )
-    daily_sum: Decimal = daily_result.scalar_one() or Decimal(0)
-
-    # Delta percentage
-    delta_pct = abs(calls_sum - daily_sum) / calls_sum * 100 if calls_sum > 0 else Decimal(0)
+        daily_sum: Decimal = daily_result.scalar_one() or Decimal(0)
+        delta_pct = abs(calls_sum - daily_sum) / calls_sum * 100 if calls_sum > 0 else Decimal(0)
+    else:
+        daily_sum = calls_sum
+        delta_pct = Decimal(0)
 
     # Count orphaned calls (LEFT JOIN agent_runs WHERE agent_runs.id IS NULL)
     orphan_result = await db.execute(
         select(func.count(ProviderCall.id))
         .outerjoin(AgentRun, ProviderCall.run_id == AgentRun.id)
         .where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) >= period_start,
-            func.date(ProviderCall.created_at) <= period_end,
+            *scoped_filters,
             AgentRun.id.is_(None),
         )
     )
@@ -333,9 +425,7 @@ async def run_reconciliation(
             func.count().label("cnt"),
         )
         .where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) >= period_start,
-            func.date(ProviderCall.created_at) <= period_end,
+            *scoped_filters,
         )
         .group_by(
             ProviderCall.run_id,
@@ -351,6 +441,11 @@ async def run_reconciliation(
     issues: list[str] = []
     warnings: list[str] = []
     recon_status = "pass"
+
+    if access_group_id is not None or api_key_id is not None:
+        warnings.append(
+            "Scoped reconciliation validates provider-call attribution only; usage_daily remains workspace-aggregated."
+        )
 
     if delta_pct > Decimal("0.01"):
         issues.append(
@@ -541,6 +636,9 @@ async def close_billing_period(
 async def get_period_breakdown(
     db: AsyncSession,
     billing_period_id: uuid.UUID,
+    access_group_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
+    end_user_id: str | None = None,
 ) -> PeriodBreakdown:
     """
     GROUP BY application_id, end_user_id from provider_calls JOIN agent_runs.
@@ -556,6 +654,17 @@ async def get_period_breakdown(
     workspace_id = period.workspace_id
     period_start = period.period_start
     period_end = period.period_end
+    filters: list[sa.ColumnElement[bool]] = [
+        ProviderCall.workspace_id == workspace_id,
+        func.date(ProviderCall.created_at) >= period_start,
+        func.date(ProviderCall.created_at) <= period_end,
+    ]
+    if access_group_id is not None:
+        await _validate_access_group_scope(db, workspace_id, access_group_id)
+        filters.append(_access_group_member_filter(access_group_id))
+    if api_key_id is not None:
+        await _validate_api_key_scope(db, workspace_id, api_key_id)
+        filters.append(ProviderCall.api_key_id == api_key_id)
 
     rows_result = await db.execute(
         select(
@@ -565,11 +674,7 @@ async def get_period_breakdown(
             func.count(func.distinct(AgentRun.id)).label("run_count"),
         )
         .join(AgentRun, ProviderCall.run_id == AgentRun.id)
-        .where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) >= period_start,
-            func.date(ProviderCall.created_at) <= period_end,
-        )
+        .where(*filters)
         .group_by(AgentRun.application_id, ProviderCall.end_user_id)
     )
     rows = rows_result.all()
@@ -636,7 +741,12 @@ async def get_period_breakdown(
 # ── Export CSV ────────────────────────────────────────────────────────────────
 
 
-async def export_csv(db: AsyncSession, billing_period_id: uuid.UUID) -> str:
+async def export_csv(
+    db: AsyncSession,
+    billing_period_id: uuid.UUID,
+    access_group_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
+) -> str:
     """
     Columns: date, end_user_id, model, input_tokens, output_tokens, cost_usd, run_id
     Query provider_calls LEFT JOIN agent_runs for the period date range.
@@ -648,9 +758,22 @@ async def export_csv(db: AsyncSession, billing_period_id: uuid.UUID) -> str:
     if period is None:
         raise ValueError(f"BillingPeriod {billing_period_id} not found")
 
+    filters: list[sa.ColumnElement[bool]] = [
+        ProviderCall.workspace_id == period.workspace_id,
+        func.date(ProviderCall.created_at) >= period.period_start,
+        func.date(ProviderCall.created_at) <= period.period_end,
+    ]
+    if access_group_id is not None:
+        await _validate_access_group_scope(db, period.workspace_id, access_group_id)
+        filters.append(_access_group_member_filter(access_group_id))
+    if api_key_id is not None:
+        await _validate_api_key_scope(db, period.workspace_id, api_key_id)
+        filters.append(ProviderCall.api_key_id == api_key_id)
+
     rows_result = await db.execute(
         select(
             func.date(ProviderCall.created_at).label("date"),
+            ProviderCall.api_key_id,
             ProviderCall.end_user_id,
             ProviderCall.model,
             ProviderCall.input_tokens,
@@ -658,11 +781,7 @@ async def export_csv(db: AsyncSession, billing_period_id: uuid.UUID) -> str:
             ProviderCall.cost_usd,
             ProviderCall.run_id,
         )
-        .where(
-            ProviderCall.workspace_id == period.workspace_id,
-            func.date(ProviderCall.created_at) >= period.period_start,
-            func.date(ProviderCall.created_at) <= period.period_end,
-        )
+        .where(*filters)
         .order_by(func.date(ProviderCall.created_at), ProviderCall.end_user_id)
     )
     rows = rows_result.all()
@@ -670,12 +789,13 @@ async def export_csv(db: AsyncSession, billing_period_id: uuid.UUID) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
-        ["date", "end_user_id", "model", "input_tokens", "output_tokens", "cost_usd", "run_id"]
+        ["date", "api_key_id", "end_user_id", "model", "input_tokens", "output_tokens", "cost_usd", "run_id"]
     )
     for row in rows:
         writer.writerow(
             [
                 row.date,
+                str(row.api_key_id) if row.api_key_id is not None else "",
                 row.end_user_id or "",
                 row.model,
                 row.input_tokens or 0,
@@ -694,6 +814,8 @@ async def export_csv(db: AsyncSession, billing_period_id: uuid.UUID) -> str:
 async def export_signed_json(
     db: AsyncSession,
     billing_period_id: uuid.UUID,
+    access_group_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
     """
     Build a signed JSON export with all provider_call rows.
@@ -706,9 +828,22 @@ async def export_signed_json(
     if period is None:
         raise ValueError(f"BillingPeriod {billing_period_id} not found")
 
+    filters: list[sa.ColumnElement[bool]] = [
+        ProviderCall.workspace_id == period.workspace_id,
+        func.date(ProviderCall.created_at) >= period.period_start,
+        func.date(ProviderCall.created_at) <= period.period_end,
+    ]
+    if access_group_id is not None:
+        await _validate_access_group_scope(db, period.workspace_id, access_group_id)
+        filters.append(_access_group_member_filter(access_group_id))
+    if api_key_id is not None:
+        await _validate_api_key_scope(db, period.workspace_id, api_key_id)
+        filters.append(ProviderCall.api_key_id == api_key_id)
+
     rows_result = await db.execute(
         select(
             func.date(ProviderCall.created_at).label("date"),
+            ProviderCall.api_key_id,
             ProviderCall.end_user_id,
             ProviderCall.model,
             ProviderCall.provider,
@@ -717,11 +852,7 @@ async def export_signed_json(
             ProviderCall.cost_usd,
             ProviderCall.run_id,
         )
-        .where(
-            ProviderCall.workspace_id == period.workspace_id,
-            func.date(ProviderCall.created_at) >= period.period_start,
-            func.date(ProviderCall.created_at) <= period.period_end,
-        )
+        .where(*filters)
         .order_by(func.date(ProviderCall.created_at))
     )
     rows = rows_result.all()
@@ -739,6 +870,7 @@ async def export_signed_json(
         "rows": [
             {
                 "date": str(row.date),
+                "api_key_id": str(row.api_key_id) if row.api_key_id is not None else None,
                 "end_user_id": row.end_user_id,
                 "model": row.model,
                 "provider": row.provider,

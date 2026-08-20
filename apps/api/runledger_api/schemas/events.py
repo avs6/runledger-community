@@ -14,6 +14,7 @@ class RunStartEvent(BaseModel):
     event_type: Literal["run_start"]
     run_id: uuid.UUID
     application_id: uuid.UUID | None = None
+    api_key_id: uuid.UUID | None = None
     end_user_id: str | None = None
     session_id: str | None = None
     feature_tag: str | None = None
@@ -57,6 +58,7 @@ class ProviderCallEvent(BaseModel):
     event_type: Literal["provider_call"]
     run_id: uuid.UUID
     span_id: uuid.UUID | None = None
+    api_key_id: uuid.UUID | None = None
     provider: str
     model: str
     input_tokens: int | None = None

@@ -19,7 +19,7 @@ export default function RunsExportButton() {
     setOpen(false)
 
     const exportParams = new URLSearchParams()
-    for (const key of ['status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost', 'max_cost']) {
+    for (const key of ['status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost', 'max_cost', 'access_group_id']) {
       const v = params.get(key)
       if (v) exportParams.set(key, v)
     }
@@ -44,7 +44,7 @@ export default function RunsExportButton() {
     setOpen(false)
 
     const exportParams = new URLSearchParams()
-    for (const key of ['status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost', 'max_cost']) {
+    for (const key of ['status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost', 'max_cost', 'access_group_id']) {
       const v = params.get(key)
       if (v) exportParams.set(key, v)
     }
@@ -77,7 +77,7 @@ export default function RunsExportButton() {
     for (const [key, label] of [
       ['status', 'Status'], ['model', 'Model'],
       ['feature_tag', 'Tag'], ['end_user_id', 'User'],
-      ['search', 'Run ID'], ['min_cost', 'Min $'], ['max_cost', 'Max $'],
+      ['search', 'Run ID'], ['min_cost', 'Min $'], ['max_cost', 'Max $'], ['access_group_id', 'Access group'],
     ] as [string, string][]) {
       const v = params.get(key)
       if (v) filterParts.push(`${label}: ${v}`)

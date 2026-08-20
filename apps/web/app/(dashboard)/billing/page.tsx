@@ -7,7 +7,7 @@ import BillingWorkspaceClient from '@/components/billing/BillingWorkspaceClient'
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams?: { tab?: string; months?: string }
+  searchParams?: { tab?: string; months?: string; access_group_id?: string }
 }) {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
@@ -20,9 +20,10 @@ export default async function BillingPage({
   const summaryMonths = [3, 6, 12].includes(Number(searchParams?.months))
     ? Number(searchParams?.months)
     : 6
+  const accessGroupId = searchParams?.access_group_id
 
   const [periods, summary] = await Promise.all([
-    getBillingPeriods(session.apiKey),
+    getBillingPeriods(session.apiKey, { access_group_id: accessGroupId }),
     getBillingSummary(session.apiKey, summaryMonths).catch(() => ({ workspace_id: '', periods: [] })),
   ])
 
@@ -41,6 +42,7 @@ export default async function BillingPage({
         summary={summary}
         initialTab={tab}
         initialMonths={summaryMonths}
+        accessGroupId={accessGroupId}
       />
     </div>
   )

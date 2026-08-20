@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## Purpose
 
@@ -18,12 +18,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Self | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|---------|------------|------------|-----------|-----------|----------|-------------|
-| **A** — Org Foundation | Organization profile, Org settings | P:9 | P:4 | P:17 | P:8 | G:1 P:7 | P:14 | P:1 |
-| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:24 | P:13 | G:4 P:38 | P:32 | G:9 P:14 | P:44 | P:8 |
+| **A** — Org Foundation | Organization profile, Org settings | P:9 | P:4 | P:17 | P:8 | — | P:14 | P:1 |
+| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:24 | P:13 | P:38 | P:32 | G:5 P:14 | P:44 | P:8 |
 | **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:16 | P:9 | P:20 | P:24 | P:8 | P:39 | P:6 |
 | **D** — Capability Catalog | AI hub, Projects, Team models | P:5 | P:1 | P:8 | P:7 | G:1 P:4 | P:14 | P:2 |
 
-**Hot spots**: 01-B x 05 has **9 GAPs** (access groups and API keys not yet first-class budget scopes). 01-B x 03 has **4 GAPs** (access-group scope missing in observability investigation).
+**Hot spots**: 01-A x 05 is now closed after Organization Console gained a real FinOps posture rollup and handoff path. 01-B x 05 is no longer dominated by scope ownership gaps now that both access groups and API keys land as real budget, billing, and chargeback owners; the remaining pressure in 01-B is broader identity drill-through outside those completed scope paths.
 
 ---
 
@@ -44,11 +44,11 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 | Bundle | Features | 01-Org | 02-Gateway | 03-Self | 04-Safety | 05-FinOps |
 |--------|----------|--------|------------|---------|-----------|-----------|
 | **A** — Overview & Entry | Analytics overview + dashboards | P:7 | P:3 | P:3 | P:5 | G:1 P:7 |
-| **B** — Investigation | Runs, Sessions, Request flow/explorer | G:4 P:20 | P:16 | P:7 | P:28 | G:2 P:22 |
+| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:24 | P:16 | P:7 | P:28 | G:2 P:22 |
 | **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:7 | P:5 | P:12 | P:1 | G:1 P:16 |
 | **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | P:7 | P:5 | P:8 | P:10 | P:6 |
 
-**Hot spots**: 03-B x 01 has **4 GAPs** (access-group scope missing across investigation surfaces). 03-B x 05 has **2 GAPs** (request flow/explorer missing budget detail bridges). 03-C x 05 has **1 GAP** (model usage missing budget detail bridge).
+**Hot spots**: 03-B x 01 no longer carries access-group investigation GAPs now that the core Observe chain supports scoped drill-through. 03-B x 05 still has **2 GAPs** (request flow/explorer missing budget detail bridges). 03-C x 05 has **1 GAP** (model usage missing budget detail bridge).
 
 ---
 
@@ -69,12 +69,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-Self | 06-Build | 07-Platform |
 |--------|----------|--------|------------|------------|-----------|---------|----------|-------------|
-| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:9 P:7 | G:6 P:5 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
-| **B** — Billing & Recon | Billing periods, Billing period detail | G:2 P:9 | P:8 | P:30 | P:10 | P:12 | P:26 | P:4 |
-| **C** — Attribution | Chargeback | P:5 | P:3 | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
-| **D** — Compliance | Ledger | P:3 | — | P:5 | P:2 | G:1 P:6 | — | P:1 |
+| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:5 | G:6 P:5 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
+| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:8 | P:8 | P:30 | P:10 | P:12 | P:26 | P:4 |
+| **C** — Attribution | Chargeback | P:4 | P:3 | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
+| **D** — Compliance | Ledger | P:2 | — | P:5 | P:2 | G:1 P:6 | — | P:1 |
 
-**Hot spots**: 05-A is the most GAP-heavy bundle in the entire product — **49 total GAPs** across all major features. Budget detail is the single biggest cohesion blocker. 05-B x 01 has **2 GAPs** (billing periods missing access-group scope).
+**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but the org-profile handoff closed one of its long-standing Bundle A gaps. Budget detail remains the single biggest cohesion blocker. 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
 
 ---
 
@@ -121,8 +121,8 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 | A | Org settings | `LEGACY` | `LEGACY` | `NO` | `RE-AUDIT REQUIRED` |
 | B | Users | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
 | B | Workspaces | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Access groups | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | API keys | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
+| B | Access groups | `OK` | `OK` | `OK` | `RE-AUDITED: PARTIAL` |
+| B | API keys | `OK` | `OK` | `OK` | `RE-AUDITED: PARTIAL` |
 | C | Onboarding | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
 | C | Integrations | `LEGACY` | `LEGACY` | `OK` | `RE-AUDIT REQUIRED` |
 | C | Telemetry | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
@@ -251,22 +251,21 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 
 | Rank | Bundle | Total GAPs | Worst Relationship | Root Cause |
 |------|--------|------------|--------------------|-----------| 
-| 1 | **05-A** Budget Control | **49** | 05-A x 06-Build (12G) | Budget detail page is the single biggest cohesion blocker across the entire product |
-| 2 | **01-B** Identity & Scope | **13** | 01-B x 05-FinOps (9G) | Access groups and API keys not yet first-class budget/billing scopes |
-| 3 | **03-B** Investigation | **6** | 03-B x 01-Org (4G) | Access-group scope missing across investigation surfaces |
-| 4 | **05-B** Billing & Recon | **2** | 05-B x 01-Org (2G) | Billing periods missing access-group/API-key scope |
-| 5 | **04-B** Exception Workflows | **2** | 04-B x 05-FinOps (2G) | Approvals disconnected from budget overrides |
-| 6 | **02-C** Performance Controls | **2** | 02-C x 05-FinOps (2G) | Cache/rate-limit detail missing FinOps bridges |
+| 1 | **05-A** Budget Control | **48** | 05-A x 06-Build (12G) | Budget detail page is the single biggest cohesion blocker across the entire product |
+| 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys now propagate through FinOps and Observe, but broader identity drill-through remains partial |
+| 3 | **03-B** Investigation | **2** | 03-B x 05-FinOps (2G) | Investigation still needs deeper budget-detail bridges beyond the new access-group scope support |
+| 4 | **04-B** Exception Workflows | **2** | 04-B x 05-FinOps (2G) | Approvals disconnected from budget overrides |
+| 5 | **02-C** Performance Controls | **2** | 02-C x 05-FinOps (2G) | Cache/rate-limit detail missing FinOps bridges |
+| 6 | **05-B** Billing & Recon | **1** | 05-B x 01-Org (1G) | Remaining org and user billing ownership bridges are still uneven |
 | 7 | **05-C** Attribution | **1** | 05-C x 05-Self (1G) | Chargeback internal cohesion gap with budget detail |
 | 8 | **05-D** Compliance | **1** | 05-D x 05-Self (1G) | Ledger internal cohesion gap with budget detail |
-| 9 | **01-A** Org Foundation | **1** | 01-A x 05-FinOps (1G) | Org profile missing budget detail bridge |
-| 10 | **01-D** Capability Catalog | **1** | 01-D x 05-FinOps (1G) | AI hub missing budget detail bridge |
-| 11 | **02-A** Provider & Routing | **1** | 02-A x 05-FinOps (1G) | Provider profiles missing budget override bridge |
-| 12 | **03-A** Overview & Entry | **1** | 03-A x 05-FinOps (1G) | Analytics overview missing budget detail bridge |
-| 13 | **03-C** Economics & Intel | **1** | 03-C x 05-FinOps (1G) | Model usage missing budget detail bridge |
-| 14 | **04-A** Tool Governance | **1** | 04-A x 05-FinOps (1G) | Tool registry missing budget detail bridge |
-| 15 | **04-C** Data & Security | **1** | 04-C x 05-FinOps (1G) | Tags missing budget detail bridge |
-| 16 | **07-A** Platform Lifecycle | **0** | — | — |
+| 9 | **01-D** Capability Catalog | **1** | 01-D x 05-FinOps (1G) | AI hub missing budget detail bridge |
+| 10 | **02-A** Provider & Routing | **1** | 02-A x 05-FinOps (1G) | Provider profiles missing budget override bridge |
+| 11 | **03-A** Overview & Entry | **1** | 03-A x 05-FinOps (1G) | Analytics overview missing budget detail bridge |
+| 12 | **03-C** Economics & Intel | **1** | 03-C x 05-FinOps (1G) | Model usage missing budget detail bridge |
+| 13 | **04-A** Tool Governance | **1** | 04-A x 05-FinOps (1G) | Tool registry missing budget detail bridge |
+| 14 | **04-C** Data & Security | **1** | 04-C x 05-FinOps (1G) | Tags missing budget detail bridge |
+| 15 | **07-A** Platform Lifecycle | **0** | — | — |
 
 **Pattern**: Budget detail (05-A) is the root cause behind **most GAPs across the entire product**. Fixing budget detail unlocks cohesion improvements in 6 of the other 7 major features.
 
@@ -280,9 +279,9 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 |----|--------------|--------|-----------------|--------|--------|
 | WU-001 | 01-ORG-AND-ACCESS | Access groups × FinOps scoping | 05-FINOPS | NOT_STARTED | 01-B |
 | WU-002 | 01-ORG-AND-ACCESS | API keys × budget ownership | 05-FINOPS | NOT_STARTED | 01-B |
-| WU-003 | 01-ORG-AND-ACCESS | Access groups × Observe investigation | 03-OBSERVE | NOT_STARTED | 01-B |
-| WU-004 | 01-ORG-AND-ACCESS | Org profile × FinOps rollup | 05-FINOPS | NOT_STARTED | 01-A |
-| WU-005 | 01-ORG-AND-ACCESS | Users × FinOps attribution | 05-FINOPS | NOT_STARTED | 01-B |
+| WU-003 | 01-ORG-AND-ACCESS | Access groups × Observe investigation | 03-OBSERVE | COMPLETED | 01-B |
+| WU-004 | 01-ORG-AND-ACCESS | Org profile × FinOps rollup | 05-FINOPS | COMPLETED | 01-A |
+| WU-005 | 01-ORG-AND-ACCESS | Users × FinOps attribution | 05-FINOPS | COMPLETED | 01-B |
 | WU-006 | 01-ORG-AND-ACCESS | Identity & scope × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | NOT_STARTED | 01-B |
 | WU-007 | 01-ORG-AND-ACCESS | Identity & scope × Build & Improve | 06-BUILD-AND-IMPROVE | NOT_STARTED | 01-B |
 | WU-008 | 01-ORG-AND-ACCESS | Org profile × Observe & Gateway rollups | 03-OBSERVE, 02-GATEWAY | NOT_STARTED | 01-A |

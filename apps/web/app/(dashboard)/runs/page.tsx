@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getRuns } from '@/lib/api'
+import { getAccessGroupDashboard, getRuns } from '@/lib/api'
 import RunsTable from '@/components/runs/RunsTable'
 import RunFilters from '@/components/runs/RunFilters'
 import RunsExportButton from '@/components/runs/RunsExportButton'
@@ -24,6 +24,7 @@ interface PageProps {
     model?: string
     min_cost?: string
     max_cost?: string
+    access_group_id?: string
   }
 }
 
@@ -124,6 +125,11 @@ async function RunsContent({ searchParams }: PageProps) {
   if (!session) return null
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3_600_000).toISOString()
+  const accessGroupId = searchParams.access_group_id
+  const accessGroupDashboard = accessGroupId
+    ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
+    : null
+  const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
   const data = await getRuns(session.apiKey, {
     limit: 50,
@@ -137,6 +143,7 @@ async function RunsContent({ searchParams }: PageProps) {
     model: searchParams.model,
     min_cost: searchParams.min_cost,
     max_cost: searchParams.max_cost,
+    access_group_id: accessGroupId,
   })
 
   const nextHref = data.next_cursor
@@ -153,6 +160,11 @@ async function RunsContent({ searchParams }: PageProps) {
 
   return (
     <>
+      {accessGroup && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+          Runs are filtered to the <span className="font-semibold">{accessGroup.name}</span> access group using its scoped observability profile.
+        </div>
+      )}
       <RunsOverview items={data.items} total={data.total} />
       <RunsTable items={data.items} />
       {nextHref && (
@@ -176,7 +188,7 @@ export default function RunsPage({ searchParams }: PageProps) {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
-            <Link href="/request-explorer">Request Explorer</Link>
+            <Link href={searchParams.access_group_id ? `/request-explorer?access_group_id=${encodeURIComponent(searchParams.access_group_id)}` : '/request-explorer'}>Request Explorer</Link>
           </Button>
           <Suspense fallback={null}>
             <RunsExportButton />

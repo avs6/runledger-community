@@ -1,14 +1,14 @@
 ---
 title: "Chargeback & Showback Reports"
-description: "Workspace-scoped finance-ready allocation reports across workflow tags, applications, end users, providers, models, and intent with CSV/JSON export and budget variance."
+description: "Workspace-scoped finance-ready allocation reports across workflow tags, access groups, applications, end users, providers, models, and intent with CSV/JSON export and budget variance."
 ---
 
-Chargeback turns raw AI spend into finance-ready monthly allocation reports that stay aligned to RunLedger's real operating primitives: workspaces, workflow tags, applications, end users, providers, models, and intent. Export as CSV or JSON, review unallocated buckets, and compare actual spend against budgets where budget scope already aligns.
+Chargeback turns raw AI spend into finance-ready monthly allocation reports that stay aligned to RunLedger's real operating primitives: workspaces, access groups, workflow tags, applications, end users, providers, models, and intent. Export as CSV or JSON, review unallocated buckets, and compare actual spend against budgets where budget scope already aligns.
 
 ## Key features
 
 - **Monthly reports** - generate reports for any past month.
-- **Modern attribution dimensions** - workspace, workflow tag, application, end user, provider, model, and intent.
+- **Modern attribution dimensions** - workspace, access group, workflow tag, application, end user, provider, model, and intent.
 - **Rule CRUD** - create, list, edit, and delete chargeback rules directly from the product.
 - **Variance vs budget** - line items show actual spend, budgeted amount, and variance when the current budget scope supports it.
 - **Unallocated visibility** - unmatched or incomplete attribution stays visible instead of silently disappearing.
@@ -18,7 +18,7 @@ Chargeback turns raw AI spend into finance-ready monthly allocation reports that
 
 | Field | Description |
 |---|---|
-| Dimension label | The entity being charged (workflow tag, application, user, provider, model, intent, or workspace) |
+| Dimension label | The entity being charged (access group, workflow tag, application, user, provider, model, intent, or workspace) |
 | Total cost | Actual spend for the period |
 | Call count | Number of provider calls attributed to the line |
 | Run count | Number of runs contributing to the line |
@@ -33,14 +33,14 @@ Chargeback turns raw AI spend into finance-ready monthly allocation reports that
 2. Create or edit one or more chargeback rules.
 3. Choose a period and attribution dimension.
 4. Review summary cards for total cost, budget-covered cost, and unallocated cost.
-5. Inspect the allocations table for workflow-tag, application, user, model, or provider rows.
+5. Inspect the allocations table for access-group, workflow-tag, application, user, model, or provider rows.
 6. Export CSV or JSON for finance review.
 
 ## Cohesion notes
 
-- Chargeback is intentionally **workspace-scoped** today.
-- The strongest current attribution path is through **workflow tags**, applications, end users, providers, and models already present on run/provider-call data.
-- Deeper **access-group** and **API-key-native** allocation is a later FinOps deepening pass, not a reason to reopen legacy team or project concepts.
+- Chargeback is intentionally **workspace-scoped** today, but one supported report dimension is now **access_group**.
+- Access-group attribution is derived from access-group membership joined to provider-call `end_user_id`, so caller identity quality still matters.
+- **API-key-native** allocation is still a later FinOps deepening pass, not a reason to reopen legacy team or project concepts.
 
 ## Related
 

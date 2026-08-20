@@ -24,13 +24,14 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import case, func, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_user, get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.annotations import Annotation
+from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall, Span, ToolCall
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.replay import UserAnomaly
@@ -122,6 +123,67 @@ def _parse_dt(value: str | None, default: datetime) -> datetime:
     if not value:
         return default
     return datetime.fromisoformat(value)
+
+
+async def _resolve_access_group_observe_filters(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    access_group_id: uuid.UUID,
+) -> dict[str, list[str]]:
+    group = (
+        await db.execute(
+            select(AccessGroup).where(
+                AccessGroup.id == access_group_id,
+                AccessGroup.workspace_id == workspace_id,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if group is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Access group not found")
+
+    dashboard_filters = (group.permissions or {}).get("dashboard_filters", {})
+    if not isinstance(dashboard_filters, dict):
+        dashboard_filters = {}
+
+    def _values(keys: list[str]) -> list[str]:
+        collected: list[str] = []
+        for key in keys:
+            raw = dashboard_filters.get(key)
+            if isinstance(raw, str) and raw.strip():
+                collected.append(raw.strip())
+            elif isinstance(raw, list):
+                for item in raw:
+                    if isinstance(item, str) and item.strip():
+                        collected.append(item.strip())
+        return collected
+
+    member_rows = (
+        await db.execute(
+            select(AccessGroupMember.user_id).where(AccessGroupMember.group_id == access_group_id)
+        )
+    ).scalars()
+
+    end_user_ids = [str(user_id) for user_id in member_rows]
+    end_user_ids.extend(_values(["end_user_id", "end_user_ids", "user_id", "user_ids"]))
+
+    def _unique(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            ordered.append(value)
+        return ordered
+
+    return {
+        "end_user_ids": _unique(end_user_ids),
+        "feature_tags": _unique(_values(["feature_tag", "feature_tags", "intent", "intents"])),
+        "models": _unique(_values(["model", "models"])),
+        "providers": _unique(_values(["provider", "providers"])),
+        "statuses": _unique(_values(["status", "statuses"])),
+    }
 
 
 # ── /analytics/summary ────────────────────────────────────────────────────────
@@ -1509,12 +1571,23 @@ async def scoped_summary(
     scope: Annotated[str, Query(pattern="^(workspace|org|platform)$")] = "workspace",
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> ScopedSummary:
     """Summary with workspace/org/platform scope, including savings, intents, and top models."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
+    if access_group_id is not None and scope != "workspace":
+        raise HTTPException(
+            http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "access_group_id is only supported for workspace scope",
+        )
     ws_ids = await _resolve_scoped_workspace_ids(scope, workspace, user, db)
     duration = t_to - t_from
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
 
     base_filter = [
         ProviderCall.workspace_id.in_(ws_ids),
@@ -1522,6 +1595,15 @@ async def scoped_summary(
         ProviderCall.created_at < t_to,
         ProviderCall.status == "success",
     ]
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            base_filter.append(ProviderCall.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["models"]:
+            base_filter.append(ProviderCall.model.in_(access_group_filters["models"]))
+        if access_group_filters["providers"]:
+            base_filter.append(ProviderCall.provider.in_(access_group_filters["providers"]))
+        if access_group_filters["statuses"]:
+            base_filter.append(ProviderCall.status.in_(access_group_filters["statuses"]))
 
     agg = await db.execute(
         select(
@@ -1569,6 +1651,58 @@ async def scoped_summary(
             .limit(10)
         )
     ).all()
+    if access_group_filters:
+        # Re-run the intent query with access-group-aware run filters.
+        intent_query = select(
+            AgentRun.intent,
+            func.count(AgentRun.id).label("cnt"),
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost"),
+        ).where(
+            AgentRun.workspace_id.in_(ws_ids),
+            AgentRun.started_at >= t_from,
+            AgentRun.started_at < t_to,
+            AgentRun.intent.isnot(None),
+        )
+        if access_group_filters["end_user_ids"]:
+            intent_query = intent_query.where(
+                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
+            )
+        if access_group_filters["feature_tags"]:
+            intent_query = intent_query.where(
+                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
+            )
+        if access_group_filters["statuses"]:
+            intent_query = intent_query.where(AgentRun.status.in_(access_group_filters["statuses"]))
+        if access_group_filters["models"]:
+            intent_query = intent_query.where(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.model.in_(access_group_filters["models"]),
+                    )
+                    .distinct()
+                )
+            )
+        if access_group_filters["providers"]:
+            intent_query = intent_query.where(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.provider.in_(access_group_filters["providers"]),
+                    )
+                    .distinct()
+                )
+            )
+        intent_rows = (
+            await db.execute(
+                intent_query
+                .group_by(AgentRun.intent)
+                .order_by(func.count(AgentRun.id).desc())
+                .limit(10)
+            )
+        ).all()
 
     model_rows = (
         await db.execute(
@@ -1938,18 +2072,33 @@ async def request_explorer(
     intent: Annotated[str | None, Query()] = None,
     end_user_id: Annotated[str | None, Query()] = None,
     optimization: Annotated[str | None, Query()] = None,
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> RequestExplorerResponse:
     """Paginated request explorer with filtering by run, user, status, model, provider, intent, and optimization."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
 
     filters = [
         ProviderCall.workspace_id == workspace.id,
         ProviderCall.created_at >= t_from,
         ProviderCall.created_at < t_to,
     ]
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            filters.append(ProviderCall.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["models"]:
+            filters.append(ProviderCall.model.in_(access_group_filters["models"]))
+        if access_group_filters["providers"]:
+            filters.append(ProviderCall.provider.in_(access_group_filters["providers"]))
+        if access_group_filters["statuses"]:
+            filters.append(ProviderCall.status.in_(access_group_filters["statuses"]))
     if model:
         filters.append(ProviderCall.model == model)
     if provider:
@@ -1985,6 +2134,8 @@ async def request_explorer(
     )
     if intent:
         query = query.where(AgentRun.intent == intent)
+    if access_group_filters and access_group_filters["feature_tags"]:
+        query = query.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
     if q:
         q_like = f"%{q.strip()}%"
         if q.strip():

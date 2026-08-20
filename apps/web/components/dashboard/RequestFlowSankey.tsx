@@ -552,7 +552,12 @@ function truncate(label: string, max = 24) {
   return label.length > max ? `${label.slice(0, max - 1)}...` : label
 }
 
-function requestExplorerHref(link: FlowLink, enrichedRuns: EnrichedRun[], scope: RequestFlowScope) {
+function requestExplorerHref(
+  link: FlowLink,
+  enrichedRuns: EnrichedRun[],
+  scope: RequestFlowScope,
+  accessGroupId?: string
+) {
   const linkRunIds = link.runIds
   const matchingRuns = enrichedRuns.filter((item) => linkRunIds.has(item.run.id))
   const params = new URLSearchParams()
@@ -571,6 +576,7 @@ function requestExplorerHref(link: FlowLink, enrichedRuns: EnrichedRun[], scope:
   if (status) params.set('status', status)
   if (user) params.set('end_user_id', user)
   if (workspace && scope !== 'workspace') params.set('workspace_id', workspace)
+  if (accessGroupId) params.set('access_group_id', accessGroupId)
   if (!params.toString() && matchingRuns[0]) params.set('run_id', matchingRuns[0].run.id)
   return `/request-explorer${params.toString() ? `?${params.toString()}` : ''}`
 }
@@ -581,6 +587,7 @@ type FlowViewOptions = {
   topN?: number
   zoom?: number
   collapseSmall?: boolean
+  accessGroupId?: string
 }
 
 function pageHref(mode: RequestFlowMode, metric: RequestFlowMetric, scope: RequestFlowScope, options: FlowViewOptions = {}) {
@@ -593,6 +600,7 @@ function pageHref(mode: RequestFlowMode, metric: RequestFlowMetric, scope: Reque
   if (options.topN) params.set('top', String(options.topN))
   if (options.zoom && options.zoom !== 1) params.set('zoom', options.zoom.toFixed(2).replace(/\.?0+$/, ''))
   if (options.collapseSmall === false) params.set('collapse', '0')
+  if (options.accessGroupId) params.set('access_group_id', options.accessGroupId)
   return `${options.basePath ?? '/request-flow'}?${params.toString()}`
 }
 
@@ -831,6 +839,7 @@ export default function RequestFlowSankey({
   collapseSmall = true,
   focus = false,
   basePath = '/request-flow',
+  accessGroupId,
 }: {
   flow?: RunFlowResponse | null
   runs?: RunListItem[]
@@ -846,6 +855,7 @@ export default function RequestFlowSankey({
   collapseSmall?: boolean
   focus?: boolean
   basePath?: string
+  accessGroupId?: string
 }) {
   const sample = flow ? flow.items : (runs ?? []).slice(0, 200)
   const enrichedRuns = flow
@@ -861,6 +871,7 @@ export default function RequestFlowSankey({
     topN: normalizedTopN,
     zoom: normalizedZoom,
     collapseSmall,
+    accessGroupId,
   }
 
   if (sample.length === 0) {
@@ -937,7 +948,7 @@ export default function RequestFlowSankey({
                 {scope} scope / {flow?.workspace_count ?? 1} workspace{(flow?.workspace_count ?? 1) === 1 ? '' : 's'}
               </span>
               <Link
-                href="/request-explorer"
+                href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
               >
                 Request Explorer <ArrowRight className="h-3.5 w-3.5" />
@@ -1103,7 +1114,7 @@ export default function RequestFlowSankey({
               const color = target.color
               const d = `M ${source.x + densityConfig.nodeWidth} ${source.y} C ${source.x + densityConfig.nodeWidth + 90} ${source.y}, ${target.x - 90} ${target.y}, ${target.x} ${target.y}`
               return (
-                <a key={`${link.source}-${link.target}-${index}`} href={requestExplorerHref(link, enrichedRuns, scope)}>
+                <a key={`${link.source}-${link.target}-${index}`} href={requestExplorerHref(link, enrichedRuns, scope, accessGroupId)}>
                   <path
                     d={d}
                     fill="none"

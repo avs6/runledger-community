@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 import structlog
 from redis.asyncio import Redis
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
@@ -28,7 +28,10 @@ from runledger_api.models.budgets import (
     BudgetNotification,
     BudgetNotificationDelivery,
 )
-from runledger_api.schemas.budgets import BudgetCheckResponse
+from runledger_api.models import ProviderCall, AgentRun
+from runledger_api.models.access_groups import AccessGroupMember
+from runledger_api.models.tenant import ApiKey
+from runledger_api.schemas.budgets import BudgetCheckResponse, BudgetUserBreakdownEntry
 from runledger_api.services import kafka_export
 
 log = structlog.get_logger()
@@ -156,6 +159,86 @@ async def invalidate_workspace_budgets_cache(
     """Delete the workspace budget cache key (called on create/delete)."""
     cache_key = _workspace_budgets_cache_key(workspace_id)
     await redis.delete(cache_key)
+
+
+# ── Budget breakdown ─────────────────────────────────────────────────────────
+
+async def get_budget_breakdown(
+    budget: Budget,
+    workspace: Workspace,
+    db: AsyncSession,
+    end_user_id: str | None = None,
+) -> list[BudgetUserBreakdownEntry]:
+    """Return spend breakdown by end user for a budget."""
+    import calendar
+    from datetime import datetime
+    import sqlalchemy as sa
+
+    now = datetime.now(UTC)
+    if budget.period_type == "daily":
+        period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        period_end = now
+    elif budget.period_type == "monthly":
+        period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        period_end = now.replace(day=last_day, hour=23, minute=59, second=59, microsecond=999999)
+    else:
+        period_start = datetime.min.replace(tzinfo=UTC)
+        period_end = now
+
+    filters: list[sa.ColumnElement[bool]] = [
+        ProviderCall.workspace_id == workspace.id,
+        func.date(ProviderCall.created_at) >= period_start.date(),
+        func.date(ProviderCall.created_at) <= period_end.date(),
+        ProviderCall.status == "success",
+    ]
+
+    if budget.scope_type == "end_user" and budget.scope_id:
+        filters.append(ProviderCall.end_user_id == budget.scope_id)
+    elif budget.scope_type == "access_group" and budget.scope_id:
+        member_ids = select(sa.cast(AccessGroupMember.user_id, sa.String)).where(
+            AccessGroupMember.group_id == uuid.UUID(budget.scope_id)
+        )
+        filters.append(ProviderCall.end_user_id.in_(member_ids))
+    elif budget.scope_type == "api_key" and budget.scope_id:
+        filters.append(ProviderCall.api_key_id == uuid.UUID(budget.scope_id))
+    elif budget.scope_type == "feature_tag" and budget.scope_id:
+        filters.append(AgentRun.feature_tag == budget.scope_id)
+    elif budget.scope_type == "app" and budget.scope_id:
+        filters.append(AgentRun.application_id == uuid.UUID(budget.scope_id))
+
+    if end_user_id is not None:
+        filters.append(ProviderCall.end_user_id == end_user_id)
+
+    rows_result = await db.execute(
+        select(
+            ProviderCall.end_user_id,
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost_usd"),
+            func.count(ProviderCall.id).label("call_count"),
+            func.count(func.distinct(ProviderCall.run_id)).label("run_count"),
+        )
+        .join(AgentRun, ProviderCall.run_id == AgentRun.id)
+        .where(*filters)
+        .group_by(ProviderCall.end_user_id)
+        .order_by(func.sum(ProviderCall.cost_usd).desc())
+    )
+
+    rows = rows_result.all()
+    total_cost = sum((row.cost_usd or Decimal(0) for row in rows), Decimal(0))
+
+    breakdown: list[BudgetUserBreakdownEntry] = []
+    for row in rows:
+        if row.end_user_id is not None:
+            pct = (row.cost_usd / total_cost * Decimal(100)) if total_cost > 0 else Decimal(0)
+            breakdown.append(BudgetUserBreakdownEntry(
+                end_user_id=row.end_user_id,
+                cost_usd=row.cost_usd,
+                run_count=int(row.run_count or 0),
+                call_count=int(row.call_count or 0),
+                pct_of_total=pct.quantize(Decimal("0.01")),
+            ))
+
+    return breakdown
 
 
 # ── Scope matching ────────────────────────────────────────────────────────────

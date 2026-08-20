@@ -1,8 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Building2, FolderOpen, Users, Plus, Trash2, Shield, UserPlus, X, Check, Pencil } from 'lucide-react'
+import { Building2, Check, FileCheck, FileSpreadsheet, FolderOpen, Pencil, Plus, Receipt, Shield, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react'
+import { getOrgFinance } from '@/lib/api'
+import type { OrgFinanceSummary } from '@/types/api'
 
 interface OrgProfile {
   id: string
@@ -58,11 +61,27 @@ const ORG_ROLE_LABELS: Record<string, string> = {
   org_auditor: 'Auditor',
 }
 
+function formatMoney(value: string | number | null | undefined) {
+  const numeric = Number(value ?? 0)
+  return `$${numeric.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function statusTone(status: string) {
+  if (status === 'ready') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+  if (status === 'partial') return 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+  if (status === 'at_risk' || status === 'missing') return 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+}
+
 export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: string }) {
   // ── Profile ──────────────────────────────────────────────────────────────────
   const [profile, setProfile] = useState<OrgProfile | null>(null)
   const [editName, setEditName] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [finance, setFinance] = useState<OrgFinanceSummary | null>(null)
 
   // ── Workspaces ───────────────────────────────────────────────────────────────
   const [workspaces, setWorkspaces] = useState<OrgWorkspace[]>([])
@@ -82,10 +101,11 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [profileRes, wsRes, membersRes] = await Promise.all([
+      const [profileRes, wsRes, membersRes, financeRes] = await Promise.all([
         fetch(`${apiBase}/org/profile`, { headers }),
         fetch(`${apiBase}/org/workspaces`, { headers }),
         fetch(`${apiBase}/org/members`, { headers }),
+        getOrgFinance(apiKey).catch(() => null),
       ])
       if (profileRes.ok) {
         const p = await profileRes.json()
@@ -94,6 +114,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
       }
       if (wsRes.ok) setWorkspaces(await wsRes.json())
       if (membersRes.ok) setMembers(await membersRes.json())
+      setFinance(financeRes)
     } catch {
       toast.error('Failed to load organization data')
     }
@@ -321,6 +342,135 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
               {savingProfile ? 'Saving…' : 'Save'}
             </button>
           </form>
+        </div>
+      </section>
+
+      {/* ── Financial Posture ───────────────────────────────────────────────────── */}
+      <section>
+        <div className="mb-4 flex items-center gap-2">
+          <Wallet className="h-5 w-5 text-indigo-500" />
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Financial Posture</h2>
+          <span className="ml-auto text-xs text-gray-400">Read-only org rollup</span>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Use the org console to review cross-workspace finance posture, then jump into the owning FinOps surfaces to act. Budgets, billing, chargeback, and compliance stay owned by their dedicated workflows.
+          </p>
+
+          {finance ? (
+            <>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">30d spend</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{formatMoney(finance.org_spend_30d_usd)}</div>
+                  <div className="mt-1 text-xs text-slate-500">Across {finance.workspaces.length} workspaces</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Budgets</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{finance.active_budget_count}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {finance.active_override_count} overrides, {finance.active_notification_count} notification channels
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Billing</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{finance.overdue_billing_period_count}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    overdue periods, {finance.open_billing_period_count} open and {finance.closed_billing_period_count} closed
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Chargeback</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{finance.chargeback_ready_workspace_count}/{finance.workspaces.length}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    workspaces ready, {finance.chargeback_rule_count} active rules
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Ledger readiness</div>
+                  <div className="mt-2">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(finance.ledger_readiness_status)}`}>
+                      {finance.ledger_readiness_status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    {finance.ledger_ready_workspace_count} ready, {finance.ledger_partial_workspace_count} partial, {finance.ledger_at_risk_workspace_count} at risk
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Link href="/budgets?tab=policies" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Wallet className="h-4 w-4 text-blue-600" />Budgets</div>
+                  <p className="mt-1 text-xs text-slate-500">Policy list, budget detail, overrides, and notifications stay owned here.</p>
+                </Link>
+                <Link href="/billing" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileSpreadsheet className="h-4 w-4 text-blue-600" />Billing</div>
+                  <p className="mt-1 text-xs text-slate-500">Review periods, reconciliation posture, breakdowns, and finance exports.</p>
+                </Link>
+                <Link href="/chargeback?dimension=workspace" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Receipt className="h-4 w-4 text-blue-600" />Chargeback</div>
+                  <p className="mt-1 text-xs text-slate-500">Confirm allocation coverage and workflow ownership evidence.</p>
+                </Link>
+                <Link href="/settings?tab=compliance" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileCheck className="h-4 w-4 text-blue-600" />Compliance</div>
+                  <p className="mt-1 text-xs text-slate-500">Ledger readiness remains platform-owned and lives under compliance settings.</p>
+                </Link>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">Workspace</th>
+                      <th className="px-4 py-2 text-left font-medium">30d spend</th>
+                      <th className="px-4 py-2 text-left font-medium">Budgets</th>
+                      <th className="px-4 py-2 text-left font-medium">Billing</th>
+                      <th className="px-4 py-2 text-left font-medium">Chargeback</th>
+                      <th className="px-4 py-2 text-left font-medium">Ledger</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {finance.workspaces.map((workspace) => (
+                      <tr key={workspace.workspace_id} className="bg-white dark:bg-gray-900">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-slate-900 dark:text-white">{workspace.workspace_name}</div>
+                          <div className="text-xs text-slate-500">{workspace.chargeback_rule_count} chargeback rules</div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{formatMoney(workspace.spend_30d_usd)}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          <div>{workspace.active_budget_count} active budgets</div>
+                          <div>{workspace.active_override_count} overrides, {workspace.active_notification_count} notifications</div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          <div>{workspace.overdue_billing_periods} overdue</div>
+                          <div>{workspace.open_billing_periods} open, {workspace.closed_billing_periods} closed</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone(workspace.chargeback_status)}`}>
+                            {workspace.chargeback_status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone(workspace.ledger_readiness_status)}`}>
+                              {workspace.ledger_readiness_status.replace('_', ' ')}
+                            </span>
+                            <span className="text-xs text-slate-500">score {workspace.ledger_evidence_score}/5</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              Financial posture data is unavailable right now.
+            </div>
+          )}
         </div>
       </section>
 

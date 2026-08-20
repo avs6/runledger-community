@@ -74,10 +74,12 @@ from runledger_api.schemas.budgets import (
     NotificationUpdate,
 )
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.schemas.budgets import BudgetUserBreakdownEntry
 from runledger_api.services.budgets import (
     build_delivery_record,
     check_budgets,
     get_budget_spend,
+    get_budget_breakdown as _svc_get_budget_breakdown,
     invalidate_workspace_budgets_cache,
     send_notification,
 )
@@ -94,6 +96,7 @@ def _budget_response(
     *,
     current_spend_usd: Decimal,
     scope_display_name: str | None = None,
+    breakdown: list[dict] | None = None,
 ) -> BudgetResponse:
     pct = (
         (current_spend_usd / budget.limit_usd * 100)
@@ -113,6 +116,7 @@ def _budget_response(
         created_at=budget.created_at,
         current_spend_usd=current_spend_usd,
         pct_used=pct,
+        breakdown=breakdown,
     )
 
 
@@ -504,6 +508,8 @@ async def list_budgets(
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
     include_inactive: Annotated[bool, Query()] = False,
+    scope_type: Annotated[str | None, Query()] = None,
+    scope_id: Annotated[str | None, Query()] = None,
 ) -> BudgetList:
     """List budgets with current period spend from Redis."""
     from decimal import Decimal  # noqa: PLC0415
@@ -511,6 +517,10 @@ async def list_budgets(
     stmt = select(Budget).where(Budget.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(Budget.is_active.is_(True))
+    if scope_type:
+        stmt = stmt.where(Budget.scope_type == scope_type)
+    if scope_id:
+        stmt = stmt.where(Budget.scope_id == scope_id)
     stmt = stmt.order_by(Budget.created_at.desc())
 
     result = await db.execute(stmt)
@@ -1066,6 +1076,13 @@ async def get_budget(
         workspace_id=workspace.id,
         budget_id=budget_id,
     )
+    # Get spend breakdown by end user
+    breakdown = await _svc_get_budget_breakdown(
+        budget=budget,
+        workspace=workspace,
+        db=db,
+        end_user_id=None,
+    )
     spend = await get_budget_spend(redis, budget.id, budget.period_type)
     scope_display_name = await _resolve_scope_display_name(
         db,
@@ -1077,6 +1094,7 @@ async def get_budget(
         budget,
         current_spend_usd=spend,
         scope_display_name=scope_display_name,
+        breakdown=breakdown,
     )
 
 
@@ -1442,3 +1460,33 @@ async def revoke_override(
     )
     await db.commit()
     return _override_response(override, approvals.get(override.id))
+
+
+# ── GET /budgets/{id}/breakdown ────────────────────────────────────────
+@router.get("/{budget_id}/breakdown", response_model=list[BudgetUserBreakdownEntry])
+async def get_budget_user_breakdown(
+    budget_id: uuid.UUID,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    end_user_id: Annotated[str | None, Query()] = None,
+) -> list[BudgetUserBreakdownEntry]:
+    """Get spend breakdown by end user for a budget."""
+    budget_result = await db.execute(
+        select(Budget).where(
+            Budget.id == budget_id,
+            Budget.workspace_id == workspace.id,
+        )
+    )
+    budget = budget_result.scalar_one_or_none()
+    if budget is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Budget not found",
+        )
+
+    return await _svc_get_budget_breakdown(
+        budget=budget,
+        workspace=workspace,
+        db=db,
+        end_user_id=end_user_id,
+    )

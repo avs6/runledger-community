@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { ArrowLeft, Route, Search } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getRunFlow } from '@/lib/api'
+import { getAccessGroupDashboard, getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
   type RequestFlowDensity,
   type RequestFlowMetric,
@@ -20,6 +20,7 @@ interface PageProps {
     top?: string
     zoom?: string
     collapse?: string
+    access_group_id?: string
   }
 }
 
@@ -57,7 +58,15 @@ function parseNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function exitHref(mode: RequestFlowMode, metric: RequestFlowMetric, scope: RequestFlowScope, density: RequestFlowDensity, topN: number, collapseSmall: boolean) {
+function exitHref(
+  mode: RequestFlowMode,
+  metric: RequestFlowMetric,
+  scope: RequestFlowScope,
+  density: RequestFlowDensity,
+  topN: number,
+  collapseSmall: boolean,
+  accessGroupId?: string
+) {
   const params = new URLSearchParams({
     mode,
     metric,
@@ -66,6 +75,7 @@ function exitHref(mode: RequestFlowMode, metric: RequestFlowMetric, scope: Reque
     top: String(topN),
   })
   if (!collapseSmall) params.set('collapse', '0')
+  if (accessGroupId) params.set('access_group_id', accessGroupId)
   return `/request-flow?${params.toString()}`
 }
 
@@ -79,15 +89,20 @@ export default async function RequestFlowFocusPage({ searchParams }: PageProps) 
   const topN = Math.trunc(parseNumber(searchParams.top, 12))
   const zoom = parseNumber(searchParams.zoom, 1)
   const collapseSmall = searchParams.collapse !== '0'
-  const requestedScope = parseScope(searchParams.scope)
+  const accessGroupId = searchParams.access_group_id
+  const requestedScope = accessGroupId ? 'workspace' : parseScope(searchParams.scope)
   let scope = requestedScope
+  const accessGroupDashboard = accessGroupId
+    ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
+    : null
+  const accessGroup = accessGroupDashboard?.groups[0] ?? null
   let flow: RunFlowResponse
 
   try {
-    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 1000 })
+    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 1000, access_group_id: accessGroupId })
   } catch {
     scope = 'workspace'
-    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 1000 })
+    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 1000, access_group_id: accessGroupId })
   }
 
   return (
@@ -103,19 +118,25 @@ export default async function RequestFlowFocusPage({ searchParams }: PageProps) 
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/request-explorer"
+            href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700"
           >
             <Search className="h-4 w-4" /> Request Explorer
           </Link>
           <Link
-            href={exitHref(mode, metric, scope, density, topN, collapseSmall)}
+            href={exitHref(mode, metric, scope, density, topN, collapseSmall, accessGroupId)}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-blue-300 hover:text-blue-700"
           >
             <ArrowLeft className="h-4 w-4" /> Back to page
           </Link>
         </div>
       </div>
+
+      {accessGroup && (
+        <div className="mb-3 rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
+          Focus mode is filtered to the <span className="font-semibold">{accessGroup.name}</span> access group.
+        </div>
+      )}
 
       <RequestFlowSankey
         flow={flow}
@@ -128,6 +149,7 @@ export default async function RequestFlowFocusPage({ searchParams }: PageProps) 
         collapseSmall={collapseSmall}
         focus
         basePath="/request-flow/focus"
+        accessGroupId={accessGroupId}
       />
     </div>
   )

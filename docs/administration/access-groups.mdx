@@ -17,6 +17,25 @@ The **Access Groups** page lets workspace admins define reusable governance bund
 - Deactivate groups that should no longer grant membership.
 - Add and remove members.
 - Attach budget and guardrail posture to a reusable workspace group.
+- Drill directly into the group's scoped budget, billing, and chargeback posture.
+
+## Financial Scope
+
+Access groups are now a real financial scope primitive in the product, not just a visual grouping helper.
+
+- **Budgets** can be created and filtered with `scope_type=access_group`.
+- **Billing periods** can be filtered to traffic attributable to access-group members.
+- **Chargeback** can report directly on the `access_group` dimension and compare those allocations to matching budgets.
+
+## Observe Investigation
+
+Access groups are now a real Observe investigation dimension too.
+
+- **Analytics Overview** accepts `access_group_id` and narrows the workspace overview to that scoped operator footprint.
+- **Runs** and **Run detail** preserve `access_group_id` so investigators stay inside the selected scope while moving from list to execution evidence.
+- **Request Flow** and **Request Explorer** both accept `access_group_id`, making it possible to move from the group dashboard into routing causality and request-level debugging without rebuilding filters by hand.
+
+The access-groups dashboard links into `/analytics`, `/runs`, `/request-flow`, `/request-explorer`, `/budgets`, `/billing`, and `/chargeback` with the correct access-group scope pre-applied.
 
 ## Product Fit
 

@@ -17,6 +17,8 @@ import requests
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
+ACCESS_GROUP_ID = os.getenv("RUNLEDGER_ACCESS_GROUP_ID", "")
+OWNER_API_KEY_ID = os.getenv("RUNLEDGER_OWNER_API_KEY_ID", "")
 
 
 def call(method: str, path: str, payload: dict | None = None):
@@ -42,13 +44,16 @@ def main() -> None:
 
     today = date.today()
     period = f"{today.year}-{today.month:02d}"
+    dimension = "api_key" if OWNER_API_KEY_ID else ("access_group" if ACCESS_GROUP_ID else "workspace")
+    access_group_qs = f"&access_group_id={ACCESS_GROUP_ID}" if ACCESS_GROUP_ID else ""
+    api_key_qs = f"&api_key_id={OWNER_API_KEY_ID}" if OWNER_API_KEY_ID else ""
 
     rule = call(
         "POST",
         "/billing/chargeback-rules",
         {
             "allocation_type": "direct",
-            "dimension": "feature_tag",
+            "dimension": dimension,
             "weight": "1.0",
         },
     )
@@ -59,7 +64,7 @@ def main() -> None:
         f"/billing/chargeback-rules/{rule['id']}",
         {
             "allocation_type": "showback",
-            "dimension": "workspace",
+            "dimension": dimension,
             "weight": "0.8",
             "status": "active",
         },
@@ -71,13 +76,13 @@ def main() -> None:
 
     report = call(
         "GET",
-        f"/billing/chargeback-report?period={period}&dimension=workspace",
+        f"/billing/chargeback-report?period={period}&dimension={dimension}{access_group_qs}{api_key_qs}",
     )
     print(f"[chargeback] report rows={len(report['items'][0]['breakdown'])}")
 
     exported = call(
         "GET",
-        f"/billing/chargeback-report/export?period={period}&dimension=workspace&format=csv",
+        f"/billing/chargeback-report/export?period={period}&dimension={dimension}&format=csv{access_group_qs}{api_key_qs}",
     )
     print(f"[chargeback] export bytes={len(exported)}")
 

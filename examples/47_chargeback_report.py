@@ -5,6 +5,11 @@ This walks through the Bundle C chargeback surface:
 1. create a workflow-tag chargeback rule
 2. review the current period allocation report
 3. export finance-ready evidence
+
+Optional env var:
+  RUNLEDGER_ACCESS_GROUP_ID
+    When set, the example requests an access-group-scoped report using
+    the `access_group` dimension.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ import requests
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
+ACCESS_GROUP_ID = os.getenv("RUNLEDGER_ACCESS_GROUP_ID", "")
 
 
 def api(method: str, path: str, **kwargs):
@@ -42,6 +48,8 @@ def main() -> None:
 
     today = date.today()
     period = f"{today.year}-{today.month:02d}"
+    dimension = "access_group" if ACCESS_GROUP_ID else "feature_tag"
+    access_group_qs = f"&access_group_id={ACCESS_GROUP_ID}" if ACCESS_GROUP_ID else ""
 
     rule = api(
         "POST",
@@ -49,7 +57,7 @@ def main() -> None:
         data=json.dumps(
             {
                 "allocation_type": "direct",
-                "dimension": "feature_tag",
+                "dimension": dimension,
                 "weight": "1.0",
             }
         ),
@@ -58,7 +66,7 @@ def main() -> None:
 
     report = api(
         "GET",
-        f"/billing/chargeback-report?period={period}&dimension=feature_tag",
+        f"/billing/chargeback-report?period={period}&dimension={dimension}{access_group_qs}",
     )
     first = report["items"][0]
     print("Chargeback period:", first["period"])
@@ -67,7 +75,7 @@ def main() -> None:
 
     exported = api(
         "GET",
-        f"/billing/chargeback-report/export?period={period}&dimension=feature_tag&format=json",
+        f"/billing/chargeback-report/export?period={period}&dimension={dimension}&format=json{access_group_qs}",
     )
     print("Exported report dimension:", exported["dimension"])
 

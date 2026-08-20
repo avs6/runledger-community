@@ -257,6 +257,15 @@ export interface Budget {
   created_at: string
   current_spend_usd: string
   pct_used: string
+  breakdown?: BudgetUserBreakdown[]
+}
+
+export interface BudgetUserBreakdown {
+  end_user_id: string
+  cost_usd: string
+  run_count: number
+  call_count: number
+  pct_of_total: string
 }
 
 export interface BudgetList {
@@ -1226,6 +1235,61 @@ export interface OrgDashboard {
   recent_runs: OrgDashboardRun[]
 }
 
+export interface OrgFinanceWorkspaceSummary {
+  workspace_id: string
+  workspace_name: string
+  spend_30d_usd: string
+  active_budget_count: number
+  total_budget_limit_usd: string
+  active_override_count: number
+  active_notification_count: number
+  open_billing_periods: number
+  closed_billing_periods: number
+  overdue_billing_periods: number
+  chargeback_rule_count: number
+  chargeback_status: string
+  ledger_readiness_status: string
+  ledger_evidence_score: number
+}
+
+export interface OrgFinanceSummary {
+  workspaces: OrgFinanceWorkspaceSummary[]
+  org_spend_30d_usd: string
+  org_total_budget_limit_usd: string
+  active_budget_count: number
+  active_override_count: number
+  active_notification_count: number
+  open_billing_period_count: number
+  closed_billing_period_count: number
+  overdue_billing_period_count: number
+  chargeback_rule_count: number
+  chargeback_ready_workspace_count: number
+  ledger_readiness_status: string
+  ledger_ready_workspace_count: number
+  ledger_partial_workspace_count: number
+  ledger_at_risk_workspace_count: number
+}
+
+
+export interface UserBudgetExposure {
+  budget_id: string
+  scope_type: string
+  scope_id: string | null
+  period_type: string
+  limit_usd: string
+  is_active: boolean
+}
+
+export interface UserFinanceSummary {
+  user_id: string
+  email: string
+  full_name: string | null
+  spend_30d_usd: string
+  spend_total_usd: string
+  run_count_30d: number
+  call_count_30d: number
+  budgets: UserBudgetExposure[]
+}
 
 export interface SubscriptionResponse {
   tenant_id: string

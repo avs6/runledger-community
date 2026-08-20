@@ -13,11 +13,12 @@ The Request Explorer is the request-level drill-down companion to Analytics Over
 - **Per-request detail** - inspect prompt/response capture, route hints, model/provider calls, tool calls, spans, outcomes, and gateway evidence
 - **Run drill-in** - jump from a request into the dedicated run detail page when you need the full DAG and execution tree
 - **Session pivot** - follow the same issue into Sessions when the problem spans multiple turns
+- **Access-group scope** - pass `access_group_id` to keep the explorer, selected request detail, and run drill-ins inside an Access Group investigation
 
 ## API
 
 ```
-GET /analytics/request-explorer?q=&status=&end_user_id=&model=&provider=&intent=&optimization=&page=1&page_size=50
+GET /analytics/request-explorer?q=&status=&end_user_id=&model=&provider=&intent=&optimization=&access_group_id=&page=1&page_size=50
 ```
 
 | Parameter | Type | Description |
@@ -29,10 +30,11 @@ GET /analytics/request-explorer?q=&status=&end_user_id=&model=&provider=&intent=
 | `provider` | string | Filter by provider |
 | `intent` | string | Filter by run intent |
 | `optimization` | string | Filter by optimization type applied |
+| `access_group_id` | uuid | Apply the selected Access Group's investigation profile to the request set |
 | `page` | int | Page number (default: 1) |
 | `page_size` | int | Results per page, 1-100 (default: 50) |
 
-Returns `RequestExplorerResponse` with `total_count`, `page`, `page_size`, and `records` array.
+Returns `RequestExplorerResponse` with `items`, `total`, `page`, and `page_size`.
 
 ## Related
 

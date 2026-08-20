@@ -39,6 +39,7 @@ from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -54,7 +55,9 @@ from runledger_api.models.billing import (
     ChargebackRule,
     SharedCostPolicy,
 )
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
+from runledger_api.models.events import ProviderCall
+from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.billing import (
     BillingAdjustmentCreate,
     BillingAdjustmentList,
@@ -143,12 +146,70 @@ async def list_billing_periods(
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> BillingPeriodList:
     workspace: Workspace = auth[0]
     """List billing periods, optionally filtered by status."""
     stmt = select(BillingPeriod).where(BillingPeriod.workspace_id == workspace.id)
     if status_filter:
         stmt = stmt.where(BillingPeriod.status == status_filter)
+    if access_group_id is not None:
+        group_exists = (
+            await db.execute(
+                select(AccessGroup.id).where(
+                    AccessGroup.id == access_group_id,
+                    AccessGroup.workspace_id == workspace.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if group_exists is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Access group not found",
+            )
+        member_ids = select(sa.cast(AccessGroupMember.user_id, sa.String)).where(
+            AccessGroupMember.group_id == access_group_id
+        )
+        scoped_calls_exist = (
+            select(ProviderCall.id)
+            .where(
+                ProviderCall.workspace_id == workspace.id,
+                sa.func.date(ProviderCall.created_at) >= BillingPeriod.period_start,
+                sa.func.date(ProviderCall.created_at) <= BillingPeriod.period_end,
+                ProviderCall.end_user_id.in_(member_ids),
+            )
+            .limit(1)
+            .correlate(BillingPeriod)
+        )
+        stmt = stmt.where(sa.exists(scoped_calls_exist))
+    if api_key_id is not None:
+        key_exists = (
+            await db.execute(
+                select(ApiKey.id).where(
+                    ApiKey.id == api_key_id,
+                    ApiKey.workspace_id == workspace.id,
+                    ApiKey.revoked_at.is_(None),
+                )
+            )
+        ).scalar_one_or_none()
+        if key_exists is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="API key not found",
+            )
+        scoped_calls_exist = (
+            select(ProviderCall.id)
+            .where(
+                ProviderCall.workspace_id == workspace.id,
+                sa.func.date(ProviderCall.created_at) >= BillingPeriod.period_start,
+                sa.func.date(ProviderCall.created_at) <= BillingPeriod.period_end,
+                ProviderCall.api_key_id == api_key_id,
+            )
+            .limit(1)
+            .correlate(BillingPeriod)
+        )
+        stmt = stmt.where(sa.exists(scoped_calls_exist))
     stmt = stmt.order_by(BillingPeriod.period_start.desc())
 
     result = await db.execute(stmt)
@@ -263,6 +324,9 @@ async def get_breakdown(
     period_id: uuid.UUID,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
+    end_user_id: Annotated[str | None, Query()] = None,
 ) -> PeriodBreakdown:
     workspace: Workspace = auth[0]
     """Get hierarchical cost breakdown by application → user."""
@@ -277,8 +341,14 @@ async def get_breakdown(
             status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
         )
 
-    try:
-        return await get_period_breakdown(db, period_id)
+try:
+        return await get_period_breakdown(
+            db,
+            period_id,
+            access_group_id=access_group_id,
+            api_key_id=api_key_id,
+            end_user_id=end_user_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -288,6 +358,8 @@ async def get_period_reconciliation(
     period_id: uuid.UUID,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> ReconciliationResult:
     workspace: Workspace = auth[0]
     result = await db.execute(
@@ -302,7 +374,12 @@ async def get_period_reconciliation(
         )
 
     try:
-        return await run_reconciliation(db, period_id)
+        return await run_reconciliation(
+            db,
+            period_id,
+            access_group_id=access_group_id,
+            api_key_id=api_key_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -316,6 +393,8 @@ async def export_period(
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     format: Annotated[str, Query(pattern="^(csv|signed_json)$")] = "csv",
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> Response:
     workspace: Workspace = auth[0]
     """Export billing period data — csv or signed_json."""
@@ -332,7 +411,12 @@ async def export_period(
 
     try:
         if format == "csv":
-            csv_content = await export_csv(db, period_id)
+            csv_content = await export_csv(
+                db,
+                period_id,
+                access_group_id=access_group_id,
+                api_key_id=api_key_id,
+            )
             return Response(
                 content=csv_content,
                 media_type="text/csv",
@@ -341,7 +425,12 @@ async def export_period(
         else:
             import json  # noqa: PLC0415
 
-            payload = await export_signed_json(db, period_id)
+            payload = await export_signed_json(
+                db,
+                period_id,
+                access_group_id=access_group_id,
+                api_key_id=api_key_id,
+            )
             return Response(
                 content=json.dumps(payload, default=str),
                 media_type="application/json",
@@ -806,6 +895,9 @@ async def get_chargeback_report(
     db: Annotated[AsyncSession, Depends(get_db)],
     period: Annotated[str | None, Query()] = None,
     dimension: Annotated[str | None, Query()] = None,
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
+    end_user_id: Annotated[str | None, Query()] = None,
 ) -> ChargebackReportList:
     workspace: Workspace = auth[0]
     try:
@@ -814,6 +906,9 @@ async def get_chargeback_report(
             workspace.id,
             period=period,
             dimension=dimension,
+            access_group_id=access_group_id,
+            api_key_id=api_key_id,
+            end_user_id=end_user_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -827,6 +922,8 @@ async def export_chargeback_report(
     period: Annotated[str | None, Query()] = None,
     dimension: Annotated[str | None, Query()] = None,
     format: Annotated[str, Query(pattern="^(csv|json)$")] = "csv",
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> Response:
     workspace: Workspace = auth[0]
     try:
@@ -835,6 +932,8 @@ async def export_chargeback_report(
             workspace.id,
             period=period,
             dimension=dimension,
+            access_group_id=access_group_id,
+            api_key_id=api_key_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

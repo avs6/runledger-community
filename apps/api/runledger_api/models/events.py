@@ -45,6 +45,7 @@ class AgentRun(Base):
         sa.Index("ix_agent_runs_workspace_started", "workspace_id", "started_at"),
         sa.Index("ix_agent_runs_end_user", "workspace_id", "end_user_id"),
         sa.Index("ix_agent_runs_feature_tag", "workspace_id", "feature_tag"),
+        sa.Index("ix_agent_runs_api_key", "workspace_id", "api_key_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -58,6 +59,11 @@ class AgentRun(Base):
     application_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         sa.ForeignKey("applications.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("api_keys.id", ondelete="SET NULL"),
         nullable=True,
     )
     end_user_id: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
@@ -155,6 +161,7 @@ class ProviderCall(Base):
         sa.Index("ix_provider_calls_run_id", "run_id"),
         sa.Index("ix_provider_calls_workspace_created", "workspace_id", "created_at"),
         sa.Index("ix_provider_calls_end_user", "workspace_id", "end_user_id"),
+        sa.Index("ix_provider_calls_api_key", "workspace_id", "api_key_id", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -165,6 +172,11 @@ class ProviderCall(Base):
         PGUUID(as_uuid=True), sa.ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     end_user_id: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     provider: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     model: Mapped[str] = mapped_column(sa.String(128), nullable=False)

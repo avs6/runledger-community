@@ -5,14 +5,20 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
 import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin, require_user, require_workspace_admin
+from runledger_api.models.budgets import Budget
+from runledger_api.models.events import ProviderCall
 from runledger_api.models.tenant import (
     TenantRoleEnum,
     TenantUser,
@@ -33,6 +39,26 @@ from runledger_api.schemas.auth import (
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+class UserBudgetExposure(BaseModel):
+    budget_id: str
+    scope_type: str
+    scope_id: str | None
+    period_type: str
+    limit_usd: Decimal
+    is_active: bool
+
+
+class UserFinanceSummary(BaseModel):
+    user_id: str
+    email: str
+    full_name: str | None
+    spend_30d_usd: Decimal
+    spend_total_usd: Decimal
+    run_count_30d: int
+    call_count_30d: int
+    budgets: list[UserBudgetExposure]
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -182,6 +208,114 @@ async def admin_update_user(
     await db.refresh(user)
     log.info("user_updated", user_id=str(user.id))
     return _org_user_response(user, membership.role)
+
+
+@router.get("/{user_id}", response_model=OrgUserResponse)
+async def get_user(
+    user_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> OrgUserResponse:
+    """Get a specific user by ID (org-admin)."""
+    workspace, _, __ = auth
+    membership = (
+        await db.execute(
+            select(TenantUser).where(
+                TenantUser.tenant_id == workspace.tenant_id, TenantUser.user_id == user_id
+            )
+        )
+    ).scalars().first()
+    if membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    return _org_user_response(user, membership.role)
+
+
+@router.get("/{user_id}/finance", response_model=UserFinanceSummary)
+async def get_user_finance(
+    user_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> UserFinanceSummary:
+    """Get financial exposure for a platform user."""
+    workspace, _, __ = auth
+    membership = (
+        await db.execute(
+            select(TenantUser).where(
+                TenantUser.tenant_id == workspace.tenant_id,
+                TenantUser.user_id == user_id,
+            )
+        )
+    ).scalars().first()
+    if membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+    user_id_str = str(user_id)
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    spend_30d_result = await db.execute(
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)),
+            func.count(ProviderCall.id),
+            func.count(func.distinct(ProviderCall.run_id)),
+        ).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.end_user_id == user_id_str,
+            ProviderCall.status == "success",
+            func.date(ProviderCall.created_at) >= thirty_days_ago.date(),
+        )
+    )
+    row_30d = spend_30d_result.one()
+    spend_30d = row_30d[0]
+    call_count_30d = row_30d[1]
+    run_count_30d = row_30d[2]
+
+    spend_total_result = await db.execute(
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)),
+        ).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.end_user_id == user_id_str,
+            ProviderCall.status == "success",
+        )
+    )
+    spend_total = spend_total_result.scalar_one()
+
+    budgets_result = await db.execute(
+        select(Budget).where(
+            Budget.workspace_id == workspace.id,
+            Budget.scope_type == "end_user",
+            Budget.scope_id == user_id_str,
+        )
+    )
+    budgets = [
+        UserBudgetExposure(
+            budget_id=str(b.id),
+            scope_type=b.scope_type,
+            scope_id=b.scope_id,
+            period_type=b.period_type,
+            limit_usd=b.limit_usd,
+            is_active=b.is_active,
+        )
+        for b in budgets_result.scalars().all()
+    ]
+
+    return UserFinanceSummary(
+        user_id=user_id_str,
+        email=user.email,
+        full_name=user.full_name,
+        spend_30d_usd=spend_30d,
+        spend_total_usd=spend_total,
+        run_count_30d=run_count_30d,
+        call_count_30d=call_count_30d,
+        budgets=budgets,
+    )
 
 
 @router.get("", response_model=list[WorkspaceMemberResponse])

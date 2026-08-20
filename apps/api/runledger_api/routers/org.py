@@ -11,7 +11,7 @@ import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -22,8 +22,9 @@ from runledger_api.core.deps import (
     require_user,
 )
 from runledger_api.models.audit import AuditEvent
-from runledger_api.models.billing import BillingPeriod
-from runledger_api.models.budgets import Budget
+from runledger_api.models.billing import BillingPeriod, ChargebackRule
+from runledger_api.models.budget_overrides import BudgetOverride
+from runledger_api.models.budgets import Budget, BudgetNotification
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.tenant import (
     MemberStatusEnum,
@@ -38,6 +39,7 @@ from runledger_api.models.tenant import (
     WorkspaceUser,
 )
 from runledger_api.routers.auth import _make_slug
+from runledger_api.services.ledger import get_ledger_closure_summary
 from runledger_api.schemas.audit import AuditEventResponse as AuditEventResponse
 from runledger_api.schemas.auth import (
     AddWorkspaceMemberRequest,
@@ -1017,14 +1019,33 @@ class WorkspaceFinanceSummary(BaseModel):
     spend_30d_usd: Decimal
     active_budget_count: int
     total_budget_limit_usd: Decimal
+    active_override_count: int
+    active_notification_count: int
     open_billing_periods: int
     closed_billing_periods: int
+    overdue_billing_periods: int
+    chargeback_rule_count: int
+    chargeback_status: str
+    ledger_readiness_status: str
+    ledger_evidence_score: int
 
 
 class OrgFinanceSummary(BaseModel):
     workspaces: list[WorkspaceFinanceSummary]
     org_spend_30d_usd: Decimal
     org_total_budget_limit_usd: Decimal
+    active_budget_count: int
+    active_override_count: int
+    active_notification_count: int
+    open_billing_period_count: int
+    closed_billing_period_count: int
+    overdue_billing_period_count: int
+    chargeback_rule_count: int
+    chargeback_ready_workspace_count: int
+    ledger_readiness_status: str
+    ledger_ready_workspace_count: int
+    ledger_partial_workspace_count: int
+    ledger_at_risk_workspace_count: int
 
 
 @router.get("/finance", response_model=OrgFinanceSummary)
@@ -1035,6 +1056,7 @@ async def get_org_finance(
     """Cross-workspace financial summary for org admins."""
     current_ws, _, __ = auth
     since = datetime.now(UTC) - timedelta(days=30)
+    today = datetime.now(UTC).date()
 
     # All workspaces in this org
     ws_result = await db.execute(
@@ -1044,6 +1066,25 @@ async def get_org_finance(
     )
     workspaces = list(ws_result.scalars().all())
     ws_ids = [ws.id for ws in workspaces]
+
+    if not ws_ids:
+        return OrgFinanceSummary(
+            workspaces=[],
+            org_spend_30d_usd=Decimal(0),
+            org_total_budget_limit_usd=Decimal(0),
+            active_budget_count=0,
+            active_override_count=0,
+            active_notification_count=0,
+            open_billing_period_count=0,
+            closed_billing_period_count=0,
+            overdue_billing_period_count=0,
+            chargeback_rule_count=0,
+            chargeback_ready_workspace_count=0,
+            ledger_readiness_status="empty",
+            ledger_ready_workspace_count=0,
+            ledger_partial_workspace_count=0,
+            ledger_at_risk_workspace_count=0,
+        )
 
     # 30-day spend per workspace — query provider_calls directly so intra-day
     # costs appear immediately without waiting for the nightly rollup.
@@ -1074,19 +1115,100 @@ async def get_org_finance(
         row.workspace_id: (row.cnt, row.total_limit or Decimal(0)) for row in budget_result.all()
     }
 
-    # Open/closed billing periods per workspace
+    override_result = await db.execute(
+        select(Budget.workspace_id, func.count().label("cnt"))
+        .join(BudgetOverride, BudgetOverride.budget_id == Budget.id)
+        .where(
+            Budget.workspace_id.in_(ws_ids),
+            BudgetOverride.status == "active",
+        )
+        .group_by(Budget.workspace_id)
+    )
+    overrides_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in override_result.all()
+    }
+
+    notification_result = await db.execute(
+        select(BudgetNotification.workspace_id, func.count().label("cnt"))
+        .where(
+            BudgetNotification.workspace_id.in_(ws_ids),
+            BudgetNotification.is_active.is_(True),
+        )
+        .group_by(BudgetNotification.workspace_id)
+    )
+    notifications_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in notification_result.all()
+    }
+
+    # Open/closed/overdue billing periods per workspace
     period_result = await db.execute(
-        select(BillingPeriod.workspace_id, BillingPeriod.status, func.count().label("cnt"))
+        select(
+            BillingPeriod.workspace_id,
+            func.sum(
+                case(
+                    (BillingPeriod.status.in_(("open", "closing")), 1),
+                    else_=0,
+                )
+            ).label("open_cnt"),
+            func.sum(
+                case(
+                    (BillingPeriod.status == "closed", 1),
+                    else_=0,
+                )
+            ).label("closed_cnt"),
+            func.sum(
+                case(
+                    (
+                        and_(
+                            BillingPeriod.status.in_(("open", "closing")),
+                            BillingPeriod.period_end < today,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("overdue_cnt"),
+        )
         .where(BillingPeriod.workspace_id.in_(ws_ids))
-        .group_by(BillingPeriod.workspace_id, BillingPeriod.status)
+        .group_by(BillingPeriod.workspace_id)
     )
     open_periods: dict[uuid.UUID, int] = {}
     closed_periods: dict[uuid.UUID, int] = {}
+    overdue_periods: dict[uuid.UUID, int] = {}
     for row in period_result.all():
-        if row.status == "open":
-            open_periods[row.workspace_id] = row.cnt
-        elif row.status == "closed":
-            closed_periods[row.workspace_id] = row.cnt
+        open_periods[row.workspace_id] = row.open_cnt or 0
+        closed_periods[row.workspace_id] = row.closed_cnt or 0
+        overdue_periods[row.workspace_id] = row.overdue_cnt or 0
+
+    chargeback_result = await db.execute(
+        select(ChargebackRule.workspace_id, func.count().label("cnt"))
+        .where(
+            ChargebackRule.workspace_id.in_(ws_ids),
+            ChargebackRule.status == "active",
+        )
+        .group_by(ChargebackRule.workspace_id)
+    )
+    chargeback_rules_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in chargeback_result.all()
+    }
+
+    ledger_by_ws: dict[uuid.UUID, tuple[str, int, bool]] = {}
+    for ws in workspaces:
+        ledger_summary = await get_ledger_closure_summary(db, ws.id)
+        chargeback_rule_count = chargeback_rules_by_ws.get(ws.id, 0)
+        chargeback_ready = False
+        if chargeback_rule_count > 0 and ledger_summary.chargeback is not None:
+            try:
+                chargeback_ready = Decimal(ledger_summary.chargeback.unallocated_cost_usd) <= Decimal(
+                    "0.000001"
+                )
+            except Exception:  # pragma: no cover - defensive parsing
+                chargeback_ready = False
+        ledger_by_ws[ws.id] = (
+            ledger_summary.readiness_status,
+            ledger_summary.evidence_score,
+            chargeback_ready,
+        )
 
     summaries = [
         WorkspaceFinanceSummary(
@@ -1095,16 +1217,61 @@ async def get_org_finance(
             spend_30d_usd=spend_by_ws.get(ws.id, Decimal(0)),
             active_budget_count=budget_by_ws.get(ws.id, (0, Decimal(0)))[0],
             total_budget_limit_usd=budget_by_ws.get(ws.id, (0, Decimal(0)))[1],
+            active_override_count=overrides_by_ws.get(ws.id, 0),
+            active_notification_count=notifications_by_ws.get(ws.id, 0),
             open_billing_periods=open_periods.get(ws.id, 0),
             closed_billing_periods=closed_periods.get(ws.id, 0),
+            overdue_billing_periods=overdue_periods.get(ws.id, 0),
+            chargeback_rule_count=chargeback_rules_by_ws.get(ws.id, 0),
+            chargeback_status=(
+                "ready"
+                if ledger_by_ws.get(ws.id, ("empty", 0, False))[2]
+                else "partial"
+                if chargeback_rules_by_ws.get(ws.id, 0) > 0
+                else "missing"
+            ),
+            ledger_readiness_status=ledger_by_ws.get(ws.id, ("empty", 0, False))[0],
+            ledger_evidence_score=ledger_by_ws.get(ws.id, ("empty", 0, False))[1],
         )
         for ws in workspaces
     ]
+
+    ledger_ready_workspace_count = sum(
+        1 for summary in summaries if summary.ledger_readiness_status == "ready"
+    )
+    ledger_partial_workspace_count = sum(
+        1 for summary in summaries if summary.ledger_readiness_status == "partial"
+    )
+    ledger_at_risk_workspace_count = sum(
+        1 for summary in summaries if summary.ledger_readiness_status == "at_risk"
+    )
+    if ledger_at_risk_workspace_count > 0:
+        ledger_readiness_status = "at_risk"
+    elif ledger_partial_workspace_count > 0:
+        ledger_readiness_status = "partial"
+    elif ledger_ready_workspace_count == len(summaries):
+        ledger_readiness_status = "ready"
+    else:
+        ledger_readiness_status = "empty"
 
     return OrgFinanceSummary(
         workspaces=summaries,
         org_spend_30d_usd=sum((s.spend_30d_usd for s in summaries), Decimal(0)),
         org_total_budget_limit_usd=sum((s.total_budget_limit_usd for s in summaries), Decimal(0)),
+        active_budget_count=sum(s.active_budget_count for s in summaries),
+        active_override_count=sum(s.active_override_count for s in summaries),
+        active_notification_count=sum(s.active_notification_count for s in summaries),
+        open_billing_period_count=sum(s.open_billing_periods for s in summaries),
+        closed_billing_period_count=sum(s.closed_billing_periods for s in summaries),
+        overdue_billing_period_count=sum(s.overdue_billing_periods for s in summaries),
+        chargeback_rule_count=sum(s.chargeback_rule_count for s in summaries),
+        chargeback_ready_workspace_count=sum(
+            1 for s in summaries if s.chargeback_status == "ready"
+        ),
+        ledger_readiness_status=ledger_readiness_status,
+        ledger_ready_workspace_count=ledger_ready_workspace_count,
+        ledger_partial_workspace_count=ledger_partial_workspace_count,
+        ledger_at_risk_workspace_count=ledger_at_risk_workspace_count,
     )
 
 

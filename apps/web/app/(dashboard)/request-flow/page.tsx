@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { ArrowRight, Expand, GitBranch, Layers3, Route as RouteIcon, Search, ShieldCheck } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getRunFlow } from '@/lib/api'
+import { getAccessGroupDashboard, getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
   type RequestFlowDensity,
   type RequestFlowMetric,
@@ -19,6 +19,7 @@ interface PageProps {
     density?: string
     top?: string
     collapse?: string
+    access_group_id?: string
   }
 }
 
@@ -70,14 +71,19 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
   const density = parseDensity(searchParams.density)
   const topN = parseTopN(searchParams.top)
   const collapseSmall = searchParams.collapse !== '0'
-  const requestedScope = parseScope(searchParams.scope)
+  const accessGroupId = searchParams.access_group_id
+  const requestedScope = accessGroupId ? 'workspace' : parseScope(searchParams.scope)
   let scope = requestedScope
+  const accessGroupDashboard = accessGroupId
+    ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
+    : null
+  const accessGroup = accessGroupDashboard?.groups[0] ?? null
   let flow: RunFlowResponse
   try {
-    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500 })
+    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId })
   } catch {
     scope = 'workspace'
-    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500 })
+    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId })
   }
   const items = flow.items
   const uniqueIntents = new Set(items.map((run) => run.feature_tag || 'General / Untagged')).size
@@ -97,19 +103,19 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            href={`/analytics?scope=${scope}&view=overview`}
+            href={`/analytics?scope=${scope}&view=overview${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
           >
             Analytics Overview <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/request-explorer"
+            href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
           >
             Request Explorer <Search className="h-4 w-4" />
           </Link>
           <Link
-            href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}`}
+            href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
           >
             Focus Mode <Expand className="h-4 w-4" />
@@ -127,6 +133,11 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         </div>
       ) : (
         <>
+          {accessGroup && (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+              Request Flow is filtered to the <span className="font-semibold">{accessGroup.name}</span> access group.
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-4">
             {[
               { label: 'Runs sampled', value: items.length.toLocaleString(), icon: GitBranch },
@@ -152,6 +163,7 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
             density={density}
             topN={topN}
             collapseSmall={collapseSmall}
+            accessGroupId={accessGroupId}
           />
 
           <div className="grid gap-4 lg:grid-cols-3">
@@ -163,7 +175,7 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
               </p>
             </div>
             <Link
-              href="/request-explorer"
+              href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
               className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
             >
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Drill-in</p>
@@ -173,7 +185,7 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
               </p>
             </Link>
             <Link
-              href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}`}
+              href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`}
               className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
             >
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Presentation Mode</p>

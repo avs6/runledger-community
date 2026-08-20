@@ -25,7 +25,9 @@ function getScopeLink(budget: Budget): { href: string; label: string } | null {
     return { href: '/provider-profiles', label: 'Open provider profiles' }
   }
   if (budget.scope_type === 'api_key') {
-    return { href: '/api-keys', label: 'Open API keys' }
+    return budget.scope_id
+      ? { href: `/api-keys/${budget.scope_id}`, label: 'Open API key detail' }
+      : { href: '/api-keys', label: 'Open API keys' }
   }
   if (budget.scope_type === 'access_group') {
     return { href: '/access-groups', label: 'Open access groups' }
@@ -454,6 +456,40 @@ export default function BudgetDetailClient({
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Spend by End User</p>
+        {budget.breakdown && budget.breakdown.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm text-slate-600 dark:text-slate-400">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-2">End User ID</th>
+                  <th className="text-right p-2">Spend (USD)</th>
+                  <th className="text-right p-2">Run Count</th>
+                  <th className="text-right p-2">Call Count</th>
+                  <th className="text-right p-2">% of Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {budget.breakdown.map((entry) => (
+                  <tr key={entry.end_user_id} className="border-t">
+                    <td className="p-2">{entry.end_user_id}</td>
+                    <td className="text-right p-2">{formatMoney(entry.cost_usd)}</td>
+                    <td className="text-right p-2">{entry.run_count}</td>
+                    <td className="text-right p-2">{entry.call_count}</td>
+                    <td className="text-right p-2">{entry.pct_of_total}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            No spend attributed to end users yet.
+          </p>
+        )}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">

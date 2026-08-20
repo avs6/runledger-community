@@ -16,6 +16,7 @@ Use Organization Console when you want to manage the organization you are curren
 - Configure org-owned destinations such as workspace S3 overrides and Kafka export targets.
 - Review email delivery status and update org notification preferences.
 - Run Slack and email smoke tests for org-level notifications.
+- Review cross-workspace financial posture before handing off to Budgets, Billing, Chargeback, or Compliance.
 - Confirm which organization the top bar breadcrumb is showing.
 
 After a rename, the dashboard session updates `tenant_name`, so the top bar breadcrumb reflects the new name immediately.
@@ -32,3 +33,24 @@ The legacy `/org-settings` route now redirects into the Organization Console tab
 Org admins do not see the platform-wide Organizations page.
 
 Organization creation and deletion intentionally remain in **Organizations** because they are platform-lifecycle actions, not self-service org-console actions.
+
+## Financial Posture
+
+The Organization Console now includes a read-only **Financial Posture** rollup backed by `GET /org/finance`.
+
+It summarizes:
+
+- 30-day org spend across all workspaces
+- active budgets plus attached overrides and notification channels
+- open, closed, and overdue billing periods
+- chargeback configuration readiness across workspaces
+- ledger/compliance readiness across workspaces
+
+Use this section to understand where the organization stands, then jump into the owning FinOps surfaces:
+
+- `/budgets` for budget policy, budget detail, overrides, and notifications
+- `/billing` for periods, reconciliation, breakdowns, and finance exports
+- `/chargeback` for allocation rules and evidence
+- `/settings?tab=compliance` for ledger/compliance closure posture
+
+The org console stays read-only here on purpose. It should summarize financial posture, not duplicate the editing workflows that already belong to FinOps.

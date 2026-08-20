@@ -29,6 +29,7 @@ Use the periods view when you need:
 - close-period actions
 - per-period reconciliation status
 - detailed application and user breakdown per period
+- access-group-scoped period filtering when attribution can be derived from member traffic
 - billing-adjustment lifecycle for credits, refunds, prepaid deductions, and surcharges
 - export per-period CSV or signed JSON evidence
 
@@ -49,6 +50,14 @@ The billing detail page now includes:
 - **Breakdown** - application and end-user allocation view
 - **Adjustments** - create, edit, and delete finance adjustments while a period is open
 - **Exports** - CSV and signed JSON output
+
+## Access-group scope
+
+Billing now supports access-group-aware review flows:
+
+- `/billing?access_group_id=...` filters the periods table to periods with attributable access-group traffic.
+- billing period detail, reconciliation, breakdown, and exports can all stay scoped to that same access group
+- this attribution is derived from access-group membership and provider-call `end_user_id` matching, so the scoped view is strongest where caller identity is present and clean
 
 ## Shared costs
 

@@ -17,6 +17,7 @@ import requests
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
+OWNER_API_KEY_ID = os.getenv("RUNLEDGER_OWNER_API_KEY_ID", "")
 
 
 def call(method: str, path: str, payload: dict | None = None):
@@ -62,15 +63,30 @@ def main() -> None:
     print(f"[billing] created adjustment {adjustment['id']}")
 
     reconciliation = call("GET", f"/billing/periods/{period_id}/reconciliation")
+    if OWNER_API_KEY_ID:
+        reconciliation = call(
+            "GET",
+            f"/billing/periods/{period_id}/reconciliation?api_key_id={OWNER_API_KEY_ID}",
+        )
     print(f"[billing] reconciliation status={reconciliation['status']}")
 
     breakdown = call("GET", f"/billing/periods/{period_id}/breakdown")
+    if OWNER_API_KEY_ID:
+        breakdown = call(
+            "GET",
+            f"/billing/periods/{period_id}/breakdown?api_key_id={OWNER_API_KEY_ID}",
+        )
     print(f"[billing] application groups={len(breakdown['by_application'])}")
 
     policies = call("GET", "/billing/shared-cost-policies")
     print(f"[billing] shared-cost policies={len(policies['items'])}")
 
     exported = call("GET", f"/billing/periods/{period_id}/export?format=signed_json")
+    if OWNER_API_KEY_ID:
+        exported = call(
+            "GET",
+            f"/billing/periods/{period_id}/export?format=signed_json&api_key_id={OWNER_API_KEY_ID}",
+        )
     print(f"[billing] export rows={len(exported['rows'])}")
 
     print("[billing] smoke complete")

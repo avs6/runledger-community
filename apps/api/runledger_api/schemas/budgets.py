@@ -50,8 +50,17 @@ class BudgetResponse(BaseModel):
     created_at: datetime
     current_spend_usd: Decimal
     pct_used: Decimal
+    breakdown: list[BudgetUserBreakdownEntry] | None = None
 
     model_config = {"from_attributes": True}
+
+
+class BudgetUserBreakdownEntry(BaseModel):
+    end_user_id: str
+    cost_usd: Decimal
+    run_count: int
+    call_count: int
+    pct_of_total: Decimal
 
 
 class BudgetList(BaseModel):

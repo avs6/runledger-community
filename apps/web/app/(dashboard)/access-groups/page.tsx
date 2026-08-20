@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
@@ -363,14 +364,62 @@ export default function AccessGroupsPage() {
               </div>
 
               <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  onClick={() => openMemberManagement(group)}
-                  disabled={!canManage}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                >
-                  <Users className="h-3.5 w-3.5" />
-                  Manage Members ({group.member_count})
-                </button>
+                <div className="grid gap-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <Link
+                      href={`/budgets?tab=policies&scope_type=access_group&scope_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Budgets
+                    </Link>
+                    <Link
+                      href={`/billing?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Billing
+                    </Link>
+                    <Link
+                      href={`/chargeback?dimension=access_group&access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Chargeback
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link
+                      href={`/analytics?scope=workspace&access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Overview
+                    </Link>
+                    <Link
+                      href={`/runs?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Runs
+                    </Link>
+                    <Link
+                      href={`/request-flow?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Flow
+                    </Link>
+                    <Link
+                      href={`/request-explorer?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Explorer
+                    </Link>
+                  </div>
+                  <button
+                    onClick={() => openMemberManagement(group)}
+                    disabled={!canManage}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Manage Members ({group.member_count})
+                  </button>
+                </div>
               </div>
             </div>
           ))}

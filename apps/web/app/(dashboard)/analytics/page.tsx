@@ -15,7 +15,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getOrgDashboard, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
+import { getAccessGroupDashboard, getOrgDashboard, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatAge, formatCost, formatTokens, truncateId } from '@/lib/utils'
 import type { DashboardRange } from '@/components/dashboard/DashboardScopeBar'
@@ -180,7 +180,7 @@ function StatCard({
 export default async function AnalyticsOverviewPage({
   searchParams,
 }: {
-  searchParams?: { scope?: string; range?: string; view?: string }
+  searchParams?: { scope?: string; range?: string; view?: string; access_group_id?: string }
 }) {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -193,7 +193,12 @@ export default async function AnalyticsOverviewPage({
 
   const view = parseView(searchParams?.view)
   const win = getDashboardWindow(searchParams?.range)
-  const scope = parseScope(searchParams?.scope, canOrg, canPlatform)
+  const accessGroupId = searchParams?.access_group_id
+  const scope = accessGroupId ? 'workspace' : parseScope(searchParams?.scope, canOrg, canPlatform)
+  const accessGroupDashboard = accessGroupId
+    ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
+    : null
+  const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
   if (view === 'breakdown') {
     if (scope !== 'workspace') {
@@ -203,7 +208,7 @@ export default async function AnalyticsOverviewPage({
   }
 
   const [summary, flow, workspaceRuns, orgDashboard] = await Promise.all([
-    getScopedSummary(session.apiKey, scope, { from: win.from, to: win.to }),
+    getScopedSummary(session.apiKey, scope, { from: win.from, to: win.to, access_group_id: accessGroupId }),
     getRunFlow(session.apiKey, {
       scope,
       mode: 'request-route-provider-outcome',
@@ -211,9 +216,10 @@ export default async function AnalyticsOverviewPage({
       limit: 300,
       from: win.from,
       to: win.to,
+      access_group_id: accessGroupId,
     }).catch(() => null),
     scope === 'workspace'
-      ? getRuns(session.apiKey, { limit: 8, from: win.from, to: win.to }).then(result => result.items)
+      ? getRuns(session.apiKey, { limit: 8, from: win.from, to: win.to, access_group_id: accessGroupId }).then(result => result.items)
       : Promise.resolve([]),
     scope === 'org'
       ? getOrgDashboard(session.apiKey, { from: win.from, to: win.to }).catch(() => null)
@@ -252,12 +258,17 @@ export default async function AnalyticsOverviewPage({
             One scoped entry point for dashboards, analytics, request analysis, and workflow telemetry.
             Detailed charts stay available under Breakdown, while deep investigation continues in Runs, Sessions, Request Flow, and Request Explorer.
           </p>
+          {accessGroup && (
+            <p className="mt-2 text-sm text-blue-700 dark:text-blue-300">
+              Filtered to access group: <span className="font-semibold">{accessGroup.name}</span>
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/request-flow?scope=${scope}&mode=request-route-provider-outcome&metric=requests`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <Link href={`/request-flow?scope=${scope}&mode=request-route-provider-outcome&metric=requests${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Request Flow
           </Link>
-          <Link href="/request-explorer" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          <Link href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Request Explorer
           </Link>
           <Link href={scope === 'workspace' ? '/analytics/breakdown' : hrefFor('workspace', win.range, 'breakdown')} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
@@ -293,7 +304,7 @@ export default async function AnalyticsOverviewPage({
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Top Intents</p>
               <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">Workflow demand in this scope</h2>
             </div>
-            <Link href="/runs" className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Open runs</Link>
+            <Link href={accessGroupId ? `/runs?access_group_id=${encodeURIComponent(accessGroupId)}` : '/runs'} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Open runs</Link>
           </div>
           <div className="mt-4 space-y-3">
             {summary.top_intents.length === 0 ? (
@@ -306,7 +317,7 @@ export default async function AnalyticsOverviewPage({
                       <p className="truncate font-medium text-slate-900 dark:text-slate-100">{intent.intent}</p>
                       <p className="mt-1 text-xs text-slate-500">{intent.count.toLocaleString()} runs • {money(intent.cost_usd)}</p>
                     </div>
-                    <Link href={`/request-flow?scope=${scope}&mode=request-intent-model-result&metric=requests`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">
+                    <Link href={`/request-flow?scope=${scope}&mode=request-intent-model-result&metric=requests${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">
                       Trace
                     </Link>
                   </div>
@@ -325,10 +336,10 @@ export default async function AnalyticsOverviewPage({
             <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/60 dark:border-slate-700 dark:bg-slate-900/85">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Next actions</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Link href={`/request-flow?scope=${scope}&mode=request-route-provider-outcome&metric=requests`} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">
+                <Link href={`/request-flow?scope=${scope}&mode=request-route-provider-outcome&metric=requests${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">
                   Request flow
                 </Link>
-                <Link href="/request-explorer" className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">
+                <Link href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">
                   Explorer
                 </Link>
                 <Link href="/cost-savings" className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">

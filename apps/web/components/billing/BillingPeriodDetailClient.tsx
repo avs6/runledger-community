@@ -19,6 +19,8 @@ interface Props {
   reconciliation: ReconciliationResult | null
   breakdown: PeriodBreakdown | null
   adjustments: BillingAdjustmentList
+  accessGroupId?: string
+  apiKeyId?: string
 }
 
 type Tab = 'summary' | 'reconciliation' | 'breakdown' | 'adjustments' | 'exports'
@@ -55,14 +57,21 @@ export default function BillingPeriodDetailClient({
   reconciliation,
   breakdown,
   adjustments,
+  accessGroupId,
+  apiKeyId,
 }: Props) {
   const [tab, setTab] = useState<Tab>('summary')
   const [loading, setLoading] = useState<'csv' | 'json' | null>(null)
+  const exportScope = accessGroupId
+    ? { access_group_id: accessGroupId }
+    : apiKeyId
+      ? { api_key_id: apiKeyId }
+      : {}
 
   async function handleExportCsv() {
     setLoading('csv')
     try {
-      const csv = await exportPeriodCsv(apiKey, period.id)
+      const csv = await exportPeriodCsv(apiKey, period.id, exportScope)
       downloadBlob(csv, `period_${period.id}.csv`, 'text/csv')
     } catch (err) {
       console.error(err)
@@ -75,7 +84,7 @@ export default function BillingPeriodDetailClient({
   async function handleExportJson() {
     setLoading('json')
     try {
-      const data = await exportPeriodSignedJson(apiKey, period.id)
+      const data = await exportPeriodSignedJson(apiKey, period.id, exportScope)
       downloadBlob(JSON.stringify(data, null, 2), `period_${period.id}.json`, 'application/json')
     } catch (err) {
       console.error(err)
@@ -87,6 +96,16 @@ export default function BillingPeriodDetailClient({
 
   return (
     <div className="space-y-6">
+      {accessGroupId ? (
+        <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
+          This billing period detail is scoped to the selected access group where attribution can be derived from member traffic.
+        </div>
+      ) : apiKeyId ? (
+        <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
+          This billing period detail is scoped to a single API key so budget and chargeback evidence can be reviewed against that owner directly.
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500">Gross cost</p>
@@ -105,8 +124,8 @@ export default function BillingPeriodDetailClient({
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500">Cross-feature bridges</p>
           <div className="mt-2 space-y-1 text-sm">
-            <Link href="/budgets?tab=policies" className="block text-blue-600 hover:underline dark:text-blue-400">Budgets</Link>
-            <Link href="/chargeback" className="block text-blue-600 hover:underline dark:text-blue-400">Chargeback</Link>
+            <Link href={accessGroupId ? `/budgets?tab=policies&scope_type=access_group&scope_id=${encodeURIComponent(accessGroupId)}` : apiKeyId ? `/budgets?tab=policies&scope_type=api_key&scope_id=${encodeURIComponent(apiKeyId)}` : '/budgets?tab=policies'} className="block text-blue-600 hover:underline dark:text-blue-400">Budgets</Link>
+            <Link href={accessGroupId ? `/chargeback?dimension=access_group&access_group_id=${encodeURIComponent(accessGroupId)}` : apiKeyId ? `/chargeback?dimension=api_key&api_key_id=${encodeURIComponent(apiKeyId)}` : '/chargeback'} className="block text-blue-600 hover:underline dark:text-blue-400">Chargeback</Link>
             <Link href="/cost-savings" className="block text-blue-600 hover:underline dark:text-blue-400">Cost &amp; Savings</Link>
           </div>
         </div>
@@ -155,6 +174,12 @@ export default function BillingPeriodDetailClient({
                 <dt className="text-slate-500">Snapshot hash</dt>
                 <dd className="font-mono text-slate-900 dark:text-white">{period.snapshot_hash || '--'}</dd>
               </div>
+              {apiKeyId ? (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Scoped owner</dt>
+                  <dd className="font-mono text-slate-900 dark:text-white">{apiKeyId}</dd>
+                </div>
+              ) : null}
             </dl>
           </div>
 
@@ -273,6 +298,7 @@ export default function BillingPeriodDetailClient({
               <li>Use signed JSON when this period feeds compliance or dispute evidence.</li>
               <li>Use shared-cost policies from the main Billing page before generating chargeback outputs.</li>
               <li>Review related budgets if repeated reconciliation issues point back to runtime spend posture.</li>
+              {apiKeyId ? <li>Use this scoped export when reconciling a single API key as a budget owner.</li> : null}
             </ul>
           </div>
         </div>

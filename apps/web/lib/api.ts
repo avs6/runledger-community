@@ -198,6 +198,7 @@ export async function getRuns(
     model?: string
     min_cost?: string
     max_cost?: string
+    access_group_id?: string
   } = {}
 ): Promise<RunListResponse> {
   const qs = new URLSearchParams()
@@ -212,17 +213,32 @@ export async function getRuns(
   if (params.model) qs.set('model', params.model)
   if (params.min_cost) qs.set('min_cost', params.min_cost)
   if (params.max_cost) qs.set('max_cost', params.max_cost)
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
 
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<RunListResponse>(`/runs${query}`, apiKey)
 }
 
-export async function getRun(apiKey: string, runId: string): Promise<RunDetailResponse> {
-  return apiFetch<RunDetailResponse>(`/runs/${runId}`, apiKey)
+export async function getRun(
+  apiKey: string,
+  runId: string,
+  params: { access_group_id?: string } = {}
+): Promise<RunDetailResponse> {
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<RunDetailResponse>(`/runs/${runId}${query}`, apiKey)
 }
 
-export async function getRunGraph(apiKey: string, runId: string): Promise<RunGraphResponse> {
-  return apiFetch<RunGraphResponse>(`/runs/${runId}/graph`, apiKey)
+export async function getRunGraph(
+  apiKey: string,
+  runId: string,
+  params: { access_group_id?: string } = {}
+): Promise<RunGraphResponse> {
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<RunGraphResponse>(`/runs/${runId}/graph${query}`, apiKey)
 }
 
 export async function cancelRun(apiKey: string, runId: string): Promise<RunListItem> {
@@ -238,6 +254,7 @@ export async function getRunFlow(
     limit?: number
     from?: string
     to?: string
+    access_group_id?: string
   } = {}
 ): Promise<import('@/types/api').RunFlowResponse> {
   const qs = new URLSearchParams()
@@ -247,6 +264,7 @@ export async function getRunFlow(
   if (params.limit) qs.set('limit', String(params.limit))
   if (params.from) qs.set('from', params.from)
   if (params.to) qs.set('to', params.to)
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<import('@/types/api').RunFlowResponse>(`/runs/flow${query}`, apiKey)
 }
@@ -336,8 +354,16 @@ export async function getUserSpend(
 
 // ── Budget helpers ─────────────────────────────────────────────────────────────
 
-export async function getBudgets(apiKey: string): Promise<BudgetList> {
-  return apiFetch<BudgetList>('/budgets', apiKey)
+export async function getBudgets(
+  apiKey: string,
+  params: { scope_type?: string; scope_id?: string; include_inactive?: boolean } = {}
+): Promise<BudgetList> {
+  const qs = new URLSearchParams()
+  if (params.scope_type) qs.set('scope_type', params.scope_type)
+  if (params.scope_id) qs.set('scope_id', params.scope_id)
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<BudgetList>(`/budgets${query}`, apiKey)
 }
 
 export async function getBudgetRollup(
@@ -460,8 +486,15 @@ export async function testPlatformWebhookDefaults(apiKey: string): Promise<Platf
 
 // ── Billing helpers ────────────────────────────────────────────────────────────
 
-export async function getBillingPeriods(apiKey: string): Promise<BillingPeriodList> {
-  return apiFetch<BillingPeriodList>('/billing/periods', apiKey)
+export async function getBillingPeriods(
+  apiKey: string,
+  params: { access_group_id?: string; api_key_id?: string } = {}
+): Promise<BillingPeriodList> {
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<BillingPeriodList>(`/billing/periods${query}`, apiKey)
 }
 
 export async function getBillingPeriod(apiKey: string, id: string): Promise<BillingPeriod> {
@@ -484,16 +517,26 @@ export async function closeBillingPeriod(apiKey: string, id: string): Promise<Us
 
 export async function getReconciliation(
   apiKey: string,
-  id: string
+  id: string,
+  params: { access_group_id?: string; api_key_id?: string } = {}
 ): Promise<ReconciliationResult> {
-  return apiFetch<ReconciliationResult>(`/billing/periods/${id}/reconciliation`, apiKey)
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<ReconciliationResult>(`/billing/periods/${id}/reconciliation${query}`, apiKey)
 }
 
 export async function getPeriodBreakdown(
   apiKey: string,
-  id: string
+  id: string,
+  params: { access_group_id?: string; api_key_id?: string } = {}
 ): Promise<PeriodBreakdown> {
-  return apiFetch<PeriodBreakdown>(`/billing/periods/${id}/breakdown`, apiKey)
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<PeriodBreakdown>(`/billing/periods/${id}/breakdown${query}`, apiKey)
 }
 
 export async function listBillingAdjustments(
@@ -550,8 +593,15 @@ export async function deleteBillingAdjustment(
   })
 }
 
-export async function exportPeriodCsv(apiKey: string, id: string): Promise<string> {
-  const res = await fetch(`${API_URL}/billing/periods/${id}/export?format=csv`, {
+export async function exportPeriodCsv(
+  apiKey: string,
+  id: string,
+  params: { access_group_id?: string; api_key_id?: string } = {}
+): Promise<string> {
+  const query = new URLSearchParams({ format: 'csv' })
+  if (params.access_group_id) query.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) query.set('api_key_id', params.api_key_id)
+  const res = await fetch(`${API_URL}/billing/periods/${id}/export?${query.toString()}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
   })
@@ -562,8 +612,15 @@ export async function exportPeriodCsv(apiKey: string, id: string): Promise<strin
   return res.text()
 }
 
-export async function exportPeriodSignedJson(apiKey: string, id: string): Promise<object> {
-  return apiFetch<object>(`/billing/periods/${id}/export?format=signed_json`, apiKey)
+export async function exportPeriodSignedJson(
+  apiKey: string,
+  id: string,
+  params: { access_group_id?: string; api_key_id?: string } = {}
+): Promise<object> {
+  const query = new URLSearchParams({ format: 'signed_json' })
+  if (params.access_group_id) query.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) query.set('api_key_id', params.api_key_id)
+  return apiFetch<object>(`/billing/periods/${id}/export?${query.toString()}`, apiKey)
 }
 
 export async function listSharedCostPolicies(
@@ -1041,6 +1098,10 @@ export async function updateOrgUser(
   body: { full_name?: string | null; password?: string; is_active?: boolean; email_verified?: boolean }
 ): Promise<OrgUser> {
   return apiFetch<OrgUser>(`/users/${userId}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
+}
+
+export async function getUserFinance(apiKey: string, userId: string): Promise<import('@/types/api').UserFinanceSummary> {
+  return apiFetch<import('@/types/api').UserFinanceSummary>(`/users/${userId}/finance`, apiKey)
 }
 
 // Platform-admin: create a new organization (adds you as its org admin).
@@ -2111,6 +2172,12 @@ export async function getOrgDashboard(
   )
 }
 
+export async function getOrgFinance(
+  apiKey: string,
+): Promise<import('@/types/api').OrgFinanceSummary> {
+  return apiFetch<import('@/types/api').OrgFinanceSummary>('/org/finance', apiKey)
+}
+
 // ── SaaS / Billing ────────────────────────────────────────────────────────────
 
 export async function getSubscription(apiKey: string): Promise<import('@/types/api').SubscriptionResponse> {
@@ -2984,7 +3051,7 @@ export async function pullFromGithub(apiKey: string): Promise<GithubSyncResult> 
 export async function getScopedSummary(
   apiKey: string,
   scope: 'workspace' | 'org' | 'platform' = 'workspace',
-  window: TimeWindow = {}
+  window: TimeWindow & { access_group_id?: string } = {}
 ): Promise<ScopedSummary> {
   return apiFetch<ScopedSummary>(
     `/analytics/scoped-summary${_analyticsQs({ scope, ...window })}`,
@@ -3035,6 +3102,7 @@ export async function getRequestExplorer(
     optimization?: string
     page?: number
     page_size?: number
+    access_group_id?: string
   } & TimeWindow = {}
 ): Promise<RequestExplorerResponse> {
   const qs: Record<string, string | undefined> = {}
@@ -3047,6 +3115,7 @@ export async function getRequestExplorer(
   if (params.intent) qs.intent = params.intent
   if (params.end_user_id) qs.end_user_id = params.end_user_id
   if (params.optimization) qs.optimization = params.optimization
+  if (params.access_group_id) qs.access_group_id = params.access_group_id
   if (params.page) qs.page = String(params.page)
   if (params.page_size) qs.page_size = String(params.page_size)
   return apiFetch<RequestExplorerResponse>(
@@ -3243,22 +3312,26 @@ export async function deleteChargebackRule(
 
 export async function getChargebackReport(
   apiKey: string,
-  params?: { period?: string; dimension?: string; format?: 'json' | 'csv' }
+  params?: { period?: string; dimension?: string; format?: 'json' | 'csv'; access_group_id?: string; api_key_id?: string }
 ): Promise<ChargebackReportList> {
   const q = new URLSearchParams()
   if (params?.period) q.set('period', params.period)
   if (params?.dimension) q.set('dimension', params.dimension)
+  if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
+  if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
   const qs = q.toString() ? `?${q}` : ''
   return apiFetch<ChargebackReportList>(`/billing/chargeback-report${qs}`, apiKey)
 }
 
 export async function exportChargebackReport(
   apiKey: string,
-  params?: { period?: string; dimension?: string; format?: 'csv' | 'json' }
+  params?: { period?: string; dimension?: string; format?: 'csv' | 'json'; access_group_id?: string; api_key_id?: string }
 ): Promise<string> {
   const q = new URLSearchParams({ format: params?.format ?? 'csv' })
   if (params?.period) q.set('period', params.period)
   if (params?.dimension) q.set('dimension', params.dimension)
+  if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
+  if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
   const API = typeof window === 'undefined'
     ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
     : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')

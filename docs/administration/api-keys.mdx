@@ -23,3 +23,9 @@ The **API Keys** page is the control-plane entry point for long-lived workspace 
 - Keys are always workspace-scoped for runtime traffic.
 - Management is broader than runtime scope: org-elevated users can list and rotate keys across their org, but the resulting key still belongs to a single workspace.
 - Avoid using legacy project binding as the primary ownership model. Prefer workspace, workflow, and owner metadata.
+
+## FinOps Ownership
+
+- API keys can now act as first-class budget owners through `scope_type=api_key` on the Budgets API and dashboard.
+- The API key detail route at `/api-keys/{key_id}` shows linked budget posture, current-period chargeback attribution, and API-key-scoped billing-period drill-through.
+- Billing reconciliation, billing breakdown, billing exports, and chargeback report/export all accept `api_key_id` when you need finance evidence for one key instead of the whole workspace.

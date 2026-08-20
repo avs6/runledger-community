@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
@@ -314,11 +315,19 @@ export default function ApiKeysPage() {
             ) : (
               filteredApiKeys.map((key) => (
                 <tr key={key.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{key.key_prefix}…</td>
+                  <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">
+                    <Link href={`/api-keys/${key.id}`} className="hover:text-indigo-600 dark:hover:text-indigo-300">
+                      {key.key_prefix}…
+                    </Link>
+                  </td>
                   <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
                     {editingKeyId === key.id ? (
                       <input value={editName} onChange={(e) => setEditName(e.target.value)} className={`${inputCls} w-full`} />
-                    ) : (key.name ?? '—')}
+                    ) : (
+                      <Link href={`/api-keys/${key.id}`} className="hover:text-indigo-600 dark:hover:text-indigo-300">
+                        {key.name ?? '—'}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-xs text-violet-600 dark:text-violet-400">{key.workspace_name ?? '—'}</td>
                   <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">

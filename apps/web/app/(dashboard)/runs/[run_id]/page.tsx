@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getRun, getRunGraph } from '@/lib/api'
+import { getAccessGroupDashboard, getRun, getRunGraph } from '@/lib/api'
 import CancelRunButton from '@/components/runs/CancelRunButton'
 import RunSummaryBar from '@/components/runs/RunSummaryBar'
 import RunGraph from '@/components/dag/RunGraph'
@@ -204,17 +204,24 @@ function ToolCallsTable({ calls }: { calls: ToolCallDetail[] }) {
 
 export default async function RunDetailPage({
   params,
+  searchParams,
 }: {
   params: { run_id: string }
+  searchParams?: { access_group_id?: string }
 }) {
   const session = await getServerSession(authOptions)
   if (!session) return null
+  const accessGroupId = searchParams?.access_group_id
+  const accessGroupDashboard = accessGroupId
+    ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
+    : null
+  const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
   let run, graph
   try {
     ;[run, graph] = await Promise.all([
-      getRun(session.apiKey, params.run_id),
-      getRunGraph(session.apiKey, params.run_id),
+      getRun(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
+      getRunGraph(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
     ])
   } catch {
     notFound()
@@ -227,7 +234,7 @@ export default async function RunDetailPage({
       {/* Back nav */}
       <div className="flex items-center gap-2">
         <Link
-          href="/runs"
+          href={accessGroupId ? `/runs?access_group_id=${encodeURIComponent(accessGroupId)}` : '/runs'}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -237,6 +244,12 @@ export default async function RunDetailPage({
 
       {/* Summary bar */}
       <RunSummaryBar run={run} />
+
+      {accessGroup && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+          This run is being viewed inside the <span className="font-semibold">{accessGroup.name}</span> access-group investigation scope.
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
         <div>

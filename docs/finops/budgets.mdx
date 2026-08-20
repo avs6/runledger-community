@@ -8,10 +8,23 @@ happens when it's approached or breached.
 
 ## Key features
 
-- **Scoped limits** — per workspace, end user, or feature tag.
+- **Scoped limits** — per workspace, end user, feature tag, access group, API key, or provider profile.
 - **Automatic actions** — **throttle**, **block**, or **downgrade** to a cheaper model.
 - **Runaway protection** — a background job catches sudden spikes between rollups.
 - **Fast enforcement** — spend counters live in Redis, so a pre-check adds negligible latency.
+
+## Supported scopes
+
+The current shipped budget scope model is:
+
+- `workspace`
+- `end_user`
+- `feature_tag`
+- `access_group`
+- `api_key`
+- `provider_profile`
+
+Access-group budgets are especially useful when a workspace wants one shared financial envelope and downstream billing or chargeback views for a governed member cohort.
 
 ## How it works
 
@@ -35,6 +48,12 @@ catch spikes that would otherwise slip between rollups.
 | **Throttle** | Rate-limit further requests on the scope. |
 | **Block** | Reject requests until the window resets. |
 | **Downgrade** | Route to a cheaper alias (see [budget_aware routing](/gateway/routing)). |
+
+## Per-user spend breakdown
+
+Budget detail now includes a per-user spend breakdown table. When a budget has `end_user_id` attribution on its provider calls, the detail view shows each user's share of the budget spend — cost, run count, call count, and percentage of total. This is available on the budget detail page and via `GET /budgets/{id}/breakdown`.
+
+Platform users can also view their own financial exposure at `/users/{id}`, which shows 30-day and total spend, run/call counts, and any budgets scoped to their identity.
 
 ## Enforcement modes
 

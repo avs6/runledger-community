@@ -15,6 +15,7 @@ interface Props {
   summary: BillingSummaryResponse
   initialTab: 'summary' | 'periods' | 'shared-costs'
   initialMonths: number
+  accessGroupId?: string
 }
 
 function money(value: number) {
@@ -29,6 +30,7 @@ export default function BillingWorkspaceClient({
   summary,
   initialTab,
   initialMonths,
+  accessGroupId,
 }: Props) {
   const [periods, setPeriods] = useState(initialPeriods)
   const [showCreate, setShowCreate] = useState(false)
@@ -38,6 +40,8 @@ export default function BillingWorkspaceClient({
   const billableShare = totalCost > 0
     ? (summary.periods.reduce((sum, period) => sum + period.billable_cost_usd, 0) / totalCost) * 100
     : 0
+
+  const accessGroupQuery = accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''
 
   return (
     <div className="space-y-6">
@@ -61,10 +65,16 @@ export default function BillingWorkspaceClient({
         </div>
       </div>
 
+      {accessGroupId ? (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+          Billing periods are filtered to activity attributable to the selected access group.
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <Link
-            href="/billing"
+            href={accessGroupId ? `/billing?access_group_id=${encodeURIComponent(accessGroupId)}` : '/billing'}
             className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
               initialTab === 'periods' ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'
             }`}
@@ -72,7 +82,7 @@ export default function BillingWorkspaceClient({
             Billing Periods
           </Link>
           <Link
-            href={`/billing?tab=summary&months=${initialMonths}`}
+            href={`/billing?tab=summary&months=${initialMonths}${accessGroupQuery}`}
             className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
               initialTab === 'summary' ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'
             }`}
@@ -80,7 +90,7 @@ export default function BillingWorkspaceClient({
             Summary
           </Link>
           <Link
-            href="/billing?tab=shared-costs"
+            href={`/billing?tab=shared-costs${accessGroupQuery}`}
             className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
               initialTab === 'shared-costs' ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'
             }`}
@@ -128,6 +138,7 @@ export default function BillingWorkspaceClient({
           <BillingPeriodTable
             items={periods}
             apiKey={apiKey}
+            accessGroupId={accessGroupId}
           />
         </div>
       ) : null}

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_user, get_current_workspace
+from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
@@ -59,6 +60,67 @@ def _duration_ms(started: datetime, ended: datetime | None) -> int | None:
     return int((ended - started).total_seconds() * 1000)
 
 
+async def _resolve_access_group_observe_filters(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    access_group_id: uuid.UUID,
+) -> dict[str, list[str]]:
+    group = (
+        await db.execute(
+            select(AccessGroup).where(
+                AccessGroup.id == access_group_id,
+                AccessGroup.workspace_id == workspace_id,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if group is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Access group not found")
+
+    dashboard_filters = (group.permissions or {}).get("dashboard_filters", {})
+    if not isinstance(dashboard_filters, dict):
+        dashboard_filters = {}
+
+    def _values(keys: list[str]) -> list[str]:
+        collected: list[str] = []
+        for key in keys:
+            raw = dashboard_filters.get(key)
+            if isinstance(raw, str) and raw.strip():
+                collected.append(raw.strip())
+            elif isinstance(raw, list):
+                for item in raw:
+                    if isinstance(item, str) and item.strip():
+                        collected.append(item.strip())
+        return collected
+
+    member_rows = (
+        await db.execute(
+            select(AccessGroupMember.user_id).where(AccessGroupMember.group_id == access_group_id)
+        )
+    ).scalars()
+
+    end_user_ids = [str(user_id) for user_id in member_rows]
+    end_user_ids.extend(_values(["end_user_id", "end_user_ids", "user_id", "user_ids"]))
+
+    def _unique(values: list[str]) -> list[str]:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            ordered.append(value)
+        return ordered
+
+    return {
+        "end_user_ids": _unique(end_user_ids),
+        "feature_tags": _unique(_values(["feature_tag", "feature_tags", "intent", "intents"])),
+        "models": _unique(_values(["model", "models"])),
+        "providers": _unique(_values(["provider", "providers"])),
+        "statuses": _unique(_values(["status", "statuses"])),
+    }
+
+
 # ── List runs ─────────────────────────────────────────────────────────────────
 
 
@@ -66,6 +128,7 @@ def _apply_run_filters(
     stmt: Any,
     *,
     workspace_id: Any,
+    access_group_filters: dict[str, list[str]] | None,
     status_filter: str | None,
     feature_tag: str | None,
     end_user_id: str | None,
@@ -77,6 +140,33 @@ def _apply_run_filters(
     max_cost: Decimal | None,
 ) -> Any:
     stmt = stmt.where(AgentRun.workspace_id == workspace_id)
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            stmt = stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["feature_tags"]:
+            stmt = stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+        if access_group_filters["statuses"]:
+            stmt = stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
+        if access_group_filters["models"]:
+            model_sub = (
+                select(ProviderCall.run_id)
+                .where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.model.in_(access_group_filters["models"]),
+                )
+                .distinct()
+            )
+            stmt = stmt.where(AgentRun.id.in_(model_sub))
+        if access_group_filters["providers"]:
+            provider_sub = (
+                select(ProviderCall.run_id)
+                .where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.provider.in_(access_group_filters["providers"]),
+                )
+                .distinct()
+            )
+            stmt = stmt.where(AgentRun.id.in_(provider_sub))
     if status_filter:
         stmt = stmt.where(AgentRun.status == status_filter)
     if feature_tag:
@@ -286,11 +376,18 @@ async def list_runs(
     ),
     min_cost: Decimal | None = Query(None, description="Minimum total cost (USD)"),
     max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
+    access_group_id: uuid.UUID | None = Query(None),
 ) -> RunListResponse:
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
     # Total count query (without cursor/limit)
     count_stmt = _apply_run_filters(
         select(func.count()).select_from(AgentRun),
         workspace_id=workspace.id,
+        access_group_filters=access_group_filters,
         status_filter=status_filter,
         feature_tag=feature_tag,
         end_user_id=end_user_id,
@@ -307,6 +404,7 @@ async def list_runs(
     stmt = _apply_run_filters(
         select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit + 1),
         workspace_id=workspace.id,
+        access_group_filters=access_group_filters,
         status_filter=status_filter,
         feature_tag=feature_tag,
         end_user_id=end_user_id,
@@ -383,10 +481,17 @@ async def export_runs(
     min_cost: Decimal | None = Query(None),
     max_cost: Decimal | None = Query(None),
     limit: int = Query(1000, ge=1, le=5000),
+    access_group_id: uuid.UUID | None = Query(None),
 ) -> StreamingResponse:
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
     stmt = _apply_run_filters(
         select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit),
         workspace_id=workspace.id,
+        access_group_filters=access_group_filters,
         status_filter=status_filter,
         feature_tag=feature_tag,
         end_user_id=end_user_id,
@@ -474,6 +579,7 @@ async def get_run_flow(
     limit: int = Query(500, ge=1, le=1000),
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
+    access_group_id: uuid.UUID | None = Query(None),
 ) -> RunFlowResponse:
     """
     Safe request-flow records for Sankey dashboards.
@@ -483,6 +589,11 @@ async def get_run_flow(
     content access.
     """
     workspace_ids = await _flow_workspace_ids(scope=scope, workspace=workspace, user=user, db=db)
+    if access_group_id is not None and scope != "workspace":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "access_group_id is only supported for workspace scope",
+        )
     if not workspace_ids:
         return RunFlowResponse(
             scope=scope,
@@ -496,6 +607,40 @@ async def get_run_flow(
         )
 
     filters: list[sa.ColumnElement[bool]] = [AgentRun.workspace_id.in_(workspace_ids)]
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            filters.append(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["feature_tags"]:
+            filters.append(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+        if access_group_filters["statuses"]:
+            filters.append(AgentRun.status.in_(access_group_filters["statuses"]))
+        if access_group_filters["models"]:
+            filters.append(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.model.in_(access_group_filters["models"]),
+                    )
+                    .distinct()
+                )
+            )
+        if access_group_filters["providers"]:
+            filters.append(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.provider.in_(access_group_filters["providers"]),
+                    )
+                    .distinct()
+                )
+            )
     if from_dt is not None:
         filters.append(AgentRun.started_at >= from_dt)
     if to_dt is not None:
@@ -817,9 +962,45 @@ async def get_run(
     run_id: uuid.UUID,
     workspace: WorkspaceDep,
     db: DbDep,
+    access_group_id: uuid.UUID | None = Query(None),
 ) -> RunDetailResponse:
-    run = await db.get(AgentRun, run_id)
-    if run is None or run.workspace_id != workspace.id:
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
+    run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            run_stmt = run_stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["feature_tags"]:
+            run_stmt = run_stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+        if access_group_filters["statuses"]:
+            run_stmt = run_stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
+        if access_group_filters["models"]:
+            run_stmt = run_stmt.where(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.model.in_(access_group_filters["models"]),
+                    )
+                    .distinct()
+                )
+            )
+        if access_group_filters["providers"]:
+            run_stmt = run_stmt.where(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.provider.in_(access_group_filters["providers"]),
+                    )
+                    .distinct()
+                )
+            )
+    run = (await db.execute(run_stmt)).scalar_one_or_none()
+    if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
 
     spans_result = await db.execute(
@@ -929,9 +1110,45 @@ async def get_run_graph(
     run_id: uuid.UUID,
     workspace: WorkspaceDep,
     db: DbDep,
+    access_group_id: uuid.UUID | None = Query(None),
 ) -> RunGraphResponse:
-    run = await db.get(AgentRun, run_id)
-    if run is None or run.workspace_id != workspace.id:
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
+    run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            run_stmt = run_stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["feature_tags"]:
+            run_stmt = run_stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+        if access_group_filters["statuses"]:
+            run_stmt = run_stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
+        if access_group_filters["models"]:
+            run_stmt = run_stmt.where(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.model.in_(access_group_filters["models"]),
+                    )
+                    .distinct()
+                )
+            )
+        if access_group_filters["providers"]:
+            run_stmt = run_stmt.where(
+                AgentRun.id.in_(
+                    select(ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == workspace.id,
+                        ProviderCall.provider.in_(access_group_filters["providers"]),
+                    )
+                    .distinct()
+                )
+            )
+    run = (await db.execute(run_stmt)).scalar_one_or_none()
+    if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
 
     spans_result = await db.execute(

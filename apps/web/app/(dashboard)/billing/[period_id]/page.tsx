@@ -14,11 +14,16 @@ import type { BillingAdjustmentList, PeriodBreakdown, ReconciliationResult } fro
 
 export default async function BillingPeriodDetailPage({
   params,
+  searchParams,
 }: {
   params: { period_id: string }
+  searchParams?: { access_group_id?: string; api_key_id?: string }
 }) {
   const session = await getServerSession(authOptions)
   if (!session) return null
+
+  const accessGroupId = searchParams?.access_group_id
+  const apiKeyId = searchParams?.api_key_id
 
   let period
   try {
@@ -37,10 +42,16 @@ export default async function BillingPeriodDetailPage({
   }
 
   await Promise.allSettled([
-    getReconciliation(session.apiKey, params.period_id).then((result) => {
+    getReconciliation(session.apiKey, params.period_id, {
+      access_group_id: accessGroupId,
+      api_key_id: apiKeyId,
+    }).then((result) => {
       reconciliation = result
     }),
-    getPeriodBreakdown(session.apiKey, params.period_id).then((result) => {
+    getPeriodBreakdown(session.apiKey, params.period_id, {
+      access_group_id: accessGroupId,
+      api_key_id: apiKeyId,
+    }).then((result) => {
       breakdown = result
     }),
     listBillingAdjustments(session.apiKey, params.period_id).then((result) => {
@@ -52,7 +63,13 @@ export default async function BillingPeriodDetailPage({
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Link
-          href="/billing"
+          href={
+            accessGroupId
+              ? `/billing?access_group_id=${encodeURIComponent(accessGroupId)}`
+              : apiKeyId
+                ? `/api-keys/${encodeURIComponent(apiKeyId)}`
+                : '/billing'
+          }
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -75,6 +92,8 @@ export default async function BillingPeriodDetailPage({
         reconciliation={reconciliation}
         breakdown={breakdown}
         adjustments={adjustments}
+        accessGroupId={accessGroupId}
+        apiKeyId={apiKeyId}
       />
     </div>
   )

@@ -11,6 +11,7 @@ interface Props {
   items: BillingPeriod[]
   apiKey: string
   onClosed?: (id: string) => void
+  accessGroupId?: string
 }
 
 function StatusBadge({ status }: { status: BillingPeriod['status'] }) {
@@ -38,9 +39,10 @@ function money(value: string | null) {
   return `$${Number.parseFloat(value).toFixed(4)}`
 }
 
-export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
+export default function BillingPeriodTable({ items, apiKey, onClosed, accessGroupId }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
   const router = useRouter()
+  const accessGroupQuery = accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''
 
   async function handleClose(id: string) {
     setLoading(`close-${id}`)
@@ -60,7 +62,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
   async function handleExportCsv(id: string) {
     setLoading(`csv-${id}`)
     try {
-      const csv = await exportPeriodCsv(apiKey, id)
+      const csv = await exportPeriodCsv(apiKey, id, { access_group_id: accessGroupId })
       downloadBlob(csv, `period_${id}.csv`, 'text/csv')
     } catch (err) {
       console.error(err)
@@ -73,7 +75,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
   async function handleExportJson(id: string) {
     setLoading(`json-${id}`)
     try {
-      const data = await exportPeriodSignedJson(apiKey, id)
+      const data = await exportPeriodSignedJson(apiKey, id, { access_group_id: accessGroupId })
       downloadBlob(JSON.stringify(data, null, 2), `period_${id}.json`, 'application/json')
     } catch (err) {
       console.error(err)
@@ -108,7 +110,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed }: Props) {
             <tr key={period.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
               <td className="px-4 py-3">
                 <Link
-                  href={`/billing/${period.id}`}
+                  href={`/billing/${period.id}${accessGroupQuery}`}
                   className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
                 >
                   {period.period_start} - {period.period_end}

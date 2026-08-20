@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Circle,
   KeyRound,
+  DollarSign,
   Pencil,
   RefreshCw,
   Search,
@@ -276,6 +277,7 @@ export default function UsersPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-3">
+                    <a href={`/users/${u.id}`} title="Financial exposure" className="text-slate-400 hover:text-emerald-600"><DollarSign className="h-4 w-4" /></a>
                     <button onClick={() => openEdit(u)} title="Edit name / reset password" className="text-slate-400 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
                     <button onClick={() => handleRemove(u)} title="Remove from org" className="text-slate-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                   </div>

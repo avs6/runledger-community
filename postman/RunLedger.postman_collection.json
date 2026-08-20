@@ -522,6 +522,12 @@
                   "value": "",
                   "description": "Maximum total cost (USD)",
                   "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Apply an access-group-scoped investigation profile",
+                  "disabled": true
                 }
               ]
             },
@@ -612,6 +618,12 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Apply an access-group-scoped investigation profile",
+                  "disabled": true
                 }
               ]
             },
@@ -677,6 +689,12 @@
                   "key": "to",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Workspace-only access-group investigation scope",
                   "disabled": true
                 }
               ]
@@ -958,6 +976,12 @@
                   "key": "page_size",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Apply an access-group-scoped investigation profile",
                   "disabled": true
                 }
               ]
@@ -1252,6 +1276,12 @@
                   "key": "to",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Workspace-only access-group investigation scope",
                   "disabled": true
                 }
               ]
@@ -2440,7 +2470,7 @@
             "description": "Create Budget",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"scope_type\": \"string\",\n  \"period_type\": \"string\",\n  \"limit_usd\": null,\n  \"action\": \"string\"\n}",
+              "raw": "{\n  \"scope_type\": \"access_group\",\n  \"scope_id\": \"{{access_group_id}}\",\n  \"period_type\": \"monthly\",\n  \"limit_usd\": 250,\n  \"action\": \"block\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2465,7 +2495,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/budgets",
+              "raw": "{{base_url}}/budgets?scope_type=access_group&scope_id={{access_group_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -2478,6 +2508,14 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "scope_type",
+                  "value": "access_group"
+                },
+                {
+                  "key": "scope_id",
+                  "value": "{{access_group_id}}"
                 }
               ]
             },
@@ -2906,7 +2944,50 @@
                 }
               ]
             },
-            "description": "Get Budget detail with live spend state."
+            "description": "Get Budget detail with live spend state and per-user spend breakdown."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Spend Breakdown",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/budgets/:budget_id/breakdown",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "budgets",
+                ":budget_id",
+                "breakdown"
+              ],
+              "variable": [
+                {
+                  "key": "budget_id",
+                  "value": "{{budget_id}}"
+                }
+              ],
+              "query": [
+                {
+                  "key": "end_user_id",
+                  "value": "",
+                  "description": "Filter breakdown to a single end user",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Per-end-user spend breakdown for a budget — cost, run count, call count, and percentage of total."
           },
           "response": []
         },
@@ -3371,7 +3452,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/billing/chargeback-report?period=2026-08&dimension=feature_tag",
+              "raw": "{{base_url}}/billing/chargeback-report?period=2026-08&dimension=api_key&api_key_id={{key_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -3386,7 +3467,11 @@
                 },
                 {
                   "key": "dimension",
-                  "value": "feature_tag"
+                  "value": "api_key"
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "{{key_id}}"
                 }
               ]
             },
@@ -3409,7 +3494,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/billing/chargeback-report/export?period=2026-08&dimension=workspace&format=csv",
+              "raw": "{{base_url}}/billing/chargeback-report/export?period=2026-08&dimension=api_key&api_key_id={{key_id}}&format=csv",
               "host": [
                 "{{base_url}}"
               ],
@@ -3425,7 +3510,11 @@
                 },
                 {
                   "key": "dimension",
-                  "value": "workspace"
+                  "value": "api_key"
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "{{key_id}}"
                 },
                 {
                   "key": "format",
@@ -3489,7 +3578,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/billing/periods",
+              "raw": "{{base_url}}/billing/periods?access_group_id={{access_group_id}}&api_key_id={{key_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -3502,6 +3591,16 @@
                   "key": "status",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "{{access_group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "{{key_id}}",
                   "disabled": true
                 }
               ]
@@ -3739,7 +3838,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/billing/periods/:period_id/breakdown",
+              "raw": "{{base_url}}/billing/periods/:period_id/breakdown?access_group_id={{access_group_id}}&api_key_id={{key_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -3748,6 +3847,18 @@
                 "periods",
                 ":period_id",
                 "breakdown"
+              ],
+              "query": [
+                {
+                  "key": "access_group_id",
+                  "value": "{{access_group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "{{key_id}}",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -3776,7 +3887,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/billing/periods/:period_id/reconciliation",
+              "raw": "{{base_url}}/billing/periods/:period_id/reconciliation?access_group_id={{access_group_id}}&api_key_id={{key_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -3785,6 +3896,18 @@
                 "periods",
                 ":period_id",
                 "reconciliation"
+              ],
+              "query": [
+                {
+                  "key": "access_group_id",
+                  "value": "{{access_group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "{{key_id}}",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -3850,7 +3973,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/billing/periods/:period_id/export",
+              "raw": "{{base_url}}/billing/periods/:period_id/export?access_group_id={{access_group_id}}&api_key_id={{key_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -3872,6 +3995,16 @@
                   "key": "format",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "{{access_group_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "{{key_id}}",
                   "disabled": true
                 }
               ]
@@ -11662,6 +11795,41 @@
           "response": []
         },
         {
+          "name": "User Financial Exposure",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:user_id/finance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":user_id",
+                "finance"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Financial exposure for a platform user \u2014 30-day and total spend, run/call counts, and budgets scoped to this user's identity (org-admin)."
+          },
+          "response": []
+        },
+        {
           "name": "Invite User",
           "request": {
             "method": "POST",
@@ -11995,7 +12163,7 @@
                 "finance"
               ]
             },
-            "description": "Cross-workspace financial summary for org admins."
+            "description": "Cross-workspace financial posture summary for org admins, including budget counts, override and notification coverage, billing status, chargeback readiness, and ledger readiness."
           },
           "response": []
         },

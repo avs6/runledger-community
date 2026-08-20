@@ -18,6 +18,7 @@ budget_spend_sync
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -238,6 +239,8 @@ async def _run_budget_spend_sync() -> dict[str, int]:
                 scope_filter = [ProviderCall.workspace_id == budget.workspace_id]
                 if budget.scope_type == "end_user" and budget.scope_id:
                     scope_filter.append(ProviderCall.end_user_id == budget.scope_id)
+                if budget.scope_type == "api_key" and budget.scope_id:
+                    scope_filter.append(ProviderCall.api_key_id == uuid.UUID(budget.scope_id))
                 # feature_tag is on agent_runs, not provider_calls — skip for now
                 # (workspace and total scope are handled by workspace_id filter)
 

@@ -20,7 +20,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getRequestExplorer, getRun, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
+import { getAccessGroupDashboard, getRequestExplorer, getRun, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId } from '@/lib/utils'
 import type {
@@ -36,15 +36,16 @@ import type {
 interface PageProps {
   searchParams: {
     run_id?: string
-  q?: string
-  status?: string
-  feature_tag?: string
-  end_user_id?: string
-  model?: string
-  provider?: string
-  optimization?: string
-  page?: string
-}
+    q?: string
+    status?: string
+    feature_tag?: string
+    end_user_id?: string
+    model?: string
+    provider?: string
+    optimization?: string
+    page?: string
+    access_group_id?: string
+  }
 }
 
 type DebugFact = {
@@ -230,6 +231,7 @@ function RunList({ requests, selectedRunId, searchParams }: { requests: RequestR
 function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }) {
   return (
     <form action="/request-explorer" className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-300 dark:bg-white/80 md:grid-cols-8">
+      {searchParams.access_group_id && <input type="hidden" name="access_group_id" value={searchParams.access_group_id} />}
       <div className="md:col-span-2">
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Search</label>
         <input
@@ -446,11 +448,13 @@ function RequestDetail({
   graphNodeCount,
   outcomes,
   gatewayMatch,
+  accessGroupId,
 }: {
   run: RunDetailResponse
   graphNodeCount: number
   outcomes: OutcomeResponse[]
   gatewayMatch: GatewayRequestLog | null
+  accessGroupId?: string
 }) {
   const totalTokens = (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0)
   const { routeAlias, decision } = routingEvidence(run, gatewayMatch)
@@ -483,7 +487,7 @@ function RequestDetail({
               Started {formatTimestamp(run.started_at)}. Session {run.session_id ?? 'not captured'}. Graph has {graphNodeCount} node{graphNodeCount === 1 ? '' : 's'}.
             </p>
           </div>
-          <Link href={`/runs/${run.id}`} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
+          <Link href={accessGroupId ? `/runs/${run.id}?access_group_id=${encodeURIComponent(accessGroupId)}` : `/runs/${run.id}`} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
             Open run detail <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -525,6 +529,11 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   if (!session) return null
 
   const page = Number.parseInt(searchParams.page ?? '1', 10)
+  const accessGroupId = searchParams.access_group_id
+  const accessGroupDashboard = accessGroupId
+    ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
+    : null
+  const accessGroup = accessGroupDashboard?.groups[0] ?? null
   const requestExplorer = await getRequestExplorer(session.apiKey, {
     q: searchParams.q,
     status: searchParams.status,
@@ -533,6 +542,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
     model: searchParams.model,
     provider: searchParams.provider,
     optimization: searchParams.optimization,
+    access_group_id: accessGroupId,
     page: Number.isFinite(page) && page > 0 ? page : 1,
     page_size: 50,
   })
@@ -540,8 +550,8 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
 
   const [runResult, graphResult, outcomesResult, gatewayResult] = selectedId
     ? await Promise.allSettled([
-        getRun(session.apiKey, selectedId),
-        getRunGraph(session.apiKey, selectedId),
+        getRun(session.apiKey, selectedId, { access_group_id: accessGroupId }),
+        getRunGraph(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         listOutcomes(session.apiKey, { run_id: selectedId, limit: 20 }),
         listGatewayRequests(session.apiKey, { limit: 100 }),
       ])
@@ -569,10 +579,10 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/analytics" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
+          <Link href={accessGroupId ? `/analytics?scope=workspace&access_group_id=${encodeURIComponent(accessGroupId)}` : '/analytics'} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
             Analytics Overview <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href="/request-flow" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
+          <Link href={accessGroupId ? `/request-flow?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-flow'} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
             Back to flow <Route className="h-4 w-4" />
           </Link>
           {highCostRequest && (
@@ -585,6 +595,12 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
 
       <FilterBar searchParams={searchParams} />
 
+      {accessGroup && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
+          Request Explorer is filtered to the <span className="font-semibold">{accessGroup.name}</span> access group.
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
         <FactCard fact={{ label: 'Requests loaded', value: requestExplorer.items.length.toLocaleString(), icon: GitBranch }} />
         <FactCard fact={{ label: 'Failures', value: failedCount.toLocaleString(), icon: ShieldCheck }} />
@@ -595,7 +611,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <RunList requests={requestExplorer.items} selectedRunId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
         {selectedRun ? (
-          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} />
+          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} />
         ) : (
           <Card className="p-12 text-center">
             <p className="text-base font-semibold text-slate-950">Select a request</p>
@@ -613,7 +629,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
           </p>
         </div>
         <Link
-          href="/runs"
+          href={accessGroupId ? `/runs?access_group_id=${encodeURIComponent(accessGroupId)}` : '/runs'}
           className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70"
         >
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Run Detail</p>

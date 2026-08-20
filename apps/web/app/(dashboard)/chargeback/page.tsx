@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
@@ -36,6 +37,8 @@ const ALLOCATION_TYPES = [
 const DIMENSIONS = [
   { value: 'feature_tag', label: 'Workflow tag' },
   { value: 'application', label: 'Application' },
+  { value: 'api_key', label: 'API key' },
+  { value: 'access_group', label: 'Access group' },
   { value: 'end_user', label: 'End user' },
   { value: 'model', label: 'Model' },
   { value: 'provider', label: 'Provider' },
@@ -81,6 +84,7 @@ const DEFAULT_RULE: RuleFormState = {
 }
 
 export default function ChargebackPage() {
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
   const { canManageOrgSettings } = useRole()
@@ -94,8 +98,15 @@ export default function ChargebackPage() {
   const [ruleForm, setRuleForm] = useState(DEFAULT_RULE)
 
   const months = useMemo(() => buildLast12Months(), [])
+  const requestedDimension = searchParams.get('dimension')
+  const requestedAccessGroupId = searchParams.get('access_group_id') ?? ''
+  const requestedApiKeyId = searchParams.get('api_key_id') ?? ''
+  const initialDimension: DimensionType =
+    requestedDimension && DIMENSIONS.some((item) => item.value === requestedDimension)
+      ? (requestedDimension as DimensionType)
+      : 'feature_tag'
   const [selectedPeriod, setSelectedPeriod] = useState(months[0])
-  const [reportDimension, setReportDimension] = useState('feature_tag')
+  const [reportDimension, setReportDimension] = useState<DimensionType>(initialDimension)
   const [report, setReport] = useState<ChargebackReport | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [exporting, setExporting] = useState<'csv' | 'json' | null>(null)
@@ -121,6 +132,8 @@ export default function ChargebackPage() {
       const data = await getChargebackReport(apiKey, {
         period: selectedPeriod,
         dimension: reportDimension,
+        access_group_id: requestedAccessGroupId || undefined,
+        api_key_id: requestedApiKeyId || undefined,
       })
       setReport(data.items[0] ?? null)
     } catch (err) {
@@ -202,6 +215,8 @@ export default function ChargebackPage() {
         period: selectedPeriod,
         dimension: reportDimension,
         format,
+        access_group_id: requestedAccessGroupId || undefined,
+        api_key_id: requestedApiKeyId || undefined,
       })
       const blob = new Blob([raw], { type: format === 'csv' ? 'text/csv' : 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -288,7 +303,7 @@ export default function ChargebackPage() {
           <span className="mb-1 block font-medium text-slate-500">Dimension</span>
           <select
             value={reportDimension}
-            onChange={(e) => setReportDimension(e.target.value)}
+            onChange={(e) => setReportDimension(e.target.value as DimensionType)}
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
           >
             {DIMENSIONS.map((dimension) => (

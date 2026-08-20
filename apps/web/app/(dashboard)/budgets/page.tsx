@@ -39,7 +39,10 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
       : undefined
 
   const [budgets, tiers, notifications, rollup] = await Promise.all([
-    getBudgets(session.apiKey),
+    getBudgets(session.apiKey, {
+      scope_type: initialScopeType,
+      scope_id: requestedScopeId,
+    }),
     listBudgetTiers(session.apiKey).catch(() => ({ items: [] })),
     listBudgetNotifications(session.apiKey).catch(() => ({ items: [] })),
     getBudgetRollup(session.apiKey).catch(() => null),
