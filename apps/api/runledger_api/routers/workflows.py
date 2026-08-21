@@ -163,6 +163,8 @@ async def list_workflows(
     ws: WorkspaceDep,
     db: DbDep,
     wf_status: str | None = Query(None, alias="status"),
+    access_group_id: str | None = Query(None),
+    api_key_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> WorkflowDefinitionListResponse:
@@ -173,6 +175,18 @@ async def list_workflows(
     if wf_status:
         q = q.where(WorkflowDefinition.status == wf_status)
         count_q = count_q.where(WorkflowDefinition.status == wf_status)
+    if access_group_id or api_key_id:
+        import uuid as _uuid
+        run_sub = select(WorkflowRun.workflow_id).where(
+            WorkflowRun.workspace_id == ws.id,
+        )
+        if access_group_id:
+            run_sub = run_sub.where(WorkflowRun.access_group_id == _uuid.UUID(access_group_id))
+        if api_key_id:
+            run_sub = run_sub.where(WorkflowRun.api_key_id == _uuid.UUID(api_key_id))
+        run_sub = run_sub.distinct()
+        q = q.where(WorkflowDefinition.id.in_(run_sub))
+        count_q = count_q.where(WorkflowDefinition.id.in_(run_sub))
 
     total = (await db.execute(count_q)).scalar() or 0
     rows = (
@@ -292,6 +306,8 @@ async def create_run(
         workflow_id=workflow_id,
         agent_id=body.agent_id,
         parent_run_id=body.parent_run_id,
+        api_key_id=body.api_key_id,
+        access_group_id=body.access_group_id,
         trigger=body.trigger,
         input_data=body.input_data,
     )
@@ -311,6 +327,8 @@ async def list_runs(
     ws: WorkspaceDep,
     db: DbDep,
     run_status: str | None = Query(None, alias="status"),
+    access_group_id: str | None = Query(None),
+    api_key_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> WorkflowRunListResponse:
@@ -325,6 +343,16 @@ async def list_runs(
     if run_status:
         base = base.where(WorkflowRun.status == run_status)
         count_q = count_q.where(WorkflowRun.status == run_status)
+    if access_group_id:
+        import uuid as _uuid
+        _ag = _uuid.UUID(access_group_id)
+        base = base.where(WorkflowRun.access_group_id == _ag)
+        count_q = count_q.where(WorkflowRun.access_group_id == _ag)
+    if api_key_id:
+        import uuid as _uuid
+        _ak = _uuid.UUID(api_key_id)
+        base = base.where(WorkflowRun.api_key_id == _ak)
+        count_q = count_q.where(WorkflowRun.api_key_id == _ak)
 
     total = (await db.execute(count_q)).scalar() or 0
     rows = (

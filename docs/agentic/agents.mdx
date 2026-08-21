@@ -32,10 +32,25 @@ Fields: `name` (required), `description`, `agent_type` (`autonomous | semi_auton
 curl http://localhost:8201/agents?status=active \
   -H "Authorization: Bearer rl_..."
 
+# filter by access group or API key identity
+curl "http://localhost:8201/agents?access_group_id={group_id}" \
+  -H "Authorization: Bearer rl_..."
+curl "http://localhost:8201/agents?api_key_id={key_id}" \
+  -H "Authorization: Bearer rl_..."
+
 # single agent detail
 curl http://localhost:8201/agents/{agent_id} \
   -H "Authorization: Bearer rl_..."
 ```
+
+### Identity filters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `access_group_id` | UUID | Show agents with runs from this access group |
+| `api_key_id` | UUID | Show agents with runs from this API key |
+
+The same filters apply to `GET /agents/{id}/runs` to scope run listings by identity.
 
 ## Agent stats
 

@@ -1,6 +1,6 @@
 # Observe â€” Cohesion Matrix
 
-Last updated: 2026-08-16
+Last updated: 2026-08-20
 
 This file tracks how Observe features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -35,15 +35,15 @@ Current row major feature under audit: `Observe`
 
 | Row Major Feature | Row Subfeature | Organization profile | Org settings | Onboarding | Users | Workspaces | Access groups | API keys | Integrations | Telemetry | MCP registry | AI hub | Projects | Team models | Finding |
 |-------------------|----------------|----------------------|--------------|------------|-------|------------|---------------|----------|--------------|-----------|--------------|--------|----------|-------------|---------|
-| Observe | Analytics overview | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `GAP` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | Observe already inherits workspace and org scope well, and access groups now participate as a real workspace investigation scope. API-key scope still needs stronger first-class investigation treatment, and onboarding still has a real relationship because it should direct operators into the overview shell to validate that setup succeeded. |
-| Observe | Runs list | `PARTIAL` | `N/A` | `PARTIAL` | `GAP` | `STRONG` | `STRONG` | `PARTIAL` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Runs are strongly workspace-native, and access groups now behave like a real investigation slice rather than an absent dimension. |
-| Observe | Run detail | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Run detail now preserves access-group investigation scope while still leaving broader identity provenance only partially surfaced. |
-| Observe | Request flow | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Request Flow now supports workspace-scoped access-group investigation and preserves that scope through focus and explorer pivots. |
-| Observe | Request explorer | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Request Explorer now supports access-group-scoped investigation directly; API-key identity is still the weaker remaining identity bridge here. |
-| Observe | Model usage | `PARTIAL` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Model Usage and AI Hub already form a strong model-intelligence pair. |
-| Observe | Analytics users | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | User analytics is the clearest existing Observe bridge to the user-management surface, and onboarding has at least a light relationship because new operators should know where user-level adoption or anomaly patterns will eventually surface. |
+| Observe | Analytics overview | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `GAP` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | Onboarding Observe & Monitor section now links directly to Analytics Overview. The readiness model uses has_first_run as the data-flowing proxy. |
+| Observe | Runs list | `STRONG` | `N/A` | `PARTIAL` | `GAP` | `STRONG` | `STRONG` | `PARTIAL` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console links to Runs with observability posture rollup showing 30d run volume. |
+| Observe | Run detail | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console observability posture links to run investigation surfaces. |
+| Observe | Request flow | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console observability posture links to request investigation surfaces. |
+| Observe | Request explorer | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console observability posture links to request investigation surfaces. |
+| Observe | Model usage | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Org console observability posture links to Model Usage with distinct model count rollup. |
+| Observe | Analytics users | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | Org console observability posture rolls up user-facing traffic. |
 | Observe | Telemetry | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | Telemetry is already correctly placed in Observe, with scope inheritance still improving. |
-| Observe | Monitoring | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Monitoring and telemetry together should become the clearest operational reflection of scope posture. |
+| Observe | Monitoring | `STRONG` | `N/A` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Onboarding Observe & Monitor section now links directly to Monitoring (alert rules). The readiness model checks has_alert_rule. |
 | Observe | Model scorecards | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | Scorecards already align well with AI Hub and workspace model ownership. |
 
 ### 11.5c Observe x Gateway & Routing / Safety & Governance / Self

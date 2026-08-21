@@ -124,6 +124,8 @@ class WorkflowRunCreate(BaseModel):
     workflow_id: uuid.UUID
     agent_id: uuid.UUID | None = None
     parent_run_id: uuid.UUID | None = None
+    api_key_id: uuid.UUID | None = None
+    access_group_id: uuid.UUID | None = None
     trigger: str | None = Field(None, max_length=200)
     input_data: dict[str, Any] = Field(default_factory=dict)
 

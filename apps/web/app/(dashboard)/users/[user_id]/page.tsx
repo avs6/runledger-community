@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getUserFinance } from '@/lib/api'
+import { getUserFinance, getUserGovernance } from '@/lib/api'
 
 function money(value: string | null | undefined) {
   if (!value) return '$0.00'
@@ -26,6 +26,13 @@ export default async function UserDetailPage({
     finance = await getUserFinance(session.apiKey, params.user_id)
   } catch {
     notFound()
+  }
+
+  let governance
+  try {
+    governance = await getUserGovernance(session.apiKey, params.user_id)
+  } catch {
+    governance = null
   }
 
   return (
@@ -127,6 +134,59 @@ export default async function UserDetailPage({
         )}
       </div>
 
+      {governance && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+          <p className="text-xs uppercase tracking-wide text-slate-500">Governance Footprint</p>
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-2xl font-semibold text-slate-950 dark:text-slate-100">{governance.approval_count}</p>
+              <p className="text-xs text-slate-500">Approvals</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-slate-950 dark:text-slate-100">{governance.audit_event_count}</p>
+              <p className="text-xs text-slate-500">Audit Events</p>
+            </div>
+          </div>
+          {governance.recent_approvals.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Recent Approvals</p>
+              <div className="mt-2 space-y-1">
+                {governance.recent_approvals.map((a) => (
+                  <Link
+                    key={a.id}
+                    href={`/approvals?status=${a.status}`}
+                    className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900"
+                  >
+                    <span className="text-slate-700 dark:text-slate-300">{a.request_type}</span>
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                      a.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                      a.status === 'denied' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                    }`}>{a.status}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          {governance.recent_audit_events.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Recent Audit Events</p>
+              <div className="mt-2 space-y-1">
+                {governance.recent_audit_events.map((e) => (
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm dark:border-slate-800"
+                  >
+                    <span className="text-slate-700 dark:text-slate-300">{e.action}</span>
+                    <span className="text-xs text-slate-500">{new Date(e.created_at).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3">
         <Link
           href={`/runs?end_user_id=${finance.user_id}`}
@@ -145,6 +205,24 @@ export default async function UserDetailPage({
           className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
         >
           Chargeback
+        </Link>
+        <Link
+          href={`/approvals?requested_by=${encodeURIComponent(finance.email)}`}
+          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          Approvals
+        </Link>
+        <Link
+          href={`/audit?actor_user_id=${finance.user_id}`}
+          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          Audit Log
+        </Link>
+        <Link
+          href={`/governance?user_id=${finance.user_id}`}
+          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          Governance Pack
         </Link>
       </div>
     </div>

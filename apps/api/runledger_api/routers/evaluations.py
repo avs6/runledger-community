@@ -93,6 +93,8 @@ async def list_scores(
     source: Annotated[str | None, Query()] = None,
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    access_group_id: Annotated[str | None, Query()] = None,
+    api_key_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(le=200)] = 50,
 ) -> ScoreList:
     """List quality scores for the workspace with optional filters."""
@@ -118,6 +120,26 @@ async def list_scores(
         except ValueError:
             t_to = datetime.now(UTC)
         stmt = stmt.where(ScoreEvent.created_at < t_to)
+    if access_group_id:
+        import uuid as _uuid
+        from runledger_api.models.access_groups import AccessGroupMember
+        member_rows = (
+            await db.execute(
+                select(AccessGroupMember.user_id).where(
+                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                )
+            )
+        ).scalars().all()
+        member_ids = [str(uid) for uid in member_rows]
+        stmt = stmt.where(ScoreEvent.end_user_id.in_(member_ids))
+    if api_key_id:
+        import uuid as _uuid
+        from runledger_api.models.events import AgentRun
+        run_ids_sub = select(AgentRun.id).where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.api_key_id == _uuid.UUID(api_key_id),
+        )
+        stmt = stmt.where(ScoreEvent.run_id.in_(run_ids_sub))
 
     stmt = stmt.order_by(ScoreEvent.created_at.desc()).limit(limit)
     result = await db.execute(stmt)

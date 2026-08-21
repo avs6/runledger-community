@@ -91,6 +91,16 @@ class WorkflowRun(Base):
     workflow_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     agent_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     parent_run_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    access_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("access_groups.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(
         sa.Text, nullable=False, server_default=sa.text("'pending'")
     )

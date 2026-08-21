@@ -1,10 +1,10 @@
 # WU-008: Org Profile Observe & Gateway Posture Rollups
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 01-Org & Access - A (Org Foundation)
 - **Target**: 01-ORG-AND-ACCESS/Organization profile (`/organization`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-20
 
 ## Cohesion Cells to Close
 

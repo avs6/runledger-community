@@ -411,6 +411,80 @@ export default function AccessGroupsPage() {
                       Explorer
                     </Link>
                   </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Link
+                      href={`/approvals?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Approvals
+                    </Link>
+                    <Link
+                      href={`/audit?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Audit Log
+                    </Link>
+                    <Link
+                      href={`/governance?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Governance
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Link
+                      href={`/agents?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Agents
+                    </Link>
+                    <Link
+                      href={`/workflows?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Workflows
+                    </Link>
+                    <Link
+                      href={`/evaluations?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Evaluations
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Link
+                      href={`/experiments?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Experiments
+                    </Link>
+                    <Link
+                      href={`/replay?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Replay
+                    </Link>
+                    <Link
+                      href={`/playground?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Playground
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link
+                      href={`/optimization-opportunities?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Optimization
+                    </Link>
+                    <Link
+                      href={`/optimization-simulator?access_group_id=${encodeURIComponent(group.id)}`}
+                      className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      Simulator
+                    </Link>
+                  </div>
                   <button
                     onClick={() => openMemberManagement(group)}
                     disabled={!canManage}

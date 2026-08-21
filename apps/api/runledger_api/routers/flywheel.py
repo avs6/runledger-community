@@ -81,6 +81,8 @@ async def list_recommendations(
     db: DbDep,
     workspace: WorkspaceDep,
     status_filter: str | None = Query(default="pending", alias="status"),
+    access_group_id: str | None = Query(default=None),
+    api_key_id: str | None = Query(default=None),
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> FlywheelRecommendationList:
@@ -93,6 +95,12 @@ async def list_recommendations(
     if status_filter and status_filter != "all":
         stmt = stmt.where(FlywheelRecommendation.status == status_filter)
         count_stmt = count_stmt.where(FlywheelRecommendation.status == status_filter)
+    if access_group_id:
+        stmt = stmt.where(FlywheelRecommendation.segment_key == access_group_id)
+        count_stmt = count_stmt.where(FlywheelRecommendation.segment_key == access_group_id)
+    if api_key_id:
+        stmt = stmt.where(FlywheelRecommendation.segment_key == api_key_id)
+        count_stmt = count_stmt.where(FlywheelRecommendation.segment_key == api_key_id)
     stmt = stmt.order_by(FlywheelRecommendation.created_at.desc()).limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()
     total = (await db.execute(count_stmt)).scalar_one()

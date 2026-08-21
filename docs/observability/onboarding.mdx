@@ -1,27 +1,66 @@
 ---
 title: "Onboarding Wizard"
-description: "Guided setup wizard with integration-specific paths for 9 agent tools, copyable config snippets, and health status badges."
+description: "Guided setup wizard with 19-step readiness model spanning Foundation, FinOps, Gateway, Observe, and Safety, plus integration-specific paths for 9 agent tools."
 ---
 
-The onboarding wizard walks new users through connecting their first AI application to RunLedger, with integration-specific instructions and live health status.
+The onboarding wizard walks new users through a structured setup checklist that covers every major feature family, then helps them connect their first AI application with integration-specific instructions and live health status.
+
+## Readiness model
+
+The `GET /settings/onboarding-status` endpoint returns a machine-readable readiness summary with 19 boolean checks grouped into five sections.
+
+```bash
+curl -H "Authorization: Bearer $API_KEY" \
+  https://api.runledger.app/settings/onboarding-status
+```
+
+### Response fields
+
+| Field | Section | Description |
+|-------|---------|-------------|
+| `has_org` | Foundation | Organization exists |
+| `has_workspace` | Foundation | Workspace authenticated |
+| `has_api_key` | Foundation | At least one active API key |
+| `has_first_run` | Foundation | First agent run recorded |
+| `has_gateway_route` | Foundation | Active gateway route configured |
+| `has_budget` | Foundation | Budget created |
+| `has_alert_rule` | Foundation | Alert rule created |
+| `has_budget_notification` | FinOps | Budget notification webhook or Slack endpoint configured |
+| `has_billing_period` | FinOps | Billing period created |
+| `has_provider_profile` | Gateway | Provider connected via gateway route |
+| `has_guardrail` | Gateway | Active guardrail rule |
+| `has_rate_limit` | Gateway | Rate limit configured on a route |
+| `has_mcp_server` | Safety | MCP server registered |
+| `has_search_tool` | Safety | Search tool configured |
+| `has_tool_policy` | Safety | Active tool policy |
+| `has_approval_config` | Safety | Approval workflow exists |
+| `has_data_capture` | Safety | Data capture policy configured |
+| `has_security_config` | Safety | Workspace security settings configured |
+| `has_tag` | Safety | Tag taxonomy configured |
+| `completed` | — | Number of completed steps |
+| `total` | — | Total steps (19) |
+| `pct` | — | Completion percentage |
+
+## Wizard sections
+
+1. **Lay The Foundation** — Organization, workspace, API key, first run, gateway route, budget, and alert rule.
+2. **FinOps Readiness** — Budget notifications and billing periods.
+3. **Gateway & Routing** — Provider profiles, guardrails, and rate limits.
+4. **Observe & Monitor** — Links to workspace dashboard, analytics overview, and monitoring.
+5. **Safety & Governance** — MCP servers, search tools, tool policies, approvals, data capture, security, and tags.
+6. **Choose A Connection Path** — Integration-specific setup for 9 tools.
+7. **Connect To RunLedger** — Step-by-step instructions and copyable config snippets.
+8. **Demo Mode And Labs** — Full simulator, quick seed, and manual labs.
 
 ## Key features
 
+- **19-step readiness model** — covers Foundation, FinOps, Gateway, Observe, and Safety.
 - **9 integration paths** — LiteLLM, Open WebUI, OpenHands, LangGraph, Claude Code, Codex, Cursor, Windsurf, and Devin.
 - **Step-by-step instructions** — each integration has 3 focused setup steps.
 - **Copyable config snippets** — ready-to-paste configuration for each integration.
-- **Health badges** — live Connected/Pending status on each setup step.
-- **Completion checklist** — track progress through org creation, workspace setup, API key generation, config, test request, and first run.
-
-## Wizard steps
-
-1. Create organization and workspace
-2. Choose your integration
-3. Generate an API key
-4. Copy the integration config
-5. Send a test request
-6. View your first run
-7. Enable a budget alert
+- **Health badges** — live Done/Set up now status on each setup step.
+- **Set up now links** — every uncompleted step links to the owning surface.
+- **Progress bar** — tracks completion across all 19 steps.
 
 ## Related
 

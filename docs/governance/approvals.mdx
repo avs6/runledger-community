@@ -46,6 +46,20 @@ flowchart LR
 | `sensitive_export` | Export sensitive data |
 | `route_policy_change` | Change a Gateway route policy |
 
+## Identity filters
+
+The approvals list endpoint supports identity-scoped filtering:
+
+| Parameter | Description |
+|---|---|
+| `requested_by` | Filter by requester email (partial match) |
+| `access_group_id` | Filter to approvals from members of a specific access group |
+| `api_key_prefix` | Filter to approvals submitted through a specific API key |
+
+These filters let operators answer questions like "what did the engineering team request?" or "which approvals came through the staging API key?"
+
+From identity detail pages (Users, Access Groups, API Keys), use the **Approvals** link to jump directly into the filtered view.
+
 ## Auto-approval policies
 
 Auto-approval policies let you skip the review queue for trusted combinations of request type and condition. For example, auto-approve `budget_increase` for `workspace:engineering` or `premium_model_use` for `user:admin@*`.

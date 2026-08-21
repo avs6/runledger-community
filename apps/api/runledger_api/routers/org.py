@@ -25,7 +25,10 @@ from runledger_api.models.audit import AuditEvent
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.budget_overrides import BudgetOverride
 from runledger_api.models.budgets import Budget, BudgetNotification
+from runledger_api.models.alerts import AlertRule
 from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.gateway import GatewayRoute, RoutingPolicy
+from runledger_api.models.guardrails import GuardrailRule
 from runledger_api.models.tenant import (
     MemberStatusEnum,
     Tenant,
@@ -1272,6 +1275,231 @@ async def get_org_finance(
         ledger_ready_workspace_count=ledger_ready_workspace_count,
         ledger_partial_workspace_count=ledger_partial_workspace_count,
         ledger_at_risk_workspace_count=ledger_at_risk_workspace_count,
+    )
+
+
+# ── Runtime posture ────────────────────────────────────────────────────────────
+
+
+class WorkspaceRuntimeSummary(BaseModel):
+    workspace_id: uuid.UUID
+    workspace_name: str
+    active_route_count: int
+    distinct_provider_count: int
+    routing_policy_count: int
+    active_guardrail_count: int
+    rate_limited_route_count: int
+
+
+class OrgRuntimeSummary(BaseModel):
+    workspaces: list[WorkspaceRuntimeSummary]
+    total_active_routes: int
+    total_distinct_providers: int
+    total_routing_policies: int
+    total_active_guardrails: int
+    total_rate_limited_routes: int
+
+
+@router.get("/runtime", response_model=OrgRuntimeSummary)
+async def get_org_runtime(
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> OrgRuntimeSummary:
+    """Cross-workspace runtime posture summary for org admins."""
+    current_ws, _, __ = auth
+
+    ws_result = await db.execute(
+        select(Workspace)
+        .where(Workspace.tenant_id == current_ws.tenant_id)
+        .order_by(Workspace.name)
+    )
+    workspaces = list(ws_result.scalars().all())
+    ws_ids = [ws.id for ws in workspaces]
+
+    if not ws_ids:
+        return OrgRuntimeSummary(
+            workspaces=[],
+            total_active_routes=0,
+            total_distinct_providers=0,
+            total_routing_policies=0,
+            total_active_guardrails=0,
+            total_rate_limited_routes=0,
+        )
+
+    route_result = await db.execute(
+        select(
+            GatewayRoute.workspace_id,
+            func.count().label("cnt"),
+            func.count(func.distinct(GatewayRoute.provider)).label("providers"),
+            func.sum(
+                case(
+                    (GatewayRoute.per_user_rpm_limit.is_not(None), 1),
+                    else_=0,
+                )
+            ).label("rate_limited"),
+        )
+        .where(GatewayRoute.workspace_id.in_(ws_ids), GatewayRoute.is_active.is_(True))
+        .group_by(GatewayRoute.workspace_id)
+    )
+    routes_by_ws: dict[uuid.UUID, tuple[int, int, int]] = {
+        row.workspace_id: (row.cnt, row.providers, row.rate_limited or 0)
+        for row in route_result.all()
+    }
+
+    policy_result = await db.execute(
+        select(RoutingPolicy.workspace_id, func.count().label("cnt"))
+        .where(
+            RoutingPolicy.workspace_id.in_(ws_ids),
+            RoutingPolicy.status == "active",
+        )
+        .group_by(RoutingPolicy.workspace_id)
+    )
+    policies_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in policy_result.all()
+    }
+
+    guardrail_result = await db.execute(
+        select(GuardrailRule.workspace_id, func.count().label("cnt"))
+        .where(
+            GuardrailRule.workspace_id.in_(ws_ids),
+            GuardrailRule.status == "active",
+        )
+        .group_by(GuardrailRule.workspace_id)
+    )
+    guardrails_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in guardrail_result.all()
+    }
+
+    summaries = [
+        WorkspaceRuntimeSummary(
+            workspace_id=ws.id,
+            workspace_name=ws.name,
+            active_route_count=routes_by_ws.get(ws.id, (0, 0, 0))[0],
+            distinct_provider_count=routes_by_ws.get(ws.id, (0, 0, 0))[1],
+            routing_policy_count=policies_by_ws.get(ws.id, 0),
+            active_guardrail_count=guardrails_by_ws.get(ws.id, 0),
+            rate_limited_route_count=routes_by_ws.get(ws.id, (0, 0, 0))[2],
+        )
+        for ws in workspaces
+    ]
+
+    return OrgRuntimeSummary(
+        workspaces=summaries,
+        total_active_routes=sum(s.active_route_count for s in summaries),
+        total_distinct_providers=sum(s.distinct_provider_count for s in summaries),
+        total_routing_policies=sum(s.routing_policy_count for s in summaries),
+        total_active_guardrails=sum(s.active_guardrail_count for s in summaries),
+        total_rate_limited_routes=sum(s.rate_limited_route_count for s in summaries),
+    )
+
+
+# ── Observability posture ──────────────────────────────────────────────────────
+
+
+class WorkspaceObserveSummary(BaseModel):
+    workspace_id: uuid.UUID
+    workspace_name: str
+    run_count_30d: int
+    request_count_30d: int
+    distinct_model_count: int
+    error_count_30d: int
+    active_alert_rule_count: int
+
+
+class OrgObserveSummary(BaseModel):
+    workspaces: list[WorkspaceObserveSummary]
+    total_run_count_30d: int
+    total_request_count_30d: int
+    total_distinct_models: int
+    total_error_count_30d: int
+    total_active_alert_rules: int
+
+
+@router.get("/observe", response_model=OrgObserveSummary)
+async def get_org_observe(
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> OrgObserveSummary:
+    """Cross-workspace observability posture summary for org admins."""
+    current_ws, _, __ = auth
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    ws_result = await db.execute(
+        select(Workspace)
+        .where(Workspace.tenant_id == current_ws.tenant_id)
+        .order_by(Workspace.name)
+    )
+    workspaces = list(ws_result.scalars().all())
+    ws_ids = [ws.id for ws in workspaces]
+
+    if not ws_ids:
+        return OrgObserveSummary(
+            workspaces=[],
+            total_run_count_30d=0,
+            total_request_count_30d=0,
+            total_distinct_models=0,
+            total_error_count_30d=0,
+            total_active_alert_rules=0,
+        )
+
+    run_result = await db.execute(
+        select(AgentRun.workspace_id, func.count().label("cnt"))
+        .where(AgentRun.workspace_id.in_(ws_ids), AgentRun.created_at >= since)
+        .group_by(AgentRun.workspace_id)
+    )
+    runs_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in run_result.all()
+    }
+
+    request_result = await db.execute(
+        select(
+            ProviderCall.workspace_id,
+            func.count().label("cnt"),
+            func.count(func.distinct(ProviderCall.model)).label("models"),
+            func.sum(
+                case(
+                    (ProviderCall.status_code >= 400, 1),
+                    else_=0,
+                )
+            ).label("errors"),
+        )
+        .where(ProviderCall.workspace_id.in_(ws_ids), ProviderCall.created_at >= since)
+        .group_by(ProviderCall.workspace_id)
+    )
+    requests_by_ws: dict[uuid.UUID, tuple[int, int, int]] = {
+        row.workspace_id: (row.cnt, row.models, row.errors or 0)
+        for row in request_result.all()
+    }
+
+    alert_result = await db.execute(
+        select(AlertRule.workspace_id, func.count().label("cnt"))
+        .where(AlertRule.workspace_id.in_(ws_ids), AlertRule.is_active.is_(True))
+        .group_by(AlertRule.workspace_id)
+    )
+    alerts_by_ws: dict[uuid.UUID, int] = {
+        row.workspace_id: row.cnt for row in alert_result.all()
+    }
+
+    summaries = [
+        WorkspaceObserveSummary(
+            workspace_id=ws.id,
+            workspace_name=ws.name,
+            run_count_30d=runs_by_ws.get(ws.id, 0),
+            request_count_30d=requests_by_ws.get(ws.id, (0, 0, 0))[0],
+            distinct_model_count=requests_by_ws.get(ws.id, (0, 0, 0))[1],
+            error_count_30d=requests_by_ws.get(ws.id, (0, 0, 0))[2],
+            active_alert_rule_count=alerts_by_ws.get(ws.id, 0),
+        )
+        for ws in workspaces
+    ]
+
+    return OrgObserveSummary(
+        workspaces=summaries,
+        total_run_count_30d=sum(s.run_count_30d for s in summaries),
+        total_request_count_30d=sum(s.request_count_30d for s in summaries),
+        total_distinct_models=sum(s.distinct_model_count for s in summaries),
+        total_error_count_30d=sum(s.error_count_30d for s in summaries),
+        total_active_alert_rules=sum(s.active_alert_rule_count for s in summaries),
     )
 
 

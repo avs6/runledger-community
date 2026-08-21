@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Building2, Check, FileCheck, FileSpreadsheet, FolderOpen, Pencil, Plus, Receipt, Shield, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react'
-import { getOrgFinance } from '@/lib/api'
-import type { OrgFinanceSummary } from '@/types/api'
+import { Activity, BarChart3, Building2, Check, FileCheck, FileSpreadsheet, FolderOpen, Pencil, Plus, Radio, Receipt, Shield, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react'
+import { getOrgFinance, getOrgRuntime, getOrgObserve } from '@/lib/api'
+import type { OrgFinanceSummary, OrgRuntimeSummary, OrgObserveSummary } from '@/types/api'
 
 interface OrgProfile {
   id: string
@@ -82,6 +82,8 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   const [editName, setEditName] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [finance, setFinance] = useState<OrgFinanceSummary | null>(null)
+  const [runtime, setRuntime] = useState<OrgRuntimeSummary | null>(null)
+  const [observe, setObserve] = useState<OrgObserveSummary | null>(null)
 
   // ── Workspaces ───────────────────────────────────────────────────────────────
   const [workspaces, setWorkspaces] = useState<OrgWorkspace[]>([])
@@ -101,11 +103,13 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [profileRes, wsRes, membersRes, financeRes] = await Promise.all([
+      const [profileRes, wsRes, membersRes, financeRes, runtimeRes, observeRes] = await Promise.all([
         fetch(`${apiBase}/org/profile`, { headers }),
         fetch(`${apiBase}/org/workspaces`, { headers }),
         fetch(`${apiBase}/org/members`, { headers }),
         getOrgFinance(apiKey).catch(() => null),
+        getOrgRuntime(apiKey).catch(() => null),
+        getOrgObserve(apiKey).catch(() => null),
       ])
       if (profileRes.ok) {
         const p = await profileRes.json()
@@ -115,6 +119,8 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
       if (wsRes.ok) setWorkspaces(await wsRes.json())
       if (membersRes.ok) setMembers(await membersRes.json())
       setFinance(financeRes)
+      setRuntime(runtimeRes)
+      setObserve(observeRes)
     } catch {
       toast.error('Failed to load organization data')
     }
@@ -469,6 +475,204 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
           ) : (
             <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               Financial posture data is unavailable right now.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Runtime Posture ──────────────────────────────────────────────────────── */}
+      <section>
+        <div className="mb-4 flex items-center gap-2">
+          <Radio className="h-5 w-5 text-indigo-500" />
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Runtime Posture</h2>
+          <span className="ml-auto text-xs text-gray-400">Read-only org rollup</span>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Gateway routes, routing policies, guardrails, and rate limits across all workspaces. Jump into the owning surfaces to configure.
+          </p>
+
+          {runtime ? (
+            <>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Active routes</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{runtime.total_active_routes}</div>
+                  <div className="mt-1 text-xs text-slate-500">Across {runtime.workspaces.length} workspaces</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Providers</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{runtime.total_distinct_providers}</div>
+                  <div className="mt-1 text-xs text-slate-500">Distinct provider integrations</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Routing policies</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{runtime.total_routing_policies}</div>
+                  <div className="mt-1 text-xs text-slate-500">Active traffic policies</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Guardrails</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{runtime.total_active_guardrails}</div>
+                  <div className="mt-1 text-xs text-slate-500">Active content safety rules</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Rate limits</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{runtime.total_rate_limited_routes}</div>
+                  <div className="mt-1 text-xs text-slate-500">Routes with per-user RPM limits</div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Link href="/provider-profiles" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-violet-300 hover:bg-violet-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Radio className="h-4 w-4 text-violet-600" />Provider Profiles</div>
+                  <p className="mt-1 text-xs text-slate-500">Provider configuration and model routing setup.</p>
+                </Link>
+                <Link href="/gateway" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-violet-300 hover:bg-violet-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Activity className="h-4 w-4 text-violet-600" />Model Gateway</div>
+                  <p className="mt-1 text-xs text-slate-500">Routes, routing policies, and traffic management.</p>
+                </Link>
+                <Link href="/guardrails" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-violet-300 hover:bg-violet-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Shield className="h-4 w-4 text-violet-600" />Guardrails</div>
+                  <p className="mt-1 text-xs text-slate-500">Content safety rules and policy enforcement.</p>
+                </Link>
+                <Link href="/gateway?tab=rate-limits" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-violet-300 hover:bg-violet-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><BarChart3 className="h-4 w-4 text-violet-600" />Rate Limits</div>
+                  <p className="mt-1 text-xs text-slate-500">Per-user and per-route rate limit tiers.</p>
+                </Link>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">Workspace</th>
+                      <th className="px-4 py-2 text-left font-medium">Routes</th>
+                      <th className="px-4 py-2 text-left font-medium">Providers</th>
+                      <th className="px-4 py-2 text-left font-medium">Policies</th>
+                      <th className="px-4 py-2 text-left font-medium">Guardrails</th>
+                      <th className="px-4 py-2 text-left font-medium">Rate limits</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {runtime.workspaces.map((ws) => (
+                      <tr key={ws.workspace_id} className="bg-white dark:bg-gray-900">
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{ws.workspace_name}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.active_route_count}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.distinct_provider_count}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.routing_policy_count}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.active_guardrail_count}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.rate_limited_route_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              Runtime posture data is unavailable right now.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Observability Posture ─────────────────────────────────────────────────── */}
+      <section>
+        <div className="mb-4 flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-indigo-500" />
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Observability Posture</h2>
+          <span className="ml-auto text-xs text-gray-400">Read-only org rollup</span>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Run volume, request traffic, model usage, and monitoring alert coverage across all workspaces. Jump into Observe surfaces to investigate.
+          </p>
+
+          {observe ? (
+            <>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">30d runs</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{observe.total_run_count_30d.toLocaleString()}</div>
+                  <div className="mt-1 text-xs text-slate-500">Across {observe.workspaces.length} workspaces</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">30d requests</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{observe.total_request_count_30d.toLocaleString()}</div>
+                  <div className="mt-1 text-xs text-slate-500">Provider calls processed</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Models</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{observe.total_distinct_models}</div>
+                  <div className="mt-1 text-xs text-slate-500">Distinct models in use</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">30d errors</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{observe.total_error_count_30d.toLocaleString()}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {observe.total_request_count_30d > 0
+                      ? `${((observe.total_error_count_30d / observe.total_request_count_30d) * 100).toFixed(1)}% error rate`
+                      : 'No traffic'}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Alert rules</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{observe.total_active_alert_rules}</div>
+                  <div className="mt-1 text-xs text-slate-500">Active monitoring rules</div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Link href="/analytics" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><BarChart3 className="h-4 w-4 text-teal-600" />Analytics</div>
+                  <p className="mt-1 text-xs text-slate-500">Spend, usage, and model performance overview.</p>
+                </Link>
+                <Link href="/runs" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Activity className="h-4 w-4 text-teal-600" />Runs</div>
+                  <p className="mt-1 text-xs text-slate-500">Run list, detail, and execution traces.</p>
+                </Link>
+                <Link href="/analytics?tab=model-usage" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><BarChart3 className="h-4 w-4 text-teal-600" />Model Usage</div>
+                  <p className="mt-1 text-xs text-slate-500">Model distribution, cost trends, and token usage.</p>
+                </Link>
+                <Link href="/monitoring" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Radio className="h-4 w-4 text-teal-600" />Monitoring</div>
+                  <p className="mt-1 text-xs text-slate-500">Alert rules, thresholds, and incident posture.</p>
+                </Link>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-950 dark:text-slate-400">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">Workspace</th>
+                      <th className="px-4 py-2 text-left font-medium">Runs (30d)</th>
+                      <th className="px-4 py-2 text-left font-medium">Requests (30d)</th>
+                      <th className="px-4 py-2 text-left font-medium">Models</th>
+                      <th className="px-4 py-2 text-left font-medium">Errors (30d)</th>
+                      <th className="px-4 py-2 text-left font-medium">Alert rules</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {observe.workspaces.map((ws) => (
+                      <tr key={ws.workspace_id} className="bg-white dark:bg-gray-900">
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{ws.workspace_name}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.run_count_30d.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.request_count_30d.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.distinct_model_count}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.error_count_30d.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{ws.active_alert_rule_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              Observability posture data is unavailable right now.
             </div>
           )}
         </div>

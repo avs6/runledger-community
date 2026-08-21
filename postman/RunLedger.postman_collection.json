@@ -1487,6 +1487,18 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Filter scorecards by access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter scorecards by API key",
+                  "disabled": true
                 }
               ]
             },
@@ -4750,10 +4762,28 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "requested_by",
+                  "value": "",
+                  "description": "Filter by requester email (partial match)",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Filter to approvals from members of an access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_prefix",
+                  "value": "",
+                  "description": "Filter to approvals submitted through a specific API key",
+                  "disabled": true
                 }
               ]
             },
-            "description": "List approval requests for this workspace."
+            "description": "List approval requests for this workspace. Supports identity filters: requested_by, access_group_id, api_key_prefix."
           },
           "response": []
         },
@@ -5132,10 +5162,28 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "",
+                  "description": "Scope to a specific user",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Scope to members of an access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Scope to traffic from a specific API key",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Get Governance Audit Pack"
+            "description": "Get Governance Audit Pack. Supports identity filters: user_id, access_group_id, api_key_id."
           },
           "response": []
         },
@@ -7767,6 +7815,18 @@
                   "key": "limit",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Filter scores by access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter scores by API key",
                   "disabled": true
                 }
               ]
@@ -11451,7 +11511,7 @@
                 "onboarding-status"
               ]
             },
-            "description": "Return setup completion checklist for onboarding wizard."
+            "description": "Return 19-step setup readiness checklist spanning Foundation, FinOps, Gateway, Observe, and Safety. Each boolean field indicates whether the corresponding feature is configured."
           },
           "response": []
         },
@@ -11830,6 +11890,41 @@
           "response": []
         },
         {
+          "name": "User Governance Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:user_id/governance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ":user_id",
+                "governance"
+              ],
+              "variable": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Governance footprint for a user \u2014 approval count, recent approvals, audit event count, and recent audit events (org-admin)."
+          },
+          "response": []
+        },
+        {
           "name": "Invite User",
           "request": {
             "method": "POST",
@@ -12164,6 +12259,62 @@
               ]
             },
             "description": "Cross-workspace financial posture summary for org admins, including budget counts, override and notification coverage, billing status, chargeback readiness, and ledger readiness."
+          },
+          "response": []
+        },
+        {
+          "name": "Org Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/runtime",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "runtime"
+              ]
+            },
+            "description": "Cross-workspace runtime posture summary: active routes, providers, routing policies, guardrails, and rate-limited routes per workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Org Observability Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/org/observe",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "org",
+                "observe"
+              ]
+            },
+            "description": "Cross-workspace observability posture summary: 30-day run count, request count, distinct models, error count, and active alert rules per workspace."
           },
           "response": []
         },
@@ -12993,10 +13144,22 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Filter to events from members of an access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_prefix",
+                  "value": "",
+                  "description": "Filter by API key prefix",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Return paginated audit events for this workspace, newest first."
+            "description": "Return paginated audit events for this workspace, newest first. Supports identity filters: access_group_id, api_key_prefix."
           },
           "response": []
         },
@@ -15259,6 +15422,18 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Filter agents by access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter agents by API key",
+                  "disabled": true
                 }
               ]
             },
@@ -15881,6 +16056,18 @@
                   "key": "offset",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Filter workflows by access group",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter workflows by API key",
                   "disabled": true
                 }
               ]

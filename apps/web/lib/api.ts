@@ -885,8 +885,15 @@ export async function createExperiment(
   })
 }
 
-export async function listExperiments(apiKey: string): Promise<ExperimentList> {
-  return apiFetch<ExperimentList>('/replay/experiments', apiKey)
+export async function listExperiments(
+  apiKey: string,
+  params: { access_group_id?: string; api_key_id?: string } = {}
+): Promise<ExperimentList> {
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<ExperimentList>(`/replay/experiments${query}`, apiKey)
 }
 
 export async function runExperiment(apiKey: string, id: string): Promise<ExperimentResponse> {
@@ -1102,6 +1109,10 @@ export async function updateOrgUser(
 
 export async function getUserFinance(apiKey: string, userId: string): Promise<import('@/types/api').UserFinanceSummary> {
   return apiFetch<import('@/types/api').UserFinanceSummary>(`/users/${userId}/finance`, apiKey)
+}
+
+export async function getUserGovernance(apiKey: string, userId: string): Promise<import('@/types/api').UserGovernanceSummary> {
+  return apiFetch<import('@/types/api').UserGovernanceSummary>(`/users/${userId}/governance`, apiKey)
 }
 
 // Platform-admin: create a new organization (adds you as its org admin).
@@ -1367,6 +1378,8 @@ export async function listScores(
     source?: string
     from?: string
     to?: string
+    access_group_id?: string
+    api_key_id?: string
     limit?: number
   } = {}
 ): Promise<ScoreList> {
@@ -1376,6 +1389,8 @@ export async function listScores(
   if (params.source) qs.set('source', params.source)
   if (params.from) qs.set('from', params.from)
   if (params.to) qs.set('to', params.to)
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
   if (params.limit) qs.set('limit', String(params.limit))
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<ScoreList>(`/evaluations/scores${query}`, apiKey)
@@ -2122,10 +2137,14 @@ export async function updateFlywheelSettings(
 
 export async function listFlywheelRecommendations(
   apiKey: string,
-  status = 'pending',
+  params: { status?: string; access_group_id?: string; api_key_id?: string } = {}
 ): Promise<import('@/types/api').FlywheelRecommendationList> {
+  const qs = new URLSearchParams()
+  qs.set('status', params.status ?? 'pending')
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
   return apiFetch<import('@/types/api').FlywheelRecommendationList>(
-    `/gateway/flywheel/recommendations?status=${encodeURIComponent(status)}`,
+    `/gateway/flywheel/recommendations?${qs.toString()}`,
     apiKey,
   )
 }
@@ -2176,6 +2195,18 @@ export async function getOrgFinance(
   apiKey: string,
 ): Promise<import('@/types/api').OrgFinanceSummary> {
   return apiFetch<import('@/types/api').OrgFinanceSummary>('/org/finance', apiKey)
+}
+
+export async function getOrgRuntime(
+  apiKey: string,
+): Promise<import('@/types/api').OrgRuntimeSummary> {
+  return apiFetch<import('@/types/api').OrgRuntimeSummary>('/org/runtime', apiKey)
+}
+
+export async function getOrgObserve(
+  apiKey: string,
+): Promise<import('@/types/api').OrgObserveSummary> {
+  return apiFetch<import('@/types/api').OrgObserveSummary>('/org/observe', apiKey)
 }
 
 // ── SaaS / Billing ────────────────────────────────────────────────────────────
@@ -2447,11 +2478,14 @@ export async function getApprovalSummary(
 
 export async function listApprovals(
   apiKey: string,
-  params?: { status?: string; request_type?: string; limit?: number }
+  params?: { status?: string; request_type?: string; requested_by?: string; access_group_id?: string; api_key_prefix?: string; limit?: number }
 ): Promise<import('@/types/api').ApprovalList> {
   const q = new URLSearchParams()
   if (params?.status) q.set('status', params.status)
   if (params?.request_type) q.set('request_type', params.request_type)
+  if (params?.requested_by) q.set('requested_by', params.requested_by)
+  if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
+  if (params?.api_key_prefix) q.set('api_key_prefix', params.api_key_prefix)
   if (params?.limit) q.set('limit', String(params.limit))
   return apiFetch<import('@/types/api').ApprovalList>(
     `/approvals${q.toString() ? '?' + q.toString() : ''}`,
@@ -2567,16 +2601,22 @@ export async function listAuditEvents(
   apiKey: string,
   params: {
     action?: string
+    actor_user_id?: string
     target_type?: string
     target_id?: string
+    access_group_id?: string
+    api_key_prefix?: string
     limit?: number
     offset?: number
   } = {}
 ): Promise<AuditEventList> {
   const q = new URLSearchParams()
   if (params.action) q.set('action', params.action)
+  if (params.actor_user_id) q.set('actor_user_id', params.actor_user_id)
   if (params.target_type) q.set('target_type', params.target_type)
   if (params.target_id) q.set('target_id', params.target_id)
+  if (params.access_group_id) q.set('access_group_id', params.access_group_id)
+  if (params.api_key_prefix) q.set('api_key_prefix', params.api_key_prefix)
   q.set('limit', String(params.limit ?? 50))
   q.set('offset', String(params.offset ?? 0))
   return apiFetch<AuditEventList>(`/audit/events?${q.toString()}`, apiKey)
@@ -2986,8 +3026,15 @@ export async function deleteEvalDataset(apiKey: string, id: string): Promise<voi
 
 // ── Eval Experiments ───────────────────────────────────────────────────────────
 
-export async function listEvalExperiments(apiKey: string, limit = 50): Promise<EvalExperimentList> {
-  return apiFetch<EvalExperimentList>(`/experiments?limit=${limit}`, apiKey)
+export async function listEvalExperiments(
+  apiKey: string,
+  params: { limit?: number; access_group_id?: string; api_key_id?: string } = {}
+): Promise<EvalExperimentList> {
+  const qs = new URLSearchParams()
+  qs.set('limit', String(params.limit ?? 50))
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
+  return apiFetch<EvalExperimentList>(`/experiments?${qs.toString()}`, apiKey)
 }
 
 export async function createEvalExperiment(
@@ -3071,7 +3118,7 @@ export async function getSavingsAnalytics(
 
 export async function getOptimizationOpportunities(
   apiKey: string,
-  window: TimeWindow = {}
+  window: TimeWindow & { access_group_id?: string; api_key_id?: string } = {}
 ): Promise<OptimizationOpportunitiesResponse> {
   return apiFetch<OptimizationOpportunitiesResponse>(
     `/analytics/optimization-opportunities${_analyticsQs(window)}`,
@@ -3253,7 +3300,7 @@ export async function exportRunbook(
 
 export async function getModelScorecards(
   apiKey: string,
-  window: TimeWindow = {}
+  window: TimeWindow & { access_group_id?: string; api_key_id?: string } = {}
 ): Promise<ModelScorecardList> {
   return apiFetch<ModelScorecardList>(
     `/analytics/model-scorecards${_analyticsQs(window)}`,
@@ -3359,13 +3406,16 @@ export async function createRouteRecommendation(
 
 export async function getGovernanceAuditPack(
   apiKey: string,
-  params?: { from?: string; to?: string; org_id?: string; workspace_id?: string }
+  params?: { from?: string; to?: string; org_id?: string; workspace_id?: string; user_id?: string; access_group_id?: string; api_key_id?: string }
 ): Promise<import('@/types/api').GovernanceAuditPack> {
   const q = new URLSearchParams()
   if (params?.from) q.set('from', params.from)
   if (params?.to) q.set('to', params.to)
   if (params?.org_id) q.set('org_id', params.org_id)
   if (params?.workspace_id) q.set('workspace_id', params.workspace_id)
+  if (params?.user_id) q.set('user_id', params.user_id)
+  if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
+  if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
   const qs = q.toString() ? `?${q}` : ''
   return apiFetch<import('@/types/api').GovernanceAuditPack>(`/governance/audit-pack${qs}`, apiKey)
 }
@@ -3930,11 +3980,13 @@ export async function exportBilling(
 
 export async function getAgents(
   apiKey: string,
-  params: { status?: string; agent_type?: string; limit?: number; offset?: number } = {}
+  params: { status?: string; agent_type?: string; access_group_id?: string; api_key_id?: string; limit?: number; offset?: number } = {}
 ): Promise<import('@/types/api').AgentListResponse> {
   const qs = new URLSearchParams()
   if (params.status) qs.set('status', params.status)
   if (params.agent_type) qs.set('agent_type', params.agent_type)
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
   if (params.limit) qs.set('limit', String(params.limit))
   if (params.offset) qs.set('offset', String(params.offset))
   const query = qs.toString() ? `?${qs.toString()}` : ''
@@ -4010,10 +4062,12 @@ export async function retireAgent(
 
 export async function getWorkflows(
   apiKey: string,
-  params: { status?: string; limit?: number; offset?: number } = {}
+  params: { status?: string; access_group_id?: string; api_key_id?: string; limit?: number; offset?: number } = {}
 ): Promise<import('@/types/api').WorkflowDefinitionListResponse> {
   const qs = new URLSearchParams()
   if (params.status) qs.set('status', params.status)
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
   if (params.limit) qs.set('limit', String(params.limit))
   if (params.offset) qs.set('offset', String(params.offset))
   const query = qs.toString() ? `?${qs.toString()}` : ''
@@ -4205,10 +4259,11 @@ export async function testVectorSearch(
 
 export async function getPlaygroundSessions(
   apiKey: string,
-  params: { favorites_only?: boolean; limit?: number; offset?: number } = {}
+  params: { favorites_only?: boolean; access_group_id?: string; limit?: number; offset?: number } = {}
 ): Promise<import('@/types/api').PlaygroundSessionListResponse> {
   const qs = new URLSearchParams()
   if (params.favorites_only) qs.set('favorites_only', 'true')
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
   if (params.limit) qs.set('limit', String(params.limit))
   if (params.offset) qs.set('offset', String(params.offset))
   const query = qs.toString() ? `?${qs.toString()}` : ''
