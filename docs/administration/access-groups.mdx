@@ -37,6 +37,12 @@ Access groups are now a real Observe investigation dimension too.
 
 The access-groups dashboard links into `/analytics`, `/runs`, `/request-flow`, `/request-explorer`, `/budgets`, `/billing`, and `/chargeback` with the correct access-group scope pre-applied.
 
+## Gateway and Runtime Integration
+
+- `GET /analytics/access-group-gateway-posture?access_group_id={id}` returns the workspace gateway posture relevant to the access group: route count, active routes, distinct providers, routing policies, guardrail count and active guardrails, and passthrough endpoint count. The response also surfaces the group's `guardrail_profile` for quick reference.
+- The Access Groups page links directly to Gateway, Provider Profiles, Rate Limits, and Guardrails for workspace-level runtime context.
+- Access groups carry a `guardrail_profile` field that the guardrails engine resolves at runtime, making the group a first-class runtime governance scope.
+
 ## Product Fit
 
 Access Groups are a workspace-scoped governance primitive. They should not become a parallel organization model or a replacement for workspaces. Use them to shape access and policy inside a workspace, not to model legacy teams or projects.

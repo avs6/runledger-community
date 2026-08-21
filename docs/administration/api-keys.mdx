@@ -37,6 +37,12 @@ The **API Keys** page is the control-plane entry point for long-lived workspace 
 - `GET /analytics/api-key-footprint/{api_key_id}` returns a 30-day observe summary: run count, total cost, tokens, models used, and recent runs for a single API key.
 - The API Keys page includes an Observe button per key that opens a footprint modal with cost, run count, models used, and drill-through links to Runs, Analytics, Model Usage, Cost & Savings, Engineering, and Monitoring scoped to that key.
 
+## Gateway and Runtime Integration
+
+- `GET /analytics/api-key-gateway-posture?api_key_id={id}` returns the workspace gateway posture relevant to the API key: route count, active routes, distinct providers, guardrail count and active guardrails, and rate-limited route count.
+- The API Keys page links directly to Gateway, Provider Profiles, Guardrails, and Rate Limits for workspace-level runtime context.
+- API keys authenticate all gateway traffic, making them the primary identity through which routing, guardrail enforcement, and rate limiting are applied.
+
 ## Cross-Feature Relationships
 
 | Surface | Relationship |

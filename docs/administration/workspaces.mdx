@@ -37,6 +37,11 @@ Workspace admins do not see org-level Gateway, Provider Profiles, Alert Rules, M
 - `GET /analytics/workspace-observe-posture` returns a 30-day workspace summary: run count, total cost, tokens, active users, model count, error count, and FinOps coverage (budgets, billing periods, budget notifications).
 - The Workspace page links directly to key Observe surfaces (Sessions, Model Usage, Economics, Cost & Savings, Analytics Users, Engineering, Monitoring, Request Flow) and FinOps surfaces (Billing Summary, Outcomes & ROI, Budgets, Billing Periods, Ledger).
 
+## Safety and Governance Integration
+
+- `GET /analytics/workspace-governance-posture` returns workspace governance metrics: tool policy count, approval count (total and pending), audit event count, alert rule count (total and active), tag count, and chargeback rule count.
+- The Workspace page links directly to Safety surfaces (Policy Dry Run, Approvals, Data Capture, Alert Rules, Audit Log, Governance Pack) and the FinOps Chargeback surface.
+
 ## Cross-Feature Relationships
 
 | Surface | Relationship |
@@ -52,6 +57,13 @@ Workspace admins do not see org-level Gateway, Provider Profiles, Alert Rules, M
 | Ledger | Workspace-scoped financial ledger entries |
 | Outcomes & ROI | Workspace-scoped outcome measurement |
 | Budget notifications | Alert coverage for workspace budgets |
+| Chargeback | Workspace-scoped chargeback rule management |
+| Policy dry run | Workspace-scoped policy simulation |
+| Approvals | Workspace-scoped approval workflows |
+| Data capture | Workspace-scoped data capture configuration |
+| Alert rules | Workspace-scoped alert rule management |
+| Audit log | Workspace-scoped audit event history |
+| Governance pack | Workspace-scoped governance pack overview |
 
 ## Isolation
 

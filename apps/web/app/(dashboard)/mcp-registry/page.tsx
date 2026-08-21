@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -348,6 +349,22 @@ export default function McpRegistryPage() {
           <p className="mt-1 text-sm text-slate-500">
             Consolidated setup, server lifecycle management, tool testing, permission policies, and MCP call review.
           </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+            <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
+            <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics</Link>
+            <Link href="/request-flow" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+            <Link href="/request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+            <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+            <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+            <Link href="/agents" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Agents</Link>
+            <Link href="/workflows" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workflows</Link>
+            <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3">

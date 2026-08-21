@@ -160,3 +160,12 @@ The **Observe -> Monitoring -> Telemetry** page shows:
 - A table of recent ingest batches with status and error details
 - A batch drill-in view with payload preview and resource-map inspection
 - A quick-start code snippet for your exporter configuration
+
+## FinOps and Governance Integration
+
+`GET /analytics/telemetry-downstream-posture` returns a workspace-level summary of the FinOps and Safety surfaces that sit downstream of telemetry ingest:
+
+- **FinOps**: budget count, active billing periods, chargeback rule count, and budget notification count.
+- **Safety**: tool policy count, approval count, audit event count, alert rule count, active alerts, and tag count.
+
+The Telemetry page links directly to Budgets, Billing Periods, Chargeback, Ledger, Tool Policies, Approvals, Audit Log, Alert Rules, Governance Pack, and Data Capture for workspace-level downstream context.

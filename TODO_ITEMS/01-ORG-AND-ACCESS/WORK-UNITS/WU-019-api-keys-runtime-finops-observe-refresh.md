@@ -1,10 +1,10 @@
 # WU-019: API Keys Runtime FinOps and Observe Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - Bundle B (Identity and Scope Control)
 - **Target**: 01-ORG-AND-ACCESS/API keys (`/api-keys`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

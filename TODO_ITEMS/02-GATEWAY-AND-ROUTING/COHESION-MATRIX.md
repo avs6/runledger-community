@@ -1,6 +1,6 @@
 # Gateway & Routing — Cohesion Matrix
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
 
 This file tracks how Gateway & Routing features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -30,11 +30,11 @@ Current row major feature under audit: `Gateway & Routing`
 
 | Row Major Feature | Row Subfeature | Organization profile | Org settings | Onboarding | Users | Workspaces | Access groups | API keys | Integrations | Telemetry | MCP registry | AI hub | Projects | Team models | Finding |
 |-------------------|----------------|----------------------|--------------|------------|-------|------------|---------------|----------|--------------|-----------|--------------|--------|----------|-------------|---------|
-| Gateway & Routing | Provider profiles | `STRONG` | `N/A` | `STRONG` | `GAP` | `PARTIAL` | `GAP` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Onboarding now includes has_provider_profile readiness check with set-up-now link to Gateway. |
-| Gateway & Routing | Model gateway | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `PARTIAL` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | Onboarding includes has_gateway_route readiness check with set-up-now link to Gateway. |
-| Gateway & Routing | Guardrails | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Onboarding includes has_guardrail readiness check with set-up-now link to Guardrails. |
-| Gateway & Routing | Response cache | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Response cache is workspace-scoped and intentionally embedded under Gateway. Onboarding has a real lightweight relationship because setup guidance should frame cache-aware economics and performance posture even if it does not expose controls directly. |
-| Gateway & Routing | Rate limits | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `GAP` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Onboarding includes has_rate_limit readiness check with set-up-now link to Gateway. |
+| Gateway & Routing | Provider profiles | `STRONG` | `N/A` | `STRONG` | `GAP` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | MCP Registry page links directly to Provider Profiles. MCP tool calls interact with provider-level routing and capabilities. Access Groups page and API Keys page also link to Provider Profiles. |
+| Gateway & Routing | Model gateway | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `N/A` | MCP Registry page links directly to Gateway. GET /analytics/mcp-registry-posture returns route_count. MCP tool calls flow through gateway routing decisions at runtime. |
+| Gateway & Routing | Guardrails | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | MCP Registry page links directly to Guardrails. GET /analytics/mcp-registry-posture returns guardrail_count. MCP tool calls are subject to guardrail enforcement at runtime. AI hub page now links to Guardrails (PARTIAL: models are subject to guardrail rules but catalog does not configure them). |
+| Gateway & Routing | Response cache | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Response cache behavior affects model-level economics visible in AI hub cost posture. AI hub page indirectly consumes cache posture through pricing and savings evidence. Response cache is workspace-scoped and intentionally embedded under Gateway. |
+| Gateway & Routing | Rate limits | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Access Groups page now links directly to Rate Limits. GET /analytics/access-group-gateway-posture returns workspace route count including rate-limited status. API key gateway posture returns rate-limited route count. |
 
 ### 11.4c Gateway & Routing x Observe
 
