@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-20
+Last updated: 2026-08-21
 
 ## Purpose
 
@@ -18,12 +18,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Self | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|---------|------------|------------|-----------|-----------|----------|-------------|
-| **A** — Org Foundation | Organization profile, Org settings | P:9 | S:4 P:1 | S:16 P:1 | P:8 | — | P:14 | P:1 |
-| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:24 | P:13 | P:38 | S:22 P:10 | G:5 P:14 | S:22 P:22 | P:8 |
-| **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:16 | S:4 P:5 | S:3 P:17 | S:9 P:15 | S:3 P:5 | P:39 | P:6 |
-| **D** — Capability Catalog | AI hub, Projects, Team models | P:5 | P:1 | P:8 | P:7 | G:1 P:4 | P:14 | P:2 |
+| **A** — Org Foundation | Organization profile, Org settings | OK | S:4 P:1 | S:16 P:1 | G:5 P:6 | — | P:14 | OK |
+| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:10 | P:13 | G:6 P:12 | S:22 P:10 | G:5 P:8 | S:22 P:22 | OK |
+| **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:7 | S:4 P:5 | S:3 P:17 | S:9 P:15 | S:3 P:5 | P:39 | P:5 |
+| **D** — Capability Catalog | AI hub, Projects, Team models | P:4 | P:1 | P:8 | OK | P:2 | P:14 | OK |
 
-**Hot spots**: 01-A x 05 is now closed after Organization Console gained a real FinOps posture rollup and handoff path. 01-A x 02 and 01-A x 03 are now largely resolved after WU-008 shipped runtime and observability posture rollups: Organization Console summarizes routes, providers, guardrails, rate limits, runs, requests, models, errors, and alert rules across workspaces with drill-through links to owning surfaces. 01-B x 05 is no longer dominated by scope ownership gaps now that both access groups and API keys land as real budget, billing, and chargeback owners. 01-B x 04 is now largely resolved after WU-006 shipped identity-scoped governance: Users, Access groups, and API keys have STRONG cohesion with Safety & Governance through filtered approvals, audit log, and governance pack endpoints plus cross-links from identity detail pages. 01-B x 06 is now largely resolved after WU-007 shipped identity-scoped Build & Improve: Access groups and API keys have STRONG cohesion with 22 Build surfaces through filtered agents, workflows, evaluations, experiments, replay, optimization, playground, and model scorecards plus cross-links from identity detail pages. 01-C x 02/03/04/05 are now significantly improved after WU-009 shipped onboarding setup completeness: Onboarding has a 19-step readiness model with explicit checks and set-up-now links covering FinOps (3 STRONG), Gateway (4 STRONG), Observe (3 STRONG), and Safety (9 STRONG) surfaces.
+**Hot spots**: 01-A x 01-Self is now fully resolved after WU-013 closed all internal org family cohesion cells to STRONG (org profile links directly to all sub-features). 01-A x 04 now shows G:5 P:6 after WU-014 moved 4 Safety GAPs to PARTIAL (tool registry, tool policies, governance pack, tags); remaining GAPs are MCP servers, search tools, policy dry run, approvals, and data capture. 01-A x 07 is now fully resolved after WU-013 closed Platform settings to STRONG. 01-B x 01-Self is down from P:24 to P:10 after WU-013 closed 14 internal cohesion cells to STRONG across Users, Workspaces, Access groups, and API keys. 01-B x 07 is now fully resolved after WU-013 closed All organizations and Platform settings to STRONG for all identity surfaces. 01-C x 01-Self is down from P:16 to P:7 after WU-013 closed 9 Onboarding self cells to STRONG. 01-A x 05 is closed after Organization Console gained a real FinOps posture rollup. 01-A x 02 and 01-A x 03 are largely resolved after WU-008. 01-B x 03 is down to G:6 P:12 after WU-011 and WU-012; remaining gaps and partials are in the Users row. 01-B x 05 is at G:5 P:8 after WU-012. 01-B x 04 is largely resolved after WU-006. 01-B x 06 is largely resolved after WU-007. 01-C x 02/03/04/05 improved after WU-009. 01-D x 04 and 01-D x 07 are fully resolved after WU-010. 01-D x 05 is down to P:2 after WU-010.
 
 ---
 
@@ -43,10 +43,10 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Self | 04-Safety | 05-FinOps |
 |--------|----------|--------|------------|---------|-----------|-----------|
-| **A** — Overview & Entry | Analytics overview + dashboards | P:7 | P:3 | P:3 | P:5 | G:1 P:7 |
-| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:24 | P:16 | P:7 | P:28 | G:2 P:22 |
-| **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:7 | P:5 | P:12 | P:1 | G:1 P:16 |
-| **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | P:7 | P:5 | P:8 | P:10 | P:6 |
+| **A** — Overview & Entry | Analytics overview + dashboards | P:3 | P:3 | P:3 | P:5 | G:1 P:7 |
+| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:16 | P:16 | P:7 | P:28 | G:2 P:22 |
+| **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:4 | P:5 | P:12 | P:1 | G:1 P:16 |
+| **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | P:3 | P:5 | P:8 | P:10 | P:6 |
 
 **Hot spots**: 03-B x 01 no longer carries access-group investigation GAPs now that the core Observe chain supports scoped drill-through. 03-B x 05 still has **2 GAPs** (request flow/explorer missing budget detail bridges). 03-C x 05 has **1 GAP** (model usage missing budget detail bridge).
 
@@ -69,10 +69,10 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-Self | 06-Build | 07-Platform |
 |--------|----------|--------|------------|------------|-----------|---------|----------|-------------|
-| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:5 | G:6 P:5 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
-| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:8 | P:8 | P:30 | P:10 | P:12 | P:26 | P:4 |
+| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:3 | G:6 P:5 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
+| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | P:8 | P:30 | P:10 | P:12 | P:26 | P:4 |
 | **C** — Attribution | Chargeback | P:4 | P:3 | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
-| **D** — Compliance | Ledger | P:2 | — | P:5 | P:2 | G:1 P:6 | — | P:1 |
+| **D** — Compliance | Ledger | P:1 | — | P:5 | P:2 | G:1 P:6 | — | P:1 |
 
 **Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but the org-profile handoff closed one of its long-standing Bundle A gaps. Budget detail remains the single biggest cohesion blocker. 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
 
@@ -95,8 +95,8 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Self |
 |--------|----------|--------|------------|------------|-----------|-----------|----------|---------|
-| **A** — Platform Lifecycle | All organizations | P:4 | P:2 | P:1 | P:2 | P:4 | — | P:1 |
-| **B** — Platform Settings | Platform settings | P:5 | P:2 | OK | P:1 | P:3 | — | P:1 |
+| **A** — Platform Lifecycle | All organizations | P:2 | P:2 | P:1 | P:2 | P:4 | — | P:1 |
+| **B** — Platform Settings | Platform settings | P:1 | P:2 | OK | P:1 | P:3 | — | P:1 |
 | **C** — Utility Collapse | Plugins | OK | — | — | — | — | P:1 | OK |
 
 **Hot spots**: None — Platform is the leanest feature family with no GAPs and mostly light PARTIALs.
@@ -120,14 +120,14 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 | A | Organization profile | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
 | A | Org settings | `LEGACY` | `LEGACY` | `NO` | `RE-AUDIT REQUIRED` |
 | B | Users | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| B | Workspaces | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
+| B | Workspaces | `OK` | `OK` | `OK` | `AUDITED` |
 | B | Access groups | `OK` | `OK` | `OK` | `RE-AUDITED: PARTIAL` |
 | B | API keys | `OK` | `OK` | `OK` | `RE-AUDITED: PARTIAL` |
 | C | Onboarding | `PARTIAL` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
 | C | Integrations | `LEGACY` | `LEGACY` | `OK` | `RE-AUDIT REQUIRED` |
 | C | Telemetry | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
 | C | MCP registry | `OK` | `OK` | `PARTIAL` | `RE-AUDIT REQUIRED` |
-| D | AI hub | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
+| D | AI hub | `OK` | `OK` | `OK` | `AUDITED` |
 | D | Projects | `LEGACY` | `LEGACY` | `NO` | `RE-AUDIT REQUIRED` |
 | D | Team models | `LEGACY` | `LEGACY` | `NO` | `RE-AUDIT REQUIRED` |
 
@@ -252,19 +252,20 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 | Rank | Bundle | Total GAPs | Worst Relationship | Root Cause |
 |------|--------|------------|--------------------|-----------| 
 | 1 | **05-A** Budget Control | **48** | 05-A x 06-Build (12G) | Budget detail page is the single biggest cohesion blocker across the entire product |
-| 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys propagate through FinOps, Observe, Safety & Governance, and Build & Improve. WU-006 closed 22 Safety cells, WU-007 closed 22 Build cells to STRONG. Remaining pressure is FinOps and Platform drill-through. |
+| 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys propagate through FinOps, Observe, Safety & Governance, and Build & Improve. WU-006 closed 22 Safety cells, WU-007 closed 22 Build cells to STRONG. WU-013 closed 14 internal and 8 Platform cells to STRONG. Remaining pressure is FinOps and Observe drill-through. |
+| 2b | **01-A** Org Foundation | **5** | 01-A x 04-Safety (5G) | Organization profile Safety & Governance row has 5 remaining GAPs (MCP servers, search tools, policy dry run, approvals, data capture). WU-014 closed 4 GAPs to PARTIAL (tool registry, tool policies, governance pack, tags). |
 | 3 | **03-B** Investigation | **2** | 03-B x 05-FinOps (2G) | Investigation still needs deeper budget-detail bridges beyond the new access-group scope support |
 | 4 | **04-B** Exception Workflows | **2** | 04-B x 05-FinOps (2G) | Approvals disconnected from budget overrides |
 | 5 | **02-C** Performance Controls | **2** | 02-C x 05-FinOps (2G) | Cache/rate-limit detail missing FinOps bridges |
 | 6 | **05-B** Billing & Recon | **1** | 05-B x 01-Org (1G) | Remaining org and user billing ownership bridges are still uneven |
 | 7 | **05-C** Attribution | **1** | 05-C x 05-Self (1G) | Chargeback internal cohesion gap with budget detail |
 | 8 | **05-D** Compliance | **1** | 05-D x 05-Self (1G) | Ledger internal cohesion gap with budget detail |
-| 9 | **01-D** Capability Catalog | **1** | 01-D x 05-FinOps (1G) | AI hub missing budget detail bridge |
-| 10 | **02-A** Provider & Routing | **1** | 02-A x 05-FinOps (1G) | Provider profiles missing budget override bridge |
-| 11 | **03-A** Overview & Entry | **1** | 03-A x 05-FinOps (1G) | Analytics overview missing budget detail bridge |
-| 12 | **03-C** Economics & Intel | **1** | 03-C x 05-FinOps (1G) | Model usage missing budget detail bridge |
-| 13 | **04-A** Tool Governance | **1** | 04-A x 05-FinOps (1G) | Tool registry missing budget detail bridge |
-| 14 | **04-C** Data & Security | **1** | 04-C x 05-FinOps (1G) | Tags missing budget detail bridge |
+| 9 | **02-A** Provider & Routing | **1** | 02-A x 05-FinOps (1G) | Provider profiles missing budget override bridge |
+| 10 | **03-A** Overview & Entry | **1** | 03-A x 05-FinOps (1G) | Analytics overview missing budget detail bridge |
+| 11 | **03-C** Economics & Intel | **1** | 03-C x 05-FinOps (1G) | Model usage missing budget detail bridge |
+| 12 | **04-A** Tool Governance | **1** | 04-A x 05-FinOps (1G) | Tool registry missing budget detail bridge |
+| 13 | **04-C** Data & Security | **1** | 04-C x 05-FinOps (1G) | Tags missing budget detail bridge |
+| 14 | **01-D** Capability Catalog | **0** | — | WU-010 closed the AI hub budget detail GAP and all Safety & Governance and Platform gaps |
 | 15 | **07-A** Platform Lifecycle | **0** | — | — |
 
 **Pattern**: Budget detail (05-A) is the root cause behind **most GAPs across the entire product**. Fixing budget detail unlocks cohesion improvements in 6 of the other 7 major features.
@@ -286,13 +287,13 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-007 | 01-ORG-AND-ACCESS | Identity & scope × Build & Improve | 06-BUILD-AND-IMPROVE | COMPLETED | 01-B |
 | WU-008 | 01-ORG-AND-ACCESS | Org profile × Observe & Gateway rollups | 03-OBSERVE, 02-GATEWAY | COMPLETED | 01-A |
 | WU-009 | 01-ORG-AND-ACCESS | Onboarding setup completeness | 02/03/04/05 | COMPLETED | 01-C |
-| WU-010 | 01-ORG-AND-ACCESS | AI hub × governance & org links | 04/05/07 | NOT_STARTED | 01-D |
-| WU-011 | 01-ORG-AND-ACCESS | API keys × Observe dimension | 03-OBSERVE | NOT_STARTED | 01-B |
-| WU-012 | 01-ORG-AND-ACCESS | Workspace × Observe/FinOps strengthen | 03/05 | NOT_STARTED | 01-B |
-| WU-013 | 01-ORG-AND-ACCESS | Internal cohesion tightening | 07-PLATFORM | NOT_STARTED | 01-A/B/C/D |
-| WU-014 | 01-ORG-AND-ACCESS | Organization profile cross-suite rollups refresh | 03/04/05 | NOT_STARTED | 01-A |
-| WU-015 | 01-ORG-AND-ACCESS | Onboarding cross-suite readiness refresh | 02/03/04/05 | NOT_STARTED | 01-C |
-| WU-016 | 01-ORG-AND-ACCESS | Users scope attribution and governance refresh | 03/04/05 | NOT_STARTED | 01-B |
+| WU-010 | 01-ORG-AND-ACCESS | AI hub × governance & org links | 04/05/07 | COMPLETED | 01-D |
+| WU-011 | 01-ORG-AND-ACCESS | API keys × Observe dimension | 03-OBSERVE | COMPLETED | 01-B |
+| WU-012 | 01-ORG-AND-ACCESS | Workspace × Observe/FinOps strengthen | 03/05 | COMPLETED | 01-B |
+| WU-013 | 01-ORG-AND-ACCESS | Internal cohesion tightening | 07-PLATFORM | COMPLETED | 01-A/B/C/D |
+| WU-014 | 01-ORG-AND-ACCESS | Organization profile cross-suite rollups refresh | 03/04/05 | COMPLETED | 01-A |
+| WU-015 | 01-ORG-AND-ACCESS | Onboarding cross-suite readiness refresh | 02/03/04/05 | COMPLETED | 01-C |
+| WU-016 | 01-ORG-AND-ACCESS | Users scope attribution and governance refresh | 03/04/05 | COMPLETED | 01-B |
 | WU-017 | 01-ORG-AND-ACCESS | Workspaces scope backbone refresh | 03/04/05 | NOT_STARTED | 01-B |
 | WU-018 | 01-ORG-AND-ACCESS | Access groups scope propagation refresh | 02/03/04/05/06 | NOT_STARTED | 01-B |
 | WU-019 | 01-ORG-AND-ACCESS | API keys runtime FinOps and Observe refresh | 02/03/04/05 | NOT_STARTED | 01-B |

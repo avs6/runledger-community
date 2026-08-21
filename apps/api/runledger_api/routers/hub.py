@@ -18,24 +18,34 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from decimal import Decimal
+
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import get_current_workspace, require_org_admin, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
+from runledger_api.models.approvals import Approval
+from runledger_api.models.audit import AuditEvent
+from runledger_api.models.billing import BillingPeriod
+from runledger_api.models.budgets import Budget
 from runledger_api.models.hub import HubModel
+from runledger_api.models.tool_policies import ToolPolicy
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.hub import (
+    HubModelCostPosture,
     HubModelCreate,
+    HubModelGovernanceStatus,
     HubModelList,
     HubModelResponse,
     HubModelUpdate,
+    HubOrgSummary,
 )
 
 log = structlog.get_logger()
@@ -232,3 +242,205 @@ async def sync_provider_models(body: ProviderSyncRequest, ws: WorkspaceDep, db: 
 
     await db.commit()
     return {"status": "synced", "provider": p_key, "models_added": added_count, "total_templates": len(model_templates)}
+
+
+@router.get("/models/{model_id}/cost-posture", response_model=HubModelCostPosture,
+            dependencies=[Depends(analytics_rate_limit)])
+async def get_model_cost_posture(
+    model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep,
+) -> HubModelCostPosture:
+    m = (await db.execute(
+        select(HubModel).where(HubModel.id == model_id, HubModel.workspace_id == ws.id)
+    )).scalar_one_or_none()
+    if not m:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Model not found")
+
+    budget_result = await db.execute(
+        select(Budget).where(
+            Budget.workspace_id == ws.id,
+            Budget.scope_type == "model",
+            Budget.scope_id == m.name,
+            Budget.is_active.is_(True),
+        )
+    )
+    budgets = list(budget_result.scalars().all())
+    total_limit = sum((b.limit_usd or Decimal(0)) for b in budgets)
+    current_spend = sum((b.current_spend_usd or Decimal(0)) for b in budgets)
+
+    billing_result = await db.execute(
+        select(BillingPeriod).where(
+            BillingPeriod.workspace_id == ws.id,
+        ).order_by(BillingPeriod.period_start.desc()).limit(10)
+    )
+    billing_periods = list(billing_result.scalars().all())
+
+    chargeback_cost = Decimal(0)
+
+    return HubModelCostPosture(
+        model_id=m.id,
+        model_name=m.name,
+        provider=m.provider,
+        input_cost_per_1k=m.input_cost_per_1k,
+        output_cost_per_1k=m.output_cost_per_1k,
+        active_budget_count=len(budgets),
+        total_budget_limit_usd=total_limit,
+        current_spend_usd=current_spend,
+        billing_period_count=len(billing_periods),
+        chargeback_cost_usd=chargeback_cost,
+        budgets=[
+            {
+                "id": str(b.id),
+                "period_type": b.period_type,
+                "limit_usd": str(b.limit_usd),
+                "current_spend_usd": str(b.current_spend_usd or 0),
+                "action": b.action,
+            }
+            for b in budgets
+        ],
+        billing_periods=[
+            {
+                "id": str(bp.id),
+                "period_start": str(bp.period_start),
+                "period_end": str(bp.period_end),
+                "status": bp.status,
+            }
+            for bp in billing_periods
+        ],
+    )
+
+
+@router.get("/models/{model_id}/governance", response_model=HubModelGovernanceStatus,
+            dependencies=[Depends(analytics_rate_limit)])
+async def get_model_governance(
+    model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep,
+) -> HubModelGovernanceStatus:
+    m = (await db.execute(
+        select(HubModel).where(HubModel.id == model_id, HubModel.workspace_id == ws.id)
+    )).scalar_one_or_none()
+    if not m:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Model not found")
+
+    approval_count_result = await db.execute(
+        select(func.count(Approval.id)).where(
+            Approval.workspace_id == ws.id,
+            Approval.request_type == "model_access",
+            Approval.target_id == str(m.id),
+        )
+    )
+    approval_count = int(approval_count_result.scalar() or 0)
+
+    recent_approvals_result = await db.execute(
+        select(Approval).where(
+            Approval.workspace_id == ws.id,
+            Approval.request_type == "model_access",
+            Approval.target_id == str(m.id),
+        ).order_by(Approval.created_at.desc()).limit(5)
+    )
+    recent_approvals = [
+        {
+            "id": str(a.id),
+            "request_type": a.request_type,
+            "status": a.status,
+            "requested_by": a.requested_by,
+            "created_at": a.created_at.isoformat(),
+        }
+        for a in recent_approvals_result.scalars().all()
+    ]
+
+    audit_count_result = await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == ws.id,
+            AuditEvent.target_type == "hub_model",
+            AuditEvent.target_id == str(m.id),
+        )
+    )
+    audit_event_count = int(audit_count_result.scalar() or 0)
+
+    recent_audit_result = await db.execute(
+        select(AuditEvent).where(
+            AuditEvent.workspace_id == ws.id,
+            AuditEvent.target_type == "hub_model",
+            AuditEvent.target_id == str(m.id),
+        ).order_by(AuditEvent.created_at.desc()).limit(5)
+    )
+    recent_audit_events = [
+        {
+            "id": str(e.id),
+            "action": e.action,
+            "target_type": e.target_type,
+            "created_at": e.created_at.isoformat(),
+        }
+        for e in recent_audit_result.scalars().all()
+    ]
+
+    tool_policy_count_result = await db.execute(
+        select(func.count(ToolPolicy.id)).where(
+            ToolPolicy.workspace_id == ws.id,
+            ToolPolicy.is_active.is_(True),
+        )
+    )
+    tool_policy_count = int(tool_policy_count_result.scalar() or 0)
+
+    return HubModelGovernanceStatus(
+        model_id=m.id,
+        model_name=m.name,
+        provider=m.provider,
+        tags=m.tags or [],
+        approval_count=approval_count,
+        recent_approvals=recent_approvals,
+        audit_event_count=audit_event_count,
+        recent_audit_events=recent_audit_events,
+        tool_policy_count=tool_policy_count,
+        is_deprecated=m.is_deprecated,
+        deprecation_notice=m.deprecation_notice,
+        access_request_count=m.access_request_count,
+    )
+
+
+@router.get("/org-summary", response_model=HubOrgSummary,
+            dependencies=[Depends(analytics_rate_limit)])
+async def get_hub_org_summary(
+    auth: Annotated[tuple, Depends(require_org_admin)],
+    db: DbDep,
+) -> HubOrgSummary:
+    current_ws, _, __ = auth
+
+    ws_result = await db.execute(
+        select(Workspace)
+        .where(Workspace.tenant_id == current_ws.tenant_id)
+        .order_by(Workspace.name)
+    )
+    workspaces = list(ws_result.scalars().all())
+    ws_ids = [ws.id for ws in workspaces]
+
+    if not ws_ids:
+        return HubOrgSummary(
+            total_models=0, featured_models=0, deprecated_models=0,
+            total_access_requests=0, providers=[], workspaces=[],
+        )
+
+    all_models_result = await db.execute(
+        select(HubModel).where(HubModel.workspace_id.in_(ws_ids))
+    )
+    all_models = list(all_models_result.scalars().all())
+
+    providers = sorted(set(m.provider for m in all_models))
+    ws_summaries = []
+    for ws in workspaces:
+        ws_models = [m for m in all_models if m.workspace_id == ws.id]
+        ws_summaries.append({
+            "workspace_id": str(ws.id),
+            "workspace_name": ws.name,
+            "model_count": len(ws_models),
+            "featured_count": sum(1 for m in ws_models if m.is_featured),
+            "deprecated_count": sum(1 for m in ws_models if m.is_deprecated),
+        })
+
+    return HubOrgSummary(
+        total_models=len(all_models),
+        featured_models=sum(1 for m in all_models if m.is_featured),
+        deprecated_models=sum(1 for m in all_models if m.is_deprecated),
+        total_access_requests=sum(m.access_request_count or 0 for m in all_models),
+        providers=providers,
+        workspaces=ws_summaries,
+    )

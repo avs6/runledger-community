@@ -228,6 +228,11 @@ export default function AccessGroupsPage() {
           <p className="mt-1 text-sm text-slate-500">
             Group-based permissions with dashboard filtering profiles, guardrails, and budget envelopes.
           </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Link href="/mcp-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Registry</Link>
+            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+          </div>
         </div>
         <button
           onClick={() => {

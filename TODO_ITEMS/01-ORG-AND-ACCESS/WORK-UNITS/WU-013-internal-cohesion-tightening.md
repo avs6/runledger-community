@@ -1,10 +1,10 @@
 # WU-013: Org & Access Internal Cohesion Tightening
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - A/B/C/D (cross-bundle)
 - **Target**: 01-ORG-AND-ACCESS (internal family cohesion)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

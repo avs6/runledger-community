@@ -41,6 +41,11 @@ from runledger_api.models.tenant import (
     WorkspaceStatusEnum,
     WorkspaceUser,
 )
+from runledger_api.models.tool_policies import ToolPolicy
+from runledger_api.models.approvals import Approval
+from runledger_api.models.tags import Tag
+from runledger_api.models.mcp_registry import McpServer
+from runledger_api.models.search_tools import SearchTool
 from runledger_api.routers.auth import _make_slug
 from runledger_api.services.ledger import get_ledger_closure_summary
 from runledger_api.schemas.audit import AuditEventResponse as AuditEventResponse
@@ -1526,3 +1531,60 @@ async def get_org_audit_log(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+class OrgGovernanceSummary(BaseModel):
+    tool_count: int
+    tool_policy_count: int
+    approval_count: int
+    audit_event_count: int
+    tag_count: int
+    mcp_server_count: int
+    search_tool_count: int
+
+
+@router.get("/governance", response_model=OrgGovernanceSummary)
+async def get_org_governance(
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> dict[str, Any]:
+    workspace, _, __ = auth
+    ws_ids = list(
+        (await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)))
+        .scalars()
+        .all()
+    )
+
+    tool_policy_count = (await db.execute(
+        select(func.count()).select_from(ToolPolicy).where(ToolPolicy.workspace_id.in_(ws_ids))
+    )).scalar() or 0
+
+    approval_count = (await db.execute(
+        select(func.count()).select_from(Approval).where(Approval.workspace_id.in_(ws_ids))
+    )).scalar() or 0
+
+    audit_event_count = (await db.execute(
+        select(func.count()).select_from(AuditEvent).where(AuditEvent.workspace_id.in_(ws_ids))
+    )).scalar() or 0
+
+    tag_count = (await db.execute(
+        select(func.count()).select_from(Tag).where(Tag.workspace_id.in_(ws_ids))
+    )).scalar() or 0
+
+    mcp_server_count = (await db.execute(
+        select(func.count()).select_from(McpServer).where(McpServer.workspace_id.in_(ws_ids))
+    )).scalar() or 0
+
+    search_tool_count = (await db.execute(
+        select(func.count()).select_from(SearchTool).where(SearchTool.workspace_id.in_(ws_ids))
+    )).scalar() or 0
+
+    return {
+        "tool_count": mcp_server_count + search_tool_count,
+        "tool_policy_count": tool_policy_count,
+        "approval_count": approval_count,
+        "audit_event_count": audit_event_count,
+        "tag_count": tag_count,
+        "mcp_server_count": mcp_server_count,
+        "search_tool_count": search_tool_count,
+    }

@@ -1,6 +1,6 @@
 # FinOps — Cohesion Matrix
 
-Last updated: 2026-08-20
+Last updated: 2026-08-22
 
 This file tracks how FinOps features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -22,14 +22,14 @@ Current row major feature under audit: `FinOps`
 
 | Row Major Feature | Row Subfeature | Organization profile | Org settings | Onboarding | Users | Workspaces | Access groups | API keys | Integrations | Telemetry | MCP registry | AI hub | Projects | Team models | Finding |
 |-------------------|----------------|----------------------|--------------|------------|-------|------------|---------------|----------|--------------|-----------|--------------|--------|----------|-------------|---------|
-| FinOps | Budgets | `STRONG` | `N/A` | `STRONG` | `GAP` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Onboarding now includes an explicit has_budget readiness check with a set-up-now link to the Budgets page. |
-| FinOps | Budget detail | `STRONG` | `N/A` | `PARTIAL` | `GAP` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Budget detail is now real, and org profile has a legitimate drill-through bridge into that workflow through the new financial posture handoff. The broader user story is still thinner than the main budget shell itself. |
-| FinOps | Budget overrides | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Overrides now live inside the main budget workflow, and org profile summarizes active override posture directly instead of leaving it buried inside workspace-only budgeting. |
-| FinOps | Budget notifications | `STRONG` | `N/A` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Onboarding now includes an explicit has_budget_notification readiness check with a set-up-now link to the Budgets page for notification configuration. |
-| FinOps | Billing periods | `STRONG` | `N/A` | `STRONG` | `GAP` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Onboarding now includes an explicit has_billing_period readiness check with a set-up-now link to the Billing page. |
-| FinOps | Billing period detail | `STRONG` | `N/A` | `N/A` | `GAP` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Billing detail is operationally real and now has an org-level posture bridge because the console clearly points operators from overdue status into the billing detail workflow. Org, user, and model-catalog context are still thinner. |
-| FinOps | Chargeback | `STRONG` | `N/A` | `N/A` | `GAP` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Chargeback now aligns to both access groups and API keys as real supported attribution dimensions, and org profile summarizes readiness across workspaces instead of leaving that posture implicit. |
-| FinOps | Ledger | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Ledger still belongs more to platform compliance than to daily org operations, but org profile now exposes real ledger-readiness posture and hands operators into Compliance, making the relationship strong at the summary-and-handoff layer. |
+| FinOps | Budgets | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Users page now cross-links to Budgets for user-scoped spend accountability. AI hub drills into model-scoped budgets via cost posture endpoint. |
+| FinOps | Budget detail | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | Users page now cross-links to Budgets for user-scoped budget drill-through. Workspace page links to Budgets. AI hub cost posture drills through to budget detail. |
+| FinOps | Budget overrides | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | Budget overrides are workspace-scoped. Workspace page links to Budgets which contain overrides. Workspace observe posture reports budget count. |
+| FinOps | Budget notifications | `STRONG` | `N/A` | `STRONG` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Workspace observe posture reports budget notification count. Workspace page links to Budgets. Budget notifications are workspace-scoped through parent budgets. |
+| FinOps | Billing periods | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Users page now cross-links to Billing Periods for user-scoped billing investigation. AI hub cost posture shows billing period count and links to Billing with model filter. |
+| FinOps | Billing period detail | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | Users page now cross-links to Billing Periods, enabling user-scoped billing period drill-through. Workspace page links to Billing Periods. Workspace observe posture reports billing period count. |
+| FinOps | Chargeback | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Users page now cross-links to Chargeback for user-scoped cost attribution review. AI hub cost posture links to Chargeback with dimension=model filter. |
+| FinOps | Ledger | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Workspace page now links to Ledger. Ledger entries are workspace-scoped. Workspace observe posture provides the financial context that ledger entries document. |
 
 ### 11.2b FinOps x Gateway & Routing
 

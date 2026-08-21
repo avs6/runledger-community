@@ -32,6 +32,27 @@ Workspace admins can operate within their active workspace:
 
 Workspace admins do not see org-level Gateway, Provider Profiles, Alert Rules, MCP, Onboarding setup surfaces, Data Capture, Org Profile, Users, Workspace creation, or platform Settings.
 
+## Observe and FinOps Integration
+
+- `GET /analytics/workspace-observe-posture` returns a 30-day workspace summary: run count, total cost, tokens, active users, model count, error count, and FinOps coverage (budgets, billing periods, budget notifications).
+- The Workspace page links directly to key Observe surfaces (Sessions, Model Usage, Economics, Cost & Savings, Analytics Users, Engineering, Monitoring, Request Flow) and FinOps surfaces (Billing Summary, Outcomes & ROI, Budgets, Billing Periods, Ledger).
+
+## Cross-Feature Relationships
+
+| Surface | Relationship |
+|---------|-------------|
+| Sessions, Run detail | Workspace-scoped session and run investigation |
+| Model usage, Analytics | Workspace-scoped cost attribution and model breakdown |
+| Cost & Savings, Economics | Workspace-scoped savings and economic analysis |
+| Engineering, Monitoring | Workspace-scoped operational metrics and alerting |
+| Request flow, Request explorer | Workspace-scoped request analysis |
+| Analytics users | Per-user cost and usage within the workspace |
+| Budgets, Budget detail | Workspace budget assignment and tracking |
+| Billing periods, Billing summary | Workspace billing lifecycle and reconciliation |
+| Ledger | Workspace-scoped financial ledger entries |
+| Outcomes & ROI | Workspace-scoped outcome measurement |
+| Budget notifications | Alert coverage for workspace budgets |
+
 ## Isolation
 
 Every workspace has its own API keys and data boundary. Switching keys is how scripts and agents switch which workspace receives traffic.

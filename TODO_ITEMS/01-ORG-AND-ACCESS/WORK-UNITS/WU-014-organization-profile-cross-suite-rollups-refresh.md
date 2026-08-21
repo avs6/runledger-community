@@ -1,10 +1,10 @@
 # WU-014: Organization Profile Cross-Suite Rollups Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - Bundle A (Organization Foundation and Lifecycle)
 - **Target**: 01-ORG-AND-ACCESS/Organization profile (`/organization`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

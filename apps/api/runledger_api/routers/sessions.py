@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
@@ -50,6 +51,7 @@ async def list_sessions(
     min_turns: int | None = Query(None, ge=1),
     min_cost: Decimal | None = Query(None),
     max_cost: Decimal | None = Query(None),
+    api_key_id: uuid.UUID | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
 ) -> SessionList:
@@ -57,6 +59,8 @@ async def list_sessions(
         AgentRun.workspace_id == workspace.id,
         AgentRun.session_id.isnot(None),
     ]
+    if api_key_id:
+        base_where.append(AgentRun.api_key_id == api_key_id)
     if q and q.strip():
         q_like = f"%{q.strip()}%"
         base_where.append(
@@ -131,12 +135,15 @@ async def export_sessions(
     min_turns: int | None = Query(None, ge=1),
     min_cost: Decimal | None = Query(None),
     max_cost: Decimal | None = Query(None),
+    api_key_id: uuid.UUID | None = Query(None),
     limit: int = Query(5000, ge=1, le=10000),
 ) -> StreamingResponse:
     base_where = [
         AgentRun.workspace_id == workspace.id,
         AgentRun.session_id.isnot(None),
     ]
+    if api_key_id:
+        base_where.append(AgentRun.api_key_id == api_key_id)
     if q and q.strip():
         q_like = f"%{q.strip()}%"
         base_where.append(

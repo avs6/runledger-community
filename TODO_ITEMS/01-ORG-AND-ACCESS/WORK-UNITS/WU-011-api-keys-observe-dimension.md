@@ -1,10 +1,10 @@
 # WU-011: API Keys as Observe Investigation Dimension
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 01-Org & Access - B (Identity & Scope)
 - **Target**: 01-ORG-AND-ACCESS/API keys (`/api-keys`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

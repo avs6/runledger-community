@@ -2209,6 +2209,12 @@ export async function getOrgObserve(
   return apiFetch<import('@/types/api').OrgObserveSummary>('/org/observe', apiKey)
 }
 
+export async function getOrgGovernance(
+  apiKey: string,
+): Promise<import('@/types/api').OrgGovernanceSummary> {
+  return apiFetch<import('@/types/api').OrgGovernanceSummary>('/org/governance', apiKey)
+}
+
 // ── SaaS / Billing ────────────────────────────────────────────────────────────
 
 export async function getSubscription(apiKey: string): Promise<import('@/types/api').SubscriptionResponse> {
@@ -4421,6 +4427,18 @@ export async function requestHubAccess(apiKey: string, id: string): Promise<{ st
   return apiFetch<{ status: string; model_id: string; total_requests: number }>(`/hub/models/${id}/request-access`, apiKey, { method: 'POST' })
 }
 
+export async function getHubModelCostPosture(apiKey: string, modelId: string): Promise<import('@/types/api').HubModelCostPosture> {
+  return apiFetch<import('@/types/api').HubModelCostPosture>(`/hub/models/${modelId}/cost-posture`, apiKey)
+}
+
+export async function getHubModelGovernance(apiKey: string, modelId: string): Promise<import('@/types/api').HubModelGovernanceStatus> {
+  return apiFetch<import('@/types/api').HubModelGovernanceStatus>(`/hub/models/${modelId}/governance`, apiKey)
+}
+
+export async function getHubOrgSummary(apiKey: string): Promise<import('@/types/api').HubOrgSummary> {
+  return apiFetch<import('@/types/api').HubOrgSummary>('/hub/org-summary', apiKey)
+}
+
 // ── Projects ─────────────────────────────────────────────────────────────
 
 // ── Team Models ──────────────────────────────────────────────────────────
@@ -4840,4 +4858,12 @@ export async function getResponseCacheStats(
   apiKey: string
 ): Promise<import('@/types/api').ResponseCacheStatsResponse> {
   return apiFetch<import('@/types/api').ResponseCacheStatsResponse>('/response-cache/stats', apiKey)
+}
+
+export async function getApiKeyObserveFootprint(apiKey: string, apiKeyId: string): Promise<import('@/types/api').ApiKeyObserveFootprint> {
+  return apiFetch<import('@/types/api').ApiKeyObserveFootprint>(`/analytics/api-key-footprint/${apiKeyId}`, apiKey)
+}
+
+export async function getWorkspaceObservePosture(apiKey: string): Promise<import('@/types/api').WorkspaceObservePosture> {
+  return apiFetch<import('@/types/api').WorkspaceObservePosture>('/analytics/workspace-posture', apiKey)
 }

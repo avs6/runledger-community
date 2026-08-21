@@ -528,6 +528,12 @@
                   "value": "",
                   "description": "Apply an access-group-scoped investigation profile",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter runs by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -624,6 +630,12 @@
                   "value": "",
                   "description": "Apply an access-group-scoped investigation profile",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter runs by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -695,6 +707,12 @@
                   "key": "access_group_id",
                   "value": "",
                   "description": "Workspace-only access-group investigation scope",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
                   "disabled": true
                 }
               ]
@@ -983,6 +1001,12 @@
                   "value": "",
                   "description": "Apply an access-group-scoped investigation profile",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter sessions by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -1060,6 +1084,12 @@
                   "key": "limit",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter sessions by API key UUID",
                   "disabled": true
                 }
               ]
@@ -1721,6 +1751,12 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -1768,6 +1804,12 @@
                   "key": "to",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
                   "disabled": true
                 }
               ]
@@ -2038,6 +2080,12 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -2079,6 +2127,12 @@
                   "key": "to",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
                   "disabled": true
                 }
               ]
@@ -2128,6 +2182,12 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -2176,6 +2236,12 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
+                  "disabled": true
                 }
               ]
             },
@@ -2217,6 +2283,12 @@
                   "key": "to",
                   "value": "",
                   "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "api_key_id",
+                  "value": "",
+                  "description": "Filter by API key UUID",
                   "disabled": true
                 }
               ]
@@ -2447,6 +2519,70 @@
               ]
             },
             "description": "Top workflows ranked by average cost or latency."
+          },
+          "response": []
+        },
+        {
+          "name": "API Key Observe Footprint",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/api-key-footprint/:api_key_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "api-key-footprint",
+                ":api_key_id"
+              ],
+              "variable": [
+                {
+                  "key": "api_key_id",
+                  "value": "{{api_key_uuid}}",
+                  "description": "UUID of the API key to inspect"
+                }
+              ]
+            },
+            "description": "30-day observe footprint for a single API key: run count, cost, tokens, models used, recent runs."
+          },
+          "response": []
+        },
+        {
+          "name": "Workspace Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/workspace-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "workspace-observe-posture"
+              ]
+            },
+            "description": "30-day workspace observe posture: run count, cost, tokens, active users, model count, errors, and FinOps coverage."
           },
           "response": []
         }
@@ -2999,7 +3135,7 @@
                 }
               ]
             },
-            "description": "Per-end-user spend breakdown for a budget — cost, run count, call count, and percentage of total."
+            "description": "Per-end-user spend breakdown for a budget \u2014 cost, run count, call count, and percentage of total."
           },
           "response": []
         },
@@ -17884,6 +18020,312 @@
                 }
               }
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI Hub",
+      "item": [
+        {
+          "name": "List Hub Models",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models"
+              ]
+            },
+            "description": "List all models in the workspace catalog"
+          },
+          "response": []
+        },
+        {
+          "name": "Add Hub Model",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models"
+              ]
+            },
+            "description": "Add a model to the catalog",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"gpt-4o\",\n  \"provider\": \"openai\",\n  \"description\": \"Flagship multimodal LLM\",\n  \"capabilities\": [\n    \"chat\",\n    \"tools\"\n  ],\n  \"context_window\": 128000,\n  \"input_cost_per_1k\": 0.0025,\n  \"output_cost_per_1k\": 0.01,\n  \"tags\": [\n    \"openai\",\n    \"flagship\"\n  ],\n  \"is_featured\": true,\n  \"is_public\": true\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hub Model",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models/:model_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models",
+                ":model_id"
+              ]
+            },
+            "description": "Get a specific model card"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Hub Model",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models/:model_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models",
+                ":model_id"
+              ]
+            },
+            "description": "Update a model card",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\",\n  \"is_deprecated\": false\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Hub Model",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models/:model_id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models",
+                ":model_id"
+              ]
+            },
+            "description": "Remove a model from catalog"
+          },
+          "response": []
+        },
+        {
+          "name": "Request Model Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models/:model_id/request-access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models",
+                ":model_id",
+                "request-access"
+              ]
+            },
+            "description": "Record an access request for a model"
+          },
+          "response": []
+        },
+        {
+          "name": "Sync Provider Catalog",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/sync-provider",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "sync-provider"
+              ]
+            },
+            "description": "Seed catalog from a provider baseline",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"openai\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Model Cost Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models/:model_id/cost-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models",
+                ":model_id",
+                "cost-posture"
+              ]
+            },
+            "description": "Per-model cost posture with budget, billing, and chargeback summary"
+          },
+          "response": []
+        },
+        {
+          "name": "Model Governance Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/models/:model_id/governance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "models",
+                ":model_id",
+                "governance"
+              ]
+            },
+            "description": "Per-model governance status with approvals, audit events, and tool policy summary"
+          },
+          "response": []
+        },
+        {
+          "name": "Hub Org Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hub/org-summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hub",
+                "org-summary"
+              ]
+            },
+            "description": "Cross-org model capability summary (org admin only)"
           },
           "response": []
         }

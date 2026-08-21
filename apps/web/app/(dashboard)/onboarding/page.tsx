@@ -604,10 +604,14 @@ export default function OnboardingPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Verify your observability surfaces are receiving data.</p>
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Link href="/analytics" className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-700 dark:hover:bg-slate-800">
             <h3 className="font-medium">Workspace Dashboard</h3>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Overview of workspace activity and health.</p>
+          </Link>
+          <Link href="/runs" className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-700 dark:hover:bg-slate-800">
+            <h3 className="font-medium">Runs</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Run list, detail, and execution traces.</p>
           </Link>
           <Link href="/analytics" className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-700 dark:hover:bg-slate-800">
             <h3 className="font-medium">Analytics Overview</h3>
@@ -682,6 +686,78 @@ export default function OnboardingPage() {
             </div>
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
               Use platform settings for SMTP, platform webhook defaults, and other deployment-wide controls.
+            </p>
+          </Link>
+          <Link
+            href="/users"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">Users</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Manage organization members, invite users, and assign workspace roles.
+            </p>
+          </Link>
+          <Link
+            href="/access-groups"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">Access Groups</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Group-based permissions with dashboard filtering profiles and budget envelopes.
+            </p>
+          </Link>
+          <Link
+            href="/monitoring/telemetry"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">Telemetry</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Platform telemetry, traces, and diagnostic data for monitoring system health.
+            </p>
+          </Link>
+          <Link
+            href="/mcp-registry"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Network className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">MCP Registry</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Browse and manage registered MCP servers and tool integrations.
+            </p>
+          </Link>
+          <Link
+            href="/ai-hub"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">AI Hub</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Central AI operations hub for model management and orchestration.
+            </p>
+          </Link>
+          <Link
+            href="/organizations"
+            className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-700 dark:hover:bg-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-blue-500" />
+              <h3 className="font-medium">All Organizations</h3>
+            </div>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              View and manage all organizations across the platform.
             </p>
           </Link>
         </div>

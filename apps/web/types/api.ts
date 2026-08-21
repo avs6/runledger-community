@@ -1309,6 +1309,16 @@ export interface OrgObserveSummary {
   total_active_alert_rules: number
 }
 
+export interface OrgGovernanceSummary {
+  tool_count: number
+  tool_policy_count: number
+  approval_count: number
+  audit_event_count: number
+  tag_count: number
+  mcp_server_count: number
+  search_tool_count: number
+}
+
 export interface UserBudgetExposure {
   budget_id: string
   scope_type: string
@@ -3739,6 +3749,73 @@ export interface HubModelList {
   items: HubModelResponse[]
 }
 
+export interface HubModelCostPosture {
+  model_id: string
+  model_name: string
+  provider: string
+  input_cost_per_1k: number | null
+  output_cost_per_1k: number | null
+  active_budget_count: number
+  total_budget_limit_usd: string
+  current_spend_usd: string
+  billing_period_count: number
+  chargeback_cost_usd: string
+  budgets: Array<{
+    id: string
+    period_type: string
+    limit_usd: string
+    current_spend_usd: string
+    action: string
+  }>
+  billing_periods: Array<{
+    id: string
+    period_start: string
+    period_end: string
+    status: string
+  }>
+}
+
+export interface HubModelGovernanceStatus {
+  model_id: string
+  model_name: string
+  provider: string
+  tags: string[]
+  approval_count: number
+  recent_approvals: Array<{
+    id: string
+    request_type: string
+    status: string
+    requested_by: string
+    created_at: string
+  }>
+  audit_event_count: number
+  recent_audit_events: Array<{
+    id: string
+    action: string
+    target_type: string
+    created_at: string
+  }>
+  tool_policy_count: number
+  is_deprecated: boolean
+  deprecation_notice: string | null
+  access_request_count: number
+}
+
+export interface HubOrgSummary {
+  total_models: number
+  featured_models: number
+  deprecated_models: number
+  total_access_requests: number
+  providers: string[]
+  workspaces: Array<{
+    workspace_id: string
+    workspace_name: string
+    model_count: number
+    featured_count: number
+    deprecated_count: number
+  }>
+}
+
 // ── Projects ─────────────────────────────────────────────────────────────
 
 // ── Team Models ──────────────────────────────────────────────────────────
@@ -3992,4 +4069,29 @@ export interface ResponseCacheStatsResponse {
   total_savings_usd: number
   live_entry_count: number
   top_models: { model: string; hit_count: number }[]
+}
+
+export interface ApiKeyObserveFootprint {
+  api_key_id: string
+  key_prefix: string
+  run_count: number
+  total_cost_usd: string
+  total_input_tokens: number
+  total_output_tokens: number
+  models_used: { model: string; provider: string; cost_usd: string; call_count: number }[]
+  recent_runs: { id: string; status: string; feature_tag: string | null; cost_usd: string; started_at: string }[]
+}
+
+export interface WorkspaceObservePosture {
+  workspace_id: string
+  workspace_name: string
+  run_count_30d: number
+  total_cost_30d: string
+  active_sessions_30d: number
+  distinct_models_30d: number
+  distinct_users_30d: number
+  error_count_30d: number
+  top_models: { model: string; provider: string; cost_usd: string; call_count: number }[]
+  budget_count: number
+  active_billing_periods: number
 }

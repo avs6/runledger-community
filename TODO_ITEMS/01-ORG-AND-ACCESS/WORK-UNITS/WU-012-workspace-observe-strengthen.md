@@ -1,10 +1,10 @@
 # WU-012: Workspace Observe Cohesion Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 01-Org & Access - B (Identity & Scope)
 - **Target**: 01-ORG-AND-ACCESS/Workspaces (`/workspace`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

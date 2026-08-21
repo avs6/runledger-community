@@ -145,6 +145,24 @@ def main() -> None:
         )
         print("[ok] revoked rotated api key")
 
+        footprint = expect_ok(
+            client.get(f"/analytics/api-key-footprint/{created_key['id']}"),
+            "api key observe footprint",
+        )
+        print(f"[ok] api key footprint: {footprint['run_count']} runs, ${footprint['total_cost_usd']:.4f}")
+
+        posture = expect_ok(
+            client.get("/analytics/workspace-observe-posture"),
+            "workspace observe posture",
+        )
+        print(f"[ok] workspace posture: {posture['run_count']} runs, {posture['model_count']} models")
+
+        scoped_runs = expect_ok(
+            client.get(f"/runs?api_key_id={created_key['id']}&limit=5"),
+            "api-key-scoped runs",
+        )
+        print(f"[ok] api-key-scoped runs: {len(scoped_runs['items'])}")
+
         expect_ok(
             client.delete(f"/access-groups/{group['id']}/members/{user['id']}"),
             "remove access group member",
