@@ -2585,6 +2585,186 @@
             "description": "30-day workspace observe posture: run count, cost, tokens, active users, model count, errors, and FinOps coverage."
           },
           "response": []
+        },
+        {
+          "name": "Workspace Governance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/workspace-governance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "workspace-governance-posture"
+              ]
+            },
+            "description": "Workspace governance posture: tool policies, approvals, audit events, alert rules, tags, and chargeback rules."
+          },
+          "response": []
+        },
+        {
+          "name": "Access Group Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/access-group-gateway-posture?access_group_id={{access_group_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "access-group-gateway-posture"
+              ],
+              "query": [
+                {
+                  "key": "access_group_id",
+                  "value": "{{access_group_id}}"
+                }
+              ]
+            },
+            "description": "Access group gateway posture: routes, providers, guardrails, routing policies, and passthrough endpoints scoped to the access group's workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "API Key Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/api-key-gateway-posture?api_key_id={{api_key_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "api-key-gateway-posture"
+              ],
+              "query": [
+                {
+                  "key": "api_key_id",
+                  "value": "{{api_key_id}}"
+                }
+              ]
+            },
+            "description": "API key gateway posture: routes, providers, guardrails, and rate-limited routes scoped to the API key's workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Telemetry Downstream Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/telemetry-downstream-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "telemetry-downstream-posture"
+              ]
+            },
+            "description": "Telemetry downstream posture: FinOps and Safety surface counts that sit downstream of telemetry ingest for the workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "MCP Registry Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/mcp-registry-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "mcp-registry-posture"
+              ]
+            },
+            "description": "MCP registry posture: server count, tool call activity, gateway context, and governance counts for the workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "AI Hub Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/ai-hub-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "ai-hub-runtime-posture"
+              ]
+            },
+            "description": "AI hub runtime posture: model catalog summary, observe activity, FinOps coverage, and gateway guardrail count for the workspace."
+          },
+          "response": []
         }
       ],
       "description": "RunLedger Analytics endpoints"

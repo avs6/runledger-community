@@ -4867,3 +4867,27 @@ export async function getApiKeyObserveFootprint(apiKey: string, apiKeyId: string
 export async function getWorkspaceObservePosture(apiKey: string): Promise<import('@/types/api').WorkspaceObservePosture> {
   return apiFetch<import('@/types/api').WorkspaceObservePosture>('/analytics/workspace-posture', apiKey)
 }
+
+export async function getWorkspaceGovernancePosture(apiKey: string): Promise<import('@/types/api').WorkspaceGovernancePosture> {
+  return apiFetch<import('@/types/api').WorkspaceGovernancePosture>('/analytics/workspace-governance-posture', apiKey)
+}
+
+export async function getAccessGroupGatewayPosture(apiKey: string, accessGroupId: string): Promise<import('@/types/api').AccessGroupGatewayPosture> {
+  return apiFetch<import('@/types/api').AccessGroupGatewayPosture>(`/analytics/access-group-gateway-posture?access_group_id=${accessGroupId}`, apiKey)
+}
+
+export async function getApiKeyGatewayPosture(apiKey: string, apiKeyId: string): Promise<import('@/types/api').ApiKeyGatewayPosture> {
+  return apiFetch<import('@/types/api').ApiKeyGatewayPosture>(`/analytics/api-key-gateway-posture?api_key_id=${apiKeyId}`, apiKey)
+}
+
+export async function getTelemetryDownstreamPosture(apiKey: string): Promise<import('@/types/api').TelemetryDownstreamPosture> {
+  return apiFetch<import('@/types/api').TelemetryDownstreamPosture>('/analytics/telemetry-downstream-posture', apiKey)
+}
+
+export async function getMcpRegistryPosture(apiKey: string): Promise<import('@/types/api').McpRegistryPosture> {
+  return apiFetch<import('@/types/api').McpRegistryPosture>('/analytics/mcp-registry-posture', apiKey)
+}
+
+export async function getAiHubRuntimePosture(apiKey: string): Promise<import('@/types/api').AiHubRuntimePosture> {
+  return apiFetch<import('@/types/api').AiHubRuntimePosture>('/analytics/ai-hub-runtime-posture', apiKey)
+}

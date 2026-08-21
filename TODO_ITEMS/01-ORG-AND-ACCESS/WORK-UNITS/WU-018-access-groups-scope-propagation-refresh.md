@@ -1,10 +1,10 @@
 # WU-018: Access Groups Scope Propagation Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - Bundle B (Identity and Scope Control)
 - **Target**: 01-ORG-AND-ACCESS/Access groups (`/access-groups`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

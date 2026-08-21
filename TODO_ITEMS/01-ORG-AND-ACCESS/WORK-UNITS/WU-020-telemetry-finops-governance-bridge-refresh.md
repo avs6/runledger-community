@@ -1,10 +1,10 @@
 # WU-020: Telemetry FinOps and Governance Bridge Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - Bundle C (Onboarding and Connected Setup)
 - **Target**: 01-ORG-AND-ACCESS/Telemetry (`/monitoring/telemetry`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

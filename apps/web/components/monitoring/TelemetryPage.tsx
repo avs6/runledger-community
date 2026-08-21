@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -111,6 +112,18 @@ export default function TelemetryPage() {
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           Use this page to verify ingest health, attribution quality, and batch-level payload shape before telemetry flows into Runs, Request Explorer, and the rest of the observability stack.
         </p>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+          <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+          <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+          <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
+          <Link href="/tool-policies" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Policies</Link>
+          <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+          <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+          <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules</Link>
+          <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+          <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10">

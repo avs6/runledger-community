@@ -1,10 +1,10 @@
 # WU-021: MCP Registry Runtime Governance and Observe Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - Bundle C (Onboarding and Connected Setup)
 - **Target**: 01-ORG-AND-ACCESS/MCP registry (`/mcp-registry`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

@@ -84,3 +84,13 @@ The backing API supports full CRUD, sync, access-request, and posture endpoints:
 - `GET /hub/org-summary` — cross-org model capability summary (org admin only)
 
 Use a dashboard session key from `POST /auth/login` for these management actions.
+
+## Observe and Runtime Integration
+
+`GET /analytics/ai-hub-runtime-posture` returns a workspace-level summary of runtime activity relevant to the model catalog:
+
+- **Observe**: 30d run count and distinct models used in real traffic.
+- **FinOps**: budget count and budget notification count.
+- **Gateway**: guardrail count for the workspace.
+
+The AI Hub page links directly to Analytics, Runs, Request Flow, Request Explorer, Guardrails, and Ledger for workspace-level observability, runtime, and financial context alongside the existing Budgets, Approvals, Audit Log, Governance, Tags, Organization, and Platform Settings links.

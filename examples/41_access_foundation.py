@@ -157,11 +157,47 @@ def main() -> None:
         )
         print(f"[ok] workspace posture: {posture['run_count']} runs, {posture['model_count']} models")
 
+        gov_posture = expect_ok(
+            client.get("/analytics/workspace-governance-posture"),
+            "workspace governance posture",
+        )
+        print(f"[ok] governance posture: {gov_posture['tool_policy_count']} policies, {gov_posture['approval_count']} approvals, {gov_posture['audit_event_count']} audit events")
+
         scoped_runs = expect_ok(
             client.get(f"/runs?api_key_id={created_key['id']}&limit=5"),
             "api-key-scoped runs",
         )
         print(f"[ok] api-key-scoped runs: {len(scoped_runs['items'])}")
+
+        ag_gateway = expect_ok(
+            client.get(f"/analytics/access-group-gateway-posture?access_group_id={group['id']}"),
+            "access group gateway posture",
+        )
+        print(f"[ok] access group gateway: {ag_gateway['active_route_count']} active routes, {ag_gateway['active_guardrail_count']} active guardrails, profile={ag_gateway['guardrail_profile']}")
+
+        ak_gateway = expect_ok(
+            client.get(f"/analytics/api-key-gateway-posture?api_key_id={created_key['id']}"),
+            "api key gateway posture",
+        )
+        print(f"[ok] api key gateway: {ak_gateway['active_route_count']} active routes, {ak_gateway['distinct_providers']} providers, {ak_gateway['active_guardrail_count']} active guardrails")
+
+        tel_downstream = expect_ok(
+            client.get("/analytics/telemetry-downstream-posture"),
+            "telemetry downstream posture",
+        )
+        print(f"[ok] telemetry downstream: finops budgets={tel_downstream['finops']['budget_count']}, safety alerts={tel_downstream['safety']['active_alert_count']}")
+
+        mcp_posture = expect_ok(
+            client.get("/analytics/mcp-registry-posture"),
+            "mcp registry posture",
+        )
+        print(f"[ok] mcp registry: {mcp_posture['active_server_count']} active servers, {mcp_posture['tool_call_count_30d']} calls 30d, gateway routes={mcp_posture['gateway']['route_count']}")
+
+        hub_posture = expect_ok(
+            client.get("/analytics/ai-hub-runtime-posture"),
+            "ai hub runtime posture",
+        )
+        print(f"[ok] ai hub runtime: {hub_posture['model_count']} models, {hub_posture['observe']['run_count_30d']} runs 30d, finops budgets={hub_posture['finops']['budget_count']}")
 
         expect_ok(
             client.delete(f"/access-groups/{group['id']}/members/{user['id']}"),

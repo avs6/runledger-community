@@ -351,6 +351,42 @@ export default function AiHubPage() {
             >
               Platform Settings <ArrowRight className="h-4 w-4" />
             </Link>
+            <Link
+              href="/analytics"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Analytics <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/runs"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Runs <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/request-flow"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Request Flow <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/request-explorer"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Request Explorer <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/guardrails"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Guardrails <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/ledger"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Ledger <ArrowRight className="h-4 w-4" />
+            </Link>
             <button
               onClick={() => setShowSyncModal(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"

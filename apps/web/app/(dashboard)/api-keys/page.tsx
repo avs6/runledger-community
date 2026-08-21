@@ -200,6 +200,10 @@ export default function ApiKeysPage() {
             <Link href="/analytics?tab=savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
             <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
             <Link href="/ai-hub" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">AI Hub</Link>
+            <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+            <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
+            <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+            <Link href="/rate-limits" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
             <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
             <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
           </div>

@@ -65,3 +65,13 @@ The backing API supports the full server lifecycle plus tool and permission acti
 - `POST /mcp-registry/seed-defaults`
 
 Use a dashboard session key from `POST /auth/login` for management actions.
+
+## Runtime, Governance, and Build Integration
+
+`GET /analytics/mcp-registry-posture` returns the workspace-level posture around MCP activity:
+
+- **Registry**: server count, active servers, 30d tool call count, distinct tools used, error call count.
+- **Gateway**: route count and guardrail count for the workspace.
+- **Governance**: approval count, audit event count, and chargeback rule count.
+
+The MCP Registry page links directly to Gateway, Provider Profiles, Guardrails, Runs, Analytics, Request Flow, Request Explorer, Approvals, Audit Log, Governance Pack, Chargeback, Agents, Workflows, and Evaluation Studio for workspace-level runtime, governance, and build context.

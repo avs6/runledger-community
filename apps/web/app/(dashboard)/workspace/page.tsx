@@ -474,7 +474,14 @@ export default function WorkspacePage() {
             <Link href="/analytics?tab=roi" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Outcomes & ROI</Link>
             <Link href="/budgets" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Budgets</Link>
             <Link href="/billing" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Billing Periods</Link>
+            <Link href="/chargeback" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Chargeback</Link>
             <Link href="/ledger" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Ledger</Link>
+            <Link href="/approvals" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Approvals</Link>
+            <Link href="/audit" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Audit Log</Link>
+            <Link href="/governance-pack" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Governance Pack</Link>
+            <Link href="/alert-rules" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Alert Rules</Link>
+            <Link href="/data-capture" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Data Capture</Link>
+            <Link href="/policy-dry-run" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Policy Dry Run</Link>
           </div>
         </div>
         <button

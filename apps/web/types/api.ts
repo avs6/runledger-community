@@ -4095,3 +4095,94 @@ export interface WorkspaceObservePosture {
   budget_count: number
   active_billing_periods: number
 }
+
+export interface WorkspaceGovernancePosture {
+  workspace_id: string
+  tool_policy_count: number
+  approval_count: number
+  pending_approval_count: number
+  audit_event_count: number
+  alert_rule_count: number
+  active_alert_count: number
+  tag_count: number
+  chargeback_rule_count: number
+}
+
+export interface AccessGroupGatewayPosture {
+  access_group_id: string
+  workspace_id: string
+  guardrail_profile: string | null
+  route_count: number
+  active_route_count: number
+  distinct_providers: number
+  routing_policy_count: number
+  guardrail_count: number
+  active_guardrail_count: number
+  passthrough_count: number
+}
+
+export interface ApiKeyGatewayPosture {
+  api_key_id: string
+  workspace_id: string
+  route_count: number
+  active_route_count: number
+  distinct_providers: number
+  guardrail_count: number
+  active_guardrail_count: number
+  rate_limited_route_count: number
+}
+
+export interface TelemetryDownstreamPosture {
+  workspace_id: string
+  batch_count_30d: number
+  finops: {
+    budget_count: number
+    active_billing_periods: number
+    chargeback_rule_count: number
+    budget_notification_count: number
+  }
+  safety: {
+    tool_policy_count: number
+    approval_count: number
+    audit_event_count: number
+    alert_rule_count: number
+    active_alert_count: number
+    tag_count: number
+  }
+}
+
+export interface McpRegistryPosture {
+  workspace_id: string
+  server_count: number
+  active_server_count: number
+  tool_call_count_30d: number
+  distinct_tools_used: number
+  error_call_count: number
+  gateway: {
+    route_count: number
+    guardrail_count: number
+  }
+  governance: {
+    approval_count: number
+    audit_event_count: number
+    chargeback_rule_count: number
+  }
+}
+
+export interface AiHubRuntimePosture {
+  workspace_id: string
+  model_count: number
+  featured_count: number
+  deprecated_count: number
+  observe: {
+    run_count_30d: number
+    distinct_models_used: number
+  }
+  finops: {
+    budget_count: number
+    budget_notification_count: number
+  }
+  gateway: {
+    guardrail_count: number
+  }
+}

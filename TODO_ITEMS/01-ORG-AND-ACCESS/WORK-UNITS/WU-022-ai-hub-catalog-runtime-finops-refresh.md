@@ -1,10 +1,10 @@
 # WU-022: AI Hub Catalog Runtime FinOps Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: DONE
 - **Bundle**: 01-Org & Access - Bundle D (Workspace Capability Catalog and Legacy Transition)
 - **Target**: 01-ORG-AND-ACCESS/AI hub (`/ai-hub`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 
