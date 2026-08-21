@@ -1,6 +1,6 @@
 # Gateway & Routing — Cohesion Matrix
 
-Last updated: 2026-08-15
+Last updated: 2026-08-20
 
 This file tracks how Gateway & Routing features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -30,11 +30,11 @@ Current row major feature under audit: `Gateway & Routing`
 
 | Row Major Feature | Row Subfeature | Organization profile | Org settings | Onboarding | Users | Workspaces | Access groups | API keys | Integrations | Telemetry | MCP registry | AI hub | Projects | Team models | Finding |
 |-------------------|----------------|----------------------|--------------|------------|-------|------------|---------------|----------|--------------|-----------|--------------|--------|----------|-------------|---------|
-| Gateway & Routing | Provider profiles | `PARTIAL` | `N/A` | `PARTIAL` | `GAP` | `PARTIAL` | `GAP` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Provider profiles are workspace-aware and closely aligned to API keys, AI hub, org rollups, and telemetry metadata, but they still do not expose meaningful user- or access-group-level posture. |
-| Gateway & Routing | Model gateway | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | Gateway control plane already intersects strongly with workspaces, API keys, and AI hub. User and access-group relationships are still weaker and not surfaced well in the current UX, but they are better described as partial scope/posture ties than as pure gaps because runtime access and routing policy naturally depend on identity scope even when the page does not expose that cleanly yet. |
-| Gateway & Routing | Guardrails | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Guardrails are strongly tied to access groups and meaningfully workspace-scoped, with a partial bridge into MCP registry tool-call governance. Onboarding also has a real but lightweight relationship because setup guidance should orient operators to runtime safety posture even though the full workflow lives in Guardrails. |
+| Gateway & Routing | Provider profiles | `STRONG` | `N/A` | `STRONG` | `GAP` | `PARTIAL` | `GAP` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | Onboarding now includes has_provider_profile readiness check with set-up-now link to Gateway. |
+| Gateway & Routing | Model gateway | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `PARTIAL` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | Onboarding includes has_gateway_route readiness check with set-up-now link to Gateway. |
+| Gateway & Routing | Guardrails | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Onboarding includes has_guardrail readiness check with set-up-now link to Guardrails. |
 | Gateway & Routing | Response cache | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Response cache is workspace-scoped and intentionally embedded under Gateway. Onboarding has a real lightweight relationship because setup guidance should frame cache-aware economics and performance posture even if it does not expose controls directly. |
-| Gateway & Routing | Rate limits | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `GAP` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Rate limits are tightly bound to API keys through quota tiers and model budgets, partially workspace-scoped through Gateway ownership, and they also have a real user-facing relationship whenever throttling, quota exhaustion, or actor-scoped consumption must be explained at the user level. |
+| Gateway & Routing | Rate limits | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `PARTIAL` | `GAP` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | Onboarding includes has_rate_limit readiness check with set-up-now link to Gateway. |
 
 ### 11.4c Gateway & Routing x Observe
 

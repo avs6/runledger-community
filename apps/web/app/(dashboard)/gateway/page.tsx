@@ -3272,7 +3272,7 @@ function FlywheelPanel({ apiKey, canManage }: { apiKey: string; canManage: boole
     try {
       const [s, r] = await Promise.all([
         getFlywheelSettings(apiKey).catch(() => null),
-        listFlywheelRecommendations(apiKey, 'pending').catch(() => ({ items: [], total: 0 })),
+        listFlywheelRecommendations(apiKey, { status: 'pending' }).catch(() => ({ items: [], total: 0 })),
       ])
       if (s) setSettings(s)
       setRecs(r.items)

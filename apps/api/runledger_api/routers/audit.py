@@ -46,6 +46,8 @@ async def list_audit_events(
     actor_user_id: uuid.UUID | None = Query(None),
     target_type: str | None = Query(None),
     target_id: str | None = Query(None),
+    access_group_id: uuid.UUID | None = Query(None),
+    api_key_prefix: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> AuditEventList:
@@ -61,6 +63,20 @@ async def list_audit_events(
         base = base.where(AuditEvent.target_type == target_type)
     if target_id:
         base = base.where(AuditEvent.target_id == target_id)
+    if api_key_prefix:
+        base = base.where(AuditEvent.actor_api_key_prefix == api_key_prefix)
+    if access_group_id:
+        from runledger_api.models.access_groups import AccessGroupMember
+        member_ids_result = await db.execute(
+            select(AccessGroupMember.user_id).where(
+                AccessGroupMember.group_id == access_group_id
+            )
+        )
+        member_ids = member_ids_result.scalars().all()
+        if member_ids:
+            base = base.where(AuditEvent.actor_user_id.in_(member_ids))
+        else:
+            base = base.where(False)
 
     total_result = await db.execute(select(func.count()).select_from(base.subquery()))
     total = total_result.scalar() or 0
@@ -84,6 +100,9 @@ async def export_audit_events(
     db: DbDep,
     action: str | None = Query(None),
     target_type: str | None = Query(None),
+    actor_user_id: uuid.UUID | None = Query(None),
+    access_group_id: uuid.UUID | None = Query(None),
+    api_key_prefix: str | None = Query(None),
     format: str = Query("csv", pattern="^(csv|json)$"),
 ) -> StreamingResponse:
     """Export audit events as CSV or JSON download."""
@@ -93,6 +112,22 @@ async def export_audit_events(
         base = base.where(AuditEvent.action.ilike(f"{action}%"))
     if target_type:
         base = base.where(AuditEvent.target_type == target_type)
+    if actor_user_id:
+        base = base.where(AuditEvent.actor_user_id == actor_user_id)
+    if api_key_prefix:
+        base = base.where(AuditEvent.actor_api_key_prefix == api_key_prefix)
+    if access_group_id:
+        from runledger_api.models.access_groups import AccessGroupMember
+        member_ids_result = await db.execute(
+            select(AccessGroupMember.user_id).where(
+                AccessGroupMember.group_id == access_group_id
+            )
+        )
+        member_ids = member_ids_result.scalars().all()
+        if member_ids:
+            base = base.where(AuditEvent.actor_user_id.in_(member_ids))
+        else:
+            base = base.where(False)
 
     result = await db.execute(base.order_by(AuditEvent.created_at.desc()).limit(5000))
     items = result.scalars().all()

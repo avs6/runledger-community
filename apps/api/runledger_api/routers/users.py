@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin, require_user, require_workspace_admin
+from runledger_api.models.approvals import Approval
+from runledger_api.models.audit import AuditEvent
 from runledger_api.models.budgets import Budget
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.tenant import (
@@ -442,3 +444,99 @@ async def remove_workspace_user(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found in this workspace")
     await db.delete(wu)
     await db.commit()
+
+
+class UserGovernanceSummary(BaseModel):
+    user_id: str
+    email: str
+    full_name: str | None
+    approval_count: int
+    recent_approvals: list[dict[str, Any]]
+    audit_event_count: int
+    recent_audit_events: list[dict[str, Any]]
+
+
+@router.get("/{user_id}/governance", response_model=UserGovernanceSummary)
+async def get_user_governance(
+    user_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_org_admin)],
+    db: DbDep,
+) -> UserGovernanceSummary:
+    workspace, _, __ = auth
+    membership = (
+        await db.execute(
+            select(TenantUser).where(
+                TenantUser.tenant_id == workspace.tenant_id,
+                TenantUser.user_id == user_id,
+            )
+        )
+    ).scalars().first()
+    if membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+
+    approval_count_result = await db.execute(
+        select(func.count(Approval.id)).where(
+            Approval.workspace_id == workspace.id,
+            Approval.requested_by == user.email,
+        )
+    )
+    approval_count = int(approval_count_result.scalar() or 0)
+
+    recent_approvals_result = await db.execute(
+        select(Approval)
+        .where(
+            Approval.workspace_id == workspace.id,
+            Approval.requested_by == user.email,
+        )
+        .order_by(Approval.created_at.desc())
+        .limit(5)
+    )
+    recent_approvals = [
+        {
+            "id": str(a.id),
+            "request_type": a.request_type,
+            "status": a.status,
+            "created_at": a.created_at.isoformat(),
+        }
+        for a in recent_approvals_result.scalars().all()
+    ]
+
+    audit_count_result = await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == workspace.id,
+            AuditEvent.actor_user_id == user_id,
+        )
+    )
+    audit_event_count = int(audit_count_result.scalar() or 0)
+
+    recent_audit_result = await db.execute(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace.id,
+            AuditEvent.actor_user_id == user_id,
+        )
+        .order_by(AuditEvent.created_at.desc())
+        .limit(5)
+    )
+    recent_audit_events = [
+        {
+            "id": str(e.id),
+            "action": e.action,
+            "target_type": e.target_type,
+            "created_at": e.created_at.isoformat(),
+        }
+        for e in recent_audit_result.scalars().all()
+    ]
+
+    return UserGovernanceSummary(
+        user_id=str(user_id),
+        email=user.email,
+        full_name=user.full_name,
+        approval_count=approval_count,
+        recent_approvals=recent_approvals,
+        audit_event_count=audit_event_count,
+        recent_audit_events=recent_audit_events,
+    )

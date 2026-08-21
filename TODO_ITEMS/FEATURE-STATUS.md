@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-16
+Last updated: 2026-08-20
 
 ## Purpose
 
@@ -18,12 +18,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Self | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|---------|------------|------------|-----------|-----------|----------|-------------|
-| **A** — Org Foundation | Organization profile, Org settings | P:9 | P:4 | P:17 | P:8 | — | P:14 | P:1 |
-| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:24 | P:13 | P:38 | P:32 | G:5 P:14 | P:44 | P:8 |
-| **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:16 | P:9 | P:20 | P:24 | P:8 | P:39 | P:6 |
+| **A** — Org Foundation | Organization profile, Org settings | P:9 | S:4 P:1 | S:16 P:1 | P:8 | — | P:14 | P:1 |
+| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:24 | P:13 | P:38 | S:22 P:10 | G:5 P:14 | S:22 P:22 | P:8 |
+| **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:16 | S:4 P:5 | S:3 P:17 | S:9 P:15 | S:3 P:5 | P:39 | P:6 |
 | **D** — Capability Catalog | AI hub, Projects, Team models | P:5 | P:1 | P:8 | P:7 | G:1 P:4 | P:14 | P:2 |
 
-**Hot spots**: 01-A x 05 is now closed after Organization Console gained a real FinOps posture rollup and handoff path. 01-B x 05 is no longer dominated by scope ownership gaps now that both access groups and API keys land as real budget, billing, and chargeback owners; the remaining pressure in 01-B is broader identity drill-through outside those completed scope paths.
+**Hot spots**: 01-A x 05 is now closed after Organization Console gained a real FinOps posture rollup and handoff path. 01-A x 02 and 01-A x 03 are now largely resolved after WU-008 shipped runtime and observability posture rollups: Organization Console summarizes routes, providers, guardrails, rate limits, runs, requests, models, errors, and alert rules across workspaces with drill-through links to owning surfaces. 01-B x 05 is no longer dominated by scope ownership gaps now that both access groups and API keys land as real budget, billing, and chargeback owners. 01-B x 04 is now largely resolved after WU-006 shipped identity-scoped governance: Users, Access groups, and API keys have STRONG cohesion with Safety & Governance through filtered approvals, audit log, and governance pack endpoints plus cross-links from identity detail pages. 01-B x 06 is now largely resolved after WU-007 shipped identity-scoped Build & Improve: Access groups and API keys have STRONG cohesion with 22 Build surfaces through filtered agents, workflows, evaluations, experiments, replay, optimization, playground, and model scorecards plus cross-links from identity detail pages. 01-C x 02/03/04/05 are now significantly improved after WU-009 shipped onboarding setup completeness: Onboarding has a 19-step readiness model with explicit checks and set-up-now links covering FinOps (3 STRONG), Gateway (4 STRONG), Observe (3 STRONG), and Safety (9 STRONG) surfaces.
 
 ---
 
@@ -252,7 +252,7 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 | Rank | Bundle | Total GAPs | Worst Relationship | Root Cause |
 |------|--------|------------|--------------------|-----------| 
 | 1 | **05-A** Budget Control | **48** | 05-A x 06-Build (12G) | Budget detail page is the single biggest cohesion blocker across the entire product |
-| 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys now propagate through FinOps and Observe, but broader identity drill-through remains partial |
+| 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys propagate through FinOps, Observe, Safety & Governance, and Build & Improve. WU-006 closed 22 Safety cells, WU-007 closed 22 Build cells to STRONG. Remaining pressure is FinOps and Platform drill-through. |
 | 3 | **03-B** Investigation | **2** | 03-B x 05-FinOps (2G) | Investigation still needs deeper budget-detail bridges beyond the new access-group scope support |
 | 4 | **04-B** Exception Workflows | **2** | 04-B x 05-FinOps (2G) | Approvals disconnected from budget overrides |
 | 5 | **02-C** Performance Controls | **2** | 02-C x 05-FinOps (2G) | Cache/rate-limit detail missing FinOps bridges |
@@ -282,10 +282,10 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-003 | 01-ORG-AND-ACCESS | Access groups × Observe investigation | 03-OBSERVE | COMPLETED | 01-B |
 | WU-004 | 01-ORG-AND-ACCESS | Org profile × FinOps rollup | 05-FINOPS | COMPLETED | 01-A |
 | WU-005 | 01-ORG-AND-ACCESS | Users × FinOps attribution | 05-FINOPS | COMPLETED | 01-B |
-| WU-006 | 01-ORG-AND-ACCESS | Identity & scope × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | NOT_STARTED | 01-B |
-| WU-007 | 01-ORG-AND-ACCESS | Identity & scope × Build & Improve | 06-BUILD-AND-IMPROVE | NOT_STARTED | 01-B |
-| WU-008 | 01-ORG-AND-ACCESS | Org profile × Observe & Gateway rollups | 03-OBSERVE, 02-GATEWAY | NOT_STARTED | 01-A |
-| WU-009 | 01-ORG-AND-ACCESS | Onboarding setup completeness | 02/03/04/05 | NOT_STARTED | 01-C |
+| WU-006 | 01-ORG-AND-ACCESS | Identity & scope × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | COMPLETED | 01-B |
+| WU-007 | 01-ORG-AND-ACCESS | Identity & scope × Build & Improve | 06-BUILD-AND-IMPROVE | COMPLETED | 01-B |
+| WU-008 | 01-ORG-AND-ACCESS | Org profile × Observe & Gateway rollups | 03-OBSERVE, 02-GATEWAY | COMPLETED | 01-A |
+| WU-009 | 01-ORG-AND-ACCESS | Onboarding setup completeness | 02/03/04/05 | COMPLETED | 01-C |
 | WU-010 | 01-ORG-AND-ACCESS | AI hub × governance & org links | 04/05/07 | NOT_STARTED | 01-D |
 | WU-011 | 01-ORG-AND-ACCESS | API keys × Observe dimension | 03-OBSERVE | NOT_STARTED | 01-B |
 | WU-012 | 01-ORG-AND-ACCESS | Workspace × Observe/FinOps strengthen | 03/05 | NOT_STARTED | 01-B |

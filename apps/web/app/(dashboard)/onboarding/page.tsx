@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation'
 import {
   Rocket, CheckCircle2, Circle, Network, Globe, Code,
   GitBranch, Bot, Terminal, MousePointer, Wind, Cpu,
-  Copy, Check, ChevronUp,
+  Copy, Check, ChevronUp, DollarSign, Shield, Eye,
 } from 'lucide-react'
 import {
   getDemoModeStatus,
@@ -30,6 +30,27 @@ const STEPS: { key: keyof OnboardingStatus; label: string; description: string; 
   { key: 'has_gateway_route', label: 'Configure Gateway Route', description: 'Route LLM traffic through the RunLedger gateway', href: '/gateway' },
   { key: 'has_budget', label: 'Set a Budget', description: 'Define spending limits for your AI operations', href: '/budgets' },
   { key: 'has_alert_rule', label: 'Create Alert Rule', description: 'Get notified when costs or usage cross a threshold', href: '/alert-rules' },
+]
+
+const FINOPS_STEPS: { key: keyof OnboardingStatus; label: string; description: string; href: string }[] = [
+  { key: 'has_budget_notification', label: 'Configure Budget Notifications', description: 'Set up webhook or Slack alerts for budget events', href: '/budgets' },
+  { key: 'has_billing_period', label: 'Create Billing Period', description: 'Define a billing cycle to track spend over time', href: '/billing' },
+]
+
+const GATEWAY_STEPS: { key: keyof OnboardingStatus; label: string; description: string; href: string }[] = [
+  { key: 'has_provider_profile', label: 'Connect a Provider', description: 'Add an LLM provider to route traffic through the gateway', href: '/gateway' },
+  { key: 'has_guardrail', label: 'Activate a Guardrail', description: 'Enable content safety or policy guardrails on gateway traffic', href: '/guardrails' },
+  { key: 'has_rate_limit', label: 'Set a Rate Limit', description: 'Configure per-user RPM limits on a gateway route', href: '/gateway' },
+]
+
+const SAFETY_STEPS: { key: keyof OnboardingStatus; label: string; description: string; href: string }[] = [
+  { key: 'has_mcp_server', label: 'Register MCP Server', description: 'Add an MCP server to the workspace registry', href: '/mcp' },
+  { key: 'has_search_tool', label: 'Add Search Tool', description: 'Register a search tool for agent retrieval workflows', href: '/tools' },
+  { key: 'has_tool_policy', label: 'Create Tool Policy', description: 'Define allow/deny rules for tool usage', href: '/tool-policies' },
+  { key: 'has_approval_config', label: 'Set Up Approvals', description: 'Create an approval workflow for sensitive actions', href: '/approvals' },
+  { key: 'has_data_capture', label: 'Configure Data Capture', description: 'Set the privacy mode and sampling for payload capture', href: '/data-capture' },
+  { key: 'has_security_config', label: 'Review Security Settings', description: 'Configure metadata requirements, IP ACLs, and OIDC', href: '/security' },
+  { key: 'has_tag', label: 'Create a Tag', description: 'Add taxonomy tags for classification and filtering', href: '/tags' },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -514,10 +535,125 @@ export default function OnboardingPage() {
         })}
       </div>
 
+      {/* ---- FinOps Readiness ---- */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-5 w-5 text-emerald-500" />
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">2. FinOps Readiness</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Complete your financial operations setup.</p>
+          </div>
+        </div>
+        {FINOPS_STEPS.map((step) => {
+          const done = !!status[step.key]
+          return (
+            <Link key={step.key} href={step.href}>
+              <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                {done ? <CheckCircle2 className="h-6 w-6 shrink-0 text-green-500" /> : <Circle className="h-6 w-6 shrink-0 text-slate-400" />}
+                <div className="min-w-0 flex-1">
+                  <p className={`font-medium ${done ? 'text-slate-400 line-through dark:text-slate-500' : ''}`}>{step.label}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{step.description}</p>
+                </div>
+                {done ? (
+                  <span className="shrink-0 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-400">Done</span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">Set up now</span>
+                )}
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* ---- Gateway & Routing ---- */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Network className="h-5 w-5 text-violet-500" />
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">3. Gateway &amp; Routing</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Configure providers, guardrails, and rate limits.</p>
+          </div>
+        </div>
+        {GATEWAY_STEPS.map((step) => {
+          const done = !!status[step.key]
+          return (
+            <Link key={step.key} href={step.href}>
+              <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                {done ? <CheckCircle2 className="h-6 w-6 shrink-0 text-green-500" /> : <Circle className="h-6 w-6 shrink-0 text-slate-400" />}
+                <div className="min-w-0 flex-1">
+                  <p className={`font-medium ${done ? 'text-slate-400 line-through dark:text-slate-500' : ''}`}>{step.label}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{step.description}</p>
+                </div>
+                {done ? (
+                  <span className="shrink-0 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-400">Done</span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">Set up now</span>
+                )}
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* ---- Observe & Monitor ---- */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Eye className="h-5 w-5 text-teal-500" />
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">4. Observe &amp; Monitor</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Verify your observability surfaces are receiving data.</p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Link href="/analytics" className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-700 dark:hover:bg-slate-800">
+            <h3 className="font-medium">Workspace Dashboard</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Overview of workspace activity and health.</p>
+          </Link>
+          <Link href="/analytics" className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-700 dark:hover:bg-slate-800">
+            <h3 className="font-medium">Analytics Overview</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Explore run volume, latency, and model usage.</p>
+          </Link>
+          <Link href="/alert-rules" className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-teal-700 dark:hover:bg-slate-800">
+            <h3 className="font-medium">Monitoring</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Alert rules and threshold-based notifications.</p>
+          </Link>
+        </div>
+      </div>
+
+      {/* ---- Safety & Governance ---- */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5 text-amber-500" />
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">5. Safety &amp; Governance</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Establish governance policies, tool controls, and security posture.</p>
+          </div>
+        </div>
+        {SAFETY_STEPS.map((step) => {
+          const done = !!status[step.key]
+          return (
+            <Link key={step.key} href={step.href}>
+              <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                {done ? <CheckCircle2 className="h-6 w-6 shrink-0 text-green-500" /> : <Circle className="h-6 w-6 shrink-0 text-slate-400" />}
+                <div className="min-w-0 flex-1">
+                  <p className={`font-medium ${done ? 'text-slate-400 line-through dark:text-slate-500' : ''}`}>{step.label}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{step.description}</p>
+                </div>
+                {done ? (
+                  <span className="shrink-0 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-400">Done</span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">Set up now</span>
+                )}
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+
       {/* ---- Integration Path Selector ---- */}
       <div id="connection-paths" className="space-y-5">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">2. Choose A Connection Path</h2>
+          <h2 className="text-lg font-semibold tracking-tight">6. Choose A Connection Path</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Pick the path that matches how your tool connects to RunLedger: desktop agent, gateway-routed client, or telemetry/framework hook.
           </p>
@@ -586,7 +722,7 @@ export default function OnboardingPage() {
         <div className="rounded-2xl border border-blue-200 bg-white/90 p-6 shadow-sm dark:border-blue-800 dark:bg-slate-900">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold">3. Connect {active.name} To RunLedger</h3>
+              <h3 className="text-lg font-semibold">7. Connect {active.name} To RunLedger</h3>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Follow the smallest possible setup path, then validate the resulting traffic in Telemetry, Runs, or Request Explorer.
               </p>
@@ -622,7 +758,7 @@ export default function OnboardingPage() {
       <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="mb-1 font-semibold">4. Demo Mode And Labs</h2>
+            <h2 className="mb-1 font-semibold">8. Demo Mode And Labs</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Use the full simulator for the complete Phase 13 story, the quick seed for a lighter REST-only setup, or the labs for a manual walkthrough.
             </p>

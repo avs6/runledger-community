@@ -960,54 +960,88 @@ async def onboarding_status(
 ) -> dict[str, Any]:
     """Return setup completion checklist for onboarding wizard."""
     from runledger_api.models.alerts import AlertRule  # noqa: PLC0415
-    from runledger_api.models.budgets import Budget  # noqa: PLC0415
+    from runledger_api.models.approvals import Approval  # noqa: PLC0415
+    from runledger_api.models.billing import BillingPeriod  # noqa: PLC0415
+    from runledger_api.models.budgets import Budget, BudgetNotification  # noqa: PLC0415
     from runledger_api.models.events import AgentRun  # noqa: PLC0415
     from runledger_api.models.gateway import GatewayRoute  # noqa: PLC0415
+    from runledger_api.models.guardrails import GuardrailRule  # noqa: PLC0415
+    from runledger_api.models.ledger import CapturePolicy  # noqa: PLC0415
+    from runledger_api.models.mcp_registry import McpServer  # noqa: PLC0415
+    from runledger_api.models.search_tools import SearchTool  # noqa: PLC0415
+    from runledger_api.models.security import WorkspaceSecuritySettings  # noqa: PLC0415
+    from runledger_api.models.tags import Tag  # noqa: PLC0415
+    from runledger_api.models.tool_policies import ToolPolicy  # noqa: PLC0415
 
-    has_org = (
-        await db.execute(select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1))
-    ).scalar_one_or_none() is not None
+    ws = workspace.id
 
-    has_workspace = True  # they're authenticated with a workspace key
+    async def _exists(stmt: Any) -> bool:
+        return (await db.execute(stmt)).scalar_one_or_none() is not None
 
-    has_api_key = (
-        await db.execute(
-            select(ApiKey.id)
-            .where(ApiKey.workspace_id == workspace.id, ApiKey.revoked_at.is_(None))
-            .limit(1)
-        )
-    ).scalar_one_or_none() is not None
-
-    has_first_run = (
-        await db.execute(select(AgentRun.id).where(AgentRun.workspace_id == workspace.id).limit(1))
-    ).scalar_one_or_none() is not None
-
-    has_gateway_route = (
-        await db.execute(
-            select(GatewayRoute.id)
-            .where(GatewayRoute.workspace_id == workspace.id, GatewayRoute.is_active.is_(True))
-            .limit(1)
-        )
-    ).scalar_one_or_none() is not None
-
-    has_budget = (
-        await db.execute(select(Budget.id).where(Budget.workspace_id == workspace.id).limit(1))
-    ).scalar_one_or_none() is not None
-
-    has_alert_rule = (
-        await db.execute(
-            select(AlertRule.id).where(AlertRule.workspace_id == workspace.id).limit(1)
-        )
-    ).scalar_one_or_none() is not None
+    has_org = await _exists(
+        select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1)
+    )
+    has_workspace = True
+    has_api_key = await _exists(
+        select(ApiKey.id).where(ApiKey.workspace_id == ws, ApiKey.revoked_at.is_(None)).limit(1)
+    )
+    has_first_run = await _exists(
+        select(AgentRun.id).where(AgentRun.workspace_id == ws).limit(1)
+    )
+    has_gateway_route = await _exists(
+        select(GatewayRoute.id).where(GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)).limit(1)
+    )
+    has_budget = await _exists(
+        select(Budget.id).where(Budget.workspace_id == ws).limit(1)
+    )
+    has_alert_rule = await _exists(
+        select(AlertRule.id).where(AlertRule.workspace_id == ws).limit(1)
+    )
+    has_budget_notification = await _exists(
+        select(BudgetNotification.id).where(BudgetNotification.workspace_id == ws).limit(1)
+    )
+    has_billing_period = await _exists(
+        select(BillingPeriod.id).where(BillingPeriod.workspace_id == ws).limit(1)
+    )
+    has_provider_profile = await _exists(
+        select(GatewayRoute.provider).where(GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)).limit(1)
+    )
+    has_guardrail = await _exists(
+        select(GuardrailRule.id).where(GuardrailRule.workspace_id == ws, GuardrailRule.status == "active").limit(1)
+    )
+    has_rate_limit = await _exists(
+        select(GatewayRoute.id).where(GatewayRoute.workspace_id == ws, GatewayRoute.per_user_rpm_limit.is_not(None)).limit(1)
+    )
+    has_mcp_server = await _exists(
+        select(McpServer.id).where(McpServer.workspace_id == ws).limit(1)
+    )
+    has_search_tool = await _exists(
+        select(SearchTool.id).where(SearchTool.workspace_id == ws).limit(1)
+    )
+    has_tool_policy = await _exists(
+        select(ToolPolicy.id).where(ToolPolicy.workspace_id == ws, ToolPolicy.is_active.is_(True)).limit(1)
+    )
+    has_approval_config = await _exists(
+        select(Approval.id).where(Approval.workspace_id == ws).limit(1)
+    )
+    has_data_capture = await _exists(
+        select(CapturePolicy.id).where(CapturePolicy.workspace_id == ws).limit(1)
+    )
+    has_security_config = await _exists(
+        select(WorkspaceSecuritySettings.id).where(WorkspaceSecuritySettings.workspace_id == ws).limit(1)
+    )
+    has_tag = await _exists(
+        select(Tag.id).where(Tag.workspace_id == ws).limit(1)
+    )
 
     steps = [
-        has_org,
-        has_workspace,
-        has_api_key,
-        has_first_run,
-        has_gateway_route,
-        has_budget,
-        has_alert_rule,
+        has_org, has_workspace, has_api_key, has_first_run,
+        has_gateway_route, has_budget, has_alert_rule,
+        has_budget_notification, has_billing_period,
+        has_provider_profile, has_guardrail, has_rate_limit,
+        has_mcp_server, has_search_tool, has_tool_policy,
+        has_approval_config, has_data_capture, has_security_config,
+        has_tag,
     ]
     completed = sum(1 for s in steps if s)
 
@@ -1019,6 +1053,18 @@ async def onboarding_status(
         "has_gateway_route": has_gateway_route,
         "has_budget": has_budget,
         "has_alert_rule": has_alert_rule,
+        "has_budget_notification": has_budget_notification,
+        "has_billing_period": has_billing_period,
+        "has_provider_profile": has_provider_profile,
+        "has_guardrail": has_guardrail,
+        "has_rate_limit": has_rate_limit,
+        "has_mcp_server": has_mcp_server,
+        "has_search_tool": has_search_tool,
+        "has_tool_policy": has_tool_policy,
+        "has_approval_config": has_approval_config,
+        "has_data_capture": has_data_capture,
+        "has_security_config": has_security_config,
+        "has_tag": has_tag,
         "completed": completed,
         "total": len(steps),
         "pct": round(completed / len(steps) * 100),

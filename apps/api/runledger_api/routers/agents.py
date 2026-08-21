@@ -131,6 +131,8 @@ async def list_agents(
     db: DbDep,
     agent_status: str | None = Query(None, alias="status"),
     agent_type: str | None = Query(None),
+    access_group_id: str | None = Query(None),
+    api_key_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> AgentListResponse:
@@ -143,6 +145,19 @@ async def list_agents(
     if agent_type:
         q = q.where(Agent.agent_type == agent_type)
         count_q = count_q.where(Agent.agent_type == agent_type)
+    if access_group_id or api_key_id:
+        import uuid as _uuid
+        run_sub = select(WorkflowRun.agent_id).where(
+            WorkflowRun.workspace_id == ws.id,
+            WorkflowRun.agent_id.isnot(None),
+        )
+        if access_group_id:
+            run_sub = run_sub.where(WorkflowRun.access_group_id == _uuid.UUID(access_group_id))
+        if api_key_id:
+            run_sub = run_sub.where(WorkflowRun.api_key_id == _uuid.UUID(api_key_id))
+        run_sub = run_sub.distinct()
+        q = q.where(Agent.id.in_(run_sub))
+        count_q = count_q.where(Agent.id.in_(run_sub))
 
     total = (await db.execute(count_q)).scalar() or 0
     rows = (
@@ -226,6 +241,8 @@ async def list_agent_runs(
     ws: WorkspaceDep,
     db: DbDep,
     run_status: str | None = Query(None, alias="status"),
+    access_group_id: str | None = Query(None),
+    api_key_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> WorkflowRunSummaryListResponse:
@@ -240,6 +257,16 @@ async def list_agent_runs(
     if run_status:
         base = base.where(WorkflowRun.status == run_status)
         count_q = count_q.where(WorkflowRun.status == run_status)
+    if access_group_id:
+        import uuid as _uuid
+        _ag = _uuid.UUID(access_group_id)
+        base = base.where(WorkflowRun.access_group_id == _ag)
+        count_q = count_q.where(WorkflowRun.access_group_id == _ag)
+    if api_key_id:
+        import uuid as _uuid
+        _ak = _uuid.UUID(api_key_id)
+        base = base.where(WorkflowRun.api_key_id == _ak)
+        count_q = count_q.where(WorkflowRun.api_key_id == _ak)
 
     total = (await db.execute(count_q)).scalar() or 0
     rows = (

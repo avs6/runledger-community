@@ -28,3 +28,13 @@ In local SMTP-less environments, invites can skip verification so test users can
 | Member | Workspace | Read-only Runs, Sessions, Analytics, Prompts, Monitoring |
 
 Use workspace membership to decide what a user can do inside each workspace. A user can be admin in one workspace and read-only in another.
+
+## User Detail — Governance Footprint
+
+Each user's detail page shows their governance activity alongside financial exposure:
+
+- **Approval count and recent approvals** — how many governance requests this user submitted and their latest decisions.
+- **Audit event count and recent events** — how many audit trail entries this user generated.
+- **Cross-links** — jump directly to Approvals (filtered by requester), Audit Log (filtered by actor), or Governance Pack (scoped to user) from the user detail page.
+
+The governance endpoint `GET /users/{user_id}/governance` returns the summary programmatically.

@@ -1271,6 +1271,44 @@ export interface OrgFinanceSummary {
 }
 
 
+export interface OrgRuntimeWorkspaceSummary {
+  workspace_id: string
+  workspace_name: string
+  active_route_count: number
+  distinct_provider_count: number
+  routing_policy_count: number
+  active_guardrail_count: number
+  rate_limited_route_count: number
+}
+
+export interface OrgRuntimeSummary {
+  workspaces: OrgRuntimeWorkspaceSummary[]
+  total_active_routes: number
+  total_distinct_providers: number
+  total_routing_policies: number
+  total_active_guardrails: number
+  total_rate_limited_routes: number
+}
+
+export interface OrgObserveWorkspaceSummary {
+  workspace_id: string
+  workspace_name: string
+  run_count_30d: number
+  request_count_30d: number
+  distinct_model_count: number
+  error_count_30d: number
+  active_alert_rule_count: number
+}
+
+export interface OrgObserveSummary {
+  workspaces: OrgObserveWorkspaceSummary[]
+  total_run_count_30d: number
+  total_request_count_30d: number
+  total_distinct_models: number
+  total_error_count_30d: number
+  total_active_alert_rules: number
+}
+
 export interface UserBudgetExposure {
   budget_id: string
   scope_type: string
@@ -1289,6 +1327,26 @@ export interface UserFinanceSummary {
   run_count_30d: number
   call_count_30d: number
   budgets: UserBudgetExposure[]
+}
+
+export interface UserGovernanceSummary {
+  user_id: string
+  email: string
+  full_name: string | null
+  approval_count: number
+  recent_approvals: {
+    id: string
+    request_type: string
+    status: string
+    created_at: string
+  }[]
+  audit_event_count: number
+  recent_audit_events: {
+    id: string
+    action: string
+    target_type: string | null
+    created_at: string
+  }[]
 }
 
 export interface SubscriptionResponse {
@@ -2529,6 +2587,18 @@ export interface OnboardingStatus {
   has_gateway_route: boolean
   has_budget: boolean
   has_alert_rule: boolean
+  has_budget_notification: boolean
+  has_billing_period: boolean
+  has_provider_profile: boolean
+  has_guardrail: boolean
+  has_rate_limit: boolean
+  has_mcp_server: boolean
+  has_search_tool: boolean
+  has_tool_policy: boolean
+  has_approval_config: boolean
+  has_data_capture: boolean
+  has_security_config: boolean
+  has_tag: boolean
   completed: number
   total: number
   pct: number

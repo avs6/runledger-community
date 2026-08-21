@@ -1,10 +1,10 @@
 # WU-007: Identity & Scope Visibility in Build & Improve
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 01-Org & Access - B (Identity & Scope)
 - **Target**: 01-ORG-AND-ACCESS/Access groups, API keys (`/access-groups`, `/api-keys`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-20
 
 ## Cohesion Cells to Close
 

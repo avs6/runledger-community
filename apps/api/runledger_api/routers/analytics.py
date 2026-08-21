@@ -2675,6 +2675,8 @@ async def model_scorecards(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    access_group_id: Annotated[str | None, Query()] = None,
+    api_key_id: Annotated[str | None, Query()] = None,
 ) -> ModelScorecardList:
     """Aggregate quality scorecards per model: cost, latency, errors, cache, quality."""
     now = datetime.now(UTC)
@@ -2686,6 +2688,21 @@ async def model_scorecards(
         ProviderCall.created_at >= start,
         ProviderCall.created_at <= end,
     ]
+    if access_group_id:
+        import uuid as _uuid
+        from runledger_api.models.access_groups import AccessGroupMember
+        member_rows = (
+            await db.execute(
+                select(AccessGroupMember.user_id).where(
+                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                )
+            )
+        ).scalars().all()
+        member_ids = [str(uid) for uid in member_rows]
+        filters.append(ProviderCall.end_user_id.in_(member_ids))
+    if api_key_id:
+        import uuid as _uuid
+        filters.append(ProviderCall.api_key_id == _uuid.UUID(api_key_id))
 
     stmt = (
         select(

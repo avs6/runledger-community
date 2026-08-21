@@ -32,6 +32,12 @@ curl -X POST http://localhost:8201/workflows \
 curl http://localhost:8201/workflows?status=active \
   -H "Authorization: Bearer rl_..."
 
+# filter by access group or API key identity
+curl "http://localhost:8201/workflows?access_group_id={group_id}" \
+  -H "Authorization: Bearer rl_..."
+curl "http://localhost:8201/workflows?api_key_id={key_id}" \
+  -H "Authorization: Bearer rl_..."
+
 # get workflow detail
 curl http://localhost:8201/workflows/{workflow_id} \
   -H "Authorization: Bearer rl_..."
@@ -46,13 +52,26 @@ curl -X DELETE http://localhost:8201/workflows/{workflow_id} \
   -H "Authorization: Bearer rl_..."
 ```
 
+### Identity filters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `access_group_id` | UUID | Show workflows with runs from this access group |
+| `api_key_id` | UUID | Show workflows with runs from this API key |
+
+The same filters apply to `GET /workflows/{id}/runs` to scope run listings by identity.
+
 ## Start a workflow run
+
+Workflow runs carry API-key and access-group identity so results can be attributed and filtered.
 
 ```bash
 curl -X POST http://localhost:8201/workflows/{workflow_id}/runs \
   -H "Authorization: Bearer rl_..." \
   -d '{
     "agent_id": "...",
+    "api_key_id": "...",
+    "access_group_id": "...",
     "trigger": "api",
     "input_data": {"ticket_id": "T-1234"}
   }'

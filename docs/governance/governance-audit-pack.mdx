@@ -15,9 +15,21 @@ The governance audit pack is the evidence view for Safety and Governance. It pac
 | Data capture | Active capture policies and scoped override posture |
 | Budget alerts | Budget breaches and governance-related alert activity |
 
+## Identity-scoped evidence
+
+The audit pack supports identity filters so operators can generate evidence scoped to a specific user, access group, or API key:
+
+| Parameter | Description |
+|---|---|
+| `user_id` | Scope the pack to a single user's activity |
+| `access_group_id` | Scope to all members of an access group |
+| `api_key_id` | Scope to traffic from a specific API key |
+
+From identity detail pages (Users, Access Groups, API Keys), use the **Governance** link to generate a scoped pack.
+
 ## Operator workflow
 
-1. Use filters to choose the evidence window.
+1. Use date-range and identity filters to choose the evidence window.
 2. Review the summary counts and included sections.
 3. Pivot into the linked operational owners such as Approvals, Audit Log, Alert Rules, and Data Capture.
 4. Export the pack as JSON or CSV for external compliance workflows.

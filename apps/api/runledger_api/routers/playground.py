@@ -125,6 +125,7 @@ async def list_sessions(
     ws: WorkspaceDep,
     db: DbDep,
     favorites_only: bool = Query(False),
+    access_group_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> PlaygroundSessionListResponse:
@@ -135,6 +136,19 @@ async def list_sessions(
     if favorites_only:
         q = q.where(PlaygroundSession.is_favorite.is_(True))
         count_q = count_q.where(PlaygroundSession.is_favorite.is_(True))
+    if access_group_id:
+        import uuid as _uuid
+        from runledger_api.models.access_groups import AccessGroupMember
+        member_rows = (
+            await db.execute(
+                select(AccessGroupMember.user_id).where(
+                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                )
+            )
+        ).scalars().all()
+        member_ids = [str(uid) for uid in member_rows]
+        q = q.where(PlaygroundSession.created_by.in_(member_ids))
+        count_q = count_q.where(PlaygroundSession.created_by.in_(member_ids))
 
     total = (await db.execute(count_q)).scalar() or 0
     rows = (

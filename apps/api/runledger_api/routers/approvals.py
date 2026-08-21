@@ -445,6 +445,9 @@ async def list_approvals(
     db: DbDep,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     request_type: Annotated[str | None, Query()] = None,
+    requested_by: Annotated[str | None, Query()] = None,
+    access_group_id: Annotated[uuid.UUID | None, Query()] = None,
+    api_key_prefix: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ApprovalList:
@@ -456,6 +459,35 @@ async def list_approvals(
         stmt = stmt.where(Approval.status == status_filter)
     if request_type and request_type in _VALID_TYPES:
         stmt = stmt.where(Approval.request_type == request_type)
+    if requested_by:
+        stmt = stmt.where(Approval.requested_by.ilike(f"%{requested_by}%"))
+    if api_key_prefix:
+        api_key_rows = (
+            await db.execute(
+                select(ApiKey).where(
+                    ApiKey.workspace_id == workspace.id,
+                    ApiKey.key_prefix == api_key_prefix,
+                )
+            )
+        ).scalars().all()
+        emails = [k.created_by for k in api_key_rows if k.created_by]
+        if emails:
+            stmt = stmt.where(Approval.requested_by.in_(emails))
+        else:
+            stmt = stmt.where(False)
+    if access_group_id:
+        from runledger_api.models.access_groups import AccessGroupMember
+        from runledger_api.models.tenant import User
+        member_emails_result = await db.execute(
+            select(User.email)
+            .join(AccessGroupMember, AccessGroupMember.user_id == User.id)
+            .where(AccessGroupMember.group_id == access_group_id)
+        )
+        member_emails = [e for e in member_emails_result.scalars().all() if e]
+        if member_emails:
+            stmt = stmt.where(Approval.requested_by.in_(member_emails))
+        else:
+            stmt = stmt.where(False)
 
     count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = int(count_result.scalar() or 0)

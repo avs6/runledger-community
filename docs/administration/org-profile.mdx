@@ -17,6 +17,8 @@ Use Organization Console when you want to manage the organization you are curren
 - Review email delivery status and update org notification preferences.
 - Run Slack and email smoke tests for org-level notifications.
 - Review cross-workspace financial posture before handing off to Budgets, Billing, Chargeback, or Compliance.
+- Review cross-workspace runtime posture (routes, providers, guardrails, rate limits) before handing off to Gateway surfaces.
+- Review cross-workspace observability posture (runs, requests, models, errors, alert rules) before handing off to Observe surfaces.
 - Confirm which organization the top bar breadcrumb is showing.
 
 After a rename, the dashboard session updates `tenant_name`, so the top bar breadcrumb reflects the new name immediately.
@@ -54,3 +56,68 @@ Use this section to understand where the organization stands, then jump into the
 - `/settings?tab=compliance` for ledger/compliance closure posture
 
 The org console stays read-only here on purpose. It should summarize financial posture, not duplicate the editing workflows that already belong to FinOps.
+
+## Runtime Posture
+
+The Organization Console includes a read-only **Runtime Posture** rollup backed by `GET /org/runtime`.
+
+It summarizes:
+
+- active gateway routes and distinct provider integrations across workspaces
+- routing policy count (active traffic shaping policies)
+- active guardrail rules (content safety enforcement)
+- rate-limited route count (routes with per-user RPM limits)
+
+Use this section to understand how the gateway and safety layer is configured, then jump into:
+
+- `/provider-profiles` for provider configuration and model routing
+- `/gateway` for routes, routing policies, and traffic management
+- `/guardrails` for content safety rules and policy enforcement
+- `/gateway?tab=rate-limits` for per-user and per-route rate limit tiers
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" \
+     "$BASE_URL/org/runtime" | jq .
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `total_active_routes` | int | Active gateway routes across all workspaces |
+| `total_distinct_providers` | int | Distinct provider integrations |
+| `total_routing_policies` | int | Active routing policies |
+| `total_active_guardrails` | int | Active guardrail rules |
+| `total_rate_limited_routes` | int | Routes with per-user RPM limits |
+| `workspaces` | array | Per-workspace breakdown |
+
+## Observability Posture
+
+The Organization Console includes a read-only **Observability Posture** rollup backed by `GET /org/observe`.
+
+It summarizes:
+
+- 30-day run volume across all workspaces
+- 30-day request (provider call) count
+- distinct model count in use
+- 30-day error count and implied error rate
+- active alert rule count (monitoring threshold rules)
+
+Use this section to understand how observable the organization is, then jump into:
+
+- `/analytics` for spend, usage, and model performance
+- `/runs` for run list, detail, and execution traces
+- `/analytics?tab=model-usage` for model distribution and token usage
+- `/monitoring` for alert rules, thresholds, and incident posture
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" \
+     "$BASE_URL/org/observe" | jq .
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `total_run_count_30d` | int | Agent runs in the last 30 days |
+| `total_request_count_30d` | int | Provider calls in the last 30 days |
+| `total_distinct_models` | int | Distinct models used |
+| `total_error_count_30d` | int | Requests with status >= 400 |
+| `total_active_alert_rules` | int | Active monitoring alert rules |
+| `workspaces` | array | Per-workspace breakdown |

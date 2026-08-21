@@ -189,12 +189,26 @@ async def list_experiments(
     workspace: WorkspaceDep,
     db: DbDep,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
+    access_group_id: Annotated[str | None, Query()] = None,
+    api_key_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> EvalExperimentList:
     q = select(EvalExperiment).where(EvalExperiment.workspace_id == workspace.id)
     if status_filter:
         q = q.where(EvalExperiment.status == status_filter)
+    if access_group_id:
+        import uuid as _uuid
+        from runledger_api.models.access_groups import AccessGroupMember
+        member_rows = (
+            await db.execute(
+                select(AccessGroupMember.user_id).where(
+                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                )
+            )
+        ).scalars().all()
+        member_ids = [str(uid) for uid in member_rows]
+        q = q.where(EvalExperiment.created_by.in_(member_ids))
     q = q.order_by(EvalExperiment.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(q)
     rows = list(result.scalars().all())

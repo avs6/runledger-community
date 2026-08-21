@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -183,13 +183,30 @@ async def create_experiment(
 async def list_experiments(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    access_group_id: str | None = Query(None),
+    api_key_id: str | None = Query(None),
 ) -> ExperimentList:
     """List all experiments for the workspace."""
     stmt = (
         select(ReplayExperiment)
         .where(ReplayExperiment.workspace_id == workspace.id)
-        .order_by(ReplayExperiment.created_at.desc())
     )
+    if access_group_id or api_key_id:
+        import uuid as _uuid
+        from runledger_api.models.agents import WorkflowRun
+        run_sub = select(WorkflowRun.id).where(
+            WorkflowRun.workspace_id == workspace.id,
+        )
+        if access_group_id:
+            run_sub = run_sub.where(WorkflowRun.access_group_id == _uuid.UUID(access_group_id))
+        if api_key_id:
+            run_sub = run_sub.where(WorkflowRun.api_key_id == _uuid.UUID(api_key_id))
+        from runledger_api.models.replay import ReplayDataset
+        dataset_sub = select(ReplayDataset.id).where(
+            ReplayDataset.workspace_id == workspace.id,
+        )
+        stmt = stmt.where(ReplayExperiment.dataset_id.in_(dataset_sub))
+    stmt = stmt.order_by(ReplayExperiment.created_at.desc())
     result = await db.execute(stmt)
     experiments = result.scalars().all()
     return ExperimentList(items=[_experiment_response(e) for e in experiments])

@@ -1,10 +1,10 @@
 # WU-009: Onboarding Setup Completeness and Handoffs
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 01-Org & Access - C (Onboarding & Setup)
 - **Target**: 01-ORG-AND-ACCESS/Onboarding (`/onboarding`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-20
 
 ## Cohesion Cells to Close
 

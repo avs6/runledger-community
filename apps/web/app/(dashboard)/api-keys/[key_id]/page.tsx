@@ -97,6 +97,60 @@ export default async function ApiKeyDetailPage({
           >
             Open chargeback
           </Link>
+          <Link
+            href={`/approvals?api_key_prefix=${encodeURIComponent(apiKeyDetail.key_prefix)}`}
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Approvals
+          </Link>
+          <Link
+            href={`/audit?api_key_prefix=${encodeURIComponent(apiKeyDetail.key_prefix)}`}
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Audit log
+          </Link>
+          <Link
+            href={`/governance?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Governance
+          </Link>
+          <Link
+            href={`/workflows?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-slate-800"
+          >
+            Workflows
+          </Link>
+          <Link
+            href={`/evaluations?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-slate-800"
+          >
+            Evaluations
+          </Link>
+          <Link
+            href={`/experiments?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-slate-800"
+          >
+            Experiments
+          </Link>
+          <Link
+            href={`/replay?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-slate-800"
+          >
+            Replay
+          </Link>
+          <Link
+            href={`/optimization-opportunities?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-slate-800"
+          >
+            Optimization
+          </Link>
+          <Link
+            href={`/model-scorecards?api_key_id=${encodeURIComponent(params.key_id)}`}
+            className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-slate-800"
+          >
+            Scorecards
+          </Link>
         </div>
       </div>
 
