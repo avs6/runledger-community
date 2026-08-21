@@ -36,7 +36,9 @@ from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall, Sp
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.scores import ScoreEvent
-from runledger_api.models.tenant import TenantUser, Workspace
+from runledger_api.models.billing import BillingPeriod
+from runledger_api.models.budgets import Budget, BudgetNotification
+from runledger_api.models.tenant import ApiKey, TenantUser, Workspace
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
     AnomalyItem,
@@ -195,6 +197,7 @@ async def analytics_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> AnalyticsSummary:
     """Total cost, tokens, run count and call count for the time window."""
     t_from = _parse_dt(from_dt, _default_from())
@@ -206,7 +209,7 @@ async def analytics_summary(
     prev_to = t_from
 
     def _summary_stmt(period_from: datetime, period_to: datetime) -> Any:
-        return select(
+        stmt = select(
             func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("total_cost"),
             func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("total_input"),
             func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("total_output"),
@@ -218,6 +221,9 @@ async def analytics_summary(
             ProviderCall.created_at < period_to,
             ProviderCall.status == "success",
         )
+        if api_key_id is not None:
+            stmt = stmt.where(ProviderCall.api_key_id == api_key_id)
+        return stmt
 
     result = await db.execute(_summary_stmt(t_from, t_to))
     row = result.one()
@@ -251,6 +257,7 @@ async def spend_over_time(
     granularity: Annotated[str, Query(pattern="^(minute|5min|hourly|daily)$")] = "daily",
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SpendOverTime:
     """Time-series of cost and token usage, bucketed by minute, 5 minutes, hour, or day."""
     t_from = _parse_dt(from_dt, _default_from())
@@ -266,6 +273,15 @@ async def spend_over_time(
         trunc_unit = "hour" if granularity == "hourly" else "day"
         period_col = func.date_trunc(trunc_unit, ProviderCall.created_at).label("period")
 
+    sot_filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+    if api_key_id is not None:
+        sot_filters.append(ProviderCall.api_key_id == api_key_id)
+
     stmt = (
         select(
             period_col,
@@ -274,12 +290,7 @@ async def spend_over_time(
             func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("output_tokens"),
             func.count(ProviderCall.id).label("call_count"),
         )
-        .where(
-            ProviderCall.workspace_id == workspace.id,
-            ProviderCall.created_at >= t_from,
-            ProviderCall.created_at < t_to,
-            ProviderCall.status == "success",
-        )
+        .where(*sot_filters)
         .group_by(period_col)
         .order_by(period_col)
     )
@@ -311,10 +322,20 @@ async def spend_by_model(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SpendByModel:
     """Cost and token usage broken down by provider + model."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
+
+    sbm_filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+    if api_key_id is not None:
+        sbm_filters.append(ProviderCall.api_key_id == api_key_id)
 
     stmt = (
         select(
@@ -325,12 +346,7 @@ async def spend_by_model(
             func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("output_tokens"),
             func.count(ProviderCall.id).label("call_count"),
         )
-        .where(
-            ProviderCall.workspace_id == workspace.id,
-            ProviderCall.created_at >= t_from,
-            ProviderCall.created_at < t_to,
-            ProviderCall.status == "success",
-        )
+        .where(*sbm_filters)
         .group_by(ProviderCall.provider, ProviderCall.model)
         .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
     )
@@ -363,10 +379,21 @@ async def spend_by_user(
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SpendByUser:
     """Top end-users by spend."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
+
+    sbu_filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+        ProviderCall.end_user_id.is_not(None),
+    ]
+    if api_key_id is not None:
+        sbu_filters.append(ProviderCall.api_key_id == api_key_id)
 
     stmt = (
         select(
@@ -377,13 +404,7 @@ async def spend_by_user(
             func.max(ProviderCall.created_at).label("last_active"),
             func.min(ProviderCall.created_at).label("first_seen"),
         )
-        .where(
-            ProviderCall.workspace_id == workspace.id,
-            ProviderCall.created_at >= t_from,
-            ProviderCall.created_at < t_to,
-            ProviderCall.status == "success",
-            ProviderCall.end_user_id.is_not(None),
-        )
+        .where(*sbu_filters)
         .group_by(ProviderCall.end_user_id)
         .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
         .limit(limit)
@@ -419,12 +440,21 @@ async def spend_by_feature(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SpendByFeature:
     """Cost and run count broken down by feature_tag."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
 
-    # Join to agent_runs to get feature_tag (stored on the run, not the call)
+    sbf_filters = [
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= t_from,
+        ProviderCall.created_at < t_to,
+        ProviderCall.status == "success",
+    ]
+    if api_key_id is not None:
+        sbf_filters.append(AgentRun.api_key_id == api_key_id)
+
     stmt = (
         select(
             AgentRun.feature_tag,
@@ -433,12 +463,7 @@ async def spend_by_feature(
             func.count(ProviderCall.id).label("call_count"),
         )
         .join(AgentRun, AgentRun.id == ProviderCall.run_id)
-        .where(
-            ProviderCall.workspace_id == workspace.id,
-            ProviderCall.created_at >= t_from,
-            ProviderCall.created_at < t_to,
-            ProviderCall.status == "success",
-        )
+        .where(*sbf_filters)
         .group_by(AgentRun.feature_tag)
         .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
     )
@@ -1759,6 +1784,7 @@ async def savings_analytics(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> SavingsResponse:
     """Savings breakdown by category and over time."""
     t_from = _parse_dt(from_dt, _default_from())
@@ -1770,6 +1796,8 @@ async def savings_analytics(
         ProviderCall.created_at < t_to,
         ProviderCall.status == "success",
     ]
+    if api_key_id is not None:
+        base.append(ProviderCall.api_key_id == api_key_id)
 
     totals = (
         await db.execute(
@@ -2789,3 +2817,152 @@ async def model_scorecards(
         )
 
     return ModelScorecardList(items=items, from_dt=start, to_dt=end)
+
+
+@router.get("/api-key-footprint/{api_key_id}")
+async def api_key_observe_footprint(
+    api_key_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    key = (
+        await db.execute(
+            select(ApiKey).where(ApiKey.id == api_key_id, ApiKey.workspace_id == workspace.id)
+        )
+    ).scalar_one_or_none()
+    if not key:
+        raise HTTPException(status_code=404, detail="API key not found in this workspace")
+
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    run_stmt = (
+        select(
+            func.count(AgentRun.id).label("run_count"),
+            func.coalesce(func.sum(AgentRun.total_cost_usd), 0).label("total_cost"),
+            func.coalesce(func.sum(AgentRun.total_tokens), 0).label("total_tokens"),
+        )
+        .where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.api_key_id == api_key_id,
+            AgentRun.created_at >= since,
+        )
+    )
+    run_row = (await db.execute(run_stmt)).one()
+
+    model_stmt = (
+        select(ProviderCall.model)
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.api_key_id == api_key_id,
+            ProviderCall.created_at >= since,
+        )
+        .group_by(ProviderCall.model)
+    )
+    models_used = [r.model for r in (await db.execute(model_stmt)).all()]
+
+    recent_stmt = (
+        select(AgentRun.id, AgentRun.status, AgentRun.total_cost_usd, AgentRun.created_at)
+        .where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.api_key_id == api_key_id,
+        )
+        .order_by(AgentRun.created_at.desc())
+        .limit(10)
+    )
+    recent_runs = [
+        {
+            "id": str(r.id),
+            "status": r.status,
+            "cost_usd": float(r.total_cost_usd or 0),
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in (await db.execute(recent_stmt)).all()
+    ]
+
+    return {
+        "api_key_id": str(api_key_id),
+        "key_name": key.name,
+        "period_days": 30,
+        "run_count": run_row.run_count,
+        "total_cost_usd": float(run_row.total_cost),
+        "total_tokens": int(run_row.total_tokens),
+        "models_used": models_used,
+        "recent_runs": recent_runs,
+    }
+
+
+@router.get("/workspace-observe-posture")
+async def workspace_observe_posture(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    run_stmt = (
+        select(
+            func.count(AgentRun.id).label("run_count"),
+            func.coalesce(func.sum(AgentRun.total_cost_usd), 0).label("total_cost"),
+            func.coalesce(func.sum(AgentRun.total_tokens), 0).label("total_tokens"),
+            func.count(func.distinct(AgentRun.end_user_id)).label("active_users"),
+        )
+        .where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.created_at >= since,
+        )
+    )
+    run_row = (await db.execute(run_stmt)).one()
+
+    model_stmt = (
+        select(func.count(func.distinct(ProviderCall.model)))
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= since,
+        )
+    )
+    model_count = (await db.execute(model_stmt)).scalar() or 0
+
+    error_stmt = (
+        select(func.count(AgentRun.id))
+        .where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.created_at >= since,
+            AgentRun.status == "error",
+        )
+    )
+    error_count = (await db.execute(error_stmt)).scalar() or 0
+
+    budget_count = (
+        await db.execute(
+            select(func.count(Budget.id)).where(Budget.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    billing_count = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    notification_count = (
+        await db.execute(
+            select(func.count(BudgetNotification.id)).join(Budget).where(
+                Budget.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "period_days": 30,
+        "run_count": run_row.run_count,
+        "total_cost_usd": float(run_row.total_cost),
+        "total_tokens": int(run_row.total_tokens),
+        "active_users": run_row.active_users,
+        "model_count": model_count,
+        "error_count": error_count,
+        "budget_count": budget_count,
+        "billing_period_count": billing_count,
+        "budget_notification_count": notification_count,
+    }

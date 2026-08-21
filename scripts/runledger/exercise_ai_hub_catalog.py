@@ -109,6 +109,33 @@ def main() -> None:
             f"provider={sync_result['provider']} added={sync_result['models_added']}"
         )
 
+        cost_posture = expect_ok(
+            client.get(f"/hub/models/{model_id}/cost-posture"),
+            "model cost posture",
+        )
+        assert cost_posture["model_name"] == model_name
+        assert "active_budget_count" in cost_posture
+        assert "billing_period_count" in cost_posture
+        print(
+            f"[ok] cost posture: budgets={cost_posture['active_budget_count']}, "
+            f"spend={cost_posture['current_spend_usd']}, "
+            f"billing_periods={cost_posture['billing_period_count']}"
+        )
+
+        gov_status = expect_ok(
+            client.get(f"/hub/models/{model_id}/governance"),
+            "model governance status",
+        )
+        assert gov_status["model_name"] == model_name
+        assert "approval_count" in gov_status
+        assert "audit_event_count" in gov_status
+        assert "tool_policy_count" in gov_status
+        print(
+            f"[ok] governance: approvals={gov_status['approval_count']}, "
+            f"audit_events={gov_status['audit_event_count']}, "
+            f"tool_policies={gov_status['tool_policy_count']}"
+        )
+
         expect_ok(client.delete(f"/hub/models/{model_id}"), "delete model card")
         print("[ok] deleted smoke-test model card")
 

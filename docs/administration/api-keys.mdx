@@ -29,3 +29,24 @@ The **API Keys** page is the control-plane entry point for long-lived workspace 
 - API keys can now act as first-class budget owners through `scope_type=api_key` on the Budgets API and dashboard.
 - The API key detail route at `/api-keys/{key_id}` shows linked budget posture, current-period chargeback attribution, and API-key-scoped billing-period drill-through.
 - Billing reconciliation, billing breakdown, billing exports, and chargeback report/export all accept `api_key_id` when you need finance evidence for one key instead of the whole workspace.
+
+## Observe Investigation
+
+- API keys are a first-class investigation dimension across all Observe surfaces.
+- Runs list, run detail, request flow, request explorer, sessions, and analytics endpoints accept `api_key_id` as a filter parameter.
+- `GET /analytics/api-key-footprint/{api_key_id}` returns a 30-day observe summary: run count, total cost, tokens, models used, and recent runs for a single API key.
+- The API Keys page includes an Observe button per key that opens a footprint modal with cost, run count, models used, and drill-through links to Runs, Analytics, Model Usage, Cost & Savings, Engineering, and Monitoring scoped to that key.
+
+## Cross-Feature Relationships
+
+| Surface | Relationship |
+|---------|-------------|
+| Runs, Run detail | Filter by `api_key_id` to see traffic from one key |
+| Request flow | Filter by `api_key_id` for Sankey analysis scoped to one key |
+| Sessions | Filter by `api_key_id` to see sessions initiated by one key |
+| Analytics summary, Spend | Filter by `api_key_id` for key-level cost attribution |
+| Model usage, Scorecards | Filter by `api_key_id` for per-key model breakdown |
+| Cost & Savings | Filter by `api_key_id` for key-level savings analysis |
+| Engineering, Monitoring | Filter by `api_key_id` for key-level operational metrics |
+| Budgets, Billing, Chargeback | Key acts as budget owner via `scope_type=api_key` |
+| Approvals, Audit Log, Governance | Key detail links to filtered governance surfaces |

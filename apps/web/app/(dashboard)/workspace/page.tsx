@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
@@ -460,6 +461,21 @@ export default function WorkspacePage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Manage workspaces in your organization.
           </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Link href="/sessions" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Sessions</Link>
+            <Link href="/analytics?tab=model-usage" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Usage</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Economics</Link>
+            <Link href="/analytics?tab=savings" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Cost & Savings</Link>
+            <Link href="/analytics?tab=users" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Analytics Users</Link>
+            <Link href="/analytics?tab=engineering" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Engineering</Link>
+            <Link href="/monitoring" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Monitoring</Link>
+            <Link href="/runs?tab=flow-focus" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Request Flow</Link>
+            <Link href="/analytics?tab=billing" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Billing Summary</Link>
+            <Link href="/analytics?tab=roi" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Outcomes & ROI</Link>
+            <Link href="/budgets" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Budgets</Link>
+            <Link href="/billing" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Billing Periods</Link>
+            <Link href="/ledger" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Ledger</Link>
+          </div>
         </div>
         <button
           onClick={() => load(true)}

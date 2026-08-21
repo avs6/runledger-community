@@ -8,11 +8,14 @@ import { ArrowRight, KeyRound, Pencil, Plus, RefreshCw, Sparkles, Trash2 } from 
 import {
   addHubModel,
   deleteHubModel,
+  getHubModelCostPosture,
+  getHubModelGovernance,
   listHubModels,
   requestHubAccess,
   syncHubProvider,
   updateHubModel,
 } from '@/lib/api'
+import type { HubModelCostPosture, HubModelGovernanceStatus } from '@/types/api'
 import type { HubModelResponse } from '@/types/api'
 
 const inputCls =
@@ -100,6 +103,10 @@ export default function AiHubPage() {
   const [syncToken, setSyncToken] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [form, setForm] = useState<ModelFormState>(emptyForm)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
+  const [costPosture, setCostPosture] = useState<HubModelCostPosture | null>(null)
+  const [govStatus, setGovStatus] = useState<HubModelGovernanceStatus | null>(null)
+  const [loadingPosture, setLoadingPosture] = useState(false)
 
   const load = useCallback(async () => {
     if (!apiKey) return
@@ -240,6 +247,26 @@ export default function AiHubPage() {
     }
   }
 
+  async function openModelPosture(model: HubModelResponse) {
+    if (!apiKey) return
+    setSelectedModelId(model.id)
+    setLoadingPosture(true)
+    setCostPosture(null)
+    setGovStatus(null)
+    try {
+      const [cost, gov] = await Promise.all([
+        getHubModelCostPosture(apiKey, model.id),
+        getHubModelGovernance(apiKey, model.id),
+      ])
+      setCostPosture(cost)
+      setGovStatus(gov)
+    } catch {
+      toast.error('Failed to load model posture')
+    } finally {
+      setLoadingPosture(false)
+    }
+  }
+
   async function handleRequestAccess(id: string) {
     if (!apiKey) return
     try {
@@ -281,6 +308,48 @@ export default function AiHubPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Model Usage <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/budgets?scope_type=model"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Budgets <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/approvals?request_type=model_access"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Approvals <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/audit?target_type=hub_model"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Audit Log <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/governance?scope=hub_model"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Governance <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/tags"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Tags <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/organization"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Organization <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              Platform Settings <ArrowRight className="h-4 w-4" />
             </Link>
             <button
               onClick={() => setShowSyncModal(true)}
@@ -695,6 +764,12 @@ export default function AiHubPage() {
 
                   <div className="flex flex-wrap gap-2 lg:justify-end">
                     <button
+                      onClick={() => openModelPosture(model)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                    >
+                      <ArrowRight className="h-4 w-4" /> Posture
+                    </button>
+                    <button
                       onClick={() => openEditForm(model)}
                       className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
@@ -719,6 +794,123 @@ export default function AiHubPage() {
           </div>
         </div>
       </div>
+
+      {selectedModelId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-950 dark:text-white">
+                Model Posture {costPosture ? `— ${costPosture.model_name}` : ''}
+              </h2>
+              <button
+                onClick={() => setSelectedModelId(null)}
+                className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            {loadingPosture && <p className="text-sm text-slate-500">Loading posture…</p>}
+
+            {costPosture && (
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Cost Posture</h3>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Active Budgets</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{costPosture.active_budget_count}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Budget Limit</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">${Number(costPosture.total_budget_limit_usd).toFixed(2)}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Current Spend</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">${Number(costPosture.current_spend_usd).toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/budgets?scope_type=model&scope_id=${encodeURIComponent(costPosture.model_name)}`}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Open budget detail
+                  </Link>
+                  <Link
+                    href={`/billing?model=${encodeURIComponent(costPosture.model_name)}`}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Billing periods
+                  </Link>
+                  <Link
+                    href={`/chargeback?dimension=model&model=${encodeURIComponent(costPosture.model_name)}`}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Chargeback
+                  </Link>
+                </div>
+              </section>
+            )}
+
+            {govStatus && (
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Governance Status</h3>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Approvals</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{govStatus.approval_count}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Audit Events</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{govStatus.audit_event_count}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Tool Policies</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{govStatus.tool_policy_count}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/approvals?request_type=model_access&target_id=${encodeURIComponent(selectedModelId)}`}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    View approvals
+                  </Link>
+                  <Link
+                    href={`/audit?target_type=hub_model&target_id=${encodeURIComponent(selectedModelId)}`}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Audit log
+                  </Link>
+                  <Link
+                    href={`/governance?scope=hub_model&model_id=${encodeURIComponent(selectedModelId)}`}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Governance pack
+                  </Link>
+                  <Link
+                    href="/tool-policies"
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Tool policies
+                  </Link>
+                  <Link
+                    href="/tags"
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Tags
+                  </Link>
+                </div>
+                {govStatus.is_deprecated && govStatus.deprecation_notice && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                    Deprecated: {govStatus.deprecation_notice}
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

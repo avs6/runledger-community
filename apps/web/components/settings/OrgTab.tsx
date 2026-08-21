@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Activity, BarChart3, Building2, Check, FileCheck, FileSpreadsheet, FolderOpen, Pencil, Plus, Radio, Receipt, Shield, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react'
-import { getOrgFinance, getOrgRuntime, getOrgObserve } from '@/lib/api'
-import type { OrgFinanceSummary, OrgRuntimeSummary, OrgObserveSummary } from '@/types/api'
+import { Activity, BarChart3, Building2, Check, Cpu, FileCheck, FileSpreadsheet, FolderOpen, KeyRound, Layers, Network, Pencil, Plus, Radio, Receipt, Shield, Trash2, UserPlus, Users, Wallet, X } from 'lucide-react'
+import { getOrgFinance, getOrgRuntime, getOrgObserve, getOrgGovernance } from '@/lib/api'
+import type { OrgFinanceSummary, OrgRuntimeSummary, OrgObserveSummary, OrgGovernanceSummary } from '@/types/api'
 
 interface OrgProfile {
   id: string
@@ -84,6 +84,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   const [finance, setFinance] = useState<OrgFinanceSummary | null>(null)
   const [runtime, setRuntime] = useState<OrgRuntimeSummary | null>(null)
   const [observe, setObserve] = useState<OrgObserveSummary | null>(null)
+  const [governance, setGovernance] = useState<OrgGovernanceSummary | null>(null)
 
   // ── Workspaces ───────────────────────────────────────────────────────────────
   const [workspaces, setWorkspaces] = useState<OrgWorkspace[]>([])
@@ -103,13 +104,14 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   const load = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [profileRes, wsRes, membersRes, financeRes, runtimeRes, observeRes] = await Promise.all([
+      const [profileRes, wsRes, membersRes, financeRes, runtimeRes, observeRes, governanceRes] = await Promise.all([
         fetch(`${apiBase}/org/profile`, { headers }),
         fetch(`${apiBase}/org/workspaces`, { headers }),
         fetch(`${apiBase}/org/members`, { headers }),
         getOrgFinance(apiKey).catch(() => null),
         getOrgRuntime(apiKey).catch(() => null),
         getOrgObserve(apiKey).catch(() => null),
+        getOrgGovernance(apiKey).catch(() => null),
       ])
       if (profileRes.ok) {
         const p = await profileRes.json()
@@ -121,6 +123,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
       setFinance(financeRes)
       setRuntime(runtimeRes)
       setObserve(observeRes)
+      setGovernance(governanceRes)
     } catch {
       toast.error('Failed to load organization data')
     }
@@ -423,6 +426,14 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileCheck className="h-4 w-4 text-blue-600" />Compliance</div>
                   <p className="mt-1 text-xs text-slate-500">Ledger readiness remains platform-owned and lives under compliance settings.</p>
                 </Link>
+                <Link href="/budgets?tab=detail" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Wallet className="h-4 w-4 text-blue-600" />Budget Detail</div>
+                  <p className="mt-1 text-xs text-slate-500">Drill into individual budget allocations, usage, and override history.</p>
+                </Link>
+                <Link href="/billing?tab=detail" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-blue-300 hover:bg-blue-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileSpreadsheet className="h-4 w-4 text-blue-600" />Billing Period Detail</div>
+                  <p className="mt-1 text-xs text-slate-500">Review individual billing period line items and reconciliation status.</p>
+                </Link>
               </div>
 
               <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
@@ -641,6 +652,18 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Radio className="h-4 w-4 text-teal-600" />Monitoring</div>
                   <p className="mt-1 text-xs text-slate-500">Alert rules, thresholds, and incident posture.</p>
                 </Link>
+                <Link href="/analytics?tab=billing-summary" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Receipt className="h-4 w-4 text-teal-600" />Billing Summary</div>
+                  <p className="mt-1 text-xs text-slate-500">Aggregate billing summaries and cost breakdowns.</p>
+                </Link>
+                <Link href="/outcomes" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><BarChart3 className="h-4 w-4 text-teal-600" />Outcomes & ROI</div>
+                  <p className="mt-1 text-xs text-slate-500">AI outcome tracking and return on investment metrics.</p>
+                </Link>
+                <Link href="/analytics?tab=users" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Users className="h-4 w-4 text-teal-600" />Analytics Users</div>
+                  <p className="mt-1 text-xs text-slate-500">Per-user analytics, usage patterns, and activity trends.</p>
+                </Link>
               </div>
 
               <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
@@ -675,6 +698,120 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
               Observability posture data is unavailable right now.
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ── Safety & Governance Posture ─────────────────────────────────────────── */}
+      <section>
+        <div className="mb-4 flex items-center gap-2">
+          <Shield className="h-5 w-5 text-indigo-500" />
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Safety & Governance Posture</h2>
+          <span className="ml-auto text-xs text-gray-400">Read-only org rollup</span>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Tool inventory, policies, approvals, and tagging across all workspaces. Jump into governance surfaces to configure.
+          </p>
+
+          {governance ? (
+            <>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tools</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{governance.tool_count}</div>
+                  <div className="mt-1 text-xs text-slate-500">{governance.mcp_server_count} MCP servers, {governance.search_tool_count} search tools</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tool policies</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{governance.tool_policy_count}</div>
+                  <div className="mt-1 text-xs text-slate-500">Active tool governance rules</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Approvals</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{governance.approval_count}</div>
+                  <div className="mt-1 text-xs text-slate-500">Approval records across workspaces</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Tags</div>
+                  <div className="mt-2 text-xl font-semibold text-slate-900 dark:text-white">{governance.tag_count}</div>
+                  <div className="mt-1 text-xs text-slate-500">Classification and metadata tags</div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Link href="/tools" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Cpu className="h-4 w-4 text-indigo-600" />Tool Registry</div>
+                  <p className="mt-1 text-xs text-slate-500">MCP servers, search tools, and tool inventory.</p>
+                </Link>
+                <Link href="/tool-policies" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Shield className="h-4 w-4 text-indigo-600" />Tool Policies</div>
+                  <p className="mt-1 text-xs text-slate-500">Governance rules for tool access and usage.</p>
+                </Link>
+                <Link href="/governance" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileCheck className="h-4 w-4 text-indigo-600" />Governance Pack</div>
+                  <p className="mt-1 text-xs text-slate-500">Approval workflows, audit trails, and compliance evidence.</p>
+                </Link>
+                <Link href="/tags" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Layers className="h-4 w-4 text-indigo-600" />Tags</div>
+                  <p className="mt-1 text-xs text-slate-500">Metadata tags for classification and filtering.</p>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              Governance posture data is unavailable right now.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Org Administration ────────────────────────────────────────────────────── */}
+      <section>
+        <div className="mb-4 flex items-center gap-2">
+          <Building2 className="h-5 w-5 text-indigo-500" />
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Org Administration</h2>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Quick links to org-wide administration surfaces for users, access, keys, and platform configuration.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Link href="/users" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Users className="h-4 w-4 text-indigo-600" />Users</div>
+              <p className="mt-1 text-xs text-slate-500">Manage organization members and user accounts.</p>
+            </Link>
+            <Link href="/access-groups" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Shield className="h-4 w-4 text-indigo-600" />Access Groups</div>
+              <p className="mt-1 text-xs text-slate-500">Group-based permissions and dashboard filtering profiles.</p>
+            </Link>
+            <Link href="/api-keys" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><KeyRound className="h-4 w-4 text-indigo-600" />API Keys</div>
+              <p className="mt-1 text-xs text-slate-500">Workspace-scoped keys for SDK, gateway, and MCP auth.</p>
+            </Link>
+            <Link href="/onboarding" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Plus className="h-4 w-4 text-indigo-600" />Onboarding</div>
+              <p className="mt-1 text-xs text-slate-500">Guided setup wizard for new workspace configuration.</p>
+            </Link>
+            <Link href="/monitoring/telemetry" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Activity className="h-4 w-4 text-indigo-600" />Telemetry</div>
+              <p className="mt-1 text-xs text-slate-500">Platform telemetry, traces, and diagnostic data.</p>
+            </Link>
+            <Link href="/mcp-registry" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Network className="h-4 w-4 text-indigo-600" />MCP Registry</div>
+              <p className="mt-1 text-xs text-slate-500">Registered MCP servers and tool integrations.</p>
+            </Link>
+            <Link href="/ai-hub" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Cpu className="h-4 w-4 text-indigo-600" />AI Hub</div>
+              <p className="mt-1 text-xs text-slate-500">Central AI operations hub and model management.</p>
+            </Link>
+            <Link href="/settings" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileCheck className="h-4 w-4 text-indigo-600" />Platform Settings</div>
+              <p className="mt-1 text-xs text-slate-500">SMTP, webhooks, compliance, and deployment-wide controls.</p>
+            </Link>
+          </div>
         </div>
       </section>
 

@@ -59,3 +59,42 @@ class HubModelResponse(BaseModel):
 
 class HubModelList(BaseModel):
     items: list[HubModelResponse]
+
+
+class HubModelCostPosture(BaseModel):
+    model_id: uuid.UUID
+    model_name: str
+    provider: str
+    input_cost_per_1k: Decimal | None
+    output_cost_per_1k: Decimal | None
+    active_budget_count: int
+    total_budget_limit_usd: Decimal
+    current_spend_usd: Decimal
+    billing_period_count: int
+    chargeback_cost_usd: Decimal
+    budgets: list[dict]
+    billing_periods: list[dict]
+
+
+class HubModelGovernanceStatus(BaseModel):
+    model_id: uuid.UUID
+    model_name: str
+    provider: str
+    tags: list[str]
+    approval_count: int
+    recent_approvals: list[dict]
+    audit_event_count: int
+    recent_audit_events: list[dict]
+    tool_policy_count: int
+    is_deprecated: bool
+    deprecation_notice: str | None
+    access_request_count: int
+
+
+class HubOrgSummary(BaseModel):
+    total_models: int
+    featured_models: int
+    deprecated_models: int
+    total_access_requests: int
+    providers: list[str]
+    workspaces: list[dict]

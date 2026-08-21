@@ -1,6 +1,6 @@
 ---
 title: "AI Hub"
-description: "Manage the workspace model catalog: curate model cards, sync provider baselines, and mark cards for promotion or deprecation."
+description: "Manage the workspace model catalog: curate model cards, sync provider baselines, review model cost posture and governance status, and connect to FinOps, Safety, and Platform admin surfaces."
 ---
 
 The **AI Hub** page is the workspace model catalog for RunLedger. It is where admins curate the model cards that appear in model-management workflows before those cards show up in routing, usage review, and governance conversations.
@@ -13,14 +13,18 @@ The **AI Hub** page is the workspace model catalog for RunLedger. It is where ad
 - Add deprecation notices so model transitions are visible to operators.
 - Sync a baseline catalog from supported providers, then tune the resulting cards locally.
 - Record access requests for sensitive or gated model entries.
+- Review per-model cost posture linking to budget detail, billing periods, and chargeback.
+- Review per-model governance status linking to approvals, audit log, governance pack, and tool policies.
+- View a cross-org model capability summary from the platform admin perspective.
 
-AI Hub is intentionally a **catalog surface**, not a routing engine. Use it to define and govern the model inventory your workspace cares about, then connect that inventory to adjacent control-plane and observability surfaces.
+AI Hub is intentionally a **catalog surface**, not a routing engine. Use it to define and govern the model inventory your workspace cares about, then connect that inventory to adjacent control-plane, financial, governance, and observability surfaces.
 
 ## Who Can Manage AI Hub
 
 - Workspace admins can manage the catalog for their active workspace.
 - Org admins and org managers can manage AI Hub while operating inside a workspace they control.
 - Platform admins inherit workspace-elevated rights when operating inside an organization.
+- Org admins can view the cross-org model summary via `GET /hub/org-summary`.
 
 Members can review downstream usage surfaces, but they should not treat AI Hub as a free-form marketplace.
 
@@ -33,19 +37,40 @@ Members can review downstream usage surfaces, but they should not treat AI Hub a
 5. Mark retiring models as `Deprecated` and add a migration note.
 6. Follow through into **Provider Profiles** for provider-level pricing and connection management.
 7. Review **Model Usage** to see where the catalog inventory is actually showing up in traffic.
+8. Check the model **cost posture** to see budget assignment, spend, and billing coverage.
+9. Check the model **governance status** to review approvals, audit events, and tool policy coverage.
+10. As an org admin, review the **org summary** for a cross-workspace model capability overview.
 
 ## Relationship To Nearby Surfaces
 
+### Runtime and Catalog
 - **Provider Profiles**: provider pricing, endpoints, and import/repricing concerns.
 - **Model Usage**: observed request volume, cost, and model behavior in real traffic.
 - **Gateway Routes**: runtime routing and alias behavior.
 - **Onboarding**: setup and discovery entry point, not the long-term catalog home.
 
+### FinOps
+- **Budgets / Budget Detail**: model-scoped budgets link directly from AI Hub cost posture. Drill through to see spend breakdown, overrides, and notifications for cataloged models.
+- **Billing Periods / Billing Period Detail**: billing evidence for models in the catalog. AI Hub links into period-scoped billing for cost review.
+- **Chargeback**: model-dimension chargeback attribution. AI Hub links into chargeback with the model dimension pre-applied.
+
+### Safety & Governance
+- **Tool Registry / Tool Policies**: AI Hub model access requests participate in tool governance. The governance status panel shows active tool policy count.
+- **Approvals**: model access requests feed the approvals workflow. AI Hub links to approvals filtered by model target.
+- **Audit Log**: model lifecycle actions (create, update, deprecate, delete) appear in the audit log. AI Hub links to audit events filtered by hub_model target type.
+- **Governance Pack**: model governance evidence is available in the governance pack scoped to the specific model.
+- **Tags**: model tags participate in the tag taxonomy and can be reviewed from the Tags page.
+- **Security**: model access and modification are governed by workspace admin RBAC.
+
+### Platform & Org Admin
+- **All Organizations / Organization Console**: org admins can view a cross-org model capability summary showing total, featured, and deprecated model counts per workspace.
+- **Platform Settings**: platform admin context shares model catalog visibility across managed workspaces.
+
 AI Hub should stay cohesive with those surfaces without collapsing into them.
 
 ## API Coverage
 
-The backing API supports full CRUD plus sync and access-request actions:
+The backing API supports full CRUD, sync, access-request, and posture endpoints:
 
 - `POST /hub/models`
 - `GET /hub/models`
@@ -54,5 +79,8 @@ The backing API supports full CRUD plus sync and access-request actions:
 - `DELETE /hub/models/{id}`
 - `POST /hub/models/{id}/request-access`
 - `POST /hub/sync-provider`
+- `GET /hub/models/{id}/cost-posture` — per-model cost posture with budget, billing, and chargeback summary
+- `GET /hub/models/{id}/governance` — per-model governance status with approvals, audit events, and tool policy summary
+- `GET /hub/org-summary` — cross-org model capability summary (org admin only)
 
 Use a dashboard session key from `POST /auth/login` for these management actions.

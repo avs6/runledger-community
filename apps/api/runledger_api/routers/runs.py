@@ -138,6 +138,7 @@ def _apply_run_filters(
     model_filter: str | None,
     min_cost: Decimal | None,
     max_cost: Decimal | None,
+    api_key_id: uuid.UUID | None = None,
 ) -> Any:
     stmt = stmt.where(AgentRun.workspace_id == workspace_id)
     if access_group_filters:
@@ -190,6 +191,8 @@ def _apply_run_filters(
         stmt = stmt.where(AgentRun.total_cost_usd >= min_cost)
     if max_cost is not None:
         stmt = stmt.where(AgentRun.total_cost_usd <= max_cost)
+    if api_key_id:
+        stmt = stmt.where(AgentRun.api_key_id == api_key_id)
     return stmt
 
 
@@ -377,6 +380,7 @@ async def list_runs(
     min_cost: Decimal | None = Query(None, description="Minimum total cost (USD)"),
     max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
     access_group_id: uuid.UUID | None = Query(None),
+    api_key_id: uuid.UUID | None = Query(None),
 ) -> RunListResponse:
     access_group_filters = (
         await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
@@ -397,6 +401,7 @@ async def list_runs(
         model_filter=model_filter,
         min_cost=min_cost,
         max_cost=max_cost,
+        api_key_id=api_key_id,
     )
     total = (await db.execute(count_stmt)).scalar_one()
 
@@ -414,6 +419,7 @@ async def list_runs(
         model_filter=model_filter,
         min_cost=min_cost,
         max_cost=max_cost,
+        api_key_id=api_key_id,
     )
     if cursor:
         cursor_dt = datetime.fromisoformat(cursor)
@@ -482,6 +488,7 @@ async def export_runs(
     max_cost: Decimal | None = Query(None),
     limit: int = Query(1000, ge=1, le=5000),
     access_group_id: uuid.UUID | None = Query(None),
+    api_key_id: uuid.UUID | None = Query(None),
 ) -> StreamingResponse:
     access_group_filters = (
         await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
@@ -501,6 +508,7 @@ async def export_runs(
         model_filter=model_filter,
         min_cost=min_cost,
         max_cost=max_cost,
+        api_key_id=api_key_id,
     )
     result = await db.execute(stmt)
     runs = list(result.scalars().all())
@@ -580,6 +588,7 @@ async def get_run_flow(
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
     access_group_id: uuid.UUID | None = Query(None),
+    api_key_id: uuid.UUID | None = Query(None),
 ) -> RunFlowResponse:
     """
     Safe request-flow records for Sankey dashboards.
@@ -594,6 +603,11 @@ async def get_run_flow(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "access_group_id is only supported for workspace scope",
         )
+    if api_key_id is not None and scope != "workspace":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "api_key_id is only supported for workspace scope",
+        )
     if not workspace_ids:
         return RunFlowResponse(
             scope=scope,
@@ -607,6 +621,8 @@ async def get_run_flow(
         )
 
     filters: list[sa.ColumnElement[bool]] = [AgentRun.workspace_id.in_(workspace_ids)]
+    if api_key_id is not None:
+        filters.append(AgentRun.api_key_id == api_key_id)
     access_group_filters = (
         await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
         if access_group_id is not None

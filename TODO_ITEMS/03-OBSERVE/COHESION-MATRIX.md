@@ -1,6 +1,6 @@
 # Observe â€” Cohesion Matrix
 
-Last updated: 2026-08-20
+Last updated: 2026-08-22
 
 This file tracks how Observe features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -35,15 +35,15 @@ Current row major feature under audit: `Observe`
 
 | Row Major Feature | Row Subfeature | Organization profile | Org settings | Onboarding | Users | Workspaces | Access groups | API keys | Integrations | Telemetry | MCP registry | AI hub | Projects | Team models | Finding |
 |-------------------|----------------|----------------------|--------------|------------|-------|------------|---------------|----------|--------------|-----------|--------------|--------|----------|-------------|---------|
-| Observe | Analytics overview | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `GAP` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | Onboarding Observe & Monitor section now links directly to Analytics Overview. The readiness model uses has_first_run as the data-flowing proxy. |
-| Observe | Runs list | `STRONG` | `N/A` | `PARTIAL` | `GAP` | `STRONG` | `STRONG` | `PARTIAL` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console links to Runs with observability posture rollup showing 30d run volume. |
-| Observe | Run detail | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console observability posture links to run investigation surfaces. |
-| Observe | Request flow | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console observability posture links to request investigation surfaces. |
-| Observe | Request explorer | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Org console observability posture links to request investigation surfaces. |
-| Observe | Model usage | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Org console observability posture links to Model Usage with distinct model count rollup. |
-| Observe | Analytics users | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | Org console observability posture rolls up user-facing traffic. |
+| Observe | Analytics overview | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | Analytics overview now accepts api_key_id filter for key-scoped cost attribution. API key footprint modal links to analytics overview. Workspace observe posture endpoint provides workspace-level analytics summary. |
+| Observe | Runs list | `STRONG` | `N/A` | `STRONG` | `GAP` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Runs list now accepts api_key_id filter. API key footprint modal links to key-scoped runs. Workspace page links to runs. Onboarding now STRONG: has_first_run readiness check links to /runs, and the Observe & Monitor section includes a dedicated Runs navigation card. |
+| Observe | Run detail | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Run detail inherits API key context from runs. Workspace page links to run investigation. |
+| Observe | Request flow | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Request flow now accepts api_key_id filter. Workspace page links to request flow. |
+| Observe | Request explorer | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Request explorer inherits api_key_id filter. Workspace page links to request investigation. |
+| Observe | Model usage | `STRONG` | `N/A` | `N/A` | `PARTIAL` | `STRONG` | `N/A` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | Model usage now accepts api_key_id filter for per-key model breakdown. Workspace page links to model usage. API key footprint returns models used. Users page now cross-links to Model Usage for user-scoped model investigation. |
+| Observe | Analytics users | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | Workspace page links to Analytics Users. Workspace observe posture includes active user count. |
 | Observe | Telemetry | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | Telemetry is already correctly placed in Observe, with scope inheritance still improving. |
-| Observe | Monitoring | `STRONG` | `N/A` | `STRONG` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Onboarding Observe & Monitor section now links directly to Monitoring (alert rules). The readiness model checks has_alert_rule. |
+| Observe | Monitoring | `STRONG` | `N/A` | `STRONG` | `N/A` | `STRONG` | `N/A` | `STRONG` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `N/A` | `N/A` | Workspace page links to Monitoring. API key footprint modal links to monitoring scoped by key. |
 | Observe | Model scorecards | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `STRONG` | `N/A` | `N/A` | Scorecards already align well with AI Hub and workspace model ownership. |
 
 ### 11.5c Observe x Gateway & Routing / Safety & Governance / Self

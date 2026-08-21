@@ -7,7 +7,9 @@ Exercise the AI Hub model-catalog lifecycle with a dashboard session key:
   3. update metadata and deprecation fields
   4. record an access request
   5. sync a provider baseline
-  6. delete the created model card
+  6. review model cost posture
+  7. review model governance status
+  8. delete the created model card
 
 Required env vars:
   RUNLEDGER_BASE_URL
@@ -105,6 +107,26 @@ def main() -> None:
             "sync provider baseline",
         )
         print(f"[ok] synced provider {synced['provider']} with {synced['models_added']} added cards")
+
+        cost_posture = expect_ok(
+            client.get(f"/hub/models/{model_id}/cost-posture"),
+            "model cost posture",
+        )
+        print(
+            f"[ok] cost posture: {cost_posture['active_budget_count']} budgets, "
+            f"spend=${cost_posture['current_spend_usd']}, "
+            f"billing_periods={cost_posture['billing_period_count']}"
+        )
+
+        gov_status = expect_ok(
+            client.get(f"/hub/models/{model_id}/governance"),
+            "model governance status",
+        )
+        print(
+            f"[ok] governance: {gov_status['approval_count']} approvals, "
+            f"{gov_status['audit_event_count']} audit events, "
+            f"{gov_status['tool_policy_count']} tool policies"
+        )
 
         expect_ok(client.delete(f"/hub/models/{model_id}"), "delete model card")
         print("[ok] deleted created model card")

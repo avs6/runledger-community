@@ -14,8 +14,9 @@ import {
   getApiKeyRotationHistory,
   rotateApiKey,
   updateApiKey,
+  getApiKeyObserveFootprint,
 } from '@/lib/api'
-import type { ApiKeyResponse, KeyRotationEventResponse } from '@/types/api'
+import type { ApiKeyResponse, ApiKeyObserveFootprint, KeyRotationEventResponse } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -46,6 +47,9 @@ export default function ApiKeysPage() {
   const [editOwnershipType, setEditOwnershipType] = useState('user')
   const [editOwnerReference, setEditOwnerReference] = useState('')
   const [savingKeyId, setSavingKeyId] = useState<string | null>(null)
+  const [observeKeyId, setObserveKeyId] = useState<string | null>(null)
+  const [observeFootprint, setObserveFootprint] = useState<ApiKeyObserveFootprint | null>(null)
+  const [loadingObserve, setLoadingObserve] = useState(false)
 
   const load = useCallback(async () => {
     if (!apiKey || !canManageKeys) return
@@ -141,6 +145,17 @@ export default function ApiKeysPage() {
     }
   }
 
+  async function openObserveFootprint(keyId: string) {
+    if (!apiKey) return
+    setObserveKeyId(keyId)
+    setLoadingObserve(true)
+    try {
+      const fp = await getApiKeyObserveFootprint(apiKey, keyId)
+      setObserveFootprint(fp)
+    } catch { setObserveFootprint(null) }
+    finally { setLoadingObserve(false) }
+  }
+
   const filteredApiKeys = useMemo(() => {
     let rows = apiKeys
     if (keyUserFilter.trim()) {
@@ -177,6 +192,17 @@ export default function ApiKeysPage() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Manage workspace-scoped keys for SDK, gateway, and MCP authentication.
           </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics</Link>
+            <Link href="/sessions" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Sessions</Link>
+            <Link href="/analytics?tab=model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/analytics?tab=savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+            <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+            <Link href="/ai-hub" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">AI Hub</Link>
+            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+          </div>
         </div>
         {workspaceName && (
           <div className="shrink-0 flex flex-col items-end gap-0.5">
@@ -366,6 +392,7 @@ export default function ApiKeysPage() {
                             <Pencil className="h-3.5 w-3.5" />
                             Edit
                           </button>
+                          <button onClick={() => openObserveFootprint(key.id)} className="rounded bg-cyan-600 px-2 py-1 text-xs text-white hover:bg-cyan-700">Observe</button>
                           <button onClick={() => handleRevoke(key.id)} className="text-xs text-red-500 hover:text-red-700 hover:underline dark:text-red-400">Revoke</button>
                         </>
                       )}
@@ -379,6 +406,47 @@ export default function ApiKeysPage() {
       </div>
 
       {apiKey && canManageKeys && <KeyRotationPanel apiKey={apiKey} apiKeys={apiKeys} />}
+
+      {observeKeyId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => { setObserveKeyId(null); setObserveFootprint(null) }}>
+          <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Observe Footprint</h2>
+              <button onClick={() => { setObserveKeyId(null); setObserveFootprint(null) }} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><X className="h-5 w-5" /></button>
+            </div>
+            {loadingObserve ? <p className="text-sm text-slate-500">Loading…</p> : observeFootprint ? (
+              <div className="space-y-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Key: <span className="font-mono">{observeFootprint.key_prefix}…</span></p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-cyan-50 dark:bg-cyan-950/30 p-3"><p className="text-xs text-cyan-600 dark:text-cyan-400">Runs (30d)</p><p className="text-xl font-bold text-cyan-700 dark:text-cyan-300">{observeFootprint.run_count}</p></div>
+                  <div className="rounded-lg bg-cyan-50 dark:bg-cyan-950/30 p-3"><p className="text-xs text-cyan-600 dark:text-cyan-400">Total Cost</p><p className="text-xl font-bold text-cyan-700 dark:text-cyan-300">${parseFloat(observeFootprint.total_cost_usd).toFixed(4)}</p></div>
+                  <div className="rounded-lg bg-cyan-50 dark:bg-cyan-950/30 p-3"><p className="text-xs text-cyan-600 dark:text-cyan-400">Models Used</p><p className="text-xl font-bold text-cyan-700 dark:text-cyan-300">{observeFootprint.models_used.length}</p></div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/runs?api_key_id=${observeKeyId}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">View runs →</Link>
+                  <Link href={`/analytics?api_key_id=${observeKeyId}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics →</Link>
+                  <Link href={`/analytics?tab=model-usage&api_key_id=${observeKeyId}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model usage →</Link>
+                  <Link href={`/analytics?tab=savings&api_key_id=${observeKeyId}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & savings →</Link>
+                  <Link href={`/analytics?tab=engineering&api_key_id=${observeKeyId}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering →</Link>
+                  <Link href={`/monitoring?api_key_id=${observeKeyId}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring →</Link>
+                </div>
+                {observeFootprint.recent_runs.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Recent Runs</p>
+                    <div className="space-y-1">{observeFootprint.recent_runs.slice(0, 5).map((r) => (
+                      <Link key={r.id} href={`/runs/${r.id}`} className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span className="font-mono text-slate-600 dark:text-slate-300">{r.id.slice(0, 8)}…</span>
+                        <span className="text-slate-500">{r.feature_tag ?? 'no tag'}</span>
+                        <span className="text-slate-400">${parseFloat(r.cost_usd).toFixed(4)}</span>
+                      </Link>
+                    ))}</div>
+                  </div>
+                )}
+              </div>
+            ) : <p className="text-sm text-slate-500">No observe data found for this key.</p>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
