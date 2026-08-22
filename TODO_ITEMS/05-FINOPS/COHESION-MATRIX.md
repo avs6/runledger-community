@@ -35,13 +35,13 @@ Current row major feature under audit: `FinOps`
 
 | Row Major Feature | Row Subfeature | Provider profiles | Model gateway | Guardrails | Response cache | Rate limits | Finding |
 |-------------------|----------------|-------------------|---------------|------------|----------------|-------------|---------|
-| FinOps | Budgets | `PARTIAL` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | Budgets now support provider pricing posture and cache savings indirectly, while model quotas and rate limits remain adjacent technical controls rather than a unified FinOps control plane. |
-| FinOps | Budget detail | `PARTIAL` | `PARTIAL` | `N/A` | `GAP` | `GAP` | Budget detail can explain spend policy, but it still does not reconcile cache posture or technical throttles and quota tiers as a first-class operator drillback. |
-| FinOps | Budget overrides | `PARTIAL` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | Budget overrides can resemble runtime throttle or fallback actions, but FinOps still does not expose clear override history or review flows for quota-tier and model-limit changes. |
-| FinOps | Budget notifications | `N/A` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | Notifications should eventually reflect gateway-side quota or route pressure events more explicitly. |
-| FinOps | Billing periods | `PARTIAL` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | Billing periods inherit both cache-aware costing and quota-enforced traffic effects, but they still do not surface technical throttles as a first-class FinOps control. |
-| FinOps | Billing period detail | `PARTIAL` | `PARTIAL` | `N/A` | `PARTIAL` | `PARTIAL` | Billing detail carries cached-token, traffic, and savings effects, yet it still lacks a strong drillback into rate-limit configuration and quota posture. |
-| FinOps | Chargeback | `PARTIAL` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | Chargeback can attribute cached-token savings and avoided spend indirectly, but Response Cache is still upstream context rather than an explicit chargeback management loop. |
+| FinOps | Budgets | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | GET /analytics/gateway-finops-posture returns active budget count and override summary. Gateway page FinOps Posture card links directly to Budgets with drill-through. |
+| FinOps | Budget detail | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | Gateway FinOps Posture card links to Budget Detail. Budget performance posture returns cache/throttle economics. Budget detail shows Performance Economics section. |
+| FinOps | Budget overrides | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | Gateway FinOps Posture card shows override count/active and links to Budget Overrides. |
+| FinOps | Budget notifications | `N/A` | `STRONG` | `N/A` | `N/A` | `PARTIAL` | Gateway FinOps Posture card shows active notification channel count and links to Budget Notifications. |
+| FinOps | Billing periods | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | Gateway FinOps Posture card shows open/total billing periods and links to Billing Periods. |
+| FinOps | Billing period detail | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | Gateway FinOps Posture card links to Billing Period Detail. Billing period detail shows Performance Economics with cache/throttle data. |
+| FinOps | Chargeback | `STRONG` | `STRONG` | `N/A` | `STRONG` | `N/A` | Gateway FinOps Posture card shows chargeback rule count and links to Chargeback. |
 | FinOps | Ledger | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | Ledger is downstream evidence, not an active gateway operating surface, but rate-limit and quota posture can still feed that evidence chain indirectly. |
 
 ### 11.2c FinOps x Observe

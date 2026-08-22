@@ -1,10 +1,10 @@
 # WU-001: Provider Profiles FinOps Budget Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A (Provider & Routing)
 - **Target**: 02-GATEWAY-AND-ROUTING/Provider profiles (`/provider-profiles`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

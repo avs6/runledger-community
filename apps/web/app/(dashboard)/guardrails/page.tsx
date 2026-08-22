@@ -47,6 +47,7 @@ import {
   testGuardrailRule,
   updateGuardrailRule,
   updatePartnerGuardrail,
+  getGuardrailsObservePosture,
 } from '@/lib/api'
 import type {
   ContentFilterStatus,
@@ -59,6 +60,7 @@ import type {
   GuardrailTestCaseResponse,
   GuardrailTestResponse,
   PartnerGuardrailResponse,
+  GuardrailsObservePosture,
 } from '@/types/api'
 
 function pct(value: number | null | undefined) {
@@ -138,6 +140,7 @@ export default function GuardrailsPage() {
   const [alerts, setAlerts] = useState<GuardrailAlertResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshingAlerts, setRefreshingAlerts] = useState(false)
+  const [observePosture, setObservePosture] = useState<GuardrailsObservePosture | null>(null)
   const [savingFilters, setSavingFilters] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -257,6 +260,9 @@ export default function GuardrailsPage() {
 
   useEffect(() => {
     loadData()
+    if (apiKey) {
+      getGuardrailsObservePosture(apiKey).then(setObservePosture).catch(() => {})
+    }
   }, [apiKey])
 
   function resetRuleForm() {
@@ -671,6 +677,66 @@ export default function GuardrailsPage() {
             live enforcement telemetry, and alerts from one operator surface.
           </p>
         </div>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
+          <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
+          <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+          <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry</Link>
+        </div>
+
+        {observePosture && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Guardrails Observe Posture</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Observability context for guardrail enforcement — evaluations, outcomes, latency, and feedback over the last {observePosture.period_days} days.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Total Evaluations</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.evaluations.total.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{observePosture.evaluations.distinct_rules_fired} rules fired</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Blocks</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.evaluations.blocks.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{(observePosture.evaluations.block_rate * 100).toFixed(1)}% block rate</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Modifications</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.evaluations.modifications.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{(observePosture.evaluations.modification_rate * 100).toFixed(1)}% modification rate</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Avg Latency</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.performance.avg_latency_ms !== null ? `${observePosture.performance.avg_latency_ms.toFixed(0)}ms` : '—'}</p>
+                <p className="text-xs text-slate-400">max {observePosture.performance.max_latency_ms !== null ? `${observePosture.performance.max_latency_ms.toFixed(0)}ms` : '—'}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Rule Coverage</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{observePosture.rules.active_rules}</strong> active of <strong>{observePosture.rules.total_rules}</strong> total</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Mode Breakdown</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{observePosture.mode_breakdown.pre_call.toLocaleString()}</strong> pre-call · <strong>{observePosture.mode_breakdown.post_call.toLocaleString()}</strong> post-call</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Feedback</p>
+                <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{observePosture.feedback.false_positive_count}</strong> false positives flagged</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link href="/monitoring/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+              <Link href="/monitoring/sessions" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+              <Link href="/monitoring/requests" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+              <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+              <Link href="/analytics/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
+              <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => {

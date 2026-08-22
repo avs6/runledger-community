@@ -113,6 +113,9 @@ export default function TelemetryPage() {
           Use this page to verify ingest health, attribution quality, and batch-level payload shape before telemetry flows into Runs, Request Explorer, and the rest of the observability stack.
         </p>
         <div className="flex flex-wrap gap-2 mt-2">
+          <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+          <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+          <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
           <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
           <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
           <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>

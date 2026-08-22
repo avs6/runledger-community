@@ -1,10 +1,10 @@
 # WU-004: Provider Profiles Org & Access Links
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A (Provider & Routing)
 - **Target**: 02-GATEWAY-AND-ROUTING/Provider profiles (`/provider-profiles`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21 (pre-closed by status cleanup — all 5 target cells already STRONG or N/A)
 
 ## Cohesion Cells to Close
 

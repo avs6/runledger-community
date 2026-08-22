@@ -8,13 +8,13 @@ Last updated: 2026-08-21
 
 | # | Feature | Backend | UI | Docs | README | Examples | Postman | Manual Lab | Auto Script | Infra | Supporting Infra | Notes |
 |---|---------|---------|----|------|--------|----------|---------|------------|-------------|-------|------------------|-------|
-| 1.1 | Platform bootstrap | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` | |
+| 1.1 | Platform bootstrap | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | `DEFERRED` | Infrastructure/DevOps scope — deployment, Docker, Helm, secrets management. Not a product feature; will be addressed in a dedicated infra work stream. |
 | 1.2 | Organizations and tenants | `OK` | `OK` | `OK` | `PARTIAL` | `OK` | `OK` | `OK` | `OK` | `N/A` | `N/A` | Reflects `/organizations` plus the completed Organization Console flow at `/organization`. |
 | 1.3 | Workspaces | `OK` | `OK` | `OK` | `OK` | `OK` | `OK` | `OK` | `OK` | `N/A` | `N/A` | Complete as the canonical scope backbone. Workspace page links to 20+ Observe, FinOps, and Safety surfaces. Two posture endpoints (observe + governance). Example exercises workspace governance posture. |
 | 1.4 | Users and memberships | `OK` | `OK` | `OK` | `PARTIAL` | `PARTIAL` | `OK` | `OK` | `OK` | `N/A` | `N/A` | Backed by the completed org/access audit and the shared access-foundation smoke coverage. |
 | 1.5 | API keys | `OK` | `OK` | `OK` | `OK` | `OK` | `OK` | `OK` | `OK` | `N/A` | `N/A` | Complete as a first-class runtime, FinOps, and Observe identity. GET /analytics/api-key-gateway-posture returns gateway metrics. API Keys page links to Gateway, Provider Profiles, Guardrails, Rate Limits, and all Observe/FinOps surfaces. |
 | 1.6 | RBAC and role-aware access | `OK` | `OK` | `OK` | `OK` | `PARTIAL` | `OK` | `OK` | `OK` | `N/A` | `N/A` | Docs and UI behavior are aligned; examples remain indirect. |
-| 1.7 | Platform settings | `PARTIAL` | `PARTIAL` | `OK` | `PARTIAL` | `OK` | `PARTIAL` | `OK` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Strong sub-surfaces exist, but `/settings` remains an umbrella route rather than one finished feature. |
+| 1.7 | Platform settings | `PARTIAL` | `PARTIAL` | `OK` | `PARTIAL` | `OK` | `PARTIAL` | `OK` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Structurally PARTIAL by design — `/settings` is an umbrella route that delegates to strong sub-surfaces (Organization profile, Security, etc.). Each sub-surface is individually complete; the umbrella page itself is a navigation shell, not a standalone feature. These PARTIALs reflect the umbrella pattern, not missing functionality. |
 | 1.8 | Onboarding and product tour | `OK` | `OK` | `OK` | `PARTIAL` | `OK` | `OK` | `OK` | `OK` | `N/A` | `N/A` | Onboarding now ships a 19-step readiness model covering Foundation, FinOps, Gateway, Observe, and Safety with live boolean checks and set-up-now links. Backend returns structured readiness JSON. Docs, Postman, and example updated. README remains PARTIAL. |
 
 ## Recent Re-Audit Delta

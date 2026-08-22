@@ -1,10 +1,10 @@
 # WU-008: Guardrails Observe Traceability
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - B (Runtime Protection)
 - **Target**: 02-GATEWAY-AND-ROUTING/Guardrails (`/guardrails`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

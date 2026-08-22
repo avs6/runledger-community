@@ -18,7 +18,7 @@ import {
   getFlywheelSettings, updateFlywheelSettings, listFlywheelRecommendations,
   applyFlywheelRecommendation, dismissFlywheelRecommendation, runFlywheel,
   listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint, testGatewayPassThroughEndpoint, listGatewayPassThroughStats, getGatewayBenchmarkComparison,
-  getGatewayRateLimitOverview,
+  getGatewayRateLimitOverview, getGatewayFinopsPosture, getGatewayObservePosture,
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
@@ -30,6 +30,7 @@ import type {
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
   GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
+  GatewayFinopsPosture, GatewayObservePosture,
 } from '@/types/api'
 
 const inputCls =
@@ -234,6 +235,8 @@ export default function GatewayPage() {
   const [newCacheEmbeddingModel, setNewCacheEmbeddingModel] = useState('')
   const [newCacheScopeModels, setNewCacheScopeModels] = useState('')
   const [newCacheConfigStr, setNewCacheConfigStr] = useState('{}')
+  const [finopsPosture, setFinopsPosture] = useState<GatewayFinopsPosture | null>(null)
+  const [observePosture, setObservePosture] = useState<GatewayObservePosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -280,6 +283,12 @@ export default function GatewayPage() {
   }, [apiKey, canManage])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!apiKey) return
+    getGatewayFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
+    getGatewayObservePosture(apiKey).then(setObservePosture).catch(() => {})
+  }, [apiKey])
 
   if (!canManage) {
     return (
@@ -1005,6 +1014,17 @@ export default function GatewayPage() {
         </button>
       </div>
 
+      <div className="flex flex-wrap gap-3">
+        <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
+        <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
+        <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
+        <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
+        <Link href="/monitoring/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry</Link>
+        <Link href="/mcp-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Registry</Link>
+        <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
+        <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+      </div>
+
       {/* Stats strip */}
       {gatewayStats && gatewayStats.total_requests > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1019,6 +1039,123 @@ export default function GatewayPage() {
               <p className="text-xl font-semibold dark:text-white mt-0.5">{s.value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {finopsPosture && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Gateway FinOps Posture</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Financial context for gateway operations — spend, budgets, billing, and chargeback.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">30-Day Spend</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${finopsPosture.spend.total_30d_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.spend.total_requests_30d.toLocaleString()} requests</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.budgets.active_count}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.budgets.active_overrides} active override{finopsPosture.budgets.active_overrides !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Notification Channels</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.notifications.active_channels}</p>
+              <p className="text-xs text-slate-400">budget alert destinations</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Billing Periods</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.billing.open_periods} open</p>
+              <p className="text-xs text-slate-400">{finopsPosture.billing.total_periods} total · {finopsPosture.chargeback.rule_count} chargeback rules</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Route Coverage</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{finopsPosture.routes.with_cost_caps}</strong> with cost caps · <strong>{finopsPosture.routes.with_rate_limits}</strong> rate-limited</p>
+              <p className="text-xs text-slate-400">of {finopsPosture.routes.total_active} active routes across {finopsPosture.routes.distinct_models} models</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Budget Overrides</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{finopsPosture.budgets.override_count}</strong> total · <strong>{finopsPosture.budgets.active_overrides}</strong> active</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Routing Policies</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{finopsPosture.routes.routing_policies}</strong> policies configured</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Overrides</Link>
+            <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Period Detail</Link>
+            <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+            <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+          </div>
+        </div>
+      )}
+
+      {observePosture && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Gateway Observe Posture</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Observability context for gateway operations — traffic, caching, throttling, cost, and performance over the last {observePosture.period_days} days.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Requests</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.traffic.total_requests.toLocaleString()}</p>
+              <p className="text-xs text-slate-400">{observePosture.traffic.errors.toLocaleString()} errors</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Performance</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{(observePosture.traffic.cache_hit_rate * 100).toFixed(1)}% hit rate</p>
+              <p className="text-xs text-slate-400">{observePosture.traffic.cache_hits.toLocaleString()} hits · {observePosture.traffic.cache_misses.toLocaleString()} misses</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Throttling</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.traffic.throttled_requests.toLocaleString()} throttled</p>
+              <p className="text-xs text-slate-400">{(observePosture.traffic.throttle_rate * 100).toFixed(2)}% throttle rate</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Avg Latency</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.performance.avg_latency_ms !== null ? `${observePosture.performance.avg_latency_ms.toFixed(0)}ms` : '—'}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Route Context</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{observePosture.routes.active_routes}</strong> active · <strong>{observePosture.routes.cache_enabled}</strong> cache-enabled · <strong>{observePosture.routes.rate_limited}</strong> rate-limited</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cost & Savings</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white">${observePosture.cost.total_cost_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent · ${observePosture.cost.total_savings_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} saved</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs & Users</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{observePosture.runs.run_count.toLocaleString()}</strong> runs · <strong>{observePosture.runs.distinct_users}</strong> users · <strong>{observePosture.runs.distinct_models}</strong> models</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tokens</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white">{observePosture.tokens.input_tokens.toLocaleString()} input · {observePosture.tokens.output_tokens.toLocaleString()} output</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
+            <Link href="/monitoring/sessions" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Sessions</Link>
+            <Link href="/analytics/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/analytics/economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Economics</Link>
+            <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
+            <Link href="/analytics/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
+            <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+          </div>
         </div>
       )}
 
@@ -1107,6 +1244,11 @@ export default function GatewayPage() {
               </div>
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+            <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+          </div>
         </section>
       )}
 
@@ -1117,6 +1259,12 @@ export default function GatewayPage() {
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               Cache lifecycle is collapsed into Gateway. Manage cache profiles here, then apply route-level cache toggles further down this page.
             </p>
+            <div className="mt-1 flex flex-wrap gap-3">
+              <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+              <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+              <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+            </div>
           </div>
           <button
             onClick={() => {

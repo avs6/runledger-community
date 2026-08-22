@@ -215,6 +215,8 @@ export default function UsersPage() {
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
             <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
             <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
+            <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+            <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
             <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
             <Link href="/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
             <Link href="/analytics/economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Economics</Link>

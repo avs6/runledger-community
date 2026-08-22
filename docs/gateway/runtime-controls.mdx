@@ -54,13 +54,48 @@ flowchart LR
 
 All controls are set per route on the **Gateway** dashboard page or via `POST/PUT /gateway/routes`.
 
+## FinOps budget bridge
+
+Rate-limited routes contribute to throttle containment metrics that feed into budget
+and billing analytics. Use the performance posture endpoints to see how rate limits
+affect spend:
+
+```bash
+# Per-budget throttle containment
+GET /analytics/budget-performance-posture/{budget_id}
+
+# Workspace-wide rate-limit + billing view
+GET /analytics/billing-period-performance-posture
+```
+
+The response includes `rate_limits.containment_coverage_pct` — the proportion of
+active routes that have rate-limit guardrails configured.
+
+### Guardrails observe posture
+
+`GET /analytics/guardrails-observe-posture` returns a 30-day enforcement snapshot for
+the workspace: rule coverage (total, active), evaluation breakdown (blocks, modifications,
+allows, block/modification rates), mode breakdown (pre-call, post-call), false-positive
+feedback count, and latency impact (avg, max). The guardrails page shows this as a
+**Guardrails Observe Posture** card with drill-through links to Runs, Request Flow,
+Request Explorer, Outcomes & ROI, Engineering, and Monitoring.
+
 ## Related
 
 <CardGroup cols={2}>
   <Card title="Budgets" icon="shield-check" href="/finops/budgets">
     Workspace / user / feature spend limits with automatic actions.
   </Card>
+  <Card title="Billing Periods" icon="calendar" href="/finops/billing">
+    Period-level throttle economics and cost attribution.
+  </Card>
   <Card title="Data retention" icon="clock-rotate-left" href="/governance/retention">
     Control how long payloads and telemetry are kept.
+  </Card>
+  <Card title="Runs" icon="play" href="/observe/runs">
+    Guardrail enforcement outcomes visible in run investigation.
+  </Card>
+  <Card title="Monitoring" icon="monitor-waveform" href="/observe/monitoring">
+    Guardrail firing rates and latency impact in live dashboards.
   </Card>
 </CardGroup>

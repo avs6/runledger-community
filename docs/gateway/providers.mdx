@@ -46,6 +46,62 @@ Add a new model by inserting a row into `provider_pricing` — **no code change 
 Each route references an env var holding the provider key (`api_key_env_var`, e.g. `OPENAI_API_KEY`), so
 keys stay in your environment / secret store, never in the database.
 
+## Financial posture
+
+Each provider profile is a valid budget scope (`scope_type=provider_profile`). The financial posture
+endpoint returns budget, override, billing, and chargeback summaries for a single profile:
+
+```bash
+GET /analytics/provider-profile-finops-posture?profile_id=<uuid>
+```
+
+Response:
+
+```json
+{
+  "workspace_id": "...",
+  "profile_id": "...",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "budgets": {
+    "budget_count": 2,
+    "active_budget_count": 1,
+    "total_limit_usd": 500.0,
+    "breach_count": 0
+  },
+  "overrides": {
+    "override_count": 1,
+    "active_override_count": 1
+  },
+  "billing": {
+    "billing_period_count": 3,
+    "open_billing_periods": 1
+  },
+  "chargeback": {
+    "chargeback_rule_count": 2
+  }
+}
+```
+
+The Provider Profiles page links directly to Budgets, Budget Detail, Budget Overrides, Billing Periods,
+Billing Period Detail, and Chargeback for each profile, with a per-profile FinOps Posture modal
+showing the summary above.
+
+## Observe posture
+
+Each provider profile also exposes an observability posture for operators investigating
+traffic and cost by provider:
+
+```bash
+GET /analytics/provider-profile-observe-posture?profile_id={uuid}
+```
+
+Returns 30-day run count, request count, error count, total cost and savings,
+input/output token totals, and average latency for the provider/model pair.
+The Provider Profiles page shows this as an **Observe Posture** modal with
+drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer,
+Economics, Cost & Savings, and Engineering.
+
 ## Related
 
 <CardGroup cols={2}>
@@ -54,6 +110,12 @@ keys stay in your environment / secret store, never in the database.
   </Card>
   <Card title="Pricing engine" icon="tags" href="/finops/pricing">
     Add a model with a pricing row.
+  </Card>
+  <Card title="Analytics Overview" icon="chart-bar" href="/observe/analytics">
+    Provider-scoped traffic and cost investigation.
+  </Card>
+  <Card title="Cost & Savings" icon="piggy-bank" href="/observe/cost-savings">
+    Provider-level cost attribution and savings breakdown.
   </Card>
 </CardGroup>
 

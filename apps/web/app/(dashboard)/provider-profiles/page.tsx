@@ -15,8 +15,10 @@ import {
   triggerPricingSync,
   importProviderPricing,
   getPricingExampleYaml,
+  getProviderProfileFinopsPosture,
+  getProviderProfileObservePosture,
 } from '@/lib/api'
-import type { ProviderPricingResponse } from '@/types/api'
+import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderProfileObservePosture } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -58,6 +60,36 @@ export default function ProviderProfilesPage() {
   const [pricingSearch, setPricingSearch] = useState('')
   const [pricingProviderFilter, setPricingProviderFilter] = useState('')
   const [pricingScopeFilter, setPricingScopeFilter] = useState<'all' | 'workspace' | 'global'>('all')
+  const [postureModal, setPostureModal] = useState<{ profile: ProviderPricingResponse; data: ProviderProfileFinopsPosture } | null>(null)
+  const [postureLoading, setPostureLoading] = useState<string | null>(null)
+  const [observeModal, setObserveModal] = useState<{ profile: ProviderPricingResponse; data: ProviderProfileObservePosture } | null>(null)
+  const [observeLoading, setObserveLoading] = useState<string | null>(null)
+
+  async function openPostureModal(p: ProviderPricingResponse) {
+    if (!apiKey) return
+    setPostureLoading(p.id)
+    try {
+      const data = await getProviderProfileFinopsPosture(apiKey, p.id)
+      setPostureModal({ profile: p, data })
+    } catch {
+      toast.error('Failed to load financial posture')
+    } finally {
+      setPostureLoading(null)
+    }
+  }
+
+  async function openObserveModal(p: ProviderPricingResponse) {
+    if (!apiKey) return
+    setObserveLoading(p.id)
+    try {
+      const data = await getProviderProfileObservePosture(apiKey, p.id)
+      setObserveModal({ profile: p, data })
+    } catch {
+      toast.error('Failed to load observe posture')
+    } finally {
+      setObserveLoading(null)
+    }
+  }
 
   const load = useCallback(async () => {
     if (!apiKey || !canManage) {
@@ -455,16 +487,54 @@ export default function ProviderProfilesPage() {
                       <div className="flex flex-wrap gap-3 text-xs">
                         <Link
                           href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}`}
-                          className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-300"
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
                         >
-                          View budgets
+                          Budgets
                         </Link>
                         <Link
-                          href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}&create=1`}
-                          className="font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-300"
+                          href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}&view=detail`}
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
                         >
-                          New budget
+                          Budget Detail
                         </Link>
+                        <Link
+                          href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}&view=overrides`}
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
+                        >
+                          Overrides
+                        </Link>
+                        <Link
+                          href="/billing-periods"
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
+                        >
+                          Billing Periods
+                        </Link>
+                        <Link
+                          href="/billing-periods?view=detail"
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
+                        >
+                          Billing Detail
+                        </Link>
+                        <Link
+                          href="/chargeback"
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
+                        >
+                          Chargeback
+                        </Link>
+                        <button
+                          onClick={() => openPostureModal(p)}
+                          disabled={postureLoading === p.id}
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400 disabled:opacity-50"
+                        >
+                          {postureLoading === p.id ? 'Loading…' : 'FinOps Posture'}
+                        </button>
+                        <button
+                          onClick={() => openObserveModal(p)}
+                          disabled={observeLoading === p.id}
+                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400 disabled:opacity-50"
+                        >
+                          {observeLoading === p.id ? 'Loading…' : 'Observe Posture'}
+                        </button>
                       </div>
                     </div>
                   </td>
@@ -521,6 +591,155 @@ export default function ProviderProfilesPage() {
           <li>Costs are in USD per 1 million tokens.</li>
         </ul>
       </div>
+
+      {observeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setObserveModal(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold dark:text-white">
+                Observe Posture — {observeModal.data.provider}/{observeModal.data.model}
+              </h3>
+              <button onClick={() => setObserveModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 text-sm">
+              <div>
+                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Runs & Requests (30d)</h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Runs</span>
+                    <p className="font-semibold dark:text-white">{observeModal.data.runs.run_count}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Requests</span>
+                    <p className="font-semibold dark:text-white">{observeModal.data.runs.request_count}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Errors</span>
+                    <p className="font-semibold dark:text-white">{observeModal.data.runs.error_count}</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Cost & Savings (30d)</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Total Cost</span>
+                    <p className="font-semibold dark:text-white">${observeModal.data.cost.total_cost_usd.toFixed(4)}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Total Savings</span>
+                    <p className="font-semibold dark:text-white">${observeModal.data.cost.total_savings_usd.toFixed(4)}</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Tokens & Performance</h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Input Tokens</span>
+                    <p className="font-semibold dark:text-white">{observeModal.data.tokens.input_tokens.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Output Tokens</span>
+                    <p className="font-semibold dark:text-white">{observeModal.data.tokens.output_tokens.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Avg Latency</span>
+                    <p className="font-semibold dark:text-white">{observeModal.data.performance.avg_latency_ms != null ? `${observeModal.data.performance.avg_latency_ms}ms` : '--'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+                <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+                <Link href="/analytics/request-flow" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+                <Link href="/analytics/request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+                <Link href="/analytics/economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Economics</Link>
+                <Link href="/analytics/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+                <Link href="/analytics/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {postureModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPostureModal(null)}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold dark:text-white">
+                FinOps Posture — {postureModal.data.provider}/{postureModal.data.model}
+              </h3>
+              <button onClick={() => setPostureModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 text-sm">
+              <div>
+                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Budgets</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Total</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.budgets.budget_count}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Active</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.budgets.active_budget_count}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Total Limit</span>
+                    <p className="font-semibold dark:text-white">${postureModal.data.budgets.total_limit_usd.toFixed(2)}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Breaches</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.budgets.breach_count}</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Budget Overrides</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Total</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.overrides.override_count}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Active</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.overrides.active_override_count}</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Billing & Chargeback</h4>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Billing Periods</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.billing.billing_period_count}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Open</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.billing.open_billing_periods}</p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
+                    <span className="text-slate-500 dark:text-slate-400">Chargeback Rules</span>
+                    <p className="font-semibold dark:text-white">{postureModal.data.chargeback.chargeback_rule_count}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <Link href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(postureModal.profile.id)}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+                <Link href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(postureModal.profile.id)}&view=overrides`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Overrides</Link>
+                <Link href="/billing-periods" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+                <Link href="/billing-periods?view=detail" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
+                <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+                <Link href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(postureModal.profile.id)}&create=1`} className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">+ New Budget</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

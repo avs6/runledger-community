@@ -4169,6 +4169,215 @@ export interface McpRegistryPosture {
   }
 }
 
+export interface BudgetPerformancePosture {
+  workspace_id: string
+  budget_id: string
+  cache: {
+    total_requests_30d: number
+    cache_hits_30d: number
+    cache_hit_rate_pct: number
+    estimated_savings_pct: number
+  }
+  rate_limits: {
+    rate_limited_routes: number
+    total_active_routes: number
+    containment_coverage_pct: number
+  }
+  overrides: {
+    override_count: number
+    active_overrides: number
+  }
+  billing: {
+    billing_period_count: number
+  }
+  chargeback: {
+    chargeback_rule_count: number
+  }
+}
+
+export interface BillingPeriodPerformancePosture {
+  workspace_id: string
+  cache: {
+    total_requests_30d: number
+    cache_hits_30d: number
+    cache_hit_rate_pct: number
+    estimated_savings_pct: number
+  }
+  rate_limits: {
+    rate_limited_routes: number
+    total_active_routes: number
+    containment_coverage_pct: number
+  }
+  billing: {
+    open_periods: number
+    total_periods: number
+    active_budget_count: number
+  }
+  chargeback: {
+    chargeback_rule_count: number
+  }
+}
+
+export interface UserGatewayPosture {
+  workspace_id: string
+  user_id: string
+  gateway: {
+    active_routes: number
+    rate_limited_routes: number
+    routing_policies: number
+    requests_30d: number
+  }
+  guardrails: {
+    active_rules: number
+  }
+  identity: {
+    api_keys: number
+  }
+}
+
+export interface GatewayFinopsPosture {
+  workspace_id: string
+  routes: {
+    total_active: number
+    with_cost_caps: number
+    with_rate_limits: number
+    distinct_models: number
+    routing_policies: number
+  }
+  spend: {
+    total_30d_usd: number
+    total_requests_30d: number
+  }
+  budgets: {
+    active_count: number
+    override_count: number
+    active_overrides: number
+  }
+  notifications: {
+    active_channels: number
+  }
+  billing: {
+    open_periods: number
+    total_periods: number
+  }
+  chargeback: {
+    rule_count: number
+  }
+}
+
+export interface GuardrailsObservePosture {
+  workspace_id: string
+  period_days: number
+  rules: {
+    total_rules: number
+    active_rules: number
+  }
+  evaluations: {
+    total: number
+    blocks: number
+    modifications: number
+    allows: number
+    block_rate: number
+    modification_rate: number
+    distinct_rules_fired: number
+    distinct_models: number
+  }
+  mode_breakdown: {
+    pre_call: number
+    post_call: number
+  }
+  feedback: {
+    false_positive_count: number
+  }
+  performance: {
+    avg_latency_ms: number | null
+    max_latency_ms: number | null
+  }
+}
+
+export interface GatewayObservePosture {
+  workspace_id: string
+  period_days: number
+  routes: {
+    active_routes: number
+    cache_enabled: number
+    rate_limited: number
+  }
+  traffic: {
+    total_requests: number
+    cache_hits: number
+    cache_misses: number
+    cache_hit_rate: number
+    throttled_requests: number
+    throttle_rate: number
+    errors: number
+  }
+  runs: {
+    run_count: number
+    distinct_users: number
+    distinct_models: number
+  }
+  cost: {
+    total_cost_usd: number
+    total_savings_usd: number
+  }
+  tokens: {
+    input_tokens: number
+    output_tokens: number
+  }
+  performance: {
+    avg_latency_ms: number | null
+  }
+}
+
+export interface ProviderProfileFinopsPosture {
+  workspace_id: string
+  profile_id: string
+  provider: string
+  model: string
+  budgets: {
+    budget_count: number
+    active_budget_count: number
+    total_limit_usd: number
+    breach_count: number
+  }
+  overrides: {
+    override_count: number
+    active_override_count: number
+  }
+  billing: {
+    billing_period_count: number
+    open_billing_periods: number
+  }
+  chargeback: {
+    chargeback_rule_count: number
+  }
+}
+
+export interface ProviderProfileObservePosture {
+  workspace_id: string
+  profile_id: string
+  provider: string
+  model: string
+  period_days: number
+  runs: {
+    run_count: number
+    request_count: number
+    error_count: number
+  }
+  cost: {
+    total_cost_usd: number
+    total_savings_usd: number
+  }
+  tokens: {
+    input_tokens: number
+    output_tokens: number
+  }
+  performance: {
+    avg_latency_ms: number | null
+  }
+}
+
 export interface AiHubRuntimePosture {
   workspace_id: string
   model_count: number

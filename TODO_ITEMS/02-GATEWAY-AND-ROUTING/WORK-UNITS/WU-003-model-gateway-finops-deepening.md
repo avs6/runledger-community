@@ -1,10 +1,10 @@
 # WU-003: Model Gateway FinOps Deepening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A (Provider & Routing)
 - **Target**: 02-GATEWAY-AND-ROUTING/Model gateway (`/gateway`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

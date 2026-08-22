@@ -62,6 +62,45 @@ resp = client.chat.completions.create(
 | `GET /gateway/stats` and `GET /gateway/requests` | Routing stats and request log |
 | `GET /gateway/benchmarks/compare` | Per-alias overhead and throughput comparison |
 
+## Org identity context
+
+Gateway routes and guardrails inherit workspace and user scope. The per-user gateway
+posture endpoint surfaces the intersection of gateway, guardrail, and identity state
+for a single user:
+
+```bash
+GET /analytics/user-gateway-posture?user_id={uuid}
+```
+
+Returns active and rate-limited routes, routing policies, 30-day request count,
+active guardrail rules, and API key count for the user's workspace. The gateway and
+guardrails pages link to Users, Workspaces, Access Groups, API Keys, Telemetry,
+MCP Registry, and Provider Profiles for org-level context.
+
+## FinOps posture
+
+The gateway exposes a read-only financial posture for operators who need spend context
+without leaving the gateway console:
+
+```bash
+GET /analytics/gateway-finops-posture
+```
+
+Returns route-level spend (30-day total, cost-cap coverage, rate-limit coverage),
+active budgets and overrides, notification channel count, billing periods, and
+chargeback rule count. The gateway page shows this as a **Gateway FinOps Posture**
+card with drill-through links to Budgets, Budget Detail, Budget Overrides, Budget
+Notifications, Billing Periods, Billing Period Detail, Chargeback, and Cost & Savings.
+
+### Observe posture
+
+`GET /analytics/gateway-observe-posture` returns a 30-day observability snapshot for the
+gateway workspace: active-route context (cache-enabled, rate-limited), traffic breakdown
+(requests, cache hits/misses, throttled, errors), run and user counts, cost and savings,
+token totals, and average latency. The gateway page shows this as a **Gateway Observe
+Posture** card with drill-through links to Workspace Dashboard, Sessions, Model Usage,
+Economics, Cost & Savings, Outcomes & ROI, Analytics Users, Engineering, and Monitoring.
+
 ## Related
 
 <CardGroup cols={2}>
@@ -76,6 +115,21 @@ resp = client.chat.completions.create(
   </Card>
   <Card title="Performance & scale" icon="gauge" href="/gateway/performance-and-scale">
     Benchmarking, pass-through analytics, and scaling guidance.
+  </Card>
+  <Card title="Budgets" icon="shield-check" href="/finops/budgets">
+    Spend limits with automatic actions, linked from the gateway posture card.
+  </Card>
+  <Card title="Billing Periods" icon="calendar" href="/finops/billing">
+    Period-level attribution with gateway spend breakdown.
+  </Card>
+  <Card title="Org & Identity" icon="building" href="/org/overview">
+    Users, workspaces, access groups, and API key scoping for gateway routes.
+  </Card>
+  <Card title="Analytics Overview" icon="chart-mixed" href="/observe/analytics-overview">
+    Workspace-wide traffic, cost, and performance summary linked from the observe posture card.
+  </Card>
+  <Card title="Monitoring" icon="monitor-waveform" href="/observe/monitoring">
+    Live gateway metrics, alert rules, and health dashboards.
   </Card>
 </CardGroup>
 

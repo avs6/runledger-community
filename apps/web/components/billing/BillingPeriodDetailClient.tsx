@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import type {
   BillingAdjustmentList,
   BillingPeriod,
+  BillingPeriodPerformancePosture,
   PeriodBreakdown,
   ReconciliationResult,
 } from '@/types/api'
-import { exportPeriodCsv, exportPeriodSignedJson } from '@/lib/api'
+import { exportPeriodCsv, exportPeriodSignedJson, getBillingPeriodPerformancePosture } from '@/lib/api'
 import BreakdownTable from '@/components/billing/BreakdownTable'
 import BillingAdjustmentsPanel from '@/components/billing/BillingAdjustmentsPanel'
 
@@ -62,6 +63,15 @@ export default function BillingPeriodDetailClient({
 }: Props) {
   const [tab, setTab] = useState<Tab>('summary')
   const [loading, setLoading] = useState<'csv' | 'json' | null>(null)
+  const [perfPosture, setPerfPosture] = useState<BillingPeriodPerformancePosture | null>(null)
+
+  useEffect(() => {
+    if (apiKey) {
+      getBillingPeriodPerformancePosture(apiKey)
+        .then(setPerfPosture)
+        .catch(() => {})
+    }
+  }, [apiKey])
   const exportScope = accessGroupId
     ? { access_group_id: accessGroupId }
     : apiKeyId
@@ -127,6 +137,9 @@ export default function BillingPeriodDetailClient({
             <Link href={accessGroupId ? `/budgets?tab=policies&scope_type=access_group&scope_id=${encodeURIComponent(accessGroupId)}` : apiKeyId ? `/budgets?tab=policies&scope_type=api_key&scope_id=${encodeURIComponent(apiKeyId)}` : '/budgets?tab=policies'} className="block text-blue-600 hover:underline dark:text-blue-400">Budgets</Link>
             <Link href={accessGroupId ? `/chargeback?dimension=access_group&access_group_id=${encodeURIComponent(accessGroupId)}` : apiKeyId ? `/chargeback?dimension=api_key&api_key_id=${encodeURIComponent(apiKeyId)}` : '/chargeback'} className="block text-blue-600 hover:underline dark:text-blue-400">Chargeback</Link>
             <Link href="/cost-savings" className="block text-blue-600 hover:underline dark:text-blue-400">Cost &amp; Savings</Link>
+            <Link href="/gateway" className="block text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+            <Link href="/gateway#cache" className="block text-cyan-600 hover:underline dark:text-cyan-400">Response Cache</Link>
+            <Link href="/gateway#rate-limits" className="block text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
           </div>
         </div>
       </div>
@@ -136,6 +149,34 @@ export default function BillingPeriodDetailClient({
           This period is still open. Reconciliation and breakdown reflect current metered usage, and adjustments remain editable until the period is closed.
         </div>
       ) : null}
+
+      {perfPosture && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Performance Economics</h2>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Hit Rate (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.cache.cache_hit_rate_pct}%</p>
+              <p className="text-xs text-slate-400">{perfPosture.cache.cache_hits_30d.toLocaleString()} hits</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Est. Cache Savings</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">~{perfPosture.cache.estimated_savings_pct}%</p>
+              <p className="text-xs text-slate-400">avoided cost</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Rate-Limited Routes</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.rate_limits.rate_limited_routes} / {perfPosture.rate_limits.total_active_routes}</p>
+              <p className="text-xs text-slate-400">{perfPosture.rate_limits.containment_coverage_pct}% containment</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.billing.active_budget_count}</p>
+              <p className="text-xs text-slate-400">{perfPosture.chargeback.chargeback_rule_count} chargeback rules</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {(['summary', 'reconciliation', 'breakdown', 'adjustments', 'exports'] as Tab[]).map((item) => (
