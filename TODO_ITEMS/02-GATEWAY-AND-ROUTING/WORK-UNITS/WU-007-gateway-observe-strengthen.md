@@ -1,10 +1,10 @@
 # WU-007: Model Gateway & Performance Controls Observe Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A/C (Provider & Routing, Performance Controls)
 - **Target**: 02-GATEWAY-AND-ROUTING/Model gateway, Response cache, Rate limits (`/gateway`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

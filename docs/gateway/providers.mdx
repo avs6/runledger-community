@@ -87,6 +87,21 @@ The Provider Profiles page links directly to Budgets, Budget Detail, Budget Over
 Billing Period Detail, and Chargeback for each profile, with a per-profile FinOps Posture modal
 showing the summary above.
 
+## Observe posture
+
+Each provider profile also exposes an observability posture for operators investigating
+traffic and cost by provider:
+
+```bash
+GET /analytics/provider-profile-observe-posture?profile_id={uuid}
+```
+
+Returns 30-day run count, request count, error count, total cost and savings,
+input/output token totals, and average latency for the provider/model pair.
+The Provider Profiles page shows this as an **Observe Posture** modal with
+drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer,
+Economics, Cost & Savings, and Engineering.
+
 ## Related
 
 <CardGroup cols={2}>
@@ -95,6 +110,12 @@ showing the summary above.
   </Card>
   <Card title="Pricing engine" icon="tags" href="/finops/pricing">
     Add a model with a pricing row.
+  </Card>
+  <Card title="Analytics Overview" icon="chart-bar" href="/observe/analytics">
+    Provider-scoped traffic and cost investigation.
+  </Card>
+  <Card title="Cost & Savings" icon="piggy-bank" href="/observe/cost-savings">
+    Provider-level cost attribution and savings breakdown.
   </Card>
 </CardGroup>
 

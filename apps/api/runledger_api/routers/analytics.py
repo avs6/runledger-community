@@ -47,7 +47,7 @@ from runledger_api.models.audit import AuditEvent
 from runledger_api.models.alerts import AlertRule
 from runledger_api.models.tags import Tag
 from runledger_api.models.gateway import GatewayRoute, RoutingPolicy, GatewayPassThroughEndpoint
-from runledger_api.models.guardrails import GuardrailRule
+from runledger_api.models.guardrails import GuardrailEvent, GuardrailRule
 from runledger_api.models.otlp import OtlpIngestBatch
 from runledger_api.models.mcp_registry import McpServer, McpToolCall
 from runledger_api.models.hub import HubModel
@@ -3591,5 +3591,563 @@ async def billing_period_performance_posture(
         },
         "chargeback": {
             "chargeback_rule_count": chargeback_rule_count,
+        },
+    }
+
+
+@router.get("/gateway-finops-posture")
+async def gateway_finops_posture(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    routes_with_cost_caps = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            or_(
+                GatewayRoute.daily_cost_limit_usd.isnot(None),
+                GatewayRoute.monthly_cost_limit_usd.isnot(None),
+            ),
+        )
+    )).scalar() or 0
+
+    rate_limited_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.rate_limit_rpm.isnot(None),
+        )
+    )).scalar() or 0
+
+    total_requests_30d = (await db.execute(
+        select(func.count(GatewayRequest.id)).where(
+            GatewayRequest.workspace_id == workspace.id,
+            GatewayRequest.created_at >= thirty_days_ago,
+        )
+    )).scalar() or 0
+
+    total_spend_rows = (await db.execute(
+        select(
+            func.coalesce(func.sum(UsageDaily.cost_usd), Decimal("0")),
+        ).where(
+            UsageDaily.workspace_id == workspace.id,
+            UsageDaily.day >= thirty_days_ago.date(),
+        )
+    )).scalar() or Decimal("0")
+
+    budget_count = (await db.execute(
+        select(func.count(Budget.id)).where(
+            Budget.workspace_id == workspace.id,
+            Budget.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    budgets_near_limit = (await db.execute(
+        select(func.count(Budget.id)).where(
+            Budget.workspace_id == workspace.id,
+            Budget.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    override_count = (await db.execute(
+        select(func.count(BudgetOverride.id)).where(
+            BudgetOverride.budget_id.in_(
+                select(Budget.id).where(Budget.workspace_id == workspace.id)
+            )
+        )
+    )).scalar() or 0
+
+    active_overrides = (await db.execute(
+        select(func.count(BudgetOverride.id)).where(
+            BudgetOverride.budget_id.in_(
+                select(Budget.id).where(Budget.workspace_id == workspace.id)
+            ),
+            BudgetOverride.status == "active",
+        )
+    )).scalar() or 0
+
+    notification_count = (await db.execute(
+        select(func.count(BudgetNotification.id)).where(
+            BudgetNotification.workspace_id == workspace.id,
+            BudgetNotification.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    open_periods = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace.id,
+            BillingPeriod.status == "open",
+        )
+    )).scalar() or 0
+
+    total_periods = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    chargeback_rule_count = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    distinct_models = (await db.execute(
+        select(func.count(func.distinct(GatewayRoute.target_model))).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    routing_policy_count = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(
+            RoutingPolicy.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "routes": {
+            "total_active": total_routes,
+            "with_cost_caps": routes_with_cost_caps,
+            "with_rate_limits": rate_limited_routes,
+            "distinct_models": distinct_models,
+            "routing_policies": routing_policy_count,
+        },
+        "spend": {
+            "total_30d_usd": float(total_spend_rows),
+            "total_requests_30d": total_requests_30d,
+        },
+        "budgets": {
+            "active_count": budget_count,
+            "override_count": override_count,
+            "active_overrides": active_overrides,
+        },
+        "notifications": {
+            "active_channels": notification_count,
+        },
+        "billing": {
+            "open_periods": open_periods,
+            "total_periods": total_periods,
+        },
+        "chargeback": {
+            "rule_count": chargeback_rule_count,
+        },
+    }
+
+
+@router.get("/user-gateway-posture")
+async def user_gateway_posture(
+    user_id: uuid.UUID = Query(...),
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    rate_limited_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.rate_limit_rpm.isnot(None),
+        )
+    )).scalar() or 0
+
+    guardrail_count = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    routing_policies = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(
+            RoutingPolicy.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    api_key_count = (await db.execute(
+        select(func.count(ApiKey.id)).where(
+            ApiKey.workspace_id == workspace.id,
+            ApiKey.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    user_request_count = (await db.execute(
+        select(func.count(GatewayRequest.id)).where(
+            GatewayRequest.workspace_id == workspace.id,
+            GatewayRequest.created_at >= thirty_days_ago,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "user_id": str(user_id),
+        "gateway": {
+            "active_routes": total_routes,
+            "rate_limited_routes": rate_limited_routes,
+            "routing_policies": routing_policies,
+            "requests_30d": user_request_count,
+        },
+        "guardrails": {
+            "active_rules": guardrail_count,
+        },
+        "identity": {
+            "api_keys": api_key_count,
+        },
+    }
+
+
+@router.get("/provider-profile-observe-posture")
+async def provider_profile_observe_posture(
+    profile_id: uuid.UUID = Query(..., description="Provider pricing profile UUID"),
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    profile = (
+        await db.execute(
+            select(ProviderPricing).where(
+                ProviderPricing.id == profile_id,
+                or_(
+                    ProviderPricing.workspace_id == workspace.id,
+                    ProviderPricing.workspace_id.is_(None),
+                ),
+            )
+        )
+    ).scalar_one_or_none()
+    if profile is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Provider profile not found")
+
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    call_stmt = (
+        select(
+            func.count(ProviderCall.id).label("request_count"),
+            func.coalesce(func.sum(ProviderCall.cost_usd), 0).label("total_cost"),
+            func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("input_tokens"),
+            func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("output_tokens"),
+            func.coalesce(func.sum(ProviderCall.savings_usd), 0).label("total_savings"),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.provider == profile.provider,
+            ProviderCall.model == profile.model,
+            ProviderCall.created_at >= since,
+        )
+    )
+    call_row = (await db.execute(call_stmt)).one()
+
+    run_count = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.run_id))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.provider == profile.provider,
+                ProviderCall.model == profile.model,
+                ProviderCall.created_at >= since,
+            )
+        )
+    ).scalar() or 0
+
+    error_count = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.provider == profile.provider,
+                ProviderCall.model == profile.model,
+                ProviderCall.created_at >= since,
+                ProviderCall.status != "success",
+            )
+        )
+    ).scalar() or 0
+
+    avg_latency = (
+        await db.execute(
+            select(func.avg(ProviderCall.latency_ms)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.provider == profile.provider,
+                ProviderCall.model == profile.model,
+                ProviderCall.created_at >= since,
+                ProviderCall.latency_ms.isnot(None),
+            )
+        )
+    ).scalar()
+
+    return {
+        "workspace_id": str(workspace.id),
+        "profile_id": str(profile_id),
+        "provider": profile.provider,
+        "model": profile.model,
+        "period_days": 30,
+        "runs": {
+            "run_count": run_count,
+            "request_count": call_row.request_count,
+            "error_count": error_count,
+        },
+        "cost": {
+            "total_cost_usd": round(float(call_row.total_cost), 6),
+            "total_savings_usd": round(float(call_row.total_savings), 6),
+        },
+        "tokens": {
+            "input_tokens": int(call_row.input_tokens),
+            "output_tokens": int(call_row.output_tokens),
+        },
+        "performance": {
+            "avg_latency_ms": round(float(avg_latency), 1) if avg_latency else None,
+        },
+    }
+
+
+@router.get("/gateway-observe-posture")
+async def gateway_observe_posture(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    total_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    cache_enabled = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.semantic_cache_enabled.is_(True),
+        )
+    )).scalar() or 0
+
+    rate_limited = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.rate_limit_rpm.isnot(None),
+            GatewayRoute.rate_limit_rpm > 0,
+        )
+    )).scalar() or 0
+
+    req_stmt = (
+        select(
+            func.count(GatewayRequest.id).label("total_requests"),
+            func.coalesce(func.sum(
+                case((GatewayRequest.cache_hit.is_(True), 1), else_=0)
+            ), 0).label("cache_hits"),
+            func.coalesce(func.sum(
+                case((GatewayRequest.status != "success", 1), else_=0)
+            ), 0).label("errors"),
+            func.coalesce(func.sum(
+                case((GatewayRequest.decision_reason.like("%throttle%"), 1), else_=0)
+            ), 0).label("throttled"),
+            func.coalesce(func.sum(GatewayRequest.input_tokens), 0).label("input_tokens"),
+            func.coalesce(func.sum(GatewayRequest.output_tokens), 0).label("output_tokens"),
+            func.avg(GatewayRequest.latency_ms).label("avg_latency"),
+        )
+        .where(
+            GatewayRequest.workspace_id == workspace.id,
+            GatewayRequest.created_at >= since,
+        )
+    )
+    req_row = (await db.execute(req_stmt)).one()
+
+    total_requests = req_row.total_requests
+    cache_hits = int(req_row.cache_hits)
+    cache_misses = total_requests - cache_hits
+
+    run_count = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar() or 0
+
+    distinct_users = (await db.execute(
+        select(func.count(func.distinct(AgentRun.end_user_id))).where(
+            AgentRun.workspace_id == workspace.id,
+            AgentRun.created_at >= since,
+            AgentRun.end_user_id.isnot(None),
+        )
+    )).scalar() or 0
+
+    distinct_models = (await db.execute(
+        select(func.count(func.distinct(GatewayRequest.model_used))).where(
+            GatewayRequest.workspace_id == workspace.id,
+            GatewayRequest.created_at >= since,
+            GatewayRequest.model_used.isnot(None),
+        )
+    )).scalar() or 0
+
+    cost_stmt = (
+        select(
+            func.coalesce(func.sum(ProviderCall.cost_usd), 0).label("total_cost"),
+            func.coalesce(func.sum(ProviderCall.savings_usd), 0).label("total_savings"),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= since,
+        )
+    )
+    cost_row = (await db.execute(cost_stmt)).one()
+
+    return {
+        "workspace_id": str(workspace.id),
+        "period_days": 30,
+        "routes": {
+            "active_routes": total_routes,
+            "cache_enabled": cache_enabled,
+            "rate_limited": rate_limited,
+        },
+        "traffic": {
+            "total_requests": total_requests,
+            "cache_hits": cache_hits,
+            "cache_misses": cache_misses,
+            "cache_hit_rate": round(cache_hits / total_requests, 4) if total_requests > 0 else 0,
+            "throttled_requests": int(req_row.throttled),
+            "throttle_rate": round(int(req_row.throttled) / total_requests, 4) if total_requests > 0 else 0,
+            "errors": int(req_row.errors),
+        },
+        "runs": {
+            "run_count": run_count,
+            "distinct_users": distinct_users,
+            "distinct_models": distinct_models,
+        },
+        "cost": {
+            "total_cost_usd": round(float(cost_row.total_cost), 6),
+            "total_savings_usd": round(float(cost_row.total_savings), 6),
+        },
+        "tokens": {
+            "input_tokens": int(req_row.input_tokens),
+            "output_tokens": int(req_row.output_tokens),
+        },
+        "performance": {
+            "avg_latency_ms": round(float(req_row.avg_latency), 1) if req_row.avg_latency else None,
+        },
+    }
+
+
+@router.get("/guardrails-observe-posture")
+async def guardrails_observe_posture(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    total_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    active_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.status == "active",
+        )
+    )).scalar() or 0
+
+    event_stmt = (
+        select(
+            func.count(GuardrailEvent.id).label("total_evaluations"),
+            func.coalesce(func.sum(
+                case((GuardrailEvent.decision == "block", 1), else_=0)
+            ), 0).label("blocks"),
+            func.coalesce(func.sum(
+                case((GuardrailEvent.decision == "modify", 1), else_=0)
+            ), 0).label("modifications"),
+            func.coalesce(func.sum(
+                case((GuardrailEvent.decision == "allow", 1), else_=0)
+            ), 0).label("allows"),
+            func.avg(GuardrailEvent.latency_ms).label("avg_latency"),
+            func.max(GuardrailEvent.latency_ms).label("max_latency"),
+            func.count(func.distinct(GuardrailEvent.guardrail_rule_id)).label("distinct_rules_fired"),
+            func.count(func.distinct(GuardrailEvent.model)).label("distinct_models"),
+        )
+        .where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+        )
+    )
+    row = (await db.execute(event_stmt)).one()
+
+    total_evaluations = row.total_evaluations
+    blocks = int(row.blocks)
+    modifications = int(row.modifications)
+    allows = int(row.allows)
+
+    false_positive_count = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.is_false_positive.is_(True),
+        )
+    )).scalar() or 0
+
+    pre_call = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.mode == "pre_call",
+        )
+    )).scalar() or 0
+
+    post_call = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.mode == "post_call",
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "period_days": 30,
+        "rules": {
+            "total_rules": total_rules,
+            "active_rules": active_rules,
+        },
+        "evaluations": {
+            "total": total_evaluations,
+            "blocks": blocks,
+            "modifications": modifications,
+            "allows": allows,
+            "block_rate": round(blocks / total_evaluations, 4) if total_evaluations > 0 else 0,
+            "modification_rate": round(modifications / total_evaluations, 4) if total_evaluations > 0 else 0,
+            "distinct_rules_fired": int(row.distinct_rules_fired),
+            "distinct_models": int(row.distinct_models),
+        },
+        "mode_breakdown": {
+            "pre_call": pre_call,
+            "post_call": post_call,
+        },
+        "feedback": {
+            "false_positive_count": false_positive_count,
+        },
+        "performance": {
+            "avg_latency_ms": round(float(row.avg_latency), 1) if row.avg_latency else None,
+            "max_latency_ms": round(float(row.max_latency), 1) if row.max_latency else None,
         },
     }

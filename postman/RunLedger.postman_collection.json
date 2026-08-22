@@ -2822,6 +2822,158 @@
             "description": "Workspace-wide billing period performance posture: cache hit rate, estimated savings, rate-limited route containment, open/total billing periods, active budget count, and chargeback rule count."
           },
           "response": []
+        },
+        {
+          "name": "Gateway FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-finops-posture"
+              ]
+            },
+            "description": "Gateway-wide FinOps posture: route coverage (cost caps, rate limits, models), 30-day spend, active budgets with overrides, notification channels, billing periods, and chargeback rules."
+          },
+          "response": []
+        },
+        {
+          "name": "User Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/user-gateway-posture?user_id={{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "user-gateway-posture"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}"
+                }
+              ]
+            },
+            "description": "Per-user gateway posture: active and rate-limited routes, routing policies, 30-day requests, active guardrail rules, and API keys scoped to the user's workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Provider Profile Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/provider-profile-observe-posture?profile_id={{profile_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "provider-profile-observe-posture"
+              ],
+              "query": [
+                {
+                  "key": "profile_id",
+                  "value": "{{profile_id}}"
+                }
+              ]
+            },
+            "description": "Per-provider-profile observe posture: 30-day run count, request count, error count, cost, savings, token totals, and average latency for the provider/model pair."
+          },
+          "response": []
+        },
+        {
+          "name": "Gateway Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-observe-posture"
+              ]
+            },
+            "description": "Gateway observe posture: 30-day traffic breakdown (requests, cache hits/misses, throttled, errors), route context, run and user counts, cost and savings, token totals, and average latency."
+          },
+          "response": []
+        },
+        {
+          "name": "Guardrails Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/guardrails-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "guardrails-observe-posture"
+              ]
+            },
+            "description": "Guardrails observe posture: 30-day evaluation breakdown (blocks, modifications, allows), rule coverage, mode breakdown, false-positive feedback, and latency impact."
+          },
+          "response": []
         }
       ],
       "description": "RunLedger Analytics endpoints"

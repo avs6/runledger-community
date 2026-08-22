@@ -1,10 +1,10 @@
 # WU-006: Provider Profiles Observe Visibility
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A (Provider & Routing)
 - **Target**: 02-GATEWAY-AND-ROUTING/Provider profiles (`/provider-profiles`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

@@ -1,10 +1,10 @@
 # WU-005: Model Gateway & Guardrails Org Scope Tightening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A/B (Provider & Routing, Runtime Protection)
 - **Target**: 02-GATEWAY-AND-ROUTING/Model gateway, Guardrails (`/gateway`, `/guardrails`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-21
 
 ## Cohesion Cells to Close
 

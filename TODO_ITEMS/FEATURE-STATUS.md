@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 ## Purpose
 
@@ -18,12 +18,18 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Self | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|---------|------------|------------|-----------|-----------|----------|-------------|
-| **A** — Org Foundation | Organization profile, Org settings | OK | S:4 P:1 | S:16 P:1 | G:5 P:6 | — | P:14 | OK |
-| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:10 | S:5 P:8 | G:6 P:12 | S:28 P:4 | G:4 P:7 | S:22 P:22 | OK |
-| **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:7 | S:7 P:6 | S:12 P:22 | S:24 P:2 | S:12 P:4 | S:5 P:38 | P:5 |
+| **A** — Org Foundation | Organization profile, Org settings | OK | S:4 P:1 | S:17 P:1 | S:1 P:9 | — | — | OK |
+| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:10 | S:12 P:5 | S:35 P:18 | S:36 P:7 | S:28 P:4 | S:34 P:27 | OK |
+| **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:7 | S:8 P:5 | S:12 P:22 | S:24 P:2 | S:12 P:4 | S:5 P:38 | P:5 |
 | **D** — Capability Catalog | AI hub, Projects, Team models | P:4 | S:2 P:3 | S:6 P:3 | OK | OK | S:1 P:14 | OK |
 
-**Hot spots**: 01-A x 01-Self is now fully resolved after WU-013 closed all internal org family cohesion cells to STRONG (org profile links directly to all sub-features). 01-A x 04 now shows G:5 P:6 after WU-014 moved 4 Safety GAPs to PARTIAL (tool registry, tool policies, governance pack, tags); remaining GAPs are MCP servers, search tools, policy dry run, approvals, and data capture. 01-A x 07 is now fully resolved after WU-013 closed Platform settings to STRONG. 01-B x 01-Self is down from P:24 to P:10 after WU-013 closed 14 internal cohesion cells to STRONG across Users, Workspaces, Access groups, and API keys. 01-B x 07 is now fully resolved after WU-013 closed All organizations and Platform settings to STRONG for all identity surfaces. 01-C x 01-Self is down from P:16 to P:7 after WU-013 closed 9 Onboarding self cells to STRONG. 01-A x 05 is closed after Organization Console gained a real FinOps posture rollup. 01-A x 02 and 01-A x 03 are largely resolved after WU-008. 01-B x 03 is down to G:6 P:12 after WU-011 and WU-012; remaining gaps and partials are in the Users row. 01-B x 05 is down to G:4 P:7 after WU-017 closed Workspaces Chargeback and Billing periods to STRONG. 01-B x 04 is down to S:28 P:4 after WU-017 closed 6 Workspaces Safety cells to STRONG. 01-B x 02 is now at S:5 P:8 after WU-018 and WU-019 closed Access groups × {Provider profiles, Model gateway, Rate limits} and API keys × {Provider profiles, Guardrails} to STRONG. 01-B x 06 is largely resolved after WU-007. 01-C x 02/03/04/05 improved after WU-009. 01-C x 04 is now S:16 P:8 after WU-020 closed 7 Telemetry Safety cells to STRONG. 01-C x 05 is now S:11 P:5 after WU-020 closed 8 Telemetry FinOps cells to STRONG. 01-D x 04 and 01-D x 07 are fully resolved after WU-010. 01-D x 05 is down to P:2 after WU-010. 01-C x 02 is now S:7 P:6 after WU-021 closed 3 MCP registry Gateway cells (Provider profiles, Model gateway, Guardrails) to STRONG. 01-C x 03 is now S:12 P:22 after WU-021 closed 5 MCP registry Observe cells (Analytics overview, Runs, Run detail, Request flow, Request explorer) to STRONG. 01-C x 04 is now S:24 P:2 after WU-021 closed 4 MCP registry Safety cells (Approvals, Security, Audit log, Governance pack) to STRONG. 01-C x 05 is now S:12 P:4 after WU-021 closed MCP registry Chargeback to STRONG. 01-C x 06 is now S:5 P:38 after WU-021 closed 5 MCP registry Build cells (Agents, Agent detail, Workflows, Workflow detail, Evaluation studio) to STRONG. 01-D x 02 is now S:2 P:3 after WU-022 moved AI hub Guardrails and Response cache from N/A to PARTIAL. 01-D x 03 is now S:6 P:3 after WU-022 closed 5 AI hub Observe cells (Analytics overview, Runs, Run detail, Request flow, Request explorer) to STRONG. 01-D x 05 is now OK after WU-022 closed AI hub Budget notifications and Ledger to STRONG.
+**Hot spots** (recomputed 2026-08-21 after status cleanup — all GAPs eliminated from Bundles A and B):
+
+01-A x 04 is now S:1 P:9 after status cleanup reclassified 3 former GAPs (MCP servers, Approvals, Data capture) as PARTIAL and 2 (Search tools, Policy dry run) as N/A. Remaining PARTIALs are at their structural ceiling — the org console surfaces governance counts but does not own those sub-features. 01-A x 06 corrected from P:14 to — (both Org profile and Org settings are all N/A against Build). 01-A x 03 corrected from S:16 to S:17 P:1 (one STRONG cell was missed in a prior count).
+
+01-B x 02 is now S:9 P:8 after status cleanup reclassified 4 Users x Gateway GAPs: Provider profiles and Response cache → N/A (users are people, not runtime primitives), Model gateway, Guardrails, Rate limits → PARTIAL (indirect through role and API key usage). No GAPs remain. 01-B x 03 is now S:35 P:18 after status cleanup changed Users x Runs list from GAP to PARTIAL and full recount. All remaining PARTIALs are in the Users row — Users page links to entry points but does not expose user-scoped views; deeper integration requires 03-OBSERVE work. 01-B x 04 recomputed to S:36 P:7. 01-B x 05 recomputed to S:28 P:4 (no GAPs — prior G:4 was stale). 01-B x 06 recomputed to S:34 P:27.
+
+01-C and 01-D: No changes in this cleanup. Remaining PARTIALs are structurally correct — Onboarding is a setup guide, Telemetry observes but does not control downstream surfaces, MCP registry has partial Build ties, and AI hub consumes gateway/economics context indirectly.
 
 ---
 
@@ -31,11 +37,11 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Self | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|--------|---------|------------|-----------|-----------|----------|-------------|
-| **A** — Provider & Routing | Provider profiles, Model gateway | P:11 | P:6 | P:19 | P:15 | P:8 | P:21 | P:4 |
-| **B** — Runtime Protection | Guardrails | P:6 | P:1 | P:7 | P:8 | — | P:13 | P:1 |
-| **C** — Performance Controls | Response cache, Rate limits | P:5 | P:5 | P:18 | P:8 | S:10 | P:19 | P:3 |
+| **A** — Provider & Routing | Provider profiles, Model gateway | P:9 | P:6 | P:6 | P:15 | P:1 | P:21 | P:4 |
+| **B** — Runtime Protection | Guardrails | P:4 | P:1 | OK | P:8 | — | P:13 | P:1 |
+| **C** — Performance Controls | Response cache, Rate limits | P:5 | P:5 | P:2 | P:8 | S:10 | P:19 | P:3 |
 
-**Hot spots**: 02-A x 05 is fully GAP-free after WU-001 closed all 6 provider-profile FinOps cells to STRONG. 02-C x 05 is now fully STRONG after WU-002 closed all 10 cache/rate-limit FinOps cells (Budget detail cache/throttle posture, Budgets/Billing/Chargeback cache/rate-limit links).
+**Hot spots**: 02 x 05 is now almost fully STRONG. 02-A x 05 has only **1 PARTIAL** remaining (Model gateway × Ledger). 02-C x 05 is fully STRONG after WU-002. WU-005 closed 4 Org cells to STRONG. WU-006 closed 8 Provider profiles × Observe cells to STRONG. WU-007 closed 23 Observe cells (Model gateway, Response cache, Rate limits). WU-008 closed all 7 Guardrails × Observe cells to STRONG — 02-B × 03-Observe is now OK. 03-B × 02-Gateway is now OK. 03-C × 02-Gateway is now OK.
 
 ---
 
@@ -43,10 +49,10 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Self | 04-Safety | 05-FinOps |
 |--------|----------|--------|------------|---------|-----------|-----------|
-| **A** — Overview & Entry | Analytics overview + dashboards | P:3 | P:3 | P:3 | P:5 | G:1 P:7 |
-| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:16 | P:16 | P:7 | P:28 | G:2 P:22 |
-| **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:4 | P:5 | P:12 | P:1 | G:1 P:16 |
-| **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | P:3 | P:5 | P:8 | P:10 | P:6 |
+| **A** — Overview & Entry | Analytics overview + dashboards | P:3 | P:2 | P:3 | P:5 | G:1 P:7 |
+| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:16 | OK | P:7 | P:28 | G:2 P:22 |
+| **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:4 | OK | P:12 | P:1 | G:1 P:16 |
+| **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | P:3 | P:2 | P:8 | P:10 | P:6 |
 
 **Hot spots**: 03-B x 01 no longer carries access-group investigation GAPs now that the core Observe chain supports scoped drill-through. 03-B x 05 still has **2 GAPs** (request flow/explorer missing budget detail bridges). 03-C x 05 has **1 GAP** (model usage missing budget detail bridge).
 
@@ -69,12 +75,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-Self | 06-Build | 07-Platform |
 |--------|----------|--------|------------|------------|-----------|---------|----------|-------------|
-| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:3 | P:3 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
-| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | P:2 | P:30 | P:10 | P:12 | P:26 | P:4 |
-| **C** — Attribution | Chargeback | P:4 | P:1 | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
+| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:3 | OK | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
+| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | OK | P:30 | P:10 | P:12 | P:26 | P:4 |
+| **C** — Attribution | Chargeback | P:4 | OK | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
 | **D** — Compliance | Ledger | P:1 | — | P:5 | P:2 | G:1 P:6 | — | P:1 |
 
-**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but 05-A × 02 is now fully GAP-free after WU-002 closed cache and rate-limit budget detail bridges. Budget detail remains the single biggest cohesion blocker across other families. 05-B × 02 is now down to `P:2` (only Model gateway remains partial). 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
+**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but 05-A/B/C × 02 are now all `OK` after WU-003 closed all remaining Model gateway FinOps cells. Budget detail remains the single biggest cohesion blocker across other families (Observe, Safety, Build). 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
 
 ---
 
@@ -302,12 +308,12 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-022 | 01-ORG-AND-ACCESS | AI hub catalog runtime FinOps refresh | 02/03/04/05 | DONE | 01-D |
 | WU-001 | 02-GATEWAY-AND-ROUTING | Provider profiles × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 02-A |
 | WU-002 | 02-GATEWAY-AND-ROUTING | Performance controls × FinOps budget bridge | 05-FINOPS | COMPLETED | 02-C |
-| WU-003 | 02-GATEWAY-AND-ROUTING | Model gateway × FinOps deepening | 05-FINOPS | NOT_STARTED | 02-A |
-| WU-004 | 02-GATEWAY-AND-ROUTING | Provider profiles × Org & Access links | 01-ORG-AND-ACCESS | NOT_STARTED | 02-A |
-| WU-005 | 02-GATEWAY-AND-ROUTING | Gateway & guardrails × Org scope | 01-ORG-AND-ACCESS | NOT_STARTED | 02-A/B |
-| WU-006 | 02-GATEWAY-AND-ROUTING | Provider profiles × Observe visibility | 03-OBSERVE | NOT_STARTED | 02-A |
-| WU-007 | 02-GATEWAY-AND-ROUTING | Gateway & perf controls × Observe strengthen | 03-OBSERVE | NOT_STARTED | 02-A/C |
-| WU-008 | 02-GATEWAY-AND-ROUTING | Guardrails × Observe traceability | 03-OBSERVE | NOT_STARTED | 02-B |
+| WU-003 | 02-GATEWAY-AND-ROUTING | Model gateway × FinOps deepening | 05-FINOPS | COMPLETED | 02-A |
+| WU-004 | 02-GATEWAY-AND-ROUTING | Provider profiles × Org & Access links | 01-ORG-AND-ACCESS | COMPLETED | 02-A |
+| WU-005 | 02-GATEWAY-AND-ROUTING | Gateway & guardrails × Org scope | 01-ORG-AND-ACCESS | COMPLETED | 02-A/B |
+| WU-006 | 02-GATEWAY-AND-ROUTING | Provider profiles × Observe visibility | 03-OBSERVE | COMPLETED | 02-A |
+| WU-007 | 02-GATEWAY-AND-ROUTING | Gateway & perf controls × Observe strengthen | 03-OBSERVE | COMPLETED | 02-A/C |
+| WU-008 | 02-GATEWAY-AND-ROUTING | Guardrails × Observe traceability | 03-OBSERVE | COMPLETED | 02-B |
 | WU-009 | 02-GATEWAY-AND-ROUTING | Gateway × Safety & Governance deepening | 04-SAFETY-AND-GOVERNANCE | NOT_STARTED | 02-A/B/C |
 | WU-010 | 02-GATEWAY-AND-ROUTING | Gateway × Build & Improve integration | 06-BUILD-AND-IMPROVE | NOT_STARTED | 02-A/B/C |
 | WU-011 | 02-GATEWAY-AND-ROUTING | Performance controls × Org & scope | 01/07 | NOT_STARTED | 02-C |
