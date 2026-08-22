@@ -1107,6 +1107,11 @@ export default function GatewayPage() {
               </div>
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+            <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+          </div>
         </section>
       )}
 
@@ -1117,6 +1122,12 @@ export default function GatewayPage() {
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
               Cache lifecycle is collapsed into Gateway. Manage cache profiles here, then apply route-level cache toggles further down this page.
             </p>
+            <div className="mt-1 flex flex-wrap gap-3">
+              <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+              <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+              <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+            </div>
           </div>
           <button
             onClick={() => {

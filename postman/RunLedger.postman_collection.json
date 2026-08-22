@@ -2765,6 +2765,63 @@
             "description": "AI hub runtime posture: model catalog summary, observe activity, FinOps coverage, and gateway guardrail count for the workspace."
           },
           "response": []
+        },
+        {
+          "name": "Budget Performance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-performance-posture/{{budget_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-performance-posture",
+                "{{budget_id}}"
+              ]
+            },
+            "description": "Per-budget performance posture: cache hit rate, estimated savings, rate-limited route containment, override count, billing period count, and chargeback rule count."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Period Performance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/billing-period-performance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "billing-period-performance-posture"
+              ]
+            },
+            "description": "Workspace-wide billing period performance posture: cache hit rate, estimated savings, rate-limited route containment, open/total billing periods, active budget count, and chargeback rule count."
+          },
+          "response": []
         }
       ],
       "description": "RunLedger Analytics endpoints"
@@ -10854,6 +10911,40 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Provider Profile FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/provider-profile-finops-posture?profile_id={{pricing_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "provider-profile-finops-posture"
+              ],
+              "query": [
+                {
+                  "key": "profile_id",
+                  "value": "{{pricing_id}}"
+                }
+              ]
+            },
+            "description": "Returns budget, override, billing, and chargeback posture for a provider profile. Requires the profile UUID as a query parameter."
           },
           "response": []
         }

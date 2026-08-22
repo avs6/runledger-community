@@ -1,12 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
-import { createBudgetOverride, revokeBudgetOverride, updateBudget } from '@/lib/api'
-import type { Breach, Budget, BudgetOverride } from '@/types/api'
+import { createBudgetOverride, revokeBudgetOverride, updateBudget, getBudgetPerformancePosture } from '@/lib/api'
+import type { Breach, Budget, BudgetOverride, BudgetPerformancePosture } from '@/types/api'
 import BreachHistoryTable from './BreachHistoryTable'
 
 interface Props {
@@ -64,6 +64,18 @@ export default function BudgetDetailClient({
     reason: '',
     require_approval: false,
   })
+  const [perfPosture, setPerfPosture] = useState<BudgetPerformancePosture | null>(null)
+  const [perfLoading, setPerfLoading] = useState(false)
+
+  useEffect(() => {
+    if (apiKey && initialBudget.id) {
+      setPerfLoading(true)
+      getBudgetPerformancePosture(apiKey, initialBudget.id)
+        .then(setPerfPosture)
+        .catch(() => {})
+        .finally(() => setPerfLoading(false))
+    }
+  }, [apiKey, initialBudget.id])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -489,6 +501,49 @@ export default function BudgetDetailClient({
           <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
             No spend attributed to end users yet.
           </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <p className="text-xs uppercase tracking-wide text-slate-500">Performance Economics</p>
+        {perfLoading ? (
+          <p className="mt-4 text-sm text-slate-400">Loading performance posture…</p>
+        ) : perfPosture ? (
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Cache Hit Rate (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.cache.cache_hit_rate_pct}%</p>
+                <p className="text-xs text-slate-400">{perfPosture.cache.cache_hits_30d.toLocaleString()} / {perfPosture.cache.total_requests_30d.toLocaleString()} requests</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Est. Cache Savings</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">~{perfPosture.cache.estimated_savings_pct}%</p>
+                <p className="text-xs text-slate-400">avoided cost from cache hits</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Rate-Limited Routes</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.rate_limits.rate_limited_routes} / {perfPosture.rate_limits.total_active_routes}</p>
+                <p className="text-xs text-slate-400">{perfPosture.rate_limits.containment_coverage_pct}% containment</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Billing Periods</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.billing.billing_period_count}</p>
+                <p className="text-xs text-slate-400">{perfPosture.chargeback.chargeback_rule_count} chargeback rules</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+              <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
+              <Link href="/gateway#cache" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Response Cache</Link>
+              <Link href="/gateway#rate-limits" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
+              <Link href="/billing-periods" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+              <Link href="/billing-periods?view=detail" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
+              <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+              <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-400">Performance posture unavailable.</p>
         )}
       </div>
 

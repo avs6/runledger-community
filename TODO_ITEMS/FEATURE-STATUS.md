@@ -31,11 +31,11 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Self | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|--------|---------|------------|-----------|-----------|----------|-------------|
-| **A** — Provider & Routing | Provider profiles, Model gateway | P:11 | P:6 | P:19 | P:15 | G:1 P:12 | P:21 | P:4 |
+| **A** — Provider & Routing | Provider profiles, Model gateway | P:11 | P:6 | P:19 | P:15 | P:8 | P:21 | P:4 |
 | **B** — Runtime Protection | Guardrails | P:6 | P:1 | P:7 | P:8 | — | P:13 | P:1 |
-| **C** — Performance Controls | Response cache, Rate limits | P:5 | P:5 | P:18 | P:8 | G:2 P:8 | P:19 | P:3 |
+| **C** — Performance Controls | Response cache, Rate limits | P:5 | P:5 | P:18 | P:8 | S:10 | P:19 | P:3 |
 
-**Hot spots**: 02-A x 05 has **1 GAP** (provider profiles missing budget override cohesion). 02-C x 05 has **2 GAPs** (cache/rate-limit detail pages missing FinOps bridges).
+**Hot spots**: 02-A x 05 is fully GAP-free after WU-001 closed all 6 provider-profile FinOps cells to STRONG. 02-C x 05 is now fully STRONG after WU-002 closed all 10 cache/rate-limit FinOps cells (Budget detail cache/throttle posture, Budgets/Billing/Chargeback cache/rate-limit links).
 
 ---
 
@@ -69,12 +69,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-Self | 06-Build | 07-Platform |
 |--------|----------|--------|------------|------------|-----------|---------|----------|-------------|
-| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:3 | G:6 P:5 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
-| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | P:8 | P:30 | P:10 | P:12 | P:26 | P:4 |
-| **C** — Attribution | Chargeback | P:4 | P:3 | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
+| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:3 | P:3 | G:10 P:33 | G:7 P:10 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
+| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | P:2 | P:30 | P:10 | P:12 | P:26 | P:4 |
+| **C** — Attribution | Chargeback | P:4 | P:1 | P:15 | P:5 | G:1 P:5 | P:13 | P:2 |
 | **D** — Compliance | Ledger | P:1 | — | P:5 | P:2 | G:1 P:6 | — | P:1 |
 
-**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but the org-profile handoff closed one of its long-standing Bundle A gaps. Budget detail remains the single biggest cohesion blocker. 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
+**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but 05-A × 02 is now fully GAP-free after WU-002 closed cache and rate-limit budget detail bridges. Budget detail remains the single biggest cohesion blocker across other families. 05-B × 02 is now down to `P:2` (only Model gateway remains partial). 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
 
 ---
 
@@ -256,7 +256,7 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 | 2b | **01-A** Org Foundation | **5** | 01-A x 04-Safety (5G) | Organization profile Safety & Governance row has 5 remaining GAPs (MCP servers, search tools, policy dry run, approvals, data capture). WU-014 closed 4 GAPs to PARTIAL (tool registry, tool policies, governance pack, tags). |
 | 3 | **03-B** Investigation | **2** | 03-B x 05-FinOps (2G) | Investigation still needs deeper budget-detail bridges beyond the new access-group scope support |
 | 4 | **04-B** Exception Workflows | **2** | 04-B x 05-FinOps (2G) | Approvals disconnected from budget overrides |
-| 5 | **02-C** Performance Controls | **2** | 02-C x 05-FinOps (2G) | Cache/rate-limit detail missing FinOps bridges |
+| 5 | **02-C** Performance Controls | **0** | — | All FinOps bridges closed by WU-002 |
 | 6 | **05-B** Billing & Recon | **1** | 05-B x 01-Org (1G) | Remaining org and user billing ownership bridges are still uneven |
 | 7 | **05-C** Attribution | **1** | 05-C x 05-Self (1G) | Chargeback internal cohesion gap with budget detail |
 | 8 | **05-D** Compliance | **1** | 05-D x 05-Self (1G) | Ledger internal cohesion gap with budget detail |
@@ -301,7 +301,7 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-021 | 01-ORG-AND-ACCESS | MCP registry runtime governance and Observe refresh | 02/03/04/05/06 | DONE | 01-C |
 | WU-022 | 01-ORG-AND-ACCESS | AI hub catalog runtime FinOps refresh | 02/03/04/05 | DONE | 01-D |
 | WU-001 | 02-GATEWAY-AND-ROUTING | Provider profiles × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 02-A |
-| WU-002 | 02-GATEWAY-AND-ROUTING | Performance controls × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 02-C |
+| WU-002 | 02-GATEWAY-AND-ROUTING | Performance controls × FinOps budget bridge | 05-FINOPS | COMPLETED | 02-C |
 | WU-003 | 02-GATEWAY-AND-ROUTING | Model gateway × FinOps deepening | 05-FINOPS | NOT_STARTED | 02-A |
 | WU-004 | 02-GATEWAY-AND-ROUTING | Provider profiles × Org & Access links | 01-ORG-AND-ACCESS | NOT_STARTED | 02-A |
 | WU-005 | 02-GATEWAY-AND-ROUTING | Gateway & guardrails × Org scope | 01-ORG-AND-ACCESS | NOT_STARTED | 02-A/B |
@@ -358,7 +358,7 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-019 | 04-SAFETY-AND-GOVERNANCE | Governance pack compliance closure refresh | 01/02/03/05 | NOT_STARTED | 04-D |
 | WU-020 | 04-SAFETY-AND-GOVERNANCE | Tags taxonomy attribution refresh | 01/02/03/05 | NOT_STARTED | 04-C |
 | WU-001 | 05-FINOPS | Budget control × Org & Access scope | 01-ORG-AND-ACCESS | NOT_STARTED | 05-A |
-| WU-002 | 05-FINOPS | Budget control × Gateway & Routing | 02-GATEWAY-AND-ROUTING | NOT_STARTED | 05-A |
+| WU-002 | 05-FINOPS | Budget control × Gateway & Routing | 02-GATEWAY-AND-ROUTING | COMPLETED | 05-A |
 | WU-003 | 05-FINOPS | Budget detail × Observe surfaces bridge | 03-OBSERVE | NOT_STARTED | 05-A |
 | WU-004 | 05-FINOPS | Budget control × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | NOT_STARTED | 05-A |
 | WU-005 | 05-FINOPS | Budget detail × Build & Improve surfaces | 06-BUILD-AND-IMPROVE | NOT_STARTED | 05-A |

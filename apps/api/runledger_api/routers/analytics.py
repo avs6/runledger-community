@@ -38,6 +38,8 @@ from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.budgets import Budget, BudgetNotification
+from runledger_api.models.budget_overrides import BudgetOverride
+from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import ApiKey, TenantUser, Workspace
 from runledger_api.models.tool_policies import ToolPolicy
 from runledger_api.models.approvals import Approval
@@ -3242,5 +3244,352 @@ async def ai_hub_runtime_posture(
         },
         "gateway": {
             "guardrail_count": guardrail_count,
+        },
+    }
+
+
+@router.get("/provider-profile-finops-posture")
+async def provider_profile_finops_posture(
+    profile_id: uuid.UUID = Query(..., description="Provider pricing profile UUID"),
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    profile = (
+        await db.execute(
+            select(ProviderPricing).where(
+                ProviderPricing.id == profile_id,
+                or_(
+                    ProviderPricing.workspace_id == workspace.id,
+                    ProviderPricing.workspace_id.is_(None),
+                ),
+            )
+        )
+    ).scalar_one_or_none()
+    if profile is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Provider profile not found")
+
+    now = datetime.now(UTC)
+
+    provider_budgets_q = select(Budget).where(
+        Budget.workspace_id == workspace.id,
+        Budget.scope_type == "provider_profile",
+        Budget.scope_id == str(profile_id),
+    )
+    budgets = (await db.execute(provider_budgets_q)).scalars().all()
+    budget_ids = [b.id for b in budgets]
+
+    budget_count = len(budgets)
+    active_budget_count = sum(1 for b in budgets if b.is_active)
+
+    override_count = 0
+    active_override_count = 0
+    if budget_ids:
+        override_count = (
+            await db.execute(
+                select(func.count(BudgetOverride.id)).where(
+                    BudgetOverride.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+        active_override_count = (
+            await db.execute(
+                select(func.count(BudgetOverride.id)).where(
+                    BudgetOverride.budget_id.in_(budget_ids),
+                    BudgetOverride.status == "active",
+                    BudgetOverride.expires_at > now,
+                )
+            )
+        ).scalar() or 0
+
+    billing_period_count = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+    open_billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id,
+                BillingPeriod.status == "open",
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rule_count = (
+        await db.execute(
+            select(func.count(ChargebackRule.id)).where(
+                ChargebackRule.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    total_limit_usd = sum(float(b.limit_usd) for b in budgets if b.is_active)
+    breach_count = 0
+    if budget_ids:
+        from runledger_api.models.budgets import BudgetBreach
+
+        breach_count = (
+            await db.execute(
+                select(func.count(BudgetBreach.id)).where(
+                    BudgetBreach.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "profile_id": str(profile_id),
+        "provider": profile.provider,
+        "model": profile.model,
+        "budgets": {
+            "budget_count": budget_count,
+            "active_budget_count": active_budget_count,
+            "total_limit_usd": round(total_limit_usd, 6),
+            "breach_count": breach_count,
+        },
+        "overrides": {
+            "override_count": override_count,
+            "active_override_count": active_override_count,
+        },
+        "billing": {
+            "billing_period_count": billing_period_count,
+            "open_billing_periods": open_billing_periods,
+        },
+        "chargeback": {
+            "chargeback_rule_count": chargeback_rule_count,
+        },
+    }
+
+
+@router.get("/budget-performance-posture/{budget_id}")
+async def budget_performance_posture(
+    budget_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoute
+    from runledger_api.models.budget_overrides import BudgetOverride
+
+    budget = (
+        await db.execute(
+            select(Budget).where(
+                Budget.id == budget_id,
+                Budget.workspace_id == workspace.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if budget is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Budget not found")
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_requests = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+                GatewayRequest.cache_hit.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_hit_rate = round(cache_hits / total_requests * 100, 2) if total_requests > 0 else 0.0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.rate_limit_rpm.isnot(None),
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    override_count = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id == budget_id,
+            )
+        )
+    ).scalar() or 0
+
+    active_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id == budget_id,
+                BudgetOverride.status == "active",
+                BudgetOverride.expires_at > now,
+            )
+        )
+    ).scalar() or 0
+
+    billing_period_count = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rule_count = (
+        await db.execute(
+            select(func.count(ChargebackRule.id)).where(
+                ChargebackRule.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "budget_id": str(budget_id),
+        "cache": {
+            "total_requests_30d": total_requests,
+            "cache_hits_30d": cache_hits,
+            "cache_hit_rate_pct": cache_hit_rate,
+            "estimated_savings_pct": round(cache_hit_rate * 0.5, 2),
+        },
+        "rate_limits": {
+            "rate_limited_routes": rate_limited_routes,
+            "total_active_routes": total_routes,
+            "containment_coverage_pct": round(rate_limited_routes / total_routes * 100, 1) if total_routes > 0 else 0.0,
+        },
+        "overrides": {
+            "override_count": override_count,
+            "active_overrides": active_overrides,
+        },
+        "billing": {
+            "billing_period_count": billing_period_count,
+        },
+        "chargeback": {
+            "chargeback_rule_count": chargeback_rule_count,
+        },
+    }
+
+
+@router.get("/billing-period-performance-posture")
+async def billing_period_performance_posture(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoute
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_requests = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+                GatewayRequest.cache_hit.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_hit_rate = round(cache_hits / total_requests * 100, 2) if total_requests > 0 else 0.0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.rate_limit_rpm.isnot(None),
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    open_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id,
+                BillingPeriod.status == "open",
+            )
+        )
+    ).scalar() or 0
+
+    total_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    budget_count = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rule_count = (
+        await db.execute(
+            select(func.count(ChargebackRule.id)).where(
+                ChargebackRule.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "cache": {
+            "total_requests_30d": total_requests,
+            "cache_hits_30d": cache_hits,
+            "cache_hit_rate_pct": cache_hit_rate,
+            "estimated_savings_pct": round(cache_hit_rate * 0.5, 2),
+        },
+        "rate_limits": {
+            "rate_limited_routes": rate_limited_routes,
+            "total_active_routes": total_routes,
+            "containment_coverage_pct": round(rate_limited_routes / total_routes * 100, 1) if total_routes > 0 else 0.0,
+        },
+        "billing": {
+            "open_periods": open_periods,
+            "total_periods": total_periods,
+            "active_budget_count": budget_count,
+        },
+        "chargeback": {
+            "chargeback_rule_count": chargeback_rule_count,
         },
     }

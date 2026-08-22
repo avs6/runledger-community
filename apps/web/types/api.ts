@@ -4169,6 +4169,79 @@ export interface McpRegistryPosture {
   }
 }
 
+export interface BudgetPerformancePosture {
+  workspace_id: string
+  budget_id: string
+  cache: {
+    total_requests_30d: number
+    cache_hits_30d: number
+    cache_hit_rate_pct: number
+    estimated_savings_pct: number
+  }
+  rate_limits: {
+    rate_limited_routes: number
+    total_active_routes: number
+    containment_coverage_pct: number
+  }
+  overrides: {
+    override_count: number
+    active_overrides: number
+  }
+  billing: {
+    billing_period_count: number
+  }
+  chargeback: {
+    chargeback_rule_count: number
+  }
+}
+
+export interface BillingPeriodPerformancePosture {
+  workspace_id: string
+  cache: {
+    total_requests_30d: number
+    cache_hits_30d: number
+    cache_hit_rate_pct: number
+    estimated_savings_pct: number
+  }
+  rate_limits: {
+    rate_limited_routes: number
+    total_active_routes: number
+    containment_coverage_pct: number
+  }
+  billing: {
+    open_periods: number
+    total_periods: number
+    active_budget_count: number
+  }
+  chargeback: {
+    chargeback_rule_count: number
+  }
+}
+
+export interface ProviderProfileFinopsPosture {
+  workspace_id: string
+  profile_id: string
+  provider: string
+  model: string
+  budgets: {
+    budget_count: number
+    active_budget_count: number
+    total_limit_usd: number
+    breach_count: number
+  }
+  overrides: {
+    override_count: number
+    active_override_count: number
+  }
+  billing: {
+    billing_period_count: number
+    open_billing_periods: number
+  }
+  chargeback: {
+    chargeback_rule_count: number
+  }
+}
+
 export interface AiHubRuntimePosture {
   workspace_id: string
   model_count: number
