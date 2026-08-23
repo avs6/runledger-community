@@ -2974,6 +2974,258 @@
             "description": "Guardrails observe posture: 30-day evaluation breakdown (blocks, modifications, allows), rule coverage, mode breakdown, false-positive feedback, and latency impact."
           },
           "response": []
+        },
+        {
+          "name": "Gateway Safety Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-safety-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-safety-posture"
+              ]
+            },
+            "description": "Gateway safety posture: gateway context (routes, guardrails, blocks), tool governance (policies, MCP servers), approvals, audit events, alert rules, and tags."
+          },
+          "response": []
+        },
+        {
+          "name": "Gateway Build Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-build-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-build-posture"
+              ]
+            },
+            "description": "Gateway build posture: gateway context (routes, policies, guardrails), prompts, agents, workflows, evaluation datasets/experiments, and replay datasets/experiments."
+          },
+          "response": []
+        },
+        {
+          "name": "Performance Controls Org Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/performance-controls-org-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "performance-controls-org-posture"
+              ]
+            },
+            "description": "Performance controls org posture: cache profiles, cache-enabled routes, API keys, routes with RPM, pass-through with RPM, access groups, and platform configuration status."
+          },
+          "response": []
+        },
+        {
+          "name": "Gateway Internal Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-internal-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-internal-posture"
+              ]
+            },
+            "description": "Gateway internal posture: providers, guardrails, cache profiles, throttled routes, routing policies, and platform visibility."
+          },
+          "response": []
+        },
+        {
+          "name": "Response Cache Economics Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/response-cache-economics-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "response-cache-economics-posture"
+              ]
+            },
+            "description": "Response cache economics posture: cache profiles and routes, FinOps context (budgets, overrides, notifications, billing periods, ledger), governance (audit events), and org (users)."
+          },
+          "response": []
+        },
+        {
+          "name": "Rate Limit Scope Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/rate-limit-scope-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "rate-limit-scope-posture"
+              ]
+            },
+            "description": "Rate limit scope posture: throttle context (routes with RPM, pass-through, routing policies), scope (access groups, monitoring alerts), and FinOps (budgets, notifications, chargeback, ledger)."
+          },
+          "response": []
+        },
+        {
+          "name": "Guardrails FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/guardrails-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "guardrails-finops-posture"
+              ]
+            },
+            "description": "Guardrails FinOps posture: guardrail enforcement context (active rules, evaluations, blocks, active routes) and FinOps context (budgets, budget notifications, billing periods, chargeback rules)."
+          },
+          "response": []
+        },
+        {
+          "name": "Gateway Control Plane Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-control-plane-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-control-plane-posture"
+              ]
+            },
+            "description": "Gateway control plane posture: org context (users, access groups, API keys), gateway context (routes, policies, providers, guardrails), observe context (monitoring alerts), and governance context (pending approvals, audit events)."
+          },
+          "response": []
+        },
+        {
+          "name": "Provider Profile Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/provider-profile-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "provider-profile-runtime-posture"
+              ]
+            },
+            "description": "Provider profile runtime posture: budget notifications, ledger snapshots, users, monitoring alerts, MCP servers, search tools, and capture policies."
+          },
+          "response": []
         }
       ],
       "description": "RunLedger Analytics endpoints"

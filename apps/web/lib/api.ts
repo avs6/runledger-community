@@ -4923,3 +4923,39 @@ export async function getGatewayObservePosture(apiKey: string): Promise<import('
 export async function getGuardrailsObservePosture(apiKey: string): Promise<import('@/types/api').GuardrailsObservePosture> {
   return apiFetch<import('@/types/api').GuardrailsObservePosture>('/analytics/guardrails-observe-posture', apiKey)
 }
+
+export async function getResponseCacheEconomicsPosture(apiKey: string): Promise<import('@/types/api').ResponseCacheEconomicsPosture> {
+  return apiFetch<import('@/types/api').ResponseCacheEconomicsPosture>('/analytics/response-cache-economics-posture', apiKey)
+}
+
+export async function getRateLimitScopePosture(apiKey: string): Promise<import('@/types/api').RateLimitScopePosture> {
+  return apiFetch<import('@/types/api').RateLimitScopePosture>('/analytics/rate-limit-scope-posture', apiKey)
+}
+
+export async function getGuardrailsFinopsPosture(apiKey: string): Promise<import('@/types/api').GuardrailsFinopsPosture> {
+  return apiFetch<import('@/types/api').GuardrailsFinopsPosture>('/analytics/guardrails-finops-posture', apiKey)
+}
+
+export async function getGatewaySafetyPosture(apiKey: string): Promise<import('@/types/api').GatewaySafetyPosture> {
+  return apiFetch<import('@/types/api').GatewaySafetyPosture>('/analytics/gateway-safety-posture', apiKey)
+}
+
+export async function getGatewayBuildPosture(apiKey: string): Promise<import('@/types/api').GatewayBuildPosture> {
+  return apiFetch<import('@/types/api').GatewayBuildPosture>('/analytics/gateway-build-posture', apiKey)
+}
+
+export async function getPerformanceControlsOrgPosture(apiKey: string): Promise<import('@/types/api').PerformanceControlsOrgPosture> {
+  return apiFetch<import('@/types/api').PerformanceControlsOrgPosture>('/analytics/performance-controls-org-posture', apiKey)
+}
+
+export async function getGatewayInternalPosture(apiKey: string): Promise<import('@/types/api').GatewayInternalPosture> {
+  return apiFetch<import('@/types/api').GatewayInternalPosture>('/analytics/gateway-internal-posture', apiKey)
+}
+
+export async function getGatewayControlPlanePosture(apiKey: string): Promise<import('@/types/api').GatewayControlPlanePosture> {
+  return apiFetch<import('@/types/api').GatewayControlPlanePosture>('/analytics/gateway-control-plane-posture', apiKey)
+}
+
+export async function getProviderProfileRuntimePosture(apiKey: string): Promise<import('@/types/api').ProviderProfileRuntimePosture> {
+  return apiFetch<import('@/types/api').ProviderProfileRuntimePosture>('/analytics/provider-profile-runtime-posture', apiKey)
+}

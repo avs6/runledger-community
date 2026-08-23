@@ -102,6 +102,21 @@ The Provider Profiles page shows this as an **Observe Posture** modal with
 drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer,
 Economics, Cost & Savings, and Engineering.
 
+## Runtime & scope posture
+
+Provider profiles expose a runtime posture covering FinOps, org, observe, and
+governance dimensions:
+
+```bash
+GET /analytics/provider-profile-runtime-posture
+```
+
+Returns workspace-scoped budget notification count, ledger snapshots, user count,
+monitoring alert count, MCP server count, search tool count, and capture policy
+count. The Provider Profiles page shows this as a **Runtime & Scope Posture** card
+with drill-through links to Budget Notifications, Ledger, Users, Workspace
+Dashboard, Monitoring, MCP Servers, Search Tools, and Data Capture.
+
 ## Related
 
 <CardGroup cols={2}>

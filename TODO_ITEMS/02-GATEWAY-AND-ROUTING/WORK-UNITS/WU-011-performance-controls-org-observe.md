@@ -1,10 +1,10 @@
 # WU-011: Performance Controls Org & Scope Links
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - C (Performance Controls)
 - **Target**: 02-GATEWAY-AND-ROUTING/Response cache, Rate limits (`/gateway`)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

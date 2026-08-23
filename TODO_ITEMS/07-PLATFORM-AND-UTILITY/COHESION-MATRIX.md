@@ -1,6 +1,6 @@
 # Platform & Utility — Cohesion Matrix
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 This file tracks how Platform & Utility features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -24,6 +24,6 @@ Current row major feature under audit: `Platform / Utility`
 
 | Row Major Feature | Row Subfeature | Model gateway | Guardrails | Monitoring | Telemetry | Audit log | Governance pack | Evaluation studio | Optimization simulator | Finding |
 |-------------------|----------------|---------------|------------|------------|-----------|-----------|-----------------|-------------------|------------------------|---------|
-| Platform / Utility | All organizations | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Orgs contain workspaces with gateway routes, guardrails, telemetry, and downstream evaluation/optimization posture, but no direct management from this page (PARTIAL). Org console has /org/audit-log endpoint (PARTIAL to Audit log). Governance is org-scoped (PARTIAL). |
-| Platform / Utility | Platform settings | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | Retention, compliance, and backup are governance pack components (STRONG). Capture policy interacts with guardrail data (PARTIAL). Ops status/queues are monitoring primitives (PARTIAL). Backup/retention operations should produce audit events (PARTIAL). Onboarding-status checks telemetry setup (PARTIAL). Platform defaults and compliance posture still have a real but indirect relationship to the gateway runtime. |
+| Platform / Utility | All organizations | `STRONG` | `STRONG` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | GET /analytics/gateway-internal-posture returns provider count, guardrails, cache, and throttle context with platform visibility. Gateway page Gateway Family Internal Cohesion card links to All Organizations. Provider Profiles and Guardrails pages link to All Organizations. Model gateway, provider profiles, and guardrails are now fully platform-visible (STRONG). Org console has /org/audit-log endpoint (PARTIAL to Audit log). |
+| Platform / Utility | Platform settings | `STRONG` | `STRONG` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | `N/A` | `N/A` | GET /analytics/gateway-internal-posture returns provider count, guardrails, cache, and throttle context with platform visibility. Gateway page Gateway Family Internal Cohesion card links to Platform Settings. Provider Profiles and Guardrails pages link to Platform Settings. Model gateway, provider profiles, and guardrails are now fully platform-visible (STRONG). Retention, compliance, and backup are governance pack components (STRONG). |
 | Platform / Utility | Plugins | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | Collapsed redirect — backend plugin governance is consumed by MCP tool calls and the UI route effectively feeds the onboarding/tool-connection story, so Evaluation Studio at least has a light adjacent relationship. |

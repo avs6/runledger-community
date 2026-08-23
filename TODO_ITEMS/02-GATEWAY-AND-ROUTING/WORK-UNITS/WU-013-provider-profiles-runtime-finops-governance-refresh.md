@@ -1,10 +1,10 @@
 # WU-013: Provider Profiles Runtime FinOps and Governance Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - Bundle A (Provider Catalog and Routing Control Plane)
 - **Target**: 02-GATEWAY-AND-ROUTING/Provider profiles (`/provider-profiles`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

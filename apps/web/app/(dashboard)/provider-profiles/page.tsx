@@ -17,8 +17,9 @@ import {
   getPricingExampleYaml,
   getProviderProfileFinopsPosture,
   getProviderProfileObservePosture,
+  getProviderProfileRuntimePosture,
 } from '@/lib/api'
-import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderProfileObservePosture } from '@/types/api'
+import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderProfileObservePosture, ProviderProfileRuntimePosture } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -64,6 +65,7 @@ export default function ProviderProfilesPage() {
   const [postureLoading, setPostureLoading] = useState<string | null>(null)
   const [observeModal, setObserveModal] = useState<{ profile: ProviderPricingResponse; data: ProviderProfileObservePosture } | null>(null)
   const [observeLoading, setObserveLoading] = useState<string | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<ProviderProfileRuntimePosture | null>(null)
 
   async function openPostureModal(p: ProviderPricingResponse) {
     if (!apiKey) return
@@ -108,6 +110,11 @@ export default function ProviderProfilesPage() {
   }, [apiKey, canManage])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!apiKey) return
+    getProviderProfileRuntimePosture(apiKey).then(setRuntimePosture).catch(() => {})
+  }, [apiKey])
 
   if (!canManage) {
     return (
@@ -535,6 +542,32 @@ export default function ProviderProfilesPage() {
                         >
                           {observeLoading === p.id ? 'Loading…' : 'Observe Posture'}
                         </button>
+                        <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
+                        <Link href="/tool-policies" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Policies</Link>
+                        <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+                        <Link href="/security" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Security</Link>
+                        <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+                        <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+                        <Link href="/playground" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Playground</Link>
+                        <Link href="/prompts" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Prompts</Link>
+                        <Link href="/workflows" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workflows</Link>
+                        <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
+                        <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
+                        <Link href="/replay" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Replay Lab</Link>
+                        <Link href="/optimization" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Optimization</Link>
+                        <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+                        <Link href="/gateway#cache" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Response Cache</Link>
+                        <Link href="/gateway#rate-limits" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
+                        <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+                        <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+                        <Link href="/budgets?view=notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+                        <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
+                        <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
+                        <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
+                        <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+                        <Link href="/mcp-servers" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Servers</Link>
+                        <Link href="/search-tools" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Search Tools</Link>
+                        <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
                       </div>
                     </div>
                   </td>
@@ -591,6 +624,56 @@ export default function ProviderProfilesPage() {
           <li>Costs are in USD per 1 million tokens.</li>
         </ul>
       </div>
+
+      {runtimePosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Provider Profiles — Runtime & Scope Posture</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Budget Notifications</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.finops_context.budget_notifications}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Ledger Snapshots</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.finops_context.ledger_snapshots}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Users</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.org_context.users}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Monitoring Alerts</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.observe_context.monitoring_alerts}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">MCP Servers</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.governance_context.mcp_servers}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Search Tools</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.governance_context.search_tools}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Capture Policies</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.governance_context.capture_policies}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
+              <span className="text-slate-500 dark:text-slate-400">Provider Profiles</span>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.provider_profiles}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 pt-3 mt-3 border-t border-slate-200 dark:border-slate-700">
+            <Link href="/budgets?view=notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
+            <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
+            <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+            <Link href="/mcp-servers" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Servers</Link>
+            <Link href="/search-tools" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Search Tools</Link>
+            <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
+          </div>
+        </div>
+      )}
 
       {observeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setObserveModal(null)}>

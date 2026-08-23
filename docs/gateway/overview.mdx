@@ -101,6 +101,91 @@ token totals, and average latency. The gateway page shows this as a **Gateway Ob
 Posture** card with drill-through links to Workspace Dashboard, Sessions, Model Usage,
 Economics, Cost & Savings, Outcomes & ROI, Analytics Users, Engineering, and Monitoring.
 
+### Safety & governance posture
+
+`GET /analytics/gateway-safety-posture` returns a workspace-wide safety and governance
+snapshot: gateway context (active routes, cache-enabled, rate-limited, guardrail rules,
+active guardrails, guardrail blocks in 30 days), tool governance (tool policies, active
+policies, MCP servers), approvals (total 30-day, pending), audit events (total, gateway-
+scoped), alert rules (total, active), and tag count. The gateway page shows this as a
+**Safety & Governance Posture** card with drill-through links to MCP Servers, Tool
+Registry, Tool Policies, Approvals, Data Capture, Security, Alert Rules, Audit Log,
+Governance Pack, Tags, and Policy Dry Run.
+
+### Build & improve posture
+
+`GET /analytics/gateway-build-posture` returns a workspace-wide builder context snapshot:
+gateway context (active routes, routing policies, guardrail rules, active guardrails),
+prompt count, agent count, workflow count and runs, evaluation datasets and experiments,
+and replay datasets and experiments. The gateway page shows this as a **Build & Improve
+Posture** card with drill-through links to Playground, Prompts, Agents, Workflows,
+Datasets, Evaluation Studio, Experiments, Replay Lab, Optimization, Model Scorecards,
+and Runbooks.
+
+### Performance controls org & platform posture
+
+`GET /analytics/performance-controls-org-posture` returns workspace-scoped cache and
+throttle posture: cache profiles (total, enabled, cache-enabled routes, API keys),
+rate-limit context (routes with RPM, pass-through with RPM, active routes, access groups),
+and platform context (workspace-scoped flag, configuration status). The gateway page shows
+this as a **Performance Controls — Org & Platform Scope** card with drill-through links
+to Workspaces, API Keys, Access Groups, All Organizations, and Platform Settings.
+
+### Gateway internal & platform cohesion posture
+
+`GET /analytics/gateway-internal-posture` returns the gateway family's internal
+cohesion: active routes, providers, routing policies, pass-through endpoints,
+guardrail context (rules, active count), cache context (profiles, cache-enabled
+routes), throttle context (rate-limited routes), and platform visibility
+(workspace-scoped flag, provider count, guardrails active, cache/throttle
+configuration status). The gateway page shows this as a **Gateway Family —
+Internal Cohesion** card with drill-through links to Provider Profiles,
+Guardrails, All Organizations, and Platform Settings.
+
+## Control plane bridge
+
+`GET /analytics/gateway-control-plane-posture` returns a workspace-scoped
+summary of org, observe, and governance context that downstream surfaces
+consume — users and access groups, active routes and policies, pending
+approvals and 30-day audit volume, active monitoring alerts, and guardrail
+counts. The gateway page renders this as a **Control Plane Bridge** card with
+drill-through links to Organization Profile, Onboarding, Users, Access Groups,
+Workspace Dashboard, Outcomes & ROI, Analytics Users, Analytics User Detail,
+Approvals, Audit Log, Governance Pack, All Organizations, and Platform Settings.
+
+## Cache economics & evidence
+
+`GET /analytics/response-cache-economics-posture` returns a workspace-scoped
+summary of cache profiles, cache-enabled routes, FinOps context (budgets,
+overrides, notifications, billing periods, ledger snapshots), governance
+context (30-day audit events), and org context (user count). The gateway page
+renders this as a **Cache Economics & Evidence** card with drill-through links
+to Budgets, Budget Detail, Budget Overrides, Budget Notifications, Billing
+Periods, Billing Summary, Ledger, Audit Log, Governance Pack, Onboarding,
+Workspace Dashboard, Outcomes & ROI, Analytics Users, Analytics User Detail,
+Playground, and Workflows.
+
+## Rate limit scope & explainability
+
+`GET /analytics/rate-limit-scope-posture` returns a workspace-scoped summary
+of throttle context (routes with RPM, pass-through with RPM, routing policies),
+scope context (access groups, monitoring alerts), and FinOps context (budgets,
+notifications, chargeback rules, ledger snapshots). The gateway page renders
+this as a **Rate Limit Scope & Explainability** card with drill-through links
+to Access Groups, Onboarding, Workspace Dashboard, Analytics Overview, Model
+Usage, Outcomes & ROI, Budget Detail, Budget Notifications, Chargeback, Ledger,
+Governance Pack, Evaluation Studio, Experiments, and Monitoring.
+
+## Guardrails FinOps posture
+
+`GET /analytics/guardrails-finops-posture` returns a workspace-scoped summary
+of guardrail enforcement impact on spend — 30-day evaluation and block counts,
+active rules and routes, plus FinOps context (budgets, budget notifications,
+billing periods, and chargeback rules). The guardrails page renders this as a
+**Guardrails FinOps Posture** card with drill-through links to Budgets, Budget
+Detail, Budget Notifications, Billing Periods, Chargeback, Cost & Savings, and
+Ledger.
+
 ## Related
 
 <CardGroup cols={2}>
@@ -130,6 +215,12 @@ Economics, Cost & Savings, Outcomes & ROI, Analytics Users, Engineering, and Mon
   </Card>
   <Card title="Monitoring" icon="monitor-waveform" href="/observe/monitoring">
     Live gateway metrics, alert rules, and health dashboards.
+  </Card>
+  <Card title="Safety & Governance" icon="shield-halved" href="/safety/overview">
+    Tool policies, approvals, audit trail, and governance posture linked from the safety card.
+  </Card>
+  <Card title="Build & Improve" icon="hammer" href="/build/overview">
+    Prompts, agents, workflows, evaluation, and replay assets that interact with gateway routing.
   </Card>
 </CardGroup>
 

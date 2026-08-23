@@ -464,6 +464,8 @@ export default function WorkspacePage() {
           <div className="flex flex-wrap gap-2 mt-3">
             <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Gateway</Link>
             <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+            <Link href="/gateway#cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
+            <Link href="/gateway#rate-limits" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Rate Limits</Link>
             <Link href="/sessions" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Sessions</Link>
             <Link href="/analytics?tab=model-usage" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Usage</Link>
             <Link href="/analytics?tab=economics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Economics</Link>
