@@ -35,14 +35,14 @@ Current row major feature under audit: `FinOps`
 
 | Row Major Feature | Row Subfeature | Provider profiles | Model gateway | Guardrails | Response cache | Rate limits | Finding |
 |-------------------|----------------|-------------------|---------------|------------|----------------|-------------|---------|
-| FinOps | Budgets | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | GET /analytics/gateway-finops-posture returns active budget count and override summary. Gateway page FinOps Posture card links directly to Budgets with drill-through. |
-| FinOps | Budget detail | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | Gateway FinOps Posture card links to Budget Detail. Budget performance posture returns cache/throttle economics. Budget detail shows Performance Economics section. |
-| FinOps | Budget overrides | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | Gateway FinOps Posture card shows override count/active and links to Budget Overrides. |
-| FinOps | Budget notifications | `N/A` | `STRONG` | `N/A` | `N/A` | `PARTIAL` | Gateway FinOps Posture card shows active notification channel count and links to Budget Notifications. |
-| FinOps | Billing periods | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | Gateway FinOps Posture card shows open/total billing periods and links to Billing Periods. |
+| FinOps | Budgets | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | GET /analytics/guardrails-finops-posture returns budget count. Guardrails page FinOps Posture card links to Budgets. Gateway FinOps Posture card also links to Budgets. Guardrail block/modify outcomes influence avoided-spend attribution. |
+| FinOps | Budget detail | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | GET /analytics/guardrails-finops-posture returns budget count. Guardrails page FinOps Posture card links to Budget Detail. Gateway FinOps Posture card also links to Budget Detail. Budget performance posture returns cache/throttle economics. |
+| FinOps | Budget overrides | `STRONG` | `STRONG` | `N/A` | `PARTIAL` | `STRONG` | Gateway FinOps Posture card shows override count/active and links to Budget Overrides. GET /analytics/response-cache-economics-posture returns budget override count. Cache Economics card links to Budget Overrides. Cache savings interact with override-adjusted spend thresholds. |
+| FinOps | Budget notifications | `PARTIAL` | `STRONG` | `N/A` | `PARTIAL` | `PARTIAL` | GET /analytics/response-cache-economics-posture and rate-limit-scope-posture return budget notification count. Cache Economics and Rate Limit Scope cards link to Budget Notifications. Cache savings and throttle impacts feed into notification threshold calculations. |
+| FinOps | Billing periods | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | GET /analytics/guardrails-finops-posture returns billing period count. Guardrails page FinOps Posture card links to Billing Periods. Gateway FinOps Posture card also links to Billing Periods. |
 | FinOps | Billing period detail | `STRONG` | `STRONG` | `N/A` | `STRONG` | `STRONG` | Gateway FinOps Posture card links to Billing Period Detail. Billing period detail shows Performance Economics with cache/throttle data. |
-| FinOps | Chargeback | `STRONG` | `STRONG` | `N/A` | `STRONG` | `N/A` | Gateway FinOps Posture card shows chargeback rule count and links to Chargeback. |
-| FinOps | Ledger | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | Ledger is downstream evidence, not an active gateway operating surface, but rate-limit and quota posture can still feed that evidence chain indirectly. |
+| FinOps | Chargeback | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | GET /analytics/rate-limit-scope-posture returns chargeback rule count. Rate Limit Scope card links to Chargeback. Throttle decisions affect per-group cost attribution and chargeback evidence. Guardrail enforcement outcomes also contribute to chargeback evidence. |
+| FinOps | Ledger | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | GET /analytics/response-cache-economics-posture and rate-limit-scope-posture return ledger snapshot count. Cache Economics and Rate Limit Scope cards link to Ledger. Ledger snapshots provide compliance evidence for cache savings and throttle cost impact. |
 
 ### 11.2c FinOps x Observe
 

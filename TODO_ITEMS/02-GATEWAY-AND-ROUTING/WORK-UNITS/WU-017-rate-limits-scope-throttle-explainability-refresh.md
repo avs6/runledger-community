@@ -1,10 +1,10 @@
 # WU-017: Rate Limits Scope and Throttle Explainability Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - Bundle C (Performance and Traffic Controls)
 - **Target**: 02-GATEWAY-AND-ROUTING/Rate limits (`/rate-limits` compatibility, `/gateway` owner surface)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

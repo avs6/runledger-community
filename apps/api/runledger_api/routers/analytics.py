@@ -51,6 +51,13 @@ from runledger_api.models.guardrails import GuardrailEvent, GuardrailRule
 from runledger_api.models.otlp import OtlpIngestBatch
 from runledger_api.models.mcp_registry import McpServer, McpToolCall
 from runledger_api.models.hub import HubModel
+from runledger_api.models.prompts import Prompt
+from runledger_api.models.agents import Agent, WorkflowDefinition, WorkflowRun
+from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment
+from runledger_api.models.replay import ReplayDataset, ReplayExperiment
+from runledger_api.models.cache_config import ResponseCacheConfig
+from runledger_api.models.search_tools import SearchTool
+from runledger_api.models.ledger import CapturePolicy, LedgerSnapshot
 from runledger_api.schemas.analytics import (
     AnalyticsSummary,
     AnomalyItem,
@@ -4149,5 +4156,870 @@ async def guardrails_observe_posture(
         "performance": {
             "avg_latency_ms": round(float(row.avg_latency), 1) if row.avg_latency else None,
             "max_latency_ms": round(float(row.max_latency), 1) if row.max_latency else None,
+        },
+    }
+
+
+@router.get("/gateway-safety-posture")
+async def gateway_safety_posture(
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    tool_policy_count = (await db.execute(
+        select(func.count(ToolPolicy.id)).where(ToolPolicy.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    active_tool_policies = (await db.execute(
+        select(func.count(ToolPolicy.id)).where(
+            ToolPolicy.workspace_id == workspace.id,
+            ToolPolicy.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    approval_count = (await db.execute(
+        select(func.count(Approval.id)).where(
+            Approval.workspace_id == workspace.id,
+            Approval.created_at >= since,
+        )
+    )).scalar() or 0
+
+    pending_approvals = (await db.execute(
+        select(func.count(Approval.id)).where(
+            Approval.workspace_id == workspace.id,
+            Approval.status == "pending",
+        )
+    )).scalar() or 0
+
+    audit_event_count = (await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == workspace.id,
+            AuditEvent.created_at >= since,
+        )
+    )).scalar() or 0
+
+    gateway_audit_events = (await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == workspace.id,
+            AuditEvent.created_at >= since,
+            or_(
+                AuditEvent.resource_type.in_(["gateway_route", "routing_policy", "provider_profile", "guardrail_rule", "response_cache_config"]),
+                AuditEvent.action.like("gateway%"),
+            ),
+        )
+    )).scalar() or 0
+
+    alert_rule_count = (await db.execute(
+        select(func.count(AlertRule.id)).where(AlertRule.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    active_alert_rules = (await db.execute(
+        select(func.count(AlertRule.id)).where(
+            AlertRule.workspace_id == workspace.id,
+            AlertRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    tag_count = (await db.execute(
+        select(func.count(Tag.id)).where(Tag.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    guardrail_count = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    active_guardrails = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.status == "active",
+        )
+    )).scalar() or 0
+
+    guardrail_blocks_30d = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= since,
+            GuardrailEvent.decision == "block",
+        )
+    )).scalar() or 0
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    cache_enabled_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.semantic_cache_enabled.is_(True),
+        )
+    )).scalar() or 0
+
+    rate_limited_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.rate_limit_rpm.isnot(None),
+            GatewayRoute.rate_limit_rpm > 0,
+        )
+    )).scalar() or 0
+
+    mcp_server_count = (await db.execute(
+        select(func.count(McpServer.id)).where(McpServer.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "period_days": 30,
+        "gateway_context": {
+            "active_routes": active_routes,
+            "cache_enabled_routes": cache_enabled_routes,
+            "rate_limited_routes": rate_limited_routes,
+            "guardrail_rules": guardrail_count,
+            "active_guardrails": active_guardrails,
+            "guardrail_blocks_30d": guardrail_blocks_30d,
+        },
+        "tool_governance": {
+            "tool_policy_count": tool_policy_count,
+            "active_tool_policies": active_tool_policies,
+            "mcp_server_count": mcp_server_count,
+        },
+        "approvals": {
+            "total_30d": approval_count,
+            "pending": pending_approvals,
+        },
+        "audit": {
+            "total_events_30d": audit_event_count,
+            "gateway_events_30d": gateway_audit_events,
+        },
+        "alert_rules": {
+            "total": alert_rule_count,
+            "active": active_alert_rules,
+        },
+        "tags": {
+            "total": tag_count,
+        },
+    }
+
+
+@router.get("/gateway-build-posture")
+async def gateway_build_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    workspace = await _resolve_workspace(request, db)
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    routing_policy_count = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(RoutingPolicy.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    guardrail_count = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    active_guardrails = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    prompt_count = (await db.execute(
+        select(func.count(Prompt.id)).where(Prompt.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    agent_count = (await db.execute(
+        select(func.count(Agent.id)).where(Agent.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    workflow_count = (await db.execute(
+        select(func.count(WorkflowDefinition.id)).where(WorkflowDefinition.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    workflow_run_count = (await db.execute(
+        select(func.count(WorkflowRun.id)).where(WorkflowRun.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    eval_dataset_count = (await db.execute(
+        select(func.count(EvalDataset.id)).where(EvalDataset.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    eval_experiment_count = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(EvalExperiment.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    replay_dataset_count = (await db.execute(
+        select(func.count(ReplayDataset.id)).where(ReplayDataset.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    replay_experiment_count = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(ReplayExperiment.workspace_id == workspace.id)
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "gateway_context": {
+            "active_routes": active_routes,
+            "routing_policies": routing_policy_count,
+            "guardrail_rules": guardrail_count,
+            "active_guardrails": active_guardrails,
+        },
+        "prompts": {
+            "total": prompt_count,
+        },
+        "agents": {
+            "total": agent_count,
+        },
+        "workflows": {
+            "total": workflow_count,
+            "runs": workflow_run_count,
+        },
+        "evaluation": {
+            "datasets": eval_dataset_count,
+            "experiments": eval_experiment_count,
+        },
+        "replay": {
+            "datasets": replay_dataset_count,
+            "experiments": replay_experiment_count,
+        },
+    }
+
+
+@router.get("/performance-controls-org-posture")
+async def performance_controls_org_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    cache_profiles = (await db.execute(
+        select(func.count(ResponseCacheConfig.id)).where(
+            ResponseCacheConfig.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    cache_enabled = (await db.execute(
+        select(func.count(ResponseCacheConfig.id)).where(
+            ResponseCacheConfig.workspace_id == workspace.id,
+            ResponseCacheConfig.is_enabled.is_(True),
+        )
+    )).scalar() or 0
+
+    cache_enabled_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.semantic_cache_enabled.is_(True),
+        )
+    )).scalar() or 0
+
+    api_key_count = (await db.execute(
+        select(func.count(ApiKey.id)).where(
+            ApiKey.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    routes_with_rpm = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.per_user_rpm_limit.isnot(None),
+        )
+    )).scalar() or 0
+
+    passthrough_with_rpm = (await db.execute(
+        select(func.count(GatewayPassThroughEndpoint.id)).where(
+            GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            GatewayPassThroughEndpoint.is_active.is_(True),
+            GatewayPassThroughEndpoint.rate_limit_rpm.isnot(None),
+        )
+    )).scalar() or 0
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    access_group_count = (await db.execute(
+        select(func.count(AccessGroup.id)).where(
+            AccessGroup.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "cache_context": {
+            "profiles": cache_profiles,
+            "enabled_profiles": cache_enabled,
+            "cache_enabled_routes": cache_enabled_routes,
+            "api_keys": api_key_count,
+        },
+        "rate_limit_context": {
+            "routes_with_rpm": routes_with_rpm,
+            "passthrough_with_rpm": passthrough_with_rpm,
+            "active_routes": active_routes,
+            "access_groups": access_group_count,
+        },
+        "platform_context": {
+            "workspace_scoped": True,
+            "cache_profiles_configured": cache_profiles > 0,
+            "throttle_configured": routes_with_rpm > 0 or passthrough_with_rpm > 0,
+        },
+    }
+
+
+@router.get("/gateway-internal-posture")
+async def gateway_internal_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    cache_enabled_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.semantic_cache_enabled.is_(True),
+        )
+    )).scalar() or 0
+
+    rate_limited_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.per_user_rpm_limit.isnot(None),
+        )
+    )).scalar() or 0
+
+    guardrail_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    active_guardrails = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    cache_profiles = (await db.execute(
+        select(func.count(ResponseCacheConfig.id)).where(
+            ResponseCacheConfig.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    routing_policies = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(
+            RoutingPolicy.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    provider_count = (await db.execute(
+        select(func.count(func.distinct(GatewayRoute.provider))).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    passthrough_count = (await db.execute(
+        select(func.count(GatewayPassThroughEndpoint.id)).where(
+            GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            GatewayPassThroughEndpoint.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "gateway_family": {
+            "active_routes": active_routes,
+            "providers": provider_count,
+            "routing_policies": routing_policies,
+            "passthrough_endpoints": passthrough_count,
+        },
+        "guardrail_context": {
+            "rules": guardrail_rules,
+            "active": active_guardrails,
+        },
+        "cache_context": {
+            "profiles": cache_profiles,
+            "cache_enabled_routes": cache_enabled_routes,
+        },
+        "throttle_context": {
+            "rate_limited_routes": rate_limited_routes,
+        },
+        "platform_visibility": {
+            "workspace_scoped": True,
+            "provider_count": provider_count,
+            "guardrails_active": active_guardrails > 0,
+            "cache_configured": cache_profiles > 0,
+            "throttle_configured": rate_limited_routes > 0,
+        },
+    }
+
+
+@router.get("/response-cache-economics-posture")
+async def response_cache_economics_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    cache_profiles = (await db.execute(
+        select(func.count(ResponseCacheConfig.id)).where(
+            ResponseCacheConfig.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    cache_enabled_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.semantic_cache_enabled.is_(True),
+        )
+    )).scalar() or 0
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    budgets = (await db.execute(
+        select(func.count(Budget.id)).where(
+            Budget.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    budget_overrides = (await db.execute(
+        select(func.count(BudgetOverride.id)).where(
+            BudgetOverride.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    budget_notifications = (await db.execute(
+        select(func.count(BudgetNotification.id)).where(
+            BudgetNotification.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    billing_periods = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    audit_events_30d = (await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == workspace.id,
+            AuditEvent.created_at >= func.now() - text("interval '30 days'"),
+        )
+    )).scalar() or 0
+
+    ledger_snapshots = (await db.execute(
+        select(func.count(LedgerSnapshot.id)).where(
+            LedgerSnapshot.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    users_count = (await db.execute(
+        select(func.count(TenantUser.id)).where(
+            TenantUser.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "cache_context": {
+            "profiles": cache_profiles,
+            "cache_enabled_routes": cache_enabled_routes,
+            "active_routes": active_routes,
+        },
+        "finops_context": {
+            "budgets": budgets,
+            "budget_overrides": budget_overrides,
+            "budget_notifications": budget_notifications,
+            "billing_periods": billing_periods,
+            "ledger_snapshots": ledger_snapshots,
+        },
+        "governance_context": {
+            "audit_events_30d": audit_events_30d,
+        },
+        "org_context": {
+            "users": users_count,
+        },
+    }
+
+
+@router.get("/rate-limit-scope-posture")
+async def rate_limit_scope_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    routes_with_rpm = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+            GatewayRoute.per_user_rpm_limit.isnot(None),
+        )
+    )).scalar() or 0
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    passthrough_with_rpm = (await db.execute(
+        select(func.count(GatewayPassThroughEndpoint.id)).where(
+            GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            GatewayPassThroughEndpoint.rpm_limit.isnot(None),
+        )
+    )).scalar() or 0
+
+    access_groups = (await db.execute(
+        select(func.count(AccessGroup.id)).where(
+            AccessGroup.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    budgets = (await db.execute(
+        select(func.count(Budget.id)).where(
+            Budget.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    budget_notifications = (await db.execute(
+        select(func.count(BudgetNotification.id)).where(
+            BudgetNotification.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    ledger_snapshots = (await db.execute(
+        select(func.count(LedgerSnapshot.id)).where(
+            LedgerSnapshot.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    monitoring_alerts = (await db.execute(
+        select(func.count(AlertRule.id)).where(
+            AlertRule.workspace_id == workspace.id,
+            AlertRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    routing_policies = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(
+            RoutingPolicy.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "throttle_context": {
+            "routes_with_rpm": routes_with_rpm,
+            "active_routes": active_routes,
+            "passthrough_with_rpm": passthrough_with_rpm,
+            "routing_policies": routing_policies,
+        },
+        "scope_context": {
+            "access_groups": access_groups,
+            "monitoring_alerts": monitoring_alerts,
+        },
+        "finops_context": {
+            "budgets": budgets,
+            "budget_notifications": budget_notifications,
+            "chargeback_rules": chargeback_rules,
+            "ledger_snapshots": ledger_snapshots,
+        },
+    }
+
+
+@router.get("/guardrails-finops-posture")
+async def guardrails_finops_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    thirty_days_ago = func.now() - text("interval '30 days'")
+
+    guardrail_blocks_30d = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.decision == "block",
+            GuardrailEvent.created_at >= thirty_days_ago,
+        )
+    )).scalar() or 0
+
+    guardrail_evals_30d = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace.id,
+            GuardrailEvent.created_at >= thirty_days_ago,
+        )
+    )).scalar() or 0
+
+    active_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    budgets = (await db.execute(
+        select(func.count(Budget.id)).where(
+            Budget.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    budget_notifications = (await db.execute(
+        select(func.count(BudgetNotification.id)).where(
+            BudgetNotification.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    billing_periods = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "period_days": 30,
+        "guardrail_context": {
+            "active_rules": active_rules,
+            "evaluations_30d": guardrail_evals_30d,
+            "blocks_30d": guardrail_blocks_30d,
+            "active_routes": active_routes,
+        },
+        "finops_context": {
+            "budgets": budgets,
+            "budget_notifications": budget_notifications,
+            "billing_periods": billing_periods,
+            "chargeback_rules": chargeback_rules,
+        },
+    }
+
+
+@router.get("/gateway-control-plane-posture")
+async def gateway_control_plane_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    users_count = (await db.execute(
+        select(func.count(TenantUser.id)).where(
+            TenantUser.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    access_groups = (await db.execute(
+        select(func.count(AccessGroup.id)).where(
+            AccessGroup.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    api_keys = (await db.execute(
+        select(func.count(ApiKey.id)).where(
+            ApiKey.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    active_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    routing_policies = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(
+            RoutingPolicy.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    approvals_pending = (await db.execute(
+        select(func.count(Approval.id)).where(
+            Approval.workspace_id == workspace.id,
+            Approval.status == "pending",
+        )
+    )).scalar() or 0
+
+    audit_events_30d = (await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == workspace.id,
+            AuditEvent.created_at >= func.now() - text("interval '30 days'"),
+        )
+    )).scalar() or 0
+
+    active_guardrails = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace.id,
+            GuardrailRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    monitoring_alerts = (await db.execute(
+        select(func.count(AlertRule.id)).where(
+            AlertRule.workspace_id == workspace.id,
+            AlertRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    provider_profiles = (await db.execute(
+        select(func.count(ProviderPricing.id)).where(
+            ProviderPricing.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "org_context": {
+            "users": users_count,
+            "access_groups": access_groups,
+            "api_keys": api_keys,
+        },
+        "gateway_context": {
+            "active_routes": active_routes,
+            "routing_policies": routing_policies,
+            "provider_profiles": provider_profiles,
+            "active_guardrails": active_guardrails,
+        },
+        "observe_context": {
+            "monitoring_alerts": monitoring_alerts,
+        },
+        "governance_context": {
+            "approvals_pending": approvals_pending,
+            "audit_events_30d": audit_events_30d,
+        },
+    }
+
+
+@router.get("/provider-profile-runtime-posture")
+async def provider_profile_runtime_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    budget_notifications = (await db.execute(
+        select(func.count(BudgetNotification.id)).where(
+            BudgetNotification.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    ledger_snapshots = (await db.execute(
+        select(func.count(LedgerSnapshot.id)).where(
+            LedgerSnapshot.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    users_count = (await db.execute(
+        select(func.count(TenantUser.id)).where(
+            TenantUser.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    mcp_servers = (await db.execute(
+        select(func.count(McpServer.id)).where(
+            McpServer.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    search_tools = (await db.execute(
+        select(func.count(SearchTool.id)).where(
+            SearchTool.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    capture_policies = (await db.execute(
+        select(func.count(CapturePolicy.id)).where(
+            CapturePolicy.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    monitoring_alerts = (await db.execute(
+        select(func.count(AlertRule.id)).where(
+            AlertRule.workspace_id == workspace.id,
+            AlertRule.is_active.is_(True),
+        )
+    )).scalar() or 0
+
+    provider_profiles = (await db.execute(
+        select(func.count(ProviderPricing.id)).where(
+            ProviderPricing.workspace_id == workspace.id,
+        )
+    )).scalar() or 0
+
+    return {
+        "workspace_id": str(workspace.id),
+        "provider_profiles": provider_profiles,
+        "finops_context": {
+            "budget_notifications": budget_notifications,
+            "ledger_snapshots": ledger_snapshots,
+        },
+        "org_context": {
+            "users": users_count,
+            "workspace_scoped": True,
+        },
+        "observe_context": {
+            "monitoring_alerts": monitoring_alerts,
+        },
+        "governance_context": {
+            "mcp_servers": mcp_servers,
+            "search_tools": search_tools,
+            "capture_policies": capture_policies,
         },
     }

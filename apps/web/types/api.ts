@@ -4265,6 +4265,159 @@ export interface GatewayFinopsPosture {
   }
 }
 
+export interface GatewaySafetyPosture {
+  workspace_id: string
+  period_days: number
+  gateway_context: {
+    active_routes: number
+    cache_enabled_routes: number
+    rate_limited_routes: number
+    guardrail_rules: number
+    active_guardrails: number
+    guardrail_blocks_30d: number
+  }
+  tool_governance: {
+    tool_policy_count: number
+    active_tool_policies: number
+    mcp_server_count: number
+  }
+  approvals: {
+    total_30d: number
+    pending: number
+  }
+  audit: {
+    total_events_30d: number
+    gateway_events_30d: number
+  }
+  alert_rules: {
+    total: number
+    active: number
+  }
+  tags: {
+    total: number
+  }
+}
+
+export interface GatewayBuildPosture {
+  workspace_id: string
+  gateway_context: {
+    active_routes: number
+    routing_policies: number
+    guardrail_rules: number
+    active_guardrails: number
+  }
+  prompts: {
+    total: number
+  }
+  agents: {
+    total: number
+  }
+  workflows: {
+    total: number
+    runs: number
+  }
+  evaluation: {
+    datasets: number
+    experiments: number
+  }
+  replay: {
+    datasets: number
+    experiments: number
+  }
+}
+
+export interface PerformanceControlsOrgPosture {
+  workspace_id: string
+  cache_context: {
+    profiles: number
+    enabled_profiles: number
+    cache_enabled_routes: number
+    api_keys: number
+  }
+  rate_limit_context: {
+    routes_with_rpm: number
+    passthrough_with_rpm: number
+    active_routes: number
+    access_groups: number
+  }
+  platform_context: {
+    workspace_scoped: boolean
+    cache_profiles_configured: boolean
+    throttle_configured: boolean
+  }
+}
+
+export interface GatewayInternalPosture {
+  workspace_id: string
+  gateway_family: {
+    active_routes: number
+    providers: number
+    routing_policies: number
+    passthrough_endpoints: number
+  }
+  guardrail_context: {
+    rules: number
+    active: number
+  }
+  cache_context: {
+    profiles: number
+    cache_enabled_routes: number
+  }
+  throttle_context: {
+    rate_limited_routes: number
+  }
+  platform_visibility: {
+    workspace_scoped: boolean
+    provider_count: number
+    guardrails_active: boolean
+    cache_configured: boolean
+    throttle_configured: boolean
+  }
+}
+
+export interface GatewayControlPlanePosture {
+  workspace_id: string
+  org_context: {
+    users: number
+    access_groups: number
+    api_keys: number
+  }
+  gateway_context: {
+    active_routes: number
+    routing_policies: number
+    provider_profiles: number
+    active_guardrails: number
+  }
+  observe_context: {
+    monitoring_alerts: number
+  }
+  governance_context: {
+    approvals_pending: number
+    audit_events_30d: number
+  }
+}
+
+export interface ProviderProfileRuntimePosture {
+  workspace_id: string
+  provider_profiles: number
+  finops_context: {
+    budget_notifications: number
+    ledger_snapshots: number
+  }
+  org_context: {
+    users: number
+    workspace_scoped: boolean
+  }
+  observe_context: {
+    monitoring_alerts: number
+  }
+  governance_context: {
+    mcp_servers: number
+    search_tools: number
+    capture_policies: number
+  }
+}
+
 export interface GuardrailsObservePosture {
   workspace_id: string
   period_days: number
@@ -4292,6 +4445,65 @@ export interface GuardrailsObservePosture {
   performance: {
     avg_latency_ms: number | null
     max_latency_ms: number | null
+  }
+}
+
+export interface ResponseCacheEconomicsPosture {
+  workspace_id: string
+  cache_context: {
+    profiles: number
+    cache_enabled_routes: number
+    active_routes: number
+  }
+  finops_context: {
+    budgets: number
+    budget_overrides: number
+    budget_notifications: number
+    billing_periods: number
+    ledger_snapshots: number
+  }
+  governance_context: {
+    audit_events_30d: number
+  }
+  org_context: {
+    users: number
+  }
+}
+
+export interface RateLimitScopePosture {
+  workspace_id: string
+  throttle_context: {
+    routes_with_rpm: number
+    active_routes: number
+    passthrough_with_rpm: number
+    routing_policies: number
+  }
+  scope_context: {
+    access_groups: number
+    monitoring_alerts: number
+  }
+  finops_context: {
+    budgets: number
+    budget_notifications: number
+    chargeback_rules: number
+    ledger_snapshots: number
+  }
+}
+
+export interface GuardrailsFinopsPosture {
+  workspace_id: string
+  period_days: number
+  guardrail_context: {
+    active_rules: number
+    evaluations_30d: number
+    blocks_30d: number
+    active_routes: number
+  }
+  finops_context: {
+    budgets: number
+    budget_notifications: number
+    billing_periods: number
+    chargeback_rules: number
   }
 }
 

@@ -48,6 +48,7 @@ import {
   updateGuardrailRule,
   updatePartnerGuardrail,
   getGuardrailsObservePosture,
+  getGuardrailsFinopsPosture,
 } from '@/lib/api'
 import type {
   ContentFilterStatus,
@@ -61,6 +62,7 @@ import type {
   GuardrailTestResponse,
   PartnerGuardrailResponse,
   GuardrailsObservePosture,
+  GuardrailsFinopsPosture,
 } from '@/types/api'
 
 function pct(value: number | null | undefined) {
@@ -141,6 +143,7 @@ export default function GuardrailsPage() {
   const [loading, setLoading] = useState(true)
   const [refreshingAlerts, setRefreshingAlerts] = useState(false)
   const [observePosture, setObservePosture] = useState<GuardrailsObservePosture | null>(null)
+  const [finopsPosture, setFinopsPosture] = useState<GuardrailsFinopsPosture | null>(null)
   const [savingFilters, setSavingFilters] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -262,6 +265,7 @@ export default function GuardrailsPage() {
     loadData()
     if (apiKey) {
       getGuardrailsObservePosture(apiKey).then(setObservePosture).catch(() => {})
+      getGuardrailsFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
     }
   }, [apiKey])
 
@@ -682,6 +686,30 @@ export default function GuardrailsPage() {
           <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
           <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
           <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry</Link>
+          <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
+          <Link href="/tool-policies" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Policies</Link>
+          <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+          <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
+          <Link href="/security" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Security</Link>
+          <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+          <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+          <Link href="/tags" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tags</Link>
+          <Link href="/policy-dry-run" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Policy Dry Run</Link>
+          <Link href="/playground" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Playground</Link>
+          <Link href="/agents" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Agents</Link>
+          <Link href="/workflows" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workflows</Link>
+          <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
+          <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
+          <Link href="/replay" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Replay Lab</Link>
+          <Link href="/optimization" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Optimization</Link>
+          <Link href="/scorecards" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Scorecards</Link>
+          <Link href="/runbooks" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runbooks</Link>
+          <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+          <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+          <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+          <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+          <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+          <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
         </div>
 
         {observePosture && (
@@ -733,6 +761,46 @@ export default function GuardrailsPage() {
               <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
               <Link href="/analytics/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
               <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+            </div>
+          </div>
+        )}
+
+        {finopsPosture && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Guardrails FinOps Posture</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Financial context for guardrail enforcement — blocked traffic avoids spend, retries and fallbacks influence cost attribution, and enforcement patterns feed budget and chargeback evidence over the last {finopsPosture.period_days} days.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Evaluations (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.guardrail_context.evaluations_30d.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{finopsPosture.guardrail_context.active_rules} active rules</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Blocks (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.guardrail_context.blocks_30d.toLocaleString()}</p>
+                <p className="text-xs text-slate-400">{finopsPosture.guardrail_context.active_routes} active routes</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Budgets</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.finops_context.budgets}</p>
+                <p className="text-xs text-slate-400">{finopsPosture.finops_context.budget_notifications} notifications</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Billing & Chargeback</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{finopsPosture.finops_context.billing_periods} periods</p>
+                <p className="text-xs text-slate-400">{finopsPosture.finops_context.chargeback_rules} chargeback rules</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+              <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
+              <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+              <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+              <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+              <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
             </div>
           </div>
         )}

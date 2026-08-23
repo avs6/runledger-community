@@ -1,10 +1,10 @@
 # WU-009: Gateway Safety & Governance Deepening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 02-Gateway & Routing - A/B/C (all bundles)
 - **Target**: 02-GATEWAY-AND-ROUTING (all features × Safety & Governance)
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

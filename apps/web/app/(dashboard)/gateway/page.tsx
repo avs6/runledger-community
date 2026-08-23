@@ -18,7 +18,7 @@ import {
   getFlywheelSettings, updateFlywheelSettings, listFlywheelRecommendations,
   applyFlywheelRecommendation, dismissFlywheelRecommendation, runFlywheel,
   listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint, testGatewayPassThroughEndpoint, listGatewayPassThroughStats, getGatewayBenchmarkComparison,
-  getGatewayRateLimitOverview, getGatewayFinopsPosture, getGatewayObservePosture,
+  getGatewayRateLimitOverview, getGatewayFinopsPosture, getGatewayObservePosture, getGatewaySafetyPosture, getGatewayBuildPosture, getPerformanceControlsOrgPosture, getGatewayInternalPosture, getGatewayControlPlanePosture, getResponseCacheEconomicsPosture, getRateLimitScopePosture,
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
@@ -30,7 +30,7 @@ import type {
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
   GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
-  GatewayFinopsPosture, GatewayObservePosture,
+  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture,
 } from '@/types/api'
 
 const inputCls =
@@ -237,6 +237,13 @@ export default function GatewayPage() {
   const [newCacheConfigStr, setNewCacheConfigStr] = useState('{}')
   const [finopsPosture, setFinopsPosture] = useState<GatewayFinopsPosture | null>(null)
   const [observePosture, setObservePosture] = useState<GatewayObservePosture | null>(null)
+  const [safetyPosture, setSafetyPosture] = useState<GatewaySafetyPosture | null>(null)
+  const [buildPosture, setBuildPosture] = useState<GatewayBuildPosture | null>(null)
+  const [perfControlsPosture, setPerfControlsPosture] = useState<PerformanceControlsOrgPosture | null>(null)
+  const [internalPosture, setInternalPosture] = useState<GatewayInternalPosture | null>(null)
+  const [controlPlanePosture, setControlPlanePosture] = useState<GatewayControlPlanePosture | null>(null)
+  const [cacheEconomicsPosture, setCacheEconomicsPosture] = useState<ResponseCacheEconomicsPosture | null>(null)
+  const [rateLimitScopePosture, setRateLimitScopePosture] = useState<RateLimitScopePosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -288,6 +295,13 @@ export default function GatewayPage() {
     if (!apiKey) return
     getGatewayFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
     getGatewayObservePosture(apiKey).then(setObservePosture).catch(() => {})
+    getGatewaySafetyPosture(apiKey).then(setSafetyPosture).catch(() => {})
+    getGatewayBuildPosture(apiKey).then(setBuildPosture).catch(() => {})
+    getPerformanceControlsOrgPosture(apiKey).then(setPerfControlsPosture).catch(() => {})
+    getGatewayInternalPosture(apiKey).then(setInternalPosture).catch(() => {})
+    getGatewayControlPlanePosture(apiKey).then(setControlPlanePosture).catch(() => {})
+    getResponseCacheEconomicsPosture(apiKey).then(setCacheEconomicsPosture).catch(() => {})
+    getRateLimitScopePosture(apiKey).then(setRateLimitScopePosture).catch(() => {})
   }, [apiKey])
 
   if (!canManage) {
@@ -1015,6 +1029,8 @@ export default function GatewayPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
+        <Link href="/org-profile" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Org Profile</Link>
+        <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
         <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
         <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
         <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
@@ -1023,6 +1039,9 @@ export default function GatewayPage() {
         <Link href="/mcp-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Registry</Link>
         <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
         <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+        <Link href="/analytics/users?detail=true" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics User Detail</Link>
+        <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+        <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
       </div>
 
       {/* Stats strip */}
@@ -1159,6 +1178,320 @@ export default function GatewayPage() {
         </div>
       )}
 
+      {safetyPosture && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Gateway Safety & Governance Posture</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Governance context for gateway operations — tool policies, approvals, audit evidence, alerts, and tags over the last {safetyPosture.period_days} days.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tool Policies</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{safetyPosture.tool_governance.active_tool_policies} active</p>
+              <p className="text-xs text-slate-400">{safetyPosture.tool_governance.tool_policy_count} total · {safetyPosture.tool_governance.mcp_server_count} MCP servers</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Approvals</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{safetyPosture.approvals.pending} pending</p>
+              <p className="text-xs text-slate-400">{safetyPosture.approvals.total_30d} total (30d)</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{safetyPosture.audit.gateway_events_30d.toLocaleString()} gateway</p>
+              <p className="text-xs text-slate-400">{safetyPosture.audit.total_events_30d.toLocaleString()} total (30d)</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{safetyPosture.alert_rules.active} active</p>
+              <p className="text-xs text-slate-400">{safetyPosture.alert_rules.total} total · {safetyPosture.tags.total} tags</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Enforcement</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{safetyPosture.gateway_context.active_guardrails}</strong> active rules · <strong>{safetyPosture.gateway_context.guardrail_blocks_30d.toLocaleString()}</strong> blocks (30d)</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Route Security</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{safetyPosture.gateway_context.active_routes}</strong> active · <strong>{safetyPosture.gateway_context.cache_enabled_routes}</strong> cached · <strong>{safetyPosture.gateway_context.rate_limited_routes}</strong> rate-limited</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Governance Pack</p>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{safetyPosture.audit.gateway_events_30d}</strong> gateway audit entries</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/mcp-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Servers</Link>
+            <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
+            <Link href="/tool-policies" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Policies</Link>
+            <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+            <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
+            <Link href="/security" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Security</Link>
+            <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules</Link>
+            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/tags" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tags</Link>
+            <Link href="/policy-dry-run" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Policy Dry Run</Link>
+          </div>
+        </div>
+      )}
+
+      {buildPosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Gateway Build & Improve Posture</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Builder context for gateway operations — prompts, agents, workflows, evaluation, and replay assets that interact with gateway routing and guardrails.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Prompts</span>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.prompts.total}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Agents</span>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.agents.total}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Workflows</span>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.workflows.total}</p>
+              <p className="text-xs text-slate-400">{buildPosture.workflows.runs} runs</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Evaluation</span>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.evaluation.experiments} experiments</p>
+              <p className="text-xs text-slate-400">{buildPosture.evaluation.datasets} datasets</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Replay</span>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{buildPosture.replay.experiments}</strong> experiments · <strong>{buildPosture.replay.datasets}</strong> datasets</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Gateway Context</span>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{buildPosture.gateway_context.active_routes}</strong> routes · <strong>{buildPosture.gateway_context.routing_policies}</strong> policies</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Guardrails</span>
+              <p className="mt-1 text-sm text-slate-900 dark:text-white"><strong>{buildPosture.gateway_context.active_guardrails}</strong> active of <strong>{buildPosture.gateway_context.guardrail_rules}</strong> rules</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/playground" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Playground</Link>
+            <Link href="/prompts" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Prompts</Link>
+            <Link href="/agents" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Agents</Link>
+            <Link href="/workflows" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workflows</Link>
+            <Link href="/datasets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Datasets</Link>
+            <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
+            <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
+            <Link href="/replay" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Replay Lab</Link>
+            <Link href="/optimization" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Optimization</Link>
+            <Link href="/scorecards" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Scorecards</Link>
+            <Link href="/runbooks" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runbooks</Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── Performance Controls Org Posture ── */}
+      {perfControlsPosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Performance Controls — Org & Platform Scope</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Workspace-level cache and throttle posture for org and platform visibility.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Cache Profiles</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{perfControlsPosture.cache_context.profiles}</p>
+              <p className="text-xs text-slate-400">{perfControlsPosture.cache_context.enabled_profiles} enabled</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Cache-Enabled Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{perfControlsPosture.cache_context.cache_enabled_routes}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Routes with RPM</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{perfControlsPosture.rate_limit_context.routes_with_rpm}</p>
+              <p className="text-xs text-slate-400">{perfControlsPosture.rate_limit_context.passthrough_with_rpm} pass-through</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">API Keys</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{perfControlsPosture.cache_context.api_keys}</p>
+              <p className="text-xs text-slate-400">{perfControlsPosture.rate_limit_context.access_groups} access groups</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
+            <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
+            <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
+            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── Gateway Internal Posture ── */}
+      {internalPosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Gateway Family — Internal Cohesion</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Provider profiles, routes, guardrails, cache, and throttle controls form one cohesive runtime system.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Providers</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{internalPosture.gateway_family.providers}</p>
+              <p className="text-xs text-slate-400">{internalPosture.gateway_family.active_routes} routes</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Guardrails</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{internalPosture.guardrail_context.active} active</p>
+              <p className="text-xs text-slate-400">{internalPosture.guardrail_context.rules} rules total</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Cache Profiles</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{internalPosture.cache_context.profiles}</p>
+              <p className="text-xs text-slate-400">{internalPosture.cache_context.cache_enabled_routes} cached routes</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Throttled Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{internalPosture.throttle_context.rate_limited_routes}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Routing Policies</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{internalPosture.gateway_family.routing_policies}</p>
+              <p className="text-xs text-slate-400">{internalPosture.gateway_family.passthrough_endpoints} pass-through</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
+            <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
+            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {/* ── Control Plane Bridge ── */}
+      {controlPlanePosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Control Plane Bridge — Org, Observe, Governance & Platform</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Runtime ownership, evidence, and governance handoff from the gateway control plane to downstream org, observe, and platform surfaces.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Users</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.org_context.users}</p>
+              <p className="text-xs text-slate-400">{controlPlanePosture.org_context.access_groups} access groups</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Active Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.gateway_context.active_routes}</p>
+              <p className="text-xs text-slate-400">{controlPlanePosture.gateway_context.routing_policies} policies</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Approvals Pending</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.governance_context.approvals_pending}</p>
+              <p className="text-xs text-slate-400">{controlPlanePosture.governance_context.audit_events_30d} audit events (30d)</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Monitoring Alerts</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.observe_context.monitoring_alerts}</p>
+              <p className="text-xs text-slate-400">{controlPlanePosture.gateway_context.active_guardrails} guardrails</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">API Keys</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.org_context.api_keys}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Provider Profiles</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.gateway_context.provider_profiles}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.gateway_context.active_guardrails}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Audit Events (30d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{controlPlanePosture.governance_context.audit_events_30d}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/org-profile" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Organization Profile</Link>
+            <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
+            <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
+            <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
+            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
+            <Link href="/analytics/users?detail=true" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics User Detail</Link>
+            <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {rateLimitScopePosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Rate Limit Scope & Explainability</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Throttle scope attribution, actor-level explainability, and downstream FinOps/observe/build evidence for rate-limit decisions.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Throttled Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{rateLimitScopePosture.throttle_context.routes_with_rpm}</p>
+              <p className="text-xs text-slate-400">{rateLimitScopePosture.throttle_context.active_routes} total active · {rateLimitScopePosture.throttle_context.passthrough_with_rpm} pass-through</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Access Groups</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{rateLimitScopePosture.scope_context.access_groups}</p>
+              <p className="text-xs text-slate-400">{rateLimitScopePosture.throttle_context.routing_policies} routing policies</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">FinOps Context</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{rateLimitScopePosture.finops_context.budgets} budgets</p>
+              <p className="text-xs text-slate-400">{rateLimitScopePosture.finops_context.chargeback_rules} chargeback · {rateLimitScopePosture.finops_context.budget_notifications} notifications</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Monitoring & Ledger</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{rateLimitScopePosture.scope_context.monitoring_alerts} alerts</p>
+              <p className="text-xs text-slate-400">{rateLimitScopePosture.finops_context.ledger_snapshots} ledger snapshots</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
+            <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            <Link href="/analytics/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
+            <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+            <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
+            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
+            <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
+            <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+          </div>
+        </div>
+      )}
+
       {/* ── Routes ── */}
       {rateLimitOverview && (
         <section className="space-y-4">
@@ -1248,8 +1581,62 @@ export default function GatewayPage() {
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
             <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
             <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
+            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
           </div>
         </section>
+      )}
+
+      {cacheEconomicsPosture && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Cache Economics & Evidence</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Cache savings, budget linkage, and governance evidence — connecting cache configuration to spend, billing, and audit outcomes.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Cache Profiles</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{cacheEconomicsPosture.cache_context.profiles}</p>
+              <p className="text-xs text-slate-400">{cacheEconomicsPosture.cache_context.cache_enabled_routes} of {cacheEconomicsPosture.cache_context.active_routes} routes cached</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Budgets</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{cacheEconomicsPosture.finops_context.budgets}</p>
+              <p className="text-xs text-slate-400">{cacheEconomicsPosture.finops_context.budget_overrides} overrides · {cacheEconomicsPosture.finops_context.budget_notifications} notifications</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Billing & Ledger</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{cacheEconomicsPosture.finops_context.billing_periods} periods</p>
+              <p className="text-xs text-slate-400">{cacheEconomicsPosture.finops_context.ledger_snapshots} ledger snapshots</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Governance</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{cacheEconomicsPosture.governance_context.audit_events_30d} audit events</p>
+              <p className="text-xs text-slate-400">{cacheEconomicsPosture.org_context.users} users</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
+            <Link href="/budgets?view=overrides" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Overrides</Link>
+            <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Summary</Link>
+            <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
+            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
+            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
+            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
+            <Link href="/analytics/users?detail=true" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics User Detail</Link>
+            <Link href="/playground" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Playground</Link>
+            <Link href="/workflows" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workflows</Link>
+          </div>
+        </div>
       )}
 
       <section className="space-y-4">
@@ -1264,6 +1651,9 @@ export default function GatewayPage() {
               <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
               <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
               <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
+              <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
+              <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
+              <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
             </div>
           </div>
           <button
