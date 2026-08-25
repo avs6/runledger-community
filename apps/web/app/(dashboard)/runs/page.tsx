@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRuns } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationGovernancePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRuns } from '@/lib/api'
 import RunsTable from '@/components/runs/RunsTable'
 import RunFilters from '@/components/runs/RunFilters'
 import RunsExportButton from '@/components/runs/RunsExportButton'
@@ -25,6 +25,10 @@ interface PageProps {
     min_cost?: string
     max_cost?: string
     access_group_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: string
+    api_key_id?: string
   }
 }
 
@@ -144,7 +148,27 @@ async function RunsContent({ searchParams }: PageProps) {
     min_cost: searchParams.min_cost,
     max_cost: searchParams.max_cost,
     access_group_id: accessGroupId,
+    tag: searchParams.tag,
+    tool_name: searchParams.tool_name,
+    security_event_only: searchParams.security_event_only === 'true',
+    api_key_id: searchParams.api_key_id,
   })
+  const [governance, finops, orgIdentity, gatewayRuntime, scopePosture] = await Promise.all([
+    getInvestigationGovernancePosture(session.apiKey, {
+      from: searchParams.from ?? sevenDaysAgo,
+      to: searchParams.to,
+      access_group_id: accessGroupId,
+      tag: searchParams.tag,
+      tool_name: searchParams.tool_name,
+      security_event_only: searchParams.security_event_only === 'true',
+    }).catch(() => null),
+    getInvestigationFinopsBudgetPosture(session.apiKey, {
+      access_group_id: accessGroupId,
+    }).catch(() => null),
+    getInvestigationOrgIdentityPosture(session.apiKey).catch(() => null),
+    getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
+    getOverviewScopePosture(session.apiKey).catch(() => null),
+  ])
 
   const nextHref = data.next_cursor
     ? `/runs?${new URLSearchParams({
@@ -166,6 +190,114 @@ async function RunsContent({ searchParams }: PageProps) {
         </div>
       )}
       <RunsOverview items={data.items} total={data.total} />
+      {governance && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            { label: 'Governance Runs', value: governance.filtered_runs.toLocaleString(), sub: `${governance.security.runs_with_events} with security evidence` },
+            { label: 'Tool Policies', value: governance.tool_governance.active_tool_policies.toLocaleString(), sub: `${governance.tool_governance.filtered_tool_calls} filtered tool calls` },
+            { label: 'Security Events', value: governance.security.events.toLocaleString(), sub: `${governance.alert_rules.recent_firings} recent alert firings` },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/70 dark:border-slate-700 dark:bg-slate-900/80">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-50">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.sub}</p>
+            </div>
+          ))}
+          {[
+            { label: 'Approvals', value: governance.governance_pack.approvals.toLocaleString(), sub: `${scopePosture?.tool_context.pending_approvals ?? 0} pending` },
+            { label: 'Data Capture', value: governance.governance_pack.capture_policies.toLocaleString(), sub: 'capture policies' },
+            { label: 'Audit & Pack', value: governance.audit_log.governance_events.toLocaleString(), sub: `${governance.governance_pack.tags} active tags` },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/70 dark:border-slate-700 dark:bg-slate-900/80">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-50">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.sub}</p>
+            </div>
+          ))}
+          <div className="md:col-span-3 flex flex-wrap gap-3 rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-xs font-semibold text-cyan-800 dark:border-cyan-900/40 dark:bg-cyan-950/20 dark:text-cyan-100">
+            <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
+            <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
+            <Link href="/security" className="hover:underline">Security</Link>
+            <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
+            <Link href="/audit" className="hover:underline">Audit Log</Link>
+            <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
+            <Link href="/tags" className="hover:underline">Tags</Link>
+            <Link href="/approvals" className="hover:underline">Approvals</Link>
+            <Link href="/data-capture" className="hover:underline">Data Capture</Link>
+          </div>
+        </div>
+      )}
+      {finops && (
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            { label: 'Active Budgets', value: `${finops.budget_context.active_budgets} / ${finops.budget_context.budgets}`, sub: `${finops.budget_context.breach_count} in breach` },
+            { label: 'Budget Limit', value: money(finops.budget_context.total_limit_usd), sub: `${finops.budget_context.active_overrides} active overrides` },
+            { label: 'Spend (30d)', value: money(finops.spend_context.total_spend_30d), sub: `${finops.spend_context.total_runs_30d.toLocaleString()} runs` },
+            { label: 'Billing', value: `${finops.billing_context.open_billing_periods} open`, sub: `${finops.billing_context.chargeback_rules} chargeback rules` },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/70 dark:border-slate-700 dark:bg-slate-900/80">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-50">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.sub}</p>
+            </div>
+          ))}
+          <div className="md:col-span-4 flex flex-wrap gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs font-semibold text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100">
+            <Link href="/budgets" className="hover:underline">Budgets</Link>
+            <Link href="/budgets?view=detail" className="hover:underline">Budget Detail</Link>
+            <Link href="/billing" className="hover:underline">Billing Periods</Link>
+            <Link href="/chargeback" className="hover:underline">Chargeback</Link>
+            <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
+          </div>
+        </div>
+      )}
+      {orgIdentity && (
+        <div className="grid gap-3 md:grid-cols-5">
+          {[
+            { label: 'Workspace Users', value: orgIdentity.user_context.workspace_users.toLocaleString(), sub: `${orgIdentity.user_context.distinct_end_users_30d} distinct end users (30d)` },
+            { label: 'API Keys', value: `${orgIdentity.api_key_context.active_keys} / ${orgIdentity.api_key_context.total_keys}`, sub: `${orgIdentity.api_key_context.keys_with_traffic_30d} with traffic (30d)` },
+            { label: 'Access Groups', value: scopePosture ? `${scopePosture.access_group_context.active_access_groups}/${scopePosture.access_group_context.access_groups}` : '—', sub: scopePosture ? `${scopePosture.access_group_context.total_members} members` : 'loading' },
+            { label: 'MCP Servers', value: orgIdentity.mcp_context.servers.toLocaleString(), sub: `${orgIdentity.mcp_context.tool_calls_30d.toLocaleString()} tool calls (30d)` },
+            { label: 'Telemetry', value: orgIdentity.telemetry_context.batches_30d.toLocaleString(), sub: `${orgIdentity.user_context.runs_30d.toLocaleString()} runs (30d)` },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/70 dark:border-slate-700 dark:bg-slate-900/80">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-50">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.sub}</p>
+            </div>
+          ))}
+          <div className="md:col-span-5 flex flex-wrap gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-xs font-semibold text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-100">
+            <Link href="/organization" className="hover:underline">Organization</Link>
+            <Link href="/users" className="hover:underline">Users</Link>
+            <Link href="/api-keys" className="hover:underline">API Keys</Link>
+            <Link href="/access-groups" className="hover:underline">Access Groups</Link>
+            <Link href="/telemetry" className="hover:underline">Telemetry</Link>
+            <Link href="/mcp-registry" className="hover:underline">MCP Registry</Link>
+          </div>
+        </div>
+      )}
+      {gatewayRuntime && (
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            { label: 'Providers', value: `${gatewayRuntime.provider_context.distinct_providers} providers`, sub: `${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.provider_context.routing_policies} policies` },
+            { label: 'Gateway Traffic', value: gatewayRuntime.route_context.gateway_requests_30d.toLocaleString(), sub: `${gatewayRuntime.route_context.cache_hits_30d.toLocaleString()} cache hits (30d)` },
+            { label: 'Guardrails', value: `${gatewayRuntime.guardrail_context.active_rules} rules`, sub: `${gatewayRuntime.guardrail_context.events_30d.toLocaleString()} events, ${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)` },
+            { label: 'Cache', value: `${gatewayRuntime.cache_context.enabled_configs} configs`, sub: `${gatewayRuntime.cache_context.total_hits.toLocaleString()} total hits, $${gatewayRuntime.cache_context.savings_usd.toFixed(2)} saved` },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/70 dark:border-slate-700 dark:bg-slate-900/80">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-50">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.sub}</p>
+            </div>
+          ))}
+          <div className="md:col-span-4 flex flex-wrap gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-xs font-semibold text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-100">
+            <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
+            <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
+            <Link href="/guardrails" className="hover:underline">Guardrails</Link>
+            <Link href="/cache-config" className="hover:underline">Response Cache</Link>
+            <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
+          </div>
+        </div>
+      )}
       <RunsTable items={data.items} />
       {nextHref && (
         <div className="mt-4 flex justify-center">

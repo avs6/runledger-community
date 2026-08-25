@@ -220,6 +220,7 @@ class RequestRecord(BaseModel):
     latency_ms: int | None
     status: str
     created_at: str
+    tags: list[str] = []
 
 
 class RequestExplorerResponse(BaseModel):
@@ -227,6 +228,181 @@ class RequestExplorerResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class InvestigationOrgIdentityPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int | str]
+    user_context: dict[str, int]
+    api_key_context: dict[str, int]
+    telemetry_context: dict[str, int]
+    mcp_context: dict[str, int]
+
+
+class InvestigationGatewayRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    provider_context: dict[str, int]
+    route_context: dict[str, int]
+    guardrail_context: dict[str, int]
+    cache_context: dict[str, int | float]
+    rate_limit_context: dict[str, int]
+
+
+class InvestigationGovernancePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    filtered_runs: int
+    tags: list[str]
+    tool_governance: dict[str, int]
+    security: dict[str, int]
+    alert_rules: dict[str, int]
+    audit_log: dict[str, int]
+    governance_pack: dict[str, int]
+
+
+class EconomicsFinopsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int]
+    notification_context: dict[str, int]
+    ledger_context: dict[str, int]
+    spend_context: dict[str, float | int]
+
+
+class OutcomesFinopsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int]
+    spend_context: dict[str, float | int]
+
+
+class MonitoringFinopsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int]
+    notification_context: dict[str, int]
+    ledger_context: dict[str, int]
+
+
+class OverviewGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    provider_context: dict[str, int]
+    route_context: dict[str, int]
+    guardrail_context: dict[str, int]
+
+
+class OverviewGovernancePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    security_context: dict[str, int]
+    alert_context: dict[str, int]
+    audit_context: dict[str, int]
+    governance_context: dict[str, int]
+
+
+class OverviewOrgPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    user_context: dict[str, int]
+    api_key_context: dict[str, int]
+    telemetry_context: dict[str, int]
+    mcp_context: dict[str, int]
+    hub_context: dict[str, int]
+
+
+class OverviewScopePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    access_group_context: dict[str, int]
+    cache_context: dict[str, int | float]
+    rate_limit_context: dict[str, int]
+    tool_context: dict[str, int]
+
+
+class ModelUsageGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    gateway_context: dict[str, int]
+    investigation_context: dict[str, int]
+    tag_context: dict[str, int]
+
+
+class EconomicsGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    provider_context: dict[str, int]
+    gateway_context: dict[str, int]
+    investigation_context: dict[str, int]
+
+
+class MonitoringOpsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    gateway_context: dict[str, int]
+    governance_context: dict[str, int]
+    org_context: dict[str, int]
+    investigation_context: dict[str, int]
+
+
+class TelemetryOpsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    gateway_context: dict[str, int]
+    governance_context: dict[str, int]
+    org_context: dict[str, int]
+    investigation_context: dict[str, int]
+
+
+class UserAnalyticsOrgPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int | str]
+    user_context: dict[str, int]
+    workspace_context: dict[str, int]
+
+
+class InvestigationFinopsBudgetPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int]
+    spend_context: dict[str, float | int]
+
+
+class OverviewFinopsBudgetPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int]
+    spend_context: dict[str, float | int]
+    notification_context: dict[str, int]
+
+
+class ModelBudgetUtilizationItem(BaseModel):
+    model: str
+    spend_30d: float
+    request_count: int
+    budget_limit_usd: float | None
+    budget_action: str | None
+    period_type: str | None
+    is_active: bool
+
+
+class ModelBudgetUtilization(BaseModel):
+    workspace_id: str
+    period_days: int
+    models: list[ModelBudgetUtilizationItem]
+    total_model_budgets: int
+    active_model_budgets: int
+    billing_periods: int
+    open_billing_periods: int
+    chargeback_rules: int
 
 
 # ── Phase 8: Engineering metrics ─────────────────────────────────────────────

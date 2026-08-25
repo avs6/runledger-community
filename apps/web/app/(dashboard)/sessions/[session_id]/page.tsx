@@ -152,6 +152,23 @@ export default function SessionDetailPage({
         </div>
       </div>
 
+      {/* Identity & investigation context */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs font-semibold dark:border-blue-900/40 dark:bg-blue-950/20">
+        <span className="text-blue-700 dark:text-blue-200">Identity:</span>
+        <Link href="/organization" className="text-blue-800 hover:underline dark:text-blue-100">Organization</Link>
+        {detail.end_user_id && (
+          <Link href={`/runs?end_user_id=${encodeURIComponent(detail.end_user_id)}`} className="text-blue-800 hover:underline dark:text-blue-100">User Runs</Link>
+        )}
+        <Link href="/users" className="text-blue-800 hover:underline dark:text-blue-100">Users</Link>
+        <Link href="/api-keys" className="text-blue-800 hover:underline dark:text-blue-100">API Keys</Link>
+        <Link href="/telemetry" className="text-blue-800 hover:underline dark:text-blue-100">Telemetry</Link>
+        <span className="mx-1 text-slate-300 dark:text-slate-600">|</span>
+        <span className="text-emerald-700 dark:text-emerald-200">FinOps:</span>
+        <Link href="/budgets" className="text-emerald-800 hover:underline dark:text-emerald-100">Budgets</Link>
+        <Link href="/budgets?view=detail" className="text-emerald-800 hover:underline dark:text-emerald-100">Budget Detail</Link>
+        <Link href="/chargeback" className="text-emerald-800 hover:underline dark:text-emerald-100">Chargeback</Link>
+      </div>
+
       {/* Cumulative cost chart */}
       {chartData.length > 0 && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-4">

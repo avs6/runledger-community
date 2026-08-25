@@ -1,10 +1,10 @@
 # WU-001: Investigation Surfaces Access-Group Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - B (Investigation)
 - **Target**: 03-OBSERVE/Runs list, Run detail, Request flow, Request explorer
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-22
 
 ## Cohesion Cells to Close
 

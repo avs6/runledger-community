@@ -1,10 +1,10 @@
 # WU-012: Analytics Overview Scope Posture Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - Bundle A (Overview and Scoped Entry Points)
 - **Target**: 03-OBSERVE/Analytics overview (`/analytics`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-25
 
 ## Cohesion Cells to Close
 

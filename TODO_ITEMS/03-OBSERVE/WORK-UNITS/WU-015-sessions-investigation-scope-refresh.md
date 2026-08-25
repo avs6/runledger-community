@@ -1,10 +1,10 @@
 # WU-015: Sessions Investigation Scope Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - Bundle B (Request, Run, and Session Investigation)
 - **Target**: 03-OBSERVE/Sessions list + Session detail (`/sessions`, `/sessions/{session_id}`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-25
 
 ## Cohesion Cells to Close
 

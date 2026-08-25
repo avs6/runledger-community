@@ -199,6 +199,10 @@ export async function getRuns(
     min_cost?: string
     max_cost?: string
     access_group_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: boolean
+    api_key_id?: string
   } = {}
 ): Promise<RunListResponse> {
   const qs = new URLSearchParams()
@@ -214,6 +218,10 @@ export async function getRuns(
   if (params.min_cost) qs.set('min_cost', params.min_cost)
   if (params.max_cost) qs.set('max_cost', params.max_cost)
   if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.tag) qs.set('tag', params.tag)
+  if (params.tool_name) qs.set('tool_name', params.tool_name)
+  if (params.security_event_only) qs.set('security_event_only', 'true')
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
 
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<RunListResponse>(`/runs${query}`, apiKey)
@@ -241,6 +249,17 @@ export async function getRunGraph(
   return apiFetch<RunGraphResponse>(`/runs/${runId}/graph${query}`, apiKey)
 }
 
+export async function getRunGovernanceContext(
+  apiKey: string,
+  runId: string,
+  params: { access_group_id?: string } = {}
+): Promise<import('@/types/api').RunGovernanceContextResponse> {
+  const qs = new URLSearchParams()
+  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').RunGovernanceContextResponse>(`/runs/${runId}/governance${query}`, apiKey)
+}
+
 export async function cancelRun(apiKey: string, runId: string): Promise<RunListItem> {
   return apiFetch<RunListItem>(`/runs/${runId}/cancel`, apiKey, { method: 'PATCH' })
 }
@@ -255,6 +274,11 @@ export async function getRunFlow(
     from?: string
     to?: string
     access_group_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: boolean
+    api_key_id?: string
+    end_user_id?: string
   } = {}
 ): Promise<import('@/types/api').RunFlowResponse> {
   const qs = new URLSearchParams()
@@ -265,6 +289,11 @@ export async function getRunFlow(
   if (params.from) qs.set('from', params.from)
   if (params.to) qs.set('to', params.to)
   if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
+  if (params.tag) qs.set('tag', params.tag)
+  if (params.tool_name) qs.set('tool_name', params.tool_name)
+  if (params.security_event_only) qs.set('security_event_only', 'true')
+  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
+  if (params.end_user_id) qs.set('end_user_id', params.end_user_id)
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<import('@/types/api').RunFlowResponse>(`/runs/flow${query}`, apiKey)
 }
@@ -274,10 +303,10 @@ export async function getRunFlow(
 interface TimeWindow {
   from?: string
   to?: string
-  [key: string]: string | number | undefined
+  [key: string]: string | number | boolean | undefined
 }
 
-function _analyticsQs(params: TimeWindow & Record<string, string | number | undefined>): string {
+function _analyticsQs(params: TimeWindow & Record<string, string | number | boolean | undefined>): string {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined) qs.set(k, String(v))
@@ -3156,6 +3185,9 @@ export async function getRequestExplorer(
     page?: number
     page_size?: number
     access_group_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: boolean
   } & TimeWindow = {}
 ): Promise<RequestExplorerResponse> {
   const qs: Record<string, string | undefined> = {}
@@ -3169,10 +3201,180 @@ export async function getRequestExplorer(
   if (params.end_user_id) qs.end_user_id = params.end_user_id
   if (params.optimization) qs.optimization = params.optimization
   if (params.access_group_id) qs.access_group_id = params.access_group_id
+  if (params.tag) qs.tag = params.tag
+  if (params.tool_name) qs.tool_name = params.tool_name
+  if (params.security_event_only) qs.security_event_only = 'true'
   if (params.page) qs.page = String(params.page)
   if (params.page_size) qs.page_size = String(params.page_size)
   return apiFetch<RequestExplorerResponse>(
     `/analytics/request-explorer${_analyticsQs(qs)}`,
+    apiKey
+  )
+}
+
+export async function getInvestigationGovernancePosture(
+  apiKey: string,
+  params: {
+    from?: string
+    to?: string
+    access_group_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: boolean
+  } = {}
+): Promise<import('@/types/api').InvestigationGovernancePosture> {
+  const qs: Record<string, string | undefined> = {}
+  if (params.from) qs.from = params.from
+  if (params.to) qs.to = params.to
+  if (params.access_group_id) qs.access_group_id = params.access_group_id
+  if (params.tag) qs.tag = params.tag
+  if (params.tool_name) qs.tool_name = params.tool_name
+  if (params.security_event_only) qs.security_event_only = 'true'
+  return apiFetch<import('@/types/api').InvestigationGovernancePosture>(
+    `/analytics/investigation-governance-posture${_analyticsQs(qs)}`,
+    apiKey
+  )
+}
+
+export async function getEconomicsFinopsPosture(
+  apiKey: string,
+): Promise<import('@/types/api').EconomicsFinopsPosture> {
+  return apiFetch<import('@/types/api').EconomicsFinopsPosture>(
+    '/analytics/economics-finops-posture',
+    apiKey
+  )
+}
+
+export async function getOutcomesFinopsPosture(
+  apiKey: string,
+): Promise<import('@/types/api').OutcomesFinopsPosture> {
+  return apiFetch<import('@/types/api').OutcomesFinopsPosture>(
+    '/analytics/outcomes-finops-posture',
+    apiKey
+  )
+}
+
+export async function getMonitoringFinopsPosture(
+  apiKey: string,
+): Promise<import('@/types/api').MonitoringFinopsPosture> {
+  return apiFetch<import('@/types/api').MonitoringFinopsPosture>(
+    '/analytics/monitoring-finops-posture',
+    apiKey
+  )
+}
+
+export async function getOverviewGatewayPosture(apiKey: string): Promise<import('@/types/api').OverviewGatewayPosture> {
+  return fetchApi<import('@/types/api').OverviewGatewayPosture>(
+    '/analytics/overview-gateway-posture',
+    apiKey,
+  )
+}
+
+export async function getOverviewGovernancePosture(apiKey: string): Promise<import('@/types/api').OverviewGovernancePosture> {
+  return fetchApi<import('@/types/api').OverviewGovernancePosture>(
+    '/analytics/overview-governance-posture',
+    apiKey,
+  )
+}
+
+export async function getOverviewOrgPosture(apiKey: string): Promise<import('@/types/api').OverviewOrgPosture> {
+  return fetchApi<import('@/types/api').OverviewOrgPosture>(
+    '/analytics/overview-org-posture',
+    apiKey,
+  )
+}
+
+export async function getOverviewScopePosture(apiKey: string): Promise<import('@/types/api').OverviewScopePosture> {
+  return fetchApi<import('@/types/api').OverviewScopePosture>(
+    '/analytics/overview-scope-posture',
+    apiKey,
+  )
+}
+
+export async function getMonitoringOpsPosture(apiKey: string): Promise<import('@/types/api').MonitoringOpsPosture> {
+  return fetchApi<import('@/types/api').MonitoringOpsPosture>(
+    '/analytics/monitoring-ops-posture',
+    apiKey,
+  )
+}
+
+export async function getTelemetryOpsPosture(apiKey: string): Promise<import('@/types/api').TelemetryOpsPosture> {
+  return fetchApi<import('@/types/api').TelemetryOpsPosture>(
+    '/analytics/telemetry-ops-posture',
+    apiKey,
+  )
+}
+
+export async function getUserAnalyticsOrgPosture(apiKey: string): Promise<import('@/types/api').UserAnalyticsOrgPosture> {
+  return fetchApi<import('@/types/api').UserAnalyticsOrgPosture>(
+    '/analytics/user-analytics-org-posture',
+    apiKey,
+  )
+}
+
+export async function getModelUsageGatewayPosture(apiKey: string): Promise<import('@/types/api').ModelUsageGatewayPosture> {
+  return fetchApi<import('@/types/api').ModelUsageGatewayPosture>(
+    '/analytics/model-usage-gateway-posture',
+    apiKey,
+  )
+}
+
+export async function getEconomicsGatewayPosture(apiKey: string): Promise<import('@/types/api').EconomicsGatewayPosture> {
+  return fetchApi<import('@/types/api').EconomicsGatewayPosture>(
+    '/analytics/economics-gateway-posture',
+    apiKey,
+  )
+}
+
+export async function getInvestigationGatewayRuntimePosture(
+  apiKey: string,
+  params: { access_group_id?: string } = {}
+): Promise<import('@/types/api').InvestigationGatewayRuntimePosture> {
+  const qs: Record<string, string | undefined> = {}
+  if (params.access_group_id) qs.access_group_id = params.access_group_id
+  return apiFetch<import('@/types/api').InvestigationGatewayRuntimePosture>(
+    `/analytics/investigation-gateway-runtime-posture${_analyticsQs(qs)}`,
+    apiKey
+  )
+}
+
+export async function getInvestigationOrgIdentityPosture(
+  apiKey: string,
+): Promise<import('@/types/api').InvestigationOrgIdentityPosture> {
+  return apiFetch<import('@/types/api').InvestigationOrgIdentityPosture>(
+    '/analytics/investigation-org-identity-posture',
+    apiKey
+  )
+}
+
+export async function getInvestigationFinopsBudgetPosture(
+  apiKey: string,
+  params: {
+    access_group_id?: string
+  } = {}
+): Promise<import('@/types/api').InvestigationFinopsBudgetPosture> {
+  const qs: Record<string, string | undefined> = {}
+  if (params.access_group_id) qs.access_group_id = params.access_group_id
+  return apiFetch<import('@/types/api').InvestigationFinopsBudgetPosture>(
+    `/analytics/investigation-finops-budget-posture${_analyticsQs(qs)}`,
+    apiKey
+  )
+}
+
+export async function getOverviewFinopsBudgetPosture(
+  apiKey: string,
+): Promise<import('@/types/api').OverviewFinopsBudgetPosture> {
+  return apiFetch<import('@/types/api').OverviewFinopsBudgetPosture>(
+    '/analytics/overview-finops-budget-posture',
+    apiKey
+  )
+}
+
+export async function getModelBudgetUtilization(
+  apiKey: string,
+): Promise<import('@/types/api').ModelBudgetUtilization> {
+  return apiFetch<import('@/types/api').ModelBudgetUtilization>(
+    '/analytics/model-budget-utilization',
     apiKey
   )
 }
@@ -4930,6 +5132,10 @@ export async function getResponseCacheEconomicsPosture(apiKey: string): Promise<
 
 export async function getRateLimitScopePosture(apiKey: string): Promise<import('@/types/api').RateLimitScopePosture> {
   return apiFetch<import('@/types/api').RateLimitScopePosture>('/analytics/rate-limit-scope-posture', apiKey)
+}
+
+export async function getInvestigationAccessGroupPosture(apiKey: string): Promise<import('@/types/api').InvestigationAccessGroupPosture> {
+  return apiFetch<import('@/types/api').InvestigationAccessGroupPosture>('/analytics/investigation-access-group-posture', apiKey)
 }
 
 export async function getGuardrailsFinopsPosture(apiKey: string): Promise<import('@/types/api').GuardrailsFinopsPosture> {

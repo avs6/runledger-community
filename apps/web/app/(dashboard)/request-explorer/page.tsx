@@ -17,18 +17,23 @@ import {
   Sparkles,
   Tags,
   User,
+  KeyRound,
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRequestExplorer, getRun, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationOrgIdentityPosture, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId } from '@/lib/utils'
 import type {
   GatewayRequestLog,
+  InvestigationFinopsBudgetPosture,
+  InvestigationGatewayRuntimePosture,
+  InvestigationOrgIdentityPosture,
   OutcomeResponse,
   ProviderCallDetail,
   RequestRecord,
   RunDetailResponse,
+  RunGovernanceContextResponse,
   SpanDetail,
   ToolCallDetail,
 } from '@/types/api'
@@ -45,6 +50,10 @@ interface PageProps {
     optimization?: string
     page?: string
     access_group_id?: string
+    api_key_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: string
   }
 }
 
@@ -230,7 +239,7 @@ function RunList({ requests, selectedRunId, searchParams }: { requests: RequestR
 
 function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }) {
   return (
-    <form action="/request-explorer" className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-300 dark:bg-white/80 md:grid-cols-8">
+    <form action="/request-explorer" className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-300 dark:bg-white/80 md:grid-cols-11">
       {searchParams.access_group_id && <input type="hidden" name="access_group_id" value={searchParams.access_group_id} />}
       <div className="md:col-span-2">
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Search</label>
@@ -266,6 +275,24 @@ function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }
       <div>
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Optimization</label>
         <input name="optimization" defaultValue={searchParams.optimization ?? ''} placeholder="cache, routing..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Gov Tag</label>
+        <input name="tag" defaultValue={searchParams.tag ?? ''} placeholder="pci, prod..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tool</label>
+        <input name="tool_name" defaultValue={searchParams.tool_name ?? ''} placeholder="browser.search" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">API Key</label>
+        <input name="api_key_id" defaultValue={searchParams.api_key_id ?? ''} placeholder="key_abc123..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
+      </div>
+      <div className="flex items-end">
+        <label className="flex h-[42px] w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
+          <input type="checkbox" name="security_event_only" value="true" defaultChecked={searchParams.security_event_only === 'true'} />
+          Security only
+        </label>
       </div>
       <div className="flex items-end gap-2">
         <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
@@ -449,12 +476,19 @@ function RequestDetail({
   outcomes,
   gatewayMatch,
   accessGroupId,
+  governance,
+  finops,
+  orgIdentity,
 }: {
   run: RunDetailResponse
   graphNodeCount: number
   outcomes: OutcomeResponse[]
   gatewayMatch: GatewayRequestLog | null
   accessGroupId?: string
+  governance: RunGovernanceContextResponse | null
+  finops: InvestigationFinopsBudgetPosture | null
+  orgIdentity: InvestigationOrgIdentityPosture | null
+  gatewayRuntime: InvestigationGatewayRuntimePosture | null
 }) {
   const totalTokens = (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0)
   const { routeAlias, decision } = routingEvidence(run, gatewayMatch)
@@ -472,6 +506,7 @@ function RequestDetail({
     { label: 'Latency', value: formatDuration(run.duration_ms), icon: Clock },
     { label: 'Tokens', value: formatTokens(totalTokens), icon: Activity },
     { label: 'End User', value: run.end_user_id ?? 'Not captured', icon: User },
+    { label: 'API Key', value: run.api_key_id ? truncateId(run.api_key_id, 12) : 'Not captured', icon: KeyRound },
   ]
 
   return (
@@ -510,6 +545,103 @@ function RequestDetail({
         </div>
       </Card>
 
+      {governance && (
+        <Card className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Governance Evidence</h2>
+              <p className="mt-1 text-sm text-slate-500">Inline runtime evidence for tool governance, security, alerting, audit, and governance-pack posture.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-cyan-700">
+              <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
+              <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
+              <Link href="/security" className="hover:underline">Security</Link>
+              <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
+              <Link href="/audit" className="hover:underline">Audit Log</Link>
+              <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
+              <Link href="/tags" className="hover:underline">Tags</Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Tags" value={governance.tags.length ? governance.tags.join(', ') : 'No tags'} detail="Request and feature tags available for governance drill-through." icon={Tags} />
+            <LifecycleCard title="Tool Policies" value={String(governance.tool_evidence.reduce((sum, item) => sum + item.matched_policy_count, 0))} detail={`${governance.tool_evidence.length} tools with policy evidence`} icon={Wrench} />
+            <LifecycleCard title="Security Events" value={String(governance.security_events.length)} detail="Correlated by run, tool, or end user." icon={ShieldCheck} />
+            <LifecycleCard title="Alerts / Audit" value={`${governance.alert_evidence.length} / ${governance.audit_events.length}`} detail="Recent alert firings and governance audit events in the same runtime window." icon={Activity} />
+          </div>
+        </Card>
+      )}
+
+      {finops && (
+        <Card className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Budget Context</h2>
+              <p className="mt-1 text-sm text-slate-500">FinOps budget posture for this request's workspace — budget utilization, billing periods, and chargeback attribution.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-emerald-700">
+              <Link href="/budgets" className="hover:underline">Budgets</Link>
+              <Link href="/billing" className="hover:underline">Billing Periods</Link>
+              <Link href="/chargeback" className="hover:underline">Chargeback</Link>
+              <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Active Budgets" value={`${finops.budget_context.active_budgets} / ${finops.budget_context.budgets}`} detail={`${finops.budget_context.breach_count} budget(s) in breach`} icon={DollarSign} />
+            <LifecycleCard title="Budget Limit" value={formatCost(finops.budget_context.total_limit_usd)} detail={`${finops.budget_context.active_overrides} active overrides`} icon={ShieldCheck} />
+            <LifecycleCard title="30d Spend" value={formatCost(finops.spend_context.total_spend_30d)} detail={`${finops.spend_context.total_runs_30d.toLocaleString()} runs`} icon={Activity} />
+            <LifecycleCard title="Billing" value={`${finops.billing_context.open_billing_periods} open`} detail={`${finops.billing_context.chargeback_rules} chargeback rules`} icon={Clock} />
+          </div>
+        </Card>
+      )}
+
+      {orgIdentity && (
+        <Card className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Org Identity Context</h2>
+              <p className="mt-1 text-sm text-slate-500">Organization identity posture — workspace users, API keys, telemetry, and MCP registry correlation for this request.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-blue-700">
+              <Link href="/organization" className="hover:underline">Organization</Link>
+              <Link href="/users" className="hover:underline">Users</Link>
+              <Link href="/api-keys" className="hover:underline">API Keys</Link>
+              <Link href="/telemetry" className="hover:underline">Telemetry</Link>
+              <Link href="/mcp-registry" className="hover:underline">MCP Registry</Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Workspace Users" value={String(orgIdentity.user_context.workspace_users)} detail={`${orgIdentity.user_context.distinct_end_users_30d} distinct end users (30d)`} icon={User} />
+            <LifecycleCard title="API Keys" value={`${orgIdentity.api_key_context.active_keys} active`} detail={`${orgIdentity.api_key_context.total_keys} total, ${orgIdentity.api_key_context.keys_with_traffic_30d} with traffic`} icon={KeyRound} />
+            <LifecycleCard title="MCP Servers" value={String(orgIdentity.mcp_context.servers)} detail={`${orgIdentity.mcp_context.tool_calls_30d.toLocaleString()} tool calls (30d)`} icon={Network} />
+            <LifecycleCard title="Telemetry" value={`${orgIdentity.telemetry_context.batches_30d.toLocaleString()} batches`} detail={`${orgIdentity.telemetry_context.runs_30d.toLocaleString()} runs (30d)`} icon={Activity} />
+          </div>
+        </Card>
+      )}
+
+      {gatewayRuntime && (
+        <Card className="p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Gateway Runtime Context</h2>
+              <p className="mt-1 text-sm text-slate-500">Provider routing, guardrails, cache, and rate limits for this request's workspace.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-violet-700">
+              <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
+              <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
+              <Link href="/guardrails" className="hover:underline">Guardrails</Link>
+              <Link href="/cache-config" className="hover:underline">Response Cache</Link>
+              <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Providers" value={`${gatewayRuntime.provider_context.distinct_providers} providers`} detail={`${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.provider_context.routing_policies} policies`} icon={Network} />
+            <LifecycleCard title="Guardrails" value={`${gatewayRuntime.guardrail_context.active_rules} rules`} detail={`${gatewayRuntime.guardrail_context.events_30d.toLocaleString()} events, ${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)`} icon={ShieldCheck} />
+            <LifecycleCard title="Cache" value={`${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits`} detail={`${gatewayRuntime.cache_context.enabled_configs} configs, $${gatewayRuntime.cache_context.savings_usd.toFixed(2)} saved`} icon={Sparkles} />
+            <LifecycleCard title="Rate Limits" value={`${gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM-limited`} detail={`${gatewayRuntime.rate_limit_context.routes_with_cost_limits} cost-limited routes`} icon={Clock} />
+          </div>
+        </Card>
+      )}
+
       <PayloadPanel run={run} />
 
       <div className="grid gap-5 xl:grid-cols-2">
@@ -543,21 +675,32 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
     provider: searchParams.provider,
     optimization: searchParams.optimization,
     access_group_id: accessGroupId,
+    tag: searchParams.tag,
+    tool_name: searchParams.tool_name,
+    security_event_only: searchParams.security_event_only === 'true',
     page: Number.isFinite(page) && page > 0 ? page : 1,
     page_size: 50,
   })
   const selectedId = searchParams.run_id ?? requestExplorer.items[0]?.run_id ?? null
 
-  const [runResult, graphResult, outcomesResult, gatewayResult] = selectedId
+  const [runResult, governanceResult, graphResult, outcomesResult, gatewayResult, finopsResult, orgIdentityResult, gatewayRuntimeResult] = selectedId
     ? await Promise.allSettled([
         getRun(session.apiKey, selectedId, { access_group_id: accessGroupId }),
+        getRunGovernanceContext(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         getRunGraph(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         listOutcomes(session.apiKey, { run_id: selectedId, limit: 20 }),
         listGatewayRequests(session.apiKey, { limit: 100 }),
+        getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }),
+        getInvestigationOrgIdentityPosture(session.apiKey),
+        getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }),
       ])
     : []
 
   const selectedRun = runResult?.status === 'fulfilled' ? runResult.value : null
+  const governance = governanceResult?.status === 'fulfilled' ? governanceResult.value : null
+  const finops = finopsResult?.status === 'fulfilled' ? finopsResult.value : null
+  const orgIdentity = orgIdentityResult?.status === 'fulfilled' ? orgIdentityResult.value : null
+  const gatewayRuntimePosture = gatewayRuntimeResult?.status === 'fulfilled' ? gatewayRuntimeResult.value : null
   const graphNodeCount = graphResult?.status === 'fulfilled' ? graphResult.value.nodes.length : 0
   const outcomes = outcomesResult?.status === 'fulfilled' ? outcomesResult.value.items : []
   const gatewayRequests = gatewayResult?.status === 'fulfilled' ? gatewayResult.value.items : []
@@ -611,7 +754,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <RunList requests={requestExplorer.items} selectedRunId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
         {selectedRun ? (
-          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} />
+          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} governance={governance} finops={finops} orgIdentity={orgIdentity} gatewayRuntime={gatewayRuntimePosture} />
         ) : (
           <Card className="p-12 text-center">
             <p className="text-base font-semibold text-slate-950">Select a request</p>

@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
-import { MessageSquare, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { KeyRound, MessageSquare, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { listSessions } from '@/lib/api'
 import SessionsExportButton from '@/components/sessions/SessionsExportButton'
@@ -58,6 +58,7 @@ export default async function SessionsPage({
   searchParams?: {
     q?: string
     end_user_id?: string
+    api_key_id?: string
     time?: string
     min_turns?: string
     min_cost?: string
@@ -78,6 +79,7 @@ export default async function SessionsPage({
   const activeParams: Record<string, string | undefined> = {
     q: searchParams?.q,
     end_user_id: searchParams?.end_user_id,
+    api_key_id: searchParams?.api_key_id,
     time: timePreset !== 'all' ? timePreset : undefined,
     min_turns: searchParams?.min_turns,
     min_cost: searchParams?.min_cost,
@@ -100,6 +102,7 @@ export default async function SessionsPage({
   const hasFilters = Boolean(
     searchParams?.q ||
     searchParams?.end_user_id ||
+    searchParams?.api_key_id ||
     (timePreset !== 'all') ||
     searchParams?.min_turns ||
     searchParams?.min_cost ||
@@ -163,6 +166,19 @@ export default async function SessionsPage({
               placeholder="user ID"
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">API Key</label>
+            <div className="relative mt-1">
+              <KeyRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                name="api_key_id"
+                defaultValue={searchParams?.api_key_id ?? ''}
+                placeholder="key_abc..."
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-900"
+              />
+            </div>
           </div>
 
           <div>
@@ -306,6 +322,20 @@ export default async function SessionsPage({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs font-semibold dark:border-blue-900/40 dark:bg-blue-950/20">
+        <span className="text-blue-700 dark:text-blue-200">Org Identity:</span>
+        <Link href="/organization" className="text-blue-800 hover:underline dark:text-blue-100">Organization</Link>
+        <Link href="/users" className="text-blue-800 hover:underline dark:text-blue-100">Users</Link>
+        <Link href="/api-keys" className="text-blue-800 hover:underline dark:text-blue-100">API Keys</Link>
+        <Link href="/telemetry" className="text-blue-800 hover:underline dark:text-blue-100">Telemetry</Link>
+        <Link href="/mcp-registry" className="text-blue-800 hover:underline dark:text-blue-100">MCP Registry</Link>
+        <span className="mx-1 text-slate-300 dark:text-slate-600">|</span>
+        <span className="text-emerald-700 dark:text-emerald-200">FinOps:</span>
+        <Link href="/budgets" className="text-emerald-800 hover:underline dark:text-emerald-100">Budgets</Link>
+        <Link href="/budgets?view=detail" className="text-emerald-800 hover:underline dark:text-emerald-100">Budget Detail</Link>
+        <Link href="/chargeback" className="text-emerald-800 hover:underline dark:text-emerald-100">Chargeback</Link>
       </div>
 
       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">

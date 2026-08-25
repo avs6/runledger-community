@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Trophy, Star, ArrowUpDown, ChevronDown, ChevronRight, Lightbulb, AlertTriangle } from 'lucide-react'
+import { Trophy, Star, ArrowUpDown, ChevronDown, ChevronRight, Lightbulb, AlertTriangle, Building2 } from 'lucide-react'
 import {
   ResponsiveContainer,
   LineChart,
@@ -144,6 +144,17 @@ export default function ModelScorecardsPage() {
             Compare models across cost, latency, quality, and reliability
           </p>
         </div>
+      </div>
+
+      {/* Workspace context bar */}
+      <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-2.5 dark:border-blue-800 dark:bg-blue-950/30">
+        <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        <p className="text-sm text-blue-800 dark:text-blue-200">
+          Scorecards are scoped to your current workspace.
+        </p>
+        <Link href="/workspaces" className="ml-auto rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50 transition-colors">
+          Workspaces
+        </Link>
       </div>
 
       {/* Time range selector */}

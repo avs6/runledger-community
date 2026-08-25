@@ -1,10 +1,10 @@
 # WU-002: Investigation Surfaces FinOps Budget Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - B (Investigation)
 - **Target**: 03-OBSERVE/Request flow, Request explorer
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-24
 
 ## Cohesion Cells to Close
 

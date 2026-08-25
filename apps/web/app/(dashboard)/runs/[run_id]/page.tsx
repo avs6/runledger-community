@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRun, getRunGraph } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRun, getRunGovernanceContext, getRunGraph } from '@/lib/api'
 import CancelRunButton from '@/components/runs/CancelRunButton'
 import RunSummaryBar from '@/components/runs/RunSummaryBar'
 import RunGraph from '@/components/dag/RunGraph'
@@ -12,7 +12,7 @@ import {
   ChevronLeft, Cpu, Wrench, Layers, AlertTriangle,
 } from 'lucide-react'
 import { formatCost, formatTokens, formatDuration } from '@/lib/utils'
-import type { ProviderCallDetail, SpanDetail, ToolCallDetail } from '@/types/api'
+import type { InvestigationFinopsBudgetPosture, InvestigationGatewayRuntimePosture, InvestigationOrgIdentityPosture, OverviewScopePosture, ProviderCallDetail, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -200,6 +200,81 @@ function ToolCallsTable({ calls }: { calls: ToolCallDetail[] }) {
   )
 }
 
+function GovernanceEvidencePanel({ governance, scopePosture }: { governance: RunGovernanceContextResponse | null; scopePosture: OverviewScopePosture | null }) {
+  if (!governance) return null
+  return (
+    <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/70 p-4 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Governance evidence</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            Tags: {governance.tags.length ? governance.tags.join(', ') : 'none'} • Security events: {governance.security_events.length} • Alert firings: {governance.alert_evidence.length} • Audit events: {governance.audit_events.length}
+            {scopePosture && <> • Pending approvals: {scopePosture.tool_context.pending_approvals} • Capture policies: {scopePosture.tool_context.capture_policies}</>}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs font-semibold text-cyan-800 dark:text-cyan-100">
+          <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
+          <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
+          <Link href="/approvals" className="hover:underline">Approvals</Link>
+          <Link href="/data-capture" className="hover:underline">Data Capture</Link>
+          <Link href="/security" className="hover:underline">Security</Link>
+          <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
+          <Link href="/audit" className="hover:underline">Audit Log</Link>
+          <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
+          <Link href="/tags" className="hover:underline">Tags</Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FinopsBudgetPanel({ finops, runCost }: { finops: InvestigationFinopsBudgetPosture | null; runCost: number }) {
+  if (!finops) return null
+  const fmt = (v: number) => (v >= 1 ? `$${v.toFixed(2)}` : v >= 0.001 ? `$${v.toFixed(4)}` : `$${v.toFixed(6)}`)
+  return (
+    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Budget context</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            Run cost: {fmt(runCost)} • Active budgets: {finops.budget_context.active_budgets} • In breach: {finops.budget_context.breach_count} • 30d spend: {fmt(finops.spend_context.total_spend_30d)} of {fmt(finops.budget_context.total_limit_usd)} limit
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs font-semibold text-emerald-800 dark:text-emerald-100">
+          <Link href="/budgets" className="hover:underline">Budgets</Link>
+          <Link href="/budgets?view=detail" className="hover:underline">Budget Detail</Link>
+          <Link href="/billing" className="hover:underline">Billing Periods</Link>
+          <Link href="/chargeback" className="hover:underline">Chargeback</Link>
+          <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GatewayRuntimePanel({ gateway }: { gateway: InvestigationGatewayRuntimePosture | null }) {
+  if (!gateway) return null
+  return (
+    <div className="rounded-xl border border-violet-200/80 bg-violet-50/70 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Gateway runtime context</p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+            {gateway.provider_context.distinct_providers} providers, {gateway.provider_context.active_routes} active routes • {gateway.guardrail_context.active_rules} guardrail rules ({gateway.guardrail_context.events_30d} events, {gateway.guardrail_context.blocks_30d} blocks) • {gateway.cache_context.enabled_configs} cache configs ({gateway.cache_context.total_hits.toLocaleString()} hits, ${gateway.cache_context.savings_usd.toFixed(2)} saved) • {gateway.rate_limit_context.routes_with_rpm_limits} routes with RPM limits
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs font-semibold text-violet-800 dark:text-violet-100">
+          <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
+          <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
+          <Link href="/guardrails" className="hover:underline">Guardrails</Link>
+          <Link href="/cache-config" className="hover:underline">Response Cache</Link>
+          <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function RunDetailPage({
@@ -218,10 +293,20 @@ export default async function RunDetailPage({
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
   let run, graph
+  let governance: RunGovernanceContextResponse | null = null
+  let finops: InvestigationFinopsBudgetPosture | null = null
+  let gatewayRuntime: InvestigationGatewayRuntimePosture | null = null
+  let orgPosture: InvestigationOrgIdentityPosture | null = null
+  let scopePosture: OverviewScopePosture | null = null
   try {
-    ;[run, graph] = await Promise.all([
+    ;[run, graph, governance, finops, gatewayRuntime, orgPosture, scopePosture] = await Promise.all([
       getRun(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
       getRunGraph(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
+      getRunGovernanceContext(session.apiKey, params.run_id, { access_group_id: accessGroupId }).catch(() => null),
+      getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
+      getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
+      getInvestigationOrgIdentityPosture(session.apiKey).catch(() => null),
+      getOverviewScopePosture(session.apiKey).catch(() => null),
     ])
   } catch {
     notFound()
@@ -250,6 +335,61 @@ export default async function RunDetailPage({
           This run is being viewed inside the <span className="font-semibold">{accessGroup.name}</span> access-group investigation scope.
         </div>
       )}
+
+      <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/40">
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">Identity Provenance</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">End User</p>
+            <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-950 dark:text-slate-50">{run.end_user_id ?? 'Not captured'}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">API Key</p>
+            <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-950 dark:text-slate-50">{run.api_key_id ? run.api_key_id.slice(0, 12) + '…' : 'Not captured'}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Model</p>
+            <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{run.primary_model ?? 'Unknown'}</p>
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Feature Tag</p>
+            <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{run.feature_tag ?? 'Untagged'}</p>
+          </div>
+        </div>
+        {orgPosture && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Workspace</p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{orgPosture.org_context.workspace_name}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">{orgPosture.org_context.workspace_users} users</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">MCP Registry</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-slate-50">{orgPosture.mcp_context.servers} servers</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">{orgPosture.mcp_context.tool_calls_30d} tool calls (30d)</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Telemetry</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-slate-50">{orgPosture.telemetry_context.batches_30d} batches</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">{orgPosture.telemetry_context.runs_30d} runs (30d)</p>
+            </div>
+          </div>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link href="/organization" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Organization</Link>
+          <Link href="/workspaces" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Workspaces</Link>
+          {run.end_user_id && <Link href={`/runs?end_user_id=${encodeURIComponent(run.end_user_id)}`} className="text-xs text-blue-700 hover:underline dark:text-blue-400">User Runs</Link>}
+          {run.api_key_id && <Link href={`/runs?api_key_id=${encodeURIComponent(run.api_key_id)}`} className="text-xs text-blue-700 hover:underline dark:text-blue-400">API Key Runs</Link>}
+          <Link href="/users" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Users</Link>
+          <Link href="/api-keys" className="text-xs text-blue-700 hover:underline dark:text-blue-400">API Keys</Link>
+          <Link href="/telemetry" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Telemetry</Link>
+          <Link href="/mcp-registry" className="text-xs text-blue-700 hover:underline dark:text-blue-400">MCP Registry</Link>
+        </div>
+      </div>
+
+      <GovernanceEvidencePanel governance={governance} scopePosture={scopePosture} />
+      <FinopsBudgetPanel finops={finops} runCost={run.total_cost_usd ?? 0} />
+      <GatewayRuntimePanel gateway={gatewayRuntime} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
         <div>
