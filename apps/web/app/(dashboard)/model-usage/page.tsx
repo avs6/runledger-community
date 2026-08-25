@@ -1,9 +1,9 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Activity, ArrowRight, Clock, Cpu, GitBranch, Route, Sparkles, Table2 } from 'lucide-react'
+import { Activity, ArrowRight, Clock, Cpu, DollarSign, GitBranch, Network, Route, Sparkles, Table2, Tags, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBestValueModels, getCostQuality, getRunFlow } from '@/lib/api'
+import { getBestValueModels, getCostQuality, getModelBudgetUtilization, getModelUsageGatewayPosture, getRunFlow } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   ModelQualityCostBars,
@@ -268,7 +268,7 @@ export default async function ModelUsagePage({
     from: win.from,
     to: win.to,
   })
-  const [costQuality, bestValue] = await Promise.all([
+  const [costQuality, bestValue, modelBudgets, gatewayPosture] = await Promise.all([
     getCostQuality(session.apiKey, {
       score_name: 'quality',
       from: win.from,
@@ -279,6 +279,8 @@ export default async function ModelUsagePage({
       from: win.from,
       to: win.to,
     }).catch(() => ({ items: [] })),
+    getModelBudgetUtilization(session.apiKey).catch(() => null),
+    getModelUsageGatewayPosture(session.apiKey).catch(() => null),
   ])
 
   const items = flow.items
@@ -399,6 +401,154 @@ export default async function ModelUsagePage({
           </div>
         ))}
       </div>
+
+      {gatewayPosture && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">Gateway & Intelligence Context</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950">
+                {gatewayPosture.gateway_context.active_routes} active routes across {gatewayPosture.gateway_context.distinct_models} models
+              </h2>
+            </div>
+            <Network className="h-5 w-5 shrink-0 text-violet-500" />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg bg-white/80 p-3 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Routes</p>
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{gatewayPosture.gateway_context.active_routes}</p>
+              <p className="mt-1 text-xs text-slate-500">{gatewayPosture.gateway_context.total_routes} total</p>
+            </div>
+            <div className="rounded-lg bg-white/80 p-3 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Models</p>
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{gatewayPosture.gateway_context.distinct_models}</p>
+              <p className="mt-1 text-xs text-slate-500">{gatewayPosture.gateway_context.routing_policies} policies</p>
+            </div>
+            <div className="rounded-lg bg-white/80 p-3 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Runs 30d</p>
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{gatewayPosture.investigation_context.runs_30d}</p>
+              <p className="mt-1 text-xs text-slate-500">{gatewayPosture.investigation_context.provider_calls_30d} calls</p>
+            </div>
+            <div className="rounded-lg bg-white/80 p-3 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">Tags</p>
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{gatewayPosture.tag_context.active_tags}</p>
+              <p className="mt-1 text-xs text-slate-500">{gatewayPosture.tag_context.tags} total</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/gateway" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Model Gateway</Link>
+            <Link href="/provider-profiles" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Provider Profiles</Link>
+            <Link href="/runs" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Runs</Link>
+            <Link href="/request-flow" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Request Flow</Link>
+            <Link href="/request-explorer" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Request Explorer</Link>
+            <Link href="/tags" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Tags</Link>
+            <Link href="/monitoring/telemetry" className="rounded-full bg-blue-100 px-3 py-1 font-medium text-blue-700 hover:bg-blue-200 transition-colors dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">Telemetry</Link>
+          </div>
+        </div>
+      )}
+
+      {modelBudgets && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">FinOps Model Budget Utilization</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950">
+                {modelBudgets.active_model_budgets} active model budgets
+              </h2>
+            </div>
+            <Link href="/model-budgets" className="text-xs font-semibold text-emerald-700 hover:underline">Manage model budgets</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Model Budgets</p>
+                  <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{modelBudgets.active_model_budgets}</p>
+                  <p className="mt-1 text-xs text-slate-500">{modelBudgets.total_model_budgets} total</p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><Wallet className="h-5 w-5" /></div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Billing Periods</p>
+                  <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{modelBudgets.billing_periods}</p>
+                  <p className="mt-1 text-xs text-slate-500">{modelBudgets.open_billing_periods} open</p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><DollarSign className="h-5 w-5" /></div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Chargeback Rules</p>
+                  <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{modelBudgets.chargeback_rules}</p>
+                  <p className="mt-1 text-xs text-slate-500">attribution rules</p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><Activity className="h-5 w-5" /></div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Models with Budgets</p>
+                  <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">
+                    {modelBudgets.models.filter(m => m.budget_limit_usd !== null).length}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">{modelBudgets.models.length} total tracked</p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><Cpu className="h-5 w-5" /></div>
+              </div>
+            </div>
+          </div>
+          {modelBudgets.models.filter(m => m.budget_limit_usd !== null).length > 0 && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-y border-emerald-200 bg-emerald-50/80">
+                    {['Model', 'Spend (30d)', 'Requests', 'Budget Limit', 'Utilization', 'Action', 'Status'].map(h => (
+                      <th key={h} className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-emerald-100">
+                  {modelBudgets.models.filter(m => m.budget_limit_usd !== null).map(m => {
+                    const util = m.budget_limit_usd && m.budget_limit_usd > 0 ? (m.spend_30d / m.budget_limit_usd) * 100 : 0
+                    return (
+                      <tr key={m.model} className="hover:bg-emerald-50/40">
+                        <td className="px-4 py-2 font-semibold text-slate-950">{m.model}</td>
+                        <td className="px-4 py-2 font-mono text-xs font-semibold">{money(m.spend_30d)}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{m.request_count.toLocaleString()}</td>
+                        <td className="px-4 py-2 font-mono text-xs">{m.budget_limit_usd !== null ? money(m.budget_limit_usd) : '—'}</td>
+                        <td className="px-4 py-2 font-mono text-xs font-semibold">
+                          <span className={util > 100 ? 'text-red-600' : util > 80 ? 'text-amber-600' : 'text-emerald-600'}>
+                            {percent(util)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-xs text-slate-500">{m.budget_action ?? '—'}</td>
+                        <td className="px-4 py-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {m.is_active ? 'active' : 'inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/model-budgets" className="text-xs text-emerald-700 hover:underline">Model Budgets</Link>
+            <Link href="/budgets" className="text-xs text-emerald-700 hover:underline">Budgets</Link>
+            <Link href="/budgets?view=detail" className="text-xs text-emerald-700 hover:underline">Budget Detail</Link>
+            <Link href="/billing" className="text-xs text-emerald-700 hover:underline">Billing Periods</Link>
+            <Link href="/billing?view=detail" className="text-xs text-emerald-700 hover:underline">Billing Detail</Link>
+            <Link href="/chargeback" className="text-xs text-emerald-700 hover:underline">Chargeback</Link>
+          </div>
+        </div>
+      )}
 
       <Card className="border-slate-200 bg-white/90 shadow-sm">
         <CardHeader>

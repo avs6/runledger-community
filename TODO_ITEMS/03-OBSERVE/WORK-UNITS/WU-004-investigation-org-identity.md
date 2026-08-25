@@ -1,10 +1,10 @@
 # WU-004: Investigation Org Identity & Scope Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - B (Investigation)
 - **Target**: 03-OBSERVE/Runs, Run detail, Request flow, Request explorer, Sessions
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-24
 
 ## Cohesion Cells to Close
 

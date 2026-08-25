@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-22
+Last updated: 2026-08-25
 
 ## Purpose
 
@@ -39,7 +39,7 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 |--------|----------|--------|---------|------------|-----------|-----------|----------|-------------|
 | **A** — Provider & Routing | Provider profiles, Model gateway | P:10 | P:3 | P:8 | P:3 | P:3 | P:3 | OK |
 | **B** — Runtime Protection | Guardrails | P:4 | OK | OK | OK | OK | OK | OK |
-| **C** — Performance Controls | Response cache, Rate limits | P:2 | P:3 | P:2 | P:3 | S:10 | P:14 | OK |
+| **C** — Performance Controls | Response cache, Rate limits | P:2 | P:3 | OK | P:3 | S:10 | P:14 | OK |
 
 **Hot spots**: WU-015 closed 4 FinOps cells for Guardrails (Budgets, Budget detail, Billing periods, Chargeback all P→S). 02-B × 05 moves from **—** to **OK**. 4 paired cells updated in 05-FINOPS (N/A→S). 02-A × 01 at **P:10**, 02-A × 03 at **P:8**, 02-A × 04 at **P:3**, 02-A × 05 at **P:3**. 02-B now **OK** across all cross-family columns. 02-C × 06 at **P:14**.
 
@@ -49,12 +49,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Self | 04-Safety | 05-FinOps |
 |--------|----------|--------|------------|---------|-----------|-----------|
-| **A** — Overview & Entry | Analytics overview + dashboards | P:3 | P:2 | P:3 | P:5 | G:1 P:7 |
-| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:16 | OK | P:7 | P:28 | G:2 P:22 |
-| **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:4 | OK | P:12 | P:1 | G:1 P:16 |
-| **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | P:3 | P:3 | P:8 | P:10 | P:6 |
+| **A** — Overview & Entry | Analytics overview + dashboards | P:1 | OK | OK | P:4 | P:0 |
+| **B** — Investigation | Runs, Sessions, Request flow/explorer | P:9 | OK | P:7 | P:28 | P:4 |
+| **C** — Economics & Intel | Model usage, Economics, Cost, ROI, Users, Scorecards | P:2 | OK | P:2 | OK | OK |
+| **D** — Ops & Monitoring | Engineering, Monitoring, Telemetry, Quality scores | OK | OK | P:2 | P:2 | OK |
 
-**Hot spots**: 03-B x 01 no longer carries access-group investigation GAPs now that the core Observe chain supports scoped drill-through. 03-B x 05 still has **2 GAPs** (request flow/explorer missing budget detail bridges). 03-C x 05 has **1 GAP** (model usage missing budget detail bridge).
+**Hot spots**: WU-001 added investigation-access-group-posture endpoint and Analytics Overview Investigation Scope card; all 5 target cells were already STRONG. 03-B x 01 no longer carries access-group investigation GAPs now that the core Observe chain supports scoped drill-through. WU-002 closed the 03-B x 05 budget detail GAPs: all 4 investigation surfaces now show inline FinOps budget posture. WU-003 closed the 03-A x 05 and 03-C x 05 GAPs: Analytics overview now shows FinOps Budget Posture card (budget, billing, spend, notifications) and Model usage shows per-model budget utilization card. All FinOps GAPs in 03-OBSERVE are now closed (was G:2, now G:0). WU-004 closed 7 PARTIAL cells in 03-B x 01 (Users and Telemetry columns): investigation surfaces now show org identity posture card, identity provenance panel, and accept api_key_id/end_user_id filters with drill-through to Organization, Users, API Keys, Telemetry, and MCP Registry (was P:16, now P:9). WU-006 added gateway runtime posture cards (violet theme) to all 4 investigation surfaces via `GET /analytics/investigation-gateway-runtime-posture` with provider, guardrail, cache, and rate limit context; 16 target cells were already STRONG from prior gateway-side WUs, so no cell state changes needed — WU-006 deepens the integration with a dedicated observe-side posture endpoint and drill-through links. WU-007 closed 18 FinOps cells across Economics, Cost & Savings, Outcomes & ROI, and Monitoring: 3 new posture endpoints (`economics-finops-posture`, `outcomes-finops-posture`, `monitoring-finops-posture`) power emerald-themed FinOps context cards with budget, billing, notification, ledger, and spend context. 03-C × 05 moves from **P:12** to **OK**, 03-D × 05 moves from **P:6** to **OK**. All FinOps PARTIALs in 03-OBSERVE are now closed. WU-008 added 3 cross-feature posture cards to Analytics Overview: Gateway Posture (violet, `overview-gateway-posture`), Governance Posture (amber, `overview-governance-posture`), and Org Identity (blue, `overview-org-posture`). 8 cells moved P→S: Org (Users, Telemetry), Gateway (Guardrails), Safety (Security, Alert rules, Audit log, Governance pack, Tags). 03-A × 01 moves from **P:3** to **P:1**, 03-A × 02 from **P:2** to **P:1**, 03-A × 04 from **P:5** to **OK**. WU-009 added gateway and investigation context to Model Usage, Economics, and Cost & Savings via 2 new posture endpoints (`model-usage-gateway-posture`, `economics-gateway-posture`). Model Usage shows Gateway & Intelligence Context card (violet) with routes, models, runs, and tags. Economics and Cost & Savings show Gateway & Provider Context cards (violet) with providers, routes, runs, and monitoring alerts. Model Scorecards adds workspace scope bar linking to Workspaces. 03-C × 01 moves from **P:4** to **P:3**, 03-C × 03 from **P:12** to **P:2**, 03-C × 04 from **P:1** to **OK**. WU-010 added gateway, governance, and org context to Monitoring and Telemetry via 2 new posture endpoints (`monitoring-ops-posture`, `telemetry-ops-posture`). Monitoring shows 3 ops posture cards: Gateway Ops (violet), Governance Ops (amber), Org & Investigation (blue). Telemetry shows matching cards. 30 cohesion cells closed (17 Monitoring + 13 Telemetry). 03-D × 01 moves from **P:3** to **OK**, 03-D × 02 from **P:3** to **OK**, 03-D × 03 from **P:8** to **P:2**, 03-D × 04 from **P:10** to **P:2**. WU-011 added org/workspace context to Analytics Users via `GET /analytics/user-analytics-org-posture` (blue-themed card with org name, workspace count, users, API keys, telemetry). Analytics Overview now includes Monitoring as a first-class investigation destination in header nav, next actions, and investigation scope card. Model Usage adds Telemetry drill-through link. 03-A × 03 moves from **P:3** to **OK**, 03-C × 01 moves from **P:3** to **P:2**. WU-012 enriches Analytics Overview with scope posture data via `GET /analytics/overview-scope-posture`: gateway card gains Response Cache and Rate Limits sub-cards (P→S), governance card gains Tool Registry, Tool Policies, Approvals, and Data Capture sub-cards (N/A→P), org card gains Access Groups tile and drill-through. 03-A × 02 moves from **P:1** to **OK**, 03-A × 04 moves from **OK** to **P:4**. 02-C × 03 moves from **P:2** to **OK**. WU-013 enriches Runs list investigation bridge: governance card gains explicit Approvals and Data Capture stat tiles with drill-through links (cells were already PARTIAL from prior governance posture). Org identity card gains Access Groups tile. FinOps card gains Budget Detail drill-through link. Most target cells were already at or beyond target from prior WUs — WU-013 deepens the UI integration without changing cell states.
 
 ---
 
@@ -260,15 +260,15 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 | 1 | **05-A** Budget Control | **48** | 05-A x 06-Build (12G) | Budget detail page is the single biggest cohesion blocker across the entire product |
 | 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys propagate through FinOps, Observe, Safety & Governance, and Build & Improve. WU-006 closed 22 Safety cells, WU-007 closed 22 Build cells to STRONG. WU-013 closed 14 internal and 8 Platform cells to STRONG. Remaining pressure is FinOps and Observe drill-through. |
 | 2b | **01-A** Org Foundation | **5** | 01-A x 04-Safety (5G) | Organization profile Safety & Governance row has 5 remaining GAPs (MCP servers, search tools, policy dry run, approvals, data capture). WU-014 closed 4 GAPs to PARTIAL (tool registry, tool policies, governance pack, tags). |
-| 3 | **03-B** Investigation | **2** | 03-B x 05-FinOps (2G) | Investigation still needs deeper budget-detail bridges beyond the new access-group scope support |
+| 3 | **03-B** Investigation | **0** | — | WU-002 closed all FinOps budget-detail GAPs. All 4 investigation surfaces now show inline budget posture with drill-through. |
 | 4 | **04-B** Exception Workflows | **2** | 04-B x 05-FinOps (2G) | Approvals disconnected from budget overrides |
 | 5 | **02-C** Performance Controls | **0** | — | All FinOps bridges closed by WU-002. WU-016 added cache economics posture (15 cells closed). WU-017 added rate-limit scope posture (15 cells closed). Bundle complete. |
 | 6 | **05-B** Billing & Recon | **1** | 05-B x 01-Org (1G) | Remaining org and user billing ownership bridges are still uneven |
 | 7 | **05-C** Attribution | **1** | 05-C x 05-Self (1G) | Chargeback internal cohesion gap with budget detail |
 | 8 | **05-D** Compliance | **1** | 05-D x 05-Self (1G) | Ledger internal cohesion gap with budget detail |
 | 9 | **02-A** Provider & Routing | **1** | 02-A x 05-FinOps (1G) | Provider profiles missing budget override bridge |
-| 10 | **03-A** Overview & Entry | **1** | 03-A x 05-FinOps (1G) | Analytics overview missing budget detail bridge |
-| 11 | **03-C** Economics & Intel | **1** | 03-C x 05-FinOps (1G) | Model usage missing budget detail bridge |
+| 10 | **03-A** Overview & Entry | **0** | — | WU-003 closed the analytics overview budget detail GAP via overview-finops-budget-posture endpoint |
+| 11 | **03-C** Economics & Intel | **0** | — | WU-003 closed the model usage budget detail GAP via model-budget-utilization endpoint |
 | 12 | **04-A** Tool Governance | **1** | 04-A x 05-FinOps (1G) | Tool registry missing budget detail bridge |
 | 13 | **04-C** Data & Security | **1** | 04-C x 05-FinOps (1G) | Tags missing budget detail bridge |
 | 14 | **01-D** Capability Catalog | **0** | — | WU-010 closed the AI hub budget detail GAP and all Safety & Governance and Platform gaps |
@@ -284,8 +284,8 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 
 | ID | Owner Folder | Target | Paired Features | Status | Bundle |
 |----|--------------|--------|-----------------|--------|--------|
-| WU-001 | 01-ORG-AND-ACCESS | Access groups × FinOps scoping | 05-FINOPS | NOT_STARTED | 01-B |
-| WU-002 | 01-ORG-AND-ACCESS | API keys × budget ownership | 05-FINOPS | NOT_STARTED | 01-B |
+| WU-001 | 01-ORG-AND-ACCESS | Access groups × FinOps scoping | 05-FINOPS | COMPLETED | 01-B |
+| WU-002 | 01-ORG-AND-ACCESS | API keys × budget ownership | 05-FINOPS | COMPLETED | 01-B |
 | WU-003 | 01-ORG-AND-ACCESS | Access groups × Observe investigation | 03-OBSERVE | COMPLETED | 01-B |
 | WU-004 | 01-ORG-AND-ACCESS | Org profile × FinOps rollup | 05-FINOPS | COMPLETED | 01-A |
 | WU-005 | 01-ORG-AND-ACCESS | Users × FinOps attribution | 05-FINOPS | COMPLETED | 01-B |
@@ -323,21 +323,21 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-015 | 02-GATEWAY-AND-ROUTING | Guardrails runtime traceability refresh | 01/03/04/05/06 | COMPLETED | 02-B |
 | WU-016 | 02-GATEWAY-AND-ROUTING | Response cache economics and evidence refresh | 01/03/04/05/06 | COMPLETED | 02-C |
 | WU-017 | 02-GATEWAY-AND-ROUTING | Rate limits scope and throttle explainability refresh | 01/03/04/05/06 | COMPLETED | 02-C |
-| WU-001 | 03-OBSERVE | Investigation × access-group scope | 01-ORG-AND-ACCESS | NOT_STARTED | 03-B |
+| WU-001 | 03-OBSERVE | Investigation × access-group scope | 01-ORG-AND-ACCESS | COMPLETED | 03-B |
 | WU-002 | 03-OBSERVE | Investigation × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 03-B |
-| WU-003 | 03-OBSERVE | Overview & economics × FinOps budget bridge | 05-FINOPS | NOT_STARTED | 03-A/C |
-| WU-004 | 03-OBSERVE | Investigation × Org identity & scope | 01-ORG-AND-ACCESS | NOT_STARTED | 03-B |
-| WU-005 | 03-OBSERVE | Investigation × Safety & Governance traceability | 04-SAFETY-AND-GOVERNANCE | NOT_STARTED | 03-B |
-| WU-006 | 03-OBSERVE | Investigation × Gateway runtime context | 02-GATEWAY-AND-ROUTING | NOT_STARTED | 03-B |
-| WU-007 | 03-OBSERVE | Economics & outcomes × FinOps strengthening | 05-FINOPS | NOT_STARTED | 03-C/D |
-| WU-008 | 03-OBSERVE | Overview × cross-feature posture cards | 01/02/04 | NOT_STARTED | 03-A |
-| WU-009 | 03-OBSERVE | Economics & model intel × Gateway links | 01/02/03/04 | NOT_STARTED | 03-C |
-| WU-010 | 03-OBSERVE | Monitoring & ops × governance integration | 01/02/03/04 | NOT_STARTED | 03-D |
-| WU-011 | 03-OBSERVE | User analytics & overview × Org links | 01/03 | NOT_STARTED | 03-A/C |
-| WU-012 | 03-OBSERVE | Analytics overview scope posture refresh | 01/02/04 | NOT_STARTED | 03-A |
-| WU-013 | 03-OBSERVE | Runs list investigation bridge refresh | 01/02/04/05 | NOT_STARTED | 03-B |
-| WU-014 | 03-OBSERVE | Run detail runtime evidence refresh | 01/02/04/05 | NOT_STARTED | 03-B |
-| WU-015 | 03-OBSERVE | Sessions investigation scope refresh | 01/05 | NOT_STARTED | 03-B |
+| WU-003 | 03-OBSERVE | Overview & economics × FinOps budget bridge | 05-FINOPS | COMPLETED | 03-A/C |
+| WU-004 | 03-OBSERVE | Investigation × Org identity & scope | 01-ORG-AND-ACCESS | COMPLETED | 03-B |
+| WU-005 | 03-OBSERVE | Investigation × Safety & Governance traceability | 04-SAFETY-AND-GOVERNANCE | COMPLETED | 03-B |
+| WU-006 | 03-OBSERVE | Investigation × Gateway runtime context | 02-GATEWAY-AND-ROUTING | COMPLETED | 03-B |
+| WU-007 | 03-OBSERVE | Economics & outcomes × FinOps strengthening | 05-FINOPS | COMPLETED | 03-C/D |
+| WU-008 | 03-OBSERVE | Overview × cross-feature posture cards | 01/02/04 | COMPLETED | 03-A |
+| WU-009 | 03-OBSERVE | Economics & model intel × Gateway links | 01/02/03/04 | COMPLETED | 03-C |
+| WU-010 | 03-OBSERVE | Monitoring & ops × governance integration | 01/02/03/04 | COMPLETED | 03-D |
+| WU-011 | 03-OBSERVE | User analytics & overview × Org links | 01/03 | COMPLETED | 03-A/C |
+| WU-012 | 03-OBSERVE | Analytics overview scope posture refresh | 01/02/04 | COMPLETED | 03-A |
+| WU-013 | 03-OBSERVE | Runs list investigation bridge refresh | 01/02/04/05 | COMPLETED | 03-B |
+| WU-014 | 03-OBSERVE | Run detail runtime evidence refresh | 01/02/04/05 | COMPLETED | 03-B |
+| WU-015 | 03-OBSERVE | Sessions investigation scope refresh | 01/05 | COMPLETED | 03-B |
 | WU-016 | 03-OBSERVE | Request analysis scope and evidence refresh | 01/02/04/05 | NOT_STARTED | 03-B |
 | WU-017 | 03-OBSERVE | Model usage economics and runtime refresh | 01/02/05 | NOT_STARTED | 03-C |
 | WU-018 | 03-OBSERVE | Analytics users outcomes and identity refresh | 01/02/05 | NOT_STARTED | 03-C |

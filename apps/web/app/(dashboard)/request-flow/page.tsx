@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { ArrowRight, Expand, GitBranch, Layers3, Route as RouteIcon, Search, ShieldCheck } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRunFlow } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationGovernancePosture, getInvestigationOrgIdentityPosture, getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
   type RequestFlowDensity,
   type RequestFlowMetric,
@@ -20,6 +20,11 @@ interface PageProps {
     top?: string
     collapse?: string
     access_group_id?: string
+    tag?: string
+    tool_name?: string
+    security_event_only?: string
+    end_user_id?: string
+    api_key_id?: string
   }
 }
 
@@ -62,6 +67,12 @@ function pct(value: number, total: number) {
   return `${Math.round((value / total) * 100)}%`
 }
 
+function money(value: number) {
+  if (value >= 1) return `$${value.toFixed(2)}`
+  if (value >= 0.001) return `$${value.toFixed(4)}`
+  return `$${value.toFixed(6)}`
+}
+
 export default async function RequestFlowPage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -72,18 +83,30 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
   const topN = parseTopN(searchParams.top)
   const collapseSmall = searchParams.collapse !== '0'
   const accessGroupId = searchParams.access_group_id
+  const govTag = searchParams.tag
+  const govToolName = searchParams.tool_name
+  const govSecurityOnly = searchParams.security_event_only === 'true'
+  const endUserId = searchParams.end_user_id
+  const apiKeyId = searchParams.api_key_id
   const requestedScope = accessGroupId ? 'workspace' : parseScope(searchParams.scope)
   let scope = requestedScope
   const accessGroupDashboard = accessGroupId
     ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
+  const govParams = { access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined }
+  const [governance, finops, orgIdentity, gatewayRuntime] = await Promise.all([
+    getInvestigationGovernancePosture(session.apiKey, govParams).catch(() => null),
+    getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
+    getInvestigationOrgIdentityPosture(session.apiKey).catch(() => null),
+    getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
+  ])
   let flow: RunFlowResponse
   try {
-    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId })
+    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined, api_key_id: apiKeyId, end_user_id: endUserId })
   } catch {
     scope = 'workspace'
-    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId })
+    flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined, api_key_id: apiKeyId, end_user_id: endUserId })
   }
   const items = flow.items
   const uniqueIntents = new Set(items.map((run) => run.feature_tag || 'General / Untagged')).size
@@ -154,6 +177,91 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
               </div>
             ))}
           </div>
+
+          {governance && (
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-5 shadow-sm dark:border-cyan-900/40 dark:bg-cyan-950/20">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-200">Governance Context</p>
+                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Runtime policy evidence around this investigation scope</h2>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    {governance.filtered_runs.toLocaleString()} scoped runs, {governance.security.events.toLocaleString()} security events, and {governance.audit_log.governance_events.toLocaleString()} governance audit events are available for drill-through.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold text-cyan-800 dark:text-cyan-100">
+                  <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
+                  <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
+                  <Link href="/security" className="hover:underline">Security</Link>
+                  <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
+                  <Link href="/audit" className="hover:underline">Audit Log</Link>
+                  <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
+                  <Link href="/tags" className="hover:underline">Tags</Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {finops && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">Budget Context</p>
+                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">FinOps budget posture across this investigation scope</h2>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    {finops.budget_context.active_budgets} active budgets ({finops.budget_context.breach_count} in breach), {money(finops.spend_context.total_spend_30d)} spent across {finops.spend_context.total_runs_30d.toLocaleString()} runs, {finops.billing_context.open_billing_periods} open billing periods.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-100">
+                  <Link href="/budgets" className="hover:underline">Budgets</Link>
+                  <Link href="/billing" className="hover:underline">Billing Periods</Link>
+                  <Link href="/chargeback" className="hover:underline">Chargeback</Link>
+                  <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {orgIdentity && (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-200">Org Identity Context</p>
+                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Organization identity posture across this investigation scope</h2>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    {orgIdentity.user_context.workspace_users} workspace users, {orgIdentity.user_context.distinct_end_users_30d} distinct end users, {orgIdentity.api_key_context.total_keys} API keys ({orgIdentity.api_key_context.active_keys} active), {orgIdentity.mcp_context.servers} MCP servers.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold text-blue-800 dark:text-blue-100">
+                  <Link href="/organization" className="hover:underline">Organization</Link>
+                  <Link href="/users" className="hover:underline">Users</Link>
+                  <Link href="/api-keys" className="hover:underline">API Keys</Link>
+                  <Link href="/telemetry" className="hover:underline">Telemetry</Link>
+                  <Link href="/mcp-registry" className="hover:underline">MCP Registry</Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {gatewayRuntime && (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-5 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/20">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-200">Gateway Runtime Context</p>
+                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Provider routing, guardrails, cache, and rate limits across this scope</h2>
+                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                    {gatewayRuntime.provider_context.distinct_providers} providers, {gatewayRuntime.provider_context.active_routes} active routes, {gatewayRuntime.route_context.gateway_requests_30d.toLocaleString()} gateway requests (30d). {gatewayRuntime.guardrail_context.active_rules} guardrail rules ({gatewayRuntime.guardrail_context.blocks_30d} blocks). {gatewayRuntime.cache_context.total_hits.toLocaleString()} cache hits, ${gatewayRuntime.cache_context.savings_usd.toFixed(2)} saved.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold text-violet-800 dark:text-violet-100">
+                  <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
+                  <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
+                  <Link href="/guardrails" className="hover:underline">Guardrails</Link>
+                  <Link href="/cache-config" className="hover:underline">Response Cache</Link>
+                  <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
+                </div>
+              </div>
+            </div>
+          )}
 
           <RequestFlowSankey
             flow={flow}

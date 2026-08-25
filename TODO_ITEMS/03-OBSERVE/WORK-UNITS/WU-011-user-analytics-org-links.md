@@ -1,10 +1,10 @@
 # WU-011: User Analytics & Overview Org Links
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - A/C (Overview, Economics & Intel)
 - **Target**: 03-OBSERVE/Analytics users, Analytics user detail, Analytics overview
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-25
 
 ## Cohesion Cells to Close
 

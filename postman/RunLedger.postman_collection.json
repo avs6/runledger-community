@@ -534,6 +534,24 @@
                   "value": "",
                   "description": "Filter runs by API key UUID",
                   "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "description": "Governance tag filter — match feature_tag or metadata tag",
+                  "disabled": true
+                },
+                {
+                  "key": "tool_name",
+                  "value": "",
+                  "description": "Filter to runs that invoked this tool",
+                  "disabled": true
+                },
+                {
+                  "key": "security_event_only",
+                  "value": "true",
+                  "description": "Only runs with correlated security events",
+                  "disabled": true
                 }
               ]
             },
@@ -714,6 +732,24 @@
                   "value": "",
                   "description": "Filter by API key UUID",
                   "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "description": "Governance tag filter — match feature_tag or metadata tag",
+                  "disabled": true
+                },
+                {
+                  "key": "tool_name",
+                  "value": "",
+                  "description": "Filter to runs that invoked this tool",
+                  "disabled": true
+                },
+                {
+                  "key": "security_event_only",
+                  "value": "true",
+                  "description": "Only runs with correlated security events",
+                  "disabled": true
                 }
               ]
             },
@@ -874,6 +910,42 @@
               ]
             },
             "description": "Get Run Graph"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Run Governance Context",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/runs/:run_id/governance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                ":run_id",
+                "governance"
+              ],
+              "variable": [
+                {
+                  "key": "run_id",
+                  "value": "{{run_id}}",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Governance context for a single run: tool policy outcomes, security events, alert rule firings, audit log entries, governance pack summary, and tags."
           },
           "response": []
         },
@@ -3140,6 +3212,576 @@
               ]
             },
             "description": "Rate limit scope posture: throttle context (routes with RPM, pass-through, routing policies), scope (access groups, monitoring alerts), and FinOps (budgets, notifications, chargeback, ledger)."
+          },
+          "response": []
+        },
+        {
+          "name": "Investigation Access Group Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/investigation-access-group-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "investigation-access-group-posture"
+              ]
+            },
+            "description": "Investigation access-group posture: access group context (groups, members) and investigation context (30-day runs, requests, active users, active routes)."
+          },
+          "response": []
+        },
+        {
+          "name": "Investigation Gateway Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/investigation-gateway-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "investigation-gateway-runtime-posture"
+              ]
+            },
+            "description": "Investigation gateway runtime posture: provider context (distinct providers, active/total routes, routing policies), route context (gateway requests, cache hits, passthrough endpoints), guardrail context (active rules, events, blocks), cache context (configs, entries, hits, savings), rate limit context (RPM-limited routes, cost-limited routes)."
+          },
+          "response": []
+        },
+        {
+          "name": "Investigation Org Identity Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/investigation-org-identity-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "investigation-org-identity-posture"
+              ]
+            },
+            "description": "Investigation org identity posture: org context (workspace name, users), user context (workspace users, distinct end users, runs), API key context (total, active, with traffic), telemetry context (batches, runs), MCP context (servers, tool calls)."
+          },
+          "response": []
+        },
+        {
+          "name": "Investigation FinOps Budget Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/investigation-finops-budget-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "investigation-finops-budget-posture"
+              ]
+            },
+            "description": "Investigation FinOps budget posture: budget context (active budgets, breach count, overrides, total limit), billing context (billing periods, chargeback rules), and 30-day spend context."
+          },
+          "response": []
+        },
+        {
+          "name": "Overview FinOps Budget Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/overview-finops-budget-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "overview-finops-budget-posture"
+              ]
+            },
+            "description": "Overview FinOps budget posture for Analytics Overview page: budget context (active budgets, breach count, overrides, total limit), billing context (billing periods, chargeback rules), spend context (30-day spend, runs), and notification context (configured notifications, active notifications)."
+          },
+          "response": []
+        },
+        {
+          "name": "Overview Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/overview-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "overview-gateway-posture"
+              ]
+            },
+            "description": "Gateway posture for Analytics Overview page: provider context (distinct providers, active/total routes, routing policies), route context (passthrough endpoints), and guardrail context (active rules, 30-day events and blocks)."
+          },
+          "response": []
+        },
+        {
+          "name": "Overview Governance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/overview-governance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "overview-governance-posture"
+              ]
+            },
+            "description": "Governance posture for Analytics Overview page: security context (total and 30-day events), alert context (rules, active rules, active firings), audit context (30-day events), and governance context (tags, approvals, capture policies)."
+          },
+          "response": []
+        },
+        {
+          "name": "Overview Org Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/overview-org-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "overview-org-posture"
+              ]
+            },
+            "description": "Org identity posture for Analytics Overview page: user context (workspace users), API key context (total and active keys), telemetry context (total and 30-day batches), MCP context (total and active servers), and hub context (total and active models)."
+          },
+          "response": []
+        },
+        {
+          "name": "Model Usage Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/model-usage-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "model-usage-gateway-posture"
+              ]
+            },
+            "description": "Gateway & intelligence context for the Model Usage page: gateway context (active/total routes, distinct models, routing policies), investigation context (30-day runs, gateway requests, provider calls), and tag context (total and active tags)."
+          },
+          "response": []
+        },
+        {
+          "name": "Economics Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/economics-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "economics-gateway-posture"
+              ]
+            },
+            "description": "Gateway & provider context for Economics and Cost & Savings pages: provider context (distinct providers, 30-day gateway requests), gateway context (active routes, distinct models, routing policies), and investigation context (30-day runs, provider calls, monitoring alerts)."
+          },
+          "response": []
+        },
+        {
+          "name": "Monitoring Ops Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/monitoring-ops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "monitoring-ops-posture"
+              ]
+            },
+            "description": "Gateway, governance, org, and investigation context for the Monitoring page: gateway context (providers, routes, guardrails, cache, rate limits), governance context (tool registry, tool policies, capture, audit, approvals, tags), org context (users, MCP servers), and investigation context (30-day runs, gateway requests)."
+          },
+          "response": []
+        },
+        {
+          "name": "Telemetry Ops Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/telemetry-ops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "telemetry-ops-posture"
+              ]
+            },
+            "description": "Gateway, governance, org, and investigation context for the Telemetry page: gateway context (routes, models, 30-day gateway requests), governance context (capture, security, alerts, audit, approvals, tags), org context (users, 30-day telemetry batches), and investigation context (30-day runs, provider calls)."
+          },
+          "response": []
+        },
+        {
+          "name": "User Analytics Org Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/user-analytics-org-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "user-analytics-org-posture"
+              ]
+            },
+            "description": "Org and workspace context for the Analytics Users page: org context (name, workspace count, workspace users), user context (total/active end users, API keys), and workspace context (30-day telemetry batches)."
+          },
+          "response": []
+        },
+        {
+          "name": "Overview Scope Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/overview-scope-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "overview-scope-posture"
+              ]
+            },
+            "description": "Enriched scope posture for the Analytics Overview page: access-group context (active/total groups, members), cache context (configs, hits, savings), rate-limit context (limited vs unlimited routes), and tool context (registry entries, policies, approvals, capture policies)."
+          },
+          "response": []
+        },
+        {
+          "name": "Model Budget Utilization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/model-budget-utilization",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "model-budget-utilization"
+              ]
+            },
+            "description": "Per-model budget utilization for Model Usage page: returns each model's 30-day spend, request count, budget limit, budget action, and period type, plus aggregate model budget, billing period, and chargeback rule counts."
+          },
+          "response": []
+        },
+        {
+          "name": "Economics FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/economics-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "economics-finops-posture"
+              ]
+            },
+            "description": "Economics FinOps posture for Analytics Economics and Cost & Savings pages: budget context (active budgets, breach count, overrides, total limit), billing context (billing periods, chargeback rules), notification context (configured notifications, active notifications), ledger context (snapshots, 30-day snapshots), and spend context (30-day spend, runs)."
+          },
+          "response": []
+        },
+        {
+          "name": "Outcomes FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/outcomes-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "outcomes-finops-posture"
+              ]
+            },
+            "description": "Outcomes FinOps posture for Outcomes & ROI page: budget context (active budgets, breach count, total limit), billing context (billing periods, chargeback rules), and spend context (30-day spend, outcomes count)."
+          },
+          "response": []
+        },
+        {
+          "name": "Monitoring FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/monitoring-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "monitoring-finops-posture"
+              ]
+            },
+            "description": "Monitoring FinOps posture for Monitoring page: budget context (active budgets, breach count, overrides), billing context (billing periods, chargeback rules), notification context (configured notifications, active notifications), and ledger context (snapshots)."
+          },
+          "response": []
+        },
+        {
+          "name": "Investigation Governance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/investigation-governance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "investigation-governance-posture"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": "Start of date range (ISO 8601)",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "End of date range (ISO 8601)",
+                  "disabled": true
+                },
+                {
+                  "key": "access_group_id",
+                  "value": "",
+                  "description": "Scope to an access group",
+                  "disabled": true
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "description": "Governance tag filter",
+                  "disabled": true
+                },
+                {
+                  "key": "tool_name",
+                  "value": "",
+                  "description": "Filter to runs invoking this tool",
+                  "disabled": true
+                },
+                {
+                  "key": "security_event_only",
+                  "value": "true",
+                  "description": "Only runs with security events",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Investigation governance posture: tool governance (active policies, tool calls, risk scores), security events, alert rule firings, audit log governance events, and governance pack context across the investigation scope."
           },
           "response": []
         },

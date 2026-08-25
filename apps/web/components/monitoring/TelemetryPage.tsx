@@ -16,13 +16,15 @@ import {
 } from 'recharts'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
-import { getOtlpBatchDetail, getOtlpInsights, getOtlpStats, listOtlpBatches } from '@/lib/api'
+import { Building2, Network, Shield } from 'lucide-react'
+import { getOtlpBatchDetail, getOtlpInsights, getOtlpStats, getTelemetryOpsPosture, listOtlpBatches } from '@/lib/api'
 import type {
   OtlpBatchDetail,
   OtlpBatchList,
   OtlpBatchResponse,
   OtlpInsights,
   OtlpStats,
+  TelemetryOpsPosture,
 } from '@/types/api'
 
 const PAGE_SIZE = 20
@@ -45,6 +47,7 @@ export default function TelemetryPage() {
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(false)
   const [loadingBatchDetail, setLoadingBatchDetail] = useState(false)
+  const [opsPosture, setOpsPosture] = useState<TelemetryOpsPosture | null>(null)
 
   const load = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
@@ -87,7 +90,10 @@ export default function TelemetryPage() {
 
   useEffect(() => {
     void load()
-  }, [load])
+    if (apiKey) {
+      getTelemetryOpsPosture(apiKey).then(setOpsPosture).catch(() => {})
+    }
+  }, [load, apiKey])
 
   if (!canManageOrgSettings) {
     return (
@@ -128,6 +134,112 @@ export default function TelemetryPage() {
           <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
         </div>
       </div>
+
+      {opsPosture && (
+        <div className="space-y-4">
+          {/* Gateway context */}
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm dark:border-violet-800 dark:bg-violet-950/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+              <h2 className="text-base font-semibold text-violet-900 dark:text-violet-100">Gateway Context</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 mb-4">
+              {[
+                { label: 'Routes', value: String(opsPosture.gateway_context.active_routes) },
+                { label: 'Models', value: String(opsPosture.gateway_context.distinct_models) },
+                { label: 'Gateway Reqs 30d', value: String(opsPosture.gateway_context.gateway_requests_30d) },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">{label}</p>
+                  <p className="mt-1 text-lg font-semibold text-violet-900 dark:text-violet-100">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Model Gateway', href: '/gateway' },
+                { label: 'Provider Profiles', href: '/provider-profiles' },
+              ].map(({ label, href }) => (
+                <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Governance context */}
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm dark:border-amber-800 dark:bg-amber-950/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <h2 className="text-base font-semibold text-amber-900 dark:text-amber-100">Governance Context</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 mb-4">
+              {[
+                { label: 'Capture Policies', value: String(opsPosture.governance_context.capture_policies) },
+                { label: 'Security Events 30d', value: String(opsPosture.governance_context.security_events_30d) },
+                { label: 'Alert Rules', value: `${opsPosture.governance_context.active_alert_rules}/${opsPosture.governance_context.alert_rules}` },
+                { label: 'Audit Events 30d', value: String(opsPosture.governance_context.audit_events_30d) },
+                { label: 'Approvals', value: String(opsPosture.governance_context.approvals) },
+                { label: 'Tags', value: String(opsPosture.governance_context.tags) },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">{label}</p>
+                  <p className="mt-1 text-lg font-semibold text-amber-900 dark:text-amber-100">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Data Capture', href: '/data-capture' },
+                { label: 'Security', href: '/monitoring' },
+                { label: 'Alert Rules', href: '/alert-rules' },
+                { label: 'Audit Log', href: '/audit' },
+                { label: 'Governance Pack', href: '/governance-pack' },
+              ].map(({ label, href }) => (
+                <Link key={label} href={href} className="rounded-lg border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-800/50">
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Org & investigation context */}
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <h2 className="text-base font-semibold text-blue-900 dark:text-blue-100">Org & Investigation Context</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+              {[
+                { label: 'Users', value: String(opsPosture.org_context.workspace_users) },
+                { label: 'Batches 30d', value: String(opsPosture.org_context.telemetry_batches_30d) },
+                { label: 'Runs 30d', value: String(opsPosture.investigation_context.runs_30d) },
+                { label: 'Provider Calls 30d', value: String(opsPosture.investigation_context.provider_calls_30d) },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">{label}</p>
+                  <p className="mt-1 text-lg font-semibold text-blue-900 dark:text-blue-100">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Organization', href: '/organization' },
+                { label: 'Onboarding', href: '/onboarding' },
+                { label: 'Workspaces', href: '/workspaces' },
+                { label: 'Analytics Overview', href: '/analytics' },
+                { label: 'Runs', href: '/runs' },
+                { label: 'Request Flow', href: '/request-flow' },
+                { label: 'Request Explorer', href: '/request-explorer' },
+              ].map(({ label, href }) => (
+                <Link key={label} href={href} className="rounded-lg border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10">
         {[

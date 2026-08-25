@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { ChevronLeft, AlertTriangle, Search, DollarSign } from 'lucide-react'
-import { getSpendByUser, getUserCohorts, getUserAnomalies } from '@/lib/api'
-import type { UserSpend, CohortSummary, AnomalyItem } from '@/types/api'
+import { Building2, ChevronLeft, AlertTriangle, Search, DollarSign } from 'lucide-react'
+import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture } from '@/lib/api'
+import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const TIER_COLOURS: Record<string, string> = {
@@ -37,6 +37,7 @@ export default function UsersPage() {
   const [anomalies, setAnomalies] = useState<AnomalyItem[]>([])
   const [tab, setTab] = useState<Tab>('all')
   const [loading, setLoading] = useState(true)
+  const [orgPosture, setOrgPosture] = useState<UserAnalyticsOrgPosture | null>(null)
 
   useEffect(() => {
     if (!session?.apiKey) return
@@ -51,6 +52,7 @@ export default function UsersPage() {
       setAnomalies(anomaliesResp.items)
       setLoading(false)
     }).catch(() => setLoading(false))
+    getUserAnalyticsOrgPosture(key).then(setOrgPosture).catch(() => {})
   }, [session?.apiKey])
 
   const anomalySet = new Set(anomalies.map((a) => a.end_user_id))
@@ -95,6 +97,42 @@ export default function UsersPage() {
               {c.cohort_tier}: {c.user_count} users
             </span>
           ))}
+        </div>
+      )}
+
+      {orgPosture && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-base font-semibold text-blue-900 dark:text-blue-100">Org & Workspace Context</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mb-4">
+            {[
+              { label: 'Organization', value: orgPosture.org_context.org_name },
+              { label: 'Workspaces', value: String(orgPosture.org_context.workspace_count) },
+              { label: 'Workspace Users', value: String(orgPosture.org_context.workspace_users) },
+              { label: 'End Users', value: `${orgPosture.user_context.active_end_users_30d}/${orgPosture.user_context.total_end_users}` },
+              { label: 'API Keys', value: `${orgPosture.user_context.active_api_keys}/${orgPosture.user_context.api_keys}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">{label}</p>
+                <p className="mt-1 text-lg font-semibold text-blue-900 dark:text-blue-100">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Organization', href: '/organization' },
+              { label: 'Workspaces', href: '/workspaces' },
+              { label: 'Users', href: '/users' },
+              { label: 'API Keys', href: '/api-keys' },
+              { label: 'Telemetry', href: '/monitoring/telemetry' },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} className="rounded-lg border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">
+                {label}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

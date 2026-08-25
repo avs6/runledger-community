@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { ArrowRight, BarChart3, DollarSign, Receipt, Sparkles, TrendingDown } from 'lucide-react'
-import { getAnnotations, getRegressions, getTopWorkflows } from '@/lib/api'
-import type { Annotation, RegressionList, WorkflowTopList } from '@/types/api'
+import { ArrowRight, BarChart3, DollarSign, Network, Receipt, Sparkles, TrendingDown, Wallet } from 'lucide-react'
+import { getAnnotations, getEconomicsFinopsPosture, getEconomicsGatewayPosture, getRegressions, getTopWorkflows } from '@/lib/api'
+import type { Annotation, EconomicsFinopsPosture, EconomicsGatewayPosture, RegressionList, WorkflowTopList } from '@/types/api'
 import ChangeImpactPanel from '@/components/economics/ChangeImpactPanel'
 import RegressionTable from '@/components/economics/RegressionTable'
 import AnnotationForm from '@/components/economics/AnnotationForm'
@@ -48,6 +48,8 @@ export default function EconomicsPage() {
   const [loadingWorkflows, setLoadingWorkflows] = useState(true)
   const [loadingRegressions, setLoadingRegressions] = useState(true)
   const [loadingAnnotations, setLoadingAnnotations] = useState(true)
+  const [finopsPosture, setFinopsPosture] = useState<EconomicsFinopsPosture | null>(null)
+  const [gatewayPosture, setGatewayPosture] = useState<EconomicsGatewayPosture | null>(null)
 
   useEffect(() => {
     if (!apiKey) return
@@ -63,6 +65,14 @@ export default function EconomicsPage() {
     getAnnotations(apiKey)
       .then((data) => setAnnotations(data.items))
       .finally(() => setLoadingAnnotations(false))
+
+    getEconomicsFinopsPosture(apiKey)
+      .then(setFinopsPosture)
+      .catch(() => {})
+
+    getEconomicsGatewayPosture(apiKey)
+      .then(setGatewayPosture)
+      .catch(() => {})
   }, [apiKey])
 
   function handleAnnotationCreated(annotation: Annotation) {
@@ -156,6 +166,92 @@ export default function EconomicsPage() {
           </Link>
         ))}
       </div>
+
+      {finopsPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <h2 className="text-base font-semibold text-emerald-900 dark:text-emerald-100">FinOps Budget Context</h2>
+          </div>
+          <p className="text-sm text-emerald-800/80 dark:text-emerald-300/70 mb-4">
+            {finopsPosture.budget_context.active_budgets} active budget{finopsPosture.budget_context.active_budgets !== 1 ? 's' : ''} ·{' '}
+            {finopsPosture.budget_context.breach_count} breach{finopsPosture.budget_context.breach_count !== 1 ? 'es' : ''} ·{' '}
+            {finopsPosture.budget_context.active_overrides} active override{finopsPosture.budget_context.active_overrides !== 1 ? 's' : ''} ·{' '}
+            {finopsPosture.notification_context.active_notifications} active notification{finopsPosture.notification_context.active_notifications !== 1 ? 's' : ''} ·{' '}
+            {finopsPosture.ledger_context.ledger_snapshots} ledger snapshot{finopsPosture.ledger_context.ledger_snapshots !== 1 ? 's' : ''}
+          </p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+            {[
+              { label: 'Budgets', value: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.budgets}` },
+              { label: 'Overrides', value: `${finopsPosture.budget_context.active_overrides}/${finopsPosture.budget_context.overrides}` },
+              { label: 'Notifications', value: `${finopsPosture.notification_context.active_notifications}/${finopsPosture.notification_context.notifications}` },
+              { label: 'Ledger (30d)', value: String(finopsPosture.ledger_context.ledger_snapshots_30d) },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">{label}</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-100">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Budgets', href: '/budgets' },
+              { label: 'Budget Detail', href: '/budgets' },
+              { label: 'Budget Overrides', href: '/budgets?tab=overrides' },
+              { label: 'Notifications', href: '/budgets?tab=notifications' },
+              { label: 'Billing Periods', href: '/billing' },
+              { label: 'Chargeback', href: '/chargeback' },
+              { label: 'Ledger', href: '/ledger' },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} className="rounded-lg border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/50">
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {gatewayPosture && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm dark:border-violet-800 dark:bg-violet-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            <h2 className="text-base font-semibold text-violet-900 dark:text-violet-100">Gateway & Provider Context</h2>
+          </div>
+          <p className="text-sm text-violet-800/80 dark:text-violet-300/70 mb-4">
+            {gatewayPosture.provider_context.distinct_providers} provider{gatewayPosture.provider_context.distinct_providers !== 1 ? 's' : ''} ·{' '}
+            {gatewayPosture.gateway_context.active_routes} active route{gatewayPosture.gateway_context.active_routes !== 1 ? 's' : ''} ·{' '}
+            {gatewayPosture.gateway_context.distinct_models} model{gatewayPosture.gateway_context.distinct_models !== 1 ? 's' : ''} ·{' '}
+            {gatewayPosture.investigation_context.runs_30d} runs (30d)
+          </p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+            {[
+              { label: 'Providers', value: String(gatewayPosture.provider_context.distinct_providers) },
+              { label: 'Routes', value: `${gatewayPosture.gateway_context.active_routes}` },
+              { label: 'Runs (30d)', value: String(gatewayPosture.investigation_context.runs_30d) },
+              { label: 'Alerts (30d)', value: String(gatewayPosture.investigation_context.monitoring_alerts_30d) },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">{label}</p>
+                <p className="mt-1 text-lg font-semibold text-violet-900 dark:text-violet-100">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Provider Profiles', href: '/provider-profiles' },
+              { label: 'Model Gateway', href: '/gateway' },
+              { label: 'Runs', href: '/runs' },
+              { label: 'Request Flow', href: '/request-flow' },
+              { label: 'Request Explorer', href: '/request-explorer' },
+              { label: 'Monitoring', href: '/monitoring' },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Section
         title="Top Workflows by Cost"

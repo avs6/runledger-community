@@ -1,10 +1,10 @@
 # WU-008: Overview Cross-Feature Posture Cards
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - A (Overview & Entry)
 - **Target**: 03-OBSERVE/Analytics overview
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-24
 
 ## Cohesion Cells to Close
 

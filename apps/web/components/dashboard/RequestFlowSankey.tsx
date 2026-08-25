@@ -302,6 +302,7 @@ function enrichFlowRecords(records: RunFlowRecord[]): EnrichedRun[] {
   return records.map((record) => ({
     run: {
       id: record.id,
+      api_key_id: null,
       status: record.status as RunListItem['status'],
       end_user_id: record.end_user_id,
       session_id: null,

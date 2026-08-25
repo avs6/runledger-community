@@ -16,6 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_user, get_current_workspace
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
+from runledger_api.models.alerts import AlertFiring, AlertRule
+from runledger_api.models.approvals import Approval
+from runledger_api.models.audit import AuditEvent
 from runledger_api.models.events import (
     AgentRun,
     OutcomeEvent,
@@ -26,11 +29,18 @@ from runledger_api.models.events import (
     ToolCall,
 )
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
+from runledger_api.models.ledger import CapturePolicy, SecurityEvent, ToolRegistry
 from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
+from runledger_api.models.tags import Tag
+from runledger_api.models.tool_policies import ToolPolicy
 from runledger_api.schemas.runs import (
     GraphEdge,
     GraphNode,
     GraphNodeData,
+    GovernanceAlertEvidence,
+    GovernanceAuditEvidence,
+    GovernanceSecurityEvidence,
+    GovernanceToolEvidence,
     ProviderCallDetail,
     RunbookList,
     RunbookResponse,
@@ -38,6 +48,7 @@ from runledger_api.schemas.runs import (
     RunFlowRecord,
     RunFlowResponse,
     RunGraphResponse,
+    RunGovernanceContextResponse,
     RunListItem,
     RunListResponse,
     SpanDetail,
@@ -139,6 +150,9 @@ def _apply_run_filters(
     min_cost: Decimal | None,
     max_cost: Decimal | None,
     api_key_id: uuid.UUID | None = None,
+    tag: str | None = None,
+    tool_name: str | None = None,
+    security_event_only: bool = False,
 ) -> Any:
     stmt = stmt.where(AgentRun.workspace_id == workspace_id)
     if access_group_filters:
@@ -193,6 +207,17 @@ def _apply_run_filters(
         stmt = stmt.where(AgentRun.total_cost_usd <= max_cost)
     if api_key_id:
         stmt = stmt.where(AgentRun.api_key_id == api_key_id)
+    if tag or tool_name or security_event_only:
+        stmt = stmt.where(
+            AgentRun.id.in_(
+                _governance_run_subquery(
+                    workspace_id=workspace_id,
+                    tag=tag,
+                    tool_name=tool_name,
+                    security_event_only=security_event_only,
+                )
+            )
+        )
     return stmt
 
 
@@ -214,6 +239,59 @@ def _metadata_value(metadata: dict[str, Any] | None, keys: list[str]) -> str | N
         if isinstance(value, (bool, int, float)):
             return str(value)
     return None
+
+
+def _metadata_tags(run: AgentRun) -> list[str]:
+    tags: list[str] = []
+    raw = (run.run_metadata or {}).get("tags")
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip():
+                tags.append(item.strip())
+    if run.feature_tag and run.feature_tag not in tags:
+        tags.append(run.feature_tag)
+    return tags
+
+
+def _governance_run_subquery(
+    *,
+    workspace_id: uuid.UUID,
+    tag: str | None = None,
+    tool_name: str | None = None,
+    security_event_only: bool = False,
+) -> Any:
+    run_stmt = select(AgentRun.id).where(AgentRun.workspace_id == workspace_id)
+    if tag:
+        pattern = f'%"{tag}"%'
+        run_stmt = run_stmt.where(
+            sa.or_(
+                AgentRun.feature_tag == tag,
+                sa.cast(AgentRun.run_metadata, sa.Text).ilike(pattern),
+            )
+        )
+    if tool_name:
+        run_stmt = run_stmt.where(
+            AgentRun.id.in_(
+                select(ToolCall.run_id)
+                .where(
+                    ToolCall.workspace_id == workspace_id,
+                    ToolCall.tool_name == tool_name,
+                )
+                .distinct()
+            )
+        )
+    if security_event_only:
+        run_stmt = run_stmt.where(
+            AgentRun.id.in_(
+                select(SecurityEvent.run_id)
+                .where(
+                    SecurityEvent.workspace_id == workspace_id,
+                    SecurityEvent.run_id.is_not(None),
+                )
+                .distinct()
+            )
+        )
+    return run_stmt.distinct()
 
 
 def _provider_from_model(model: str | None) -> str:
@@ -381,6 +459,9 @@ async def list_runs(
     max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
     access_group_id: uuid.UUID | None = Query(None),
     api_key_id: uuid.UUID | None = Query(None),
+    tag: str | None = Query(None, description="Governance or request tag"),
+    tool_name: str | None = Query(None, description="Filter to runs that called a specific tool"),
+    security_event_only: bool = Query(False, description="Only runs with matching security events"),
 ) -> RunListResponse:
     access_group_filters = (
         await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
@@ -402,6 +483,9 @@ async def list_runs(
         min_cost=min_cost,
         max_cost=max_cost,
         api_key_id=api_key_id,
+        tag=tag,
+        tool_name=tool_name,
+        security_event_only=security_event_only,
     )
     total = (await db.execute(count_stmt)).scalar_one()
 
@@ -420,6 +504,9 @@ async def list_runs(
         min_cost=min_cost,
         max_cost=max_cost,
         api_key_id=api_key_id,
+        tag=tag,
+        tool_name=tool_name,
+        security_event_only=security_event_only,
     )
     if cursor:
         cursor_dt = datetime.fromisoformat(cursor)
@@ -451,6 +538,7 @@ async def list_runs(
     items = [
         RunListItem(
             id=r.id,
+            api_key_id=r.api_key_id,
             status=r.status,
             end_user_id=r.end_user_id,
             session_id=r.session_id,
@@ -489,6 +577,9 @@ async def export_runs(
     limit: int = Query(1000, ge=1, le=5000),
     access_group_id: uuid.UUID | None = Query(None),
     api_key_id: uuid.UUID | None = Query(None),
+    tag: str | None = Query(None),
+    tool_name: str | None = Query(None),
+    security_event_only: bool = Query(False),
 ) -> StreamingResponse:
     access_group_filters = (
         await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
@@ -509,6 +600,9 @@ async def export_runs(
         min_cost=min_cost,
         max_cost=max_cost,
         api_key_id=api_key_id,
+        tag=tag,
+        tool_name=tool_name,
+        security_event_only=security_event_only,
     )
     result = await db.execute(stmt)
     runs = list(result.scalars().all())
@@ -589,6 +683,10 @@ async def get_run_flow(
     to_dt: datetime | None = Query(None, alias="to"),
     access_group_id: uuid.UUID | None = Query(None),
     api_key_id: uuid.UUID | None = Query(None),
+    end_user_id: str | None = Query(None),
+    tag: str | None = Query(None),
+    tool_name: str | None = Query(None),
+    security_event_only: bool = Query(False),
 ) -> RunFlowResponse:
     """
     Safe request-flow records for Sankey dashboards.
@@ -623,6 +721,8 @@ async def get_run_flow(
     filters: list[sa.ColumnElement[bool]] = [AgentRun.workspace_id.in_(workspace_ids)]
     if api_key_id is not None:
         filters.append(AgentRun.api_key_id == api_key_id)
+    if end_user_id is not None:
+        filters.append(AgentRun.end_user_id == end_user_id)
     access_group_filters = (
         await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
         if access_group_id is not None
@@ -661,6 +761,14 @@ async def get_run_flow(
         filters.append(AgentRun.started_at >= from_dt)
     if to_dt is not None:
         filters.append(AgentRun.started_at <= to_dt)
+    if tag or tool_name or security_event_only:
+        gov_sub = _governance_run_subquery(
+            workspace_id=workspace.id,
+            tag=tag,
+            tool_name=tool_name,
+            security_event_only=security_event_only,
+        )
+        filters.append(AgentRun.id.in_(gov_sub))
 
     total_runs = (
         await db.execute(select(func.count()).select_from(AgentRun).where(*filters))
@@ -955,6 +1063,7 @@ async def cancel_run(
 
     return RunListItem(
         id=run.id,
+        api_key_id=run.api_key_id,
         status=run.status,
         end_user_id=run.end_user_id,
         session_id=run.session_id,
@@ -1054,6 +1163,7 @@ async def get_run(
 
     return RunDetailResponse(
         id=run.id,
+        api_key_id=run.api_key_id,
         status=run.status,
         end_user_id=run.end_user_id,
         session_id=run.session_id,
@@ -1115,6 +1225,236 @@ async def get_run(
             )
             for tc in tool_calls
         ],
+    )
+
+
+@router.get("/{run_id}/governance", response_model=RunGovernanceContextResponse)
+async def get_run_governance_context(
+    run_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+    access_group_id: uuid.UUID | None = Query(None),
+) -> RunGovernanceContextResponse:
+    access_group_filters = (
+        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
+        if access_group_id is not None
+        else None
+    )
+    run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
+    if access_group_filters:
+        if access_group_filters["end_user_ids"]:
+            run_stmt = run_stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+        if access_group_filters["feature_tags"]:
+            run_stmt = run_stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+    run = (await db.execute(run_stmt)).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+
+    tool_calls = list(
+        (
+            await db.execute(
+                select(ToolCall)
+                .where(ToolCall.workspace_id == workspace.id, ToolCall.run_id == run.id)
+                .order_by(ToolCall.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    tool_names = sorted({tool.tool_name for tool in tool_calls if tool.tool_name})
+    registry_entries = {
+        row.tool_name: row
+        for row in (
+            await db.execute(
+                select(ToolRegistry).where(
+                    ToolRegistry.workspace_id == workspace.id,
+                    ToolRegistry.tool_name.in_(tool_names or [""]),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    policies = list(
+        (
+            await db.execute(
+                select(ToolPolicy)
+                .where(
+                    ToolPolicy.workspace_id == workspace.id,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.tool_name.in_((tool_names or []) + ["*"]),
+                )
+                .order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    tool_evidence: list[GovernanceToolEvidence] = []
+    for tool in tool_calls:
+        matched = [policy for policy in policies if policy.tool_name in (tool.tool_name, "*")]
+        registry = registry_entries.get(tool.tool_name)
+        tool_evidence.append(
+            GovernanceToolEvidence(
+                tool_name=tool.tool_name,
+                tool_type=str(tool.tool_type),
+                status=tool.status,
+                risk_score=tool.risk_score,
+                registry_policy=registry.policy if registry is not None else None,
+                registry_runtime_enforcement=bool(registry.runtime_enforcement) if registry is not None else False,
+                matched_policy_count=len(matched),
+                matched_policy_names=[policy.name for policy in matched],
+                matched_policy_actions=[policy.action for policy in matched],
+            )
+        )
+
+    security_events = list(
+        (
+            await db.execute(
+                select(SecurityEvent)
+                .where(
+                    SecurityEvent.workspace_id == workspace.id,
+                    sa.or_(
+                        SecurityEvent.run_id == run.id,
+                        sa.and_(
+                            SecurityEvent.end_user_id == run.end_user_id,
+                            SecurityEvent.end_user_id.is_not(None),
+                        ),
+                        SecurityEvent.tool_name.in_(tool_names or [""]),
+                    ),
+                )
+                .order_by(SecurityEvent.detected_at.desc())
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    window_start = run.started_at - timedelta(hours=1)
+    window_end = (run.ended_at or run.started_at) + timedelta(hours=1)
+    alert_rows = (
+        await db.execute(
+            select(AlertFiring, AlertRule.name.label("rule_name"))
+            .join(AlertRule, AlertFiring.rule_id == AlertRule.id)
+            .where(
+                AlertFiring.workspace_id == workspace.id,
+                AlertFiring.fired_at >= window_start,
+                AlertFiring.fired_at <= window_end,
+            )
+            .order_by(AlertFiring.fired_at.desc())
+            .limit(8)
+        )
+    ).all()
+    audit_events = list(
+        (
+            await db.execute(
+                select(AuditEvent)
+                .where(
+                    sa.or_(
+                        sa.and_(
+                            AuditEvent.workspace_id == workspace.id,
+                            AuditEvent.target_id == str(run.id),
+                        ),
+                        sa.and_(
+                            AuditEvent.workspace_id == workspace.id,
+                            AuditEvent.target_id.in_(tool_names or [""]),
+                        ),
+                        sa.and_(
+                            AuditEvent.workspace_id == workspace.id,
+                            AuditEvent.created_at >= window_start,
+                            AuditEvent.created_at <= window_end,
+                            AuditEvent.target_type.in_(
+                                [
+                                    "tool_policy",
+                                    "tool_registry",
+                                    "security",
+                                    "alert_rule",
+                                    "tag",
+                                    "governance_pack",
+                                    "capture_policy",
+                                ]
+                            ),
+                        ),
+                    )
+                )
+                .order_by(AuditEvent.created_at.desc())
+                .limit(10)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    governance_pack_summary = {
+        "approvals": int(
+            (
+                await db.execute(
+                    select(func.count(Approval.id)).where(Approval.workspace_id == workspace.id)
+                )
+            ).scalar()
+            or 0
+        ),
+        "tool_policies": int(
+            (
+                await db.execute(
+                    select(func.count(ToolPolicy.id)).where(ToolPolicy.workspace_id == workspace.id)
+                )
+            ).scalar()
+            or 0
+        ),
+        "capture_policies": int(
+            (
+                await db.execute(
+                    select(func.count(CapturePolicy.id)).where(CapturePolicy.workspace_id == workspace.id)
+                )
+            ).scalar()
+            or 0
+        ),
+        "tags": int(
+            (
+                await db.execute(select(func.count(Tag.id)).where(Tag.workspace_id == workspace.id))
+            ).scalar()
+            or 0
+        ),
+    }
+
+    return RunGovernanceContextResponse(
+        run_id=run.id,
+        tags=_metadata_tags(run),
+        tool_evidence=tool_evidence,
+        security_events=[
+            GovernanceSecurityEvidence(
+                id=str(event.id),
+                event_type=event.event_type,
+                tool_name=event.tool_name,
+                end_user_id=event.end_user_id,
+                detected_at=event.detected_at,
+                details=event.details or {},
+            )
+            for event in security_events
+        ],
+        alert_evidence=[
+            GovernanceAlertEvidence(
+                id=str(firing.id),
+                rule_id=str(firing.rule_id),
+                rule_name=rule_name,
+                fired_at=firing.fired_at,
+                metric_value=firing.metric_value,
+                resolved_at=firing.resolved_at,
+            )
+            for firing, rule_name in alert_rows
+        ],
+        audit_events=[
+            GovernanceAuditEvidence(
+                id=str(event.id),
+                action=event.action,
+                target_type=event.target_type,
+                target_id=event.target_id,
+                created_at=event.created_at,
+            )
+            for event in audit_events
+        ],
+        governance_pack_summary=governance_pack_summary,
     )
 
 

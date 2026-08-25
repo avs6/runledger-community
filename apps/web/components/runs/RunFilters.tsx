@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   SlidersHorizontal, X, Hash, Tag, User, DollarSign,
-  Clock, CheckCircle2, AlertCircle, XCircle, Search,
+  Clock, CheckCircle2, AlertCircle, XCircle, Search, KeyRound,
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -52,11 +52,17 @@ const CHIP_COLORS: Record<string, string> = {
   model:        'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-900/40 dark:text-violet-300 dark:border-violet-800',
   min_cost:     'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
   max_cost:     'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
+  tag:          'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-800',
+  tool_name:    'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800',
+  security_event_only: 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800',
+  api_key_id: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-800',
 }
 
 const CHIP_LABELS: Record<string, string> = {
   search: 'Run ID', status: 'Status', feature_tag: 'Tag',
   end_user_id: 'User', model: 'Model', min_cost: 'Min $', max_cost: 'Max $',
+  tag: 'Gov Tag', tool_name: 'Tool', security_event_only: 'Security',
+  api_key_id: 'API Key',
 }
 
 const TIME_PRESETS = [
@@ -186,6 +192,10 @@ export default function RunFilters() {
   const [draftModel, setDraftModel] = useState(params.get('model') ?? '')
   const [draftMinCost, setDraftMinCost] = useState(params.get('min_cost') ?? '')
   const [draftMaxCost, setDraftMaxCost] = useState(params.get('max_cost') ?? '')
+  const [draftGovTag, setDraftGovTag] = useState(params.get('tag') ?? '')
+  const [draftToolName, setDraftToolName] = useState(params.get('tool_name') ?? '')
+  const [draftSecurityOnly, setDraftSecurityOnly] = useState(params.get('security_event_only') === 'true')
+  const [draftApiKeyId, setDraftApiKeyId] = useState(params.get('api_key_id') ?? '')
 
   const preset = params.get('preset') ?? '7d'
   const fromParam = params.get('from') ?? ''
@@ -201,6 +211,10 @@ export default function RunFilters() {
     setDraftModel(params.get('model') ?? '')
     setDraftMinCost(params.get('min_cost') ?? '')
     setDraftMaxCost(params.get('max_cost') ?? '')
+    setDraftGovTag(params.get('tag') ?? '')
+    setDraftToolName(params.get('tool_name') ?? '')
+    setDraftSecurityOnly(params.get('security_event_only') === 'true')
+    setDraftApiKeyId(params.get('api_key_id') ?? '')
   }, [params])
 
   const pushParams = useCallback(
@@ -225,14 +239,19 @@ export default function RunFilters() {
       model: draftModel || null,
       min_cost: draftMinCost || null,
       max_cost: draftMaxCost || null,
+      tag: draftGovTag || null,
+      tool_name: draftToolName || null,
+      security_event_only: draftSecurityOnly ? 'true' : null,
+      api_key_id: draftApiKeyId || null,
     })
     setPanelOpen(false)
-  }, [draftSearch, draftStatus, draftTag, draftUser, draftModel, draftMinCost, draftMaxCost, pushParams])
+  }, [draftSearch, draftStatus, draftTag, draftUser, draftModel, draftMinCost, draftMaxCost, draftGovTag, draftToolName, draftSecurityOnly, draftApiKeyId, pushParams])
 
   const resetAll = useCallback(() => {
     setDraftStatus(''); setDraftSearch(''); setDraftTag('')
     setDraftUser(''); setDraftModel(''); setDraftMinCost(''); setDraftMaxCost('')
-    pushParams({ search: null, status: null, feature_tag: null, end_user_id: null, model: null, min_cost: null, max_cost: null })
+    setDraftGovTag(''); setDraftToolName(''); setDraftSecurityOnly(false); setDraftApiKeyId('')
+    pushParams({ search: null, status: null, feature_tag: null, end_user_id: null, model: null, min_cost: null, max_cost: null, tag: null, tool_name: null, security_event_only: null, api_key_id: null })
   }, [pushParams])
 
   const removeChip = useCallback((key: string) => {
@@ -273,6 +292,9 @@ export default function RunFilters() {
     params.get('model')       && { key: 'model',       display: params.get('model')! },
     params.get('min_cost')    && { key: 'min_cost',    display: `≥ $${params.get('min_cost')}` },
     params.get('max_cost')    && { key: 'max_cost',    display: `≤ $${params.get('max_cost')}` },
+    params.get('tag')         && { key: 'tag',         display: params.get('tag')! },
+    params.get('tool_name')   && { key: 'tool_name',   display: params.get('tool_name')! },
+    params.get('security_event_only') === 'true' && { key: 'security_event_only', display: 'Only with security events' },
   ].filter(Boolean) as { key: string; display: string }[]
 
   const activeCount = chips.length
@@ -408,6 +430,16 @@ export default function RunFilters() {
                     onKeyDown={e => e.key === 'Enter' && applyFilters()}
                   />
                 </div>
+                <div className="relative">
+                  <KeyRound className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="API key ID…"
+                    className="h-8 pl-8 text-sm"
+                    value={draftApiKeyId}
+                    onChange={e => setDraftApiKeyId(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && applyFilters()}
+                  />
+                </div>
               </div>
             </div>
 
@@ -442,6 +474,42 @@ export default function RunFilters() {
                     min="0"
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <span className="w-20 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Governance
+              </span>
+              <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="relative">
+                  <Tag className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Governance tag…"
+                    className="h-8 pl-8 text-sm"
+                    value={draftGovTag}
+                    onChange={e => setDraftGovTag(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && applyFilters()}
+                  />
+                </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Tool name…"
+                    className="h-8 pl-8 text-sm"
+                    value={draftToolName}
+                    onChange={e => setDraftToolName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && applyFilters()}
+                  />
+                </div>
+                <label className="flex h-8 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={draftSecurityOnly}
+                    onChange={e => setDraftSecurityOnly(e.target.checked)}
+                  />
+                  Security events only
+                </label>
               </div>
             </div>
           </div>

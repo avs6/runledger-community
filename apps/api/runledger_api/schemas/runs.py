@@ -12,6 +12,7 @@ class RunListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    api_key_id: uuid.UUID | None = None
     status: str
     end_user_id: str | None
     session_id: str | None
@@ -84,6 +85,7 @@ class RunDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    api_key_id: uuid.UUID | None = None
     status: str
     end_user_id: str | None
     session_id: str | None
@@ -179,6 +181,54 @@ class RunFlowResponse(BaseModel):
     workspace_count: int
     generated_at: datetime
     items: list[RunFlowRecord]
+
+
+class GovernanceToolEvidence(BaseModel):
+    tool_name: str
+    tool_type: str
+    status: str
+    risk_score: int | None = None
+    registry_policy: str | None = None
+    registry_runtime_enforcement: bool = False
+    matched_policy_count: int = 0
+    matched_policy_names: list[str] = []
+    matched_policy_actions: list[str] = []
+
+
+class GovernanceSecurityEvidence(BaseModel):
+    id: str
+    event_type: str
+    tool_name: str | None = None
+    end_user_id: str | None = None
+    detected_at: datetime
+    details: dict[str, Any] = {}
+
+
+class GovernanceAlertEvidence(BaseModel):
+    id: str
+    rule_id: str
+    rule_name: str
+    fired_at: datetime
+    metric_value: Decimal
+    resolved_at: datetime | None = None
+
+
+class GovernanceAuditEvidence(BaseModel):
+    id: str
+    action: str
+    target_type: str | None = None
+    target_id: str | None = None
+    created_at: datetime
+
+
+class RunGovernanceContextResponse(BaseModel):
+    run_id: uuid.UUID
+    tags: list[str]
+    tool_evidence: list[GovernanceToolEvidence]
+    security_events: list[GovernanceSecurityEvidence]
+    alert_evidence: list[GovernanceAlertEvidence]
+    audit_events: list[GovernanceAuditEvidence]
+    governance_pack_summary: dict[str, int]
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────

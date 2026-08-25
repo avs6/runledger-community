@@ -8,6 +8,7 @@ import {
   deleteOutcome,
   getOutcomeSummary,
   getOutcomeTrend,
+  getOutcomesFinopsPosture,
   getQualityCorrelation,
   getWorkflowROI,
   listOutcomes,
@@ -18,6 +19,7 @@ import type {
   OutcomeResponse,
   OutcomeSummary,
   OutcomeTrend,
+  OutcomesFinopsPosture,
   QualityOutcomeCorrelation,
   WorkflowROIList,
 } from '@/types/api'
@@ -31,7 +33,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Pencil, Plus, Save, Trash2, X } from 'lucide-react'
+import Link from 'next/link'
+import { Pencil, Plus, Save, Trash2, Wallet, X } from 'lucide-react'
 
 const WINDOWS = [7, 14, 30, 90]
 const LEDGER_PAGE_SIZE = 12
@@ -244,6 +247,7 @@ export default function OutcomesPage() {
   const [editDraft, setEditDraft] = useState<DraftOutcome>(emptyDraft)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [finopsPosture, setFinopsPosture] = useState<OutcomesFinopsPosture | null>(null)
 
   const loadAnalytics = useCallback(async () => {
     if (!apiKey) return
@@ -291,6 +295,11 @@ export default function OutcomesPage() {
   useEffect(() => {
     void loadLedger()
   }, [loadLedger])
+
+  useEffect(() => {
+    if (!apiKey) return
+    getOutcomesFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
+  }, [apiKey])
 
   const trendByType = useMemo(
     () =>
@@ -487,6 +496,46 @@ export default function OutcomesPage() {
               </ResponsiveContainer>
             </div>
           ) : null}
+
+          {finopsPosture && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <h2 className="text-base font-semibold text-emerald-900 dark:text-emerald-100">FinOps Outcomes Context</h2>
+              </div>
+              <p className="text-sm text-emerald-800/80 dark:text-emerald-300/70 mb-4">
+                {finopsPosture.budget_context.active_budgets} active budget{finopsPosture.budget_context.active_budgets !== 1 ? 's' : ''} ·{' '}
+                {finopsPosture.budget_context.breach_count} breach{finopsPosture.budget_context.breach_count !== 1 ? 'es' : ''} ·{' '}
+                {finopsPosture.billing_context.open_billing_periods} open billing period{finopsPosture.billing_context.open_billing_periods !== 1 ? 's' : ''} ·{' '}
+                {finopsPosture.billing_context.chargeback_rules} chargeback rule{finopsPosture.billing_context.chargeback_rules !== 1 ? 's' : ''}
+              </p>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+                {[
+                  { label: 'Budgets', value: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.budgets}` },
+                  { label: 'Breaches', value: String(finopsPosture.budget_context.breach_count) },
+                  { label: 'Billing Periods', value: `${finopsPosture.billing_context.open_billing_periods}/${finopsPosture.billing_context.billing_periods}` },
+                  { label: 'Outcomes (30d)', value: String(finopsPosture.spend_context.outcomes_30d) },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">{label}</p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-100">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Budgets', href: '/budgets' },
+                  { label: 'Billing Periods', href: '/billing' },
+                  { label: 'Billing Period Detail', href: '/billing' },
+                  { label: 'Chargeback', href: '/chargeback' },
+                ].map(({ label, href }) => (
+                  <Link key={label} href={href} className="rounded-lg border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/50">
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {workflows && workflows.items.length > 0 ? (
             <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 shadow-sm dark:border-slate-700 dark:bg-slate-900">

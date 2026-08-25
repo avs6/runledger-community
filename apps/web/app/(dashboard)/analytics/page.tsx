@@ -5,17 +5,24 @@ import {
   Activity,
   ArrowRight,
   BarChart2,
+  BookOpen,
   Building2,
   Cpu,
+  Database,
   DollarSign,
+  Key,
   LayoutDashboard,
+  Lock,
+  Network,
   Route,
+  Shield,
   Sparkles,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getOrgDashboard, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationAccessGroupPosture, getOrgDashboard, getOverviewFinopsBudgetPosture, getOverviewGatewayPosture, getOverviewGovernancePosture, getOverviewOrgPosture, getOverviewScopePosture, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatAge, formatCost, formatTokens, truncateId } from '@/lib/utils'
 import type { DashboardRange } from '@/components/dashboard/DashboardScopeBar'
@@ -207,6 +214,15 @@ export default async function AnalyticsOverviewPage({
     redirect('/analytics/breakdown')
   }
 
+  const [investigationPosture, budgetPosture, gatewayPosture, governancePosture, orgPosture, scopePosture] = await Promise.all([
+    getInvestigationAccessGroupPosture(session.apiKey).catch(() => null),
+    getOverviewFinopsBudgetPosture(session.apiKey).catch(() => null),
+    getOverviewGatewayPosture(session.apiKey).catch(() => null),
+    getOverviewGovernancePosture(session.apiKey).catch(() => null),
+    getOverviewOrgPosture(session.apiKey).catch(() => null),
+    getOverviewScopePosture(session.apiKey).catch(() => null),
+  ])
+
   const [summary, flow, workspaceRuns, orgDashboard] = await Promise.all([
     getScopedSummary(session.apiKey, scope, { from: win.from, to: win.to, access_group_id: accessGroupId }),
     getRunFlow(session.apiKey, {
@@ -270,6 +286,9 @@ export default async function AnalyticsOverviewPage({
           </Link>
           <Link href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Request Explorer
+          </Link>
+          <Link href="/monitoring" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+            Monitoring
           </Link>
           <Link href={scope === 'workspace' ? '/analytics/breakdown' : hrefFor('workspace', win.range, 'breakdown')} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
             Open Breakdown
@@ -344,6 +363,9 @@ export default async function AnalyticsOverviewPage({
                 </Link>
                 <Link href="/cost-savings" className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">
                   Cost & savings
+                </Link>
+                <Link href="/monitoring" className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:text-blue-700 dark:bg-slate-800 dark:text-slate-200">
+                  Monitoring
                 </Link>
               </div>
             </div>
@@ -420,6 +442,215 @@ export default async function AnalyticsOverviewPage({
           </div>
         </div>
       </div>
+
+      {investigationPosture && (
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/85">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Investigation Scope</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">Access-Group Scoped Investigation</h2>
+            </div>
+            <Link href="/access-groups" className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300">Manage groups</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard title="Access Groups" value={investigationPosture.access_group_context.access_groups.toLocaleString()} sub="active groups" icon={Shield} />
+            <StatCard title="Group Members" value={investigationPosture.access_group_context.total_members.toLocaleString()} sub="across all groups" icon={Users} />
+            <StatCard title="Runs (30d)" value={investigationPosture.investigation_context.runs_30d.toLocaleString()} sub={`${investigationPosture.investigation_context.requests_30d.toLocaleString()} requests`} icon={Activity} />
+            <StatCard title="Active Users" value={investigationPosture.investigation_context.active_users.toLocaleString()} sub={`${investigationPosture.investigation_context.active_routes.toLocaleString()} active routes`} icon={Cpu} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
+            <Link href={`/runs${accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href={`/request-flow${accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+            <Link href={`/request-explorer${accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+            <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
+            <Link href="/workspaces" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
+            <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
+            <Link href="/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
+          </div>
+        </div>
+      )}
+
+      {budgetPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">FinOps Budget Posture</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">Budget & Billing Overview</h2>
+            </div>
+            <Link href="/budgets" className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400">Manage budgets</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard title="Active Budgets" value={`${budgetPosture.budget_context.active_budgets}`} sub={`${budgetPosture.budget_context.budgets} total • ${budgetPosture.budget_context.breach_count} breached`} icon={Wallet} />
+            <StatCard title="Budget Limit" value={`$${budgetPosture.budget_context.total_limit_usd.toFixed(2)}`} sub={`${budgetPosture.budget_context.overrides} overrides (${budgetPosture.budget_context.active_overrides} active)`} icon={DollarSign} />
+            <StatCard title="Spend (30d)" value={`$${budgetPosture.spend_context.total_spend_30d.toFixed(2)}`} sub={`${budgetPosture.spend_context.total_runs_30d.toLocaleString()} runs`} icon={Activity} />
+            <StatCard title="Notifications" value={`${budgetPosture.notification_context.active_notifications}`} sub={`${budgetPosture.notification_context.notifications} total configured`} icon={Shield} />
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 dark:border-emerald-800 dark:bg-slate-900/60">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Billing</p>
+              <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{budgetPosture.billing_context.billing_periods}</p>
+              <p className="text-xs text-slate-500">{budgetPosture.billing_context.open_billing_periods} open</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 dark:border-emerald-800 dark:bg-slate-900/60">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Chargeback</p>
+              <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{budgetPosture.billing_context.chargeback_rules}</p>
+              <p className="text-xs text-slate-500">attribution rules</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 dark:border-emerald-800 dark:bg-slate-900/60">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">Budget Health</p>
+              <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">
+                {budgetPosture.budget_context.active_budgets > 0
+                  ? `${Math.round(((budgetPosture.budget_context.active_budgets - budgetPosture.budget_context.breach_count) / budgetPosture.budget_context.active_budgets) * 100)}%`
+                  : 'n/a'}
+              </p>
+              <p className="text-xs text-slate-500">within limit</p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/budgets" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?view=detail" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Budget Detail</Link>
+            <Link href="/budgets?view=overrides" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Budget Overrides</Link>
+            <Link href="/budgets?view=notifications" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Notifications</Link>
+            <Link href="/billing" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Billing Periods</Link>
+            <Link href="/billing?view=detail" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Billing Detail</Link>
+            <Link href="/chargeback" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Chargeback</Link>
+            <Link href="/ledger" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Ledger</Link>
+            <Link href="/model-budgets" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Model Budgets</Link>
+          </div>
+        </div>
+      )}
+
+      {gatewayPosture && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm dark:border-violet-800 dark:bg-violet-950/40">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700 dark:text-violet-400">Gateway Posture</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">Routing & Guardrails</h2>
+            </div>
+            <Link href="/gateway" className="text-xs font-semibold text-violet-700 hover:underline dark:text-violet-400">Gateway</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard title="Providers" value={`${gatewayPosture.provider_context.distinct_providers}`} sub={`${gatewayPosture.provider_context.active_routes} active routes`} icon={Network} />
+            <StatCard title="Routes" value={`${gatewayPosture.provider_context.active_routes}/${gatewayPosture.provider_context.total_routes}`} sub={`${gatewayPosture.provider_context.routing_policies} policies`} icon={Route} />
+            <StatCard title="Guardrails" value={`${gatewayPosture.guardrail_context.active_rules}`} sub={`${gatewayPosture.guardrail_context.events_30d} events (30d) • ${gatewayPosture.guardrail_context.blocks_30d} blocks`} icon={Shield} />
+          </div>
+          {scopePosture && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-violet-200 bg-white/80 px-4 py-3 dark:border-violet-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">Response Cache</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.cache_context.enabled_configs}/{scopePosture.cache_context.cache_configs}</p>
+                <p className="text-xs text-slate-500">{scopePosture.cache_context.total_hits.toLocaleString()} hits • ${scopePosture.cache_context.total_savings_usd.toFixed(2)} saved</p>
+              </div>
+              <div className="rounded-xl border border-violet-200 bg-white/80 px-4 py-3 dark:border-violet-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">Rate Limits</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.rate_limit_context.routes_with_limits}</p>
+                <p className="text-xs text-slate-500">rate-limited routes • {scopePosture.rate_limit_context.routes_without_limits} unlimited</p>
+              </div>
+              <div className="rounded-xl border border-violet-200 bg-white/80 px-4 py-3 dark:border-violet-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">Passthrough</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{gatewayPosture.route_context.passthrough_endpoints}</p>
+                <p className="text-xs text-slate-500">passthrough endpoints</p>
+              </div>
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/provider-profiles" className="text-xs text-violet-700 hover:underline dark:text-violet-400">Provider Profiles</Link>
+            <Link href="/gateway" className="text-xs text-violet-700 hover:underline dark:text-violet-400">Model Gateway</Link>
+            <Link href="/guardrails" className="text-xs text-violet-700 hover:underline dark:text-violet-400">Guardrails</Link>
+            <Link href="/gateway/routes" className="text-xs text-violet-700 hover:underline dark:text-violet-400">Gateway Routes</Link>
+            <Link href="/response-cache" className="text-xs text-violet-700 hover:underline dark:text-violet-400">Response Cache</Link>
+            <Link href="/rate-limits" className="text-xs text-violet-700 hover:underline dark:text-violet-400">Rate Limits</Link>
+          </div>
+        </div>
+      )}
+
+      {governancePosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm dark:border-amber-800 dark:bg-amber-950/40">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">Governance Posture</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">Security, Alerts & Audit</h2>
+            </div>
+            <Link href="/security" className="text-xs font-semibold text-amber-700 hover:underline dark:text-amber-400">Security</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard title="Security Events" value={`${governancePosture.security_context.security_events_30d}`} sub={`${governancePosture.security_context.security_events} total`} icon={Shield} />
+            <StatCard title="Alert Rules" value={`${governancePosture.alert_context.active_alert_rules}/${governancePosture.alert_context.alert_rules}`} sub={`${governancePosture.alert_context.active_firings} active firings`} icon={Activity} />
+            <StatCard title="Audit (30d)" value={`${governancePosture.audit_context.audit_events_30d}`} sub="audit events" icon={BookOpen} />
+            <StatCard title="Tags" value={`${governancePosture.governance_context.active_tags}/${governancePosture.governance_context.tags}`} sub={`${governancePosture.governance_context.approvals} approvals`} icon={Sparkles} />
+          </div>
+          {scopePosture && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 dark:border-amber-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">Tool Registry</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.tool_context.tool_registry_entries}</p>
+                <p className="text-xs text-slate-500">registered tools</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 dark:border-amber-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">Tool Policies</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.tool_context.active_tool_policies}/{scopePosture.tool_context.tool_policies}</p>
+                <p className="text-xs text-slate-500">active / total</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 dark:border-amber-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">Approvals</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.tool_context.pending_approvals}</p>
+                <p className="text-xs text-slate-500">pending approvals</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 dark:border-amber-800 dark:bg-slate-900/60">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">Data Capture</p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.tool_context.capture_policies}</p>
+                <p className="text-xs text-slate-500">capture policies</p>
+              </div>
+            </div>
+          )}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/security" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Security</Link>
+            <Link href="/alert-rules" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
+            <Link href="/audit" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
+            <Link href="/governance" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Governance Pack</Link>
+            <Link href="/tags" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tags</Link>
+            <Link href="/tool-registry" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tool Registry</Link>
+            <Link href="/tool-policies" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tool Policies</Link>
+            <Link href="/approvals" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Approvals</Link>
+            <Link href="/data-capture" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Data Capture</Link>
+          </div>
+        </div>
+      )}
+
+      {orgPosture && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/40">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">Org Identity</p>
+              <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-50">Users, Keys & Telemetry</h2>
+            </div>
+            <Link href="/organization" className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-400">Organization</Link>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard title="Users" value={`${orgPosture.user_context.workspace_users}`} sub="workspace members" icon={Users} />
+            <StatCard title="API Keys" value={`${orgPosture.api_key_context.active_api_keys}/${orgPosture.api_key_context.api_keys}`} sub="active / total" icon={Key} />
+            <StatCard title="Telemetry (30d)" value={`${orgPosture.telemetry_context.telemetry_batches_30d}`} sub={`${orgPosture.telemetry_context.telemetry_batches} total batches`} icon={Activity} />
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard title="MCP Servers" value={`${orgPosture.mcp_context.active_mcp_servers}/${orgPosture.mcp_context.mcp_servers}`} sub="active / total" icon={Cpu} />
+            <StatCard title="AI Hub Models" value={`${orgPosture.hub_context.active_hub_models}/${orgPosture.hub_context.hub_models}`} sub="active / total" icon={Sparkles} />
+            {scopePosture && (
+              <StatCard title="Access Groups" value={`${scopePosture.access_group_context.active_access_groups}/${scopePosture.access_group_context.access_groups}`} sub={`${scopePosture.access_group_context.total_members} members`} icon={Shield} />
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/onboarding" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Onboarding</Link>
+            <Link href="/users" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Users</Link>
+            <Link href="/api-keys" className="text-xs text-blue-700 hover:underline dark:text-blue-400">API Keys</Link>
+            <Link href="/access-groups" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Access Groups</Link>
+            <Link href="/monitoring/telemetry" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Telemetry</Link>
+            <Link href="/mcp-registry" className="text-xs text-blue-700 hover:underline dark:text-blue-400">MCP Registry</Link>
+            <Link href="/ai-hub" className="text-xs text-blue-700 hover:underline dark:text-blue-400">AI Hub</Link>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
         <p className="font-semibold text-slate-950 dark:text-slate-50">Observe flow</p>
