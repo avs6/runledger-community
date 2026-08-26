@@ -692,6 +692,7 @@ export default function MonitoringPage() {
           <div className="flex flex-wrap gap-2">
             {[
               { label: 'Budgets', href: '/budgets' },
+              { label: 'Budget Detail', href: '/budgets' },
               { label: 'Budget Overrides', href: '/budgets?tab=overrides' },
               { label: 'Notifications', href: '/budgets?tab=notifications' },
               { label: 'Billing Periods', href: '/billing' },
@@ -769,6 +770,7 @@ export default function MonitoringPage() {
               {[
                 { label: 'Tool Registry', href: '/tool-registry' },
                 { label: 'Tool Policies', href: '/tool-policies' },
+                { label: 'Approvals', href: '/approvals' },
                 { label: 'Data Capture', href: '/data-capture' },
                 { label: 'Audit Log', href: '/audit' },
                 { label: 'Governance Pack', href: '/governance-pack' },
@@ -804,6 +806,7 @@ export default function MonitoringPage() {
                 { label: 'Organization', href: '/organization' },
                 { label: 'Onboarding', href: '/onboarding' },
                 { label: 'Workspaces', href: '/workspaces' },
+                { label: 'API Keys', href: '/api-keys' },
                 { label: 'MCP Registry', href: '/mcp-registry' },
                 { label: 'Analytics Overview', href: '/analytics' },
                 { label: 'Runs', href: '/runs' },

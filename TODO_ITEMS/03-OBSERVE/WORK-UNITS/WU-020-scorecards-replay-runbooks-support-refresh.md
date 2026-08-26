@@ -1,10 +1,10 @@
 # WU-020: Scorecards Replay and Runbooks Support Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - Bundles C/D (cross-bundle support strengthening)
 - **Target**: 03-OBSERVE/Model scorecards + Replay lab + Runbooks
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-25
 
 ## Cohesion Cells to Close
 

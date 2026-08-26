@@ -159,6 +159,9 @@ export default function TelemetryPage() {
               {[
                 { label: 'Model Gateway', href: '/gateway' },
                 { label: 'Provider Profiles', href: '/provider-profiles' },
+                { label: 'Guardrails', href: '/guardrails' },
+                { label: 'Response Cache', href: '/cache' },
+                { label: 'Rate Limits', href: '/rate-limits' },
               ].map(({ label, href }) => (
                 <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
                   {label}
@@ -190,6 +193,8 @@ export default function TelemetryPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {[
+                { label: 'Tool Registry', href: '/tool-registry' },
+                { label: 'Tool Policies', href: '/tool-policies' },
                 { label: 'Data Capture', href: '/data-capture' },
                 { label: 'Security', href: '/monitoring' },
                 { label: 'Alert Rules', href: '/alert-rules' },

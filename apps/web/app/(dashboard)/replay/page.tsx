@@ -10,7 +10,8 @@ import {
   runEvalExperiment,
 } from '@/lib/api'
 import type { EvalDataset, EvalExperiment } from '@/types/api'
-import { Beaker, Plus, Play, ChevronDown, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
+import { Beaker, Network, Plus, Play, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function ReplayLabPage() {
@@ -114,6 +115,25 @@ export default function ReplayLabPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Re-run datasets with different model configs to compare costs
           </p>
+        </div>
+      </div>
+
+      {/* Gateway context bar */}
+      <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-2.5 dark:border-violet-800 dark:bg-violet-950/30">
+        <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+        <p className="text-sm text-violet-800 dark:text-violet-200">
+          Experiments replay traffic through gateway routes and model configs.
+        </p>
+        <div className="ml-auto flex gap-2">
+          {[
+            { label: 'Model Gateway', href: '/gateway' },
+            { label: 'Provider Profiles', href: '/provider-profiles' },
+            { label: 'Routes', href: '/routes' },
+          ].map(({ label, href }) => (
+            <Link key={label} href={href} className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50 transition-colors">
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
 

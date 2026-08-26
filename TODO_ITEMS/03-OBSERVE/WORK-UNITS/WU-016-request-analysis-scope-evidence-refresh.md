@@ -1,10 +1,10 @@
 # WU-016: Request Analysis Scope and Evidence Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - Bundle B (Request, Run, and Session Investigation)
 - **Target**: 03-OBSERVE/Request flow + Request explorer (`/request-flow`, `/request-explorer`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-25
 
 ## Cohesion Cells to Close
 

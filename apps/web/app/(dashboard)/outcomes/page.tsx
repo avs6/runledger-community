@@ -9,6 +9,7 @@ import {
   getOutcomeSummary,
   getOutcomeTrend,
   getOutcomesFinopsPosture,
+  getInvestigationOrgIdentityPosture,
   getQualityCorrelation,
   getWorkflowROI,
   listOutcomes,
@@ -20,6 +21,7 @@ import type {
   OutcomeSummary,
   OutcomeTrend,
   OutcomesFinopsPosture,
+  InvestigationOrgIdentityPosture,
   QualityOutcomeCorrelation,
   WorkflowROIList,
 } from '@/types/api'
@@ -34,7 +36,7 @@ import {
   YAxis,
 } from 'recharts'
 import Link from 'next/link'
-import { Pencil, Plus, Save, Trash2, Wallet, X } from 'lucide-react'
+import { Building2, Pencil, Plus, Save, Trash2, Wallet, X } from 'lucide-react'
 
 const WINDOWS = [7, 14, 30, 90]
 const LEDGER_PAGE_SIZE = 12
@@ -248,6 +250,7 @@ export default function OutcomesPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [finopsPosture, setFinopsPosture] = useState<OutcomesFinopsPosture | null>(null)
+  const [orgIdentityPosture, setOrgIdentityPosture] = useState<InvestigationOrgIdentityPosture | null>(null)
 
   const loadAnalytics = useCallback(async () => {
     if (!apiKey) return
@@ -299,6 +302,7 @@ export default function OutcomesPage() {
   useEffect(() => {
     if (!apiKey) return
     getOutcomesFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
+    getInvestigationOrgIdentityPosture(apiKey).then(setOrgIdentityPosture).catch(() => {})
   }, [apiKey])
 
   const trendByType = useMemo(
@@ -525,11 +529,49 @@ export default function OutcomesPage() {
               <div className="flex flex-wrap gap-2">
                 {[
                   { label: 'Budgets', href: '/budgets' },
+                  { label: 'Budget Detail', href: '/budgets' },
                   { label: 'Billing Periods', href: '/billing' },
                   { label: 'Billing Period Detail', href: '/billing' },
                   { label: 'Chargeback', href: '/chargeback' },
                 ].map(({ label, href }) => (
                   <Link key={label} href={href} className="rounded-lg border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/50">
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {orgIdentityPosture && (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-base font-semibold text-blue-900 dark:text-blue-100">Workspace & Identity Context</h2>
+              </div>
+              <p className="text-sm text-blue-800/80 dark:text-blue-300/70 mb-4">
+                {orgIdentityPosture.org_context.workspace_name} · {orgIdentityPosture.org_context.workspace_users} workspace users · {orgIdentityPosture.user_context.distinct_end_users_30d} end users (30d) · {orgIdentityPosture.api_key_context.active_keys}/{orgIdentityPosture.api_key_context.total_keys} active API keys
+              </p>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+                {[
+                  { label: 'Workspace', value: orgIdentityPosture.org_context.workspace_name },
+                  { label: 'Users', value: String(orgIdentityPosture.org_context.workspace_users) },
+                  { label: 'End Users (30d)', value: String(orgIdentityPosture.user_context.distinct_end_users_30d) },
+                  { label: 'API Keys', value: `${orgIdentityPosture.api_key_context.active_keys}/${orgIdentityPosture.api_key_context.total_keys}` },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">{label}</p>
+                    <p className="mt-1 text-lg font-semibold text-blue-900 dark:text-blue-100">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: 'Workspaces', href: '/workspaces' },
+                  { label: 'Users', href: '/users' },
+                  { label: 'API Keys', href: '/api-keys' },
+                  { label: 'Organization', href: '/organization' },
+                ].map(({ label, href }) => (
+                  <Link key={label} href={href} className="rounded-lg border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">
                     {label}
                   </Link>
                 ))}

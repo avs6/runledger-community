@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { ArrowRight, Expand, GitBranch, Layers3, Route as RouteIcon, Search, ShieldCheck } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationGovernancePosture, getInvestigationOrgIdentityPosture, getRunFlow } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationGovernancePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
   type RequestFlowDensity,
   type RequestFlowMetric,
@@ -95,11 +95,12 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
   const govParams = { access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined }
-  const [governance, finops, orgIdentity, gatewayRuntime] = await Promise.all([
+  const [governance, finops, orgIdentity, gatewayRuntime, scopePosture] = await Promise.all([
     getInvestigationGovernancePosture(session.apiKey, govParams).catch(() => null),
     getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
     getInvestigationOrgIdentityPosture(session.apiKey).catch(() => null),
     getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
+    getOverviewScopePosture(session.apiKey).catch(() => null),
   ])
   let flow: RunFlowResponse
   try {
@@ -186,11 +187,13 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
                   <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Runtime policy evidence around this investigation scope</h2>
                   <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
                     {governance.filtered_runs.toLocaleString()} scoped runs, {governance.security.events.toLocaleString()} security events, and {governance.audit_log.governance_events.toLocaleString()} governance audit events are available for drill-through.
+                    {scopePosture && ` ${scopePosture.tool_context.pending_approvals} pending approvals, ${scopePosture.tool_context.capture_policies} capture policies.`}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-semibold text-cyan-800 dark:text-cyan-100">
                   <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
                   <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
+                  <Link href="/approvals" className="hover:underline">Approvals</Link>
                   <Link href="/security" className="hover:underline">Security</Link>
                   <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
                   <Link href="/audit" className="hover:underline">Audit Log</Link>
