@@ -204,8 +204,12 @@ Useful local URLs:
 |---|---|
 | `http://localhost:3201` | Dashboard |
 | `http://localhost:8201/reference` | Interactive API reference |
+| `http://localhost:8210/gateway` | Rust gateway (OpenAI-compatible) |
 | `http://localhost:4318` | OTLP/HTTP receiver |
 | `http://localhost:8201/mcp` | Canonical RunLedger MCP endpoint |
+| `http://localhost:8206/mcp` | Optimization MCP gateway |
+
+See [Service ports](/deployment/configuration#ports) for the full map.
 
 Python example:
 

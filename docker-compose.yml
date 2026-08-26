@@ -658,7 +658,7 @@ services:
     restart: unless-stopped
     profiles: ["aux", "full-prod", "full-demo"]
     ports:
-      - "${ROUTER_PORT:-8210}:8105"
+      - "${ROUTER_PORT:-8105}:8105"
     environment:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       ROUTER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}

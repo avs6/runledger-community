@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import logging
+import math  # noqa: F401
 import os
+import random  # noqa: F401
+import time  # noqa: F401
+import uuid  # noqa: F401
+from collections.abc import AsyncGenerator  # noqa: F401
+from datetime import UTC, datetime, timedelta  # noqa: F401
+from decimal import Decimal  # noqa: F401
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
-from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import select
+import httpx  # noqa: F401
+import sqlalchemy as sa  # noqa: F401
+from fastapi import Depends, Header, HTTPException, Query, Request, status  # noqa: F401
+from fastapi.responses import Response, StreamingResponse  # noqa: F401
+from sqlalchemy import func, select  # noqa: F401
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -20,21 +30,106 @@ from runledger_api.core.deps import (
 )
 from runledger_api.models.gateway import (
     GatewayPassThroughEndpoint,
+    GatewayRequest,  # noqa: F401
     GatewayRoute,
     GatewayRoutingGroup,
+    RoutingPolicy,  # noqa: F401
 )
 from runledger_api.models.tenant import ApiKey, TenantUser, User, Workspace
-from runledger_api.schemas.gateway import (
+from runledger_api.schemas.gateway import (  # noqa: F401
+    GatewayBenchmarkComparisonItem,
+    GatewayBenchmarkComparisonList,
     GatewayCompletionRequest,
+    GatewayDeploymentHealthItem,
+    GatewayDeploymentHealthList,
+    GatewayPassThroughEndpointCreate,
+    GatewayPassThroughEndpointList,
+    GatewayPassThroughEndpointResponse,
+    GatewayPassThroughEndpointStats,
+    GatewayPassThroughEndpointStatsList,
+    GatewayPassThroughEndpointUpdate,
+    GatewayPassThroughTestRequest,
+    GatewayPassThroughTestResponse,
+    GatewayRateLimitOverview,
+    GatewayRateLimitTier,
+    GatewayRequestList,
+    GatewayRequestResponse,
+    GatewayRouteCreate,
+    GatewayRouteList,
     GatewayRouteResponse,
+    GatewayRouteStats,
+    GatewayRouteUpdate,
+    GatewayRoutingGroupCreate,
+    GatewayRoutingGroupList,
     GatewayRoutingGroupResponse,
     GatewayRoutingGroupRouteSummary,
+    GatewayRoutingGroupUpdate,
+    GatewayRoutingStrategyComparison,
+    GatewayRoutingStrategyComparisonItem,
+    GatewayRuntimeApiKeyResolveRequest,
+    GatewayRuntimeApiKeyResolveResponse,
+    GatewayRuntimeEventBatchRequest,
+    GatewayRuntimeEventBatchResponse,
+    GatewayRuntimeFinalizeRequest,
+    GatewayRuntimeFinalizeResponse,
+    GatewayRuntimeMirrorRequest,
+    GatewayRuntimePreflightRequest,
+    GatewayRuntimePreflightResponse,
+    GatewayRuntimeProviderExecuteRequest,
+    GatewayRuntimeRouteResultRequest,
+    GatewayRuntimeSnapshotResponse,
+    GatewayStats,
+    RoutingPolicyActionResponse,
+    RoutingPolicyAnalysisResponse,
+    RoutingPolicyCreate,
+    RoutingPolicyList,
+    RoutingPolicyPromotionRequest,
+    RoutingPolicyResponse,
+    RoutingPolicyUpdate,
+    RoutingPolicyVariantMetrics,
+    RoutingRecommendationModel,
+    RoutingRecommendationResponse,
 )
 from runledger_api.services.auth import verify_api_key
+from runledger_api.services.gateway import (  # noqa: F401
+    _apply_prompt_overrides,
+    _override_value,
+    _response_text,
+    _shadow_similarity,
+    check_cache,
+    choose_route_for_alias,
+    forward_request,
+    increment_hit_count,
+    make_cache_key,
+    record_gateway_request,
+    resolve_request_tags,
+    select_routes,
+    store_cache,
+    stream_request,
+)
+from runledger_api.services.gateway_controls import (  # noqa: F401
+    check_cost_cap,
+    check_per_user_rpm,
+)
 from runledger_api.services.gateway_providers import VertexAdapter
+from runledger_api.services.gateway_redact import redact_messages  # noqa: F401
+from runledger_api.services.gateway_runtime import (  # noqa: F401
+    build_gateway_runtime_snapshot,
+    ingest_gateway_runtime_events,
+    verify_gateway_runtime_signature,
+)
+from runledger_api.services.guardrails import evaluate_guardrails  # noqa: F401
+from runledger_api.services.routing import analyze_routing_policy  # noqa: F401
 from runledger_api.services.security import (
     authenticate_oidc_token,
+    enforce_required_metadata,  # noqa: F401
+    evaluate_ip_acl,  # noqa: F401
+    get_client_ip,  # noqa: F401
 )
+
+import runledger_api.services.context_compiler as context_compiler  # noqa: F401
+import runledger_api.services.intelligent_router as intelligent_router  # noqa: F401
+import runledger_api.services.semantic_cache as semantic_cache  # noqa: F401
 
 log = logging.getLogger(__name__)
 

@@ -39,7 +39,10 @@ curl -s -X POST http://localhost:8201/admin/bootstrap \
 |---|---|
 | `http://localhost:3201` | Dashboard |
 | `http://localhost:8201/reference` | Interactive API reference (Scalar) |
+| `http://localhost:8210/gateway` | Rust gateway (OpenAI-compatible) |
 | `http://localhost:4318` | OTLP/HTTP receiver (via OTel Collector) |
+| `http://localhost:8201/mcp` | Canonical RunLedger MCP endpoint |
+| `http://localhost:8206/mcp` | Optimization MCP gateway |
 
 ## Profile model
 
@@ -99,14 +102,52 @@ For contributor workflows — hot-reload dev servers, tests, lint, and type-chec
 
 ## What comes up
 
+### Core (no profile required)
+
+| Component | Host port | Env override | Role |
+|---|---|---|---|
+| `runledger-web` | 3201 | `WEB_PORT` | Next.js dashboard |
+| `runledger-api` | 8201 | `API_PORT` | FastAPI control plane (+ /reference, /mcp) |
+| `runledger-gateway-rs` | 8210 | `GATEWAY_RUNTIME_PORT` | Rust gateway (OpenAI-compatible data plane) |
+| `runledger-postgres` | 5432 | `POSTGRES_PORT` | System of record |
+| `runledger-redis` | 6379 | `REDIS_PORT` | Queue / cache / budget hot-path |
+| `runledger-worker` | — | — | Celery async worker |
+| `runledger-beat` | — | — | Celery periodic scheduler |
+
+### Infrastructure (`infra` / `full-demo`)
+
+| Component | Host port | Env override | Role |
+|---|---|---|---|
+| `runledger-qdrant` | 8202 (HTTP) / 8203 (gRPC) | `QDRANT_HTTP_PORT` / `QDRANT_GRPC_PORT` | Vector store (semantic cache, embeddings) |
+| `runledger-minio` | 9010 (S3) / 9011 (console) | — | S3-compatible object store (backups) |
+| `runledger-redpanda` | 19092 (Kafka) / 18082 (admin) | — | Streaming export broker |
+| `runledger-redpanda-console` | 19091 | — | Redpanda web UI |
+| `runledger-memory-db` | — | — | Letta Postgres (internal) |
+| `runledger-letta` | 8214 | `LETTA_PORT` | Memory agent runtime |
+
+### Optimization & agentic (`aux` / `full-demo`)
+
+| Component | Host port | Env override | Role |
+|---|---|---|---|
+| `runledger-embedding-svc` | 8204 | `EMBEDDING_PORT` | Shared embedding service |
+| `runledger-semantic-cache-svc` | 8205 | `SEMANTIC_CACHE_PORT` | Semantic similarity cache |
+| `runledger-mcp-gateway` | 8206 | `MCP_PORT` | Optimization MCP gateway |
+| `runledger-context-compiler` | 8207 | `CONTEXT_COMPILER_PORT` | Prompt compression / context compilation |
+| `runledger-reranker` | 8208 | `RERANKER_PORT` | Cross-encoder reranker |
+| `runledger-compression` | 8209 | `COMPRESSION_PORT` | Token compression service |
+| `runledger-router` | 8105 | `ROUTER_PORT` | Intelligent routing service |
+| `runledger-memory-svc` | 8211 | `MEMORY_PORT` | Conversational memory |
+| `runledger-kg-svc` | 8212 | `KG_PORT` | Knowledge graph service |
+| `runledger-skill-registry` | 8213 | `SKILL_PORT` | Agent skill registry |
+| `runledger-flywheel` | 8215 | `FLYWHEEL_PORT` | Optimization flywheel / analyzer |
+
+### Observability & TLS (`full-demo`)
+
 | Component | Host port | Role |
 |---|---|---|
-| `runledger-web` | 3201 | Next.js dashboard |
-| `runledger-api` | 8201 | FastAPI control plane + gateway |
-| `runledger-postgres` / `runledger-redis` | 5432 / 6379 | System of record + queue/cache |
-| `runledger-qdrant` | 8202 | Vector store (semantic cache, `aux` / `full-demo`) |
-| Optimization services | 8204–8215 | embedding, semantic-cache, context-compiler, reranker, compression, router, memory, kg, skill-registry, flywheel, mcp-gateway (`aux` / `full-demo`) |
-| `runledger-otel-collector` | 4317 / 4318 | OTLP receiver (`observability` / `full-demo`) |
+| `runledger-otel-collector` | 4317 (gRPC) / 4318 (HTTP) | OTLP receiver |
+| `runledger-otel-collector` | 13133 / 8888 / 8889 / 55679 | Health, self-metrics, span metrics, zPages |
+| `runledger-caddy` | 3443 / 8443 | Local HTTPS reverse proxy (web / API) |
 
 Local LLM runtimes (Ollama / vLLM) stay **external** — point `OLLAMA_BASE_URL` / `VLLM_BASE_URL` at them.
 See the [Token Optimization overview](/optimization) for the full service map.

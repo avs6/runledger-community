@@ -21,8 +21,30 @@ server env var) — see [Data retention](/governance/retention).
 
 ## Ports
 
-Host ports are chosen to avoid clashes with other local products: dashboard **3201**, API **8201**, and
-the optimization services in the **8202–8215** band. Override any with the `*_PORT` variables in `.env`.
+Host ports are chosen to avoid clashes with other local products. Override any with the `*_PORT` variables in `.env`.
+
+| Variable | Default | Service |
+|---|---|---|
+| `WEB_PORT` | 3201 | Dashboard |
+| `API_PORT` | 8201 | API control plane |
+| `GATEWAY_RUNTIME_PORT` | 8210 | Rust gateway |
+| `POSTGRES_PORT` | 5432 | Postgres |
+| `REDIS_PORT` | 6379 | Redis |
+| `QDRANT_HTTP_PORT` / `QDRANT_GRPC_PORT` | 8202 / 8203 | Qdrant |
+| `EMBEDDING_PORT` | 8204 | Embedding service |
+| `SEMANTIC_CACHE_PORT` | 8205 | Semantic cache |
+| `MCP_PORT` | 8206 | MCP gateway |
+| `CONTEXT_COMPILER_PORT` | 8207 | Context compiler |
+| `RERANKER_PORT` | 8208 | Reranker |
+| `COMPRESSION_PORT` | 8209 | Compression |
+| `ROUTER_PORT` | 8105 | Intelligent router |
+| `MEMORY_PORT` | 8211 | Memory service |
+| `KG_PORT` | 8212 | Knowledge graph |
+| `SKILL_PORT` | 8213 | Skill registry |
+| `LETTA_PORT` | 8214 | Letta |
+| `FLYWHEEL_PORT` | 8215 | Flywheel |
+
+MinIO (9010/9011), Redpanda (19092/18082), Redpanda Console (19091), OTel Collector (4317/4318), and Caddy (3443/8443) use fixed ports in `docker-compose.yml`.
 
 ## Optimization layer
 
