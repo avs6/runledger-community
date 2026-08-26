@@ -581,7 +581,7 @@ function RequestDetail({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Budget Context</h2>
-              <p className="mt-1 text-sm text-slate-500">FinOps budget posture for this request's workspace — budget utilization, billing periods, and chargeback attribution.</p>
+              <p className="mt-1 text-sm text-slate-500">FinOps budget posture for this request&apos;s workspace — budget utilization, billing periods, and chargeback attribution.</p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs font-semibold text-emerald-700">
               <Link href="/budgets" className="hover:underline">Budgets</Link>
@@ -628,7 +628,7 @@ function RequestDetail({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Gateway Runtime Context</h2>
-              <p className="mt-1 text-sm text-slate-500">Provider routing, guardrails, cache, and rate limits for this request's workspace.</p>
+              <p className="mt-1 text-sm text-slate-500">Provider routing, guardrails, cache, and rate limits for this request&apos;s workspace.</p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs font-semibold text-violet-700">
               <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>

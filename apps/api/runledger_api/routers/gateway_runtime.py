@@ -140,7 +140,7 @@ async def gateway_runtime_preflight(
     if not semantic_enabled and not body.body.stream:
         semantic_enabled = bool(seed_routes and seed_routes[0].semantic_cache_enabled)
     if semantic_enabled and not body.body.stream:
-        sem_hit = await semantic_cache.lookup(workspace.id, body.body.model, messages)
+        sem_hit = await semantic_cache_svc.lookup(workspace.id, body.body.model, messages)
         if sem_hit is not None:
             usage = sem_hit.get("usage") or {}
             await record_gateway_request(
@@ -527,7 +527,7 @@ async def gateway_runtime_finalize(
             completion_tokens=output_tokens,
         )
     if body.semantic_cache_enabled:
-        await semantic_cache.store(
+        await semantic_cache_svc.store(
             workspace_id=workspace.id,
             model=body.model_requested,
             messages=body.prepared_messages,

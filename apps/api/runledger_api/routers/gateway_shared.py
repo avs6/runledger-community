@@ -129,7 +129,7 @@ from runledger_api.services.security import (
 
 import runledger_api.services.context_compiler as context_compiler  # noqa: F401
 import runledger_api.services.intelligent_router as intelligent_router  # noqa: F401
-import runledger_api.services.semantic_cache as semantic_cache  # noqa: F401
+import runledger_api.services.semantic_cache as semantic_cache_svc  # noqa: F401
 
 log = logging.getLogger(__name__)
 
