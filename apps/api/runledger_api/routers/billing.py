@@ -37,9 +37,9 @@ import json
 import uuid
 from typing import Annotated, Any
 
+import sqlalchemy as sa
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,13 +49,13 @@ from runledger_api.core.deps import (
     require_workspace_admin,
 )
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.billing import (
     BillingAdjustment,
     BillingPeriod,
     ChargebackRule,
     SharedCostPolicy,
 )
-from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.billing import (
@@ -63,15 +63,16 @@ from runledger_api.schemas.billing import (
     BillingAdjustmentList,
     BillingAdjustmentResponse,
     BillingAdjustmentUpdate,
-    ChargebackReportList,
     BillingPeriodCreate,
     BillingPeriodList,
     BillingPeriodResponse,
+    ChargebackReportList,
     ChargebackRuleCreate,
     ChargebackRuleList,
     ChargebackRuleResponse,
     ChargebackRuleUpdate,
     PeriodBreakdown,
+    ReconciliationResult,
     SharedCostAllocationResult,
     SharedCostPolicyCreate,
     SharedCostPolicyList,
@@ -341,7 +342,7 @@ async def get_breakdown(
             status_code=status.HTTP_404_NOT_FOUND, detail="Billing period not found"
         )
 
-try:
+    try:
         return await get_period_breakdown(
             db,
             period_id,

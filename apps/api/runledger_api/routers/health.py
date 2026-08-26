@@ -161,9 +161,7 @@ async def metrics(
     ).scalar_one()
     uncosted_provider_calls = (
         await db.execute(
-            select(func.count())
-            .select_from(ProviderCall)
-            .where(ProviderCall.cost_usd.is_(None))
+            select(func.count()).select_from(ProviderCall).where(ProviderCall.cost_usd.is_(None))
         )
     ).scalar_one()
 

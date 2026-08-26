@@ -155,9 +155,7 @@ class BackupSnapshot(Base):
     integrity_status: Mapped[str] = mapped_column(
         sa.String(32), nullable=False, server_default=sa.text("'pending'")
     )
-    verified_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    verified_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("NOW()")
     )

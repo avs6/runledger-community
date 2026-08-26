@@ -170,9 +170,15 @@ class RunLedgerTask:
             success=success,
             labels=merged_labels or None,
             final_status=final_status,
-            total_cost_usd=total_cost_usd if total_cost_usd is not None else str(self._total_cost_usd),
-            total_input_tokens=total_input_tokens if total_input_tokens is not None else self._total_input_tokens,
-            total_output_tokens=total_output_tokens if total_output_tokens is not None else self._total_output_tokens,
+            total_cost_usd=total_cost_usd
+            if total_cost_usd is not None
+            else str(self._total_cost_usd),
+            total_input_tokens=total_input_tokens
+            if total_input_tokens is not None
+            else self._total_input_tokens,
+            total_output_tokens=total_output_tokens
+            if total_output_tokens is not None
+            else self._total_output_tokens,
         )
         self._outcome_recorded = True
 

@@ -388,7 +388,7 @@ export default async function RunDetailPage({
       </div>
 
       <GovernanceEvidencePanel governance={governance} scopePosture={scopePosture} />
-      <FinopsBudgetPanel finops={finops} runCost={run.total_cost_usd ?? 0} />
+      <FinopsBudgetPanel finops={finops} runCost={parseFloat(String(run.total_cost_usd ?? 0))} />
       <GatewayRuntimePanel gateway={gatewayRuntime} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">

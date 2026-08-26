@@ -7,10 +7,9 @@ Create Date: 2026-08-07 12:30:00.000000
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "079"
 down_revision = "078"
@@ -26,13 +25,33 @@ def upgrade() -> None:
         sa.Column("alias", sa.Text(), nullable=False),
         sa.Column("name", sa.String(length=120), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("match_tags", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'"), nullable=False),
-        sa.Column("default_tags", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'"), nullable=False),
+        sa.Column(
+            "match_tags",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'"),
+            nullable=False,
+        ),
+        sa.Column(
+            "default_tags",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'"),
+            nullable=False,
+        ),
         sa.Column("strategy_type", sa.String(length=32), server_default="manual", nullable=False),
         sa.Column("strategy_config", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
-        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(

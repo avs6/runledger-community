@@ -6,6 +6,7 @@ from .gateway_shared import *
 
 router = APIRouter()
 
+
 @router.get("/runtime/snapshot", response_model=GatewayRuntimeSnapshotResponse)
 async def get_gateway_runtime_snapshot(
     auth: OrgAdminDep,
@@ -75,7 +76,9 @@ async def gateway_runtime_preflight(
             team_name=team_name,
             client_ip=body.client_ip,
         )
-    missing_metadata = await enforce_required_metadata(db, workspace_id=workspace.id, metadata=metadata)
+    missing_metadata = await enforce_required_metadata(
+        db, workspace_id=workspace.id, metadata=metadata
+    )
 
     messages = [{"role": m.role, "content": m.content} for m in body.body.messages]
     request_tags = (
@@ -253,7 +256,11 @@ async def gateway_runtime_preflight(
             status.HTTP_502_BAD_GATEWAY,
             f"No active gateway routes configured for alias '{route_alias}'",
         )
-    decision_reason = str(ir_decision.get("reason")) if ir_decision and ir_decision.get("reason") else primary_reason
+    decision_reason = (
+        str(ir_decision.get("reason"))
+        if ir_decision and ir_decision.get("reason")
+        else primary_reason
+    )
     if missing_metadata:
         decision_reason = f"{decision_reason}|metadata_warn:{','.join(missing_metadata)}"
 
@@ -267,7 +274,9 @@ async def gateway_runtime_preflight(
             for rule in first_fallback_cfg.get("fallbacks", [])
             if isinstance(rule, dict) and isinstance(rule.get("alias"), str) and rule.get("alias")
         ]
-    for alias in first_fallback_cfg.get("aliases", []) if isinstance(first_fallback_cfg, dict) else []:
+    for alias in (
+        first_fallback_cfg.get("aliases", []) if isinstance(first_fallback_cfg, dict) else []
+    ):
         if isinstance(alias, str) and alias and alias not in visited_aliases:
             queue.append({"alias": alias, "rule": None, "trigger": "configured"})
             visited_aliases.add(alias)
@@ -288,16 +297,24 @@ async def gateway_runtime_preflight(
         step_temperature = _override_value(body.body.temperature, rule, "temperature")
         step_max_tokens = _override_value(body.body.max_tokens, rule, "max_tokens")
         step_top_p = _override_value(body.body.top_p, rule, "top_p")
-        step_frequency_penalty = _override_value(body.body.frequency_penalty, rule, "frequency_penalty")
-        step_presence_penalty = _override_value(body.body.presence_penalty, rule, "presence_penalty")
+        step_frequency_penalty = _override_value(
+            body.body.frequency_penalty, rule, "frequency_penalty"
+        )
+        step_presence_penalty = _override_value(
+            body.body.presence_penalty, rule, "presence_penalty"
+        )
         step_seed = _override_value(body.body.seed, rule, "seed")
         step_stop = _override_value(body.body.stop, rule, "stop")
         step_response_format = _override_value(body.body.response_format, rule, "response_format")
         step_tools = _override_value(effective_tools, rule, "tools")
         step_tool_choice = _override_value(body.body.tool_choice, rule, "tool_choice")
-        step_reasoning_effort = _override_value(effective_reasoning_effort, rule, "reasoning_effort")
-        timeout_override_ms = body.stream_timeout_ms if body.body.stream else (
-            body.completion_timeout_ms or body.timeout_ms
+        step_reasoning_effort = _override_value(
+            effective_reasoning_effort, rule, "reasoning_effort"
+        )
+        timeout_override_ms = (
+            body.stream_timeout_ms
+            if body.body.stream
+            else (body.completion_timeout_ms or body.timeout_ms)
         )
         if rule and rule.get("completion_timeout_ms") is not None and not body.body.stream:
             timeout_override_ms = int(rule["completion_timeout_ms"])
@@ -318,12 +335,16 @@ async def gateway_runtime_preflight(
         )
         if not routes_for_alias or selected_route is None:
             continue
-        ordered_routes = [selected_route] + [route for route in routes_for_alias if route.id != selected_route.id]
+        ordered_routes = [selected_route] + [
+            route for route in routes_for_alias if route.id != selected_route.id
+        ]
         if trigger == "primary":
             for fallback_rule in fallback_rules:
                 fallback_alias = str(fallback_rule["alias"])
                 if fallback_alias not in visited_aliases:
-                    queue.append({"alias": fallback_alias, "rule": fallback_rule, "trigger": "policy"})
+                    queue.append(
+                        {"alias": fallback_alias, "rule": fallback_rule, "trigger": "policy"}
+                    )
                     visited_aliases.add(fallback_alias)
         for route in ordered_routes:
             if route.cooldown_until is not None and route.cooldown_until > datetime.now(UTC):
@@ -343,7 +364,11 @@ async def gateway_runtime_preflight(
                     )
             except HTTPException:
                 continue
-            step_forward_messages = redact_messages(step_messages) if body.body.stream and route.pii_redaction_enabled else step_messages
+            step_forward_messages = (
+                redact_messages(step_messages)
+                if body.body.stream and route.pii_redaction_enabled
+                else step_messages
+            )
             step_request = _runtime_request_body(
                 body=body.body,
                 route=route,
@@ -371,7 +396,9 @@ async def gateway_runtime_preflight(
                     "alias": alias_to_try,
                     "provider": route.provider,
                     "target_model": route.target_model,
-                    "execution_mode": "direct_http" if direct_provider is not None else "python_adapter",
+                    "execution_mode": "direct_http"
+                    if direct_provider is not None
+                    else "python_adapter",
                     "base_url": route.base_url,
                     "api_key_env_var": route.api_key_env_var,
                     "priority": route.priority,
@@ -389,7 +416,9 @@ async def gateway_runtime_preflight(
                         if trigger in {"policy", "timeout", "content_policy", "context_window"}
                         else []
                     ),
-                    "decision_reason": decision_reason if trigger == "primary" else f"{trigger}:{selected_reason}",
+                    "decision_reason": decision_reason
+                    if trigger == "primary"
+                    else f"{trigger}:{selected_reason}",
                     "request_method": "POST",
                     "request_url": direct_provider[0] if direct_provider is not None else None,
                     "request_headers": direct_provider[1] if direct_provider is not None else {},
@@ -464,7 +493,10 @@ async def gateway_runtime_finalize(
                 db,
                 workspace.id,
                 "during_call",
-                texts=[str(m.get("content", "")) for m in body.prepared_messages if m.get("content")] + [response_content],
+                texts=[
+                    str(m.get("content", "")) for m in body.prepared_messages if m.get("content")
+                ]
+                + [response_content],
                 structured_messages=body.prepared_messages,
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
@@ -476,7 +508,9 @@ async def gateway_runtime_finalize(
                         (r["reason"] for r in phase_results if r["decision"] == "block"),
                         "Response blocked by guardrail",
                     )
-                    raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
+                    raise HTTPException(
+                        status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason
+                    )
 
     usage = body.response_json.get("usage") or {}
     input_tokens = usage.get("prompt_tokens")
@@ -556,6 +590,7 @@ async def gateway_runtime_provider_execute(
         "reasoning_effort": body.request_body.get("reasoning_effort"),
     }
     if body.stream:
+
         async def _provider_stream() -> AsyncGenerator[bytes]:
             async for chunk in stream_request(
                 route=route,
@@ -696,7 +731,9 @@ async def ingest_signed_gateway_runtime_events(
     try:
         payload = GatewayRuntimeEventBatchRequest.model_validate_json(raw_body)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid gateway runtime event payload") from exc
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Invalid gateway runtime event payload"
+        ) from exc
     verify_gateway_runtime_signature(
         workspace_id=str(payload.workspace_id),
         timestamp=x_runledger_timestamp,

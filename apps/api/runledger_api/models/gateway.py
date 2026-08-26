@@ -123,13 +123,9 @@ class GatewayRoute(Base):
     excluded_tags: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'[]'")
     )
-    retry_count: Mapped[int] = mapped_column(
-        sa.Integer, nullable=False, server_default="1"
-    )
+    retry_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="1")
     timeout_ms: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
-    cooldown_seconds: Mapped[int] = mapped_column(
-        sa.Integer, nullable=False, server_default="0"
-    )
+    cooldown_seconds: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="0")
     cooldown_until: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )
@@ -312,9 +308,13 @@ class GatewayPassThroughEndpoint(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False, index=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), nullable=False, index=True
+    )
     slug: Mapped[str] = mapped_column(sa.String(80), nullable=False)
-    path_prefix: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'/''"))
+    path_prefix: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'/''")
+    )
     upstream_base_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
     auth_type: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
     auth_config: Mapped[dict[str, Any]] = mapped_column(

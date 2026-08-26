@@ -47,7 +47,7 @@ from runledger_api.models.budgets import (
     BudgetNotificationDelivery,
 )
 from runledger_api.models.metering import ProviderPricing
-from runledger_api.models.tenant import ApiKey, TenantRoleEnum, TenantUser, User, Workspace
+from runledger_api.models.tenant import ApiKey, TenantRoleEnum, TenantUser, Workspace
 from runledger_api.schemas.budget_overrides import (
     BudgetOverrideCreate,
     BudgetOverrideList,
@@ -65,6 +65,7 @@ from runledger_api.schemas.budgets import (
     BudgetRollupResponse,
     BudgetRollupWorkspace,
     BudgetUpdate,
+    BudgetUserBreakdownEntry,
     NotificationCreate,
     NotificationDeliveryList,
     NotificationDeliveryResponse,
@@ -74,14 +75,15 @@ from runledger_api.schemas.budgets import (
     NotificationUpdate,
 )
 from runledger_api.services.audit import emit_audit_event
-from runledger_api.schemas.budgets import BudgetUserBreakdownEntry
 from runledger_api.services.budgets import (
     build_delivery_record,
     check_budgets,
     get_budget_spend,
-    get_budget_breakdown as _svc_get_budget_breakdown,
     invalidate_workspace_budgets_cache,
     send_notification,
+)
+from runledger_api.services.budgets import (
+    get_budget_breakdown as _svc_get_budget_breakdown,
 )
 
 router = APIRouter(
@@ -98,11 +100,7 @@ def _budget_response(
     scope_display_name: str | None = None,
     breakdown: list[dict] | None = None,
 ) -> BudgetResponse:
-    pct = (
-        (current_spend_usd / budget.limit_usd * 100)
-        if budget.limit_usd > 0
-        else Decimal(0)
-    )
+    pct = (current_spend_usd / budget.limit_usd * 100) if budget.limit_usd > 0 else Decimal(0)
     return BudgetResponse(
         id=str(budget.id),
         scope_type=budget.scope_type,
@@ -129,14 +127,18 @@ def _validate_budget_payload(
 ) -> None:
     if scope_type == "workspace":
         return
-    if scope_type in {
-        "end_user",
-        "feature_tag",
-        "app",
-        "access_group",
-        "api_key",
-        "provider_profile",
-    } and not scope_id:
+    if (
+        scope_type
+        in {
+            "end_user",
+            "feature_tag",
+            "app",
+            "access_group",
+            "api_key",
+            "provider_profile",
+        }
+        and not scope_id
+    ):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "scope_id is required for non-workspace budgets",
@@ -315,13 +317,17 @@ async def _override_approval_map(
     if not override_ids:
         return {}
     approvals = (
-        await db.execute(
-            select(Approval).where(
-                Approval.workspace_id == workspace_id,
-                Approval.request_type == "budget_increase",
+        (
+            await db.execute(
+                select(Approval).where(
+                    Approval.workspace_id == workspace_id,
+                    Approval.request_type == "budget_increase",
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     mapped: dict[uuid.UUID, Approval] = {}
     for approval in approvals:
         if not approval.request:
@@ -512,7 +518,6 @@ async def list_budgets(
     scope_id: Annotated[str | None, Query()] = None,
 ) -> BudgetList:
     """List budgets with current period spend from Redis."""
-    from decimal import Decimal  # noqa: PLC0415
 
     stmt = select(Budget).where(Budget.workspace_id == workspace.id)
     if not include_inactive:
@@ -647,13 +652,15 @@ async def billing_export(
     for r in rows:
         total = float(Decimal(str(r.total_cost)))
         billable = float(Decimal(str(r.billable_cost)))
-        periods.append({
-            "period": r.period,
-            "total_cost_usd": total,
-            "billable_cost_usd": billable,
-            "non_billable_cost_usd": round(total - billable, 8),
-            "total_calls": int(r.total_calls),
-        })
+        periods.append(
+            {
+                "period": r.period,
+                "total_cost_usd": total,
+                "billable_cost_usd": billable,
+                "non_billable_cost_usd": round(total - billable, 8),
+                "total_calls": int(r.total_calls),
+            }
+        )
     return Response(
         content=_json.dumps({"workspace_id": str(workspace.id), "periods": periods}),
         media_type="application/json",
@@ -843,9 +850,7 @@ async def list_notifications(
     )
     notifications: list[BudgetNotification] = list(result.scalars())
 
-    return NotificationList(
-        items=[_notification_response(n) for n in notifications]
-    )
+    return NotificationList(items=[_notification_response(n) for n in notifications])
 
 
 # ── POST /budgets/notifications ───────────────────────────────────────────────
@@ -1302,7 +1307,9 @@ async def create_override(
         )
 
     requested_by = api_key.created_by
-    override_status = "pending" if body.require_approval or body.starts_at > datetime.now(UTC) else "active"
+    override_status = (
+        "pending" if body.require_approval or body.starts_at > datetime.now(UTC) else "active"
+    )
     override = BudgetOverride(
         budget_id=budget_id,
         original_limit_usd=budget.limit_usd,

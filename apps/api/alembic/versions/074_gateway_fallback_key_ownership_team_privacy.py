@@ -7,10 +7,9 @@ Create Date: 2026-08-06
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "074"
 down_revision = "073"
@@ -25,7 +24,9 @@ def upgrade() -> None:
     )
     op.add_column(
         "api_keys",
-        sa.Column("ownership_type", sa.String(length=32), server_default=sa.text("'user'"), nullable=False),
+        sa.Column(
+            "ownership_type", sa.String(length=32), server_default=sa.text("'user'"), nullable=False
+        ),
     )
     op.add_column(
         "api_keys",

@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from runledger_api.schemas.policies import FinopsSimulationRequest
 from runledger_api.services.policies import get_tool_cost_accounting, simulate_finops_policy
 
@@ -28,7 +27,9 @@ async def test_simulate_finops_policy_returns_savings() -> None:
     db.execute = AsyncMock(
         side_effect=[
             _result(SimpleNamespace(mcp_cost=Decimal("4.00"), mcp_calls=10)),
-            _result(SimpleNamespace(tool_calls=20, search_cost=Decimal("2.00"), avg_duration=250.0)),
+            _result(
+                SimpleNamespace(tool_calls=20, search_cost=Decimal("2.00"), avg_duration=250.0)
+            ),
         ]
     )
 
@@ -63,7 +64,9 @@ async def test_get_tool_cost_accounting_groups_sources() -> None:
         side_effect=[
             _result(
                 [
-                    SimpleNamespace(tool_name="browser.search", call_count=3, total_cost=Decimal("1.50")),
+                    SimpleNamespace(
+                        tool_name="browser.search", call_count=3, total_cost=Decimal("1.50")
+                    ),
                 ]
             ),
             _result(
@@ -78,7 +81,9 @@ async def test_get_tool_cost_accounting_groups_sources() -> None:
             ),
             _result(
                 [
-                    SimpleNamespace(tool_name="shell_command", tool_type="privileged", call_count=2),
+                    SimpleNamespace(
+                        tool_name="shell_command", tool_type="privileged", call_count=2
+                    ),
                 ]
             ),
         ]

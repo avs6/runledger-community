@@ -17,7 +17,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import math
 import random
 import time
 from collections.abc import AsyncGenerator
@@ -25,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import sqlalchemy as sa
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,7 +126,9 @@ def _route_timeout_ms(route: GatewayRoute, *, stream: bool) -> int | None:
     return route.timeout_ms
 
 
-def _apply_timeout_override(route: GatewayRoute, *, stream: bool, timeout_ms: int | None) -> tuple[int | None, dict[str, Any] | None]:
+def _apply_timeout_override(
+    route: GatewayRoute, *, stream: bool, timeout_ms: int | None
+) -> tuple[int | None, dict[str, Any] | None]:
     original_timeout = route.timeout_ms
     original_config = dict(route.config) if isinstance(route.config, dict) else None
     if timeout_ms is None:
@@ -159,12 +161,19 @@ def _classify_fallback_triggers(exc: Exception) -> set[str]:
         except Exception:  # noqa: BLE001
             body_text = ""
         if status_code in {400, 403} and any(
-            token in body_text for token in ("content policy", "content_filter", "safety", "moderation", "policy")
+            token in body_text
+            for token in ("content policy", "content_filter", "safety", "moderation", "policy")
         ):
             triggers.add("content_policy")
         if status_code in {400, 413} and any(
             token in body_text
-            for token in ("context", "maximum context", "context length", "too many tokens", "prompt too long")
+            for token in (
+                "context",
+                "maximum context",
+                "context length",
+                "too many tokens",
+                "prompt too long",
+            )
         ):
             triggers.add("context_window")
     return triggers
@@ -226,9 +235,9 @@ async def check_cache(db: AsyncSession, workspace_id: Any, cache_key: str) -> Pr
     """Return a live (not-expired) cache entry if caching is enabled for workspace."""
     from runledger_api.models.cache_config import ResponseCacheConfig  # noqa: PLC0415
 
-    cfg_stmt = select(ResponseCacheConfig).where(
-        ResponseCacheConfig.workspace_id == workspace_id
-    ).limit(1)
+    cfg_stmt = (
+        select(ResponseCacheConfig).where(ResponseCacheConfig.workspace_id == workspace_id).limit(1)
+    )
     cfg = (await db.execute(cfg_stmt)).scalar_one_or_none()
     if cfg and not cfg.is_enabled:
         return None
@@ -269,9 +278,11 @@ async def store_cache(
 
     from runledger_api.models.cache_config import ResponseCacheConfig  # noqa: PLC0415
 
-    cfg_stmt = select(ResponseCacheConfig.ttl_seconds).where(
-        ResponseCacheConfig.workspace_id == workspace_id
-    ).limit(1)
+    cfg_stmt = (
+        select(ResponseCacheConfig.ttl_seconds)
+        .where(ResponseCacheConfig.workspace_id == workspace_id)
+        .limit(1)
+    )
     ttl = (await db.execute(cfg_stmt)).scalar_one_or_none() or (_CACHE_TTL_HOURS * 3600)
 
     expires_at = datetime.now(UTC) + timedelta(seconds=int(ttl))
@@ -323,9 +334,13 @@ async def select_routes(
             required = set(route.required_tags or [])
             excluded = set(route.excluded_tags or [])
             dynamic_excluded = {tag[1:] for tag in tag_set if tag.startswith("!")}
-            if required and not required.issubset({tag for tag in tag_set if not tag.startswith("!")}):
+            if required and not required.issubset(
+                {tag for tag in tag_set if not tag.startswith("!")}
+            ):
                 continue
-            if excluded and (excluded.intersection(tag_set) or excluded.intersection(dynamic_excluded)):
+            if excluded and (
+                excluded.intersection(tag_set) or excluded.intersection(dynamic_excluded)
+            ):
                 continue
             filtered.append(route)
     if preferred_region:
@@ -404,10 +419,15 @@ async def choose_route_for_alias(
     )
     if not filtered:
         from runledger_api.models.projects import TeamModel  # noqa: PLC0415
-        tm_stmt = select(TeamModel).where(
-            TeamModel.workspace_id == workspace_id,
-            sa.or_(TeamModel.model_name == alias, TeamModel.team_name == alias),
-        ).limit(1)
+
+        tm_stmt = (
+            select(TeamModel)
+            .where(
+                TeamModel.workspace_id == workspace_id,
+                sa.or_(TeamModel.model_name == alias, TeamModel.team_name == alias),
+            )
+            .limit(1)
+        )
         tm = (await db.execute(tm_stmt)).scalar_one_or_none()
         if tm and tm.api_base_url:
             dynamic_route = GatewayRoute(
@@ -435,7 +455,11 @@ async def choose_route_for_alias(
             return fallback_route, (
                 f"cross_region_fallback:{preferred_region}->{fallback_route.region or 'default'}|priority"
             )
-    elif latency_region_ranked and latency_region_ranked[0].region and latency_region_ranked != filtered:
+    elif (
+        latency_region_ranked
+        and latency_region_ranked[0].region
+        and latency_region_ranked != filtered
+    ):
         filtered = latency_region_ranked
     if top_group and top_group.strategy_type == "latency_optimized":
         route_ids = [route.id for route in filtered if route.routing_group_id == top_group.id]
@@ -454,7 +478,9 @@ async def choose_route_for_alias(
             )
             stats_result = await db.execute(stats_stmt)
             latency_map = {
-                row.route_id: float(row.avg_latency) for row in stats_result.all() if row.avg_latency is not None
+                row.route_id: float(row.avg_latency)
+                for row in stats_result.all()
+                if row.avg_latency is not None
             }
             if latency_map:
                 ranked = sorted(
@@ -656,7 +682,11 @@ async def record_gateway_request(
     )
     db.add(entry)
     await db.flush()
-    kafka_event_type = "gateway.request.completed" if req_status in {"success", "cache_hit"} else "gateway.request.rejected"
+    kafka_event_type = (
+        "gateway.request.completed"
+        if req_status in {"success", "cache_hit"}
+        else "gateway.request.rejected"
+    )
     try:
         await kafka_export.publish_event(
             db,
@@ -761,10 +791,13 @@ async def route_and_forward(
     fallback_rules = []
     if isinstance(first_fallback_cfg, dict):
         fallback_rules = [
-            rule for rule in first_fallback_cfg.get("fallbacks", [])
+            rule
+            for rule in first_fallback_cfg.get("fallbacks", [])
             if isinstance(rule, dict) and isinstance(rule.get("alias"), str) and rule.get("alias")
         ]
-    for alias in first_fallback_cfg.get("aliases", []) if isinstance(first_fallback_cfg, dict) else []:
+    for alias in (
+        first_fallback_cfg.get("aliases", []) if isinstance(first_fallback_cfg, dict) else []
+    ):
         if isinstance(alias, str) and alias and alias not in visited_aliases:
             queue.append({"alias": alias, "rule": None, "trigger": "configured"})
             visited_aliases.add(alias)
@@ -817,7 +850,9 @@ async def route_and_forward(
         )
         if not routes_for_alias or selected_route is None:
             continue
-        ordered_routes = [selected_route] + [route for route in routes_for_alias if route.id != selected_route.id]
+        ordered_routes = [selected_route] + [
+            route for route in routes_for_alias if route.id != selected_route.id
+        ]
         for route in ordered_routes:
             if route.cooldown_until is not None and route.cooldown_until > datetime.now(UTC):
                 continue
@@ -854,17 +889,25 @@ async def route_and_forward(
                     await db.commit()
                     mirror_cfg = route.mirror_config or {}
                     mirror_alias = mirror_cfg.get("alias") if isinstance(mirror_cfg, dict) else None
-                    mirror_pct = float(mirror_cfg.get("sample_pct", 0)) if isinstance(mirror_cfg, dict) and mirror_cfg.get("sample_pct") is not None else 0.0
+                    mirror_pct = (
+                        float(mirror_cfg.get("sample_pct", 0))
+                        if isinstance(mirror_cfg, dict) and mirror_cfg.get("sample_pct") is not None
+                        else 0.0
+                    )
                     if mirror_alias and mirror_pct > 0:
                         sampled = random.random() < mirror_pct
-                        mirror_route, _mirror_reason = await choose_route_for_alias(
-                            db,
-                            workspace_id,
-                            str(mirror_alias),
-                            step_messages,
-                            request_tags=request_tags,
-                            preferred_region=preferred_region,
-                        ) if sampled else (None, "mirror_skipped")
+                        mirror_route, _mirror_reason = (
+                            await choose_route_for_alias(
+                                db,
+                                workspace_id,
+                                str(mirror_alias),
+                                step_messages,
+                                request_tags=request_tags,
+                                preferred_region=preferred_region,
+                            )
+                            if sampled
+                            else (None, "mirror_skipped")
+                        )
                         if mirror_route is not None:
                             mirror_success = False
                             mirror_decision_reason = f"mirror:{route.alias}->{mirror_alias}"
@@ -908,7 +951,11 @@ async def route_and_forward(
                                     decision_reason=mirror_decision_reason,
                                 )
                             except Exception as mirror_exc:  # noqa: BLE001
-                                log.warning("gateway_mirror_failed route_id=%s error=%s", str(route.id), str(mirror_exc))
+                                log.warning(
+                                    "gateway_mirror_failed route_id=%s error=%s",
+                                    str(route.id),
+                                    str(mirror_exc),
+                                )
                                 await record_gateway_request(
                                     db=db,
                                     workspace_id=workspace_id,
@@ -930,7 +977,11 @@ async def route_and_forward(
                             f"|trigger:{trigger}|{selected_reason}"
                         )
                     else:
-                        decision_reason = decision_reason if "shadow_compared" in decision_reason else selected_reason
+                        decision_reason = (
+                            decision_reason
+                            if "shadow_compared" in decision_reason
+                            else selected_reason
+                        )
                     return response, route, latency_ms, decision_reason
                 except httpx.HTTPStatusError as exc:
                     _restore_timeout_override(route, original_timeout, original_config)
@@ -970,7 +1021,9 @@ async def route_and_forward(
                     route.last_health_check_at = datetime.now(UTC)
                     route.consecutive_health_failures = (route.consecutive_health_failures or 0) + 1
                     if route.cooldown_seconds:
-                        route.cooldown_until = datetime.now(UTC) + timedelta(seconds=route.cooldown_seconds)
+                        route.cooldown_until = datetime.now(UTC) + timedelta(
+                            seconds=route.cooldown_seconds
+                        )
                     route.disabled_reason = f"Transient provider error {status_code}"
                     await db.commit()
                     if attempt < max_attempts:
@@ -1007,7 +1060,9 @@ async def route_and_forward(
                     route.last_health_check_at = datetime.now(UTC)
                     route.consecutive_health_failures = (route.consecutive_health_failures or 0) + 1
                     if route.cooldown_seconds:
-                        route.cooldown_until = datetime.now(UTC) + timedelta(seconds=route.cooldown_seconds)
+                        route.cooldown_until = datetime.now(UTC) + timedelta(
+                            seconds=route.cooldown_seconds
+                        )
                     route.disabled_reason = str(exc)
                     await db.commit()
                     if attempt < max_attempts:

@@ -150,7 +150,9 @@ class BudgetNotificationDelivery(Base):
     )
     response_status: Mapped[int | None] = mapped_column(sa.Integer(), nullable=True)
     error_detail: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    delivered_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

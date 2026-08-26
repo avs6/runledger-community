@@ -17,7 +17,15 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = [
     "E501",   # line too long — handled by formatter
     "B008",   # FastAPI Depends() in defaults is the standard pattern
+    "TC003",  # stdlib imports used at runtime (models, Pydantic, FastAPI deps)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"apps/api/runledger_api/routers/gateway_legacy.py" = ["F403", "F405"]
+"apps/api/runledger_api/routers/gateway_observability.py" = ["F403", "F405"]
+"apps/api/runledger_api/routers/gateway_passthrough.py" = ["F403", "F405"]
+"apps/api/runledger_api/routers/gateway_routing.py" = ["F403", "F405"]
+"apps/api/runledger_api/routers/gateway_runtime.py" = ["F403", "F405"]
 
 [tool.mypy]
 python_version = "3.13"

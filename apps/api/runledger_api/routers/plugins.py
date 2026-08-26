@@ -48,20 +48,41 @@ WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 
 def _to_response(p: Plugin) -> PluginResponse:
     return PluginResponse(
-        id=p.id, workspace_id=p.workspace_id, name=p.name, description=p.description,
-        plugin_type=p.plugin_type, hooks=p.hooks or [], config=p.config or {},
-        priority=p.priority, is_active=p.is_active, version=p.version, author=p.author,
-        install_count=p.install_count, created_at=p.created_at, updated_at=p.updated_at,
+        id=p.id,
+        workspace_id=p.workspace_id,
+        name=p.name,
+        description=p.description,
+        plugin_type=p.plugin_type,
+        hooks=p.hooks or [],
+        config=p.config or {},
+        priority=p.priority,
+        is_active=p.is_active,
+        version=p.version,
+        author=p.author,
+        install_count=p.install_count,
+        created_at=p.created_at,
+        updated_at=p.updated_at,
     )
 
 
-@router.post("", response_model=PluginResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.post(
+    "",
+    response_model=PluginResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def create_plugin(body: PluginCreate, ws: WorkspaceDep, db: DbDep) -> PluginResponse:
     p = Plugin(
-        id=uuid.uuid4(), workspace_id=ws.id, name=body.name, description=body.description,
-        plugin_type=body.plugin_type, hooks=body.hooks, config=body.config,
-        priority=body.priority, version=body.version, author=body.author,
+        id=uuid.uuid4(),
+        workspace_id=ws.id,
+        name=body.name,
+        description=body.description,
+        plugin_type=body.plugin_type,
+        hooks=body.hooks,
+        config=body.config,
+        priority=body.priority,
+        version=body.version,
+        author=body.author,
     )
     db.add(p)
     await db.commit()
@@ -71,7 +92,9 @@ async def create_plugin(body: PluginCreate, ws: WorkspaceDep, db: DbDep) -> Plug
 
 @router.get("", response_model=PluginList, dependencies=[Depends(analytics_rate_limit)])
 async def list_plugins(
-    ws: WorkspaceDep, db: DbDep, include_inactive: bool = False,
+    ws: WorkspaceDep,
+    db: DbDep,
+    include_inactive: bool = False,
 ) -> PluginList:
     q = select(Plugin).where(Plugin.workspace_id == ws.id)
     if not include_inactive:
@@ -81,21 +104,29 @@ async def list_plugins(
     return PluginList(items=[_to_response(p) for p in rows])
 
 
-@router.get("/{plugin_id}", response_model=PluginResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/{plugin_id}", response_model=PluginResponse, dependencies=[Depends(analytics_rate_limit)]
+)
 async def get_plugin(plugin_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> PluginResponse:
-    p = (await db.execute(
-        select(Plugin).where(Plugin.id == plugin_id, Plugin.workspace_id == ws.id)
-    )).scalar_one_or_none()
+    p = (
+        await db.execute(select(Plugin).where(Plugin.id == plugin_id, Plugin.workspace_id == ws.id))
+    ).scalar_one_or_none()
     if not p:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
     return _to_response(p)
 
 
-@router.put("/{plugin_id}", response_model=PluginResponse, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
-async def update_plugin(plugin_id: uuid.UUID, body: PluginUpdate, ws: WorkspaceDep, db: DbDep) -> PluginResponse:
-    p = (await db.execute(
-        select(Plugin).where(Plugin.id == plugin_id, Plugin.workspace_id == ws.id)
-    )).scalar_one_or_none()
+@router.put(
+    "/{plugin_id}",
+    response_model=PluginResponse,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
+async def update_plugin(
+    plugin_id: uuid.UUID, body: PluginUpdate, ws: WorkspaceDep, db: DbDep
+) -> PluginResponse:
+    p = (
+        await db.execute(select(Plugin).where(Plugin.id == plugin_id, Plugin.workspace_id == ws.id))
+    ).scalar_one_or_none()
     if not p:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Plugin not found")
     for k, v in body.model_dump(exclude_unset=True).items():
@@ -106,8 +137,11 @@ async def update_plugin(plugin_id: uuid.UUID, body: PluginUpdate, ws: WorkspaceD
     return _to_response(p)
 
 
-@router.delete("/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.delete(
+    "/{plugin_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def uninstall_plugin(plugin_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     await db.execute(
         update(Plugin)
@@ -117,22 +151,45 @@ async def uninstall_plugin(plugin_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) ->
     await db.commit()
 
 
-@router.get("/{plugin_id}/executions", response_model=PluginExecutionList,
-            dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/{plugin_id}/executions",
+    response_model=PluginExecutionList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
 async def list_executions(
-    plugin_id: uuid.UUID, ws: WorkspaceDep, db: DbDep,
+    plugin_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
     limit: int = Query(50, ge=1, le=200),
 ) -> PluginExecutionList:
-    rows = (await db.execute(
-        select(PluginExecution)
-        .where(PluginExecution.plugin_id == plugin_id, PluginExecution.workspace_id == ws.id)
-        .order_by(PluginExecution.created_at.desc())
-        .limit(limit)
-    )).scalars().all()
-    return PluginExecutionList(items=[PluginExecutionResponse(
-        id=e.id, plugin_id=e.plugin_id, hook=e.hook, latency_ms=e.latency_ms,
-        status=e.status, error=e.error, created_at=e.created_at,
-    ) for e in rows])
+    rows = (
+        (
+            await db.execute(
+                select(PluginExecution)
+                .where(
+                    PluginExecution.plugin_id == plugin_id, PluginExecution.workspace_id == ws.id
+                )
+                .order_by(PluginExecution.created_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return PluginExecutionList(
+        items=[
+            PluginExecutionResponse(
+                id=e.id,
+                plugin_id=e.plugin_id,
+                hook=e.hook,
+                latency_ms=e.latency_ms,
+                status=e.status,
+                error=e.error,
+                created_at=e.created_at,
+            )
+            for e in rows
+        ]
+    )
 
 
 DEFAULT_PREINTEGRATED_PLUGINS = [
@@ -193,13 +250,18 @@ DEFAULT_PREINTEGRATED_PLUGINS = [
 ]
 
 
-@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.post(
+    "/seed-defaults",
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def seed_default_plugins(ws: WorkspaceDep, db: DbDep) -> dict:
     added = 0
     for p_def in DEFAULT_PREINTEGRATED_PLUGINS:
-        existing = (await db.execute(
-            select(Plugin).where(Plugin.workspace_id == ws.id, Plugin.name == p_def["name"])
-        )).scalar_one_or_none()
+        existing = (
+            await db.execute(
+                select(Plugin).where(Plugin.workspace_id == ws.id, Plugin.name == p_def["name"])
+            )
+        ).scalar_one_or_none()
         if not existing:
             p = Plugin(
                 id=uuid.uuid4(),

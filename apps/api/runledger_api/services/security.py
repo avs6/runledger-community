@@ -5,7 +5,6 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from functools import lru_cache
 from typing import Any
 
 import httpx
@@ -30,7 +29,9 @@ _oidc_doc_cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
 _oidc_jwks_cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
 
 
-async def _cached_json(url: str, cache: dict[str, tuple[datetime, dict[str, Any]]]) -> dict[str, Any]:
+async def _cached_json(
+    url: str, cache: dict[str, tuple[datetime, dict[str, Any]]]
+) -> dict[str, Any]:
     now = datetime.now(UTC)
     cached = cache.get(url)
     if cached and (now - cached[0]).total_seconds() < _OIDC_CACHE_TTL_SECONDS:
@@ -44,7 +45,10 @@ async def _cached_json(url: str, cache: dict[str, tuple[datetime, dict[str, Any]
 
 
 async def _resolve_oidc_urls(provider: OIDCProvider) -> tuple[str, str]:
-    discovery_url = provider.discovery_url or f"{provider.issuer_url.rstrip('/')}/.well-known/openid-configuration"
+    discovery_url = (
+        provider.discovery_url
+        or f"{provider.issuer_url.rstrip('/')}/.well-known/openid-configuration"
+    )
     if provider.jwks_uri:
         return discovery_url, provider.jwks_uri
     discovery = await _cached_json(discovery_url, _oidc_doc_cache)
@@ -98,12 +102,15 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
             last_error = exc
             continue
     if last_error:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid OIDC bearer token") from last_error
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid OIDC bearer token"
+        ) from last_error
     return None
 
 
 def get_client_ip(x_forwarded_for: str | None, fallback_host: str | None) -> str | None:
     from runledger_api.core.config import settings  # noqa: PLC0415
+
     if x_forwarded_for:
         trusted = {p.strip() for p in settings.trusted_proxies.split(",") if p.strip()}
         parts = [p.strip() for p in x_forwarded_for.split(",")]
@@ -166,7 +173,9 @@ async def get_or_create_security_settings(
 ) -> WorkspaceSecuritySettings:
     existing = (
         await db.execute(
-            select(WorkspaceSecuritySettings).where(WorkspaceSecuritySettings.workspace_id == workspace_id)
+            select(WorkspaceSecuritySettings).where(
+                WorkspaceSecuritySettings.workspace_id == workspace_id
+            )
         )
     ).scalar_one_or_none()
     if existing is not None:
@@ -196,4 +205,3 @@ async def enforce_required_metadata(
             f"Missing required metadata fields: {', '.join(missing)}",
         )
     return missing
-

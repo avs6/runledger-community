@@ -138,14 +138,20 @@ async def list_sessions(
         count_q = count_q.where(PlaygroundSession.is_favorite.is_(True))
     if access_group_id:
         import uuid as _uuid
+
         from runledger_api.models.access_groups import AccessGroupMember
+
         member_rows = (
-            await db.execute(
-                select(AccessGroupMember.user_id).where(
-                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+            (
+                await db.execute(
+                    select(AccessGroupMember.user_id).where(
+                        AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         member_ids = [str(uid) for uid in member_rows]
         q = q.where(PlaygroundSession.created_by.in_(member_ids))
         count_q = count_q.where(PlaygroundSession.created_by.in_(member_ids))

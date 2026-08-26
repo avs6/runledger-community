@@ -110,7 +110,9 @@ def _parse_backup_summary(stdout_text: str) -> dict[str, Any] | None:
     return None
 
 
-async def _run_command(command: str, *, env: dict[str, str] | None = None) -> tuple[int, str, str, bool]:
+async def _run_command(
+    command: str, *, env: dict[str, str] | None = None
+) -> tuple[int, str, str, bool]:
     proc = await asyncio.create_subprocess_shell(
         command,
         cwd=str(REPO_ROOT),
@@ -207,7 +209,9 @@ async def list_backup_snapshots(
     total = int(
         (
             await db.execute(
-                select(func.count(BackupSnapshot.id)).where(BackupSnapshot.workspace_id == workspace_id)
+                select(func.count(BackupSnapshot.id)).where(
+                    BackupSnapshot.workspace_id == workspace_id
+                )
             )
         ).scalar_one()
         or 0
@@ -306,10 +310,16 @@ async def backup_alert_status(db: AsyncSession, workspace_id: uuid.UUID) -> dict
     failed_count = sum(1 for row in rows if row.status == "failed")
     stale = False
     if config is not None and config.schedule_enabled:
-        stale = latest is None or latest.completed_at is None or (datetime.now(UTC) - latest.completed_at).total_seconds() > 60 * 60 * 36
+        stale = (
+            latest is None
+            or latest.completed_at is None
+            or (datetime.now(UTC) - latest.completed_at).total_seconds() > 60 * 60 * 36
+        )
     return {
         "latest_status": latest.status if latest else "missing",
-        "latest_completed_at": latest.completed_at.isoformat() if latest and latest.completed_at else None,
+        "latest_completed_at": latest.completed_at.isoformat()
+        if latest and latest.completed_at
+        else None,
         "failed_recent_runs": failed_count,
         "schedule_enabled": bool(config.schedule_enabled) if config is not None else False,
         "stale_backup": stale,
@@ -379,9 +389,7 @@ async def _execute_backup_run(backup_id: uuid.UUID, workspace_id: uuid.UUID) -> 
                     return
                 backup.status = "failed"
                 backup.completed_at = datetime.now(UTC)
-                backup.error_detail = (
-                    "No backup command configured. Set BACKUP_COMMAND or use the LocalAI helper script."
-                )
+                backup.error_detail = "No backup command configured. Set BACKUP_COMMAND or use the LocalAI helper script."
                 await _publish_backup_event(
                     db=db,
                     workspace_id=workspace_id,
@@ -390,7 +398,9 @@ async def _execute_backup_run(backup_id: uuid.UUID, workspace_id: uuid.UUID) -> 
                 )
             return
 
-        exit_code, stdout_text, stderr_text, timed_out = await _run_command(command, env=command_env)
+        exit_code, stdout_text, stderr_text, timed_out = await _run_command(
+            command, env=command_env
+        )
         error_text = stderr_text or stdout_text
         summary = _parse_backup_summary(stdout_text)
 
@@ -472,7 +482,9 @@ async def run_scheduled_backups() -> int:
             configs = (
                 (
                     await db.execute(
-                        select(BackupTargetConfig).where(BackupTargetConfig.schedule_enabled.is_(True))
+                        select(BackupTargetConfig).where(
+                            BackupTargetConfig.schedule_enabled.is_(True)
+                        )
                     )
                 )
                 .scalars()

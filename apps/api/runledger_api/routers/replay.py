@@ -187,13 +187,12 @@ async def list_experiments(
     api_key_id: str | None = Query(None),
 ) -> ExperimentList:
     """List all experiments for the workspace."""
-    stmt = (
-        select(ReplayExperiment)
-        .where(ReplayExperiment.workspace_id == workspace.id)
-    )
+    stmt = select(ReplayExperiment).where(ReplayExperiment.workspace_id == workspace.id)
     if access_group_id or api_key_id:
         import uuid as _uuid
+
         from runledger_api.models.agents import WorkflowRun
+
         run_sub = select(WorkflowRun.id).where(
             WorkflowRun.workspace_id == workspace.id,
         )
@@ -202,6 +201,7 @@ async def list_experiments(
         if api_key_id:
             run_sub = run_sub.where(WorkflowRun.api_key_id == _uuid.UUID(api_key_id))
         from runledger_api.models.replay import ReplayDataset
+
         dataset_sub = select(ReplayDataset.id).where(
             ReplayDataset.workspace_id == workspace.id,
         )

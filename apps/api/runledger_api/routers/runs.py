@@ -30,25 +30,25 @@ from runledger_api.models.events import (
 )
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.ledger import CapturePolicy, SecurityEvent, ToolRegistry
-from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
 from runledger_api.models.tags import Tag
+from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
 from runledger_api.models.tool_policies import ToolPolicy
 from runledger_api.schemas.runs import (
-    GraphEdge,
-    GraphNode,
-    GraphNodeData,
     GovernanceAlertEvidence,
     GovernanceAuditEvidence,
     GovernanceSecurityEvidence,
     GovernanceToolEvidence,
+    GraphEdge,
+    GraphNode,
+    GraphNodeData,
     ProviderCallDetail,
     RunbookList,
     RunbookResponse,
     RunDetailResponse,
     RunFlowRecord,
     RunFlowResponse,
-    RunGraphResponse,
     RunGovernanceContextResponse,
+    RunGraphResponse,
     RunListItem,
     RunListResponse,
     SpanDetail,
@@ -1097,9 +1097,13 @@ async def get_run(
     run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
     if access_group_filters:
         if access_group_filters["end_user_ids"]:
-            run_stmt = run_stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+            run_stmt = run_stmt.where(
+                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
+            )
         if access_group_filters["feature_tags"]:
-            run_stmt = run_stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+            run_stmt = run_stmt.where(
+                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
+            )
         if access_group_filters["statuses"]:
             run_stmt = run_stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
         if access_group_filters["models"]:
@@ -1243,9 +1247,13 @@ async def get_run_governance_context(
     run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
     if access_group_filters:
         if access_group_filters["end_user_ids"]:
-            run_stmt = run_stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+            run_stmt = run_stmt.where(
+                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
+            )
         if access_group_filters["feature_tags"]:
-            run_stmt = run_stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+            run_stmt = run_stmt.where(
+                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
+            )
     run = (await db.execute(run_stmt)).scalar_one_or_none()
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
@@ -1301,7 +1309,9 @@ async def get_run_governance_context(
                 status=tool.status,
                 risk_score=tool.risk_score,
                 registry_policy=registry.policy if registry is not None else None,
-                registry_runtime_enforcement=bool(registry.runtime_enforcement) if registry is not None else False,
+                registry_runtime_enforcement=bool(registry.runtime_enforcement)
+                if registry is not None
+                else False,
                 matched_policy_count=len(matched),
                 matched_policy_names=[policy.name for policy in matched],
                 matched_policy_actions=[policy.action for policy in matched],
@@ -1405,7 +1415,9 @@ async def get_run_governance_context(
         "capture_policies": int(
             (
                 await db.execute(
-                    select(func.count(CapturePolicy.id)).where(CapturePolicy.workspace_id == workspace.id)
+                    select(func.count(CapturePolicy.id)).where(
+                        CapturePolicy.workspace_id == workspace.id
+                    )
                 )
             ).scalar()
             or 0
@@ -1476,9 +1488,13 @@ async def get_run_graph(
     run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
     if access_group_filters:
         if access_group_filters["end_user_ids"]:
-            run_stmt = run_stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
+            run_stmt = run_stmt.where(
+                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
+            )
         if access_group_filters["feature_tags"]:
-            run_stmt = run_stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+            run_stmt = run_stmt.where(
+                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
+            )
         if access_group_filters["statuses"]:
             run_stmt = run_stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
         if access_group_filters["models"]:

@@ -18,19 +18,19 @@ from typing import Any
 import httpx
 import structlog
 from redis.asyncio import Redis
-from sqlalchemy import select, update, func
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
+from runledger_api.models import AgentRun, ProviderCall
+from runledger_api.models.access_groups import AccessGroupMember
 from runledger_api.models.budgets import (
     Budget,
     BudgetBreach,
     BudgetNotification,
     BudgetNotificationDelivery,
 )
-from runledger_api.models import ProviderCall, AgentRun
-from runledger_api.models.access_groups import AccessGroupMember
-from runledger_api.models.tenant import ApiKey
+from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.budgets import BudgetCheckResponse, BudgetUserBreakdownEntry
 from runledger_api.services import kafka_export
 
@@ -163,6 +163,7 @@ async def invalidate_workspace_budgets_cache(
 
 # ── Budget breakdown ─────────────────────────────────────────────────────────
 
+
 async def get_budget_breakdown(
     budget: Budget,
     workspace: Workspace,
@@ -172,6 +173,7 @@ async def get_budget_breakdown(
     """Return spend breakdown by end user for a budget."""
     import calendar
     from datetime import datetime
+
     import sqlalchemy as sa
 
     now = datetime.now(UTC)
@@ -230,13 +232,15 @@ async def get_budget_breakdown(
     for row in rows:
         if row.end_user_id is not None:
             pct = (row.cost_usd / total_cost * Decimal(100)) if total_cost > 0 else Decimal(0)
-            breakdown.append(BudgetUserBreakdownEntry(
-                end_user_id=row.end_user_id,
-                cost_usd=row.cost_usd,
-                run_count=int(row.run_count or 0),
-                call_count=int(row.call_count or 0),
-                pct_of_total=pct.quantize(Decimal("0.01")),
-            ))
+            breakdown.append(
+                BudgetUserBreakdownEntry(
+                    end_user_id=row.end_user_id,
+                    cost_usd=row.cost_usd,
+                    run_count=int(row.run_count or 0),
+                    call_count=int(row.call_count or 0),
+                    pct_of_total=pct.quantize(Decimal("0.01")),
+                )
+            )
 
     return breakdown
 
@@ -499,7 +503,9 @@ async def fire_breach(
                     "limit_usd": budget_dict.get("limit_usd"),
                     "spend_usd": str(spend),
                     "action_taken": action_taken,
-                    "occurred_at": breach.occurred_at.isoformat() if breach.occurred_at else datetime.now(UTC).isoformat(),
+                    "occurred_at": breach.occurred_at.isoformat()
+                    if breach.occurred_at
+                    else datetime.now(UTC).isoformat(),
                     "idempotency_key": f"budget-breached:{budget_id}:{breach.id}",
                     "source": "runledger.budgets",
                     "event_summary": "Budget breached",

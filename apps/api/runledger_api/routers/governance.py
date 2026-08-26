@@ -43,7 +43,9 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
 
 
-def _range_bounds(from_date: str | None, to_date: str | None) -> tuple[datetime, datetime, str, str]:
+def _range_bounds(
+    from_date: str | None, to_date: str | None
+) -> tuple[datetime, datetime, str, str]:
     today = datetime.now(UTC).date()
     start_day = date.fromisoformat(from_date) if from_date else today.replace(day=1)
     end_day = date.fromisoformat(to_date) if to_date else today
@@ -64,22 +66,29 @@ async def _build_pack(
     start, end, period_from, period_to = _range_bounds(from_date, to_date)
 
     import uuid as _uuid
+
     identity_user_ids: list[str] | None = None
     identity_emails: list[str] | None = None
     if access_group_id:
         from runledger_api.models.access_groups import AccessGroupMember
+
         member_rows = (
-            await db.execute(
-                select(AccessGroupMember.user_id).where(
-                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+            (
+                await db.execute(
+                    select(AccessGroupMember.user_id).where(
+                        AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         identity_user_ids = [str(uid) for uid in member_rows]
     elif user_id:
         identity_user_ids = [user_id]
     if identity_user_ids is not None:
         from runledger_api.models.tenant import User as UserModel
+
         identity_emails = list(
             (
                 await db.execute(
@@ -87,10 +96,12 @@ async def _build_pack(
                         UserModel.id.in_([_uuid.UUID(uid) for uid in identity_user_ids])
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
-    provider_base = select(ProviderCall).where(
+    _provider_base = select(ProviderCall).where(
         ProviderCall.workspace_id == workspace.id,
         ProviderCall.created_at >= start,
         ProviderCall.created_at <= end,
@@ -148,20 +159,17 @@ async def _build_pack(
         or 0
     )
 
-    model_q = (
-        select(
-            ProviderCall.model,
-            ProviderCall.provider,
-            func.count(ProviderCall.id),
-            func.coalesce(func.sum(ProviderCall.cost_usd), 0),
-            func.min(ProviderCall.created_at),
-            func.max(ProviderCall.created_at),
-        )
-        .where(
-            ProviderCall.workspace_id == workspace.id,
-            ProviderCall.created_at >= start,
-            ProviderCall.created_at <= end,
-        )
+    model_q = select(
+        ProviderCall.model,
+        ProviderCall.provider,
+        func.count(ProviderCall.id),
+        func.coalesce(func.sum(ProviderCall.cost_usd), 0),
+        func.min(ProviderCall.created_at),
+        func.max(ProviderCall.created_at),
+    ).where(
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= start,
+        ProviderCall.created_at <= end,
     )
     if identity_user_ids is not None:
         model_q = model_q.where(ProviderCall.end_user_id.in_(identity_user_ids))
@@ -169,26 +177,24 @@ async def _build_pack(
         model_q = model_q.where(ProviderCall.api_key_id == api_key_id)
     model_rows = (
         await db.execute(
-            model_q
-            .group_by(ProviderCall.model, ProviderCall.provider)
-            .order_by(func.coalesce(func.sum(ProviderCall.cost_usd), 0).desc())
+            model_q.group_by(ProviderCall.model, ProviderCall.provider).order_by(
+                func.coalesce(func.sum(ProviderCall.cost_usd), 0).desc()
+            )
         )
     ).all()
 
     from runledger_api.models.events import AgentRun
-    enforcement_q = (
-        select(
-            ToolCall.tool_name,
-            ToolCall.status,
-            func.count(ToolCall.id),
-            func.max(ToolCall.created_at),
-        )
-        .where(
-            ToolCall.workspace_id == workspace.id,
-            ToolCall.created_at >= start,
-            ToolCall.created_at <= end,
-            ToolCall.status.in_(["blocked", "audited"]),
-        )
+
+    enforcement_q = select(
+        ToolCall.tool_name,
+        ToolCall.status,
+        func.count(ToolCall.id),
+        func.max(ToolCall.created_at),
+    ).where(
+        ToolCall.workspace_id == workspace.id,
+        ToolCall.created_at >= start,
+        ToolCall.created_at <= end,
+        ToolCall.status.in_(["blocked", "audited"]),
     )
     if identity_user_ids is not None or api_key_id:
         enforcement_q = enforcement_q.join(AgentRun, AgentRun.id == ToolCall.run_id)
@@ -198,19 +204,16 @@ async def _build_pack(
             enforcement_q = enforcement_q.where(AgentRun.api_key_id == api_key_id)
     enforcement_rows = (
         await db.execute(
-            enforcement_q
-            .group_by(ToolCall.tool_name, ToolCall.status)
-            .order_by(func.max(ToolCall.created_at).desc())
+            enforcement_q.group_by(ToolCall.tool_name, ToolCall.status).order_by(
+                func.max(ToolCall.created_at).desc()
+            )
         )
     ).all()
 
-    approval_q = (
-        select(Approval)
-        .where(
-            Approval.workspace_id == workspace.id,
-            Approval.created_at >= start,
-            Approval.created_at <= end,
-        )
+    approval_q = select(Approval).where(
+        Approval.workspace_id == workspace.id,
+        Approval.created_at >= start,
+        Approval.created_at <= end,
     )
     if identity_emails is not None:
         if identity_emails:
@@ -218,23 +221,25 @@ async def _build_pack(
         else:
             approval_q = approval_q.where(False)
     approval_rows = (
-        await db.execute(
-            approval_q.order_by(Approval.created_at.desc()).limit(100)
-        )
-    ).scalars().all()
+        (await db.execute(approval_q.order_by(Approval.created_at.desc()).limit(100)))
+        .scalars()
+        .all()
+    )
 
     workspace_capture = (
-        await db.execute(
-            select(CapturePolicy).where(CapturePolicy.workspace_id == workspace.id)
-        )
+        await db.execute(select(CapturePolicy).where(CapturePolicy.workspace_id == workspace.id))
     ).scalar_one_or_none()
     scope_rows = (
-        await db.execute(
-            select(CapturePolicyScope)
-            .where(CapturePolicyScope.workspace_id == workspace.id)
-            .order_by(CapturePolicyScope.scope_type.asc(), CapturePolicyScope.scope_id.asc())
+        (
+            await db.execute(
+                select(CapturePolicyScope)
+                .where(CapturePolicyScope.workspace_id == workspace.id)
+                .order_by(CapturePolicyScope.scope_type.asc(), CapturePolicyScope.scope_id.asc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     breach_rows = (
         await db.execute(
@@ -317,7 +322,7 @@ async def _build_pack(
                 budget_name=f"{budget.scope_type}:{budget.scope_id or 'workspace'}",
                 threshold_pct=int(
                     round(
-                        float((breach.spend_at_breach_usd or Decimal('0')) / budget.limit_usd * 100)
+                        float((breach.spend_at_breach_usd or Decimal("0")) / budget.limit_usd * 100)
                     )
                     if budget.limit_usd
                     else 100
@@ -343,8 +348,13 @@ async def get_governance_audit_pack(
 ) -> GovernanceAuditPack:
     workspace: Workspace = auth[0]
     return await _build_pack(
-        db, workspace, from_date, to_date,
-        user_id=user_id, access_group_id=access_group_id, api_key_id=api_key_id,
+        db,
+        workspace,
+        from_date,
+        to_date,
+        user_id=user_id,
+        access_group_id=access_group_id,
+        api_key_id=api_key_id,
     )
 
 
@@ -361,8 +371,13 @@ async def export_governance_audit_pack(
 ) -> StreamingResponse:
     workspace: Workspace = auth[0]
     pack = await _build_pack(
-        db, workspace, from_date, to_date,
-        user_id=user_id, access_group_id=access_group_id, api_key_id=api_key_id,
+        db,
+        workspace,
+        from_date,
+        to_date,
+        user_id=user_id,
+        access_group_id=access_group_id,
+        api_key_id=api_key_id,
     )
     if format == "json":
         body = json.dumps(pack.model_dump(mode="json"), indent=2, default=str)
@@ -378,15 +393,37 @@ async def export_governance_audit_pack(
     for key, value in pack.summary.model_dump(mode="json").items():
         writer.writerow(["summary", key, value])
     for item in pack.model_usage:
-        writer.writerow(["model_usage", item.model, json.dumps(item.model_dump(mode="json"), default=str)])
+        writer.writerow(
+            ["model_usage", item.model, json.dumps(item.model_dump(mode="json"), default=str)]
+        )
     for item in pack.policy_enforcements:
-        writer.writerow(["policy_enforcements", item.policy_type, json.dumps(item.model_dump(mode="json"), default=str)])
+        writer.writerow(
+            [
+                "policy_enforcements",
+                item.policy_type,
+                json.dumps(item.model_dump(mode="json"), default=str),
+            ]
+        )
     for item in pack.approvals:
-        writer.writerow(["approvals", item.request_type, json.dumps(item.model_dump(mode="json"), default=str)])
+        writer.writerow(
+            ["approvals", item.request_type, json.dumps(item.model_dump(mode="json"), default=str)]
+        )
     for item in pack.data_capture_policies:
-        writer.writerow(["data_capture_policies", item.scope, json.dumps(item.model_dump(mode="json"), default=str)])
+        writer.writerow(
+            [
+                "data_capture_policies",
+                item.scope,
+                json.dumps(item.model_dump(mode="json"), default=str),
+            ]
+        )
     for item in pack.budget_alerts:
-        writer.writerow(["budget_alerts", item.budget_name, json.dumps(item.model_dump(mode="json"), default=str)])
+        writer.writerow(
+            [
+                "budget_alerts",
+                item.budget_name,
+                json.dumps(item.model_dump(mode="json"), default=str),
+            ]
+        )
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),

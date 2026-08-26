@@ -28,8 +28,12 @@ def upgrade() -> None:
         sa.Column("document_count", sa.Integer, nullable=False, server_default=sa.text("0")),
         sa.Column("size_bytes", sa.BigInteger, nullable=False, server_default=sa.text("0")),
         sa.Column("total_queries", sa.Integer, nullable=False, server_default=sa.text("0")),
-        sa.Column("total_query_cost", sa.Numeric(precision=12, scale=6), server_default=sa.text("0")),
-        sa.Column("total_embed_cost", sa.Numeric(precision=12, scale=6), server_default=sa.text("0")),
+        sa.Column(
+            "total_query_cost", sa.Numeric(precision=12, scale=6), server_default=sa.text("0")
+        ),
+        sa.Column(
+            "total_embed_cost", sa.Numeric(precision=12, scale=6), server_default=sa.text("0")
+        ),
         sa.Column("status", sa.Text, nullable=False, server_default=sa.text("'active'")),
         sa.Column("config", JSONB, nullable=False, server_default=sa.text("'{}'")),
         sa.Column("last_queried_at", sa.TIMESTAMP(timezone=True), nullable=True),

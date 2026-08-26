@@ -6,6 +6,7 @@ from .gateway_shared import *
 
 router = APIRouter()
 
+
 @router.post(
     "/routing-groups",
     response_model=GatewayRoutingGroupResponse,
@@ -69,7 +70,9 @@ async def list_gateway_routing_groups(
         if route.routing_group_id is not None:
             routes_by_group.setdefault(route.routing_group_id, []).append(route)
     return GatewayRoutingGroupList(
-        items=[_serialize_routing_group(group, routes_by_group.get(group.id, [])) for group in groups]
+        items=[
+            _serialize_routing_group(group, routes_by_group.get(group.id, [])) for group in groups
+        ]
     )
 
 
@@ -135,13 +138,17 @@ async def gateway_routing_strategy_comparison(
                 group_name=group.name if group is not None else "Ungrouped",
                 strategy_type=group.strategy_type if group is not None else "manual",
                 total_requests=total_requests,
-                cache_hit_rate=Decimal(str(round(cache_hits / total_requests, 4))) if total_requests else Decimal("0"),
+                cache_hit_rate=Decimal(str(round(cache_hits / total_requests, 4)))
+                if total_requests
+                else Decimal("0"),
                 avg_latency_ms=(
                     Decimal(str(row.avg_latency_ms)).quantize(Decimal("0.01"))
                     if row.avg_latency_ms is not None
                     else None
                 ),
-                error_rate=Decimal(str(round(error_count / total_requests, 4))) if total_requests else Decimal("0"),
+                error_rate=Decimal(str(round(error_count / total_requests, 4)))
+                if total_requests
+                else Decimal("0"),
                 active_routes=sum(1 for route in group_routes if route.is_active),
                 default_tags=list(group.default_tags or []) if group is not None else [],
                 match_tags=list(group.match_tags or []) if group is not None else [],
@@ -231,7 +238,9 @@ async def create_gateway_route(
         if group is None or group.workspace_id != workspace.id:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway routing group not found")
         if group.alias != body.alias:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Routing group alias must match route alias")
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "Routing group alias must match route alias"
+            )
         routing_group_name = group.name
     route = GatewayRoute(
         workspace_id=workspace.id,
@@ -293,7 +302,9 @@ async def list_gateway_routes(
         group_names = {row.id: row.name for row in group_result.all()}
     return GatewayRouteList(
         items=[
-            _serialize_gateway_route(route, routing_group_name=group_names.get(route.routing_group_id))
+            _serialize_gateway_route(
+                route, routing_group_name=group_names.get(route.routing_group_id)
+            )
             for route in routes
         ]
     )
@@ -557,9 +568,15 @@ async def advance_canary_rollout(
     if policy is None or policy.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
     if policy.policy_type != "canary":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Rollout advance is only supported for canary policies")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Rollout advance is only supported for canary policies"
+        )
     config = dict(policy.config or {})
-    stages = config.get("rollout_stages") if isinstance(config.get("rollout_stages"), list) else [5, 10, 25, 50, 100]
+    stages = (
+        config.get("rollout_stages")
+        if isinstance(config.get("rollout_stages"), list)
+        else [5, 10, 25, 50, 100]
+    )
     current_pct = float(config.get("canary_pct", 0.0)) * 100
     next_stage = next((float(stage) for stage in stages if float(stage) > current_pct), None)
     if next_stage is None:

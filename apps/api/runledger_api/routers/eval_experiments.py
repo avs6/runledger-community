@@ -199,14 +199,20 @@ async def list_experiments(
         q = q.where(EvalExperiment.status == status_filter)
     if access_group_id:
         import uuid as _uuid
+
         from runledger_api.models.access_groups import AccessGroupMember
+
         member_rows = (
-            await db.execute(
-                select(AccessGroupMember.user_id).where(
-                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+            (
+                await db.execute(
+                    select(AccessGroupMember.user_id).where(
+                        AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         member_ids = [str(uid) for uid in member_rows]
         q = q.where(EvalExperiment.created_by.in_(member_ids))
     q = q.order_by(EvalExperiment.created_at.desc()).limit(limit).offset(offset)

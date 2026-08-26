@@ -42,7 +42,9 @@ def test_check_budget_calls_api() -> None:
     response.json.return_value = {"allowed": True}
     response.raise_for_status.return_value = None
 
-    with patch("runledger_sdk.agent_helper.httpx.get", return_value=response) as mock_get:
+    with patch(
+        "runledger_sdk.agent_helper.httpx.get", return_value=response
+    ) as mock_get:
         result = rl.check_budget(end_user_id="u_1", feature_tag="qa")
 
     assert result["allowed"] is True
@@ -56,7 +58,9 @@ def test_check_policy_calls_api() -> None:
     response.json.return_value = {"allowed": False, "decision": "block"}
     response.raise_for_status.return_value = None
 
-    with patch("runledger_sdk.agent_helper.httpx.post", return_value=response) as mock_post:
+    with patch(
+        "runledger_sdk.agent_helper.httpx.post", return_value=response
+    ) as mock_post:
         result = rl.check_policy(tool_name="shell", dry_run=True)
 
     assert result["decision"] == "block"
@@ -86,9 +90,13 @@ def test_task_wrapper_records_default_outcome() -> None:
 
     with rl.task("Fix failing tests", intent="code_generation") as task:
         task.tool_call("pytest")
-        task.model_call(provider="openai", model="gpt-4o-mini", input_tokens=10, output_tokens=4)
+        task.model_call(
+            provider="openai", model="gpt-4o-mini", input_tokens=10, output_tokens=4
+        )
 
-    event_types = [call.args[0]["event_type"] for call in transport.enqueue.call_args_list]
+    event_types = [
+        call.args[0]["event_type"] for call in transport.enqueue.call_args_list
+    ]
     assert "run_start" in event_types
     assert "tool_call" in event_types
     assert "provider_call" in event_types

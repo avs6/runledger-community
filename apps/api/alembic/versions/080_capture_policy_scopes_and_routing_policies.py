@@ -7,10 +7,9 @@ Create Date: 2026-08-07 13:40:00.000000
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "080"
 down_revision = "079"

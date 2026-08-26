@@ -215,7 +215,9 @@ async def test_tag_tree_and_rules(
     assert tree_resp.status_code == 200
     assert tree_resp.json()["items"][0]["children"][0]["value"] == "support"
 
-    rule_resp = await authed_client.get("/tags/auto-rules", headers={"Authorization": "Bearer test-key"})
+    rule_resp = await authed_client.get(
+        "/tags/auto-rules", headers={"Authorization": "Bearer test-key"}
+    )
     assert rule_resp.status_code == 200
     assert rule_resp.json()["total"] == 1
 
@@ -260,7 +262,9 @@ async def test_create_and_list_search_tools(
     count_result.scalar.return_value = 2
     mock_db_session.execute = AsyncMock(side_effect=[tool_result, count_result])
 
-    list_resp = await authed_client.get("/search-tools", headers={"Authorization": "Bearer test-key"})
+    list_resp = await authed_client.get(
+        "/search-tools", headers={"Authorization": "Bearer test-key"}
+    )
     assert list_resp.status_code == 200
     assert list_resp.json()["items"][0]["policy_count"] == 2
 
@@ -315,7 +319,9 @@ async def test_tool_policy_analytics(
     ]
     mock_db_session.execute = AsyncMock(return_value=rows_result)
 
-    resp = await authed_client.get("/tool-policies/analytics", headers={"Authorization": "Bearer test-key"})
+    resp = await authed_client.get(
+        "/tool-policies/analytics", headers={"Authorization": "Bearer test-key"}
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_calls"] == 2
@@ -334,9 +340,13 @@ async def test_access_groups_dashboard_and_members(
     group_lookup.scalar_one_or_none.return_value = group
     members_result = MagicMock()
     members_result.scalars.return_value.all.return_value = [_make_group_member(group_id=group.id)]
-    mock_db_session.execute = AsyncMock(side_effect=[dashboard_result, group_lookup, members_result])
+    mock_db_session.execute = AsyncMock(
+        side_effect=[dashboard_result, group_lookup, members_result]
+    )
 
-    dash_resp = await authed_client.get("/access-groups/dashboard", headers={"Authorization": "Bearer test-key"})
+    dash_resp = await authed_client.get(
+        "/access-groups/dashboard", headers={"Authorization": "Bearer test-key"}
+    )
     assert dash_resp.status_code == 200
     assert dash_resp.json()["groups"][0]["dashboard_filters"]["team"] == ["support"]
 
@@ -381,7 +391,9 @@ async def test_response_cache_stats(
     cache_rows_result.all.return_value = [("gpt-4o-mini", 15)]
     mock_db_session.execute = AsyncMock(side_effect=[configs_result, cache_rows_result])
 
-    resp = await authed_client.get("/response-cache/stats", headers={"Authorization": "Bearer test-key"})
+    resp = await authed_client.get(
+        "/response-cache/stats", headers={"Authorization": "Bearer test-key"}
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_hits"] == 120

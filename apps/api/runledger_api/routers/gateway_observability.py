@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from .gateway_shared import *
 from runledger_api.core.config import settings
 from runledger_api.models.budget_tiers import BudgetTier
 from runledger_api.models.model_budgets import ModelBudget
 
+from .gateway_shared import *
+
 router = APIRouter()
+
 
 @router.get("/deployments/health", response_model=GatewayDeploymentHealthList)
 async def list_gateway_deployment_health(
@@ -44,6 +46,7 @@ async def list_gateway_deployment_health(
 
 
 # ── Request log (routing log) ─────────────────────────────────────────────────
+
 
 @router.get("/requests", response_model=GatewayRequestList)
 async def list_gateway_requests(
@@ -176,26 +179,34 @@ async def gateway_rate_limit_overview(
     workspace = auth[0]
 
     route_rows = (
-        await db.execute(
-            select(GatewayRoute.alias)
-            .where(
-                GatewayRoute.workspace_id == workspace.id,
-                GatewayRoute.per_user_rpm_limit.is_not(None),
+        (
+            await db.execute(
+                select(GatewayRoute.alias)
+                .where(
+                    GatewayRoute.workspace_id == workspace.id,
+                    GatewayRoute.per_user_rpm_limit.is_not(None),
+                )
+                .order_by(GatewayRoute.alias.asc())
             )
-            .order_by(GatewayRoute.alias.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     passthrough_rows = (
-        await db.execute(
-            select(GatewayPassThroughEndpoint.slug)
-            .where(
-                GatewayPassThroughEndpoint.workspace_id == workspace.id,
-                GatewayPassThroughEndpoint.rate_limit_rpm.is_not(None),
+        (
+            await db.execute(
+                select(GatewayPassThroughEndpoint.slug)
+                .where(
+                    GatewayPassThroughEndpoint.workspace_id == workspace.id,
+                    GatewayPassThroughEndpoint.rate_limit_rpm.is_not(None),
+                )
+                .order_by(GatewayPassThroughEndpoint.slug.asc())
             )
-            .order_by(GatewayPassThroughEndpoint.slug.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     budget_tier_count = (
         await db.execute(
@@ -313,9 +324,16 @@ async def gateway_benchmark_comparison(
     rows: list[GatewayBenchmarkComparisonItem] = []
     for alias_key, bucket in sorted(buckets.items()):
         timestamps = sorted(bucket["timestamps"])
-        minutes = max(((timestamps[-1] - timestamps[0]).total_seconds() / 60.0) if len(timestamps) > 1 else 1.0, 1.0)
+        minutes = max(
+            ((timestamps[-1] - timestamps[0]).total_seconds() / 60.0)
+            if len(timestamps) > 1
+            else 1.0,
+            1.0,
+        )
         provider_avg = (
-            Decimal(str(round(sum(bucket["provider_latencies"]) / len(bucket["provider_latencies"]), 2)))
+            Decimal(
+                str(round(sum(bucket["provider_latencies"]) / len(bucket["provider_latencies"]), 2))
+            )
             if bucket["provider_latencies"]
             else None
         )

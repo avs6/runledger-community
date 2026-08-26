@@ -7,8 +7,8 @@ imported directly from Celery workers.
 
 from __future__ import annotations
 
-import csv
 import calendar
+import csv
 import hashlib
 import hmac
 import io
@@ -18,14 +18,13 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
-import structlog
 import sqlalchemy as sa
+import structlog
 from sqlalchemy import func, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
-from runledger_api.models.budgets import Budget
 from runledger_api.models.billing import (
     BillingAdjustment,
     BillingPeriod,
@@ -34,6 +33,7 @@ from runledger_api.models.billing import (
     SharedCostPolicy,
     UsageSnapshot,
 )
+from runledger_api.models.budgets import Budget
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.tenant import ApiKey, Application, Workspace
@@ -195,7 +195,9 @@ async def build_chargeback_report(
         func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost_usd"),
         func.count(ProviderCall.id).label("call_count"),
         func.count(func.distinct(ProviderCall.run_id)).label("run_count"),
-        budget_key_expr.label("budget_key") if budget_key_expr is not None else sa.literal(None).label("budget_key"),
+        budget_key_expr.label("budget_key")
+        if budget_key_expr is not None
+        else sa.literal(None).label("budget_key"),
     ).select_from(ProviderCall)
 
     joined_agent = False
@@ -229,7 +231,7 @@ async def build_chargeback_report(
         func.date(ProviderCall.created_at) >= period_start,
         func.date(ProviderCall.created_at) <= period_end,
         ProviderCall.status == "success",
-]
+    ]
     if access_group_id is not None:
         await _validate_access_group_scope(db, workspace_id, access_group_id)
         filters.append(_access_group_member_filter(access_group_id))
@@ -241,7 +243,11 @@ async def build_chargeback_report(
 
     stmt = (
         stmt.where(*filters)
-        .group_by(group_expr, label_expr, budget_key_expr if budget_key_expr is not None else sa.literal(None))
+        .group_by(
+            group_expr,
+            label_expr,
+            budget_key_expr if budget_key_expr is not None else sa.literal(None),
+        )
         .order_by(func.sum(ProviderCall.cost_usd).desc().nulls_last())
     )
 
@@ -260,9 +266,7 @@ async def build_chargeback_report(
             )
         ).all()
         budget_map = {
-            str(scope_id): limit_usd
-            for scope_id, limit_usd in budget_rows
-            if scope_id is not None
+            str(scope_id): limit_usd for scope_id, limit_usd in budget_rows if scope_id is not None
         }
 
     items: list[ChargebackBreakdownItem] = []
@@ -284,7 +288,9 @@ async def build_chargeback_report(
             covered_cost += row.cost_usd or Decimal(0)
         variance = (row.cost_usd - budget_value) if budget_value is not None else None
         pct_of_total = (
-            ((row.cost_usd or Decimal(0)) / total_cost * Decimal(100)) if total_cost > 0 else Decimal(0)
+            ((row.cost_usd or Decimal(0)) / total_cost * Decimal(100))
+            if total_cost > 0
+            else Decimal(0)
         )
         items.append(
             ChargebackBreakdownItem(
@@ -306,7 +312,9 @@ async def build_chargeback_report(
         dimension=chosen_dimension,
         total_cost_usd=total_cost.quantize(Decimal("0.0001")) if total_cost else Decimal("0"),
         covered_cost_usd=covered_cost.quantize(Decimal("0.0001")) if covered_cost else Decimal("0"),
-        unallocated_cost_usd=unallocated_cost.quantize(Decimal("0.0001")) if unallocated_cost else Decimal("0"),
+        unallocated_cost_usd=unallocated_cost.quantize(Decimal("0.0001"))
+        if unallocated_cost
+        else Decimal("0"),
         breakdown=items,
     )
 
@@ -384,7 +392,9 @@ async def run_reconciliation(
 
     # Sum from provider_calls
     calls_result = await db.execute(
-        select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(*scoped_filters, ProviderCall.cost_usd.is_not(None))
+        select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(
+            *scoped_filters, ProviderCall.cost_usd.is_not(None)
+        )
     )
     calls_sum: Decimal = calls_result.scalar_one() or Decimal(0)
 
@@ -789,7 +799,16 @@ async def export_csv(
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
-        ["date", "api_key_id", "end_user_id", "model", "input_tokens", "output_tokens", "cost_usd", "run_id"]
+        [
+            "date",
+            "api_key_id",
+            "end_user_id",
+            "model",
+            "input_tokens",
+            "output_tokens",
+            "cost_usd",
+            "run_id",
+        ]
     )
     for row in rows:
         writer.writerow(

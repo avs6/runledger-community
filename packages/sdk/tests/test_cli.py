@@ -176,7 +176,14 @@ def test_task_start_returns_run_id() -> None:
     with patch("runledger_sdk.cli.httpx.Client", return_value=mock_client):
         result = runner.invoke(
             app,
-            ["task", "start", "--api-key", "rl_test_abc", "--task", "Fix failing tests"],
+            [
+                "task",
+                "start",
+                "--api-key",
+                "rl_test_abc",
+                "--task",
+                "Fix failing tests",
+            ],
         )
 
     assert result.exit_code == 0

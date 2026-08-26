@@ -177,6 +177,7 @@ async def list_workflows(
         count_q = count_q.where(WorkflowDefinition.status == wf_status)
     if access_group_id or api_key_id:
         import uuid as _uuid
+
         run_sub = select(WorkflowRun.workflow_id).where(
             WorkflowRun.workspace_id == ws.id,
         )
@@ -345,11 +346,13 @@ async def list_runs(
         count_q = count_q.where(WorkflowRun.status == run_status)
     if access_group_id:
         import uuid as _uuid
+
         _ag = _uuid.UUID(access_group_id)
         base = base.where(WorkflowRun.access_group_id == _ag)
         count_q = count_q.where(WorkflowRun.access_group_id == _ag)
     if api_key_id:
         import uuid as _uuid
+
         _ak = _uuid.UUID(api_key_id)
         base = base.where(WorkflowRun.api_key_id == _ak)
         count_q = count_q.where(WorkflowRun.api_key_id == _ak)

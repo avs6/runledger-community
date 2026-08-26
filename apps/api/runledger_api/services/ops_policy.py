@@ -41,7 +41,9 @@ def evaluate_infra_posture() -> dict[str, Any]:
         ),
     )
 
-    compliance_ready = settings.compliance_export_enabled and bool(settings.compliance_export_bucket)
+    compliance_ready = settings.compliance_export_enabled and bool(
+        settings.compliance_export_bucket
+    )
     add_check(
         "storage",
         "compliance_export",

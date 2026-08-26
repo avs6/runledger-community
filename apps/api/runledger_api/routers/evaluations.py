@@ -122,19 +122,27 @@ async def list_scores(
         stmt = stmt.where(ScoreEvent.created_at < t_to)
     if access_group_id:
         import uuid as _uuid
+
         from runledger_api.models.access_groups import AccessGroupMember
+
         member_rows = (
-            await db.execute(
-                select(AccessGroupMember.user_id).where(
-                    AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+            (
+                await db.execute(
+                    select(AccessGroupMember.user_id).where(
+                        AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         member_ids = [str(uid) for uid in member_rows]
         stmt = stmt.where(ScoreEvent.end_user_id.in_(member_ids))
     if api_key_id:
         import uuid as _uuid
+
         from runledger_api.models.events import AgentRun
+
         run_ids_sub = select(AgentRun.id).where(
             AgentRun.workspace_id == workspace.id,
             AgentRun.api_key_id == _uuid.UUID(api_key_id),

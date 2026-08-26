@@ -9,7 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class AlertRuleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    metric: str = Field(..., pattern="^(error_rate|p95_latency|avg_score|spend_velocity|model_availability|gateway_overhead_p95)$")
+    metric: str = Field(
+        ...,
+        pattern="^(error_rate|p95_latency|avg_score|spend_velocity|model_availability|gateway_overhead_p95)$",
+    )
     operator: str = Field(..., pattern="^(gt|lt)$")
     threshold: Decimal = Field(..., ge=0)
     window_minutes: int = Field(60, ge=5, le=1440)

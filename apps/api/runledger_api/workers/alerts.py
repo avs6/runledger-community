@@ -28,9 +28,9 @@ from runledger_api.models.events import AgentRun
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
+from runledger_api.services import kafka_export
 from runledger_api.services.email import send_alert_fired_email
 from runledger_api.services.email_utils import get_email_preference, get_workspace_admin_users
-from runledger_api.services import kafka_export
 from runledger_api.services.notifications import send_slack_message
 
 log = structlog.get_logger()
@@ -132,7 +132,9 @@ async def _run_evaluation() -> dict[str, int]:
                         "threshold": str(rule.threshold),
                         "operator": rule.operator,
                         "window_minutes": rule.window_minutes,
-                        "fired_at": firing.fired_at.isoformat() if firing.fired_at else now.isoformat(),
+                        "fired_at": firing.fired_at.isoformat()
+                        if firing.fired_at
+                        else now.isoformat(),
                         "idempotency_key": f"alert-fired:{rule.id}:{firing.id}",
                         "source": "runledger.alerts",
                         "event_summary": f"Alert fired for {rule.metric}",
@@ -232,7 +234,9 @@ async def _compute_metric(
     if metric == "model_availability":
         routes_stmt = select(GatewayRoute).where(GatewayRoute.workspace_id == workspace_id)
         routes = list((await session.execute(routes_stmt)).scalars().all())
-        considered = [route for route in routes if route.last_health_check_at is not None or route.is_active]
+        considered = [
+            route for route in routes if route.last_health_check_at is not None or route.is_active
+        ]
         if not considered:
             return None
         healthy = sum(1 for route in considered if route.deployment_status == "healthy")

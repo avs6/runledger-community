@@ -3264,63 +3264,63 @@ export async function getMonitoringFinopsPosture(
 }
 
 export async function getOverviewGatewayPosture(apiKey: string): Promise<import('@/types/api').OverviewGatewayPosture> {
-  return fetchApi<import('@/types/api').OverviewGatewayPosture>(
+  return apiFetch<import('@/types/api').OverviewGatewayPosture>(
     '/analytics/overview-gateway-posture',
     apiKey,
   )
 }
 
 export async function getOverviewGovernancePosture(apiKey: string): Promise<import('@/types/api').OverviewGovernancePosture> {
-  return fetchApi<import('@/types/api').OverviewGovernancePosture>(
+  return apiFetch<import('@/types/api').OverviewGovernancePosture>(
     '/analytics/overview-governance-posture',
     apiKey,
   )
 }
 
 export async function getOverviewOrgPosture(apiKey: string): Promise<import('@/types/api').OverviewOrgPosture> {
-  return fetchApi<import('@/types/api').OverviewOrgPosture>(
+  return apiFetch<import('@/types/api').OverviewOrgPosture>(
     '/analytics/overview-org-posture',
     apiKey,
   )
 }
 
 export async function getOverviewScopePosture(apiKey: string): Promise<import('@/types/api').OverviewScopePosture> {
-  return fetchApi<import('@/types/api').OverviewScopePosture>(
+  return apiFetch<import('@/types/api').OverviewScopePosture>(
     '/analytics/overview-scope-posture',
     apiKey,
   )
 }
 
 export async function getMonitoringOpsPosture(apiKey: string): Promise<import('@/types/api').MonitoringOpsPosture> {
-  return fetchApi<import('@/types/api').MonitoringOpsPosture>(
+  return apiFetch<import('@/types/api').MonitoringOpsPosture>(
     '/analytics/monitoring-ops-posture',
     apiKey,
   )
 }
 
 export async function getTelemetryOpsPosture(apiKey: string): Promise<import('@/types/api').TelemetryOpsPosture> {
-  return fetchApi<import('@/types/api').TelemetryOpsPosture>(
+  return apiFetch<import('@/types/api').TelemetryOpsPosture>(
     '/analytics/telemetry-ops-posture',
     apiKey,
   )
 }
 
 export async function getUserAnalyticsOrgPosture(apiKey: string): Promise<import('@/types/api').UserAnalyticsOrgPosture> {
-  return fetchApi<import('@/types/api').UserAnalyticsOrgPosture>(
+  return apiFetch<import('@/types/api').UserAnalyticsOrgPosture>(
     '/analytics/user-analytics-org-posture',
     apiKey,
   )
 }
 
 export async function getModelUsageGatewayPosture(apiKey: string): Promise<import('@/types/api').ModelUsageGatewayPosture> {
-  return fetchApi<import('@/types/api').ModelUsageGatewayPosture>(
+  return apiFetch<import('@/types/api').ModelUsageGatewayPosture>(
     '/analytics/model-usage-gateway-posture',
     apiKey,
   )
 }
 
 export async function getEconomicsGatewayPosture(apiKey: string): Promise<import('@/types/api').EconomicsGatewayPosture> {
-  return fetchApi<import('@/types/api').EconomicsGatewayPosture>(
+  return apiFetch<import('@/types/api').EconomicsGatewayPosture>(
     '/analytics/economics-gateway-posture',
     apiKey,
   )

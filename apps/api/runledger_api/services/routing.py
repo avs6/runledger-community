@@ -363,8 +363,7 @@ async def _ab_test(
     )[0]
     route = chosen["route"]
     return route, (
-        f"ab_test:{chosen['label']}:{int(chosen['allocation_pct'] * 100)}pct"
-        f" ({route.target_model})"
+        f"ab_test:{chosen['label']}:{int(chosen['allocation_pct'] * 100)}pct ({route.target_model})"
     )
 
 
@@ -507,19 +506,33 @@ async def analyze_routing_policy(
                 "total_requests": int(row.total_requests or 0) if row else 0,
                 "success_rate": round(float(row.success_rate or 0.0), 4) if row else 0.0,
                 "error_rate": round(float(row.error_rate or 0.0), 4) if row else 0.0,
-                "avg_latency_ms": round(float(row.avg_latency_ms), 2) if row and row.avg_latency_ms is not None else None,
-                "avg_input_tokens": round(float(row.avg_input_tokens), 2) if row and row.avg_input_tokens is not None else None,
-                "avg_output_tokens": round(float(row.avg_output_tokens), 2) if row and row.avg_output_tokens is not None else None,
+                "avg_latency_ms": round(float(row.avg_latency_ms), 2)
+                if row and row.avg_latency_ms is not None
+                else None,
+                "avg_input_tokens": round(float(row.avg_input_tokens), 2)
+                if row and row.avg_input_tokens is not None
+                else None,
+                "avg_output_tokens": round(float(row.avg_output_tokens), 2)
+                if row and row.avg_output_tokens is not None
+                else None,
             }
         )
 
     ranked = sorted(
         metrics,
-        key=lambda item: (-item["success_rate"], item["error_rate"], item["avg_latency_ms"] or float("inf")),
+        key=lambda item: (
+            -item["success_rate"],
+            item["error_rate"],
+            item["avg_latency_ms"] or float("inf"),
+        ),
     )
     min_sample_size = max(5, int((policy.config or {}).get("min_sample_size", 25)))
     significance_threshold = float((policy.config or {}).get("significance_threshold", 0.05))
-    if len(ranked) < 2 or ranked[0]["total_requests"] < min_sample_size or ranked[1]["total_requests"] < min_sample_size:
+    if (
+        len(ranked) < 2
+        or ranked[0]["total_requests"] < min_sample_size
+        or ranked[1]["total_requests"] < min_sample_size
+    ):
         return {
             "policy_id": policy.id,
             "alias": policy.alias,

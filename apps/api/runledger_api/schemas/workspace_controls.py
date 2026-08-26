@@ -46,7 +46,7 @@ class TagResponse(BaseModel):
 
 
 class TagTreeNode(TagResponse):
-    children: list["TagTreeNode"] = Field(default_factory=list)
+    children: list[TagTreeNode] = Field(default_factory=list)
 
 
 class TagListResponse(BaseModel):
@@ -178,7 +178,7 @@ class SearchToolListResponse(BaseModel):
 class SearchToolPolicySummary(BaseModel):
     tool_id: uuid.UUID
     tool_name: str
-    policies: list["ToolPolicyResponse"]
+    policies: list[ToolPolicyResponse]
 
 
 class ToolPolicyCreate(BaseModel):

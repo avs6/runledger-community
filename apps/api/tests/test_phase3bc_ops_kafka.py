@@ -133,13 +133,14 @@ async def test_get_backup_history_returns_items() -> None:
 @pytest.mark.asyncio
 async def test_run_backup_now_requires_feature_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi import HTTPException
-
     from runledger_api.routers import settings as settings_router
 
     monkeypatch.setattr(settings_router.app_settings, "backup_enabled", False)
 
     with pytest.raises(HTTPException) as exc_info:
-        await settings_router.run_backup_now(auth=(SimpleNamespace(id=uuid.uuid4()), None), db=AsyncMock())  # type: ignore[arg-type]
+        await settings_router.run_backup_now(
+            auth=(SimpleNamespace(id=uuid.uuid4()), None), db=AsyncMock()
+        )  # type: ignore[arg-type]
 
     assert exc_info.value.status_code == 400
 

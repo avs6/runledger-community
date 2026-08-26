@@ -16,7 +16,6 @@ Uses authed_client / mock_db_session fixtures from conftest. No live DB required
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal

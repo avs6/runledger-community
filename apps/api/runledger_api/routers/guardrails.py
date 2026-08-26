@@ -503,6 +503,8 @@ async def list_events(
     return GuardrailEventList(
         items=[GuardrailEventResponse.model_validate(e) for e in items], total=total
     )
+
+
 # ── Test endpoints ───────────────────────────────────────────────────────────
 
 

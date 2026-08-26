@@ -23,11 +23,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -86,8 +86,12 @@ def _server_to_response(s: McpServer) -> McpServerResponse:
 # ── CRUD ─────────────────────────────────────────────────────────────────────
 
 
-@router.post("", response_model=McpServerResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.post(
+    "",
+    response_model=McpServerResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def register_server(body: McpServerCreate, ws: WorkspaceDep, db: DbDep) -> McpServerResponse:
     srv = McpServer(
         id=uuid.uuid4(),
@@ -122,58 +126,101 @@ async def list_servers(
     return McpServerList(items=[_server_to_response(s) for s in rows])
 
 
-@router.get("/tools", response_model=McpToolListResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/tools", response_model=McpToolListResponse, dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_tools(ws: WorkspaceDep, db: DbDep) -> McpToolListResponse:
-    rows = (await db.execute(
-        select(McpServer)
-        .where(McpServer.workspace_id == ws.id, McpServer.is_active.is_(True))
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(McpServer).where(
+                    McpServer.workspace_id == ws.id, McpServer.is_active.is_(True)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     items: list[McpToolListItem] = []
     for s in rows:
         for t in s.discovered_tools or []:
-            items.append(McpToolListItem(
-                server_id=s.id,
-                server_name=s.name,
-                tool_name=t.get("name", ""),
-                description=t.get("description"),
-            ))
+            items.append(
+                McpToolListItem(
+                    server_id=s.id,
+                    server_name=s.name,
+                    tool_name=t.get("name", ""),
+                    description=t.get("description"),
+                )
+            )
     return McpToolListResponse(items=items)
 
 
-@router.get("/tool-calls", response_model=McpToolCallList, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/tool-calls", response_model=McpToolCallList, dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_tool_calls(
     ws: WorkspaceDep,
     db: DbDep,
     limit: int = Query(50, ge=1, le=200),
 ) -> McpToolCallList:
-    rows = (await db.execute(
-        select(McpToolCall)
-        .where(McpToolCall.workspace_id == ws.id)
-        .order_by(McpToolCall.created_at.desc())
-        .limit(limit)
-    )).scalars().all()
-    return McpToolCallList(items=[McpToolCallResponse(
-        id=c.id, mcp_server_id=c.mcp_server_id, tool_name=c.tool_name,
-        arguments=c.arguments or {}, result=c.result, cost_usd=c.cost_usd,
-        latency_ms=c.latency_ms, status=c.status, error=c.error, created_at=c.created_at,
-    ) for c in rows])
+    rows = (
+        (
+            await db.execute(
+                select(McpToolCall)
+                .where(McpToolCall.workspace_id == ws.id)
+                .order_by(McpToolCall.created_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return McpToolCallList(
+        items=[
+            McpToolCallResponse(
+                id=c.id,
+                mcp_server_id=c.mcp_server_id,
+                tool_name=c.tool_name,
+                arguments=c.arguments or {},
+                result=c.result,
+                cost_usd=c.cost_usd,
+                latency_ms=c.latency_ms,
+                status=c.status,
+                error=c.error,
+                created_at=c.created_at,
+            )
+            for c in rows
+        ]
+    )
 
 
-@router.get("/{server_id}", response_model=McpServerResponse, dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/{server_id}", response_model=McpServerResponse, dependencies=[Depends(analytics_rate_limit)]
+)
 async def get_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> McpServerResponse:
-    srv = (await db.execute(
-        select(McpServer).where(McpServer.id == server_id, McpServer.workspace_id == ws.id)
-    )).scalar_one_or_none()
+    srv = (
+        await db.execute(
+            select(McpServer).where(McpServer.id == server_id, McpServer.workspace_id == ws.id)
+        )
+    ).scalar_one_or_none()
     if not srv:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found")
     return _server_to_response(srv)
 
 
-@router.put("/{server_id}", response_model=McpServerResponse, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
-async def update_server(server_id: uuid.UUID, body: McpServerUpdate, ws: WorkspaceDep, db: DbDep) -> McpServerResponse:
-    srv = (await db.execute(
-        select(McpServer).where(McpServer.id == server_id, McpServer.workspace_id == ws.id)
-    )).scalar_one_or_none()
+@router.put(
+    "/{server_id}",
+    response_model=McpServerResponse,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
+async def update_server(
+    server_id: uuid.UUID, body: McpServerUpdate, ws: WorkspaceDep, db: DbDep
+) -> McpServerResponse:
+    srv = (
+        await db.execute(
+            select(McpServer).where(McpServer.id == server_id, McpServer.workspace_id == ws.id)
+        )
+    ).scalar_one_or_none()
     if not srv:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found")
     for k, v in body.model_dump(exclude_unset=True).items():
@@ -184,8 +231,11 @@ async def update_server(server_id: uuid.UUID, body: McpServerUpdate, ws: Workspa
     return _server_to_response(srv)
 
 
-@router.delete("/{server_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.delete(
+    "/{server_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def deactivate_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     await db.execute(
         update(McpServer)
@@ -195,21 +245,24 @@ async def deactivate_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -
     await db.commit()
 
 
-@router.post("/tools/call", response_model=McpToolCallResponse,
-             dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.post(
+    "/tools/call",
+    response_model=McpToolCallResponse,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> McpToolCallResponse:
-    srv = (await db.execute(
-        select(McpServer).where(McpServer.id == body.server_id, McpServer.workspace_id == ws.id)
-    )).scalar_one_or_none()
+    srv = (
+        await db.execute(
+            select(McpServer).where(McpServer.id == body.server_id, McpServer.workspace_id == ws.id)
+        )
+    ).scalar_one_or_none()
     if not srv or not srv.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found or inactive")
 
     # 1. Govern and filter tool call through ToolPolicy, Guardrails & Plugin Hooks
     from runledger_api.services.plugin_runner import govern_and_filter_tool_call  # noqa: PLC0415
 
-    gov_res = await govern_and_filter_tool_call(
-        db, ws.id, srv.id, body.tool_name, body.arguments
-    )
+    gov_res = await govern_and_filter_tool_call(db, ws.id, srv.id, body.tool_name, body.arguments)
 
     call_status = "success"
     result_data = None
@@ -235,9 +288,15 @@ async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> Mc
     await db.commit()
     await db.refresh(call)
     return McpToolCallResponse(
-        id=call.id, mcp_server_id=call.mcp_server_id, tool_name=call.tool_name,
-        arguments=call.arguments, result=call.result, cost_usd=call.cost_usd,
-        latency_ms=call.latency_ms, status=call.status, error=call.error,
+        id=call.id,
+        mcp_server_id=call.mcp_server_id,
+        tool_name=call.tool_name,
+        arguments=call.arguments,
+        result=call.result,
+        cost_usd=call.cost_usd,
+        latency_ms=call.latency_ms,
+        status=call.status,
+        error=call.error,
         created_at=call.created_at,
     )
 
@@ -245,9 +304,15 @@ async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> Mc
 # ── Permissions ──────────────────────────────────────────────────────────────
 
 
-@router.post("/permissions", response_model=McpPermissionResponse,
-             status_code=status.HTTP_201_CREATED, dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
-async def grant_permission(body: McpPermissionCreate, ws: WorkspaceDep, db: DbDep) -> McpPermissionResponse:
+@router.post(
+    "/permissions",
+    response_model=McpPermissionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
+async def grant_permission(
+    body: McpPermissionCreate, ws: WorkspaceDep, db: DbDep
+) -> McpPermissionResponse:
     perm = McpPermission(
         id=uuid.uuid4(),
         workspace_id=ws.id,
@@ -260,31 +325,57 @@ async def grant_permission(body: McpPermissionCreate, ws: WorkspaceDep, db: DbDe
     await db.commit()
     await db.refresh(perm)
     return McpPermissionResponse(
-        id=perm.id, workspace_id=perm.workspace_id, mcp_server_id=perm.mcp_server_id,
-        scope_type=perm.scope_type, scope_id=perm.scope_id, allowed_tools=perm.allowed_tools,
+        id=perm.id,
+        workspace_id=perm.workspace_id,
+        mcp_server_id=perm.mcp_server_id,
+        scope_type=perm.scope_type,
+        scope_id=perm.scope_id,
+        allowed_tools=perm.allowed_tools,
         created_at=perm.created_at,
     )
 
 
-@router.get("/permissions", response_model=McpPermissionList,
-            dependencies=[Depends(analytics_rate_limit)])
+@router.get(
+    "/permissions", response_model=McpPermissionList, dependencies=[Depends(analytics_rate_limit)]
+)
 async def list_permissions(ws: WorkspaceDep, db: DbDep) -> McpPermissionList:
-    rows = (await db.execute(
-        select(McpPermission).where(McpPermission.workspace_id == ws.id)
-        .order_by(McpPermission.created_at.desc())
-    )).scalars().all()
-    return McpPermissionList(items=[McpPermissionResponse(
-        id=p.id, workspace_id=p.workspace_id, mcp_server_id=p.mcp_server_id,
-        scope_type=p.scope_type, scope_id=p.scope_id, allowed_tools=p.allowed_tools,
-        created_at=p.created_at,
-    ) for p in rows])
+    rows = (
+        (
+            await db.execute(
+                select(McpPermission)
+                .where(McpPermission.workspace_id == ws.id)
+                .order_by(McpPermission.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return McpPermissionList(
+        items=[
+            McpPermissionResponse(
+                id=p.id,
+                workspace_id=p.workspace_id,
+                mcp_server_id=p.mcp_server_id,
+                scope_type=p.scope_type,
+                scope_id=p.scope_id,
+                allowed_tools=p.allowed_tools,
+                created_at=p.created_at,
+            )
+            for p in rows
+        ]
+    )
 
 
-@router.delete("/permissions/{perm_id}", status_code=status.HTTP_204_NO_CONTENT,
-               dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.delete(
+    "/permissions/{perm_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def revoke_permission(perm_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     result = await db.execute(
-        select(McpPermission).where(McpPermission.id == perm_id, McpPermission.workspace_id == ws.id)
+        select(McpPermission).where(
+            McpPermission.id == perm_id, McpPermission.workspace_id == ws.id
+        )
     )
     perm = result.scalar_one_or_none()
     if not perm:
@@ -328,7 +419,10 @@ DEFAULT_POPULAR_MCP_SERVERS = [
         "args": ["-y", "@modelcontextprotocol/server-brave-search"],
         "discovered_tools": [
             {"name": "brave_web_search", "description": "Execute web search query"},
-            {"name": "brave_local_search", "description": "Search local business & points of interest"},
+            {
+                "name": "brave_local_search",
+                "description": "Search local business & points of interest",
+            },
         ],
     },
     {
@@ -358,13 +452,20 @@ DEFAULT_POPULAR_MCP_SERVERS = [
 ]
 
 
-@router.post("/seed-defaults", dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)])
+@router.post(
+    "/seed-defaults",
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+)
 async def seed_default_mcp_servers(ws: WorkspaceDep, db: DbDep) -> dict:
     added = 0
     for srv_def in DEFAULT_POPULAR_MCP_SERVERS:
-        existing = (await db.execute(
-            select(McpServer).where(McpServer.workspace_id == ws.id, McpServer.name == srv_def["name"])
-        )).scalar_one_or_none()
+        existing = (
+            await db.execute(
+                select(McpServer).where(
+                    McpServer.workspace_id == ws.id, McpServer.name == srv_def["name"]
+                )
+            )
+        ).scalar_one_or_none()
         if not existing:
             srv = McpServer(
                 id=uuid.uuid4(),

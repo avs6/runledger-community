@@ -343,9 +343,9 @@ async def test_config(db: AsyncSession, config: KafkaExportConfig) -> tuple[bool
         payload=prepare_event_payload(
             config,
             {
-            "message": "RunLedger Kafka export test",
-            "config_id": str(config.id),
-            "label": config.label,
+                "message": "RunLedger Kafka export test",
+                "config_id": str(config.id),
+                "label": config.label,
             },
         ),
     )

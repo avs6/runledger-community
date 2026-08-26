@@ -47,7 +47,10 @@ class GatewayRoutingGroupUpdate(BaseModel):
     is_active: bool | None = None
 
     def model_post_init(self, __context: Any) -> None:  # noqa: ANN401
-        if self.strategy_type is not None and self.strategy_type not in VALID_ROUTING_GROUP_STRATEGIES:
+        if (
+            self.strategy_type is not None
+            and self.strategy_type not in VALID_ROUTING_GROUP_STRATEGIES
+        ):
             raise ValueError(
                 f"strategy_type must be one of {sorted(VALID_ROUTING_GROUP_STRATEGIES)}"
             )

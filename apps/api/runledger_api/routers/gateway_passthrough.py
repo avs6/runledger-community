@@ -6,6 +6,7 @@ from .gateway_shared import *
 
 router = APIRouter()
 
+
 @router.post(
     "/passthrough",
     response_model=GatewayPassThroughEndpointResponse,
@@ -166,17 +167,24 @@ async def list_gateway_passthrough_stats(
                     .filter(GatewayRequest.status == "error")
                     .label("error_count"),
                     func.avg(GatewayRequest.latency_ms).label("avg_latency_ms"),
-                    func.percentile_cont(0.5).within_group(GatewayRequest.latency_ms).label("p50_latency_ms"),
-                    func.percentile_cont(0.95).within_group(GatewayRequest.latency_ms).label("p95_latency_ms"),
-                    func.percentile_cont(0.99).within_group(GatewayRequest.latency_ms).label("p99_latency_ms"),
+                    func.percentile_cont(0.5)
+                    .within_group(GatewayRequest.latency_ms)
+                    .label("p50_latency_ms"),
+                    func.percentile_cont(0.95)
+                    .within_group(GatewayRequest.latency_ms)
+                    .label("p95_latency_ms"),
+                    func.percentile_cont(0.99)
+                    .within_group(GatewayRequest.latency_ms)
+                    .label("p99_latency_ms"),
                     func.count(GatewayRequest.id)
                     .filter(GatewayRequest.created_at >= func.now() - sa.text("INTERVAL '1 hour'"))
                     .label("last_hour_requests"),
                     func.count(GatewayRequest.id)
-                    .filter(GatewayRequest.created_at >= func.now() - sa.text("INTERVAL '24 hours'"))
+                    .filter(
+                        GatewayRequest.created_at >= func.now() - sa.text("INTERVAL '24 hours'")
+                    )
                     .label("last_24h_requests"),
-                )
-                .where(
+                ).where(
                     GatewayRequest.workspace_id == workspace.id,
                     GatewayRequest.model_requested == requested_model,
                 )
@@ -197,7 +205,9 @@ async def list_gateway_passthrough_stats(
         )
         utilization = None
         if endpoint.rate_limit_rpm:
-            utilization = Decimal(str(round(last_hour_requests / (endpoint.rate_limit_rpm * 60), 4)))
+            utilization = Decimal(
+                str(round(last_hour_requests / (endpoint.rate_limit_rpm * 60), 4))
+            )
         items.append(
             GatewayPassThroughEndpointStats(
                 endpoint_id=endpoint.id,
@@ -205,10 +215,18 @@ async def list_gateway_passthrough_stats(
                 total_requests=total_requests,
                 success_count=int(row.success_count or 0),
                 error_count=int(row.error_count or 0),
-                avg_latency_ms=Decimal(str(round(float(row.avg_latency_ms), 2))) if row.avg_latency_ms is not None else None,
-                p50_latency_ms=Decimal(str(round(float(row.p50_latency_ms), 2))) if row.p50_latency_ms is not None else None,
-                p95_latency_ms=Decimal(str(round(float(row.p95_latency_ms), 2))) if row.p95_latency_ms is not None else None,
-                p99_latency_ms=Decimal(str(round(float(row.p99_latency_ms), 2))) if row.p99_latency_ms is not None else None,
+                avg_latency_ms=Decimal(str(round(float(row.avg_latency_ms), 2)))
+                if row.avg_latency_ms is not None
+                else None,
+                p50_latency_ms=Decimal(str(round(float(row.p50_latency_ms), 2)))
+                if row.p50_latency_ms is not None
+                else None,
+                p95_latency_ms=Decimal(str(round(float(row.p95_latency_ms), 2)))
+                if row.p95_latency_ms is not None
+                else None,
+                p99_latency_ms=Decimal(str(round(float(row.p99_latency_ms), 2)))
+                if row.p99_latency_ms is not None
+                else None,
                 last_hour_requests=last_hour_requests,
                 rate_limit_rpm=endpoint.rate_limit_rpm,
                 rate_limit_utilization_pct=utilization,
@@ -335,7 +353,9 @@ async def execute_gateway_passthrough_endpoint(
                 },
                 segment_key=slug,
             )
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Pass-through endpoint rate limit exceeded")
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS, "Pass-through endpoint rate limit exceeded"
+            )
     t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
@@ -365,7 +385,9 @@ async def execute_gateway_passthrough_endpoint(
             },
             segment_key=slug,
         )
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Upstream request failed: {exc!s}") from exc
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"Upstream request failed: {exc!s}"
+        ) from exc
 
     await record_gateway_request(
         db=db,

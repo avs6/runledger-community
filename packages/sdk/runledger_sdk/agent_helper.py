@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from runledger_sdk.context import get_context_snapshot
+
+if TYPE_CHECKING:
+    from decimal import Decimal
 
 
 class AgentTelemetryHelper:
@@ -187,7 +189,9 @@ class AgentTelemetryHelper:
                 "run_id": run_id,
                 "status": final_status,
                 "ended_at": datetime.now(UTC).isoformat(),
-                "total_cost_usd": str(total_cost_usd) if total_cost_usd is not None else None,
+                "total_cost_usd": str(total_cost_usd)
+                if total_cost_usd is not None
+                else None,
                 "total_input_tokens": total_input_tokens,
                 "total_output_tokens": total_output_tokens,
             }

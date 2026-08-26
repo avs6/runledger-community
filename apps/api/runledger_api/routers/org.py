@@ -21,14 +21,18 @@ from runledger_api.core.deps import (
     require_platform_admin,
     require_user,
 )
+from runledger_api.models.alerts import AlertRule
+from runledger_api.models.approvals import Approval
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.budget_overrides import BudgetOverride
 from runledger_api.models.budgets import Budget, BudgetNotification
-from runledger_api.models.alerts import AlertRule
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.gateway import GatewayRoute, RoutingPolicy
 from runledger_api.models.guardrails import GuardrailRule
+from runledger_api.models.mcp_registry import McpServer
+from runledger_api.models.search_tools import SearchTool
+from runledger_api.models.tags import Tag
 from runledger_api.models.tenant import (
     MemberStatusEnum,
     Tenant,
@@ -42,12 +46,7 @@ from runledger_api.models.tenant import (
     WorkspaceUser,
 )
 from runledger_api.models.tool_policies import ToolPolicy
-from runledger_api.models.approvals import Approval
-from runledger_api.models.tags import Tag
-from runledger_api.models.mcp_registry import McpServer
-from runledger_api.models.search_tools import SearchTool
 from runledger_api.routers.auth import _make_slug
-from runledger_api.services.ledger import get_ledger_closure_summary
 from runledger_api.schemas.audit import AuditEventResponse as AuditEventResponse
 from runledger_api.schemas.auth import (
     AddWorkspaceMemberRequest,
@@ -66,6 +65,7 @@ from runledger_api.schemas.auth import (
     WorkspaceResponse,
     WorkspaceStatusUpdate,
 )
+from runledger_api.services.ledger import get_ledger_closure_summary
 from runledger_api.services.tenancy import assert_not_last_admin, log_audit
 
 log = structlog.get_logger()
@@ -1207,9 +1207,9 @@ async def get_org_finance(
         chargeback_ready = False
         if chargeback_rule_count > 0 and ledger_summary.chargeback is not None:
             try:
-                chargeback_ready = Decimal(ledger_summary.chargeback.unallocated_cost_usd) <= Decimal(
-                    "0.000001"
-                )
+                chargeback_ready = Decimal(
+                    ledger_summary.chargeback.unallocated_cost_usd
+                ) <= Decimal("0.000001")
             except Exception:  # pragma: no cover - defensive parsing
                 chargeback_ready = False
         ledger_by_ws[ws.id] = (
@@ -1452,9 +1452,7 @@ async def get_org_observe(
         .where(AgentRun.workspace_id.in_(ws_ids), AgentRun.created_at >= since)
         .group_by(AgentRun.workspace_id)
     )
-    runs_by_ws: dict[uuid.UUID, int] = {
-        row.workspace_id: row.cnt for row in run_result.all()
-    }
+    runs_by_ws: dict[uuid.UUID, int] = {row.workspace_id: row.cnt for row in run_result.all()}
 
     request_result = await db.execute(
         select(
@@ -1472,8 +1470,7 @@ async def get_org_observe(
         .group_by(ProviderCall.workspace_id)
     )
     requests_by_ws: dict[uuid.UUID, tuple[int, int, int]] = {
-        row.workspace_id: (row.cnt, row.models, row.errors or 0)
-        for row in request_result.all()
+        row.workspace_id: (row.cnt, row.models, row.errors or 0) for row in request_result.all()
     }
 
     alert_result = await db.execute(
@@ -1481,9 +1478,7 @@ async def get_org_observe(
         .where(AlertRule.workspace_id.in_(ws_ids), AlertRule.is_active.is_(True))
         .group_by(AlertRule.workspace_id)
     )
-    alerts_by_ws: dict[uuid.UUID, int] = {
-        row.workspace_id: row.cnt for row in alert_result.all()
-    }
+    alerts_by_ws: dict[uuid.UUID, int] = {row.workspace_id: row.cnt for row in alert_result.all()}
 
     summaries = [
         WorkspaceObserveSummary(
@@ -1555,29 +1550,39 @@ async def get_org_governance(
         .all()
     )
 
-    tool_policy_count = (await db.execute(
-        select(func.count()).select_from(ToolPolicy).where(ToolPolicy.workspace_id.in_(ws_ids))
-    )).scalar() or 0
+    tool_policy_count = (
+        await db.execute(
+            select(func.count()).select_from(ToolPolicy).where(ToolPolicy.workspace_id.in_(ws_ids))
+        )
+    ).scalar() or 0
 
-    approval_count = (await db.execute(
-        select(func.count()).select_from(Approval).where(Approval.workspace_id.in_(ws_ids))
-    )).scalar() or 0
+    approval_count = (
+        await db.execute(
+            select(func.count()).select_from(Approval).where(Approval.workspace_id.in_(ws_ids))
+        )
+    ).scalar() or 0
 
-    audit_event_count = (await db.execute(
-        select(func.count()).select_from(AuditEvent).where(AuditEvent.workspace_id.in_(ws_ids))
-    )).scalar() or 0
+    audit_event_count = (
+        await db.execute(
+            select(func.count()).select_from(AuditEvent).where(AuditEvent.workspace_id.in_(ws_ids))
+        )
+    ).scalar() or 0
 
-    tag_count = (await db.execute(
-        select(func.count()).select_from(Tag).where(Tag.workspace_id.in_(ws_ids))
-    )).scalar() or 0
+    tag_count = (
+        await db.execute(select(func.count()).select_from(Tag).where(Tag.workspace_id.in_(ws_ids)))
+    ).scalar() or 0
 
-    mcp_server_count = (await db.execute(
-        select(func.count()).select_from(McpServer).where(McpServer.workspace_id.in_(ws_ids))
-    )).scalar() or 0
+    mcp_server_count = (
+        await db.execute(
+            select(func.count()).select_from(McpServer).where(McpServer.workspace_id.in_(ws_ids))
+        )
+    ).scalar() or 0
 
-    search_tool_count = (await db.execute(
-        select(func.count()).select_from(SearchTool).where(SearchTool.workspace_id.in_(ws_ids))
-    )).scalar() or 0
+    search_tool_count = (
+        await db.execute(
+            select(func.count()).select_from(SearchTool).where(SearchTool.workspace_id.in_(ws_ids))
+        )
+    ).scalar() or 0
 
     return {
         "tool_count": mcp_server_count + search_tool_count,

@@ -14,10 +14,10 @@ On success returns:
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
 import gzip
 import json
 import uuid
+from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
@@ -30,7 +30,11 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
-from runledger_api.services.otlp_parse import OtlpTrace, parse_otlp_json, synthesize_canonical_events
+from runledger_api.services.otlp_parse import (
+    OtlpTrace,
+    parse_otlp_json,
+    synthesize_canonical_events,
+)
 
 log = structlog.get_logger()
 
@@ -89,7 +93,11 @@ def _unwrap_any_value(value: dict[str, Any] | None) -> Any:
         return [_unwrap_any_value(item) for item in values]
     if "kvlistValue" in value:
         values = value.get("kvlistValue", {}).get("values", []) or []
-        return {item.get("key"): _unwrap_any_value(item.get("value")) for item in values if item.get("key")}
+        return {
+            item.get("key"): _unwrap_any_value(item.get("value"))
+            for item in values
+            if item.get("key")
+        }
     return None
 
 
@@ -536,7 +544,7 @@ async def get_trace_batch_detail(
             resource_maps = [
                 {
                     "service_name": attrs.get("service.name"),
-                    "attribute_keys": sorted(str(key) for key in attrs.keys())[:20],
+                    "attribute_keys": sorted(str(key) for key in attrs)[:20],
                     "attribute_count": len(attrs),
                 }
                 for attrs in parsed_resource_maps[:10]

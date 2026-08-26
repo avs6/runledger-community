@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated, Any
-
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Annotated, Any
 
 import bcrypt
 import structlog
@@ -61,6 +60,7 @@ class UserFinanceSummary(BaseModel):
     run_count_30d: int
     call_count_30d: int
     budgets: list[UserBudgetExposure]
+
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 
@@ -221,12 +221,16 @@ async def get_user(
     """Get a specific user by ID (org-admin)."""
     workspace, _, __ = auth
     membership = (
-        await db.execute(
-            select(TenantUser).where(
-                TenantUser.tenant_id == workspace.tenant_id, TenantUser.user_id == user_id
+        (
+            await db.execute(
+                select(TenantUser).where(
+                    TenantUser.tenant_id == workspace.tenant_id, TenantUser.user_id == user_id
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if membership is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
     user = await db.get(User, user_id)
@@ -244,13 +248,17 @@ async def get_user_finance(
     """Get financial exposure for a platform user."""
     workspace, _, __ = auth
     membership = (
-        await db.execute(
-            select(TenantUser).where(
-                TenantUser.tenant_id == workspace.tenant_id,
-                TenantUser.user_id == user_id,
+        (
+            await db.execute(
+                select(TenantUser).where(
+                    TenantUser.tenant_id == workspace.tenant_id,
+                    TenantUser.user_id == user_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if membership is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
     user = await db.get(User, user_id)
@@ -464,13 +472,17 @@ async def get_user_governance(
 ) -> UserGovernanceSummary:
     workspace, _, __ = auth
     membership = (
-        await db.execute(
-            select(TenantUser).where(
-                TenantUser.tenant_id == workspace.tenant_id,
-                TenantUser.user_id == user_id,
+        (
+            await db.execute(
+                select(TenantUser).where(
+                    TenantUser.tenant_id == workspace.tenant_id,
+                    TenantUser.user_id == user_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if membership is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
     user = await db.get(User, user_id)

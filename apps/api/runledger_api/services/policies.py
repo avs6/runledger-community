@@ -9,8 +9,8 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.models.gateway import GatewayRoute
 from runledger_api.models.events import AgentRun, ToolCall
+from runledger_api.models.gateway import GatewayRoute
 from runledger_api.models.ledger import SecurityEvent, ToolRegistry
 from runledger_api.models.mcp_registry import McpToolCall
 from runledger_api.models.scores import ScoreEvent
@@ -459,7 +459,9 @@ async def simulate_finops_policy(
 
     cache_savings_pct = Decimal("0.20") if body.enable_cache else Decimal(0)
     compression_pct = Decimal("0.15") if body.enable_compression else Decimal(0)
-    projected_cost = current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
+    projected_cost = (
+        current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
+    )
     projected_savings = current_cost - projected_cost
     savings_pct = (projected_savings / current_cost * 100) if current_cost > 0 else Decimal(0)
 
@@ -471,7 +473,14 @@ async def simulate_finops_policy(
             projected_latency_ms = Decimal(str(round(proposed_latency, 1)))
             if current_latency > 0:
                 latency_delta_pct = Decimal(
-                    str(round((proposed_latency - float(current_latency)) / float(current_latency) * 100, 1))
+                    str(
+                        round(
+                            (proposed_latency - float(current_latency))
+                            / float(current_latency)
+                            * 100,
+                            1,
+                        )
+                    )
                 )
 
     quality_risk = QUALITY_RISK_MAP.get(proposed_key or current_key or "", "medium")

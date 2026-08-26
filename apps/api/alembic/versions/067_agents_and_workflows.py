@@ -84,9 +84,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index(
-        "ix_workflow_definitions_workspace", "workflow_definitions", ["workspace_id"]
-    )
+    op.create_index("ix_workflow_definitions_workspace", "workflow_definitions", ["workspace_id"])
 
     # ── Workflow Runs ─────────────────────────────────────────────────────
     op.create_table(
@@ -127,15 +125,17 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_workflow_runs_workspace", "workflow_runs", ["workspace_id"])
+    op.create_index("ix_workflow_runs_workflow", "workflow_runs", ["workflow_id"])
     op.create_index(
-        "ix_workflow_runs_workflow", "workflow_runs", ["workflow_id"]
-    )
-    op.create_index(
-        "ix_workflow_runs_agent", "workflow_runs", ["agent_id"],
+        "ix_workflow_runs_agent",
+        "workflow_runs",
+        ["agent_id"],
         postgresql_where=sa.text("agent_id IS NOT NULL"),
     )
     op.create_index(
-        "ix_workflow_runs_parent", "workflow_runs", ["parent_run_id"],
+        "ix_workflow_runs_parent",
+        "workflow_runs",
+        ["parent_run_id"],
         postgresql_where=sa.text("parent_run_id IS NOT NULL"),
     )
 
@@ -185,9 +185,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_workflow_steps_run", "workflow_steps", ["run_id"])
-    op.create_index(
-        "ix_workflow_steps_run_index", "workflow_steps", ["run_id", "step_index"]
-    )
+    op.create_index("ix_workflow_steps_run_index", "workflow_steps", ["run_id", "step_index"])
 
 
 def downgrade() -> None:

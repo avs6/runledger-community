@@ -108,7 +108,10 @@ def write_demo_state(**updates: Any) -> dict[str, Any]:
 
 def _seed_command(profile: str) -> tuple[list[str], str]:
     if profile == "quick":
-        return ([sys.executable, "-m", "scripts.demo_mode", "seed", "--profile", "quick"], str(API_ROOT))
+        return (
+            [sys.executable, "-m", "scripts.demo_mode", "seed", "--profile", "quick"],
+            str(API_ROOT),
+        )
     return (
         [sys.executable, "-m", "scripts.demo_mode", "seed", "--profile", "full"],
         str(API_ROOT),

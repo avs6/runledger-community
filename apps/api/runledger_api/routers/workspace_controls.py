@@ -92,6 +92,31 @@ def _tag_to_response(tag: Tag) -> TagResponse:
     )
 
 
+DEFAULT_POPULAR_TOOL_POLICIES: list[dict[str, Any]] = [
+    {
+        "name": "Web Search",
+        "description": "Allow web search tool calls",
+        "tool_name": "web_search",
+        "action": "allow",
+        "priority": 1,
+    },
+    {
+        "name": "Code Interpreter",
+        "description": "Allow code interpreter tool calls",
+        "tool_name": "code_interpreter",
+        "action": "allow",
+        "priority": 2,
+    },
+    {
+        "name": "File Read",
+        "description": "Allow file read tool calls",
+        "tool_name": "file_read",
+        "action": "allow",
+        "priority": 3,
+    },
+]
+
+
 def _rule_to_response(rule: AutoTaggingRule) -> AutoTaggingRuleResponse:
     return AutoTaggingRuleResponse(
         id=rule.id,
@@ -259,7 +284,9 @@ async def _get_policy_count(db: AsyncSession, workspace_id: uuid.UUID, tool_name
     return result.scalar() or 0
 
 
-async def _get_group_or_404(db: AsyncSession, workspace_id: uuid.UUID, group_id: uuid.UUID) -> AccessGroup:
+async def _get_group_or_404(
+    db: AsyncSession, workspace_id: uuid.UUID, group_id: uuid.UUID
+) -> AccessGroup:
     group = (
         await db.execute(
             select(AccessGroup).where(
@@ -312,7 +339,9 @@ async def list_tags(
     return TagListResponse(items=[_tag_to_response(tag) for tag in rows], total=len(rows))
 
 
-@tags_router.get("/tree", response_model=TagTreeResponse, dependencies=[Depends(analytics_rate_limit)])
+@tags_router.get(
+    "/tree", response_model=TagTreeResponse, dependencies=[Depends(analytics_rate_limit)]
+)
 async def get_tag_tree(
     ws: WorkspaceDep,
     db: DbDep,
@@ -340,11 +369,11 @@ async def get_tag_tree(
     response_model=TagResponse,
     dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
-async def update_tag(tag_id: uuid.UUID, body: TagUpdate, ws: WorkspaceDep, db: DbDep) -> TagResponse:
+async def update_tag(
+    tag_id: uuid.UUID, body: TagUpdate, ws: WorkspaceDep, db: DbDep
+) -> TagResponse:
     tag = (
-        await db.execute(
-            select(Tag).where(Tag.id == tag_id, Tag.workspace_id == ws.id)
-        )
+        await db.execute(select(Tag).where(Tag.id == tag_id, Tag.workspace_id == ws.id))
     ).scalar_one_or_none()
     if not tag:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
@@ -363,9 +392,7 @@ async def update_tag(tag_id: uuid.UUID, body: TagUpdate, ws: WorkspaceDep, db: D
 )
 async def delete_tag(tag_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> Response:
     tag = (
-        await db.execute(
-            select(Tag).where(Tag.id == tag_id, Tag.workspace_id == ws.id)
-        )
+        await db.execute(select(Tag).where(Tag.id == tag_id, Tag.workspace_id == ws.id))
     ).scalar_one_or_none()
     if not tag:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
@@ -412,12 +439,16 @@ async def create_auto_tag_rule(
 )
 async def list_auto_tag_rules(ws: WorkspaceDep, db: DbDep) -> AutoTaggingRuleListResponse:
     rows = (
-        await db.execute(
-            select(AutoTaggingRule)
-            .where(AutoTaggingRule.workspace_id == ws.id)
-            .order_by(AutoTaggingRule.priority.asc(), AutoTaggingRule.created_at.desc())
+        (
+            await db.execute(
+                select(AutoTaggingRule)
+                .where(AutoTaggingRule.workspace_id == ws.id)
+                .order_by(AutoTaggingRule.priority.asc(), AutoTaggingRule.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return AutoTaggingRuleListResponse(
         items=[_rule_to_response(rule) for rule in rows],
         total=len(rows),
@@ -485,15 +516,19 @@ async def simulate_auto_tagging(
     db: DbDep,
 ) -> AutoTaggingSimulationResponse:
     rows = (
-        await db.execute(
-            select(AutoTaggingRule)
-            .where(
-                AutoTaggingRule.workspace_id == ws.id,
-                AutoTaggingRule.is_active.is_(True),
+        (
+            await db.execute(
+                select(AutoTaggingRule)
+                .where(
+                    AutoTaggingRule.workspace_id == ws.id,
+                    AutoTaggingRule.is_active.is_(True),
+                )
+                .order_by(AutoTaggingRule.priority.asc(), AutoTaggingRule.created_at.asc())
             )
-            .order_by(AutoTaggingRule.priority.asc(), AutoTaggingRule.created_at.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     matched: list[AutoTaggingSimulationMatch] = []
     applied_tags: dict[str, str] = {}
     for rule in rows:
@@ -517,7 +552,9 @@ async def simulate_auto_tagging(
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
-async def create_search_tool(body: SearchToolCreate, ws: WorkspaceDep, db: DbDep) -> SearchToolResponse:
+async def create_search_tool(
+    body: SearchToolCreate, ws: WorkspaceDep, db: DbDep
+) -> SearchToolResponse:
     tool = SearchTool(
         id=uuid.uuid4(),
         workspace_id=ws.id,
@@ -638,16 +675,20 @@ async def get_search_tool_policies(
     if not tool:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Search tool not found")
     policies = (
-        await db.execute(
-            select(ToolPolicy)
-            .where(
-                ToolPolicy.workspace_id == ws.id,
-                ToolPolicy.tool_name.in_([tool.name, "*"]),
-                ToolPolicy.is_active.is_(True),
+        (
+            await db.execute(
+                select(ToolPolicy)
+                .where(
+                    ToolPolicy.workspace_id == ws.id,
+                    ToolPolicy.tool_name.in_([tool.name, "*"]),
+                    ToolPolicy.is_active.is_(True),
+                )
+                .order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())
             )
-            .order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return SearchToolPolicySummary(
         tool_id=tool.id,
         tool_name=tool.name,
@@ -703,8 +744,10 @@ async def list_tool_policies(
     if not include_inactive:
         q = q.where(ToolPolicy.is_active.is_(True))
     rows = (
-        await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc()))
-    ).scalars().all()
+        (await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())))
+        .scalars()
+        .all()
+    )
 
     if not rows and not tool_name:
         for pol_def in DEFAULT_POPULAR_TOOL_POLICIES:
@@ -721,8 +764,10 @@ async def list_tool_policies(
             db.add(pol)
         await db.commit()
         rows = (
-            await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc()))
-        ).scalars().all()
+            (await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())))
+            .scalars()
+            .all()
+        )
     return ToolPolicyListResponse(
         items=[_policy_to_response(policy) for policy in rows],
         total=len(rows),
@@ -785,16 +830,20 @@ async def simulate_tool_policy(
     db: DbDep,
 ) -> ToolPolicySimulationResponse:
     policies = (
-        await db.execute(
-            select(ToolPolicy)
-            .where(
-                ToolPolicy.workspace_id == ws.id,
-                ToolPolicy.is_active.is_(True),
-                ToolPolicy.tool_name.in_([body.tool_name, "*"]),
+        (
+            await db.execute(
+                select(ToolPolicy)
+                .where(
+                    ToolPolicy.workspace_id == ws.id,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.tool_name.in_([body.tool_name, "*"]),
+                )
+                .order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())
             )
-            .order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     matched_ids: list[uuid.UUID] = []
     matched_names: list[str] = []
     reasons: list[str] = []
@@ -835,13 +884,17 @@ async def get_tool_policy_analytics(
     limit: int = Query(500, ge=1, le=2000),
 ) -> ToolUsageAnalyticsResponse:
     rows = (
-        await db.execute(
-            select(ToolCall)
-            .where(ToolCall.workspace_id == ws.id)
-            .order_by(ToolCall.created_at.desc())
-            .limit(limit)
+        (
+            await db.execute(
+                select(ToolCall)
+                .where(ToolCall.workspace_id == ws.id)
+                .order_by(ToolCall.created_at.desc())
+                .limit(limit)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     summaries: dict[str, dict[str, Any]] = {}
     for row in rows:
         item = summaries.setdefault(
@@ -889,9 +942,7 @@ async def get_tool_policy_analytics(
             avg_duration_ms=(
                 data["duration_sum"] / data["duration_count"] if data["duration_count"] else None
             ),
-            avg_risk_score=(
-                data["risk_sum"] / data["risk_count"] if data["risk_count"] else None
-            ),
+            avg_risk_score=(data["risk_sum"] / data["risk_count"] if data["risk_count"] else None),
         )
         for data in summaries.values()
     ]
@@ -1023,12 +1074,16 @@ async def list_access_group_members(
 ) -> AccessGroupMemberListResponse:
     await _get_group_or_404(db, ws.id, group_id)
     rows = (
-        await db.execute(
-            select(AccessGroupMember)
-            .where(AccessGroupMember.group_id == group_id)
-            .order_by(AccessGroupMember.created_at.desc())
+        (
+            await db.execute(
+                select(AccessGroupMember)
+                .where(AccessGroupMember.group_id == group_id)
+                .order_by(AccessGroupMember.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return AccessGroupMemberListResponse(
         items=[_member_to_response(member) for member in rows],
         total=len(rows),
@@ -1136,12 +1191,16 @@ async def list_response_cache_configs(
     db: DbDep,
 ) -> ResponseCacheConfigListResponse:
     rows = (
-        await db.execute(
-            select(ResponseCacheConfig)
-            .where(ResponseCacheConfig.workspace_id == ws.id)
-            .order_by(ResponseCacheConfig.created_at.desc())
+        (
+            await db.execute(
+                select(ResponseCacheConfig)
+                .where(ResponseCacheConfig.workspace_id == ws.id)
+                .order_by(ResponseCacheConfig.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return ResponseCacheConfigListResponse(
         items=[_cache_to_response(row) for row in rows],
         total=len(rows),
@@ -1209,10 +1268,14 @@ async def delete_response_cache_config(
 )
 async def get_response_cache_stats(ws: WorkspaceDep, db: DbDep) -> ResponseCacheStatsResponse:
     configs = (
-        await db.execute(
-            select(ResponseCacheConfig).where(ResponseCacheConfig.workspace_id == ws.id)
+        (
+            await db.execute(
+                select(ResponseCacheConfig).where(ResponseCacheConfig.workspace_id == ws.id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     cache_entries = (
         await db.execute(
             select(PromptCache.model, PromptCache.hit_count)
@@ -1231,11 +1294,10 @@ async def get_response_cache_stats(ws: WorkspaceDep, db: DbDep) -> ResponseCache
         total_misses=total_misses,
         hit_rate=(total_hits / total_requests) if total_requests else None,
         total_savings_usd=sum((config.total_savings_usd or Decimal("0")) for config in configs),
-        live_entry_count=sum(int(config.max_entries or 0) for config in configs if config.is_enabled),
-        top_models=[
-            {"model": row[0], "hit_count": row[1]}
-            for row in cache_entries
-        ],
+        live_entry_count=sum(
+            int(config.max_entries or 0) for config in configs if config.is_enabled
+        ),
+        top_models=[{"model": row[0], "hit_count": row[1]} for row in cache_entries],
     )
 
 

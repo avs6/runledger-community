@@ -192,9 +192,7 @@ class AgentMemory(Base):
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
     retention_days: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
-    expires_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
+    expires_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     last_accessed_at: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True
     )

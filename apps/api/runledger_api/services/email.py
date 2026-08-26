@@ -126,7 +126,11 @@ async def send_welcome_email(
     verify_url: str,
 ) -> None:
     name = full_name or to_email
-    reset_url = f"{settings.app_base_url}/reset-password?token={verify_url.split('token=')[-1]}" if "token=" in verify_url else verify_url
+    reset_url = (
+        f"{settings.app_base_url}/reset-password?token={verify_url.split('token=')[-1]}"
+        if "token=" in verify_url
+        else verify_url
+    )
     subject = "Welcome to RunLedger — verify your email"
 
     text = textwrap.dedent(f"""\
@@ -534,7 +538,7 @@ async def send_analytics_report_email(
 
     template = template if template in {"executive", "summary", "detailed"} else "detailed"
     row_limit = 10 if template == "executive" else 25 if template == "summary" else 50
-    intro_line = {
+    _intro_line = {
         "executive": "A concise spend snapshot for fast review.",
         "summary": "A balanced usage summary for operators and finance.",
         "detailed": "A detailed usage breakdown for operations review.",

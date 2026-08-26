@@ -6,6 +6,7 @@ from .gateway_shared import *
 
 router = APIRouter()
 
+
 @router.post("/chat/completions")
 async def gateway_chat_completions(
     body: GatewayCompletionRequest,

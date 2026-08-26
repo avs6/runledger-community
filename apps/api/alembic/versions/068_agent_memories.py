@@ -52,12 +52,8 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index(
-        "ix_agent_memories_agent", "agent_memories", ["agent_id"]
-    )
-    op.create_index(
-        "ix_agent_memories_workspace", "agent_memories", ["workspace_id"]
-    )
+    op.create_index("ix_agent_memories_agent", "agent_memories", ["agent_id"])
+    op.create_index("ix_agent_memories_workspace", "agent_memories", ["workspace_id"])
     op.create_index(
         "ix_agent_memories_agent_key",
         "agent_memories",

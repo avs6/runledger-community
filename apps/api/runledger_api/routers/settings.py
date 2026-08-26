@@ -12,6 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -25,13 +26,18 @@ from runledger_api.core.deps import (
     require_platform_admin,
     require_workspace_admin,
 )
-from runledger_api.core.redis import get_redis
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.core.redis import get_redis
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
 from runledger_api.models.ledger import CapturePolicyScope
 from runledger_api.models.platform_settings import PlatformWebhookSettings
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace, WorkspaceUser
-from runledger_api.schemas.auth import ApiKeyCreate, ApiKeyCreateResponse, ApiKeyResponse, ApiKeyUpdate
+from runledger_api.schemas.auth import (
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    ApiKeyResponse,
+    ApiKeyUpdate,
+)
 from runledger_api.schemas.backup_ops import (
     BackupActionResult,
     BackupRunList,
@@ -66,11 +72,10 @@ from runledger_api.services.auth import generate_api_key
 from runledger_api.services.demo_mode import launch_demo_process, read_demo_state
 from runledger_api.services.email import send_email
 from runledger_api.services.email_utils import get_workspace_admin_users
-from runledger_api.services.ops import get_queue_depths
-from runledger_api.services.ops_policy import evaluate_infra_posture
 from runledger_api.services.gateway_redact import redact_text
 from runledger_api.services.notifications import build_test_blocks, send_slack_message
-import httpx
+from runledger_api.services.ops import get_queue_depths
+from runledger_api.services.ops_policy import evaluate_infra_posture
 
 try:
     from redis.asyncio import Redis
@@ -128,14 +133,13 @@ def _platform_webhook_settings_response(
         updated_at=settings_row.updated_at,
     )
 
+
 _PII_PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("email", "high", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")),
     (
         "phone",
         "medium",
-        re.compile(
-            r"(?<!\d)(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.]?)\d{3}[\s\-.]?\d{4}(?!\d)"
-        ),
+        re.compile(r"(?<!\d)(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.]?)\d{3}[\s\-.]?\d{4}(?!\d)"),
     ),
     ("ssn", "high", re.compile(r"\b\d{3}[\-\s]\d{2}[\-\s]\d{4}\b")),
     (
@@ -173,7 +177,12 @@ def _retention_preview(privacy_mode: str) -> RetentionPreviewResponse:
         "ERRORS_ONLY": RetentionPreviewResponse(
             privacy_mode=normalized,
             estimated_storage_mb_per_month="120",
-            fields_captured=["error payload excerpts", "timings", "token counts", "failure metadata"],
+            fields_captured=[
+                "error payload excerpts",
+                "timings",
+                "token counts",
+                "failure metadata",
+            ],
             fields_redacted=["successful prompt and response payloads"],
             compliance_notes=[
                 "Limits sensitive capture to failed requests only.",
@@ -183,7 +192,12 @@ def _retention_preview(privacy_mode: str) -> RetentionPreviewResponse:
         "SAMPLED": RetentionPreviewResponse(
             privacy_mode=normalized,
             estimated_storage_mb_per_month="350",
-            fields_captured=["sampled prompt/response excerpts", "timings", "token counts", "metadata"],
+            fields_captured=[
+                "sampled prompt/response excerpts",
+                "timings",
+                "token counts",
+                "metadata",
+            ],
             fields_redacted=["non-sampled payloads"],
             compliance_notes=[
                 "Use with a documented sampling policy.",
@@ -193,7 +207,13 @@ def _retention_preview(privacy_mode: str) -> RetentionPreviewResponse:
         "FULL": RetentionPreviewResponse(
             privacy_mode=normalized,
             estimated_storage_mb_per_month="1200",
-            fields_captured=["full prompts", "full responses", "tool payloads", "metadata", "timings"],
+            fields_captured=[
+                "full prompts",
+                "full responses",
+                "tool payloads",
+                "metadata",
+                "timings",
+            ],
             fields_redacted=[],
             compliance_notes=[
                 "Highest observability, highest compliance burden.",
@@ -298,7 +318,9 @@ async def get_ops_storage_status(auth: PlatformAdminDep) -> dict[str, Any]:
     _workspace = auth[0]
     return {
         "backup": {
-            "bucket": app_settings.runledger_localai_s3_bucket if hasattr(app_settings, "runledger_localai_s3_bucket") else None,
+            "bucket": app_settings.runledger_localai_s3_bucket
+            if hasattr(app_settings, "runledger_localai_s3_bucket")
+            else None,
             "lifecycle_enabled": app_settings.object_lifecycle_enabled,
             "retention_days": app_settings.object_lifecycle_days,
             "noncurrent_retention_days": app_settings.object_lifecycle_noncurrent_days,
@@ -361,9 +383,13 @@ async def test_platform_webhook_defaults(
                     },
                 )
                 response.raise_for_status()
-            results.append(PlatformWebhookSettingsTestStatus(channel="webhook", ok=True, error=None))
+            results.append(
+                PlatformWebhookSettingsTestStatus(channel="webhook", ok=True, error=None)
+            )
         except Exception as exc:
-            results.append(PlatformWebhookSettingsTestStatus(channel="webhook", ok=False, error=str(exc)))
+            results.append(
+                PlatformWebhookSettingsTestStatus(channel="webhook", ok=False, error=str(exc))
+            )
 
     if settings_row.slack_webhook_url:
         try:
@@ -374,12 +400,16 @@ async def test_platform_webhook_defaults(
             )
             results.append(PlatformWebhookSettingsTestStatus(channel="slack", ok=True, error=None))
         except Exception as exc:
-            results.append(PlatformWebhookSettingsTestStatus(channel="slack", ok=False, error=str(exc)))
+            results.append(
+                PlatformWebhookSettingsTestStatus(channel="slack", ok=False, error=str(exc))
+            )
 
     return PlatformWebhookSettingsTestResult(
         ok=all(item.ok for item in results) if results else False,
         results=results,
-        message="No platform defaults configured." if not results else "Platform webhook default test completed.",
+        message="No platform defaults configured."
+        if not results
+        else "Platform webhook default test completed.",
     )
 
 
@@ -451,9 +481,7 @@ async def list_capture_policy_scopes(
         .scalars()
         .all()
     )
-    return CapturePolicyScopeList(
-        items=[_capture_policy_scope_to_response(item) for item in items]
-    )
+    return CapturePolicyScopeList(items=[_capture_policy_scope_to_response(item) for item in items])
 
 
 @router.put("/capture-policy/scopes", response_model=CapturePolicyScopeResponse)
@@ -818,7 +846,9 @@ async def test_email_report(
         return {"ok": False, "error": "SMTP credentials are not configured"}
 
     prefs = (
-        await db.execute(select(EmailPreference).where(EmailPreference.workspace_id == workspace.id))
+        await db.execute(
+            select(EmailPreference).where(EmailPreference.workspace_id == workspace.id)
+        )
     ).scalar_one_or_none()
     admins = await get_workspace_admin_users(db, workspace.id)
     recipient = admins[0] if admins else None
@@ -882,9 +912,7 @@ async def update_backup_config(
     db: DbDep,
 ) -> BackupTargetConfigResponse:
     workspace = auth[0]
-    config = await backup_ops.upsert_backup_config(
-        db, workspace.id, payload.model_dump()
-    )
+    config = await backup_ops.upsert_backup_config(db, workspace.id, payload.model_dump())
     return BackupTargetConfigResponse.model_validate(config)
 
 
@@ -978,22 +1006,18 @@ async def onboarding_status(
     async def _exists(stmt: Any) -> bool:
         return (await db.execute(stmt)).scalar_one_or_none() is not None
 
-    has_org = await _exists(
-        select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1)
-    )
+    has_org = await _exists(select(Tenant.id).where(Tenant.id == workspace.tenant_id).limit(1))
     has_workspace = True
     has_api_key = await _exists(
         select(ApiKey.id).where(ApiKey.workspace_id == ws, ApiKey.revoked_at.is_(None)).limit(1)
     )
-    has_first_run = await _exists(
-        select(AgentRun.id).where(AgentRun.workspace_id == ws).limit(1)
-    )
+    has_first_run = await _exists(select(AgentRun.id).where(AgentRun.workspace_id == ws).limit(1))
     has_gateway_route = await _exists(
-        select(GatewayRoute.id).where(GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)).limit(1)
+        select(GatewayRoute.id)
+        .where(GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True))
+        .limit(1)
     )
-    has_budget = await _exists(
-        select(Budget.id).where(Budget.workspace_id == ws).limit(1)
-    )
+    has_budget = await _exists(select(Budget.id).where(Budget.workspace_id == ws).limit(1))
     has_alert_rule = await _exists(
         select(AlertRule.id).where(AlertRule.workspace_id == ws).limit(1)
     )
@@ -1004,13 +1028,19 @@ async def onboarding_status(
         select(BillingPeriod.id).where(BillingPeriod.workspace_id == ws).limit(1)
     )
     has_provider_profile = await _exists(
-        select(GatewayRoute.provider).where(GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)).limit(1)
+        select(GatewayRoute.provider)
+        .where(GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True))
+        .limit(1)
     )
     has_guardrail = await _exists(
-        select(GuardrailRule.id).where(GuardrailRule.workspace_id == ws, GuardrailRule.status == "active").limit(1)
+        select(GuardrailRule.id)
+        .where(GuardrailRule.workspace_id == ws, GuardrailRule.status == "active")
+        .limit(1)
     )
     has_rate_limit = await _exists(
-        select(GatewayRoute.id).where(GatewayRoute.workspace_id == ws, GatewayRoute.per_user_rpm_limit.is_not(None)).limit(1)
+        select(GatewayRoute.id)
+        .where(GatewayRoute.workspace_id == ws, GatewayRoute.per_user_rpm_limit.is_not(None))
+        .limit(1)
     )
     has_mcp_server = await _exists(
         select(McpServer.id).where(McpServer.workspace_id == ws).limit(1)
@@ -1019,7 +1049,9 @@ async def onboarding_status(
         select(SearchTool.id).where(SearchTool.workspace_id == ws).limit(1)
     )
     has_tool_policy = await _exists(
-        select(ToolPolicy.id).where(ToolPolicy.workspace_id == ws, ToolPolicy.is_active.is_(True)).limit(1)
+        select(ToolPolicy.id)
+        .where(ToolPolicy.workspace_id == ws, ToolPolicy.is_active.is_(True))
+        .limit(1)
     )
     has_approval_config = await _exists(
         select(Approval.id).where(Approval.workspace_id == ws).limit(1)
@@ -1028,19 +1060,31 @@ async def onboarding_status(
         select(CapturePolicy.id).where(CapturePolicy.workspace_id == ws).limit(1)
     )
     has_security_config = await _exists(
-        select(WorkspaceSecuritySettings.id).where(WorkspaceSecuritySettings.workspace_id == ws).limit(1)
+        select(WorkspaceSecuritySettings.id)
+        .where(WorkspaceSecuritySettings.workspace_id == ws)
+        .limit(1)
     )
-    has_tag = await _exists(
-        select(Tag.id).where(Tag.workspace_id == ws).limit(1)
-    )
+    has_tag = await _exists(select(Tag.id).where(Tag.workspace_id == ws).limit(1))
 
     steps = [
-        has_org, has_workspace, has_api_key, has_first_run,
-        has_gateway_route, has_budget, has_alert_rule,
-        has_budget_notification, has_billing_period,
-        has_provider_profile, has_guardrail, has_rate_limit,
-        has_mcp_server, has_search_tool, has_tool_policy,
-        has_approval_config, has_data_capture, has_security_config,
+        has_org,
+        has_workspace,
+        has_api_key,
+        has_first_run,
+        has_gateway_route,
+        has_budget,
+        has_alert_rule,
+        has_budget_notification,
+        has_billing_period,
+        has_provider_profile,
+        has_guardrail,
+        has_rate_limit,
+        has_mcp_server,
+        has_search_tool,
+        has_tool_policy,
+        has_approval_config,
+        has_data_capture,
+        has_security_config,
         has_tag,
     ]
     completed = sum(1 for s in steps if s)

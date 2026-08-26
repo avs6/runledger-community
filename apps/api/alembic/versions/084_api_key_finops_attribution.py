@@ -5,10 +5,9 @@ Revises: 083_auto_approval_policies
 Create Date: 2026-08-16
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 # revision identifiers, used by Alembic.
 revision = "084_api_key_finops_attribution"

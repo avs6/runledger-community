@@ -90,7 +90,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_tool_policies_workspace_tool", "tool_policies", ["workspace_id", "tool_name"])
+    op.create_index(
+        "ix_tool_policies_workspace_tool", "tool_policies", ["workspace_id", "tool_name"]
+    )
 
     # ── Access Groups ───────────────────────────────────────────────────────
     op.create_table(
@@ -117,7 +119,12 @@ def upgrade() -> None:
         sa.Column("role", sa.String(50), server_default="'member'"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_access_group_members_group_user", "access_group_members", ["group_id", "user_id"], unique=True)
+    op.create_index(
+        "ix_access_group_members_group_user",
+        "access_group_members",
+        ["group_id", "user_id"],
+        unique=True,
+    )
 
     # ── Response Cache Configs ──────────────────────────────────────────────
     op.create_table(

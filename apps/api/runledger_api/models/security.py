@@ -18,7 +18,9 @@ class WorkspaceSecuritySettings(Base):
         sa.UniqueConstraint("workspace_id", name="uq_workspace_security_settings_workspace"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -53,11 +55,11 @@ class WorkspaceSecuritySettings(Base):
 
 class OIDCProvider(Base):
     __tablename__ = "oidc_providers"
-    __table_args__ = (
-        sa.Index("ix_oidc_providers_workspace_active", "workspace_id", "is_active"),
-    )
+    __table_args__ = (sa.Index("ix_oidc_providers_workspace_active", "workspace_id", "is_active"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -89,7 +91,9 @@ class IpAclRule(Base):
         sa.Index("ix_ip_acl_rules_workspace_scope", "workspace_id", "scope_type", "priority"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
@@ -102,10 +106,14 @@ class IpAclRule(Base):
         nullable=True,
         index=True,
     )
-    scope_type: Mapped[str] = mapped_column(sa.String(32), nullable=False, server_default=sa.text("'workspace'"))
+    scope_type: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'workspace'")
+    )
     team_name: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     cidr: Mapped[str] = mapped_column(sa.String(64), nullable=False)
-    action: Mapped[str] = mapped_column(sa.String(8), nullable=False, server_default=sa.text("'allow'"))
+    action: Mapped[str] = mapped_column(
+        sa.String(8), nullable=False, server_default=sa.text("'allow'")
+    )
     priority: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="100")
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -115,11 +123,11 @@ class IpAclRule(Base):
 
 class KeyRotationEvent(Base):
     __tablename__ = "key_rotation_events"
-    __table_args__ = (
-        sa.Index("ix_key_rotation_events_api_key", "api_key_id", "created_at"),
-    )
+    __table_args__ = (sa.Index("ix_key_rotation_events_api_key", "api_key_id", "created_at"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     api_key_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         sa.ForeignKey("api_keys.id", ondelete="CASCADE"),
@@ -129,8 +137,9 @@ class KeyRotationEvent(Base):
     rotated_from_prefix: Mapped[str] = mapped_column(sa.String(24), nullable=False)
     rotated_to_prefix: Mapped[str] = mapped_column(sa.String(24), nullable=False)
     triggered_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    grace_expires_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    grace_expires_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
-

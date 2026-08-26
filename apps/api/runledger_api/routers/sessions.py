@@ -91,17 +91,18 @@ async def list_sessions(
     if min_turns is not None:
         grouped = grouped.having(func.count(AgentRun.id) >= min_turns)
     if min_cost is not None:
-        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost)
+        grouped = grouped.having(
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost
+        )
     if max_cost is not None:
-        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost)
+        grouped = grouped.having(
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost
+        )
 
-    total = (
-        await db.execute(select(func.count()).select_from(grouped.subquery()))
-    ).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
 
     stmt = (
-        grouped
-        .order_by(func.max(AgentRun.started_at).desc())
+        grouped.order_by(func.max(AgentRun.started_at).desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
@@ -174,14 +175,16 @@ async def export_sessions(
     if min_turns is not None:
         grouped = grouped.having(func.count(AgentRun.id) >= min_turns)
     if min_cost is not None:
-        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost)
+        grouped = grouped.having(
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost
+        )
     if max_cost is not None:
-        grouped = grouped.having(func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost)
+        grouped = grouped.having(
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost
+        )
 
     rows = (
-        await db.execute(
-            grouped.order_by(func.max(AgentRun.started_at).desc()).limit(limit)
-        )
+        await db.execute(grouped.order_by(func.max(AgentRun.started_at).desc()).limit(limit))
     ).all()
 
     buf = io.StringIO()

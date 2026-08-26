@@ -358,7 +358,11 @@ async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[st
             status=e["status"],
         )
     )
-    event_type = "mcp.tool.blocked" if str(e.get("status")).lower() in {"blocked", "denied"} else "mcp.tool.called"
+    event_type = (
+        "mcp.tool.blocked"
+        if str(e.get("status")).lower() in {"blocked", "denied"}
+        else "mcp.tool.called"
+    )
     try:
         await kafka_export.publish_event(
             session,

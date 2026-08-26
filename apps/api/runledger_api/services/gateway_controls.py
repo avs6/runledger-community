@@ -180,7 +180,12 @@ async def check_cost_cap(
     if proj and proj.budget_usd is not None:
         p_cost = _estimate_cost(monthly_row, input_rate, output_rate)
         if p_cost >= proj.budget_usd:
-            log.warning("gateway_project_budget_exceeded", project_id=str(proj.id), project_cost=str(p_cost), limit=str(proj.budget_usd))
+            log.warning(
+                "gateway_project_budget_exceeded",
+                project_id=str(proj.id),
+                project_cost=str(p_cost),
+                limit=str(proj.budget_usd),
+            )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Project '{proj.name}' budget limit breached (${proj.budget_usd:.2f})",
@@ -202,7 +207,12 @@ async def check_cost_cap(
     if tm and tm.budget_usd is not None:
         tm_cost = _estimate_cost(monthly_row, input_rate, output_rate)
         if tm_cost >= tm.budget_usd:
-            log.warning("gateway_team_model_budget_exceeded", team_model_id=str(tm.id), tm_cost=str(tm_cost), limit=str(tm.budget_usd))
+            log.warning(
+                "gateway_team_model_budget_exceeded",
+                team_model_id=str(tm.id),
+                tm_cost=str(tm_cost),
+                limit=str(tm.budget_usd),
+            )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Team Model '{tm.team_name}/{tm.model_name}' budget limit breached (${tm.budget_usd:.2f})",
@@ -227,7 +237,12 @@ async def check_cost_cap(
     if bt and bt.max_spend_usd is not None:
         tier_cost = _estimate_cost(monthly_row, input_rate, output_rate)
         if tier_cost >= bt.max_spend_usd:
-            log.warning("gateway_budget_tier_exceeded", tier_id=str(bt.id), tier_cost=str(tier_cost), limit=str(bt.max_spend_usd))
+            log.warning(
+                "gateway_budget_tier_exceeded",
+                tier_id=str(bt.id),
+                tier_cost=str(tier_cost),
+                limit=str(bt.max_spend_usd),
+            )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Budget Tier '{bt.name}' limit breached (${bt.max_spend_usd:.2f})",

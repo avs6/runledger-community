@@ -572,7 +572,9 @@ if any(topic.lower() in combined for topic in allowed_topics):
 else:
     result = block("Request is outside the approved support scope")
 """,
-        "default_config": {"allowed_topics": ["support", "billing", "account", "refund", "order", "help"]},
+        "default_config": {
+            "allowed_topics": ["support", "billing", "account", "refund", "order", "help"]
+        },
     },
     "secrets_detection": {
         "name": "Secrets and Tokens Detection",
@@ -953,7 +955,11 @@ async def evaluate_guardrails(
     # ── Resolve Access Group Guardrail Profile if user_id is provided ───────
     if user_id:
         try:
-            from runledger_api.models.access_groups import AccessGroup, AccessGroupMember  # noqa: PLC0415
+            from runledger_api.models.access_groups import (  # noqa: PLC0415
+                AccessGroup,
+                AccessGroupMember,
+            )
+
             ag_stmt = (
                 select(AccessGroup.guardrail_profile)
                 .join(AccessGroupMember, AccessGroupMember.group_id == AccessGroup.id)

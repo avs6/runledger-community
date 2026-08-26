@@ -5,7 +5,6 @@ import hmac
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -13,7 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
-from runledger_api.models.gateway import GatewayRequest, GatewayRoute, GatewayRoutingGroup, RoutingPolicy
+from runledger_api.models.gateway import (
+    GatewayRequest,
+    GatewayRoute,
+    GatewayRoutingGroup,
+    RoutingPolicy,
+)
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.services import kafka_export
 
@@ -132,7 +136,10 @@ async def build_gateway_runtime_snapshot(
             *[group.updated_at or group.created_at for group in groups],
             *[policy.updated_at or policy.created_at for policy in policies],
             *[route.last_health_check_at or route.created_at for route in routes],
-            *[key.revoked_at or key.expires_at or key.last_used_at or key.created_at for key in api_keys],
+            *[
+                key.revoked_at or key.expires_at or key.last_used_at or key.created_at
+                for key in api_keys
+            ],
         ]
     )
 
@@ -228,7 +235,8 @@ async def build_gateway_runtime_snapshot(
                     "expires_at": key.expires_at,
                     "revoked_at": key.revoked_at,
                     "is_session": key.is_session,
-                    "is_active": key.revoked_at is None and (key.expires_at is None or key.expires_at > now),
+                    "is_active": key.revoked_at is None
+                    and (key.expires_at is None or key.expires_at > now),
                     "ownership_type": key.ownership_type,
                     "owner_reference": key.owner_reference,
                     "budget_tier_id": str(key.budget_tier_id) if key.budget_tier_id else None,
@@ -273,7 +281,9 @@ async def ingest_gateway_runtime_events(
         if event_type in {"gateway.request.completed", "gateway.request.rejected"}:
             request_id = event.get("request_id")
             if request_id is None:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "request_id is required for gateway request events")
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST, "request_id is required for gateway request events"
+                )
             existing = await db.get(GatewayRequest, request_id)
             if existing is None:
                 created_at = event.get("completed_at") or event.get("started_at") or now
@@ -281,14 +291,14 @@ async def ingest_gateway_runtime_events(
                     created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                 route_id = event.get("route_id")
                 request_row = GatewayRequest(
-                    id=request_id if isinstance(request_id, uuid.UUID) else uuid.UUID(str(request_id)),
+                    id=request_id
+                    if isinstance(request_id, uuid.UUID)
+                    else uuid.UUID(str(request_id)),
                     workspace_id=workspace_id,
                     route_id=uuid.UUID(str(route_id)) if route_id else None,
                     model_requested=str(event.get("model_requested") or "unknown"),
                     model_used=(
-                        str(event["model_used"])
-                        if event.get("model_used") is not None
-                        else None
+                        str(event["model_used"]) if event.get("model_used") is not None else None
                     ),
                     cache_hit=bool(event.get("cache_hit") or False),
                     input_tokens=event.get("input_tokens"),
@@ -305,7 +315,9 @@ async def ingest_gateway_runtime_events(
                     ),
                     config_fingerprint={
                         "provider": event.get("provider"),
-                        "cost_usd": str(event["cost_usd"]) if event.get("cost_usd") is not None else None,
+                        "cost_usd": str(event["cost_usd"])
+                        if event.get("cost_usd") is not None
+                        else None,
                         "semantic_cache_hit": bool(event.get("semantic_cache_hit") or False),
                         "stream": bool(event.get("stream") or False),
                         "source_service": source_service,
@@ -351,7 +363,9 @@ async def ingest_gateway_runtime_events(
             route_id = event.get("route_id")
             route = await db.get(GatewayRoute, route_id) if route_id else None
             if route is None or route.workspace_id != workspace_id:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found for health event")
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, "Gateway route not found for health event"
+                )
             route.last_health_check_at = now
             if event.get("consecutive_failures") is not None:
                 route.consecutive_health_failures = int(event["consecutive_failures"])
@@ -360,7 +374,9 @@ async def ingest_gateway_runtime_events(
                 route.disabled_reason = None
             elif deployment_status in {"degraded", "down"}:
                 route.disabled_reason = (
-                    str(event["health_summary"]) if event.get("health_summary") is not None else route.disabled_reason
+                    str(event["health_summary"])
+                    if event.get("health_summary") is not None
+                    else route.disabled_reason
                 )
             await kafka_export.publish_event(
                 db,
@@ -377,4 +393,3 @@ async def ingest_gateway_runtime_events(
 
     await db.commit()
     return accepted
-

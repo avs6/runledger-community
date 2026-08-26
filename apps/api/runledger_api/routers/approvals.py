@@ -46,20 +46,20 @@ from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_l
 from runledger_api.models.approvals import Approval, AutoApprovalPolicy
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.approvals import (
-    AutoApprovalPolicyCreate,
-    AutoApprovalPolicyList,
-    AutoApprovalPolicyResponse,
-    AutoApprovalPolicyUpdate,
     ApprovalCreate,
     ApprovalDecision,
     ApprovalList,
     ApprovalResponse,
     ApprovalSummary,
+    AutoApprovalPolicyCreate,
+    AutoApprovalPolicyList,
+    AutoApprovalPolicyResponse,
+    AutoApprovalPolicyUpdate,
 )
+from runledger_api.services import kafka_export
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.email import send_approval_decision_email, send_approval_request_email
 from runledger_api.services.email_utils import get_workspace_admin_users
-from runledger_api.services import kafka_export
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 log = structlog.get_logger()
@@ -222,15 +222,19 @@ async def create_approval(
     requested_by = _requester_label(api_key)
 
     auto_policies = (
-        await db.execute(
-            select(AutoApprovalPolicy)
-            .where(
-                AutoApprovalPolicy.workspace_id == workspace.id,
-                AutoApprovalPolicy.request_type == body.request_type,
+        (
+            await db.execute(
+                select(AutoApprovalPolicy)
+                .where(
+                    AutoApprovalPolicy.workspace_id == workspace.id,
+                    AutoApprovalPolicy.request_type == body.request_type,
+                )
+                .order_by(AutoApprovalPolicy.created_at.asc())
             )
-            .order_by(AutoApprovalPolicy.created_at.asc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     matched_policy = next(
         (
             policy
@@ -316,7 +320,9 @@ async def create_approval(
                 },
             )
         except Exception:
-            log.exception("kafka_export.approval_auto_approved_failed", approval_id=str(approval.id))
+            log.exception(
+                "kafka_export.approval_auto_approved_failed", approval_id=str(approval.id)
+            )
         await _notify_approval_decision(workspace, approval)
     else:
         await _notify_slack(workspace, approval)
@@ -335,12 +341,16 @@ async def list_auto_approval_policies(
 ) -> AutoApprovalPolicyList:
     workspace = auth[0]
     items = (
-        await db.execute(
-            select(AutoApprovalPolicy)
-            .where(AutoApprovalPolicy.workspace_id == workspace.id)
-            .order_by(AutoApprovalPolicy.created_at.desc())
+        (
+            await db.execute(
+                select(AutoApprovalPolicy)
+                .where(AutoApprovalPolicy.workspace_id == workspace.id)
+                .order_by(AutoApprovalPolicy.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return AutoApprovalPolicyList(items=[_auto_policy_to_response(item) for item in items])
 
 
@@ -392,7 +402,9 @@ async def update_auto_approval_policy(
     workspace = auth[0]
     policy = await db.get(AutoApprovalPolicy, policy_id)
     if policy is None or policy.workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Auto-approval policy not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Auto-approval policy not found"
+        )
     if body.request_type is not None:
         policy.request_type = body.request_type
     if body.condition is not None:
@@ -423,7 +435,9 @@ async def delete_auto_approval_policy(
     workspace = auth[0]
     policy = await db.get(AutoApprovalPolicy, policy_id)
     if policy is None or policy.workspace_id != workspace.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Auto-approval policy not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Auto-approval policy not found"
+        )
     await db.delete(policy)
     await db.commit()
     await emit_audit_event(
@@ -463,21 +477,23 @@ async def list_approvals(
         stmt = stmt.where(Approval.requested_by.ilike(f"%{requested_by}%"))
     if api_key_prefix:
         api_key_rows = (
-            await db.execute(
-                select(ApiKey).where(
-                    ApiKey.workspace_id == workspace.id,
-                    ApiKey.key_prefix == api_key_prefix,
+            (
+                await db.execute(
+                    select(ApiKey).where(
+                        ApiKey.workspace_id == workspace.id,
+                        ApiKey.key_prefix == api_key_prefix,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         emails = [k.created_by for k in api_key_rows if k.created_by]
-        if emails:
-            stmt = stmt.where(Approval.requested_by.in_(emails))
-        else:
-            stmt = stmt.where(False)
+        stmt = stmt.where(Approval.requested_by.in_(emails)) if emails else stmt.where(False)
     if access_group_id:
         from runledger_api.models.access_groups import AccessGroupMember
         from runledger_api.models.tenant import User
+
         member_emails_result = await db.execute(
             select(User.email)
             .join(AccessGroupMember, AccessGroupMember.user_id == User.id)
@@ -858,9 +874,7 @@ async def _deny_budget_override(db: AsyncSession, approval: Approval) -> None:
     from runledger_api.models.budget_overrides import BudgetOverride  # noqa: PLC0415
 
     await db.execute(
-        sa_update(BudgetOverride)
-        .where(BudgetOverride.id == override_id)
-        .values(status="revoked")
+        sa_update(BudgetOverride).where(BudgetOverride.id == override_id).values(status="revoked")
     )
     log.info("budget_override_denied", override_id=override_id_str, approval_id=str(approval.id))
 

@@ -34,7 +34,9 @@ app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_enable=False,
 )
-task_app = typer.Typer(help="Manual task lifecycle helpers for tools without a native SDK.")
+task_app = typer.Typer(
+    help="Manual task lifecycle helpers for tools without a native SDK."
+)
 app.add_typer(task_app, name="task")
 console = Console()
 err_console = Console(stderr=True, style="bold red")
@@ -125,11 +127,21 @@ def validate(
 @task_app.command("start")
 def task_start(
     task: Annotated[str, typer.Option("--task", help="Task or work item name")],
-    intent: Annotated[str | None, typer.Option("--intent", help="Intent classification")] = None,
-    feature_tag: Annotated[str | None, typer.Option("--feature-tag", help="Feature or agent tag")] = None,
-    end_user_id: Annotated[str | None, typer.Option("--end-user-id", help="End-user identifier")] = None,
-    session_id: Annotated[str | None, typer.Option("--session-id", help="Session identifier")] = None,
-    agent: Annotated[str | None, typer.Option("--agent", help="Agent/client name")] = None,
+    intent: Annotated[
+        str | None, typer.Option("--intent", help="Intent classification")
+    ] = None,
+    feature_tag: Annotated[
+        str | None, typer.Option("--feature-tag", help="Feature or agent tag")
+    ] = None,
+    end_user_id: Annotated[
+        str | None, typer.Option("--end-user-id", help="End-user identifier")
+    ] = None,
+    session_id: Annotated[
+        str | None, typer.Option("--session-id", help="Session identifier")
+    ] = None,
+    agent: Annotated[
+        str | None, typer.Option("--agent", help="Agent/client name")
+    ] = None,
     api_key: ApiKeyOpt = None,
     base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
 ) -> None:
@@ -159,15 +171,32 @@ def task_start(
 
 @task_app.command("outcome")
 def task_outcome(
-    run_id: Annotated[str, typer.Option("--run-id", help="Run ID returned by task start")],
-    result: Annotated[str, typer.Option("--result", help="Outcome type, e.g. completed")] = "completed",
-    success: Annotated[bool, typer.Option("--success/--failure", help="Mark the task as successful or failed")] = True,
-    final_status: Annotated[str, typer.Option("--final-status", help="Final run status")] = "succeeded",
+    run_id: Annotated[
+        str, typer.Option("--run-id", help="Run ID returned by task start")
+    ],
+    result: Annotated[
+        str, typer.Option("--result", help="Outcome type, e.g. completed")
+    ] = "completed",
+    success: Annotated[
+        bool,
+        typer.Option(
+            "--success/--failure", help="Mark the task as successful or failed"
+        ),
+    ] = True,
+    final_status: Annotated[
+        str, typer.Option("--final-status", help="Final run status")
+    ] = "succeeded",
     total_cost_usd: Annotated[float | None, typer.Option("--total-cost-usd")] = None,
-    total_input_tokens: Annotated[int | None, typer.Option("--total-input-tokens")] = None,
-    total_output_tokens: Annotated[int | None, typer.Option("--total-output-tokens")] = None,
+    total_input_tokens: Annotated[
+        int | None, typer.Option("--total-input-tokens")
+    ] = None,
+    total_output_tokens: Annotated[
+        int | None, typer.Option("--total-output-tokens")
+    ] = None,
     quality_score: Annotated[float | None, typer.Option("--quality-score")] = None,
-    verification_status: Annotated[str | None, typer.Option("--verification-status")] = None,
+    verification_status: Annotated[
+        str | None, typer.Option("--verification-status")
+    ] = None,
     api_key: ApiKeyOpt = None,
     base_url: BaseUrlOpt = _DEFAULT_BASE_URL,
 ) -> None:
@@ -199,7 +228,9 @@ def task_outcome(
     }
     try:
         with _client(key, base_url) as client:
-            resp = client.post("/ingest/v1/batch", json={"events": [outcome_event, run_end_event]})
+            resp = client.post(
+                "/ingest/v1/batch", json={"events": [outcome_event, run_end_event]}
+            )
     except httpx.ConnectError:
         err_console.print(f"Could not connect to {base_url}")
         raise typer.Exit(code=1) from None

@@ -41,9 +41,7 @@ class Settings(BaseSettings):
     # Dev defaults cover the Next dev server (3000) and the Docker dashboard (3201) on
     # both localhost and 127.0.0.1 — a browser Origin that isn't listed fails preflight
     # (400) and the dashboard shows "Failed to load …" on client-fetched pages.
-    cors_origins: str = (
-        "http://localhost:3000,http://localhost:3201,http://127.0.0.1:3201"
-    )
+    cors_origins: str = "http://localhost:3000,http://localhost:3201,http://127.0.0.1:3201"
 
     # Provider pricing YAML file.  Mounted into the container by docker-compose.
     # Set PRICING_FILE=/path/to/pricing.yml to override.
@@ -114,11 +112,7 @@ class Settings(BaseSettings):
 
     @property
     def enabled_feature_flags(self) -> set[str]:
-        return {
-            flag.strip()
-            for flag in self.feature_flags.split(",")
-            if flag.strip()
-        }
+        return {flag.strip() for flag in self.feature_flags.split(",") if flag.strip()}
 
     def is_feature_enabled(self, flag: str) -> bool:
         return flag in self.enabled_feature_flags
@@ -149,9 +143,12 @@ def _validate_production_secrets(s: Settings) -> None:
     if s.admin_secret in _KNOWN_WEAK_DEFAULTS:
         problems.append("ADMIN_SECRET is a known default — set a real random string")
     if s.database_url and "runledger:runledger@" in s.database_url:
-        problems.append("DATABASE_URL uses the default password 'runledger' — change POSTGRES_PASSWORD")
+        problems.append(
+            "DATABASE_URL uses the default password 'runledger' — change POSTGRES_PASSWORD"
+        )
     if problems:
         import sys
+
         for p in problems:
             print(f"SECURITY ERROR: {p}", file=sys.stderr)
         raise SystemExit(1)

@@ -7,10 +7,9 @@ Create Date: 2026-08-06
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "073"
 down_revision = "072"
@@ -23,9 +22,15 @@ def upgrade() -> None:
         "backup_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("workspace_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("trigger_mode", sa.String(length=32), server_default=sa.text("'manual'"), nullable=False),
-        sa.Column("status", sa.String(length=32), server_default=sa.text("'queued'"), nullable=False),
-        sa.Column("backup_scope", sa.String(length=64), server_default=sa.text("'full'"), nullable=False),
+        sa.Column(
+            "trigger_mode", sa.String(length=32), server_default=sa.text("'manual'"), nullable=False
+        ),
+        sa.Column(
+            "status", sa.String(length=32), server_default=sa.text("'queued'"), nullable=False
+        ),
+        sa.Column(
+            "backup_scope", sa.String(length=64), server_default=sa.text("'full'"), nullable=False
+        ),
         sa.Column("target", sa.String(length=512), nullable=True),
         sa.Column("command", sa.Text(), nullable=True),
         sa.Column("triggered_by", sa.String(length=255), nullable=True),
@@ -36,16 +41,25 @@ def upgrade() -> None:
         sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("started_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("completed_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_backup_runs_workspace_created", "backup_runs", ["workspace_id", "created_at"])
+    op.create_index(
+        "ix_backup_runs_workspace_created", "backup_runs", ["workspace_id", "created_at"]
+    )
     op.create_index("ix_backup_runs_workspace_status", "backup_runs", ["workspace_id", "status"])
 
     op.add_column(
         "kafka_export_configs",
-        sa.Column("single_topic_mode", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "single_topic_mode", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
     )
     op.add_column(
         "kafka_export_configs",

@@ -105,9 +105,7 @@ async def govern_and_filter_tool_call(
         .order_by(ToolPolicy.priority.asc())
     )
     all_policies = (await db.execute(policy_stmt)).scalars().all()
-    matching_policies = [
-        p for p in all_policies if p.tool_name.lower() in [tool_name.lower(), "*"]
-    ]
+    matching_policies = [p for p in all_policies if p.tool_name.lower() in [tool_name.lower(), "*"]]
 
     matched_policy = matching_policies[0] if matching_policies else None
 
@@ -116,10 +114,14 @@ async def govern_and_filter_tool_call(
     gr_res = await evaluate_guardrails(db, workspace_id, "tool_call", [arg_str])
 
     # Case A: Block Action
-    if (matched_policy and matched_policy.action in {"block", "deny"}) or (gr_res and gr_res.action == "block"):
+    if (matched_policy and matched_policy.action in {"block", "deny"}) or (
+        gr_res and gr_res.action == "block"
+    ):
         violation_reason = (
-            gr_res.violation_details if gr_res and gr_res.action == "block"
-            else f"Blocked by tool policy '{matched_policy.name}'" if matched_policy
+            gr_res.violation_details
+            if gr_res and gr_res.action == "block"
+            else f"Blocked by tool policy '{matched_policy.name}'"
+            if matched_policy
             else "Blocked by security rule"
         )
         payload["violation"] = violation_reason
@@ -132,7 +134,9 @@ async def govern_and_filter_tool_call(
         )
 
     # Case B: Require Approval Action
-    if (matched_policy and matched_policy.action == "require_approval") or (gr_res and gr_res.action == "require_approval"):
+    if (matched_policy and matched_policy.action == "require_approval") or (
+        gr_res and gr_res.action == "require_approval"
+    ):
         approval_id = f"appr_{uuid.uuid4().hex[:12]}"
         reason = (
             f"Guardrail check flagged payload ({gr_res.violation_details})"
@@ -142,7 +146,12 @@ async def govern_and_filter_tool_call(
         payload["approval_id"] = approval_id
         payload["approval_reason"] = reason
 
-        log.info("tool_call_routed_to_approval", tool_name=tool_name, approval_id=approval_id, reason=reason)
+        log.info(
+            "tool_call_routed_to_approval",
+            tool_name=tool_name,
+            approval_id=approval_id,
+            reason=reason,
+        )
 
         # Trigger plugin notification webhooks (Slack/PagerDuty)
         await execute_plugin_hooks(db, workspace_id, "on_guardrail_violation", payload)

@@ -30,8 +30,8 @@ from runledger_api.schemas.ledger import (
     LedgerClosedPeriodSummary,
     LedgerClosureSummary,
     LedgerSnapshotResponse,
-    LedgerVerifyResult,
     LedgerVerificationSummary,
+    LedgerVerifyResult,
 )
 
 log = structlog.get_logger()
@@ -42,6 +42,7 @@ def _get_fernet():
     if not master:
         return None
     from cryptography.fernet import Fernet
+
     if len(master) == 44 and master.endswith("="):
         return Fernet(master.encode())
     key = base64.urlsafe_b64encode(hashlib.sha256(master.encode()).digest())

@@ -72,6 +72,7 @@ async def _run_daily_snapshots() -> dict[str, int]:
                 snapshot_data = await build_daily_snapshot(session, workspace_id, yesterday)
                 key = await get_or_create_active_key(session, workspace_id)
                 from runledger_api.services.ledger import _decrypt_key  # noqa: PLC0415
+
                 snapshot_hash = compute_snapshot_hash(snapshot_data, _decrypt_key(key.key_value))
 
                 from decimal import Decimal  # noqa: PLC0415

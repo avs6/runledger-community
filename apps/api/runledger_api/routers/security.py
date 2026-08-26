@@ -52,7 +52,9 @@ async def _visible_workspace_ids(
 ) -> set[uuid.UUID]:
     if membership is not None:
         return {workspace.id}
-    result = await db.execute(select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id))
+    result = await db.execute(
+        select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
+    )
     return set(result.scalars().all())
 
 
@@ -106,7 +108,9 @@ async def list_oidc_providers(auth: OrgAdminDep, db: DbDep) -> OIDCProviderList:
     return OIDCProviderList(items=[OIDCProviderResponse.model_validate(item) for item in items])
 
 
-@router.post("/oidc-providers", response_model=OIDCProviderResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/oidc-providers", response_model=OIDCProviderResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_oidc_provider(
     body: OIDCProviderCreate,
     auth: OrgAdminDep,
@@ -238,9 +242,11 @@ async def test_ip_acl(body: IpAclTestRequest, auth: OrgAdminDep, db: DbDep) -> I
 
 
 @router.get("/api-keys/{key_id}/rotation-history", response_model=KeyRotationEventList)
-async def get_key_rotation_history(key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) -> KeyRotationEventList:
+async def get_key_rotation_history(
+    key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep
+) -> KeyRotationEventList:
     workspace, _user, membership = auth
-    key = await _get_rotatable_key(db, key_id, workspace, membership)
+    await _get_rotatable_key(db, key_id, workspace, membership)
     items = (
         (
             await db.execute(
@@ -266,9 +272,13 @@ async def rotate_api_key(
 ) -> RotateApiKeyResponse:
     workspace, user, membership = auth
     key = await _get_rotatable_key(db, key_id, workspace, membership)
-    environment = EnvironmentEnum.prod if key.key_prefix.startswith("rl_live_") else EnvironmentEnum.dev
+    environment = (
+        EnvironmentEnum.prod if key.key_prefix.startswith("rl_live_") else EnvironmentEnum.dev
+    )
     raw_key, key_hash, key_prefix = generate_api_key(environment)
-    grace_expires_at = datetime.now(UTC) + timedelta(hours=body.grace_hours) if body.grace_hours > 0 else None
+    grace_expires_at = (
+        datetime.now(UTC) + timedelta(hours=body.grace_hours) if body.grace_hours > 0 else None
+    )
 
     new_key = ApiKey(
         workspace_id=key.workspace_id,

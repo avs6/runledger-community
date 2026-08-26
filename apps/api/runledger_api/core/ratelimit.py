@@ -29,6 +29,7 @@ try:
 except ImportError:
     Redis = object  # type: ignore[misc,assignment]
 
+
 def _limits() -> dict[str, int]:
     return {
         "ingest": settings.ingest_rate_limit_per_minute,

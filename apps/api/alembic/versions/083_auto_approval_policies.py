@@ -7,10 +7,9 @@ Create Date: 2026-08-14 17:20:00.000000
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
-
 
 revision = "083"
 down_revision = "082"
@@ -26,7 +25,12 @@ def upgrade() -> None:
         sa.Column("request_type", sa.Text(), nullable=False),
         sa.Column("condition", sa.Text(), nullable=False),
         sa.Column("created_by", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("NOW()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(

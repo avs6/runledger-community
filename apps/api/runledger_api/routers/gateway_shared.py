@@ -3,22 +3,12 @@
 from __future__ import annotations
 
 import logging
-import math
 import os
-import random
-import time
-import uuid
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
 from typing import Annotated, Any
 from urllib.parse import urlencode
 
-import httpx
-import sqlalchemy as sa
-from fastapi import Depends, Header, HTTPException, Query, Request, status
-from fastapi.responses import Response, StreamingResponse
-from sqlalchemy import func, select
+from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -30,96 +20,20 @@ from runledger_api.core.deps import (
 )
 from runledger_api.models.gateway import (
     GatewayPassThroughEndpoint,
-    GatewayRequest,
     GatewayRoute,
     GatewayRoutingGroup,
-    RoutingPolicy,
 )
 from runledger_api.models.tenant import ApiKey, TenantUser, User, Workspace
 from runledger_api.schemas.gateway import (
     GatewayCompletionRequest,
-    GatewayDeploymentHealthItem,
-    GatewayDeploymentHealthList,
-    GatewayPassThroughEndpointCreate,
-    GatewayPassThroughEndpointList,
-    GatewayPassThroughEndpointResponse,
-    GatewayPassThroughEndpointStats,
-    GatewayPassThroughEndpointStatsList,
-    GatewayPassThroughEndpointUpdate,
-    GatewayPassThroughTestRequest,
-    GatewayPassThroughTestResponse,
-    GatewayBenchmarkComparisonItem,
-    GatewayBenchmarkComparisonList,
-    GatewayRequestList,
-    GatewayRequestResponse,
-    GatewayRateLimitOverview,
-    GatewayRateLimitTier,
-    GatewayRuntimeApiKeyResolveRequest,
-    GatewayRuntimeApiKeyResolveResponse,
-    GatewayRuntimeEventBatchRequest,
-    GatewayRuntimeEventBatchResponse,
-    GatewayRuntimeFinalizeRequest,
-    GatewayRuntimeFinalizeResponse,
-    GatewayRuntimeMirrorRequest,
-    GatewayRuntimeProviderExecuteRequest,
-    GatewayRuntimePreflightRequest,
-    GatewayRuntimePreflightResponse,
-    GatewayRuntimeRouteResultRequest,
-    GatewayRuntimeSnapshotResponse,
-    GatewayRoutingGroupCreate,
-    GatewayRoutingGroupList,
+    GatewayRouteResponse,
     GatewayRoutingGroupResponse,
     GatewayRoutingGroupRouteSummary,
-    GatewayRoutingGroupUpdate,
-    GatewayRoutingStrategyComparison,
-    GatewayRoutingStrategyComparisonItem,
-    GatewayRouteCreate,
-    GatewayRouteList,
-    GatewayRouteResponse,
-    GatewayRouteStats,
-    GatewayRouteUpdate,
-    GatewayStats,
-    RoutingPolicyActionResponse,
-    RoutingPolicyAnalysisResponse,
-    RoutingPolicyCreate,
-    RoutingPolicyList,
-    RoutingPolicyPromotionRequest,
-    RoutingPolicyResponse,
-    RoutingPolicyUpdate,
 )
-from runledger_api.services import context_compiler, intelligent_router, semantic_cache
 from runledger_api.services.auth import verify_api_key
-from runledger_api.services.gateway import (
-    _apply_prompt_overrides,
-    _override_value,
-    _response_text,
-    _shadow_similarity,
-    check_cache,
-    choose_route_for_alias,
-    forward_request,
-    increment_hit_count,
-    make_cache_key,
-    record_gateway_request,
-    resolve_request_tags,
-    select_routes,
-    store_cache,
-    stream_request,
-)
-from runledger_api.services.gateway_controls import check_cost_cap, check_per_user_rpm
-from runledger_api.services.gateway_runtime import (
-    build_gateway_runtime_snapshot,
-    ingest_gateway_runtime_events,
-    verify_gateway_runtime_signature,
-)
-from runledger_api.services.gateway_redact import redact_messages
 from runledger_api.services.gateway_providers import VertexAdapter
-from runledger_api.services.guardrails import evaluate_guardrails
-from runledger_api.services.routing import analyze_routing_policy
 from runledger_api.services.security import (
     authenticate_oidc_token,
-    enforce_required_metadata,
-    evaluate_ip_acl,
-    get_client_ip,
 )
 
 log = logging.getLogger(__name__)
@@ -129,6 +43,7 @@ WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 OrgAdminDep = Annotated[tuple[Workspace, User, TenantUser | None], Depends(require_org_admin)]
 AdminDep = Annotated[None, Depends(require_admin)]
 ApiKeyDep = Annotated[ApiKey, Depends(get_current_api_key)]
+
 
 def _config_fingerprint(
     *,
@@ -253,7 +168,9 @@ def _runtime_direct_provider_request(
             adapter = VertexAdapter()
             contents, system_text = adapter._messages_to_gemini(request_body["messages"])  # type: ignore[attr-defined]
         except Exception:
-            from runledger_api.services.gateway_providers import _messages_to_gemini  # noqa: PLC0415
+            from runledger_api.services.gateway_providers import (
+                _messages_to_gemini,  # noqa: PLC0415
+            )
 
             contents, system_text = _messages_to_gemini(request_body["messages"])
         try:
@@ -326,7 +243,9 @@ async def _resolve_gateway_workspace(
             headers={"WWW-Authenticate": "Bearer"},
         )
     workspace = (
-        (await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))).scalar_one()
+        (
+            await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
+        ).scalar_one()
         if api_key is not None
         else oidc_auth.workspace
     )
@@ -346,7 +265,9 @@ async def _resolve_gateway_bearer_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     workspace = (
-        (await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))).scalar_one()
+        (
+            await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
+        ).scalar_one()
         if api_key is not None
         else oidc_auth.workspace
     )

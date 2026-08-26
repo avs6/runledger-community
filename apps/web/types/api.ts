@@ -79,6 +79,7 @@ export interface RunDetailResponse {
   spans: SpanDetail[]
   provider_calls: ProviderCallDetail[]
   tool_calls: ToolCallDetail[]
+  primary_model: string | null
   // Phase 19 — present only when capture policy is SAMPLED or FULL
   input_payload: Array<{ role: string; content: string }> | null
   output_payload: unknown | null

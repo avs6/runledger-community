@@ -67,10 +67,9 @@ async def list_audit_events(
         base = base.where(AuditEvent.actor_api_key_prefix == api_key_prefix)
     if access_group_id:
         from runledger_api.models.access_groups import AccessGroupMember
+
         member_ids_result = await db.execute(
-            select(AccessGroupMember.user_id).where(
-                AccessGroupMember.group_id == access_group_id
-            )
+            select(AccessGroupMember.user_id).where(AccessGroupMember.group_id == access_group_id)
         )
         member_ids = member_ids_result.scalars().all()
         if member_ids:
@@ -118,10 +117,9 @@ async def export_audit_events(
         base = base.where(AuditEvent.actor_api_key_prefix == api_key_prefix)
     if access_group_id:
         from runledger_api.models.access_groups import AccessGroupMember
+
         member_ids_result = await db.execute(
-            select(AccessGroupMember.user_id).where(
-                AccessGroupMember.group_id == access_group_id
-            )
+            select(AccessGroupMember.user_id).where(AccessGroupMember.group_id == access_group_id)
         )
         member_ids = member_ids_result.scalars().all()
         if member_ids:
