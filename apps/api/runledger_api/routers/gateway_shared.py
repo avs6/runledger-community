@@ -21,6 +21,9 @@ from fastapi.responses import Response, StreamingResponse  # noqa: F401
 from sqlalchemy import func, select  # noqa: F401
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import runledger_api.services.context_compiler as context_compiler  # noqa: F401
+import runledger_api.services.intelligent_router as intelligent_router  # noqa: F401
+import runledger_api.services.semantic_cache as semantic_cache_svc  # noqa: F401
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
     get_current_api_key,
@@ -126,10 +129,6 @@ from runledger_api.services.security import (
     evaluate_ip_acl,  # noqa: F401
     get_client_ip,  # noqa: F401
 )
-
-import runledger_api.services.context_compiler as context_compiler  # noqa: F401
-import runledger_api.services.intelligent_router as intelligent_router  # noqa: F401
-import runledger_api.services.semantic_cache as semantic_cache_svc  # noqa: F401
 
 log = logging.getLogger(__name__)
 
