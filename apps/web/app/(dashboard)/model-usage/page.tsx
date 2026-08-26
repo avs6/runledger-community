@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Activity, ArrowRight, Clock, Cpu, DollarSign, GitBranch, Network, Route, Sparkles, Table2, Tags, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBestValueModels, getCostQuality, getModelBudgetUtilization, getModelUsageGatewayPosture, getRunFlow } from '@/lib/api'
+import { getBestValueModels, getCostQuality, getInvestigationGatewayRuntimePosture, getModelBudgetUtilization, getModelUsageGatewayPosture, getRunFlow } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   ModelQualityCostBars,
@@ -268,7 +268,7 @@ export default async function ModelUsagePage({
     from: win.from,
     to: win.to,
   })
-  const [costQuality, bestValue, modelBudgets, gatewayPosture] = await Promise.all([
+  const [costQuality, bestValue, modelBudgets, gatewayPosture, gatewayRuntime] = await Promise.all([
     getCostQuality(session.apiKey, {
       score_name: 'quality',
       from: win.from,
@@ -281,6 +281,7 @@ export default async function ModelUsagePage({
     }).catch(() => ({ items: [] })),
     getModelBudgetUtilization(session.apiKey).catch(() => null),
     getModelUsageGatewayPosture(session.apiKey).catch(() => null),
+    getInvestigationGatewayRuntimePosture(session.apiKey).catch(() => null),
   ])
 
   const items = flow.items
@@ -409,6 +410,7 @@ export default async function ModelUsagePage({
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">Gateway & Intelligence Context</p>
               <h2 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-slate-950">
                 {gatewayPosture.gateway_context.active_routes} active routes across {gatewayPosture.gateway_context.distinct_models} models
+                {gatewayRuntime && `. ${gatewayRuntime.guardrail_context.active_rules} guardrail rules, ${gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM-limited routes.`}
               </h2>
             </div>
             <Network className="h-5 w-5 shrink-0 text-violet-500" />
@@ -438,6 +440,8 @@ export default async function ModelUsagePage({
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <Link href="/gateway" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Model Gateway</Link>
             <Link href="/provider-profiles" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Provider Profiles</Link>
+            <Link href="/guardrails" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Guardrails</Link>
+            <Link href="/rate-limits" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Rate Limits</Link>
             <Link href="/runs" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Runs</Link>
             <Link href="/request-flow" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Request Flow</Link>
             <Link href="/request-explorer" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Request Explorer</Link>

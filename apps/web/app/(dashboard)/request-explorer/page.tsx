@@ -21,7 +21,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationOrgIdentityPosture, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
+import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId } from '@/lib/utils'
 import type {
@@ -30,6 +30,7 @@ import type {
   InvestigationGatewayRuntimePosture,
   InvestigationOrgIdentityPosture,
   OutcomeResponse,
+  OverviewScopePosture,
   ProviderCallDetail,
   RequestRecord,
   RunDetailResponse,
@@ -479,6 +480,8 @@ function RequestDetail({
   governance,
   finops,
   orgIdentity,
+  gatewayRuntime,
+  scopePosture,
 }: {
   run: RunDetailResponse
   graphNodeCount: number
@@ -489,6 +492,7 @@ function RequestDetail({
   finops: InvestigationFinopsBudgetPosture | null
   orgIdentity: InvestigationOrgIdentityPosture | null
   gatewayRuntime: InvestigationGatewayRuntimePosture | null
+  scopePosture: OverviewScopePosture | null
 }) {
   const totalTokens = (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0)
   const { routeAlias, decision } = routingEvidence(run, gatewayMatch)
@@ -550,11 +554,12 @@ function RequestDetail({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Governance Evidence</h2>
-              <p className="mt-1 text-sm text-slate-500">Inline runtime evidence for tool governance, security, alerting, audit, and governance-pack posture.</p>
+              <p className="mt-1 text-sm text-slate-500">Inline runtime evidence for tool governance, security, alerting, audit, and governance-pack posture.{scopePosture && ` ${scopePosture.tool_context.capture_policies} capture policies configured.`}</p>
             </div>
             <div className="flex flex-wrap gap-2 text-xs font-semibold text-cyan-700">
               <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
               <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
+              <Link href="/data-capture" className="hover:underline">Data Capture</Link>
               <Link href="/security" className="hover:underline">Security</Link>
               <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
               <Link href="/audit" className="hover:underline">Audit Log</Link>
@@ -683,7 +688,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   })
   const selectedId = searchParams.run_id ?? requestExplorer.items[0]?.run_id ?? null
 
-  const [runResult, governanceResult, graphResult, outcomesResult, gatewayResult, finopsResult, orgIdentityResult, gatewayRuntimeResult] = selectedId
+  const [runResult, governanceResult, graphResult, outcomesResult, gatewayResult, finopsResult, orgIdentityResult, gatewayRuntimeResult, scopePostureResult] = selectedId
     ? await Promise.allSettled([
         getRun(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         getRunGovernanceContext(session.apiKey, selectedId, { access_group_id: accessGroupId }),
@@ -693,6 +698,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
         getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }),
         getInvestigationOrgIdentityPosture(session.apiKey),
         getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }),
+        getOverviewScopePosture(session.apiKey),
       ])
     : []
 
@@ -701,6 +707,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   const finops = finopsResult?.status === 'fulfilled' ? finopsResult.value : null
   const orgIdentity = orgIdentityResult?.status === 'fulfilled' ? orgIdentityResult.value : null
   const gatewayRuntimePosture = gatewayRuntimeResult?.status === 'fulfilled' ? gatewayRuntimeResult.value : null
+  const scopePosture = scopePostureResult?.status === 'fulfilled' ? scopePostureResult.value : null
   const graphNodeCount = graphResult?.status === 'fulfilled' ? graphResult.value.nodes.length : 0
   const outcomes = outcomesResult?.status === 'fulfilled' ? outcomesResult.value.items : []
   const gatewayRequests = gatewayResult?.status === 'fulfilled' ? gatewayResult.value.items : []
@@ -754,7 +761,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <RunList requests={requestExplorer.items} selectedRunId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
         {selectedRun ? (
-          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} governance={governance} finops={finops} orgIdentity={orgIdentity} gatewayRuntime={gatewayRuntimePosture} />
+          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} governance={governance} finops={finops} orgIdentity={orgIdentity} gatewayRuntime={gatewayRuntimePosture} scopePosture={scopePosture} />
         ) : (
           <Card className="p-12 text-center">
             <p className="text-base font-semibold text-slate-950">Select a request</p>

@@ -4,6 +4,61 @@ Last updated: 2026-08-25
 
 ---
 
+## Delta — 2026-08-25 (WU-020)
+
+WU-020 (Scorecards Replay and Runbooks Support Refresh) COMPLETED. UI enrichment of Model Scorecards, Replay Lab, and Runbooks pages:
+
+- Model scorecards: Workspace context bar expanded with Model Usage and Evaluation Studio drill-through links alongside existing Workspaces link.
+- Replay lab: Gateway context bar (violet theme) added with Model Gateway, Provider Profiles, and Routes drill-through links.
+- Runbooks: Gateway and audit context bar added with Model Gateway (violet), Audit Log (amber), and Runs (blue) drill-through links.
+
+Cell changes: Model scorecards × Workspaces already STRONG (WU-009), Replay lab × Model gateway P→S (03×02, 03-OBSERVE 11.5c), Runbooks × Model gateway P→S (03×02, 03-OBSERVE 11.5c), Runbooks × Audit log P→S (03×04, 03-OBSERVE 11.5c).
+
+---
+
+## Delta — 2026-08-25 (WU-019)
+
+WU-019 (Monitoring Telemetry Ops and Governance Refresh) COMPLETED. Drill-through link additions to Monitoring and Telemetry pages:
+
+- Monitoring: Budget Detail link added to FinOps card. Approvals link added to Governance Ops Context card. API Keys link added to Org & Investigation Context card.
+- Telemetry: Guardrails, Response Cache, and Rate Limits links added to Gateway Context card. Tool Registry and Tool Policies links added to Governance Context card.
+
+Cell changes: Monitoring × Budget detail N/A→P (03×05), Monitoring × API keys P→S (03×01), Monitoring × Approvals N/A→P (03×04), Telemetry × Guardrails N/A→P, Response cache N/A→P, Rate limits N/A→P (03×02), Telemetry × Tool registry N/A→P, Tool policies N/A→P (03×04).
+
+---
+
+## Delta — 2026-08-25 (WU-018)
+
+WU-018 (Analytics Users Outcomes and Identity Refresh) COMPLETED. UI enrichment of Analytics users and Outcomes pages:
+
+- Analytics users: Gateway & Model Context card (violet theme) added via `GET /analytics/model-usage-gateway-posture` showing active routes, distinct models, routing policies, and gateway request volume. Drill-through links to Model Gateway, Provider Profiles, and Routes. API Key Detail link added to Org & Workspace Context card.
+- Outcomes: Budget Detail drill-through link added to FinOps Outcomes Context card. Workspace & Identity Context card (blue theme) added via `GET /analytics/investigation-org-identity-posture` showing workspace name, user counts, end user volume, and API key status. Drill-through links to Workspaces, Users, API Keys, and Organization.
+
+Cell changes: Analytics users × API keys N/A→S (01-ORG), Analytics users × Model gateway N/A→S (03-OBSERVE 11.5c), Outcomes × Budget detail P→S (05-FINOPS), Outcomes × Workspaces N/A→S (03-OBSERVE 11.5b).
+
+---
+
+## Delta — 2026-08-25 (WU-017)
+
+WU-017 (Model Usage Economics and Runtime Refresh) COMPLETED. UI enrichment of Model usage page:
+
+- Gateway & Intelligence Context card: Now shows guardrail rule count and RPM-limited route count from `GET /analytics/investigation-gateway-runtime-posture`. Guardrails and Rate Limits drill-through links added.
+
+Most WU-017 target cells (Budgets, Budget detail, API keys) were already at STRONG from prior WUs. Actual cell changes: Guardrails P→S, Rate limits P→S in 11.5c (03-OBSERVE × 02-GATEWAY).
+
+---
+
+## Delta — 2026-08-25 (WU-016)
+
+WU-016 (Request Analysis Scope and Evidence Refresh) COMPLETED. UI enrichment of Request flow and Request explorer pages:
+
+- Request flow: Governance card now shows pending approvals count and capture policy count from `GET /analytics/overview-scope-posture`. Approvals drill-through link added.
+- Request explorer: Governance evidence section shows capture policy count from `GET /analytics/overview-scope-posture`. Data Capture drill-through link added.
+
+Most WU-016 target cells (Access groups, Budget detail, Guardrails) were already at STRONG from prior WUs. Actual cell changes: Approvals N/A→P (Request flow × 04-SAFETY), Data capture N/A→P (Request explorer × 04-SAFETY) in 11.5c.
+
+---
+
 ## Delta — 2026-08-25 (WU-015)
 
 WU-015 (Sessions Investigation Scope Refresh) COMPLETED. UI enrichment of Sessions list and Session detail pages:

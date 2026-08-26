@@ -152,9 +152,17 @@ export default function ModelScorecardsPage() {
         <p className="text-sm text-blue-800 dark:text-blue-200">
           Scorecards are scoped to your current workspace.
         </p>
-        <Link href="/workspaces" className="ml-auto rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50 transition-colors">
-          Workspaces
-        </Link>
+        <div className="ml-auto flex gap-2">
+          {[
+            { label: 'Workspaces', href: '/workspaces' },
+            { label: 'Model Usage', href: '/model-usage' },
+            { label: 'Evaluation Studio', href: '/evaluation' },
+          ].map(({ label, href }) => (
+            <Link key={label} href={href} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50 transition-colors">
+              {label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Time range selector */}

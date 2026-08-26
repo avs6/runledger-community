@@ -150,6 +150,31 @@ Sessions list and Session detail now surface practical identity and cost context
 - **Sessions list** — FinOps drill-through links (Budgets, Budget Detail, Chargeback) added alongside existing Org Identity links. Operators can pivot from session cost data into budget and chargeback investigation.
 - **Session detail** — Identity & Investigation context bar added with User Runs (filtered by end_user_id), Users, API Keys, Telemetry, Budgets, Budget Detail, and Chargeback drill-through links. Operators can now investigate identity and cost attribution from a single session without navigating away.
 
+### Request analysis scope and evidence refresh
+
+- **Request flow** — Governance card now shows pending approvals count and capture policy count from `GET /analytics/overview-scope-posture`. Approvals drill-through link added. Operators can trace policy enforcement and approval backlogs directly from the flow view.
+- **Request explorer** — Governance evidence section now shows capture policy count from `GET /analytics/overview-scope-posture`. Data Capture drill-through link added. Investigators can pivot from a request into data capture configuration without losing context.
+
+### Model usage economics and runtime refresh
+
+- **Model usage** — Gateway & Intelligence Context card now shows guardrail rule count and RPM-limited route count from `GET /analytics/investigation-gateway-runtime-posture`. Guardrails and Rate Limits drill-through links added. Operators can trace how runtime controls (guardrails, rate limits) affect observed model usage patterns without leaving the model analysis view.
+
+### Analytics users and outcomes identity refresh (WU-018)
+
+- **Analytics users** — Gateway & Model Context card (violet) added via `GET /analytics/model-usage-gateway-posture`, showing active routes, distinct models, routing policies, and gateway request volume. Model Gateway, Provider Profiles, and Routes drill-through links added. API Key Detail link added to the Org & Workspace Context card to strengthen API key attribution for per-user analysis.
+- **Outcomes** — Budget Detail drill-through link added to the FinOps Outcomes Context card. Workspace & Identity Context card (blue) added via `GET /analytics/investigation-org-identity-posture`, showing workspace name, user counts, end user volume, and API key status. Workspaces, Users, API Keys, and Organization drill-through links let operators trace outcome ownership back to identity surfaces.
+
+### Monitoring telemetry ops and governance refresh (WU-019)
+
+- **Monitoring** — Budget Detail drill-through link added to FinOps Monitoring Context card. Approvals drill-through link added to Governance Ops Context card. API Keys drill-through link added to Org & Investigation Context card. Operators can now pivot from monitoring triage into budget detail, approval workflows, and API key investigation without navigating away.
+- **Telemetry** — Guardrails, Response Cache, and Rate Limits drill-through links added to Gateway Context card. Tool Registry and Tool Policies drill-through links added to Governance Context card. Telemetry operators can now trace from ingest signals into the specific runtime and governance controls that shaped the traffic.
+
+### Scorecards replay and runbooks support refresh (WU-020)
+
+- **Model scorecards** — Workspace context bar expanded with Model Usage and Evaluation Studio drill-through links, strengthening the scorecard-to-workspace investigation path.
+- **Replay lab** — Gateway context bar (violet) added with Model Gateway, Provider Profiles, and Routes drill-through links. Experiments replay traffic through gateway routes, and operators can now pivot directly into the gateway config that shaped the replay.
+- **Runbooks** — Gateway and audit context bar added with Model Gateway, Audit Log, and Runs drill-through links. Runbooks summarize gateway traffic and tool calls from agent runs, and operators can now trace from the post-mortem into the runtime and audit trail.
+
 ## Related
 
 <CardGroup cols={3}>

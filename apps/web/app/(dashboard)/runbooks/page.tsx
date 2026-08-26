@@ -14,10 +14,12 @@ import {
   Download,
   FileJson,
   FileText,
+  Network,
   Plus,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  Shield,
 } from 'lucide-react'
 import { listRunbooks, generateRunbook, exportRunbook } from '@/lib/api'
 import type { RunbookResponse } from '@/types/api'
@@ -152,6 +154,25 @@ export default function RunbooksPage() {
           <Plus className="h-4 w-4" />
           Generate Runbook
         </button>
+      </div>
+
+      {/* Gateway & audit context bar */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+        <div className="flex items-center gap-2">
+          <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <p className="text-sm text-slate-600 dark:text-slate-300">Runbooks summarize gateway traffic, model decisions, and tool calls from agent runs.</p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          {[
+            { label: 'Model Gateway', href: '/gateway', cls: 'border-violet-200 text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:text-violet-300 dark:hover:bg-violet-800/50' },
+            { label: 'Audit Log', href: '/audit', cls: 'border-amber-200 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-800/50' },
+            { label: 'Runs', href: '/runs', cls: 'border-blue-200 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-800/50' },
+          ].map(({ label, href, cls }) => (
+            <Link key={label} href={href} className={`rounded-full border bg-white/80 px-3 py-1 text-xs font-semibold transition-colors dark:bg-slate-900/40 ${cls}`}>
+              {label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Generate form */}

@@ -1,10 +1,10 @@
 # WU-017: Model Usage Economics and Runtime Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 03-Observe - Bundle C (Economics, Model Intelligence, and Outcomes)
 - **Target**: 03-OBSERVE/Model usage (`/model-usage`)
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-25
 
 ## Cohesion Cells to Close
 
