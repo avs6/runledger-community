@@ -130,6 +130,79 @@ from runledger_api.services.security import (
     get_client_ip,  # noqa: F401
 )
 
+__all__ = [
+    # stdlib re-exports
+    "math", "random", "time", "uuid", "AsyncGenerator",
+    "UTC", "datetime", "timedelta", "Decimal", "Any", "Annotated",
+    # third-party re-exports
+    "httpx", "sa",
+    "Depends", "Header", "HTTPException", "Query", "Request", "status",
+    "Response", "StreamingResponse",
+    "func", "select", "AsyncSession",
+    # module re-exports
+    "context_compiler", "intelligent_router", "semantic_cache_svc",
+    # db / deps
+    "get_db", "get_current_api_key", "get_current_workspace",
+    "require_admin", "require_org_admin",
+    # models
+    "GatewayPassThroughEndpoint", "GatewayRequest", "GatewayRoute",
+    "GatewayRoutingGroup", "RoutingPolicy",
+    "ApiKey", "TenantUser", "User", "Workspace",
+    # schemas
+    "GatewayBenchmarkComparisonItem", "GatewayBenchmarkComparisonList",
+    "GatewayCompletionRequest",
+    "GatewayDeploymentHealthItem", "GatewayDeploymentHealthList",
+    "GatewayPassThroughEndpointCreate", "GatewayPassThroughEndpointList",
+    "GatewayPassThroughEndpointResponse", "GatewayPassThroughEndpointStats",
+    "GatewayPassThroughEndpointStatsList", "GatewayPassThroughEndpointUpdate",
+    "GatewayPassThroughTestRequest", "GatewayPassThroughTestResponse",
+    "GatewayRateLimitOverview", "GatewayRateLimitTier",
+    "GatewayRequestList", "GatewayRequestResponse",
+    "GatewayRouteCreate", "GatewayRouteList", "GatewayRouteResponse",
+    "GatewayRouteStats", "GatewayRouteUpdate",
+    "GatewayRoutingGroupCreate", "GatewayRoutingGroupList",
+    "GatewayRoutingGroupResponse", "GatewayRoutingGroupRouteSummary",
+    "GatewayRoutingGroupUpdate",
+    "GatewayRoutingStrategyComparison", "GatewayRoutingStrategyComparisonItem",
+    "GatewayRuntimeApiKeyResolveRequest", "GatewayRuntimeApiKeyResolveResponse",
+    "GatewayRuntimeEventBatchRequest", "GatewayRuntimeEventBatchResponse",
+    "GatewayRuntimeFinalizeRequest", "GatewayRuntimeFinalizeResponse",
+    "GatewayRuntimeMirrorRequest",
+    "GatewayRuntimePreflightRequest", "GatewayRuntimePreflightResponse",
+    "GatewayRuntimeProviderExecuteRequest", "GatewayRuntimeRouteResultRequest",
+    "GatewayRuntimeSnapshotResponse",
+    "GatewayStats",
+    "RoutingPolicyActionResponse", "RoutingPolicyAnalysisResponse",
+    "RoutingPolicyCreate", "RoutingPolicyList", "RoutingPolicyPromotionRequest",
+    "RoutingPolicyResponse", "RoutingPolicyUpdate", "RoutingPolicyVariantMetrics",
+    "RoutingRecommendationModel", "RoutingRecommendationResponse",
+    # services
+    "verify_api_key",
+    "_apply_prompt_overrides", "_override_value", "_response_text", "_shadow_similarity",
+    "check_cache", "choose_route_for_alias", "forward_request",
+    "increment_hit_count", "make_cache_key", "record_gateway_request",
+    "resolve_request_tags", "select_routes", "store_cache", "stream_request",
+    "check_cost_cap", "check_per_user_rpm",
+    "VertexAdapter",
+    "redact_messages",
+    "build_gateway_runtime_snapshot", "ingest_gateway_runtime_events",
+    "verify_gateway_runtime_signature",
+    "evaluate_guardrails",
+    "analyze_routing_policy",
+    "authenticate_oidc_token", "enforce_required_metadata",
+    "evaluate_ip_acl", "get_client_ip",
+    # type aliases
+    "DbDep", "WorkspaceDep", "OrgAdminDep", "AdminDep", "ApiKeyDep",
+    # helpers
+    "log", "urlencode", "os",
+    "_config_fingerprint", "_segment_key",
+    "_serialize_gateway_route", "_serialize_routing_group",
+    "_runtime_request_body", "_runtime_direct_provider_request",
+    "_PASSTHROUGH_ALLOWED_REQUEST_HEADERS", "_PASSTHROUGH_ALLOWED_RESPONSE_HEADERS",
+    "_resolve_gateway_workspace", "_resolve_gateway_bearer_token",
+    "_build_passthrough_headers", "_build_passthrough_target_url",
+]
+
 log = logging.getLogger(__name__)
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
