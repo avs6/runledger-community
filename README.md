@@ -4,65 +4,88 @@
 
 # RunLedger Community
 
-**The self-hosted AI operations control plane for observability, governance, optimization, and cost intelligence.**
+**Self-hosted AI operations control plane — observability, governance, optimization, and cost intelligence in one stack.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/avs6/runledger-community)
 
-[Documentation](docs/introduction.mdx) · [Quickstart](#quickstart) · [Architecture](#architecture) · [Features](#features) · [Deployment](#deployment) · [Community vs Enterprise](#community-vs-enterprise)
+[Documentation](docs/introduction.mdx) · [Quickstart](#quickstart) · [Architecture](#architecture) · [Features](#features) · [Deployment](#deployment)
 
 </div>
 
 ---
 
-RunLedger helps teams understand what their AI systems are doing, what they cost, why they cost it, and how to improve them. It supports both inline gateway control and out-of-band telemetry, so you can use it as:
+RunLedger is the operations layer between your AI agents and every model provider — OpenAI, Anthropic, Google, Mistral, Cohere, and any OpenAI-compatible endpoint including self-hosted models. It unifies cost accounting, budget enforcement, governance, and token optimization into a single control plane that runs entirely on your infrastructure.
 
-- an OpenAI-compatible gateway for routing, caching, budgets, and runtime controls
-- an observability and FinOps layer for SDK, OTLP, MCP, and webhook-driven agents
-- a governance and optimization plane for prompts, approvals, policies, retention, and outcomes
+<table>
+<tr>
+<td width="50%">
 
-For generic infrastructure monitoring, RunLedger is designed to plug into OSS tooling such as
-Prometheus, Grafana, and the OpenTelemetry Collector rather than rebuild a parallel infra-monitoring stack.
+**As an inline gateway** — route, cache, enforce budgets, and optimize tokens across providers through an OpenAI-compatible API.
 
-It is fully self-hosted, multi-tenant, and designed for local models, hosted providers, and hybrid deployments.
+</td>
+<td width="50%">
 
-> Tracing tools tell you what happened.  
+**As an out-of-band control plane** — ingest telemetry via SDK, OTLP, MCP, or webhooks for observability and governance without touching the request path.
+
+</td>
+</tr>
+</table>
+
+RunLedger is fully self-hosted, multi-tenant, and designed for local models, hosted providers, and hybrid deployments. For infrastructure monitoring, it integrates with Prometheus, Grafana, and the OpenTelemetry Collector rather than rebuilding a parallel stack.
+
+> Tracing tools tell you what happened.
 > RunLedger tells you what it cost, who owns it, whether it was allowed, whether it worked, and what to optimize next.
 
-## What Ships Today
-
-RunLedger Community currently includes:
-
-- Python and TypeScript SDKs, OTLP ingestion, OpenInference support, MCP tools/resources/prompts, and webhook ingest
-- an OpenAI-compatible gateway with exact caching, semantic caching, intelligent routing, fallback chains, deployment health, and runtime controls
-- cost metering, pricing, budgets, chargeback foundations, outcome tracking, ROI analysis, and a tamper-evident ledger
-- governance features including approvals, alerts, prompt registry, evaluations, policy dry-run, retention controls, and scoped data-capture controls
-- agent operations features including agent registry, workflow runs, API playground, vector store management, runbooks, replay lab, and onboarding
-- advanced management surfaces for tags, search tools, tool policies, access groups, response cache controls, and workspace security settings
-- demo tooling including one-click demo mode, full simulator flows, labs, and local LocalAI/MinIO helper scripts
-- infra operator surfaces for queue visibility, hardening checks, feature flags, storage policy posture, and profile-aware local deployment
+---
 
 ## Features
 
-### Instrumentation and integration
+<table>
+<tr>
+<td width="33%" valign="top">
 
+### Instrumentation
 - [Python SDK](docs/instrumentation/python-sdk.mdx)
 - [TypeScript SDK](docs/instrumentation/typescript-sdk.mdx)
-- [OTLP / OpenTelemetry signals](docs/otlp.md)
+- [OTLP / OpenTelemetry](docs/otlp.md)
 - [OpenInference](docs/openinference.md)
-- [MCP integration options](docs/integration-options-mcp.md)
-- [Desktop agent setup and validation](docs/integrations/desktop-agent-setup.md)
-- publishable skills for Claude, Codex, Cursor, and Devin under [`skills/`](skills)
+- [MCP integrations](docs/integration-options-mcp.md)
+- [Desktop agent setup](docs/integrations/desktop-agent-setup.md)
+- Publishable [skills](skills/) for Claude, Codex, Cursor, Devin
 
-### Gateway and optimization
+</td>
+<td width="33%" valign="top">
 
-- [Gateway overview](docs/gateway/overview.mdx)
-- [Routing and fallback](docs/gateway/routing.mdx)
-- [Caching](docs/gateway/caching.mdx)
+### Gateway
+- [Overview](docs/gateway/overview.mdx) — OpenAI-compatible
+- [Routing and fallback](docs/gateway/routing.mdx) — cost, latency, quality, canary, budget-aware
+- [Caching](docs/gateway/caching.mdx) — exact + semantic
 - [Runtime controls](docs/gateway/runtime-controls.mdx)
 - [Providers](docs/gateway/providers.mdx)
+- [Performance and scale](docs/gateway/performance-and-scale.mdx)
+
+</td>
+<td width="33%" valign="top">
+
+### Cost and FinOps
+- [Metering](docs/finops/metering.mdx)
+- [Pricing engine](docs/finops/pricing.mdx)
+- [Cost attribution](docs/finops/attribution.mdx)
+- [Budgets](docs/finops/budgets.mdx)
+- [Outcomes and ROI](docs/finops/outcomes.mdx)
+- [Tamper-evident ledger](docs/finops/ledger.mdx)
+- [Cost and savings](docs/finops/cost-savings.mdx)
+- [Chargeback](docs/finops/chargeback.mdx)
+
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
+
+### Token Optimization
 - [Optimization overview](docs/optimization.mdx)
 - [Semantic cache](docs/optimization/semantic-cache.mdx)
 - [Context compiler](docs/optimization/context-compiler.mdx)
@@ -71,71 +94,79 @@ RunLedger Community currently includes:
 - [Tool filtering](docs/optimization/tool-filtering.mdx)
 - [Optimization flywheel](docs/optimization/flywheel.mdx)
 
-### FinOps and governance
+</td>
+<td width="33%" valign="top">
 
-- [Metering](docs/finops/metering.mdx)
-- [Pricing](docs/finops/pricing.mdx)
-- [Cost attribution](docs/finops/attribution.mdx)
-- [Budgets](docs/finops/budgets.mdx)
-- [Outcomes and ROI](docs/finops/outcomes.mdx)
-- [Ledger](docs/finops/ledger.mdx)
-- [Cost and savings](docs/finops/cost-savings.mdx)
-- [Chargeback](docs/finops/chargeback.mdx)
+### Governance
 - [Evaluations](docs/governance/evaluations.mdx)
-- [Prompts](docs/governance/prompts.mdx)
+- [Prompt registry](docs/governance/prompts.mdx)
 - [Approvals](docs/governance/approvals.mdx)
-- [RBAC](docs/governance/rbac.mdx)
+- [RBAC and multi-tenancy](docs/governance/rbac.mdx)
 - [Alerts](docs/governance/alerts.mdx)
-- [Retention](docs/governance/retention.mdx)
+- [Data retention](docs/governance/retention.mdx)
 - [Policy dry-run](docs/governance/policy-dry-run.mdx)
 - [Governance audit pack](docs/governance/governance-audit-pack.mdx)
 - [Data capture studio](docs/governance/data-capture-studio.mdx)
 
-### Observability and operations
+</td>
+<td width="33%" valign="top">
 
+### Observability
 - [AI Ops dashboards](docs/observability/ai-ops-dashboards.mdx)
 - [Analytics](docs/observability/analytics.mdx)
-- [Runs](docs/observability/runs.mdx)
-- [Sessions](docs/observability/sessions.mdx)
-- [Request flow](docs/observability/request-flow.mdx)
-- [Request explorer](docs/observability/request-explorer.mdx)
+- [Runs](docs/observability/runs.mdx) / [Sessions](docs/observability/sessions.mdx)
+- [Request flow](docs/observability/request-flow.mdx) / [Request explorer](docs/observability/request-explorer.mdx)
 - [Engineering dashboard](docs/observability/engineering.mdx)
-- [Model usage](docs/observability/model-usage.mdx)
+- [Model usage](docs/observability/model-usage.mdx) / [Model scorecards](docs/observability/model-scorecards.mdx)
 - [Optimization simulator](docs/observability/optimization-simulator.mdx)
-- [Runbooks](docs/observability/runbooks.mdx)
-- [Replay lab](docs/observability/replay-lab.mdx)
-- [Model scorecards](docs/observability/model-scorecards.mdx)
-- [Onboarding](docs/observability/onboarding.mdx)
-- [Product tour](docs/observability/product-tour.mdx)
-- [Demo runbook](docs/demo-runbook.md)
-- [Demo script](docs/demo-script.md)
-- [Demo asset bundle](docs/demo-asset-bundle.md)
+- [Runbooks](docs/observability/runbooks.mdx) / [Replay lab](docs/observability/replay-lab.mdx)
+- [Onboarding](docs/observability/onboarding.mdx) / [Product tour](docs/observability/product-tour.mdx)
 
-### Agentic and admin surfaces
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
+### Agentic
 - [Agents](docs/agentic/agents.mdx)
 - [Workflows](docs/agentic/workflows.mdx)
 - [Vector stores](docs/agentic/vector-stores.mdx)
 - [API playground](docs/agentic/playground.mdx)
+
+</td>
+<td width="33%" valign="top">
+
+### Administration
 - [MCP registry](docs/administration/mcp-registry.mdx)
 - [AI Hub model catalog](docs/administration/ai-hub.mdx)
 - [Backup and restore](docs/backup-restore.md)
-- [Email delivery and reporting](docs/administration/email-delivery.md)
-- tag management, search tools, tool policies, access groups, response cache controls, and security settings in the dashboard
+- [Email delivery](docs/administration/email-delivery.md)
+- Tags, search tools, tool policies, access groups, security settings
 
-📘 [Browse the docs index](docs/introduction.mdx)  
-🧭 [Read the product/data contract](docs/product-data-alignment.md)
+</td>
+<td width="33%" valign="top">
+
+### Resources
+- [Full documentation](docs/introduction.mdx)
+- [Product/data contract](docs/product-data-alignment.md)
+- [Demo runbook](docs/demo-runbook.md)
+- [Demo script](docs/demo-script.md)
+- [Demo asset bundle](docs/demo-asset-bundle.md)
+
+</td>
+</tr>
+</table>
 
 ## Architecture
 
-RunLedger has two major personalities:
+RunLedger operates as two complementary layers:
 
-- **Control plane**: metering, budgets, analytics, outcomes, prompts, policies, approvals, auditability
-- **Optional inline data plane**: gateway routing, exact cache, semantic cache, runtime controls, fallback, and optimization stages
+- **Control plane** — metering, budgets, analytics, outcomes, prompts, policies, approvals, and auditability
+- **Inline data plane** (optional) — gateway routing, exact and semantic caching, context compilation, runtime controls, fallback chains, and optimization stages
 
-Everything normalizes into the same model:
+All telemetry normalizes into a single model:
 
-`AgentRun -> Span -> ProviderCall / ToolCall -> Outcome`
+`AgentRun → Span → ProviderCall / ToolCall → Outcome`
 
 ```mermaid
 flowchart TB
@@ -177,8 +208,61 @@ flowchart TB
   observe --> ops
 ```
 
-See [Core concepts](docs/concepts.mdx) for the full model and ingestion trade-offs.
-For a fuller system view, see [docs/architecture.md](docs/architecture.md).
+See [Core concepts](docs/concepts.mdx) for the data model and ingestion trade-offs, or [Architecture](docs/architecture.md) for the full system view.
+
+### Optimization pipeline
+
+Every request through the gateway passes through a staged optimization pipeline. Each stage is independently configurable per workspace, and the flywheel continuously tunes the configuration based on observed traffic.
+
+```mermaid
+flowchart LR
+  req["Incoming request"] --> cache{"Exact cache?"}
+  cache -- hit --> respond["Return cached response"]
+  cache -- miss --> sem{"Semantic cache?"}
+  sem -- hit --> respond
+  sem -- miss --> compress["Context compiler\n+ prompt compression"]
+  compress --> ir["Intelligent router\nselects model + route"]
+  ir --> provider["Provider call\nwith fallback chain"]
+  provider --> guard["Post-call guardrails"]
+  guard --> record["Record to ledger\n+ update flywheel"]
+  record --> respond
+```
+
+### How data flows in
+
+RunLedger accepts telemetry through multiple ingestion paths. All paths normalize into the same data model, so dashboards, budgets, and governance apply uniformly regardless of how the data arrived.
+
+```mermaid
+flowchart LR
+  subgraph ingestion["Ingestion paths"]
+    gw["Gateway\n(inline)"]
+    sdk["Python / TS SDK\n(out-of-band)"]
+    otlp["OTLP / OpenInference\n(passive)"]
+    mcp["MCP tools\n(control plane)"]
+    wh["Webhooks\n(external)"]
+  end
+
+  subgraph normalize["Normalization"]
+    model["AgentRun → Span →\nProviderCall / ToolCall\n→ Outcome"]
+  end
+
+  subgraph surfaces["Surfaces"]
+    dash["Dashboards"]
+    finops["FinOps + Budgets"]
+    gov["Governance"]
+    opt["Optimization"]
+  end
+
+  gw --> model
+  sdk --> model
+  otlp --> model
+  mcp --> model
+  wh --> model
+  model --> dash
+  model --> finops
+  model --> gov
+  model --> opt
+```
 
 ## Quickstart
 
@@ -198,20 +282,18 @@ curl -s -X POST http://localhost:8201/admin/bootstrap \
   -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
 ```
 
-Useful local URLs:
-
 | URL | Purpose |
 |---|---|
 | `http://localhost:3201` | Dashboard |
 | `http://localhost:8201/reference` | Interactive API reference |
 | `http://localhost:8210/gateway` | Rust gateway (OpenAI-compatible) |
 | `http://localhost:4318` | OTLP/HTTP receiver |
-| `http://localhost:8201/mcp` | Canonical RunLedger MCP endpoint |
+| `http://localhost:8201/mcp` | RunLedger MCP endpoint |
 | `http://localhost:8206/mcp` | Optimization MCP gateway |
 
-See [Service ports](/deployment/configuration#ports) for the full map.
+See [Service ports](docs/deployment/configuration.mdx) for the full map.
 
-Python example:
+### Instrument your first application
 
 ```python
 from runledger_sdk import RunLedger
@@ -224,57 +306,111 @@ with rl.context(end_user_id="u_123", feature_tag="support-chat"):
     openai.OpenAI().chat.completions.create(model="gpt-4o-mini", messages=[...])
 ```
 
-Seed a full local demo:
+Alternatively, point any OpenAI-compatible client at the gateway directly:
 
-```bash
-uv run python scripts/full_simulate.py
+```python
+import openai
+
+client = openai.OpenAI(
+    base_url="http://localhost:8210/gateway",
+    api_key="rl_...",
+)
+client.chat.completions.create(model="gpt-4o-mini", messages=[...])
 ```
 
-See [scripts/README.md](scripts/README.md) and [docs/demo-runbook.md](docs/demo-runbook.md) for the full demo flow.
+To populate a full local demo environment, run `uv run python scripts/full_simulate.py`.
+See [scripts/README.md](scripts/README.md) and the [demo runbook](docs/demo-runbook.md) for details.
 
 ## Deployment
 
-RunLedger supports several deployment styles:
+RunLedger supports four integration models, each suited to different operational requirements:
 
 | Model | In request path | Enforcement | Typical use |
 |---|:---:|---|---|
-| Inline gateway | Yes | Full routing, cache, budget, runtime controls | OpenAI-compatible apps and agents |
-| Out-of-band SDK | No | Advisory pre-checks + rich telemetry | App code you can instrument |
-| Passive OTLP | No | Observe-only | Existing telemetry estates |
-| MCP control plane | Sometimes | Budget, policy, run logging, optimization guidance | Desktop agents and external tools |
+| **Inline gateway** | Yes | Full routing, cache, budget, runtime controls | OpenAI-compatible apps and agents |
+| **Out-of-band SDK** | No | Advisory pre-checks + rich telemetry | App code you can instrument |
+| **Passive OTLP** | No | Observe-only | Existing telemetry estates |
+| **MCP control plane** | Sometimes | Budget, policy, run logging, optimization guidance | Desktop agents and external tools |
 
-Deployment docs:
+### Deployment topology
 
-- [Docker Compose](docs/deployment/docker-compose.mdx)
-- [Configuration](docs/deployment/configuration.mdx)
-- [Helm](docs/helm.md)
-- [High availability](docs/ha.md)
-- [Backup and restore](docs/backup-restore.md)
-- [Architecture](docs/architecture.md)
-- [Versioning policy](docs/versioning-policy.md)
-- [Release checklist](docs/release-checklist.md)
-- [Changelog](CHANGELOG.md)
+A typical production deployment separates the control plane from the data plane. The Rust gateway handles latency-sensitive traffic, while the Python API serves dashboards, configuration, and background processing.
 
-## Community vs Enterprise
+```mermaid
+flowchart TB
+  subgraph edge["Client-facing"]
+    caddy["Reverse proxy\n(Caddy / Nginx)"]
+  end
 
-| Feature | Community | Enterprise |
-|---|:---:|:---:|
-| SDKs, OTLP, MCP, webhook ingest | ✅ | ✅ |
-| Gateway, caching, routing, budgets, runtime controls | ✅ | ✅ |
-| Analytics, dashboards, run explorer, request explorer | ✅ | ✅ |
-| Outcomes, ROI, scorecards, replay, runbooks | ✅ | ✅ |
-| Prompt registry, evaluations, approvals, alerts, retention | ✅ | ✅ |
-| Agent registry, workflows, vector stores, playground | ✅ | ✅ |
-| Tags, search tools, tool policies, access groups | ✅ | ✅ |
-| Kafka export and backup operations foundations | ✅ | ✅ |
-| Basic workspace security settings and key ownership controls | ✅ | ✅ |
-| SSO / SCIM / advanced secret managers |  | ✅ |
-| Finance-system export and fuller compliance hardening |  | ✅ |
-| Enterprise support and commercial packaging |  | ✅ |
+  subgraph data["Data plane"]
+    gw["Rust gateway\nport 8210"]
+  end
 
-## Tech Stack
+  subgraph control["Control plane"]
+    api["FastAPI\nport 8201"]
+    web["Next.js dashboard\nport 3201"]
+    worker["Celery workers"]
+    beat["Celery beat"]
+  end
 
-Python 3.13 · FastAPI · PostgreSQL 16 · Redis 7 · Celery · Qdrant · Next.js 14 · Tailwind · Alembic · uv workspaces · Docker Compose · Helm.
+  subgraph storage["Storage"]
+    pg[("PostgreSQL")]
+    redis[("Redis")]
+    qdrant[("Qdrant")]
+  end
+
+  subgraph optimization["Optimization services"]
+    embed["Embedding"]
+    semcache["Semantic cache"]
+    compiler["Context compiler"]
+    router["Intelligent router"]
+    rerank["Reranker"]
+    compress["Compression"]
+    flywheel["Flywheel"]
+  end
+
+  caddy --> gw
+  caddy --> web
+  caddy --> api
+  gw --> api
+  api --> pg
+  api --> redis
+  api --> qdrant
+  worker --> pg
+  worker --> redis
+  api --> optimization
+  gw --> optimization
+```
+
+### Compose profiles
+
+RunLedger uses Docker Compose profiles to scale from a minimal local setup to a full production stack:
+
+| Profile | What it includes | Use case |
+|---|---|---|
+| *(default)* | API, dashboard, gateway, Postgres, Redis, workers | Development and evaluation |
+| `infra` | + Qdrant, MinIO, Redpanda, Letta | Semantic search, backups, streaming export |
+| `aux` | + All optimization and agentic services | Full optimization pipeline |
+| `observability` | + OpenTelemetry Collector | OTLP ingestion from external sources |
+| `full-demo` | Everything above combined | End-to-end demonstrations |
+
+```bash
+# Minimal (core services only)
+docker compose up -d
+
+# With optimization services
+docker compose --profile aux up -d
+
+# Full stack
+docker compose --profile full-demo up -d
+```
+
+| | |
+|---|---|
+| [Docker Compose](docs/deployment/docker-compose.mdx) | [Configuration](docs/deployment/configuration.mdx) |
+| [Helm / Kubernetes](docs/helm.md) | [High availability](docs/ha.md) |
+| [Backup and restore](docs/backup-restore.md) | [Architecture](docs/architecture.md) |
+| [Versioning policy](docs/versioning-policy.md) | [Changelog](CHANGELOG.md) |
 
 ## Contributing
 
