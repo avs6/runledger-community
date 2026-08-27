@@ -167,7 +167,7 @@ services:
         condition: service_healthy
 
   runledger-api:
-    image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -274,6 +274,7 @@ services:
       start_period: 20s
 
   runledger-gateway-rs:
+    image: abijith13/runledger-gateway-rs:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/gateway-rs
       dockerfile: Dockerfile
@@ -309,7 +310,7 @@ services:
   # ── Celery Worker (event pipeline, metering, rollups, optimizer jobs) ──────
 
   runledger-worker:
-    image: abijith13/runledger-worker:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-worker:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -370,7 +371,7 @@ services:
   # ── Celery Beat (periodic tasks: rollups, alerts, health checks) ───────────
 
   runledger-beat:
-    image: abijith13/runledger-beat:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-beat:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -417,7 +418,7 @@ services:
   # ── Dashboard (Next.js) ───────────────────────────────────────────────────
 
   runledger-web:
-    image: abijith13/runledger-web:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-web:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/web
       dockerfile: Dockerfile
@@ -458,7 +459,7 @@ services:
   # ── Optimization services ──────────────────────────────────────────────────
 
   runledger-embedding-svc:
-    image: abijith13/runledger-embedding-svc:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-embedding-svc:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/embedding-svc
     container_name: runledger-embedding-svc
@@ -478,7 +479,7 @@ services:
       start_period: 30s
 
   runledger-semantic-cache-svc:
-    image: abijith13/runledger-semantic-cache-svc:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-semantic-cache-svc:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/semantic-cache-svc
     container_name: runledger-semantic-cache-svc
@@ -504,7 +505,7 @@ services:
       start_period: 15s
 
   runledger-mcp-gateway:
-    image: abijith13/runledger-mcp-gateway:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-mcp-gateway:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/mcp-gateway
     container_name: runledger-mcp-gateway
@@ -562,7 +563,7 @@ services:
         condition: service_healthy
 
   runledger-memory-svc:
-    image: abijith13/runledger-memory-svc:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-memory-svc:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/memory-svc
     container_name: runledger-memory-svc
@@ -581,7 +582,7 @@ services:
       - runledger-letta
 
   runledger-kg-svc:
-    image: abijith13/runledger-kg-svc:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-kg-svc:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/kg-svc
     container_name: runledger-kg-svc
@@ -599,7 +600,7 @@ services:
       start_period: 15s
 
   runledger-skill-registry:
-    image: abijith13/runledger-skill-registry:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-skill-registry:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/skill-registry
     container_name: runledger-skill-registry
@@ -611,7 +612,7 @@ services:
       - skills_data:/data/skills
 
   runledger-reranker:
-    image: abijith13/runledger-reranker:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-reranker:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/reranker-svc
     container_name: runledger-reranker
@@ -631,7 +632,7 @@ services:
       start_period: 30s
 
   runledger-compression:
-    image: abijith13/runledger-compression:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-compression:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/compression-svc
     container_name: runledger-compression
@@ -651,7 +652,7 @@ services:
       start_period: 60s
 
   runledger-router:
-    image: abijith13/runledger-router:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-router:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/router-svc
     container_name: runledger-router
@@ -672,7 +673,7 @@ services:
       start_period: 15s
 
   runledger-context-compiler:
-    image: abijith13/runledger-context-compiler:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-context-compiler:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/context-compiler-svc
     container_name: runledger-context-compiler
@@ -700,7 +701,7 @@ services:
       start_period: 15s
 
   runledger-flywheel:
-    image: abijith13/runledger-flywheel:${RUNLEDGER_TAG:-v1alpha1}
+    image: abijith13/runledger-flywheel:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/flywheel-svc
     container_name: runledger-flywheel

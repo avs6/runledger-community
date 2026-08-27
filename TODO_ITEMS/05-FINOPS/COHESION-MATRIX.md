@@ -1,6 +1,6 @@
 # FinOps — Cohesion Matrix
 
-Last updated: 2026-08-25 (03-OBSERVE WU-014)
+Last updated: 2026-08-27 (04-SAFETY WU-010)
 
 This file tracks how FinOps features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -61,14 +61,14 @@ Current row major feature under audit: `FinOps`
 
 | Row Major Feature | Row Subfeature | MCP servers | Search tools | Tool registry | Tool policies | Policy dry run | Approvals | Data capture | Security | Alert rules | Audit log | Governance pack | Tags | Finding |
 |-------------------|----------------|-------------|--------------|---------------|---------------|----------------|-----------|--------------|----------|-------------|-----------|-----------------|------|---------|
-| FinOps | Budgets | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Governance evidence exists, but budget policy lifecycle is still not tightly integrated with approvals, alerts, and tagging. |
-| FinOps | Budget detail | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Budget detail is operationally real now, but it still is not a fully governed review surface with rich traceability. |
+| FinOps | Budgets | `N/A` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | 04-SAFETY WU-010 adds Cross-Feature Evidence Posture card to Audit Log and Governance Pack via `GET /analytics/evidence-audit-cross-posture` with active budget count and drill-through to Budgets. Audit log P→S, Governance pack P→S. Prior WU-003 Tags P→S. |
+| FinOps | Budget detail | `N/A` | `N/A` | `STRONG` | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | 04-SAFETY WU-010 adds Cross-Feature Evidence Posture card to Audit Log and Governance Pack via `GET /analytics/evidence-audit-cross-posture` with budget context and drill-through. Audit log P→S, Governance pack P→S. Prior WU-003 Tags GAP→S. |
 | FinOps | Budget overrides | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Overrides are the clearest place where approval-driven governance should exist and still are only partially integrated there. |
 | FinOps | Budget notifications | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Notification and evidence paths are stronger than the main budget workflow today. |
 | FinOps | Billing periods | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Billing has useful evidence hooks, but not a deeply governed operator story yet. |
 | FinOps | Billing period detail | `N/A` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Reconciliation detail can support governance, but the user flow still feels finance-only rather than policy-aware. |
-| FinOps | Chargeback | `PARTIAL` | `N/A` | `PARTIAL` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `PARTIAL` | `PARTIAL` | Tagging and evidence are important here, but the overall governance relationship is still moderate rather than strong. |
-| FinOps | Ledger | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `PARTIAL` | `STRONG` | `PARTIAL` | Ledger is primarily a compliance evidence surface, so governance-pack cohesion is one of the strongest relationships in the matrix. |
+| FinOps | Chargeback | `PARTIAL` | `N/A` | `STRONG` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | 04-SAFETY WU-010 adds Cross-Feature Evidence Posture card to Audit Log and Governance Pack via `GET /analytics/evidence-audit-cross-posture` with chargeback rule count and drill-through to Chargeback. Audit log P→S, Governance pack P→S. Prior WU-003 Tags P→S. |
+| FinOps | Ledger | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `N/A` | `PARTIAL` | `N/A` | `STRONG` | `STRONG` | `PARTIAL` | 04-SAFETY WU-010 adds Cross-Feature Evidence Posture card to Audit Log via `GET /analytics/evidence-audit-cross-posture` with ledger snapshot count and drill-through to Ledger. Audit log P→S. Governance pack was already STRONG. |
 
 ### 11.2e FinOps x Build & Improve
 

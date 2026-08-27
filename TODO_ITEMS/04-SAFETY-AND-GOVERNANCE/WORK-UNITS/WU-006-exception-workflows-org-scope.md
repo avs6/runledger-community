@@ -1,10 +1,10 @@
 # WU-006: Exception Workflows Org & Access Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - B (Exception Workflows)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Approvals, Alert rules
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
 
 ## Cohesion Cells to Close
 

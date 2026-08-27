@@ -539,6 +539,10 @@ export default function BudgetDetailClient({
               <Link href="/billing-periods" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
               <Link href="/billing-periods?view=detail" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
               <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
+              <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
+              <Link href="/approvals?status=pending" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
+              <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules</Link>
+              <Link href="/tags" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tags</Link>
               <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
             </div>
           </div>

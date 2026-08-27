@@ -3608,6 +3608,342 @@
           "response": []
         },
         {
+          "name": "Tool Registry FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tool-registry-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tool-registry-finops-posture"
+              ]
+            },
+            "description": "FinOps budget impact posture for the Tool Registry page: budget context (total/tool-scoped budgets, total limit), chargeback context (active rules, tool-dimension rules), and spend context (tool spend, call count, total spend over 30 days)."
+          },
+          "response": []
+        },
+        {
+          "name": "Approvals Alert FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/approvals-alert-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "approvals-alert-finops-posture"
+              ]
+            },
+            "description": "FinOps budget context posture for Approvals and Alert Rules pages: approval context (budget-increase request counts), budget context (active budgets, total limit, overrides, breaches), and alert context (budget-related alert rules and firings)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tags FinOps Budget Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tags-finops-budget-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tags-finops-budget-posture"
+              ]
+            },
+            "description": "FinOps budget attribution posture for the Tags page: tag context (total/active tags, auto-rules, distinct tags with spend), budget context (total active, tag-scoped, total limit), chargeback context (total active rules, tag-dimension rules), and spend context (tagged spend 30d, tagged call count, total spend)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tool Governance Org Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tool-governance-org-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tool-governance-org-posture"
+              ]
+            },
+            "description": "Org & Access identity posture for Tool Registry and Tool Policies pages: org context (name, workspace count), user context (total users), access group context (total groups, tool-policy groups), API key context (total active keys), registry context (total/active entries), policy context (total/active policies, scope breakdown: org/workspace/access-group), MCP context (total/active servers)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tool Governance Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tool-governance-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tool-governance-gateway-posture"
+              ]
+            },
+            "description": "Gateway & Observe runtime posture for Tool Registry and Tool Policies pages: provider context (total providers, gateway routes, rate-limited routes), guardrail context (total rules, events 30d), cache context (active configs), rate limit context (total rate-limited routes), run context (tool calls 30d, agent runs 30d), monitoring context (active alert rules, alert firings 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Exception Workflows Org Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/exception-workflows-org-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "exception-workflows-org-posture"
+              ]
+            },
+            "description": "Org & Access identity posture for Approvals and Alert Rules pages: org context (name, workspace count), user context (total users), access group context (total groups), API key context (total active keys), approval context (total/pending/30d approvals), alert context (total/active alert rules, firings 30d), MCP context (total/active servers)."
+          },
+          "response": []
+        },
+        {
+          "name": "Exception Workflows Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/exception-workflows-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "exception-workflows-gateway-posture"
+              ]
+            },
+            "description": "Gateway & Observe runtime posture for Approvals and Alert Rules pages: provider context (total providers, gateway routes), guardrail context (total rules, events 30d), cache context (active configs), rate limit context (rate-limited routes), run context (tool calls 30d, agent runs 30d), monitoring context (active alert rules, alert firings 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Data Protection Org Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/data-protection-org-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "data-protection-org-posture"
+              ]
+            },
+            "description": "Org & Access identity posture for Data Capture, Security, and Tags pages: org context (name, workspace count), user context (total users), access group context (total groups), API key context (total active keys), capture context (total/active policies), security context (security events 30d), tag context (total/active tags), MCP context (total/active servers)."
+          },
+          "response": []
+        },
+        {
+          "name": "Data Protection Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/data-protection-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "data-protection-gateway-posture"
+              ]
+            },
+            "description": "Gateway & Observe runtime posture for Data Capture, Security, and Tags pages: provider context (providers, routes), guardrail context (rules, events 30d), cache context (configs), rate limit context (rate-limited routes), run context (agent runs 30d, tool calls 30d), monitoring context (alert rules, firings 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Evidence Audit Cross Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/evidence-audit-cross-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "evidence-audit-cross-posture"
+              ]
+            },
+            "description": "Cross-feature evidence posture for Audit Log and Governance Pack pages: finops context (active budgets, billing periods, chargeback rules, ledger snapshots), org context (org name, workspace users, active API keys), gateway context (providers, routes, rate-limited routes), observe context (audit events 30d, runs 30d, alert rules, alert firings 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Governance Internal Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/governance-internal-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "governance-internal-posture"
+              ]
+            },
+            "description": "Internal governance cohesion posture across all Safety & Governance features: tool registry (total, enforced), tool policies (total, active), approvals (pending, total 30d), data capture (capture policies, security events 30d), security (events 30d), alert rules (active, firings 30d), audit (events 30d), tags (total, active)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tool Registry Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tool-registry-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tool-registry-runtime-posture"
+              ]
+            },
+            "description": "Tool registry runtime scope and evidence posture: workspace scope (total workspaces, workspace-scoped tools), API key scope (active keys, keys with tool calls 30d), MCP scope (active servers, MCP tool calls 30d), gateway runtime (model routes, cache configs, rate-limited routes), observe evidence (tool runs 30d, tool requests 30d), budget linkage (tool-scoped budgets, budget notifications 30d)."
+          },
+          "response": []
+        },
+        {
           "name": "Model Budget Utilization",
           "request": {
             "method": "GET",

@@ -106,6 +106,18 @@ from runledger_api.schemas.analytics import (
     SpendOverTime,
     SpendPoint,
     TelemetryOpsPosture,
+    ApprovalsAlertFinopsPosture,
+    DataProtectionGatewayPosture,
+    DataProtectionOrgPosture,
+    EvidenceAuditCrossPosture,
+    GovernanceInternalPosture,
+    ExceptionWorkflowsGatewayPosture,
+    ExceptionWorkflowsOrgPosture,
+    TagsFinopsBudgetPosture,
+    ToolGovernanceGatewayPosture,
+    ToolGovernanceOrgPosture,
+    ToolRegistryFinopsPosture,
+    ToolRegistryRuntimePosture,
     TrendMetric,
     TrendPoint,
     TrendsResponse,
@@ -8255,5 +8267,2041 @@ async def overview_scope_posture(
             "active_tool_policies": active_tool_policies,
             "pending_approvals": pending_approvals,
             "capture_policies": capture_policies,
+        },
+    )
+
+
+@router.get("/tool-registry-finops-posture", response_model=ToolRegistryFinopsPosture)
+async def tool_registry_finops_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ToolRegistryFinopsPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_budgets = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tool_scoped_budgets = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws,
+                    Budget.is_active.is_(True),
+                    Budget.scope_type == "feature_tag",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_budget_limit_usd = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(Budget.limit_usd), 0)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    chargeback_rules = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tool_dimension_rules = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.status == "active",
+                    ChargebackRule.dimension == "feature_tag",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tool_spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                    ProviderCall.tool_call_id.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tool_call_count_30d = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                    ProviderCall.tool_call_id.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ToolRegistryFinopsPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        budget_context={
+            "total_budgets": total_budgets,
+            "tool_scoped_budgets": tool_scoped_budgets,
+            "total_budget_limit_usd": total_budget_limit_usd,
+        },
+        chargeback_context={
+            "chargeback_rules": chargeback_rules,
+            "tool_dimension_rules": tool_dimension_rules,
+        },
+        spend_context={
+            "tool_spend_30d": tool_spend_30d,
+            "tool_call_count_30d": tool_call_count_30d,
+            "total_spend_30d": total_spend_30d,
+        },
+    )
+
+
+@router.get(
+    "/approvals-alert-finops-posture", response_model=ApprovalsAlertFinopsPosture
+)
+async def approvals_alert_finops_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ApprovalsAlertFinopsPosture:
+    ws = workspace.id
+
+    from runledger_api.models.budgets import BudgetBreach
+
+    budget_increase_total = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.request_type == "budget_increase",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_increase_pending = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.request_type == "budget_increase",
+                    Approval.status == "pending",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_increase_approved = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.request_type == "budget_increase",
+                    Approval.status == "approved",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_budgets = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_budget_limit_usd = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(Budget.limit_usd), 0)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_overrides = int(
+        (
+            await db.execute(
+                select(func.count(BudgetOverride.id)).where(
+                    BudgetOverride.workspace_id == ws,
+                    BudgetOverride.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    breach_count_30d = int(
+        (
+            await db.execute(
+                select(func.count(BudgetBreach.id)).where(
+                    BudgetBreach.budget_id.in_(
+                        select(Budget.id).where(Budget.workspace_id == ws)
+                    ),
+                    BudgetBreach.occurred_at >= _default_from(),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    budget_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws,
+                    AlertRule.is_active.is_(True),
+                    AlertRule.metric.in_(
+                        [
+                            "spend_velocity",
+                            "budget_utilization",
+                            "budget_breach_count",
+                        ]
+                    ),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    recent_firings = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.fired_at >= _default_from(),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ApprovalsAlertFinopsPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        approval_context={
+            "budget_increase_total": budget_increase_total,
+            "budget_increase_pending": budget_increase_pending,
+            "budget_increase_approved": budget_increase_approved,
+        },
+        budget_context={
+            "total_budgets": total_budgets,
+            "total_budget_limit_usd": total_budget_limit_usd,
+            "active_overrides": active_overrides,
+            "breach_count_30d": breach_count_30d,
+        },
+        alert_context={
+            "budget_alert_rules": budget_alert_rules,
+            "total_alert_rules": total_alert_rules,
+            "recent_firings_30d": recent_firings,
+        },
+    )
+
+
+@router.get(
+    "/tags-finops-budget-posture", response_model=TagsFinopsBudgetPosture
+)
+async def tags_finops_budget_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TagsFinopsBudgetPosture:
+    ws = workspace.id
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+
+    total_tags = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(Tag.workspace_id == ws)
+            )
+        ).scalar()
+        or 0
+    )
+    active_tags = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(
+                    Tag.workspace_id == ws, Tag.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    from runledger_api.models.tags import AutoTaggingRule
+
+    active_auto_rules = int(
+        (
+            await db.execute(
+                select(func.count(AutoTaggingRule.id)).where(
+                    AutoTaggingRule.workspace_id == ws,
+                    AutoTaggingRule.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_budgets = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tag_scoped_budgets = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws,
+                    Budget.is_active.is_(True),
+                    Budget.scope_type == "feature_tag",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_budget_limit = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(Budget.limit_usd), 0)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_chargeback_rules = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tag_dimension_rules = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.status == "active",
+                    ChargebackRule.dimension == "feature_tag",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tagged_spend_row = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(ProviderCall.cost_usd), 0),
+                func.count(ProviderCall.id),
+            )
+            .join(AgentRun, ProviderCall.run_id == AgentRun.id)
+            .where(
+                AgentRun.workspace_id == ws,
+                AgentRun.feature_tag.isnot(None),
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).one()
+    tagged_spend = float(tagged_spend_row[0])
+    tagged_call_count = int(tagged_spend_row[1])
+
+    total_spend = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0))
+                .join(AgentRun, ProviderCall.run_id == AgentRun.id)
+                .where(
+                    AgentRun.workspace_id == ws,
+                    ProviderCall.created_at >= cutoff,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    distinct_tags_with_spend = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(AgentRun.feature_tag)))
+                .join(ProviderCall, ProviderCall.run_id == AgentRun.id)
+                .where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.feature_tag.isnot(None),
+                    ProviderCall.created_at >= cutoff,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return TagsFinopsBudgetPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        tag_context={
+            "total_tags": total_tags,
+            "active_tags": active_tags,
+            "active_auto_rules": active_auto_rules,
+            "distinct_tags_with_spend": distinct_tags_with_spend,
+        },
+        budget_context={
+            "total_budgets": total_budgets,
+            "tag_scoped_budgets": tag_scoped_budgets,
+            "total_budget_limit_usd": total_budget_limit,
+        },
+        chargeback_context={
+            "total_chargeback_rules": total_chargeback_rules,
+            "tag_dimension_rules": tag_dimension_rules,
+        },
+        spend_context={
+            "tagged_spend_30d": tagged_spend,
+            "tagged_call_count": tagged_call_count,
+            "total_spend_30d": total_spend,
+        },
+    )
+
+
+@router.get(
+    "/tool-governance-org-posture", response_model=ToolGovernanceOrgPosture
+)
+async def tool_governance_org_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ToolGovernanceOrgPosture:
+    ws = workspace.id
+
+    tenant_row = (
+        await db.execute(
+            select(Tenant.name).join(
+                Workspace, Workspace.tenant_id == Tenant.id
+            ).where(Workspace.id == ws)
+        )
+    ).scalar()
+    org_name = str(tenant_row) if tenant_row else ""
+
+    workspace_count = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == (
+                        select(Workspace.tenant_id).where(Workspace.id == ws).scalar_subquery()
+                    )
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_users = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(WorkspaceUser.user_id))).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_access_groups = int(
+        (
+            await db.execute(
+                select(func.count(AccessGroup.id)).where(
+                    AccessGroup.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tool_policy_groups = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(ToolPolicy.scope_id))).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.scope_type == "access_group",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_api_keys = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_registry = int(
+        (
+            await db.execute(
+                select(func.count(ToolRegistry.id)).where(
+                    ToolRegistry.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_registry = int(
+        (
+            await db.execute(
+                select(func.count(ToolRegistry.id)).where(
+                    ToolRegistry.workspace_id == ws,
+                    ToolRegistry.runtime_enforcement.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws, ToolPolicy.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    org_scope_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.scope_type == "organization",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ws_scope_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.scope_type == "workspace",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ag_scope_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.scope_type == "access_group",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_mcp_servers = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_mcp_servers = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws, McpServer.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ToolGovernanceOrgPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        org_context={
+            "org_name": org_name,
+            "workspace_count": workspace_count,
+        },
+        user_context={
+            "total_users": total_users,
+        },
+        access_group_context={
+            "total_groups": total_access_groups,
+            "tool_policy_groups": tool_policy_groups,
+        },
+        api_key_context={
+            "total_keys": total_api_keys,
+        },
+        registry_context={
+            "total_entries": total_registry,
+            "active_entries": active_registry,
+        },
+        policy_context={
+            "total_policies": total_policies,
+            "active_policies": active_policies,
+            "org_scope": org_scope_policies,
+            "workspace_scope": ws_scope_policies,
+            "access_group_scope": ag_scope_policies,
+        },
+        mcp_context={
+            "total_servers": total_mcp_servers,
+            "active_servers": active_mcp_servers,
+        },
+    )
+
+
+@router.get(
+    "/tool-governance-gateway-posture", response_model=ToolGovernanceGatewayPosture
+)
+async def tool_governance_gateway_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ToolGovernanceGatewayPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_providers = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(GatewayRoute.provider))).where(
+                    GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_guardrails = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws, GuardrailRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_events_30d = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    cache_configs = int(
+        (
+            await db.execute(
+                select(func.count(ResponseCacheConfig.id)).where(
+                    ResponseCacheConfig.workspace_id == ws,
+                    ResponseCacheConfig.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    rate_limited_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                    GatewayRoute.rate_limit_rpm.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tool_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                    ProviderCall.tool_call_id.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.fired_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ToolGovernanceGatewayPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        provider_context={
+            "total_providers": total_providers,
+            "total_routes": total_routes,
+        },
+        guardrail_context={
+            "total_guardrails": total_guardrails,
+            "guardrail_events_30d": guardrail_events_30d,
+        },
+        cache_context={
+            "cache_configs": cache_configs,
+        },
+        rate_limit_context={
+            "rate_limited_routes": rate_limited_routes,
+        },
+        run_context={
+            "tool_runs_30d": tool_runs_30d,
+            "total_runs_30d": total_runs_30d,
+        },
+        monitoring_context={
+            "total_alert_rules": total_alert_rules,
+            "alert_firings_30d": alert_firings_30d,
+        },
+    )
+
+
+@router.get(
+    "/exception-workflows-org-posture", response_model=ExceptionWorkflowsOrgPosture
+)
+async def exception_workflows_org_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ExceptionWorkflowsOrgPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    tenant_row = (
+        await db.execute(
+            select(Tenant.name).join(
+                Workspace, Workspace.tenant_id == Tenant.id
+            ).where(Workspace.id == ws)
+        )
+    ).scalar()
+    org_name = str(tenant_row) if tenant_row else ""
+
+    workspace_count = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == (
+                        select(Workspace.tenant_id).where(Workspace.id == ws).scalar_subquery()
+                    )
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_users = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(WorkspaceUser.user_id))).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_access_groups = int(
+        (
+            await db.execute(
+                select(func.count(AccessGroup.id)).where(
+                    AccessGroup.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_api_keys = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_approvals = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    pending_approvals = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.status == "pending",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    approvals_30d = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.fired_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_mcp_servers = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_mcp_servers = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws, McpServer.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ExceptionWorkflowsOrgPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        org_context={
+            "org_name": org_name,
+            "workspace_count": workspace_count,
+        },
+        user_context={
+            "total_users": total_users,
+        },
+        access_group_context={
+            "total_groups": total_access_groups,
+        },
+        api_key_context={
+            "total_keys": total_api_keys,
+        },
+        approval_context={
+            "total_approvals": total_approvals,
+            "pending_approvals": pending_approvals,
+            "approvals_30d": approvals_30d,
+        },
+        alert_context={
+            "total_alert_rules": total_alert_rules,
+            "active_alert_rules": active_alert_rules,
+            "alert_firings_30d": alert_firings_30d,
+        },
+        mcp_context={
+            "total_servers": total_mcp_servers,
+            "active_servers": active_mcp_servers,
+        },
+    )
+
+
+@router.get(
+    "/exception-workflows-gateway-posture",
+    response_model=ExceptionWorkflowsGatewayPosture,
+)
+async def exception_workflows_gateway_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ExceptionWorkflowsGatewayPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_providers = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(GatewayRoute.provider))).where(
+                    GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws, GatewayRoute.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_guardrails = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_events_30d = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    cache_configs = int(
+        (
+            await db.execute(
+                select(func.count(ResponseCacheConfig.id)).where(
+                    ResponseCacheConfig.workspace_id == ws,
+                    ResponseCacheConfig.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    rate_limited_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                    GatewayRoute.rate_limit_rpm.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tool_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                    ProviderCall.tool_call_id.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    ew_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ew_alert_firings_30d = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.fired_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ExceptionWorkflowsGatewayPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        provider_context={
+            "total_providers": total_providers,
+            "total_routes": total_routes,
+        },
+        guardrail_context={
+            "total_guardrails": total_guardrails,
+            "guardrail_events_30d": guardrail_events_30d,
+        },
+        cache_context={
+            "cache_configs": cache_configs,
+        },
+        rate_limit_context={
+            "rate_limited_routes": rate_limited_routes,
+        },
+        run_context={
+            "tool_runs_30d": tool_runs_30d,
+            "total_runs_30d": total_runs_30d,
+        },
+        monitoring_context={
+            "total_alert_rules": ew_alert_rules,
+            "alert_firings_30d": ew_alert_firings_30d,
+        },
+    )
+
+
+@router.get(
+    "/data-protection-org-posture", response_model=DataProtectionOrgPosture
+)
+async def data_protection_org_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> DataProtectionOrgPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    tenant_row = (
+        await db.execute(
+            select(Tenant.name).join(
+                Workspace, Workspace.tenant_id == Tenant.id
+            ).where(Workspace.id == ws)
+        )
+    ).scalar()
+    org_name = str(tenant_row) if tenant_row else ""
+
+    workspace_count = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == (
+                        select(Workspace.tenant_id).where(Workspace.id == ws).scalar_subquery()
+                    )
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_users = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(WorkspaceUser.user_id))).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_access_groups = int(
+        (
+            await db.execute(
+                select(func.count(AccessGroup.id)).where(
+                    AccessGroup.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_api_keys = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_capture_policies = int(
+        (
+            await db.execute(
+                select(func.count(CapturePolicy.id)).where(
+                    CapturePolicy.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_capture_policies = int(
+        (
+            await db.execute(
+                select(func.count(CapturePolicy.id)).where(
+                    CapturePolicy.workspace_id == ws,
+                    CapturePolicy.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_security_events = int(
+        (
+            await db.execute(
+                select(func.count(SecurityEvent.id)).where(
+                    SecurityEvent.workspace_id == ws,
+                    SecurityEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_tags = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(Tag.workspace_id == ws)
+            )
+        ).scalar()
+        or 0
+    )
+    active_tags = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(
+                    Tag.workspace_id == ws, Tag.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_mcp_servers = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_mcp_servers = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws, McpServer.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return DataProtectionOrgPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        org_context={
+            "org_name": org_name,
+            "workspace_count": workspace_count,
+        },
+        user_context={
+            "total_users": total_users,
+        },
+        access_group_context={
+            "total_groups": total_access_groups,
+        },
+        api_key_context={
+            "total_keys": total_api_keys,
+        },
+        capture_context={
+            "total_policies": total_capture_policies,
+            "active_policies": active_capture_policies,
+        },
+        security_context={
+            "security_events_30d": total_security_events,
+        },
+        tag_context={
+            "total_tags": total_tags,
+            "active_tags": active_tags,
+        },
+        mcp_context={
+            "total_servers": total_mcp_servers,
+            "active_servers": active_mcp_servers,
+        },
+    )
+
+
+@router.get(
+    "/data-protection-gateway-posture",
+    response_model=DataProtectionGatewayPosture,
+)
+async def data_protection_gateway_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> DataProtectionGatewayPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_providers = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(GatewayRoute.provider_id))).where(
+                    GatewayRoute.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_guardrails = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_events_30d = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    cache_configs = int(
+        (
+            await db.execute(
+                select(func.count(ResponseCacheConfig.id)).where(
+                    ResponseCacheConfig.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    rate_limited_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.rpm_limit.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tool_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(ToolCall.id)).where(
+                    ToolCall.workspace_id == ws,
+                    ToolCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_alert_rules = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return DataProtectionGatewayPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        provider_context={
+            "total_providers": total_providers,
+            "total_routes": total_routes,
+        },
+        guardrail_context={
+            "total_guardrails": total_guardrails,
+            "guardrail_events_30d": guardrail_events_30d,
+        },
+        cache_context={
+            "cache_configs": cache_configs,
+        },
+        rate_limit_context={
+            "rate_limited_routes": rate_limited_routes,
+        },
+        run_context={
+            "total_runs_30d": total_runs_30d,
+            "tool_runs_30d": tool_runs_30d,
+        },
+        monitoring_context={
+            "total_alert_rules": total_alert_rules,
+            "alert_firings_30d": alert_firings_30d,
+        },
+    )
+
+
+@router.get(
+    "/evidence-audit-cross-posture",
+    response_model=EvidenceAuditCrossPosture,
+)
+async def evidence_audit_cross_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> EvidenceAuditCrossPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    active_budgets = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_chargebacks = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    billing_periods = int(
+        (
+            await db.execute(
+                select(func.count(BillingPeriod.id)).where(
+                    BillingPeriod.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_snapshots = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    org_name = ""
+    if workspace.tenant_id:
+        tenant = (
+            await db.execute(
+                select(Tenant).where(Tenant.id == workspace.tenant_id)
+            )
+        ).scalar_one_or_none()
+        if tenant:
+            org_name = tenant.name or ""
+    workspace_users = int(
+        (
+            await db.execute(
+                select(func.count(WorkspaceUser.id)).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_api_keys = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_providers = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(GatewayRoute.provider_id))).where(
+                    GatewayRoute.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    rate_limited_routes = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.rpm_limit.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    audit_events_30d = int(
+        (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.workspace_id == ws,
+                    AuditEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_alert_rules_ev = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d_ev = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return EvidenceAuditCrossPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        finops_context={
+            "active_budgets": active_budgets,
+            "billing_periods": billing_periods,
+            "chargeback_rules": total_chargebacks,
+            "ledger_snapshots": ledger_snapshots,
+        },
+        org_context={
+            "org_name": org_name,
+            "workspace_users": workspace_users,
+            "active_api_keys": active_api_keys,
+        },
+        gateway_context={
+            "total_providers": total_providers,
+            "total_routes": total_routes,
+            "rate_limited_routes": rate_limited_routes,
+        },
+        observe_context={
+            "audit_events_30d": audit_events_30d,
+            "total_runs_30d": total_runs_30d,
+            "total_alert_rules": total_alert_rules_ev,
+            "alert_firings_30d": alert_firings_30d_ev,
+        },
+    )
+
+
+@router.get(
+    "/governance-internal-posture",
+    response_model=GovernanceInternalPosture,
+)
+async def governance_internal_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> GovernanceInternalPosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_tools = int(
+        (
+            await db.execute(
+                select(func.count(ToolRegistry.id)).where(
+                    ToolRegistry.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    enforced_tools = int(
+        (
+            await db.execute(
+                select(func.count(ToolRegistry.id)).where(
+                    ToolRegistry.workspace_id == ws,
+                    ToolRegistry.runtime_enforcement.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws, ToolPolicy.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    pending_approvals = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws, Approval.status == "pending"
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_approvals_30d = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    capture_policies = int(
+        (
+            await db.execute(
+                select(func.count(CapturePolicy.id)).where(
+                    CapturePolicy.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    security_events_30d = int(
+        (
+            await db.execute(
+                select(func.count(SecurityEvent.id)).where(
+                    SecurityEvent.workspace_id == ws,
+                    SecurityEvent.detected_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    active_alert_rules_gi = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d_gi = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    audit_events_30d_gi = int(
+        (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.workspace_id == ws,
+                    AuditEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_tags = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(
+                    Tag.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_tags = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(
+                    Tag.workspace_id == ws, Tag.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return GovernanceInternalPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        tool_registry_context={
+            "total_tools": total_tools,
+            "enforced_tools": enforced_tools,
+        },
+        tool_policies_context={
+            "total_policies": total_policies,
+            "active_policies": active_policies,
+        },
+        approvals_context={
+            "pending_approvals": pending_approvals,
+            "total_approvals_30d": total_approvals_30d,
+        },
+        data_capture_context={
+            "capture_policies": capture_policies,
+            "security_events_30d": security_events_30d,
+        },
+        security_context={
+            "security_events_30d": security_events_30d,
+        },
+        alert_rules_context={
+            "active_alert_rules": active_alert_rules_gi,
+            "alert_firings_30d": alert_firings_30d_gi,
+        },
+        audit_context={
+            "audit_events_30d": audit_events_30d_gi,
+        },
+        tags_context={
+            "total_tags": total_tags,
+            "active_tags": active_tags,
+        },
+    )
+
+
+@router.get(
+    "/tool-registry-runtime-posture",
+    response_model=ToolRegistryRuntimePosture,
+)
+async def tool_registry_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ToolRegistryRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_workspaces_trp = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    workspace_scoped_tools = int(
+        (
+            await db.execute(
+                select(func.count(ToolRegistry.id)).where(
+                    ToolRegistry.workspace_id == ws,
+                    ToolRegistry.runtime_enforcement.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    active_keys_trp = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    keys_with_tool_calls_30d = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(ProviderCall.api_key_id))).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                    ProviderCall.tool_call_id.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    mcp_servers_total_trp = int(
+        (
+            await db.execute(
+                select(func.count(McpServer.id)).where(
+                    McpServer.workspace_id == ws, McpServer.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    mcp_tool_calls_30d = int(
+        (
+            await db.execute(
+                select(func.count(McpToolCall.id)).where(
+                    McpToolCall.workspace_id == ws,
+                    McpToolCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    model_routes_trp = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    cached_responses_30d = int(
+        (
+            await db.execute(
+                select(func.count(ResponseCacheConfig.id)).where(
+                    ResponseCacheConfig.workspace_id == ws,
+                    ResponseCacheConfig.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    rate_limited_routes_trp = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.rate_limit_rpm.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tool_runs_30d_trp = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                    AgentRun.feature_tag.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    tool_requests_30d = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                    ProviderCall.tool_call_id.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tool_scoped_budgets_trp = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws,
+                    Budget.is_active.is_(True),
+                    Budget.scope_type == "feature_tag",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_notifications_30d = int(
+        (
+            await db.execute(
+                select(func.count(BudgetNotification.id)).where(
+                    BudgetNotification.workspace_id == ws,
+                    BudgetNotification.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ToolRegistryRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        workspace_scope={
+            "total_workspaces": total_workspaces_trp,
+            "workspace_scoped_tools": workspace_scoped_tools,
+        },
+        api_key_scope={
+            "active_keys": active_keys_trp,
+            "keys_with_tool_calls_30d": keys_with_tool_calls_30d,
+        },
+        mcp_scope={
+            "active_mcp_servers": mcp_servers_total_trp,
+            "mcp_tool_calls_30d": mcp_tool_calls_30d,
+        },
+        gateway_runtime={
+            "model_routes": model_routes_trp,
+            "cache_configs_active": cached_responses_30d,
+            "rate_limited_routes": rate_limited_routes_trp,
+        },
+        observe_evidence={
+            "tool_runs_30d": tool_runs_30d_trp,
+            "tool_requests_30d": tool_requests_30d,
+        },
+        budget_linkage={
+            "tool_scoped_budgets": tool_scoped_budgets_trp,
+            "budget_notifications_30d": budget_notifications_30d,
         },
     )

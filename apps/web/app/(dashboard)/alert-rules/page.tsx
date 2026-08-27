@@ -2,8 +2,10 @@
 
 import { useSession } from 'next-auth/react'
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
+import { Building2, Radio, Link2 } from 'lucide-react'
 import {
   listAlertRules,
   createAlertRule,
@@ -11,8 +13,12 @@ import {
   deleteAlertRule,
   listAlertHistory,
   emailAnalyticsReport,
+  getApprovalsAlertFinopsPosture,
+  getExceptionWorkflowsOrgPosture,
+  getExceptionWorkflowsGatewayPosture,
+  getGovernanceInternalPosture,
 } from '@/lib/api'
-import type { AlertRule, AlertFiring } from '@/types/api'
+import type { AlertRule, AlertFiring, ApprovalsAlertFinopsPosture, ExceptionWorkflowsOrgPosture, ExceptionWorkflowsGatewayPosture, GovernanceInternalPosture } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500'
@@ -24,6 +30,10 @@ export default function AlertRulesPage() {
 
   const [alertRules, setAlertRules] = useState<AlertRule[]>([])
   const [alertHistory, setAlertHistory] = useState<AlertFiring[]>([])
+  const [finopsPosture, setFinopsPosture] = useState<ApprovalsAlertFinopsPosture | null>(null)
+  const [orgPosture, setOrgPosture] = useState<ExceptionWorkflowsOrgPosture | null>(null)
+  const [gatewayPosture, setGatewayPosture] = useState<ExceptionWorkflowsGatewayPosture | null>(null)
+  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
   const [newAlertName, setNewAlertName] = useState('')
   const [newAlertMetric, setNewAlertMetric] = useState('error_rate')
   const [newAlertOperator, setNewAlertOperator] = useState('gt')
@@ -44,12 +54,20 @@ export default function AlertRulesPage() {
   const load = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
     try {
-      const [alertsData, historyData] = await Promise.all([
+      const [alertsData, historyData, posture, orgP, gwP, govI] = await Promise.all([
         listAlertRules(apiKey, true),
         listAlertHistory(apiKey, 10),
+        getApprovalsAlertFinopsPosture(apiKey).catch(() => null),
+        getExceptionWorkflowsOrgPosture(apiKey).catch(() => null),
+        getExceptionWorkflowsGatewayPosture(apiKey).catch(() => null),
+        getGovernanceInternalPosture(apiKey).catch(() => null),
       ])
       setAlertRules(alertsData.items)
       setAlertHistory(historyData.items)
+      setFinopsPosture(posture)
+      setOrgPosture(orgP)
+      setGatewayPosture(gwP)
+      setGovInternal(govI)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load alert rules')
@@ -181,6 +199,152 @@ export default function AlertRulesPage() {
         <p className="mt-1 text-sm text-slate-600">Fire Slack notifications when a metric crosses a threshold. Evaluated every 5 minutes.</p>
       </div>
 
+      {finopsPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-emerald-900">FinOps Budget Context</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-emerald-700">{finopsPosture.approval_context.budget_increase_total}</p>
+              <p className="text-xs text-emerald-600">Budget Increase Requests</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-emerald-700">{finopsPosture.budget_context.total_budgets}</p>
+              <p className="text-xs text-emerald-600">Active Budgets</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-emerald-700">{finopsPosture.budget_context.breach_count_30d}</p>
+              <p className="text-xs text-emerald-600">Breaches (30d)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-emerald-700">{finopsPosture.alert_context.budget_alert_rules}</p>
+              <p className="text-xs text-emerald-600">Budget Alert Rules</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs font-medium text-emerald-700">
+            <Link href="/budgets" className="underline hover:text-emerald-900">Budgets</Link>
+            <Link href="/budgets?detail=true" className="underline hover:text-emerald-900">Budget Detail</Link>
+            <Link href="/approvals?status=pending" className="underline hover:text-emerald-900">Approvals</Link>
+            <Link href="/chargeback" className="underline hover:text-emerald-900">Chargeback</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Org & Access Scope */}
+      {orgPosture && (
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Org &amp; Access Scope</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Workspace Users</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.user_context.total_users}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Access Groups</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.access_group_context.total_groups}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Active Alert Rules</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.alert_context.active_alert_rules}</p>
+              <p className="text-xs text-slate-500">{orgPosture.alert_context.alert_firings_30d} firings (30d)</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Active API Keys</p>
+              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.api_key_context.total_keys}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/organization" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Organization</Link>
+            <Link href="/users" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Users</Link>
+            <Link href="/workspaces" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Workspaces</Link>
+            <Link href="/access-groups" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Access Groups</Link>
+            <Link href="/api-keys" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">API Keys</Link>
+            <Link href="/mcp-registry" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">MCP Registry</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Gateway & Observe Runtime */}
+      {gatewayPosture && (
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/40 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Radio className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            <h2 className="text-lg font-semibold text-violet-900 dark:text-violet-100">Gateway &amp; Observe Runtime</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Gateway Routes</p>
+              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.provider_context.total_routes}</p>
+              <p className="text-xs text-slate-500">{gatewayPosture.provider_context.total_providers} providers</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Guardrails</p>
+              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.guardrail_context.total_guardrails}</p>
+              <p className="text-xs text-slate-500">{gatewayPosture.guardrail_context.guardrail_events_30d} events (30d)</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Tool Calls (30d)</p>
+              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.run_context.tool_runs_30d}</p>
+              <p className="text-xs text-slate-500">{gatewayPosture.run_context.total_runs_30d} total runs</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Alert Firings (30d)</p>
+              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.monitoring_context.alert_firings_30d}</p>
+              <p className="text-xs text-slate-500">{gatewayPosture.monitoring_context.total_alert_rules} active rules</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/gateway" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Gateway</Link>
+            <Link href="/guardrails" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Guardrails</Link>
+            <Link href="/runs" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Runs</Link>
+            <Link href="/request-explorer" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Request Explorer</Link>
+            <Link href="/monitoring" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Monitoring</Link>
+          </div>
+        </div>
+      )}
+
+      {govInternal && (
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+            <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">Governance Cohesion</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Registered Tools</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_registry_context.total_tools}</p>
+              <p className="text-xs text-slate-500">{govInternal.tool_registry_context.enforced_tools} enforced</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Policies</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_policies_context.active_policies}</p>
+              <p className="text-xs text-slate-500">{govInternal.tool_policies_context.total_policies} total</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Pending Approvals</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.approvals_context.pending_approvals}</p>
+              <p className="text-xs text-slate-500">{govInternal.approvals_context.total_approvals_30d} total (30d)</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Security Events (30d)</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.security_context.security_events_30d}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/tool-registry" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Registry</Link>
+            <Link href="/tool-policies" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Policies</Link>
+            <Link href="/approvals" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Approvals</Link>
+            <Link href="/data-capture" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Data Capture</Link>
+            <Link href="/security" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Security</Link>
+            <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
+            <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
+            <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleCreateAlert} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <input className={inputCls} placeholder="Rule name (e.g. High error rate)" value={newAlertName} onChange={(e) => setNewAlertName(e.target.value)} required />
         <select className={inputCls} value={newAlertMetric} onChange={(e) => setNewAlertMetric(e.target.value)}>
@@ -190,6 +354,8 @@ export default function AlertRulesPage() {
           <option value="spend_velocity">Spend Velocity ($)</option>
           <option value="model_availability">Model Availability (%)</option>
           <option value="gateway_overhead_p95">Gateway Overhead P95 (ms)</option>
+          <option value="budget_utilization">Budget Utilization (%)</option>
+          <option value="budget_breach_count">Budget Breach Count</option>
         </select>
         <div className="flex gap-2">
           <select className={`${inputCls} w-24`} value={newAlertOperator} onChange={(e) => setNewAlertOperator(e.target.value)}>
@@ -321,6 +487,8 @@ export default function AlertRulesPage() {
                 <option value="spend_velocity">Spend Velocity ($)</option>
                 <option value="model_availability">Model Availability (%)</option>
                 <option value="gateway_overhead_p95">Gateway Overhead P95 (ms)</option>
+                <option value="budget_utilization">Budget Utilization (%)</option>
+                <option value="budget_breach_count">Budget Breach Count</option>
               </select>
               <div className="flex gap-2">
                 <select className={`${inputCls} w-24`} value={editAlertOperator} onChange={(e) => setEditAlertOperator(e.target.value)}>

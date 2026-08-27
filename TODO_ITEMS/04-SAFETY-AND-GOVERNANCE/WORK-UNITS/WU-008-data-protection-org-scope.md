@@ -1,10 +1,12 @@
 # WU-008: Data Protection Org & Access Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - C (Data Protection)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Data capture, Security, Tags
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Note**: Of the 18 listed target cells, 13 were already STRONG from prior WUs. Actual cell changes: Data capture × Org profile P→S, Data capture × MCP registry P→S, Tags × Org profile P→S, Tags × Workspaces P→S, Tags × MCP registry P→S (5 cells). All Security Org cells were already STRONG. WU-008 adds blue Org & Access Scope posture card to Data Capture, Security, and Tags pages via `GET /analytics/data-protection-org-posture`.
 
 ## Cohesion Cells to Close
 

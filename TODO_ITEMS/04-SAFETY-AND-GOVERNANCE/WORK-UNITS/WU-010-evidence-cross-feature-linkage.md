@@ -1,10 +1,12 @@
 # WU-010: Evidence & Audit Cross-Feature Linkage
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - D (Evidence & Audit)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Audit log, Governance pack
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Note**: Of the 35 listed target cells, 25 were already STRONG from prior WUs. Actual cell changes: Audit log × Budgets P→S, × Budget detail P→S, × Chargeback P→S, × Ledger P→S, × Org profile P→S (5 cells). Governance pack × Budgets P→S, × Budget detail P→S, × Chargeback P→S, × Org profile P→S, × Rate limits P→S (5 cells). WU-010 adds amber Cross-Feature Evidence Posture card to Audit Log and Governance Pack pages via `GET /analytics/evidence-audit-cross-posture`.
 
 ## Cohesion Cells to Close
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
@@ -391,6 +392,12 @@ export default function ChargebackPage() {
                   <li>Unallocated buckets are explicit so allocation gaps are visible instead of silently disappearing.</li>
                   <li>Deeper access-group and API-key-native attribution can layer on later without reopening legacy team/project concepts.</li>
                 </ul>
+                <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <Link href="/tool-registry" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Tool Registry</Link>
+                  <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+                  <Link href="/budgets?view=detail" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budget Detail</Link>
+                  <Link href="/ledger" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Ledger</Link>
+                </div>
               </div>
             </div>
           </div>

@@ -1,10 +1,12 @@
 # WU-009: Data Protection Gateway & Observe Integration
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - C (Data Protection)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Data capture, Security, Tags
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Note**: Of the 22 listed target cells, 18 were already STRONG from prior gateway-side and observe-side WUs. Actual cell changes: Data capture × Runs list P→S, Data capture × Run detail P→S, Data capture × Request flow P→S, Data capture × Request explorer P→S (4 cells). All Security Gateway/Observe cells and all Tags Gateway/Observe cells were already STRONG. WU-009 adds violet Gateway & Observe Runtime posture card to Data Capture, Security, and Tags pages via `GET /analytics/data-protection-gateway-posture`.
 
 ## Cohesion Cells to Close
 

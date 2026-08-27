@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download, X } from 'lucide-react'
-import { listAuditEvents, exportAuditEvents, getAuditEvent } from '@/lib/api'
-import type { AuditEvent } from '@/types/api'
+import Link from 'next/link'
+import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download, X, Layers, Link2 } from 'lucide-react'
+import { listAuditEvents, exportAuditEvents, getAuditEvent, getEvidenceAuditCrossPosture, getGovernanceInternalPosture } from '@/lib/api'
+import type { AuditEvent, EvidenceAuditCrossPosture, GovernanceInternalPosture } from '@/types/api'
 import { toast } from 'sonner'
 
 const PAGE_SIZE = 50
@@ -50,6 +51,8 @@ export default function AuditPage() {
   const [targetTypeFilter, setTargetTypeFilter] = useState('')
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [crossPosture, setCrossPosture] = useState<EvidenceAuditCrossPosture | null>(null)
+  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
 
   const fetchEvents = useCallback(async () => {
     if (!apiKey) return
@@ -71,6 +74,12 @@ export default function AuditPage() {
   }, [apiKey, actionFilter, targetTypeFilter, offset])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
+
+  useEffect(() => {
+    if (!apiKey) return
+    getEvidenceAuditCrossPosture(apiKey).then(setCrossPosture).catch(() => {})
+    getGovernanceInternalPosture(apiKey).then(setGovInternal).catch(() => {})
+  }, [apiKey])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1
@@ -137,6 +146,83 @@ export default function AuditPage() {
           </button>
         </div>
       </div>
+
+      {/* Cross-Feature Evidence Posture */}
+      {crossPosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="mb-3 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">Cross-Feature Evidence Posture</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{crossPosture.finops_context.active_budgets}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{crossPosture.org_context.workspace_users}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace Users</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{crossPosture.gateway_context.total_routes}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Gateway Routes</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{crossPosture.observe_context.audit_events_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events 30d</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/budgets" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Budgets →</Link>
+            <Link href="/chargeback" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Chargeback →</Link>
+            <Link href="/ledger" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Ledger →</Link>
+            <Link href="/organization" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Organization →</Link>
+            <Link href="/analytics" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Runs →</Link>
+            <Link href="/monitoring" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Monitoring →</Link>
+            <Link href="/gateway" className="text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Gateway →</Link>
+          </div>
+        </div>
+      )}
+
+      {govInternal && (
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+            <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">Governance Cohesion</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Registered Tools</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_registry_context.total_tools}</p>
+              <p className="text-xs text-slate-500">{govInternal.tool_registry_context.enforced_tools} enforced</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Policies</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_policies_context.active_policies}</p>
+              <p className="text-xs text-slate-500">{govInternal.tool_policies_context.total_policies} total</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Security Events (30d)</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.security_context.security_events_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Tags</p>
+              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tags_context.active_tags}</p>
+              <p className="text-xs text-slate-500">{govInternal.tags_context.total_tags} total</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/tool-registry" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Registry</Link>
+            <Link href="/tool-policies" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Policies</Link>
+            <Link href="/approvals" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Approvals</Link>
+            <Link href="/data-capture" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Data Capture</Link>
+            <Link href="/security" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Security</Link>
+            <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
+            <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
+            <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

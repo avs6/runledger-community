@@ -1,10 +1,10 @@
 # WU-004: Tool Governance Org & Access Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - A (Tool Governance)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Tool registry, Tool policies
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-26
 
 ## Cohesion Cells to Close
 
