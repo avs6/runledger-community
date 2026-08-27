@@ -1,10 +1,12 @@
 # WU-007: Exception Workflows Gateway & Observe Integration
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - B (Exception Workflows)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Approvals, Alert rules
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Note**: Of the 12 listed target cells, 7 were already STRONG from prior observe-side and gateway-side WUs. Actual cell changes: Approvals × Runs list P→S, Approvals × Run detail P→S, Approvals × Request flow P→S, Approvals × Request explorer P→S, Alert rules × Response cache P→S (5 cells). WU-007 adds violet Gateway & Observe Runtime posture card to both Approvals and Alert Rules pages via `GET /analytics/exception-workflows-gateway-posture`.
 
 ## Cohesion Cells to Close
 

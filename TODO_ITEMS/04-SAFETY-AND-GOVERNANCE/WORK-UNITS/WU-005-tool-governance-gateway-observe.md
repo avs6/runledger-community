@@ -1,10 +1,12 @@
 # WU-005: Tool Governance Gateway & Observe Runtime Traceability
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - A (Tool Governance)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Tool registry, Tool policies
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Note**: All 17 target cohesion cells (Tool registry/policies × Gateway & Observe features) were already STRONG from prior observe-side work units. WU-005 adds the violet Gateway & Observe Runtime posture card to both Tool Registry and Tool Policies pages via `GET /analytics/tool-governance-gateway-posture` providing bidirectional traceability from the safety governance side.
 
 ## Cohesion Cells to Close
 

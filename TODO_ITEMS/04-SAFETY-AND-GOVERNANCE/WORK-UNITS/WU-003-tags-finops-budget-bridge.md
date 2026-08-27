@@ -1,10 +1,10 @@
 # WU-003: Tags FinOps Budget Detail Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - C (Data Protection)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/Tags
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-26
 
 ## Cohesion Cells to Close
 

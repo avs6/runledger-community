@@ -5165,3 +5165,51 @@ export async function getGatewayControlPlanePosture(apiKey: string): Promise<imp
 export async function getProviderProfileRuntimePosture(apiKey: string): Promise<import('@/types/api').ProviderProfileRuntimePosture> {
   return apiFetch<import('@/types/api').ProviderProfileRuntimePosture>('/analytics/provider-profile-runtime-posture', apiKey)
 }
+
+export async function getToolRegistryFinopsPosture(apiKey: string): Promise<import('@/types/api').ToolRegistryFinopsPosture> {
+  return apiFetch<import('@/types/api').ToolRegistryFinopsPosture>('/analytics/tool-registry-finops-posture', apiKey)
+}
+
+export async function getApprovalsAlertFinopsPosture(apiKey: string): Promise<import('@/types/api').ApprovalsAlertFinopsPosture> {
+  return apiFetch<import('@/types/api').ApprovalsAlertFinopsPosture>('/analytics/approvals-alert-finops-posture', apiKey)
+}
+
+export async function getTagsFinopsBudgetPosture(apiKey: string): Promise<import('@/types/api').TagsFinopsBudgetPosture> {
+  return apiFetch<import('@/types/api').TagsFinopsBudgetPosture>('/analytics/tags-finops-budget-posture', apiKey)
+}
+
+export async function getToolGovernanceOrgPosture(apiKey: string): Promise<import('@/types/api').ToolGovernanceOrgPosture> {
+  return apiFetch<import('@/types/api').ToolGovernanceOrgPosture>('/analytics/tool-governance-org-posture', apiKey)
+}
+
+export async function getToolGovernanceGatewayPosture(apiKey: string): Promise<import('@/types/api').ToolGovernanceGatewayPosture> {
+  return apiFetch<import('@/types/api').ToolGovernanceGatewayPosture>('/analytics/tool-governance-gateway-posture', apiKey)
+}
+
+export async function getExceptionWorkflowsOrgPosture(apiKey: string): Promise<import('@/types/api').ExceptionWorkflowsOrgPosture> {
+  return apiFetch<import('@/types/api').ExceptionWorkflowsOrgPosture>('/analytics/exception-workflows-org-posture', apiKey)
+}
+
+export async function getExceptionWorkflowsGatewayPosture(apiKey: string): Promise<import('@/types/api').ExceptionWorkflowsGatewayPosture> {
+  return apiFetch<import('@/types/api').ExceptionWorkflowsGatewayPosture>('/analytics/exception-workflows-gateway-posture', apiKey)
+}
+
+export async function getDataProtectionOrgPosture(apiKey: string): Promise<import('@/types/api').DataProtectionOrgPosture> {
+  return apiFetch<import('@/types/api').DataProtectionOrgPosture>('/analytics/data-protection-org-posture', apiKey)
+}
+
+export async function getDataProtectionGatewayPosture(apiKey: string): Promise<import('@/types/api').DataProtectionGatewayPosture> {
+  return apiFetch<import('@/types/api').DataProtectionGatewayPosture>('/analytics/data-protection-gateway-posture', apiKey)
+}
+
+export async function getEvidenceAuditCrossPosture(apiKey: string): Promise<import('@/types/api').EvidenceAuditCrossPosture> {
+  return apiFetch<import('@/types/api').EvidenceAuditCrossPosture>('/analytics/evidence-audit-cross-posture', apiKey)
+}
+
+export async function getGovernanceInternalPosture(apiKey: string): Promise<import('@/types/api').GovernanceInternalPosture> {
+  return apiFetch<import('@/types/api').GovernanceInternalPosture>('/analytics/governance-internal-posture', apiKey)
+}
+
+export async function getToolRegistryRuntimePosture(apiKey: string): Promise<import('@/types/api').ToolRegistryRuntimePosture> {
+  return apiFetch<import('@/types/api').ToolRegistryRuntimePosture>('/analytics/tool-registry-runtime-posture', apiKey)
+}

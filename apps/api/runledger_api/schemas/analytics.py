@@ -405,6 +405,134 @@ class ModelBudgetUtilization(BaseModel):
     chargeback_rules: int
 
 
+class ToolRegistryFinopsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    chargeback_context: dict[str, int | float]
+    spend_context: dict[str, float | int]
+
+
+class ApprovalsAlertFinopsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    approval_context: dict[str, int]
+    budget_context: dict[str, int | float]
+    alert_context: dict[str, int]
+
+
+class TagsFinopsBudgetPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    tag_context: dict[str, int]
+    budget_context: dict[str, int | float]
+    chargeback_context: dict[str, int]
+    spend_context: dict[str, float | int]
+
+
+class ToolGovernanceOrgPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int | str]
+    user_context: dict[str, int]
+    access_group_context: dict[str, int]
+    api_key_context: dict[str, int]
+    registry_context: dict[str, int]
+    policy_context: dict[str, int]
+    mcp_context: dict[str, int]
+
+
+class ToolGovernanceGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    provider_context: dict[str, int]
+    guardrail_context: dict[str, int]
+    cache_context: dict[str, int | float]
+    rate_limit_context: dict[str, int]
+    run_context: dict[str, int]
+    monitoring_context: dict[str, int]
+
+
+class ExceptionWorkflowsOrgPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int | str]
+    user_context: dict[str, int]
+    access_group_context: dict[str, int]
+    api_key_context: dict[str, int]
+    approval_context: dict[str, int]
+    alert_context: dict[str, int]
+    mcp_context: dict[str, int]
+
+
+class ExceptionWorkflowsGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    provider_context: dict[str, int]
+    guardrail_context: dict[str, int]
+    cache_context: dict[str, int | float]
+    rate_limit_context: dict[str, int]
+    run_context: dict[str, int]
+    monitoring_context: dict[str, int]
+
+
+class DataProtectionOrgPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int | str]
+    user_context: dict[str, int]
+    access_group_context: dict[str, int]
+    api_key_context: dict[str, int]
+    capture_context: dict[str, int]
+    security_context: dict[str, int]
+    tag_context: dict[str, int]
+    mcp_context: dict[str, int]
+
+
+class DataProtectionGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    provider_context: dict[str, int]
+    guardrail_context: dict[str, int]
+    cache_context: dict[str, int | float]
+    rate_limit_context: dict[str, int]
+    run_context: dict[str, int]
+    monitoring_context: dict[str, int]
+
+
+class EvidenceAuditCrossPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    finops_context: dict[str, int | float]
+    org_context: dict[str, int | str]
+    gateway_context: dict[str, int]
+    observe_context: dict[str, int]
+
+
+class GovernanceInternalPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    tool_registry_context: dict[str, int]
+    tool_policies_context: dict[str, int]
+    approvals_context: dict[str, int]
+    data_capture_context: dict[str, int]
+    security_context: dict[str, int]
+    alert_rules_context: dict[str, int]
+    audit_context: dict[str, int]
+    tags_context: dict[str, int]
+
+
+class ToolRegistryRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    workspace_scope: dict[str, int]
+    api_key_scope: dict[str, int]
+    mcp_scope: dict[str, int]
+    gateway_runtime: dict[str, int]
+    observe_evidence: dict[str, int]
+    budget_linkage: dict[str, int]
+
+
 # ── Phase 8: Engineering metrics ─────────────────────────────────────────────
 
 

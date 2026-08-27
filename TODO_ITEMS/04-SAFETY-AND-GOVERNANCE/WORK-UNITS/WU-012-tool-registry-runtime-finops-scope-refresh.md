@@ -1,10 +1,12 @@
 # WU-012: Tool Registry Runtime FinOps Scope Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - A (Tool Governance Control Plane)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/tool-registry
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Implementation notes**: Added `GET /analytics/tool-registry-runtime-posture` endpoint returning workspace scope (total workspaces, workspace-scoped enforced tools), API key scope (active keys, keys with tool calls 30d), MCP scope (active servers, MCP tool calls 30d), gateway runtime (model routes, cache configs, rate-limited routes), observe evidence (tool runs, tool requests 30d), and budget linkage (tool-scoped budgets, budget notifications 30d). Cyan-themed Runtime Scope & Evidence posture card added to Tool Registry page with 4 stat tiles and drill-through links to Workspaces, API Keys, MCP Registry, Model Gateway, Response Cache, Rate Limits, Run Detail, Request Flow, Budgets, and Budget Detail. All 10 target cells were already STRONG from prior WUs — this refresh deepens the integration with dedicated runtime-scoped data and explicit drill-through.
 
 ## Cohesion Cells to Close
 

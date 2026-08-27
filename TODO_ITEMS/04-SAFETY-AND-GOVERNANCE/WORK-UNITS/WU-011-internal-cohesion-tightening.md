@@ -1,10 +1,12 @@
 # WU-011: Internal Cohesion Tightening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - A/B/C/D (Cross-bundle)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/all features
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-27
+
+**Implementation notes**: Added `GET /analytics/governance-internal-posture` endpoint returning tool registry, tool policy, approval, data capture, security, alert rule, audit, and tag context. Rose-themed Governance Cohesion posture card added to all 9 Safety & Governance pages with 4 stat tiles and drill-through links to all sibling governance surfaces. 29 listed cells and their symmetric counterparts all upgraded P→S — a total of 51 non-N/A off-diagonal self-cohesion cells closed. Self-referential diagonal cells (e.g., Tool registry × Tool registry) remain PARTIAL as they represent internal feature consistency, not cross-surface linking.
 
 ## Cohesion Cells to Close
 

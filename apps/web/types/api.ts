@@ -852,7 +852,7 @@ export interface AlertRule {
   id: string
   workspace_id: string
   name: string
-  metric: 'error_rate' | 'p95_latency' | 'avg_score' | 'spend_velocity'
+  metric: 'error_rate' | 'p95_latency' | 'avg_score' | 'spend_velocity' | 'model_availability' | 'gateway_overhead_p95' | 'budget_utilization' | 'budget_breach_count'
   operator: 'gt' | 'lt'
   threshold: string
   window_minutes: number
@@ -5111,4 +5111,322 @@ export interface AiHubRuntimePosture {
   gateway: {
     guardrail_count: number
   }
+}
+
+export interface ToolRegistryFinopsPosture {
+  workspace_id: string
+  period_days: number
+  budget_context: {
+    total_budgets: number
+    tool_scoped_budgets: number
+    total_budget_limit_usd: number
+  }
+  chargeback_context: {
+    chargeback_rules: number
+    tool_dimension_rules: number
+  }
+  spend_context: {
+    tool_spend_30d: number
+    tool_call_count_30d: number
+    total_spend_30d: number
+  }
+}
+
+export interface ApprovalsAlertFinopsPosture {
+  workspace_id: string
+  period_days: number
+  approval_context: {
+    budget_increase_total: number
+    budget_increase_pending: number
+    budget_increase_approved: number
+  }
+  budget_context: {
+    total_budgets: number
+    total_budget_limit_usd: number
+    active_overrides: number
+    breach_count_30d: number
+  }
+  alert_context: {
+    budget_alert_rules: number
+    total_alert_rules: number
+    recent_firings_30d: number
+  }
+}
+
+export interface TagsFinopsBudgetPosture {
+  workspace_id: string
+  period_days: number
+  tag_context: {
+    total_tags: number
+    active_tags: number
+    active_auto_rules: number
+    distinct_tags_with_spend: number
+  }
+  budget_context: {
+    total_budgets: number
+    tag_scoped_budgets: number
+    total_budget_limit_usd: number
+  }
+  chargeback_context: {
+    total_chargeback_rules: number
+    tag_dimension_rules: number
+  }
+  spend_context: {
+    tagged_spend_30d: number
+    tagged_call_count: number
+    total_spend_30d: number
+  }
+}
+
+export interface ToolGovernanceOrgPosture {
+  workspace_id: string
+  period_days: number
+  org_context: {
+    org_name: string
+    workspace_count: number
+  }
+  user_context: {
+    total_users: number
+  }
+  access_group_context: {
+    total_groups: number
+    tool_policy_groups: number
+  }
+  api_key_context: {
+    total_keys: number
+  }
+  registry_context: {
+    total_entries: number
+    active_entries: number
+  }
+  policy_context: {
+    total_policies: number
+    active_policies: number
+    org_scope: number
+    workspace_scope: number
+    access_group_scope: number
+  }
+  mcp_context: {
+    total_servers: number
+    active_servers: number
+  }
+}
+
+export interface ToolGovernanceGatewayPosture {
+  workspace_id: string
+  period_days: number
+  provider_context: {
+    total_providers: number
+    total_routes: number
+  }
+  guardrail_context: {
+    total_guardrails: number
+    guardrail_events_30d: number
+  }
+  cache_context: {
+    cache_configs: number
+  }
+  rate_limit_context: {
+    rate_limited_routes: number
+  }
+  run_context: {
+    tool_runs_30d: number
+    total_runs_30d: number
+  }
+  monitoring_context: {
+    total_alert_rules: number
+    alert_firings_30d: number
+  }
+}
+
+export interface ExceptionWorkflowsOrgPosture {
+  workspace_id: string
+  period_days: number
+  org_context: {
+    org_name: string
+    workspace_count: number
+  }
+  user_context: {
+    total_users: number
+  }
+  access_group_context: {
+    total_groups: number
+  }
+  api_key_context: {
+    total_keys: number
+  }
+  approval_context: {
+    total_approvals: number
+    pending_approvals: number
+    approvals_30d: number
+  }
+  alert_context: {
+    total_alert_rules: number
+    active_alert_rules: number
+    alert_firings_30d: number
+  }
+  mcp_context: {
+    total_servers: number
+    active_servers: number
+  }
+}
+
+export interface ExceptionWorkflowsGatewayPosture {
+  workspace_id: string
+  period_days: number
+  provider_context: {
+    total_providers: number
+    total_routes: number
+  }
+  guardrail_context: {
+    total_guardrails: number
+    guardrail_events_30d: number
+  }
+  cache_context: {
+    cache_configs: number
+  }
+  rate_limit_context: {
+    rate_limited_routes: number
+  }
+  run_context: {
+    tool_runs_30d: number
+    total_runs_30d: number
+  }
+  monitoring_context: {
+    total_alert_rules: number
+    alert_firings_30d: number
+  }
+}
+
+export interface DataProtectionOrgPosture {
+  workspace_id: string
+  period_days: number
+  org_context: {
+    org_name: string
+    workspace_count: number
+  }
+  user_context: {
+    total_users: number
+  }
+  access_group_context: {
+    total_groups: number
+  }
+  api_key_context: {
+    total_keys: number
+  }
+  capture_context: {
+    total_policies: number
+    active_policies: number
+  }
+  security_context: {
+    security_events_30d: number
+  }
+  tag_context: {
+    total_tags: number
+    active_tags: number
+  }
+  mcp_context: {
+    total_servers: number
+    active_servers: number
+  }
+}
+
+export interface DataProtectionGatewayPosture {
+  workspace_id: string
+  period_days: number
+  provider_context: {
+    total_providers: number
+    total_routes: number
+  }
+  guardrail_context: {
+    total_guardrails: number
+    guardrail_events_30d: number
+  }
+  cache_context: {
+    cache_configs: number
+  }
+  rate_limit_context: {
+    rate_limited_routes: number
+  }
+  run_context: {
+    total_runs_30d: number
+    tool_runs_30d: number
+  }
+  monitoring_context: {
+    total_alert_rules: number
+    alert_firings_30d: number
+  }
+}
+
+export interface EvidenceAuditCrossPosture {
+  workspace_id: string
+  period_days: number
+  finops_context: {
+    active_budgets: number
+    billing_periods: number
+    chargeback_rules: number
+    ledger_snapshots: number
+  }
+  org_context: {
+    org_name: string
+    workspace_users: number
+    active_api_keys: number
+  }
+  gateway_context: {
+    total_providers: number
+    total_routes: number
+    rate_limited_routes: number
+  }
+  observe_context: {
+    audit_events_30d: number
+    total_runs_30d: number
+    total_alert_rules: number
+    alert_firings_30d: number
+  }
+}
+
+export interface GovernanceInternalPosture {
+  workspace_id: string
+  period_days: number
+  tool_registry_context: {
+    total_tools: number
+    enforced_tools: number
+  }
+  tool_policies_context: {
+    total_policies: number
+    active_policies: number
+  }
+  approvals_context: {
+    pending_approvals: number
+    total_approvals_30d: number
+  }
+  data_capture_context: {
+    capture_policies: number
+    security_events_30d: number
+  }
+  security_context: {
+    security_events_30d: number
+  }
+  alert_rules_context: {
+    active_alert_rules: number
+    alert_firings_30d: number
+  }
+  audit_context: {
+    audit_events_30d: number
+  }
+  tags_context: {
+    total_tags: number
+    active_tags: number
+  }
+}
+
+export interface ToolRegistryRuntimePosture {
+  workspace_id: string
+  period_days: number
+  workspace_scope: { total_workspaces: number; workspace_scoped_tools: number }
+  api_key_scope: { active_keys: number; keys_with_tool_calls_30d: number }
+  mcp_scope: { active_mcp_servers: number; mcp_tool_calls_30d: number }
+  gateway_runtime: { model_routes: number; cache_configs_active: number; rate_limited_routes: number }
+  observe_evidence: { tool_runs_30d: number; tool_requests_30d: number }
+  budget_linkage: { tool_scoped_budgets: number; budget_notifications_30d: number }
 }
