@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download, X, Layers, Link2 } from 'lucide-react'
-import { listAuditEvents, exportAuditEvents, getAuditEvent, getEvidenceAuditCrossPosture, getGovernanceInternalPosture } from '@/lib/api'
-import type { AuditEvent, EvidenceAuditCrossPosture, GovernanceInternalPosture } from '@/types/api'
+import { listAuditEvents, exportAuditEvents, getAuditEvent, getEvidenceAuditCrossPosture, getGovernanceInternalPosture, getAuditLogRuntimePosture } from '@/lib/api'
+import type { AuditEvent, EvidenceAuditCrossPosture, GovernanceInternalPosture, AuditLogRuntimePosture } from '@/types/api'
 import { toast } from 'sonner'
 
 const PAGE_SIZE = 50
@@ -53,6 +53,7 @@ export default function AuditPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [crossPosture, setCrossPosture] = useState<EvidenceAuditCrossPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<AuditLogRuntimePosture | null>(null)
 
   const fetchEvents = useCallback(async () => {
     if (!apiKey) return
@@ -79,6 +80,7 @@ export default function AuditPage() {
     if (!apiKey) return
     getEvidenceAuditCrossPosture(apiKey).then(setCrossPosture).catch(() => {})
     getGovernanceInternalPosture(apiKey).then(setGovInternal).catch(() => {})
+    getAuditLogRuntimePosture(apiKey).then(setRuntimePosture).catch(() => {})
   }, [apiKey])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -220,6 +222,42 @@ export default function AuditPage() {
             <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
             <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
             <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-5 dark:border-cyan-800 dark:bg-cyan-950/30">
+          <div className="mb-3 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-sm font-semibold text-cyan-900 dark:text-cyan-200">Runtime Scope & Evidence</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.evidence_scope.audit_events_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.gateway_lineage.cache_configs}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Configs</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.observe_lineage.runs_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.finops_lineage.ledger_snapshots_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Ledger Snapshots 30d</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/guardrails" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Guardrails →</Link>
+            <Link href="/response-cache" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Response Cache →</Link>
+            <Link href="/rate-limits" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Rate Limits →</Link>
+            <Link href="/analytics" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Runs →</Link>
+            <Link href="/budgets" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Budgets →</Link>
+            <Link href="/ledger" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Ledger →</Link>
+            <Link href="/governance-pack" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Governance Pack →</Link>
           </div>
         </div>
       )}

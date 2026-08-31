@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { Building2, DollarSign, Link2, Pencil, Plus, Radio, Tags, Trash2, Wand2, X } from 'lucide-react'
+import { Building2, DollarSign, Layers, Link2, Pencil, Plus, Radio, Tags, Trash2, Wand2, X } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
   createAutoTagRule,
@@ -21,8 +21,9 @@ import {
   getDataProtectionOrgPosture,
   getDataProtectionGatewayPosture,
   getGovernanceInternalPosture,
+  getTagsRuntimePosture,
 } from '@/lib/api'
-import type { AutoTaggingRuleResponse, AutoTaggingSimulationResponse, TagResponse, TagTreeNode, TagsFinopsBudgetPosture, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture } from '@/types/api'
+import type { AutoTaggingRuleResponse, AutoTaggingSimulationResponse, TagResponse, TagTreeNode, TagsFinopsBudgetPosture, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture, TagsRuntimePosture } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-indigo-400'
@@ -69,6 +70,7 @@ export default function TagsPage() {
   const [orgPosture, setOrgPosture] = useState<DataProtectionOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<DataProtectionGatewayPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<TagsRuntimePosture | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
@@ -144,6 +146,7 @@ export default function TagsPage() {
         getDataProtectionOrgPosture(apiKey).catch(() => null),
         getDataProtectionGatewayPosture(apiKey).catch(() => null),
         getGovernanceInternalPosture(apiKey).catch(() => null),
+        getTagsRuntimePosture(apiKey).catch(() => null),
       ])
       setTags(tagList.items)
       setTree(tagTree.items)
@@ -153,6 +156,7 @@ export default function TagsPage() {
       setOrgPosture(orgP)
       setGatewayPosture(gwP)
       setGovInternal(govI)
+      setRuntimePosture(rtP)
     } catch {
       toast.error('Failed to load tag management')
     } finally {
@@ -478,6 +482,42 @@ export default function TagsPage() {
             <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
             <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
             <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-5 dark:border-cyan-800 dark:bg-cyan-950/30">
+          <div className="mb-3 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-sm font-semibold text-cyan-900 dark:text-cyan-200">Runtime Scope & Evidence</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.governance_attribution.tool_policies}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tool Policies</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.governance_attribution.audit_events_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.observe_attribution.runs_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.finops_attribution.chargeback_rules}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/tool-policies" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Tool Policies →</Link>
+            <Link href="/audit" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Audit Log →</Link>
+            <Link href="/governance-pack" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Governance Pack →</Link>
+            <Link href="/analytics" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Runs →</Link>
+            <Link href="/request-flow" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Request Flow →</Link>
+            <Link href="/chargeback" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Chargeback →</Link>
+            <Link href="/budgets" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Budgets →</Link>
           </div>
         </div>
       )}

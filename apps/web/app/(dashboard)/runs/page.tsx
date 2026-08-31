@@ -244,7 +244,9 @@ async function RunsContent({ searchParams }: PageProps) {
           <div className="md:col-span-4 flex flex-wrap gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-xs font-semibold text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100">
             <Link href="/budgets" className="hover:underline">Budgets</Link>
             <Link href="/budgets?view=detail" className="hover:underline">Budget Detail</Link>
+            <Link href="/budget-overrides" className="hover:underline">Budget Overrides</Link>
             <Link href="/billing" className="hover:underline">Billing Periods</Link>
+            <Link href="/billing?view=detail" className="hover:underline">Billing Period Detail</Link>
             <Link href="/chargeback" className="hover:underline">Chargeback</Link>
             <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
           </div>

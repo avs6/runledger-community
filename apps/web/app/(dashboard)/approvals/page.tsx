@@ -4,11 +4,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { ScrollText, Plus, Trash2, Building2, Radio, Link2 } from 'lucide-react'
+import { ScrollText, Plus, Trash2, Building2, Radio, Link2, Layers } from 'lucide-react'
 import {
   getApprovalSummary,
   getApprovalsAlertFinopsPosture,
   getGovernanceInternalPosture,
+  getApprovalsRuntimePosture,
   getExceptionWorkflowsOrgPosture,
   getExceptionWorkflowsGatewayPosture,
   listApprovals,
@@ -30,6 +31,7 @@ import type {
   ExceptionWorkflowsOrgPosture,
   ExceptionWorkflowsGatewayPosture,
   GovernanceInternalPosture,
+  ApprovalsRuntimePosture,
   AutoApprovalPolicy,
 } from '@/types/api'
 
@@ -77,6 +79,7 @@ export default function ApprovalsPage() {
   const [orgPosture, setOrgPosture] = useState<ExceptionWorkflowsOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<ExceptionWorkflowsGatewayPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<ApprovalsRuntimePosture | null>(null)
   const [total, setTotal] = useState(0)
   const [statusFilter, setStatusFilter] = useState<string>('pending')
   const [loading, setLoading] = useState(true)
@@ -102,13 +105,14 @@ export default function ApprovalsPage() {
     if (!apiKey || !isWorkspaceAdmin) return
     setLoading(true)
     try {
-      const [s, list, posture, orgP, gwP, govInt] = await Promise.all([
+      const [s, list, posture, orgP, gwP, govInt, rtP] = await Promise.all([
         getApprovalSummary(apiKey),
         listApprovals(apiKey, { status: statusFilter || undefined, limit: 100 }),
         getApprovalsAlertFinopsPosture(apiKey).catch(() => null),
         getExceptionWorkflowsOrgPosture(apiKey).catch(() => null),
         getExceptionWorkflowsGatewayPosture(apiKey).catch(() => null),
         getGovernanceInternalPosture(apiKey).catch(() => null),
+        getApprovalsRuntimePosture(apiKey).catch(() => null),
       ])
       setSummary(s)
       setApprovals(list.items)
@@ -117,6 +121,7 @@ export default function ApprovalsPage() {
       setOrgPosture(orgP)
       setGatewayPosture(gwP)
       setGovInternal(govInt)
+      setRuntimePosture(rtP)
     } catch {
       toast.error('Failed to load approvals')
     } finally {
@@ -446,6 +451,46 @@ export default function ApprovalsPage() {
             <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
             <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
             <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/30 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Alert Firings 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.monitoring_context.alert_firings_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.monitoring_context.active_alert_rules} rules active</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Runs 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.observe_evidence.runs_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.observe_evidence.approval_linked_runs_30d} approval-linked</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Guardrail Rules</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_escalation.guardrail_rules}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.gateway_escalation.model_routes} model routes</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Budget Approvals 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.budget_context.budget_increase_approvals_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.budget_context.total_budgets} budgets active</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/workspaces" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Workspaces</Link>
+            <Link href="/api-keys" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">API Keys</Link>
+            <Link href="/model-gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
+            <Link href="/guardrails" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Guardrails</Link>
+            <Link href="/runs" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Runs</Link>
+            <Link href="/alert-rules" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Alert Rules</Link>
+            <Link href="/budgets" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Budgets</Link>
           </div>
         </div>
       )}

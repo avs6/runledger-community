@@ -1,10 +1,10 @@
 # WU-017: Alert Rules Ops FinOps Governance Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - B (Exception and Response Workflows)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/alert-rules
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-31
 
 ## Cohesion Cells to Close
 

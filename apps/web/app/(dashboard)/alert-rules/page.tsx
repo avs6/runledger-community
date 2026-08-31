@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
-import { Building2, Radio, Link2 } from 'lucide-react'
+import { Building2, Radio, Link2, Layers } from 'lucide-react'
 import {
   listAlertRules,
   createAlertRule,
@@ -17,8 +17,9 @@ import {
   getExceptionWorkflowsOrgPosture,
   getExceptionWorkflowsGatewayPosture,
   getGovernanceInternalPosture,
+  getAlertRulesRuntimePosture,
 } from '@/lib/api'
-import type { AlertRule, AlertFiring, ApprovalsAlertFinopsPosture, ExceptionWorkflowsOrgPosture, ExceptionWorkflowsGatewayPosture, GovernanceInternalPosture } from '@/types/api'
+import type { AlertRule, AlertFiring, ApprovalsAlertFinopsPosture, ExceptionWorkflowsOrgPosture, ExceptionWorkflowsGatewayPosture, GovernanceInternalPosture, AlertRulesRuntimePosture } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500'
@@ -34,6 +35,7 @@ export default function AlertRulesPage() {
   const [orgPosture, setOrgPosture] = useState<ExceptionWorkflowsOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<ExceptionWorkflowsGatewayPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<AlertRulesRuntimePosture | null>(null)
   const [newAlertName, setNewAlertName] = useState('')
   const [newAlertMetric, setNewAlertMetric] = useState('error_rate')
   const [newAlertOperator, setNewAlertOperator] = useState('gt')
@@ -54,13 +56,14 @@ export default function AlertRulesPage() {
   const load = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
     try {
-      const [alertsData, historyData, posture, orgP, gwP, govI] = await Promise.all([
+      const [alertsData, historyData, posture, orgP, gwP, govI, rtP] = await Promise.all([
         listAlertRules(apiKey, true),
         listAlertHistory(apiKey, 10),
         getApprovalsAlertFinopsPosture(apiKey).catch(() => null),
         getExceptionWorkflowsOrgPosture(apiKey).catch(() => null),
         getExceptionWorkflowsGatewayPosture(apiKey).catch(() => null),
         getGovernanceInternalPosture(apiKey).catch(() => null),
+        getAlertRulesRuntimePosture(apiKey).catch(() => null),
       ])
       setAlertRules(alertsData.items)
       setAlertHistory(historyData.items)
@@ -68,6 +71,7 @@ export default function AlertRulesPage() {
       setOrgPosture(orgP)
       setGatewayPosture(gwP)
       setGovInternal(govI)
+      setRuntimePosture(rtP)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load alert rules')
@@ -341,6 +345,46 @@ export default function AlertRulesPage() {
             <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
             <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
             <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/40 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Alert Firings 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.ops_context.alert_firings_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.ops_context.active_alert_rules} active rules</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Rate-Limited Routes</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_runtime.rate_limited_routes}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.gateway_runtime.model_routes} total routes</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Chargeback Rules</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.finops_context.chargeback_rules}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.finops_context.active_budgets} active budgets</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Runs 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.observe_evidence.runs_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.observe_evidence.provider_calls_30d} provider calls</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
+            <Link href="/guardrails" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Guardrails</Link>
+            <Link href="/rate-limits" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Rate Limits</Link>
+            <Link href="/runs" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Runs</Link>
+            <Link href="/monitoring" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Monitoring</Link>
+            <Link href="/chargeback" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Chargeback</Link>
+            <Link href="/budgets" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Budgets</Link>
           </div>
         </div>
       )}

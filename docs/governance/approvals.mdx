@@ -69,6 +69,14 @@ Manage policies from the Approvals page or via the API:
 - `POST /approvals/auto-policies` — create a policy
 - `DELETE /approvals/auto-policies/:id` — delete a policy
 
+## Runtime scope and evidence
+
+The Approvals page includes a Runtime Scope & Evidence posture card (cyan theme) showing how approval workflows connect to requester context, gateway escalation, observability, monitoring, and budgets:
+
+- **Runtime Posture**: `GET /analytics/approvals-runtime-posture` returns requester context (workspace users, active API keys, total workspaces), gateway escalation (model routes, guardrail rules), observe evidence (runs 30d, approval-linked runs), monitoring context (active alert rules, alert firings 30d), and budget context (total budgets, budget increase approvals 30d).
+- **Drill-Through Links**: Workspaces, API Keys, Model Gateway, Guardrails, Runs, Alert Rules, and Budgets.
+- **Stat Tiles**: Alert Firings (30d), Runs (30d), Guardrail Rules, and Budget Approvals (30d).
+
 ## Related
 
 <CardGroup cols={2}>

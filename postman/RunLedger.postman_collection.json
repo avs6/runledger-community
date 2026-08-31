@@ -3244,6 +3244,34 @@
           "response": []
         },
         {
+          "name": "Investigation FinOps Budget Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/investigation-finops-budget-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "investigation-finops-budget-posture"
+              ]
+            },
+            "description": "Investigation FinOps budget posture: budget context (count, active, limit, breaches, overrides), billing context (periods, open, chargeback rules), and spend context (30-day spend, runs)."
+          },
+          "response": []
+        },
+        {
           "name": "Investigation Gateway Runtime Posture",
           "request": {
             "method": "GET",
@@ -3940,6 +3968,230 @@
               ]
             },
             "description": "Tool registry runtime scope and evidence posture: workspace scope (total workspaces, workspace-scoped tools), API key scope (active keys, keys with tool calls 30d), MCP scope (active servers, MCP tool calls 30d), gateway runtime (model routes, cache configs, rate-limited routes), observe evidence (tool runs 30d, tool requests 30d), budget linkage (tool-scoped budgets, budget notifications 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tool Policies Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tool-policies-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tool-policies-runtime-posture"
+              ]
+            },
+            "description": "Tool policies runtime scope and evidence posture: scope context (total workspaces, workspace-scoped policies, access-group-scoped policies, active API keys), gateway enforcement (model routes, guardrail rules, guardrail events 30d), observe evidence (policy violations, request flows, monitoring alerts 30d), budget context (total budgets, budget notifications 30d), ledger context (ledger snapshots, ledger entries 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Approvals Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/approvals-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "approvals-runtime-posture"
+              ]
+            },
+            "description": "Approvals runtime scope and evidence posture: requester context (workspace users, active API keys, total workspaces), gateway escalation (model routes, guardrail rules), observe evidence (runs 30d, approval-linked runs), monitoring context (active alert rules, alert firings 30d), budget context (total budgets, budget increase approvals 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Data Capture Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/data-capture-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "data-capture-runtime-posture"
+              ]
+            },
+            "description": "Data capture runtime scope and evidence posture: capture scope (total workspaces, capture policies, active API keys, security events 30d), gateway evidence (provider calls 30d, model routes, cache configs), observe evidence (runs 30d, audit events 30d), budget context (total budgets, budget notifications 30d), ledger context (ledger snapshots, ledger entries 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Security Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/security-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "security-runtime-posture"
+              ]
+            },
+            "description": "Security runtime scope and evidence posture: identity context (workspace users, total workspaces, active API keys, security events 30d), gateway posture (model routes, guardrail rules, guardrail events 30d), observe evidence (runs 30d, provider calls 30d), monitoring context (active alert rules, alert firings 30d), finops context (chargeback rules, ledger snapshots, ledger entries 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Alert Rules Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/alert-rules-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "alert-rules-runtime-posture"
+              ]
+            },
+            "description": "Alert rules runtime scope and evidence posture: ops context (active alert rules, alert firings 30d, total workspaces), gateway runtime (model routes, guardrail rules, rate-limited routes), observe evidence (runs 30d, provider calls 30d), finops context (chargeback rules, active budgets, budget notifications 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Audit Log Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/audit-log-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "audit-log-runtime-posture"
+              ]
+            },
+            "description": "Audit log evidence lineage posture: evidence scope (audit events 30d, workspace users, active API keys), gateway lineage (guardrail rules, cache configs, rate-limited routes), observe lineage (runs 30d, provider calls 30d), finops lineage (active budgets, ledger snapshots 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Governance Pack Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/governance-pack-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "governance-pack-runtime-posture"
+              ]
+            },
+            "description": "Governance pack compliance closure posture: scope context (total workspaces, workspace users, active budgets), governance sources (guardrail rules, audit events 30d, active tags), monitoring evidence (alert firings 30d, guardrail events 30d), finops evidence (budget notifications 30d, ledger snapshots 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Tags Runtime Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/tags-runtime-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "tags-runtime-posture"
+              ]
+            },
+            "description": "Tags taxonomy attribution posture: taxonomy scope (active tags, total tags, workspace users), governance attribution (tool policies, audit events 30d, guardrail rules), observe attribution (runs 30d, provider calls 30d), finops attribution (active budgets, chargeback rules)."
           },
           "response": []
         },

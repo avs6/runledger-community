@@ -31,6 +31,12 @@ flowchart TB
 Every run is trace-linked to its metering, so the DAG doubles as a cost breakdown — the basis for
 [cost attribution](/finops/attribution) and [unit economics](/finops/attribution#unit-economics).
 
+## FinOps budget investigation
+
+The Runs page includes an inline FinOps Budget Posture card showing active budgets, breach count, total budget limit, 30-day spend, open billing periods, and chargeback rules. Cross-links drill through to Budgets, Budget Detail, Budget Overrides, Billing Periods, Billing Period Detail, and Chargeback.
+
+Use `GET /analytics/investigation-finops-budget-posture` to retrieve the same posture data programmatically.
+
 ## Related
 
 <CardGroup cols={2}>

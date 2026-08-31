@@ -18,6 +18,7 @@ import {
   Building2,
   Radio,
   Link2,
+  Layers,
 } from 'lucide-react'
 import {
   createToolPolicy,
@@ -26,6 +27,7 @@ import {
   getSearchTools,
   getToolGovernanceGatewayPosture,
   getGovernanceInternalPosture,
+  getToolPoliciesRuntimePosture,
   getToolGovernanceOrgPosture,
   getToolPolicies,
   getToolPolicyAnalytics,
@@ -40,6 +42,7 @@ import type {
   SearchToolResponse,
   ToolGovernanceGatewayPosture,
   ToolGovernanceOrgPosture,
+  ToolPoliciesRuntimePosture,
   ToolPolicyResponse,
   ToolPolicySimulationResponse,
   ToolUsageAnalyticsResponse,
@@ -83,6 +86,7 @@ export default function ToolPoliciesPage() {
   const [orgPosture, setOrgPosture] = useState<ToolGovernanceOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<ToolGovernanceGatewayPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<ToolPoliciesRuntimePosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [showForm, setShowForm] = useState(false)
@@ -101,7 +105,7 @@ export default function ToolPoliciesPage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [polRes, anaRes, agRes, toolsRes, searchRes, orgP, gwP, govInt] = await Promise.all([
+      const [polRes, anaRes, agRes, toolsRes, searchRes, orgP, gwP, govInt, rtP] = await Promise.all([
         getToolPolicies(apiKey, { tool_name: filterTool ?? undefined, include_inactive: true }).catch(() => ({ items: [], total: 0 })),
         getToolPolicyAnalytics(apiKey, 250).catch(() => null),
         getAccessGroups(apiKey).catch(() => ({ items: [], total: 0 })),
@@ -110,6 +114,7 @@ export default function ToolPoliciesPage() {
         getToolGovernanceOrgPosture(apiKey).catch(() => null),
         getToolGovernanceGatewayPosture(apiKey).catch(() => null),
         getGovernanceInternalPosture(apiKey).catch(() => null),
+        getToolPoliciesRuntimePosture(apiKey).catch(() => null),
       ])
       setPolicies(polRes.items || [])
       setAnalytics(anaRes)
@@ -119,6 +124,7 @@ export default function ToolPoliciesPage() {
       setOrgPosture(orgP)
       setGatewayPosture(gwP)
       setGovInternal(govInt)
+      setRuntimePosture(rtP)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load tool governance data')
@@ -417,6 +423,47 @@ export default function ToolPoliciesPage() {
             <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
             <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
             <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/30 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Guardrail Events 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_enforcement.guardrail_events_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.gateway_enforcement.guardrail_rules} rules active</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Policy Violations 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.observe_evidence.policy_violations_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.observe_evidence.request_flows_30d} request flows</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Total Budgets</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.budget_context.total_budgets}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.budget_context.budget_notifications_30d} notifications 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Ledger Snapshots</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.ledger_context.ledger_snapshots}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.ledger_context.ledger_entries_30d} entries 30d</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/workspaces" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Workspaces</Link>
+            <Link href="/api-keys" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">API Keys</Link>
+            <Link href="/model-gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
+            <Link href="/guardrails" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Guardrails</Link>
+            <Link href="/request-flow" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Request Flow</Link>
+            <Link href="/alert-rules" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Alert Rules</Link>
+            <Link href="/budgets" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Budgets</Link>
+            <Link href="/ledger" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Ledger</Link>
           </div>
         </div>
       )}

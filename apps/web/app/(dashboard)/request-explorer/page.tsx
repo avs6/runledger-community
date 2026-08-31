@@ -585,7 +585,10 @@ function RequestDetail({
             </div>
             <div className="flex flex-wrap gap-2 text-xs font-semibold text-emerald-700">
               <Link href="/budgets" className="hover:underline">Budgets</Link>
+              <Link href="/budgets?view=detail" className="hover:underline">Budget Detail</Link>
+              <Link href="/budget-overrides" className="hover:underline">Budget Overrides</Link>
               <Link href="/billing" className="hover:underline">Billing Periods</Link>
+              <Link href="/billing?view=detail" className="hover:underline">Billing Period Detail</Link>
               <Link href="/chargeback" className="hover:underline">Chargeback</Link>
               <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
             </div>

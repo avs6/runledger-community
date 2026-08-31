@@ -29,6 +29,14 @@ The data capture policy studio lets org admins decide how much request and respo
 3. Use the PII sandbox on representative payloads before switching that scope to `SAMPLED` or `FULL`.
 4. Remove the scoped override once the investigation window closes.
 
+## Runtime scope and evidence
+
+The Data Capture page includes a Runtime Scope & Evidence posture card (cyan theme) showing how capture policies connect to gateway evidence, observability, budgets, and ledger context:
+
+- **Runtime Posture**: `GET /analytics/data-capture-runtime-posture` returns capture scope (total workspaces, capture policies, active API keys, security events 30d), gateway evidence (provider calls 30d, model routes, cache configs), observe evidence (runs 30d, audit events 30d), budget context (total budgets, budget notifications), and ledger context (ledger snapshots, ledger entries 30d).
+- **Drill-Through Links**: Workspaces, API Keys, Model Gateway, Response Cache, Request Flow, Audit Log, Budgets, and Ledger.
+- **Stat Tiles**: Provider Calls (30d), Runs (30d), Total Budgets, and Ledger Snapshots.
+
 ## Related
 
 <CardGroup cols={2}>
