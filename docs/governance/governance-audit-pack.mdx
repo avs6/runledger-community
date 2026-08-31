@@ -38,6 +38,32 @@ From identity detail pages (Users, Access Groups, API Keys), use the **Governanc
 
 The audit log is the event stream. The governance audit pack is the reporting bundle built on top of that evidence story. They should be treated as one compliance evidence area rather than two disconnected governance features.
 
+## Audit log runtime scope and evidence
+
+`GET /analytics/audit-log-runtime-posture` returns a workspace-scoped snapshot of the evidence lineage surrounding the audit log:
+
+| Section | Fields |
+|---------|--------|
+| **evidence_scope** | audit_events_30d, workspace_users, active_api_keys |
+| **gateway_lineage** | guardrail_rules, cache_configs, rate_limited_routes |
+| **observe_lineage** | runs_30d, provider_calls_30d |
+| **finops_lineage** | active_budgets, ledger_snapshots_30d |
+
+The Audit Log page renders this as a **Runtime Scope & Evidence** card (cyan theme) with drill-through links to Guardrails, Response Cache, Rate Limits, Runs, Budgets, Ledger, and Governance Pack.
+
+## Governance pack runtime scope and evidence
+
+`GET /analytics/governance-pack-runtime-posture` returns a workspace-scoped snapshot of the compliance packaging context:
+
+| Section | Fields |
+|---------|--------|
+| **scope_context** | total_workspaces, workspace_users, active_budgets |
+| **governance_sources** | guardrail_rules, audit_events_30d, active_tags |
+| **monitoring_evidence** | alert_firings_30d, guardrail_events_30d |
+| **finops_evidence** | budget_notifications_30d, ledger_snapshots_30d |
+
+The Governance Pack page renders this as a **Runtime Scope & Evidence** card (cyan theme) with drill-through links to Guardrails, Audit Log, Tags, Monitoring, Budgets, Ledger, and Organization.
+
 ## Related
 
 <CardGroup cols={2}>

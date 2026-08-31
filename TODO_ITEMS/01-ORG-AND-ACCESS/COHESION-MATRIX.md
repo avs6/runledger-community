@@ -1,6 +1,6 @@
 # Organization & Access — Cohesion Matrix
 
-Last updated: 2026-08-27 (04-SAFETY WU-010)
+Last updated: 2026-08-31 (04-SAFETY WU-020)
 
 This file tracks how Organization & Access features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 

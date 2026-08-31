@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { CheckCircle2, Database, Eye, Info, Link2, Loader2, Pencil, Plus, Radio, Search, Shield, Trash2, X, Building2 } from 'lucide-react'
+import { CheckCircle2, Database, Eye, Info, Layers, Link2, Loader2, Pencil, Plus, Radio, Search, Shield, Trash2, X, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
 import {
@@ -17,8 +17,9 @@ import {
   getDataProtectionOrgPosture,
   getDataProtectionGatewayPosture,
   getGovernanceInternalPosture,
+  getDataCaptureRuntimePosture,
 } from '@/lib/api'
-import type { CapturePolicyResponse, CapturePolicyScope, GovernanceInternalPosture, PiiTestResult, RetentionPreview, DataProtectionOrgPosture, DataProtectionGatewayPosture } from '@/types/api'
+import type { CapturePolicyResponse, CapturePolicyScope, GovernanceInternalPosture, DataCaptureRuntimePosture, PiiTestResult, RetentionPreview, DataProtectionOrgPosture, DataProtectionGatewayPosture } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-indigo-400'
@@ -84,6 +85,7 @@ export default function DataCapturePage() {
   const [orgPosture, setOrgPosture] = useState<DataProtectionOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<DataProtectionGatewayPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<DataCaptureRuntimePosture | null>(null)
 
   const resetScopeForm = useCallback(() => {
     setEditingScopeKey(null)
@@ -127,6 +129,7 @@ export default function DataCapturePage() {
       getDataProtectionOrgPosture(apiKey).then(setOrgPosture).catch(() => null)
       getDataProtectionGatewayPosture(apiKey).then(setGatewayPosture).catch(() => null)
       getGovernanceInternalPosture(apiKey).then(setGovInternal).catch(() => null)
+      getDataCaptureRuntimePosture(apiKey).then(setRuntimePosture).catch(() => null)
     }
   }, [loadPolicy])
 
@@ -358,6 +361,47 @@ export default function DataCapturePage() {
             <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
             <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
             <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/30 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Provider Calls 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_evidence.provider_calls_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.gateway_evidence.model_routes} model routes</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Runs 30d</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.observe_evidence.runs_30d}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.observe_evidence.audit_events_30d} audit events</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Total Budgets</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.budget_context.total_budgets}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.budget_context.budget_notifications_30d} notifications 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
+              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Ledger Snapshots</p>
+              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.ledger_context.ledger_snapshots}</p>
+              <p className="text-xs text-slate-500">{runtimePosture.ledger_context.ledger_entries_30d} entries 30d</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <Link href="/workspaces" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Workspaces</Link>
+            <Link href="/api-keys" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">API Keys</Link>
+            <Link href="/model-gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
+            <Link href="/response-cache" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Response Cache</Link>
+            <Link href="/request-flow" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Request Flow</Link>
+            <Link href="/audit" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Audit Log</Link>
+            <Link href="/budgets" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Budgets</Link>
+            <Link href="/ledger" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Ledger</Link>
           </div>
         </div>
       )}

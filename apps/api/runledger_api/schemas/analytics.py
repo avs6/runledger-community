@@ -533,6 +533,82 @@ class ToolRegistryRuntimePosture(BaseModel):
     budget_linkage: dict[str, int]
 
 
+class ToolPoliciesRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    scope_context: dict[str, int]
+    gateway_enforcement: dict[str, int]
+    observe_evidence: dict[str, int]
+    budget_context: dict[str, int]
+    ledger_context: dict[str, int]
+
+
+class ApprovalsRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    requester_context: dict[str, int]
+    gateway_escalation: dict[str, int]
+    observe_evidence: dict[str, int]
+    monitoring_context: dict[str, int]
+    budget_context: dict[str, int]
+
+
+class DataCaptureRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    capture_scope: dict[str, int]
+    gateway_evidence: dict[str, int]
+    observe_evidence: dict[str, int]
+    budget_context: dict[str, int]
+    ledger_context: dict[str, int]
+
+
+class SecurityRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    identity_context: dict[str, int]
+    gateway_posture: dict[str, int]
+    observe_evidence: dict[str, int]
+    monitoring_context: dict[str, int]
+    finops_context: dict[str, int]
+
+
+class AlertRulesRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    ops_context: dict[str, int]
+    gateway_runtime: dict[str, int]
+    observe_evidence: dict[str, int]
+    finops_context: dict[str, int]
+
+
+class AuditLogRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    evidence_scope: dict[str, int]
+    gateway_lineage: dict[str, int]
+    observe_lineage: dict[str, int]
+    finops_lineage: dict[str, int]
+
+
+class GovernancePackRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    scope_context: dict[str, int]
+    governance_sources: dict[str, int]
+    monitoring_evidence: dict[str, int]
+    finops_evidence: dict[str, int]
+
+
+class TagsRuntimePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    taxonomy_scope: dict[str, int]
+    governance_attribution: dict[str, int]
+    observe_attribution: dict[str, int]
+    finops_attribution: dict[str, int]
+
+
 # ── Phase 8: Engineering metrics ─────────────────────────────────────────────
 
 

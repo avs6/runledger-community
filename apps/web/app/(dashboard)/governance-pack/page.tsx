@@ -18,8 +18,8 @@ import {
   Layers,
   Link2,
 } from 'lucide-react'
-import { getGovernanceAuditPack, exportGovernanceAuditPack, getEvidenceAuditCrossPosture, getGovernanceInternalPosture } from '@/lib/api'
-import type { GovernanceAuditPack, EvidenceAuditCrossPosture, GovernanceInternalPosture } from '@/types/api'
+import { getGovernanceAuditPack, exportGovernanceAuditPack, getEvidenceAuditCrossPosture, getGovernanceInternalPosture, getGovernancePackRuntimePosture } from '@/lib/api'
+import type { GovernanceAuditPack, EvidenceAuditCrossPosture, GovernanceInternalPosture, GovernancePackRuntimePosture } from '@/types/api'
 
 const STATUS_BADGE: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -52,11 +52,13 @@ export default function GovernancePackPage() {
   const [exporting, setExporting] = useState(false)
   const [crossPosture, setCrossPosture] = useState<EvidenceAuditCrossPosture | null>(null)
   const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
+  const [runtimePosture, setRuntimePosture] = useState<GovernancePackRuntimePosture | null>(null)
 
   useEffect(() => {
     if (!apiKey) return
     getEvidenceAuditCrossPosture(apiKey).then(setCrossPosture).catch(() => {})
     getGovernanceInternalPosture(apiKey).then(setGovInternal).catch(() => {})
+    getGovernancePackRuntimePosture(apiKey).then(setRuntimePosture).catch(() => {})
   }, [apiKey])
 
   async function handleGenerate() {
@@ -220,6 +222,42 @@ export default function GovernancePackPage() {
             <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
             <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
             <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimePosture && (
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-5 dark:border-cyan-800 dark:bg-cyan-950/30">
+          <div className="mb-3 flex items-center gap-2">
+            <Layers className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-sm font-semibold text-cyan-900 dark:text-cyan-200">Runtime Scope & Evidence</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.governance_sources.audit_events_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.governance_sources.active_tags}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Tags</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.monitoring_evidence.alert_firings_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Alert Firings 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.finops_evidence.ledger_snapshots_30d}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Ledger Snapshots 30d</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/guardrails" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Guardrails →</Link>
+            <Link href="/audit" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Audit Log →</Link>
+            <Link href="/tags" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Tags →</Link>
+            <Link href="/monitoring" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Monitoring →</Link>
+            <Link href="/budgets" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Budgets →</Link>
+            <Link href="/ledger" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Ledger →</Link>
+            <Link href="/organization" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Organization →</Link>
           </div>
         </div>
       )}

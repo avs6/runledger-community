@@ -116,8 +116,16 @@ from runledger_api.schemas.analytics import (
     TagsFinopsBudgetPosture,
     ToolGovernanceGatewayPosture,
     ToolGovernanceOrgPosture,
+    ToolPoliciesRuntimePosture,
     ToolRegistryFinopsPosture,
     ToolRegistryRuntimePosture,
+    ApprovalsRuntimePosture,
+    DataCaptureRuntimePosture,
+    SecurityRuntimePosture,
+    AlertRulesRuntimePosture,
+    AuditLogRuntimePosture,
+    GovernancePackRuntimePosture,
+    TagsRuntimePosture,
     TrendMetric,
     TrendPoint,
     TrendsResponse,
@@ -7134,7 +7142,7 @@ async def overview_gateway_posture(
                 select(func.count(GuardrailEvent.id)).where(
                     GuardrailEvent.workspace_id == ws,
                     GuardrailEvent.created_at >= t30,
-                    GuardrailEvent.action == "block",
+                    GuardrailEvent.decision == "block",
                 )
             )
         ).scalar()
@@ -10303,5 +10311,1338 @@ async def tool_registry_runtime_posture(
         budget_linkage={
             "tool_scoped_budgets": tool_scoped_budgets_trp,
             "budget_notifications_30d": budget_notifications_30d,
+        },
+    )
+
+
+@router.get(
+    "/tool-policies-runtime-posture",
+    response_model=ToolPoliciesRuntimePosture,
+)
+async def tool_policies_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ToolPoliciesRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_workspaces_tpr = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    workspace_scoped_policies = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.scope_type == "workspace",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    access_group_scoped = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                    ToolPolicy.scope_type == "access_group",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_api_keys_tpr = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    model_routes_tpr = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_rules_tpr = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_events_30d_tpr = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    policy_violations_30d = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                    GuardrailEvent.decision == "block",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    request_flows_30d_tpr = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    monitoring_alerts_30d_tpr = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_budgets_tpr = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_notifications_30d_tpr = int(
+        (
+            await db.execute(
+                select(func.count(BudgetNotification.id)).where(
+                    BudgetNotification.workspace_id == ws,
+                    BudgetNotification.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    ledger_snapshots_tpr = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_entries_30d = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws,
+                    LedgerSnapshot.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ToolPoliciesRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        scope_context={
+            "total_workspaces": total_workspaces_tpr,
+            "workspace_scoped_policies": workspace_scoped_policies,
+            "access_group_scoped_policies": access_group_scoped,
+            "active_api_keys": active_api_keys_tpr,
+        },
+        gateway_enforcement={
+            "model_routes": model_routes_tpr,
+            "guardrail_rules": guardrail_rules_tpr,
+            "guardrail_events_30d": guardrail_events_30d_tpr,
+        },
+        observe_evidence={
+            "policy_violations_30d": policy_violations_30d,
+            "request_flows_30d": request_flows_30d_tpr,
+            "monitoring_alerts_30d": monitoring_alerts_30d_tpr,
+        },
+        budget_context={
+            "total_budgets": total_budgets_tpr,
+            "budget_notifications_30d": budget_notifications_30d_tpr,
+        },
+        ledger_context={
+            "ledger_snapshots": ledger_snapshots_tpr,
+            "ledger_entries_30d": ledger_entries_30d,
+        },
+    )
+
+
+@router.get(
+    "/approvals-runtime-posture",
+    response_model=ApprovalsRuntimePosture,
+)
+async def approvals_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ApprovalsRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    workspace_users_arp = int(
+        (
+            await db.execute(
+                select(func.count(WorkspaceUser.id)).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_api_keys_arp = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_workspaces_arp = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    model_routes_arp = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_rules_arp = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    runs_30d_arp = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    approval_linked_runs_30d = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                    AgentRun.feature_tag.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    active_alert_rules_arp = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d_arp = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_budgets_arp = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_increase_approvals_30d = int(
+        (
+            await db.execute(
+                select(func.count(Approval.id)).where(
+                    Approval.workspace_id == ws,
+                    Approval.request_type == "budget_increase",
+                    Approval.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return ApprovalsRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        requester_context={
+            "workspace_users": workspace_users_arp,
+            "active_api_keys": active_api_keys_arp,
+            "total_workspaces": total_workspaces_arp,
+        },
+        gateway_escalation={
+            "model_routes": model_routes_arp,
+            "guardrail_rules": guardrail_rules_arp,
+        },
+        observe_evidence={
+            "runs_30d": runs_30d_arp,
+            "approval_linked_runs_30d": approval_linked_runs_30d,
+        },
+        monitoring_context={
+            "active_alert_rules": active_alert_rules_arp,
+            "alert_firings_30d": alert_firings_30d_arp,
+        },
+        budget_context={
+            "total_budgets": total_budgets_arp,
+            "budget_increase_approvals_30d": budget_increase_approvals_30d,
+        },
+    )
+
+
+@router.get(
+    "/data-capture-runtime-posture",
+    response_model=DataCaptureRuntimePosture,
+)
+async def data_capture_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> DataCaptureRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_workspaces_dcp = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    capture_policies_dcp = int(
+        (
+            await db.execute(
+                select(func.count(CapturePolicy.id)).where(
+                    CapturePolicy.workspace_id == ws,
+                    CapturePolicy.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_api_keys_dcp = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    security_events_30d_dcp = int(
+        (
+            await db.execute(
+                select(func.count(SecurityEvent.id)).where(
+                    SecurityEvent.workspace_id == ws,
+                    SecurityEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    provider_calls_30d_dcp = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    model_routes_dcp = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    cache_configs_dcp = int(
+        (
+            await db.execute(
+                select(func.count(ResponseCacheConfig.id)).where(
+                    ResponseCacheConfig.workspace_id == ws,
+                    ResponseCacheConfig.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    runs_30d_dcp = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    audit_events_30d_dcp = int(
+        (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.workspace_id == ws,
+                    AuditEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    total_budgets_dcp = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_notifications_30d_dcp = int(
+        (
+            await db.execute(
+                select(func.count(BudgetNotification.id)).where(
+                    BudgetNotification.workspace_id == ws,
+                    BudgetNotification.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    ledger_snapshots_dcp = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_entries_30d_dcp = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws,
+                    LedgerSnapshot.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return DataCaptureRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        capture_scope={
+            "total_workspaces": total_workspaces_dcp,
+            "capture_policies": capture_policies_dcp,
+            "active_api_keys": active_api_keys_dcp,
+            "security_events_30d": security_events_30d_dcp,
+        },
+        gateway_evidence={
+            "provider_calls_30d": provider_calls_30d_dcp,
+            "model_routes": model_routes_dcp,
+            "cache_configs_active": cache_configs_dcp,
+        },
+        observe_evidence={
+            "runs_30d": runs_30d_dcp,
+            "audit_events_30d": audit_events_30d_dcp,
+        },
+        budget_context={
+            "total_budgets": total_budgets_dcp,
+            "budget_notifications_30d": budget_notifications_30d_dcp,
+        },
+        ledger_context={
+            "ledger_snapshots": ledger_snapshots_dcp,
+            "ledger_entries_30d": ledger_entries_30d_dcp,
+        },
+    )
+
+
+@router.get(
+    "/security-runtime-posture",
+    response_model=SecurityRuntimePosture,
+)
+async def security_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SecurityRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    workspace_users_srp = int(
+        (
+            await db.execute(
+                select(func.count(WorkspaceUser.id)).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_workspaces_srp = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_api_keys_srp = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    security_events_30d_srp = int(
+        (
+            await db.execute(
+                select(func.count(SecurityEvent.id)).where(
+                    SecurityEvent.workspace_id == ws,
+                    SecurityEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    model_routes_srp = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_rules_srp = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_events_30d_srp = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    runs_30d_srp = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    provider_calls_30d_srp = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    active_alert_rules_srp = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d_srp = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    chargeback_rules_srp = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_snapshots_srp = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_entries_30d_srp = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws,
+                    LedgerSnapshot.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return SecurityRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        identity_context={
+            "workspace_users": workspace_users_srp,
+            "total_workspaces": total_workspaces_srp,
+            "active_api_keys": active_api_keys_srp,
+            "security_events_30d": security_events_30d_srp,
+        },
+        gateway_posture={
+            "model_routes": model_routes_srp,
+            "guardrail_rules": guardrail_rules_srp,
+            "guardrail_events_30d": guardrail_events_30d_srp,
+        },
+        observe_evidence={
+            "runs_30d": runs_30d_srp,
+            "provider_calls_30d": provider_calls_30d_srp,
+        },
+        monitoring_context={
+            "active_alert_rules": active_alert_rules_srp,
+            "alert_firings_30d": alert_firings_30d_srp,
+        },
+        finops_context={
+            "chargeback_rules": chargeback_rules_srp,
+            "ledger_snapshots": ledger_snapshots_srp,
+            "ledger_entries_30d": ledger_entries_30d_srp,
+        },
+    )
+
+
+@router.get(
+    "/alert-rules-runtime-posture",
+    response_model=AlertRulesRuntimePosture,
+)
+async def alert_rules_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AlertRulesRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    active_alert_rules_arr = int(
+        (
+            await db.execute(
+                select(func.count(AlertRule.id)).where(
+                    AlertRule.workspace_id == ws, AlertRule.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    alert_firings_30d_arr = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_workspaces_arr = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    model_routes_arr = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_rules_arr = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    rate_limited_routes_arr = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                    GatewayRoute.per_user_rpm_limit.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    runs_30d_arr = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    provider_calls_30d_arr = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    chargeback_rules_arr = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_budgets_arr = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    budget_notifications_30d_arr = int(
+        (
+            await db.execute(
+                select(func.count(BudgetNotification.id)).where(
+                    BudgetNotification.workspace_id == ws,
+                    BudgetNotification.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return AlertRulesRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        ops_context={
+            "active_alert_rules": active_alert_rules_arr,
+            "alert_firings_30d": alert_firings_30d_arr,
+            "total_workspaces": total_workspaces_arr,
+        },
+        gateway_runtime={
+            "model_routes": model_routes_arr,
+            "guardrail_rules": guardrail_rules_arr,
+            "rate_limited_routes": rate_limited_routes_arr,
+        },
+        observe_evidence={
+            "runs_30d": runs_30d_arr,
+            "provider_calls_30d": provider_calls_30d_arr,
+        },
+        finops_context={
+            "chargeback_rules": chargeback_rules_arr,
+            "active_budgets": active_budgets_arr,
+            "budget_notifications_30d": budget_notifications_30d_arr,
+        },
+    )
+
+
+@router.get(
+    "/audit-log-runtime-posture",
+    response_model=AuditLogRuntimePosture,
+)
+async def audit_log_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> AuditLogRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    audit_events_30d_alr = int(
+        (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.workspace_id == ws,
+                    AuditEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    workspace_users_alr = int(
+        (
+            await db.execute(
+                select(func.count(WorkspaceUser.id)).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    api_keys_alr = int(
+        (
+            await db.execute(
+                select(func.count(ApiKey.id)).where(
+                    ApiKey.workspace_id == ws, ApiKey.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    guardrail_rules_alr = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    cache_configs_alr = int(
+        (
+            await db.execute(
+                select(func.count(ResponseCacheConfig.id)).where(
+                    ResponseCacheConfig.workspace_id == ws,
+                    ResponseCacheConfig.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    rate_limited_routes_alr = int(
+        (
+            await db.execute(
+                select(func.count(GatewayRoute.id)).where(
+                    GatewayRoute.workspace_id == ws,
+                    GatewayRoute.is_active.is_(True),
+                    GatewayRoute.per_user_rpm_limit.isnot(None),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    runs_30d_alr = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    provider_calls_30d_alr = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    active_budgets_alr = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_snapshots_30d_alr = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws,
+                    LedgerSnapshot.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return AuditLogRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        evidence_scope={
+            "audit_events_30d": audit_events_30d_alr,
+            "workspace_users": workspace_users_alr,
+            "active_api_keys": api_keys_alr,
+        },
+        gateway_lineage={
+            "guardrail_rules": guardrail_rules_alr,
+            "cache_configs": cache_configs_alr,
+            "rate_limited_routes": rate_limited_routes_alr,
+        },
+        observe_lineage={
+            "runs_30d": runs_30d_alr,
+            "provider_calls_30d": provider_calls_30d_alr,
+        },
+        finops_lineage={
+            "active_budgets": active_budgets_alr,
+            "ledger_snapshots_30d": ledger_snapshots_30d_alr,
+        },
+    )
+
+
+@router.get(
+    "/governance-pack-runtime-posture",
+    response_model=GovernancePackRuntimePosture,
+)
+async def governance_pack_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> GovernancePackRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    total_workspaces_gpr = int(
+        (
+            await db.execute(
+                select(func.count(Workspace.id)).where(
+                    Workspace.tenant_id == workspace.tenant_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    workspace_users_gpr = int(
+        (
+            await db.execute(
+                select(func.count(WorkspaceUser.id)).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_budgets_gpr = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    guardrail_rules_gpr = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    audit_events_30d_gpr = int(
+        (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.workspace_id == ws,
+                    AuditEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    active_tags_gpr = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(
+                    Tag.workspace_id == ws, Tag.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    alert_firings_30d_gpr = int(
+        (
+            await db.execute(
+                select(func.count(AlertFiring.id)).where(
+                    AlertFiring.workspace_id == ws,
+                    AlertFiring.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_events_30d_gpr = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailEvent.id)).where(
+                    GuardrailEvent.workspace_id == ws,
+                    GuardrailEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    budget_notifications_30d_gpr = int(
+        (
+            await db.execute(
+                select(func.count(BudgetNotification.id)).where(
+                    BudgetNotification.workspace_id == ws,
+                    BudgetNotification.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    ledger_snapshots_30d_gpr = int(
+        (
+            await db.execute(
+                select(func.count(LedgerSnapshot.id)).where(
+                    LedgerSnapshot.workspace_id == ws,
+                    LedgerSnapshot.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return GovernancePackRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        scope_context={
+            "total_workspaces": total_workspaces_gpr,
+            "workspace_users": workspace_users_gpr,
+            "active_budgets": active_budgets_gpr,
+        },
+        governance_sources={
+            "guardrail_rules": guardrail_rules_gpr,
+            "audit_events_30d": audit_events_30d_gpr,
+            "active_tags": active_tags_gpr,
+        },
+        monitoring_evidence={
+            "alert_firings_30d": alert_firings_30d_gpr,
+            "guardrail_events_30d": guardrail_events_30d_gpr,
+        },
+        finops_evidence={
+            "budget_notifications_30d": budget_notifications_30d_gpr,
+            "ledger_snapshots_30d": ledger_snapshots_30d_gpr,
+        },
+    )
+
+
+@router.get(
+    "/tags-runtime-posture",
+    response_model=TagsRuntimePosture,
+)
+async def tags_runtime_posture(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> TagsRuntimePosture:
+    ws = workspace.id
+    from_dt = _default_from()
+
+    active_tags_trp = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(
+                    Tag.workspace_id == ws, Tag.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    total_tags_trp = int(
+        (
+            await db.execute(
+                select(func.count(Tag.id)).where(Tag.workspace_id == ws)
+            )
+        ).scalar()
+        or 0
+    )
+    workspace_users_trp = int(
+        (
+            await db.execute(
+                select(func.count(WorkspaceUser.id)).where(
+                    WorkspaceUser.workspace_id == ws
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    tool_policies_trp = int(
+        (
+            await db.execute(
+                select(func.count(ToolPolicy.id)).where(
+                    ToolPolicy.workspace_id == ws,
+                    ToolPolicy.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    audit_events_30d_trp = int(
+        (
+            await db.execute(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.workspace_id == ws,
+                    AuditEvent.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    guardrail_rules_trp = int(
+        (
+            await db.execute(
+                select(func.count(GuardrailRule.id)).where(
+                    GuardrailRule.workspace_id == ws,
+                    GuardrailRule.status == "active",
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    runs_30d_trp = int(
+        (
+            await db.execute(
+                select(func.count(AgentRun.id)).where(
+                    AgentRun.workspace_id == ws,
+                    AgentRun.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    provider_calls_30d_trp = int(
+        (
+            await db.execute(
+                select(func.count(ProviderCall.id)).where(
+                    ProviderCall.workspace_id == ws,
+                    ProviderCall.created_at >= from_dt,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    active_budgets_trp = int(
+        (
+            await db.execute(
+                select(func.count(Budget.id)).where(
+                    Budget.workspace_id == ws, Budget.is_active.is_(True)
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    chargeback_rules_trp = int(
+        (
+            await db.execute(
+                select(func.count(ChargebackRule.id)).where(
+                    ChargebackRule.workspace_id == ws,
+                    ChargebackRule.is_active.is_(True),
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    return TagsRuntimePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        taxonomy_scope={
+            "active_tags": active_tags_trp,
+            "total_tags": total_tags_trp,
+            "workspace_users": workspace_users_trp,
+        },
+        governance_attribution={
+            "tool_policies": tool_policies_trp,
+            "audit_events_30d": audit_events_30d_trp,
+            "guardrail_rules": guardrail_rules_trp,
+        },
+        observe_attribution={
+            "runs_30d": runs_30d_trp,
+            "provider_calls_30d": provider_calls_30d_trp,
+        },
+        finops_attribution={
+            "active_budgets": active_budgets_trp,
+            "chargeback_rules": chargeback_rules_trp,
         },
     )

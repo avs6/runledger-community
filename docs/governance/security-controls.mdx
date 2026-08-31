@@ -18,6 +18,14 @@ The Security console is the governance home for enterprise auth posture and requ
 3. Add IP ACL rules for sensitive traffic paths.
 4. Run the simulator before saving broader deny rules.
 
+## Runtime scope and evidence
+
+The Security page includes a Runtime Scope & Evidence posture card (cyan theme) showing how security posture connects to identity, gateway controls, monitoring, and FinOps accountability:
+
+- **Runtime Posture**: `GET /analytics/security-runtime-posture` returns identity context (workspace users, total workspaces, active API keys, security events 30d), gateway posture (model routes, guardrail rules, guardrail events 30d), observe evidence (runs 30d, provider calls 30d), monitoring context (active alert rules, alert firings 30d), and FinOps context (chargeback rules, ledger snapshots, ledger entries 30d).
+- **Drill-Through Links**: Organization, Workspaces, API Keys, Model Gateway, Guardrails, Alert Rules, Chargeback, and Ledger.
+- **Stat Tiles**: Security Events (30d), Guardrail Events (30d), Alert Firings (30d), and Chargeback Rules.
+
 ## Notes
 
 - The current product direction avoids expanding legacy team-based controls. IP ACL management should stay workspace, API-key, or global scoped.

@@ -147,6 +147,14 @@ The Tool Registry page includes a Runtime Scope & Evidence posture card (cyan th
 - **Drill-Through Links**: Workspaces, API Keys, MCP Registry, Model Gateway, Response Cache, Rate Limits, Run Detail, Request Flow, Budgets, and Budget Detail.
 - **Stat Tiles**: API Keys with Tool Calls, Model Routes, Tool Requests (30d), and Budget Notifications (30d).
 
+### Tool policies runtime scope
+
+The Tool Policies page includes its own Runtime Scope & Evidence posture card (cyan theme) showing how policies enforce through gateway, observability, budgets, and ledger context:
+
+- **Runtime Posture**: `GET /analytics/tool-policies-runtime-posture` returns scope context (total workspaces, workspace-scoped policies, access-group-scoped policies, active API keys), gateway enforcement (model routes, guardrail rules, guardrail events 30d), observe evidence (policy violations, request flows, monitoring alerts), budget context (total budgets, budget notifications), and ledger context (ledger snapshots, ledger entries 30d).
+- **Drill-Through Links**: Workspaces, API Keys, Model Gateway, Guardrails, Request Flow, Alert Rules, Budgets, and Ledger.
+- **Stat Tiles**: Guardrail Events (30d), Policy Violations (30d), Total Budgets, and Ledger Snapshots.
+
 ## Related
 
 <CardGroup cols={2}>

@@ -32,6 +32,19 @@ The gateway-specific metrics are useful for production acceptance checks:
 
 Configure rules on **Control Plane -> Alert Rules** and notification channels on **Organization Console -> Destinations**.
 
+## Runtime scope and evidence
+
+`GET /analytics/alert-rules-runtime-posture` returns a workspace-scoped snapshot of the cross-suite context surrounding alert rules:
+
+| Section | Fields |
+|---------|--------|
+| **ops_context** | active_alert_rules, alert_firings_30d, total_workspaces |
+| **gateway_runtime** | model_routes, guardrail_rules, rate_limited_routes |
+| **observe_evidence** | runs_30d, provider_calls_30d |
+| **finops_context** | chargeback_rules, active_budgets, budget_notifications_30d |
+
+The Alert Rules page renders this as a **Runtime Scope & Evidence** card (cyan theme) with drill-through links to Model Gateway, Guardrails, Rate Limits, Runs, Monitoring, Chargeback, and Budgets.
+
 ## Related
 
 <CardGroup cols={2}>

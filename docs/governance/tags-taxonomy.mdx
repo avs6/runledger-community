@@ -16,6 +16,19 @@ The Tags page is the taxonomy surface for workflow-centered metadata. It is wher
 
 Tags should support workflow analytics, governance, routing, and FinOps dimensions without introducing a parallel "project" or "team model" concept. Keep the taxonomy aligned to workflow, tenant, route, channel, product area, and similar operational dimensions.
 
+## Runtime scope and evidence
+
+`GET /analytics/tags-runtime-posture` returns a workspace-scoped snapshot of the cross-suite attribution context surrounding tags:
+
+| Section | Fields |
+|---------|--------|
+| **taxonomy_scope** | active_tags, total_tags, workspace_users |
+| **governance_attribution** | tool_policies, audit_events_30d, guardrail_rules |
+| **observe_attribution** | runs_30d, provider_calls_30d |
+| **finops_attribution** | active_budgets, chargeback_rules |
+
+The Tags page renders this as a **Runtime Scope & Evidence** card (cyan theme) with drill-through links to Tool Policies, Audit Log, Governance Pack, Runs, Request Flow, Chargeback, and Budgets.
+
 ## Typical flow
 
 1. Define the tag vocabulary first.

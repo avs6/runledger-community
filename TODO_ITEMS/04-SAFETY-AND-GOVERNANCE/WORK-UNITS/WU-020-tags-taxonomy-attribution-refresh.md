@@ -1,10 +1,10 @@
 # WU-020: Tags Taxonomy Attribution Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - C (Data Protection, Security, and Taxonomy)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/tags
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-31
 
 ## Cohesion Cells to Close
 

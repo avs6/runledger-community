@@ -5213,3 +5213,31 @@ export async function getGovernanceInternalPosture(apiKey: string): Promise<impo
 export async function getToolRegistryRuntimePosture(apiKey: string): Promise<import('@/types/api').ToolRegistryRuntimePosture> {
   return apiFetch<import('@/types/api').ToolRegistryRuntimePosture>('/analytics/tool-registry-runtime-posture', apiKey)
 }
+
+export async function getToolPoliciesRuntimePosture(apiKey: string): Promise<import('@/types/api').ToolPoliciesRuntimePosture> {
+  return apiFetch<import('@/types/api').ToolPoliciesRuntimePosture>('/analytics/tool-policies-runtime-posture', apiKey)
+}
+
+export async function getApprovalsRuntimePosture(apiKey: string): Promise<import('@/types/api').ApprovalsRuntimePosture> {
+  return apiFetch<import('@/types/api').ApprovalsRuntimePosture>('/analytics/approvals-runtime-posture', apiKey)
+}
+
+export async function getDataCaptureRuntimePosture(apiKey: string): Promise<import('@/types/api').DataCaptureRuntimePosture> {
+  return apiFetch<import('@/types/api').DataCaptureRuntimePosture>('/analytics/data-capture-runtime-posture', apiKey)
+}
+
+export async function getSecurityRuntimePosture(apiKey: string): Promise<import('@/types/api').SecurityRuntimePosture> {
+  return apiFetch<import('@/types/api').SecurityRuntimePosture>('/analytics/security-runtime-posture', apiKey)
+}
+export async function getAlertRulesRuntimePosture(apiKey: string): Promise<import('@/types/api').AlertRulesRuntimePosture> {
+  return apiFetch<import('@/types/api').AlertRulesRuntimePosture>('/analytics/alert-rules-runtime-posture', apiKey)
+}
+export async function getAuditLogRuntimePosture(apiKey: string): Promise<import('@/types/api').AuditLogRuntimePosture> {
+  return apiFetch<import('@/types/api').AuditLogRuntimePosture>('/analytics/audit-log-runtime-posture', apiKey)
+}
+export async function getGovernancePackRuntimePosture(apiKey: string): Promise<import('@/types/api').GovernancePackRuntimePosture> {
+  return apiFetch<import('@/types/api').GovernancePackRuntimePosture>('/analytics/governance-pack-runtime-posture', apiKey)
+}
+export async function getTagsRuntimePosture(apiKey: string): Promise<import('@/types/api').TagsRuntimePosture> {
+  return apiFetch<import('@/types/api').TagsRuntimePosture>('/analytics/tags-runtime-posture', apiKey)
+}

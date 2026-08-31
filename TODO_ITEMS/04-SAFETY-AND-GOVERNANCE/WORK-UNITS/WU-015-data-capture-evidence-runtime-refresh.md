@@ -1,10 +1,10 @@
 # WU-015: Data Capture Evidence Runtime Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 04-Safety - C (Data Protection, Security, and Taxonomy)
 - **Target**: 04-SAFETY-AND-GOVERNANCE/data-capture
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-08-31
 
 ## Cohesion Cells to Close
 

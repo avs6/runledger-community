@@ -38,6 +38,14 @@ Cell changes: Analytics users × API keys N/A→S (01-ORG), Analytics users × M
 
 ---
 
+## Delta — 2026-08-31 (WU-002)
+
+WU-002 (Investigation Surfaces FinOps Budget Bridge) COMPLETED. Adds Budget Detail, Budget Overrides, and Billing Period Detail drill-through links to FinOps posture cards on Runs list, Run detail, Request flow, and Request explorer pages. Backend endpoint `GET /analytics/investigation-finops-budget-posture` now accepts `access_group_id` parameter. Docs (runs.mdx, request-flow.mdx, request-explorer.mdx), Postman, and example updated.
+
+All 22 target cohesion cells were already at STRONG from prior work; no matrix cell changes needed. Finding text updated in 03-OBSERVE and 05-FINOPS COHESION-MATRIX files to reference the new cross-links.
+
+---
+
 ## Delta — 2026-08-25 (WU-017)
 
 WU-017 (Model Usage Economics and Runtime Refresh) COMPLETED. UI enrichment of Model usage page:
