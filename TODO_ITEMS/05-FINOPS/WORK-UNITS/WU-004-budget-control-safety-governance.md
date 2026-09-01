@@ -1,10 +1,10 @@
 # WU-004: Budget Control × Safety & Governance
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A (Spend Control Plane)
 - **Target**: 05-FINOPS/Budgets, Budget detail, Budget overrides
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-31
 
 ## Cohesion Cells to Close
 
@@ -52,3 +52,13 @@
 6. All listed cohesion cells updated to target state
 7. All paired feature files updated
 8. FEATURE-STATUS.md dashboard updated
+
+## Completion Notes
+
+- 12 of 17 cells were already STRONG from Safety & Governance WU-010 through WU-020 (runtime scope and evidence posture cards). Only 5 Budget overrides cells required actual code changes.
+- **Backend**: Added `BudgetOverrideGovernancePosture` schema and `GET /analytics/budget-override-governance-posture` endpoint querying Approval, AuditEvent, AlertRule, Tag, BudgetOverride tables with approval workflow context, alert rule coverage, audit events, governance coverage percentage, and tag attribution.
+- **UI**: Added amber Safety & Governance Context card to `BudgetDetailClient.tsx` with 5 KPI tiles (Pending Approvals, Alert Rules, Audit Events, Approval Coverage, Tags) and drill-through links to Approvals, Alert Rules, Audit Log, Tags, and Governance Pack.
+- **Docs**: Added Budget Override × Safety & Governance Bridge section to `docs/finops/budgets.mdx`.
+- **Postman**: Added Budget Override Governance Posture request to collection.
+- **Example**: Added `examples/113_budget_override_governance_posture.py`.
+- **Audit**: Updated 05-FINOPS/COHESION-MATRIX.md (Budget overrides row 5 cells P→S), GAP-MATRIX.md (Budget overrides and Budget detail rows), DELIVERY-STATUS.md (row 6.6), FEATURE-STATUS.md (05-A × 04 G:4 P:7 → P:1, WU-004 COMPLETED).

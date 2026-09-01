@@ -1,10 +1,21 @@
 # WU-002: Budget Control × Gateway & Routing
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A (Spend Control Plane)
 - **Target**: 05-FINOPS/Budgets, Budget detail, Budget overrides
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-31
+
+## Completion Notes
+
+WU-002 was already substantively completed by prior Gateway & Routing WUs (02-GATEWAY WU series). All 11 cohesion cells were already STRONG in both 05-FINOPS/COHESION-MATRIX.md and 02-GATEWAY-AND-ROUTING/COHESION-MATRIX.md. FEATURE-STATUS.md already showed COMPLETED. This update corrects the stale NOT_STARTED header in the WU file.
+
+### Evidence of prior completion
+- Provider profiles are first-class budget scopes (ScopeTypeEnum includes provider_profile, CreateBudgetModal supports it, budget detail links to provider profiles)
+- Budget detail shows Performance Economics card with cache hit rate, estimated savings, rate-limited route containment via BudgetPerformancePosture
+- Gateway surfaces (Provider Profiles, Model Gateway, Guardrails, Response Cache, Rate Limits) all cross-link to budgets via FinOps Posture cards
+- Override creation supports provider-scoped exceptions (inherits parent budget scope_type)
+- Gateway/FinOps ownership distinction is maintained: gateway owns technical quotas, FinOps owns spend governance
 
 ## Cohesion Cells to Close
 

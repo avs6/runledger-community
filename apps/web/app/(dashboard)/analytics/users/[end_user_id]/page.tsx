@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getUserSpend } from '@/lib/api'
+import { getUserSpend, getBudgetDetailObservePosture } from '@/lib/api'
 import SpendOverTimeChart from '@/components/analytics/SpendOverTimeChart'
 import SpendByModelChart from '@/components/analytics/SpendByModelChart'
 import SpendByFeatureChart from '@/components/analytics/SpendByFeatureChart'
@@ -53,6 +53,8 @@ export default async function UserSpendPage({ params, searchParams }: PageProps)
     notFound()
   }
 
+  const budgetPosture = await getBudgetDetailObservePosture(session.apiKey).catch(() => null)
+
   const spendOverTime = {
     granularity: 'daily',
     points: detail.spend_over_time,
@@ -91,6 +93,39 @@ export default async function UserSpendPage({ params, searchParams }: PageProps)
           </div>
         ))}
       </div>
+
+      {budgetPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Budget Context</p>
+          </div>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Users with Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.user_budget_context.users_with_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.budget_context.active_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetPosture.budget_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetPosture.budget_context.breach_count}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href={`/budgets?scope_type=end_user&scope_id=${encodeURIComponent(userId)}`} className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">This User&apos;s Budgets</Link>
+            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+            <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3">

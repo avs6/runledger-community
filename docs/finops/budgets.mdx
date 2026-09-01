@@ -60,6 +60,71 @@ Platform users can also view their own financial exposure at `/users/{id}`, whic
 - **Inline (gateway)** — blocking, enforced before the provider call.
 - **Out-of-band (SDK)** — an advisory pre-check you can choose to block on.
 
+## Access-group budget scoping
+
+Access groups are first-class budget scopes. When you set `scope_type: access_group` and point `scope_id` at an access-group UUID, every request authenticated by a member of that group is metered against the budget. This works with all enforcement modes and breach actions.
+
+Typical workflow:
+
+1. Create the access group in **Organization → Access Groups** (or `POST /access-groups`).
+2. Create a budget with `scope_type: access_group` and the group's UUID as `scope_id`.
+3. Members are evaluated against the budget automatically on the gateway hot path.
+4. View the **Org & Access Scope Context** card on the budget detail page to see group membership, workspace-level spend, and AI Hub model usage.
+
+Overrides also support access-group scoping — the override inherits the parent budget's scope, so a temporary limit bump applies to the same member cohort.
+
+See [`examples/49_access_group_budget_scope.py`](https://github.com/avs6/runledger-community/blob/master/examples/49_access_group_budget_scope.py).
+
+## API-key budget scoping
+
+API keys are first-class budget scopes. When you set `scope_type: api_key` and point `scope_id` at a key UUID, every request authenticated with that key is metered against the budget. This is useful for service-account isolation, per-integration spend caps, and key-level chargeback.
+
+Typical workflow:
+
+1. Create the API key in **Organization → API Keys** (or `POST /settings/api-keys`).
+2. Create a budget with `scope_type: api_key` and the key's UUID as `scope_id`.
+3. All traffic bearing that key is metered against the budget.
+4. The budget detail page shows key-level context (name, prefix, ownership type) in the **Org & Access Scope Context** card.
+
+See [`examples/48_api_key_budget_scope.py`](https://github.com/avs6/runledger-community/blob/master/examples/48_api_key_budget_scope.py).
+
+## Org & Access Scope Posture
+
+The analytics endpoint `GET /analytics/budget-org-scope-posture/{budget_id}` returns cross-feature context for any budget. The response includes:
+
+- **org_context** — workspace user count, API key count, access group count, total active budgets, 30-day workspace spend.
+- **hub_context** — AI Hub model catalog size, distinct models used in the last 30 days.
+- **scope_entity** — detailed attributes of the scoped entity (access-group name and member count, or API-key name and prefix).
+
+The budget detail UI renders this as the blue **Org & Access Scope Context** card with drill-through links to Organization, Access Groups, API Keys, and AI Hub.
+
+## Budget Detail × Observe Bridge
+
+Budget posture is surfaced across Observe surfaces so operators can understand cost context without leaving their investigation or analytics workflow.
+
+The analytics endpoint `GET /analytics/budget-detail-observe-posture` returns workspace-level budget context including:
+
+- **budget_context** — total/active budget counts, total limit, breach count.
+- **spend_context** — 30-day spend, run count, average cost per run, distinct models used.
+- **user_budget_context** — users with budgets, active users, user-scoped budget totals and spend.
+- **engineering_context** — feature-scoped budgets, active budgets, breach count, total limit.
+
+This endpoint powers the **Budget Posture** card on the Workspace Dashboard, the **Budget & Per-User Attribution** card on Analytics Users, the **Budget Context** card on User Detail, and the **Budget Signals** card on the Engineering Dashboard. Each card includes drill-through links to Budgets, Billing Periods, Chargeback, and Economics.
+
+## Budget Override × Safety & Governance Bridge
+
+Budget overrides connect to the Safety & Governance feature family via approval workflows, alert rules, audit logging, tags, and governance pack context.
+
+The analytics endpoint `GET /analytics/budget-override-governance-posture` returns workspace-level override governance context including:
+
+- **approval_context** — pending, approved, and denied override approval counts (30d), overrides with approval linkage.
+- **alert_context** — budget-related alert rules total and active count.
+- **audit_context** — override audit events (30d), total and active overrides.
+- **governance_context** — approval coverage percentage, active overrides.
+- **tag_context** — tag counts on budgets and overrides.
+
+This endpoint powers the amber **Safety & Governance Context** card on the budget detail page with drill-through links to Approvals, Alert Rules, Audit Log, Tags, and Governance Pack.
+
 ## Related
 
 <CardGroup cols={2}>

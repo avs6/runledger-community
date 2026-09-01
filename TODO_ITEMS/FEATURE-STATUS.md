@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-27
+Last updated: 2026-08-31
 
 ## Purpose
 
@@ -75,12 +75,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-Self | 06-Build | 07-Platform |
 |--------|----------|--------|------------|------------|-----------|---------|----------|-------------|
-| **A** — Budget Control | Budgets, Budget detail, Budget overrides | G:8 P:3 | P:1 | G:10 P:33 | G:4 P:7 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
+| **A** — Budget Control | Budgets, Budget detail, Budget overrides | P:3 | P:1 | G:10 P:29 | P:1 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
 | **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | OK | P:30 | P:10 | P:12 | P:26 | P:4 |
 | **C** — Attribution | Chargeback | P:4 | OK | P:15 | P:4 | G:1 P:5 | P:13 | P:2 |
 | **D** — Compliance | Ledger | P:1 | P:1 | P:5 | P:2 | G:1 P:6 | — | P:1 |
 
-**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but 05-A/B/C × 02 are now all `OK` after WU-003 closed all remaining Model gateway FinOps cells. Budget detail remains the single biggest cohesion blocker across other families (Observe, Safety, Build). 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
+**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but 05-A/B/C × 02 are now all `OK` after WU-003 closed all remaining Model gateway FinOps cells. Budget detail remains the single biggest cohesion blocker across other families (Observe, Build). 05-A × 04 is now down to **P:1** after WU-004 closed all 5 Budget overrides Safety PARTIAL cells via Budget Override Governance Posture endpoint and card (amber theme). 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
 
 ---
 
@@ -192,9 +192,9 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
-| A | Budgets | `OK` | `OK` | `NO` | `RE-AUDIT REQUIRED` |
-| A | Budget detail | `OK` | `OK` | `NO` | `RE-AUDIT REQUIRED` |
-| A | Budget overrides | `PARTIAL` | `OK` | `NO` | `RE-AUDIT REQUIRED` |
+| A | Budgets | `OK` | `OK` | `NO` | `RE-AUDITED: PARTIAL (WU-001)` |
+| A | Budget detail | `OK` | `OK` | `NO` | `RE-AUDITED: PARTIAL (WU-001)` |
+| A | Budget overrides | `PARTIAL` | `OK` | `NO` | `RE-AUDITED: PARTIAL (WU-001)` |
 | B | Billing periods | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
 | B | Billing period detail | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
 | C | Chargeback | `OK` | `OK` | `NO` | `RE-AUDIT REQUIRED` |
@@ -257,7 +257,7 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 
 | Rank | Bundle | Total GAPs | Worst Relationship | Root Cause |
 |------|--------|------------|--------------------|-----------| 
-| 1 | **05-A** Budget Control | **48** | 05-A x 06-Build (12G) | Budget detail page is the single biggest cohesion blocker across the entire product |
+| 1 | **05-A** Budget Control | **40** | 05-A x 06-Build (12G) | WU-001 closed 8 GAPs in 05-A × 01-Org. WU-003 closed 4 PARTIALs in 05-A × 03-Observe (Budget detail × Workspace dashboard/Analytics users/User detail/Engineering). Budget detail still the biggest blocker across Build, Safety |
 | 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys propagate through FinOps, Observe, Safety & Governance, and Build & Improve. WU-006 closed 22 Safety cells, WU-007 closed 22 Build cells to STRONG. WU-013 closed 14 internal and 8 Platform cells to STRONG. Remaining pressure is FinOps and Observe drill-through. |
 | 2b | **01-A** Org Foundation | **5** | 01-A x 04-Safety (5G) | Organization profile Safety & Governance row has 5 remaining GAPs (MCP servers, search tools, policy dry run, approvals, data capture). WU-014 closed 4 GAPs to PARTIAL (tool registry, tool policies, governance pack, tags). |
 | 3 | **03-B** Investigation | **0** | — | WU-002 closed all FinOps budget-detail GAPs. All 4 investigation surfaces now show inline budget posture with drill-through. |
@@ -364,10 +364,10 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-018 | 04-SAFETY-AND-GOVERNANCE | Audit log evidence lineage refresh | 01/02/03/05 | COMPLETED | 04-D |
 | WU-019 | 04-SAFETY-AND-GOVERNANCE | Governance pack compliance closure refresh | 01/02/03/05 | COMPLETED | 04-D |
 | WU-020 | 04-SAFETY-AND-GOVERNANCE | Tags taxonomy attribution refresh | 01/02/03/05 | COMPLETED | 04-C |
-| WU-001 | 05-FINOPS | Budget control × Org & Access scope | 01-ORG-AND-ACCESS | NOT_STARTED | 05-A |
+| WU-001 | 05-FINOPS | Budget control × Org & Access scope | 01-ORG-AND-ACCESS | COMPLETED | 05-A |
 | WU-002 | 05-FINOPS | Budget control × Gateway & Routing | 02-GATEWAY-AND-ROUTING | COMPLETED | 05-A |
-| WU-003 | 05-FINOPS | Budget detail × Observe surfaces bridge | 03-OBSERVE | NOT_STARTED | 05-A |
-| WU-004 | 05-FINOPS | Budget control × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | NOT_STARTED | 05-A |
+| WU-003 | 05-FINOPS | Budget detail × Observe surfaces bridge | 03-OBSERVE | COMPLETED | 05-A |
+| WU-004 | 05-FINOPS | Budget control × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | COMPLETED | 05-A |
 | WU-005 | 05-FINOPS | Budget detail × Build & Improve surfaces | 06-BUILD-AND-IMPROVE | NOT_STARTED | 05-A |
 | WU-006 | 05-FINOPS | Budget control × Platform scope | 07-PLATFORM-AND-UTILITY | NOT_STARTED | 05-A |
 | WU-007 | 05-FINOPS | Billing × Org access-group scope | 01-ORG-AND-ACCESS | NOT_STARTED | 05-B |

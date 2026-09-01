@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Building2, ChevronLeft, AlertTriangle, Search, DollarSign, Network } from 'lucide-react'
-import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture, getModelUsageGatewayPosture } from '@/lib/api'
-import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture, ModelUsageGatewayPosture } from '@/types/api'
+import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture, getModelUsageGatewayPosture, getBudgetDetailObservePosture } from '@/lib/api'
+import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture, ModelUsageGatewayPosture, BudgetDetailObservePosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const TIER_COLOURS: Record<string, string> = {
@@ -39,6 +39,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true)
   const [orgPosture, setOrgPosture] = useState<UserAnalyticsOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<ModelUsageGatewayPosture | null>(null)
+  const [budgetPosture, setBudgetPosture] = useState<BudgetDetailObservePosture | null>(null)
 
   useEffect(() => {
     if (!session?.apiKey) return
@@ -55,6 +56,7 @@ export default function UsersPage() {
     }).catch(() => setLoading(false))
     getUserAnalyticsOrgPosture(key).then(setOrgPosture).catch(() => {})
     getModelUsageGatewayPosture(key).then(setGatewayPosture).catch(() => {})
+    getBudgetDetailObservePosture(key).then(setBudgetPosture).catch(() => {})
   }, [session?.apiKey])
 
   const anomalySet = new Set(anomalies.map((a) => a.end_user_id))
@@ -171,6 +173,40 @@ export default function UsersPage() {
                 {label}
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {budgetPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <h2 className="text-base font-semibold text-emerald-700 dark:text-emerald-300">Budget & Per-User Attribution</h2>
+          </div>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Users with Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.user_budget_context.users_with_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Users (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.user_budget_context.active_users_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">User Budget Total</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.user_budget_context.user_scoped_budget_total.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">User Spend</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${budgetPosture.user_budget_context.user_scoped_spend.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?scope_type=end_user" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">User Budgets</Link>
+            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing Periods</Link>
+            <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
           </div>
         </div>
       )}

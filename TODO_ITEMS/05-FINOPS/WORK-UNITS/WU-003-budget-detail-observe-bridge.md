@@ -1,10 +1,32 @@
 # WU-003: Budget Detail × Observe Surfaces Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A (Spend Control Plane)
 - **Target**: 05-FINOPS/Budget detail
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-31
+
+## Completion Notes
+
+### Backend
+- Added `BudgetDetailObservePosture` schema (budget_context, spend_context, user_budget_context, engineering_context)
+- Added `GET /analytics/budget-detail-observe-posture` endpoint
+
+### UI
+- Workspace Dashboard: Budget Posture card (active budgets, total limit, 30d spend, breach count) with drill-through links
+- Analytics Users: Budget & Per-User Attribution card (users with budgets, active users, user budget total/spend)
+- User Detail: Budget Context card (active budgets, 30d spend, breach count) with per-user budget drill-through link
+- Engineering Dashboard: Budget Signals card (active/feature budgets, total limit, breach count)
+
+### Docs
+- Added Budget Detail × Observe Bridge section in budgets.mdx
+
+### Postman
+- Added Budget Detail Observe Posture request
+
+### Cohesion
+- 4 cells upgraded PARTIAL→STRONG: Budget detail × Workspace dashboard, Analytics users, Analytics user detail, Engineering
+- 5 cells verified already STRONG: Analytics overview, Request flow, Request explorer, Model usage, Outcomes and ROI
 
 ## Cohesion Cells to Close
 

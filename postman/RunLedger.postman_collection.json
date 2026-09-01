@@ -2868,6 +2868,91 @@
           "response": []
         },
         {
+          "name": "Budget Org Scope Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-org-scope-posture/{{budget_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-org-scope-posture",
+                "{{budget_id}}"
+              ]
+            },
+            "description": "Per-budget org & access scope posture: workspace user/key/group counts, 30d spend, AI Hub model catalog size, and scope entity details (access group or API key attributes)."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Detail Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-detail-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-detail-observe-posture"
+              ]
+            },
+            "description": "Workspace-level budget posture for Observe surfaces: budget counts, spend context, per-user budget attribution, and engineering budget signals."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Override Governance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-override-governance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-override-governance-posture"
+              ]
+            },
+            "description": "Budget override governance posture: approval workflow counts, budget alert rules, override audit events, approval coverage, and tag counts for budgets and overrides."
+          },
+          "response": []
+        },
+        {
           "name": "Billing Period Performance Posture",
           "request": {
             "method": "GET",

@@ -9,6 +9,8 @@ import {
   Users, ChevronDown, ChevronUp, UserPlus, Check, Pencil,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
+import { getBudgetDetailObservePosture } from '@/lib/api'
+import type { BudgetDetailObservePosture } from '@/types/api'
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -327,6 +329,7 @@ export default function WorkspacePage() {
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null)
+  const [budgetPosture, setBudgetPosture] = useState<BudgetDetailObservePosture | null>(null)
 
   const headers = useMemo(() => ({
     Authorization: `Bearer ${apiKey}`,
@@ -357,6 +360,10 @@ export default function WorkspacePage() {
   )
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (apiKey) getBudgetDetailObservePosture(apiKey).then(setBudgetPosture).catch(() => {})
+  }, [apiKey])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -497,6 +504,37 @@ export default function WorkspacePage() {
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
+
+      {budgetPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Posture</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.budget_context.active_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${budgetPosture.budget_context.total_limit_usd.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetPosture.budget_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetPosture.budget_context.breach_count}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing Periods</Link>
+            <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
+            <Link href="/analytics?tab=savings" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Cost & Savings</Link>
+          </div>
+        </div>
+      )}
 
       {/* Search + New Workspace */}
       <div className="flex items-center gap-3">
