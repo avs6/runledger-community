@@ -1,10 +1,38 @@
 # WU-001: Budget Control × Org & Access Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A (Spend Control Plane)
 - **Target**: 05-FINOPS/Budgets, Budget detail, Budget overrides
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-08-31
+
+## Completion Notes
+
+### Backend
+- Extended `ScopeTypeEnum` to include all 7 scope types (workspace, end_user, feature_tag, app, access_group, api_key, provider_profile)
+- Added `BudgetOrgScopePosture` schema (workspace/key/group counts, 30d spend, hub context, scope entity)
+- Added `GET /analytics/budget-org-scope-posture/{budget_id}` endpoint
+
+### UI
+- `CreateBudgetModal`: entity selector dropdowns for access_group and api_key scopes with contextual helper text
+- `BudgetDetailClient`: Org & Access Scope Context card showing workspace metrics, scope entity attributes, AI Hub model usage, and drill-through links to Organization, Access Groups, API Keys, AI Hub, Telemetry, and Users
+- Budget overrides show scope context label when parent budget uses access-group or API-key scope
+
+### Docs
+- Added access-group budget scoping workflow section
+- Added API-key budget scoping workflow section
+- Added Org & Access Scope Posture analytics endpoint documentation
+
+### Postman
+- Added Budget Org Scope Posture request
+
+### Examples
+- Added `examples/49_access_group_budget_scope.py`
+
+### Cohesion
+- All 16 listed cells verified at STRONG (cells were already upgraded by prior 01-ORG-AND-ACCESS WUs; this WU provides the deeper FinOps-side integration that justifies the ratings)
+- Updated finding text in 05-FINOPS/COHESION-MATRIX.md and 01-ORG-AND-ACCESS/COHESION-MATRIX.md
+- Resolved audit finding #1 in COHESION-MATRIX.md
 
 ## Cohesion Cells to Close
 

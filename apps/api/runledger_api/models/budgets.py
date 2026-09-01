@@ -22,6 +22,9 @@ class ScopeTypeEnum(enum.StrEnum):
     end_user = "end_user"
     feature_tag = "feature_tag"
     app = "app"
+    access_group = "access_group"
+    api_key = "api_key"
+    provider_profile = "provider_profile"
 
 
 class PeriodTypeEnum(enum.StrEnum):
@@ -51,7 +54,10 @@ class Budget(Base):
       - workspace: all traffic for the workspace
       - end_user:  traffic where provider_call.end_user_id == scope_id
       - feature_tag: traffic where agent_run.feature_tag == scope_id
-      - app: reserved for future app-level scoping
+      - app: traffic where agent_run.app_id == scope_id
+      - access_group: traffic from members of the specified access group
+      - api_key: traffic authenticated by the specified API key
+      - provider_profile: traffic routed through the specified provider profile
     """
 
     __tablename__ = "budgets"

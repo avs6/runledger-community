@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Budget } from '@/types/api'
-import { createBudget } from '@/lib/api'
+import { createBudget, getAccessGroups, listApiKeys } from '@/lib/api'
 
 interface Props {
   apiKey: string
@@ -17,6 +17,11 @@ const fieldCls =
   'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500'
 
 const labelCls = 'mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300'
+
+interface ScopeOption {
+  id: string
+  label: string
+}
 
 export default function CreateBudgetModal({
   apiKey,
@@ -34,6 +39,10 @@ export default function CreateBudgetModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [accessGroups, setAccessGroups] = useState<ScopeOption[]>([])
+  const [apiKeys, setApiKeys] = useState<ScopeOption[]>([])
+  const [loadingEntities, setLoadingEntities] = useState(false)
+
   useEffect(() => {
     setScopeType(initialScopeType)
   }, [initialScopeType])
@@ -41,6 +50,35 @@ export default function CreateBudgetModal({
   useEffect(() => {
     setScopeId(initialScopeId)
   }, [initialScopeId])
+
+  useEffect(() => {
+    if (scopeType === 'access_group' && accessGroups.length === 0) {
+      setLoadingEntities(true)
+      getAccessGroups(apiKey)
+        .then((resp) => {
+          const items = Array.isArray(resp) ? resp : resp.items ?? []
+          setAccessGroups(
+            items.map((g: { id: string; name: string }) => ({ id: g.id, label: g.name }))
+          )
+        })
+        .catch(() => {})
+        .finally(() => setLoadingEntities(false))
+    }
+    if (scopeType === 'api_key' && apiKeys.length === 0) {
+      setLoadingEntities(true)
+      listApiKeys(apiKey)
+        .then((keys) => {
+          setApiKeys(
+            keys.map((k: { id: string; name?: string | null; key_prefix?: string }) => ({
+              id: k.id,
+              label: k.name || k.key_prefix || k.id.slice(0, 8),
+            }))
+          )
+        })
+        .catch(() => {})
+        .finally(() => setLoadingEntities(false))
+    }
+  }, [scopeType, apiKey, accessGroups.length, apiKeys.length])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -65,6 +103,119 @@ export default function CreateBudgetModal({
     }
   }
 
+  const renderScopeIdInput = () => {
+    if (scopeType === 'workspace') return null
+
+    if (scopeType === 'access_group') {
+      return (
+        <div>
+          <label className={labelCls}>Access group</label>
+          {loadingEntities ? (
+            <p className="text-sm text-gray-400">Loading access groups…</p>
+          ) : accessGroups.length > 0 ? (
+            <select
+              value={scopeId}
+              onChange={(e) => setScopeId(e.target.value)}
+              required
+              className={fieldCls}
+            >
+              <option value="">Select an access group</option>
+              {accessGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={scopeId}
+              onChange={(e) => setScopeId(e.target.value)}
+              required
+              placeholder="Access group UUID"
+              className={fieldCls}
+            />
+          )}
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            This budget will apply to all traffic from members of this access group.
+          </p>
+        </div>
+      )
+    }
+
+    if (scopeType === 'api_key') {
+      return (
+        <div>
+          <label className={labelCls}>API key</label>
+          {loadingEntities ? (
+            <p className="text-sm text-gray-400">Loading API keys…</p>
+          ) : apiKeys.length > 0 ? (
+            <select
+              value={scopeId}
+              onChange={(e) => setScopeId(e.target.value)}
+              required
+              className={fieldCls}
+            >
+              <option value="">Select an API key</option>
+              {apiKeys.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={scopeId}
+              onChange={(e) => setScopeId(e.target.value)}
+              required
+              placeholder="API key UUID"
+              className={fieldCls}
+            />
+          )}
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            This budget will apply to all traffic authenticated by this API key.
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div>
+        <label className={labelCls}>
+          {scopeType === 'end_user'
+            ? 'End user ID'
+            : scopeType === 'feature_tag'
+              ? 'Feature tag'
+              : scopeType === 'app'
+                ? 'App / workflow key'
+                : 'Provider profile ID'}
+        </label>
+        <input
+          type="text"
+          value={scopeId}
+          onChange={(e) => setScopeId(e.target.value)}
+          required
+          placeholder={
+            scopeType === 'end_user'
+              ? 'u_12345'
+              : scopeType === 'feature_tag'
+                ? 'support-chat'
+                : scopeType === 'app'
+                  ? 'workflow:customer-support'
+                  : 'UUID'
+          }
+          className={fieldCls}
+        />
+        {scopeType === 'provider_profile' && scopeId && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            This budget will be attached to the selected provider profile.
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
@@ -86,7 +237,10 @@ export default function CreateBudgetModal({
             <label className={labelCls}>Scope type</label>
             <select
               value={scopeType}
-              onChange={(e) => setScopeType(e.target.value as Budget['scope_type'])}
+              onChange={(e) => {
+                setScopeType(e.target.value as Budget['scope_type'])
+                setScopeId('')
+              }}
               className={fieldCls}
             >
               <option value="workspace">Workspace (all traffic)</option>
@@ -99,44 +253,7 @@ export default function CreateBudgetModal({
             </select>
           </div>
 
-          {scopeType !== 'workspace' && (
-            <div>
-              <label className={labelCls}>
-                {scopeType === 'end_user'
-                  ? 'End user ID'
-                  : scopeType === 'feature_tag'
-                    ? 'Feature tag'
-                    : scopeType === 'app'
-                      ? 'App / workflow key'
-                      : scopeType === 'access_group'
-                        ? 'Access group ID'
-                        : scopeType === 'api_key'
-                          ? 'API key ID'
-                          : 'Provider profile ID'}
-              </label>
-              <input
-                type="text"
-                value={scopeId}
-                onChange={(e) => setScopeId(e.target.value)}
-                required
-                placeholder={
-                  scopeType === 'end_user'
-                    ? 'u_12345'
-                    : scopeType === 'feature_tag'
-                      ? 'support-chat'
-                      : scopeType === 'app'
-                        ? 'workflow:customer-support'
-                        : 'UUID'
-                }
-                className={fieldCls}
-              />
-              {scopeType === 'provider_profile' && scopeId && (
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  This budget will be attached to the selected provider profile.
-                </p>
-              )}
-            </div>
-          )}
+          {renderScopeIdInput()}
 
           <div>
             <label className={labelCls}>Period</label>

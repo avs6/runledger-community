@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
-import { createBudgetOverride, revokeBudgetOverride, updateBudget, getBudgetPerformancePosture } from '@/lib/api'
-import type { Breach, Budget, BudgetOverride, BudgetPerformancePosture } from '@/types/api'
+import { createBudgetOverride, revokeBudgetOverride, updateBudget, getBudgetPerformancePosture, getBudgetOrgScopePosture, getBudgetOverrideGovernancePosture } from '@/lib/api'
+import type { Breach, Budget, BudgetOverride, BudgetPerformancePosture, BudgetOrgScopePosture, BudgetOverrideGovernancePosture } from '@/types/api'
 import BreachHistoryTable from './BreachHistoryTable'
 
 interface Props {
@@ -66,6 +66,10 @@ export default function BudgetDetailClient({
   })
   const [perfPosture, setPerfPosture] = useState<BudgetPerformancePosture | null>(null)
   const [perfLoading, setPerfLoading] = useState(false)
+  const [orgPosture, setOrgPosture] = useState<BudgetOrgScopePosture | null>(null)
+  const [orgLoading, setOrgLoading] = useState(false)
+  const [govPosture, setGovPosture] = useState<BudgetOverrideGovernancePosture | null>(null)
+  const [govLoading, setGovLoading] = useState(false)
 
   useEffect(() => {
     if (apiKey && initialBudget.id) {
@@ -74,6 +78,18 @@ export default function BudgetDetailClient({
         .then(setPerfPosture)
         .catch(() => {})
         .finally(() => setPerfLoading(false))
+
+      setOrgLoading(true)
+      getBudgetOrgScopePosture(apiKey, initialBudget.id)
+        .then(setOrgPosture)
+        .catch(() => {})
+        .finally(() => setOrgLoading(false))
+
+      setGovLoading(true)
+      getBudgetOverrideGovernancePosture(apiKey)
+        .then(setGovPosture)
+        .catch(() => {})
+        .finally(() => setGovLoading(false))
     }
   }, [apiKey, initialBudget.id])
 
@@ -197,6 +213,104 @@ export default function BudgetDetailClient({
           </div>
         </div>
       </div>
+
+      {orgPosture && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Org & Access Scope Context</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace Users</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.workspace_users}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Access Groups</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.workspace_access_groups}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs text-slate-500 dark:text-slate-400">API Keys</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.workspace_api_keys}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.total_active_budgets}</p>
+            </div>
+          </div>
+
+          {orgPosture.scope_entity && Object.keys(orgPosture.scope_entity).length > 0 && (
+            <div className="mt-4 rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                {orgPosture.scope_type === 'access_group' ? 'Access Group' : 'API Key'} Detail
+              </p>
+              <div className="mt-2 grid gap-2 text-sm md:grid-cols-2">
+                {orgPosture.scope_type === 'access_group' && (
+                  <>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Name: </span>
+                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.name ?? '—')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Members: </span>
+                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.member_count ?? 0)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Guardrail profile: </span>
+                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.guardrail_profile ?? 'None')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Status: </span>
+                      <span className={`font-medium ${orgPosture.scope_entity.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {orgPosture.scope_entity.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {orgPosture.scope_type === 'api_key' && (
+                  <>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Name: </span>
+                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.name ?? '—')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Key prefix: </span>
+                      <span className="font-mono font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.key_prefix ?? '—')}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Ownership: </span>
+                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.ownership_type ?? '—')}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs text-slate-500 dark:text-slate-400">30d Workspace Spend</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(orgPosture.org_context.total_spend_30d_usd)}</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
+              <p className="text-xs text-slate-500 dark:text-slate-400">AI Hub Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                {orgPosture.hub_context.hub_model_count} catalog
+                <span className="ml-2 text-sm font-normal text-slate-500">({orgPosture.hub_context.distinct_models_30d} used 30d)</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 pt-3 mt-3 border-t border-blue-200 dark:border-blue-800">
+            <Link href="/organization" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Organization</Link>
+            <Link href="/access-groups" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Access Groups</Link>
+            <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
+            <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
+            <Link href="/telemetry" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Telemetry</Link>
+            <Link href="/users" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Users</Link>
+          </div>
+        </div>
+      )}
+      {orgLoading && (
+        <p className="text-sm text-slate-400">Loading org & access scope context…</p>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <form
@@ -340,6 +454,11 @@ export default function BudgetDetailClient({
             <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">
               Create exception window
             </h2>
+            {budget.scope_type !== 'workspace' && budget.scope_display_name && (
+              <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                Scoped to {budget.scope_type.replace('_', ' ')}: {budget.scope_display_name}
+              </p>
+            )}
             <form onSubmit={handleCreateOverride} className="mt-4 space-y-4">
               <label className="block">
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -548,6 +667,52 @@ export default function BudgetDetailClient({
           </div>
         ) : (
           <p className="mt-4 text-sm text-slate-400">Performance posture unavailable.</p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+        <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400">Safety &amp; Governance Context</p>
+        {govLoading ? (
+          <p className="mt-4 text-sm text-slate-400">Loading governance posture…</p>
+        ) : govPosture ? (
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Pending Approvals</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.approval_context.pending_approvals}</p>
+                <p className="text-xs text-slate-400">{govPosture.approval_context.approved_30d} approved / {govPosture.approval_context.denied_30d} denied (30d)</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.alert_context.budget_alert_rules}</p>
+                <p className="text-xs text-slate-400">{govPosture.alert_context.active_budget_alerts} active</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.audit_context.override_audit_events_30d}</p>
+                <p className="text-xs text-slate-400">{govPosture.audit_context.total_overrides} overrides total</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Approval Coverage</p>
+                <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">{govPosture.governance_context.approval_coverage_pct}%</p>
+                <p className="text-xs text-slate-400">{govPosture.approval_context.overrides_with_approval} of {govPosture.audit_context.total_overrides} overrides</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tags</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.tag_context.budget_tags + govPosture.tag_context.override_tags}</p>
+                <p className="text-xs text-slate-400">{govPosture.tag_context.budget_tags} budget / {govPosture.tag_context.override_tags} override</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 pt-2 border-t border-amber-200 dark:border-amber-800">
+              <Link href="/approvals?status=pending" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Approvals</Link>
+              <Link href="/alert-rules" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
+              <Link href="/audit-log" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
+              <Link href="/tags" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tags</Link>
+              <Link href="/governance" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Governance Pack</Link>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-slate-400">Governance posture unavailable.</p>
         )}
       </div>
 

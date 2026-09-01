@@ -7,6 +7,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -691,6 +693,36 @@ class ModelScorecardList(BaseModel):
     items: list[ModelScorecard]
     from_dt: datetime | None = None
     to_dt: datetime | None = None
+
+
+class BudgetOrgScopePosture(BaseModel):
+    workspace_id: str
+    budget_id: str
+    scope_type: str
+    scope_id: str | None
+    scope_display_name: str | None
+    org_context: dict[str, Any]
+    hub_context: dict[str, Any]
+    scope_entity: dict[str, Any]
+
+
+class BudgetDetailObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    spend_context: dict[str, float | int]
+    user_budget_context: dict[str, int | float]
+    engineering_context: dict[str, int | float]
+
+
+class BudgetOverrideGovernancePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    approval_context: dict[str, int]
+    alert_context: dict[str, int]
+    audit_context: dict[str, int]
+    governance_context: dict[str, int]
+    tag_context: dict[str, int]
 
 
 class SimulationResult(BaseModel):

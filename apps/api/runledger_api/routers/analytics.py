@@ -125,6 +125,9 @@ from runledger_api.schemas.analytics import (
     AlertRulesRuntimePosture,
     AuditLogRuntimePosture,
     GovernancePackRuntimePosture,
+    BudgetDetailObservePosture,
+    BudgetOrgScopePosture,
+    BudgetOverrideGovernancePosture,
     TagsRuntimePosture,
     TrendMetric,
     TrendPoint,
@@ -11644,5 +11647,478 @@ async def tags_runtime_posture(
         finops_attribution={
             "active_budgets": active_budgets_trp,
             "chargeback_rules": chargeback_rules_trp,
+        },
+    )
+
+
+@router.get("/budget-org-scope-posture/{budget_id}")
+async def budget_org_scope_posture(
+    budget_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    workspace: Workspace = Depends(get_current_workspace),
+):
+    budget = (
+        await db.execute(
+            select(Budget).where(
+                Budget.id == budget_id,
+                Budget.workspace_id == workspace.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if budget is None:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Budget not found")
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    scope_display_name: str | None = None
+    scope_entity: dict = {}
+
+    if budget.scope_type == "access_group" and budget.scope_id:
+        try:
+            group_id = uuid.UUID(budget.scope_id)
+        except ValueError:
+            group_id = None
+        if group_id:
+            group = (
+                await db.execute(
+                    select(AccessGroup).where(
+                        AccessGroup.id == group_id,
+                        AccessGroup.workspace_id == workspace.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if group:
+                scope_display_name = group.name
+                scope_entity = {
+                    "id": str(group.id),
+                    "name": group.name,
+                    "member_count": group.member_count,
+                    "is_active": group.is_active,
+                    "guardrail_profile": group.guardrail_profile,
+                }
+    elif budget.scope_type == "api_key" and budget.scope_id:
+        try:
+            key_id = uuid.UUID(budget.scope_id)
+        except ValueError:
+            key_id = None
+        if key_id:
+            api_key = (
+                await db.execute(
+                    select(ApiKey).where(
+                        ApiKey.id == key_id,
+                        ApiKey.workspace_id == workspace.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if api_key:
+                scope_display_name = api_key.name or api_key.key_prefix
+                scope_entity = {
+                    "id": str(api_key.id),
+                    "name": api_key.name,
+                    "key_prefix": api_key.key_prefix,
+                    "ownership_type": api_key.ownership_type,
+                    "owner_reference": api_key.owner_reference,
+                }
+    elif budget.scope_type == "workspace":
+        scope_display_name = "All workspace traffic"
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.user_id)).where(
+                WorkspaceUser.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    workspace_api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.revoked_at.is_(None),
+            )
+        )
+    ).scalar() or 0
+
+    workspace_access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    hub_model_count = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(sa.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetOrgScopePosture(
+        workspace_id=str(workspace.id),
+        budget_id=str(budget_id),
+        scope_type=budget.scope_type,
+        scope_id=budget.scope_id,
+        scope_display_name=scope_display_name,
+        org_context={
+            "workspace_users": workspace_users,
+            "workspace_api_keys": workspace_api_keys,
+            "workspace_access_groups": workspace_access_groups,
+            "total_active_budgets": total_budgets,
+            "total_spend_30d_usd": float(total_spend_30d),
+        },
+        hub_context={
+            "hub_model_count": hub_model_count,
+            "distinct_models_30d": distinct_models_30d,
+        },
+        scope_entity=scope_entity,
+    )
+
+
+@router.get(
+    "/budget-detail-observe-posture",
+    response_model=BudgetDetailObservePosture,
+)
+async def budget_detail_observe_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    t_from = _default_from()
+    t_to = _default_to()
+
+    budget_count = (
+        await db.execute(
+            select(func.count(Budget.id)).where(Budget.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    active_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_limit = (
+        await db.execute(
+            select(func.coalesce(func.sum(Budget.limit_usd), 0)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    breach_count = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+                Budget.current_spend_usd > Budget.limit_usd,
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    total_runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.started_at >= t_from,
+                AgentRun.started_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    users_with_budgets = (
+        await db.execute(
+            select(func.count(func.distinct(Budget.scope_id))).where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "end_user",
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    user_scoped_budget_total = (
+        await db.execute(
+            select(func.coalesce(func.sum(Budget.limit_usd), 0)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "end_user",
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    user_scoped_spend = (
+        await db.execute(
+            select(func.coalesce(func.sum(Budget.current_spend_usd), 0)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "end_user",
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    active_users_30d = (
+        await db.execute(
+            select(func.count(func.distinct(AgentRun.end_user_id))).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.started_at >= t_from,
+                AgentRun.started_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    feature_scoped_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "feature_tag",
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    avg_cost_per_run = float(total_spend_30d) / total_runs_30d if total_runs_30d > 0 else 0.0
+
+    return BudgetDetailObservePosture(
+        workspace_id=str(workspace.id),
+        period_days=30,
+        budget_context={
+            "budgets": budget_count,
+            "active_budgets": active_budgets,
+            "total_limit_usd": float(total_limit),
+            "breach_count": breach_count,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+            "total_runs_30d": total_runs_30d,
+            "avg_cost_per_run": avg_cost_per_run,
+            "distinct_models_30d": distinct_models_30d,
+        },
+        user_budget_context={
+            "users_with_budgets": users_with_budgets,
+            "active_users_30d": active_users_30d,
+            "user_scoped_budget_total": float(user_scoped_budget_total),
+            "user_scoped_spend": float(user_scoped_spend),
+        },
+        engineering_context={
+            "feature_scoped_budgets": feature_scoped_budgets,
+            "active_budgets": active_budgets,
+            "breach_count": breach_count,
+            "total_limit_usd": float(total_limit),
+        },
+    )
+
+
+@router.get(
+    "/budget-override-governance-posture",
+    response_model=BudgetOverrideGovernancePosture,
+)
+async def budget_override_governance_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    t_from = _default_from()
+    t_to = _default_to()
+
+    ws_budgets = select(Budget.id).where(Budget.workspace_id == workspace.id).scalar_subquery()
+
+    total_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                )
+            )
+        )
+    ).scalar() or 0
+
+    active_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                ),
+                BudgetOverride.status == "active",
+            )
+        )
+    ).scalar() or 0
+
+    overrides_with_approval = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                ),
+                BudgetOverride.approved_by.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    pending_approvals = (
+        await db.execute(
+            select(func.count(Approval.id)).where(
+                Approval.workspace_id == workspace.id,
+                Approval.entity_type == "budget_override",
+                Approval.status == "pending",
+            )
+        )
+    ).scalar() or 0
+
+    approved_30d = (
+        await db.execute(
+            select(func.count(Approval.id)).where(
+                Approval.workspace_id == workspace.id,
+                Approval.entity_type == "budget_override",
+                Approval.status == "approved",
+                Approval.updated_at >= t_from,
+                Approval.updated_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    denied_30d = (
+        await db.execute(
+            select(func.count(Approval.id)).where(
+                Approval.workspace_id == workspace.id,
+                Approval.entity_type == "budget_override",
+                Approval.status == "denied",
+                Approval.updated_at >= t_from,
+                Approval.updated_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    budget_alerts = (
+        await db.execute(
+            select(func.count(AlertRule.id)).where(
+                AlertRule.workspace_id == workspace.id,
+                AlertRule.metric.in_(["budget_spend", "budget_breach", "budget_utilization"]),
+            )
+        )
+    ).scalar() or 0
+
+    active_budget_alerts = (
+        await db.execute(
+            select(func.count(AlertRule.id)).where(
+                AlertRule.workspace_id == workspace.id,
+                AlertRule.metric.in_(["budget_spend", "budget_breach", "budget_utilization"]),
+                AlertRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.entity_type == "budget_override",
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    budget_tags = (
+        await db.execute(
+            select(func.count(Tag.id)).where(
+                Tag.workspace_id == workspace.id,
+                Tag.entity_type == "budget",
+            )
+        )
+    ).scalar() or 0
+
+    override_tags = (
+        await db.execute(
+            select(func.count(Tag.id)).where(
+                Tag.workspace_id == workspace.id,
+                Tag.entity_type == "budget_override",
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetOverrideGovernancePosture(
+        workspace_id=str(workspace.id),
+        period_days=30,
+        approval_context={
+            "pending_approvals": pending_approvals,
+            "approved_30d": approved_30d,
+            "denied_30d": denied_30d,
+            "overrides_with_approval": overrides_with_approval,
+        },
+        alert_context={
+            "budget_alert_rules": budget_alerts,
+            "active_budget_alerts": active_budget_alerts,
+        },
+        audit_context={
+            "override_audit_events_30d": audit_events_30d,
+            "total_overrides": total_overrides,
+            "active_overrides": active_overrides,
+        },
+        governance_context={
+            "approval_coverage_pct": round(
+                overrides_with_approval / total_overrides * 100
+            ) if total_overrides > 0 else 0,
+            "active_overrides": active_overrides,
+        },
+        tag_context={
+            "budget_tags": budget_tags,
+            "override_tags": override_tags,
         },
     )

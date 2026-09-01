@@ -4247,6 +4247,83 @@ export interface BudgetPerformancePosture {
   }
 }
 
+export interface BudgetOrgScopePosture {
+  workspace_id: string
+  budget_id: string
+  scope_type: string
+  scope_id: string | null
+  scope_display_name: string | null
+  org_context: {
+    workspace_users: number
+    workspace_api_keys: number
+    workspace_access_groups: number
+    total_active_budgets: number
+    total_spend_30d_usd: number
+  }
+  hub_context: {
+    hub_model_count: number
+    distinct_models_30d: number
+  }
+  scope_entity: Record<string, unknown>
+}
+
+export interface BudgetDetailObservePosture {
+  workspace_id: string
+  period_days: number
+  budget_context: {
+    budgets: number
+    active_budgets: number
+    total_limit_usd: number
+    breach_count: number
+  }
+  spend_context: {
+    total_spend_30d: number
+    total_runs_30d: number
+    avg_cost_per_run: number
+    distinct_models_30d: number
+  }
+  user_budget_context: {
+    users_with_budgets: number
+    active_users_30d: number
+    user_scoped_budget_total: number
+    user_scoped_spend: number
+  }
+  engineering_context: {
+    feature_scoped_budgets: number
+    active_budgets: number
+    breach_count: number
+    total_limit_usd: number
+  }
+}
+
+export interface BudgetOverrideGovernancePosture {
+  workspace_id: string
+  period_days: number
+  approval_context: {
+    pending_approvals: number
+    approved_30d: number
+    denied_30d: number
+    overrides_with_approval: number
+  }
+  alert_context: {
+    budget_alert_rules: number
+    active_budget_alerts: number
+  }
+  audit_context: {
+    override_audit_events_30d: number
+    total_overrides: number
+    active_overrides: number
+  }
+  governance_context: {
+    approval_coverage_pct: number
+    active_overrides: number
+  }
+  tag_context: {
+    budget_tags: number
+    override_tags: number
+  }
+}
+
 export interface BillingPeriodPerformancePosture {
   workspace_id: string
   cache: {

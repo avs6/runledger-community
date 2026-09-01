@@ -25,7 +25,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getEngineeringMetrics } from '@/lib/api'
+import { getEngineeringMetrics, getBudgetDetailObservePosture } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import { formatCost, formatTokens } from '@/lib/utils'
 import type { EngineeringMetrics, CostByDimension, LifecycleStage, QualityFunnel } from '@/types/api'
@@ -313,6 +313,8 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
     /* endpoint may not be available yet */
   }
 
+  const budgetPosture = await getBudgetDetailObservePosture(session.apiKey).catch(() => null)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -371,6 +373,39 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
             <KpiCard title="Avg cost/req" value={metrics.avg_cost_per_request ? formatCost(metrics.avg_cost_per_request) : '$0.00'} icon={DollarSign} accent="green" />
             <KpiCard title="Total cost" value={formatCost(String(metrics.cost_by_model.reduce((s, m) => s + Number(m.cost_usd), 0).toFixed(6)))} icon={DollarSign} accent="blue" />
           </div>
+
+          {budgetPosture && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Budget Signals</p>
+              </div>
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.engineering_context.active_budgets}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Feature Budgets</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.engineering_context.feature_scoped_budgets}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.engineering_context.total_limit_usd.toFixed(2)}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+                  <p className={`mt-1 text-lg font-semibold ${budgetPosture.engineering_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetPosture.engineering_context.breach_count}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+                <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+                <Link href="/budgets?scope_type=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
+                <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
+                <Link href="/analytics?tab=savings" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Cost & Savings</Link>
+              </div>
+            </div>
+          )}
 
           {/* Prompt Lifecycle Pipeline */}
           <SectionCard title="Request Lifecycle Pipeline" icon={Route}>

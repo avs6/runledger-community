@@ -5106,6 +5106,18 @@ export async function getBudgetPerformancePosture(apiKey: string, budgetId: stri
   return apiFetch<import('@/types/api').BudgetPerformancePosture>(`/analytics/budget-performance-posture/${budgetId}`, apiKey)
 }
 
+export async function getBudgetOrgScopePosture(apiKey: string, budgetId: string): Promise<import('@/types/api').BudgetOrgScopePosture> {
+  return apiFetch<import('@/types/api').BudgetOrgScopePosture>(`/analytics/budget-org-scope-posture/${budgetId}`, apiKey)
+}
+
+export async function getBudgetDetailObservePosture(apiKey: string): Promise<import('@/types/api').BudgetDetailObservePosture> {
+  return apiFetch<import('@/types/api').BudgetDetailObservePosture>('/analytics/budget-detail-observe-posture', apiKey)
+}
+
+export async function getBudgetOverrideGovernancePosture(apiKey: string): Promise<import('@/types/api').BudgetOverrideGovernancePosture> {
+  return apiFetch<import('@/types/api').BudgetOverrideGovernancePosture>('/analytics/budget-override-governance-posture', apiKey)
+}
+
 export async function getBillingPeriodPerformancePosture(apiKey: string): Promise<import('@/types/api').BillingPeriodPerformancePosture> {
   return apiFetch<import('@/types/api').BillingPeriodPerformancePosture>('/analytics/billing-period-performance-posture', apiKey)
 }
