@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import { useState, useEffect, useCallback } from 'react'
@@ -7,6 +8,8 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { DatabaseBackup, Lock, Mail, Server, Trash2 } from 'lucide-react'
 import type {
+  BudgetControlPlatformPosture,
+  LedgerCrossFeaturePosture,
   LedgerClosureSummary,
   LedgerSnapshotResponse,
   LedgerVerifyResult,
@@ -14,6 +17,8 @@ import type {
   PlatformWebhookDefaultsTestResult,
 } from '@/types/api'
 import {
+  getBudgetControlPlatformPosture,
+  getLedgerCrossFeaturePosture,
   getLedgerClosureSummary,
   listLedgerSnapshots,
   generateLedgerSnapshot,
@@ -139,6 +144,8 @@ export default function SettingsPage() {
   const [runningRestoreDrillState, setRunningRestoreDrillState] = useState(false)
   const [savingBackupConfig, setSavingBackupConfig] = useState(false)
   const [testingPlatformWebhooks, setTestingPlatformWebhooks] = useState(false)
+  const [budgetPlatformPosture, setBudgetPlatformPosture] = useState<BudgetControlPlatformPosture | null>(null)
+  const [ledgerCrossPosture, setLedgerCrossPosture] = useState<LedgerCrossFeaturePosture | null>(null)
 
 
 
@@ -224,6 +231,13 @@ export default function SettingsPage() {
   useEffect(() => {
     if ((activeTab === 'backup' || activeTab === 'storage') && !backupAttempted) void loadBackupData()
   }, [activeTab, backupAttempted, loadBackupData])
+
+  useEffect(() => {
+    if (apiKey) {
+      getBudgetControlPlatformPosture(apiKey).then(setBudgetPlatformPosture).catch(() => {})
+      getLedgerCrossFeaturePosture(apiKey).then(setLedgerCrossPosture).catch(() => {})
+    }
+  }, [apiKey])
 
   const backupSchedulerDisabled = opsStatus ? !opsStatus.backup_enabled : true
 
@@ -325,6 +339,79 @@ export default function SettingsPage() {
           )
         })}
       </div>
+
+      {budgetPlatformPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Control — Platform Posture</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPlatformPosture.platform_totals.total_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPlatformPosture.platform_totals.total_limit_usd.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Overrides</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPlatformPosture.override_context.active_overrides}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetPlatformPosture.platform_totals.total_breaches > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetPlatformPosture.platform_totals.total_breaches}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?scope=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
+            <Link href="/organizations" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">All Organizations</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
+          </div>
+        </div>
+      )}
+
+      {ledgerCrossPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Ledger × Cross-Feature Context</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{ledgerCrossPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Org Scope</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{ledgerCrossPosture.org_context.workspace_users} users</p>
+              <p className="text-xs text-slate-400">{ledgerCrossPosture.org_context.workspaces} workspaces · {ledgerCrossPosture.org_context.access_groups} groups</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Observe</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{ledgerCrossPosture.observe_context.billing_periods} periods</p>
+              <p className="text-xs text-slate-400">${ledgerCrossPosture.observe_context.total_spend_30d.toFixed(2)} 30d spend</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Safety</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{ledgerCrossPosture.safety_context.audit_events_30d} audit events</p>
+              <p className="text-xs text-slate-400">{ledgerCrossPosture.safety_context.tags} tags</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Platform</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{ledgerCrossPosture.platform_context.total_organizations} orgs</p>
+              <p className="text-xs text-slate-400">{ledgerCrossPosture.observe_context.distinct_models_30d} models</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Ledger</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{ledgerCrossPosture.ledger_context.total_snapshots} snapshots</p>
+              <p className="text-xs text-slate-400">latest: {ledgerCrossPosture.ledger_context.latest_snapshot_date}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/organizations" className="text-emerald-600 hover:underline dark:text-emerald-400">Organization →</Link>
+            <Link href="/analytics?tab=economics" className="text-emerald-600 hover:underline dark:text-emerald-400">Economics →</Link>
+            <Link href="/billing" className="text-emerald-600 hover:underline dark:text-emerald-400">Billing →</Link>
+            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
+            <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-stone-200 bg-[#fbfaf7]/80 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
 

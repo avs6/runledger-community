@@ -1,10 +1,10 @@
 # WU-014: Budgets Scope Runtime Governance Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A (Spend Control Plane)
 - **Target**: 05-FINOPS/budgets
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

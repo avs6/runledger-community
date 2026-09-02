@@ -1,10 +1,10 @@
 # WU-008: Internal FinOps Cohesion
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A/C/D (Cross-bundle)
 - **Target**: 05-FINOPS/Budgets, Budget detail, Chargeback, Ledger
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

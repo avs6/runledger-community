@@ -17,14 +17,16 @@ import {
   UsersRound,
   X,
 } from 'lucide-react'
+import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
 import {
   createOrganization,
   deletePlatformOrganization,
+  getBudgetControlPlatformPosture,
   listPlatformOrganizations,
   updatePlatformOrganization,
 } from '@/lib/api'
-import type { TenantResponse, TenantStatus } from '@/types/api'
+import type { BudgetControlPlatformPosture, TenantResponse, TenantStatus } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
@@ -81,6 +83,7 @@ export default function OrganizationsPage() {
   const [editPlan, setEditPlan] = useState('free')
   const [editStatus, setEditStatus] = useState<TenantStatus>('active')
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [budgetPlatformPosture, setBudgetPlatformPosture] = useState<BudgetControlPlatformPosture | null>(null)
 
   const load = useCallback(async () => {
     if (!apiKey || !isPlatformAdmin) {
@@ -97,7 +100,10 @@ export default function OrganizationsPage() {
     }
   }, [apiKey, isPlatformAdmin])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    if (apiKey) getBudgetControlPlatformPosture(apiKey).then(setBudgetPlatformPosture).catch(() => {})
+  }, [load, apiKey])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -224,6 +230,36 @@ export default function OrganizationsPage() {
           </button>
         </div>
       </div>
+
+      {budgetPlatformPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Control — Platform Posture</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPlatformPosture.platform_totals.total_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPlatformPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Overrides</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPlatformPosture.override_context.active_overrides}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetPlatformPosture.platform_totals.total_breaches > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetPlatformPosture.platform_totals.total_breaches}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?scope=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
+            <Link href="/settings" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-4">
         <div className="relative max-w-sm flex-1">

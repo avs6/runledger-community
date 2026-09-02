@@ -68,6 +68,38 @@ Use the shared-costs tab when you need to:
 - maintain active and inactive policy states
 - prepare a period for cleaner downstream allocation and compliance closure
 
+## Billing × Cross-Feature Posture Bridge
+
+The billing cross-feature posture endpoint surfaces gateway, safety, and platform context alongside billing periods so finance operators can see the infrastructure landscape that drives billing line items.
+
+```
+GET /analytics/billing-cross-feature-posture
+```
+
+Returns gateway context (routes, providers, cache configs, rate limits, models), safety context (tool registry, alert rules, audit events, tags), platform context (organizations), and 30-day spend.
+
+This endpoint powers the emerald **Billing × Cross-Feature Context** card on the Billing and Billing Period Detail pages with drill-through links to Gateway, Tool Registry, Alert Rules, Audit Log, Tags, and Platform Settings.
+
+## Billing Reconciliation Posture Bridge
+
+```
+GET /analytics/billing-reconciliation-posture
+```
+
+Returns identity context (workspace users, API keys, access groups), provider context (active providers, cache configs, cache savings, distinct models), optimization context (billing periods, alert rules, cache savings), evidence context (audit events, alert rules), and 30-day spend.
+
+This endpoint powers the emerald **Billing Reconciliation Context** card on the Billing page with drill-through links to Users, API Keys, Access Groups, Gateway, Alert Rules, Audit Log, Optimization, and Platform Settings.
+
+## Billing Detail Evidence Posture Bridge
+
+```
+GET /analytics/billing-detail-evidence-posture
+```
+
+Returns identity context (workspace users, API keys, access groups), gateway context (active routes, distinct models), observe context (sessions, requests), build context (replay experiments), and 30-day spend.
+
+This endpoint powers the emerald **Billing Detail Evidence Context** card on the Billing Period Detail page with drill-through links to Users, API Keys, Access Groups, Gateway, Sessions, Request Explorer, Replay Lab, and Organizations.
+
 ## Related
 
 <CardGroup cols={2}>

@@ -42,6 +42,28 @@ Chargeback turns raw AI spend into finance-ready monthly allocation reports that
 - Access-group attribution is derived from access-group membership joined to provider-call `end_user_id`, so caller identity quality still matters.
 - **API-key-native** allocation is still a later FinOps deepening pass, not a reason to reopen legacy team or project concepts.
 
+## Chargeback × Cross-Feature Posture Bridge
+
+The chargeback cross-feature posture endpoint surfaces org, gateway, safety, and platform context alongside allocation data so operators can see the full scope of infrastructure and access that drives chargeback attribution.
+
+```
+GET /analytics/chargeback-cross-feature-posture
+```
+
+Returns org context (users, access groups, API keys, telemetry batches, hub models), gateway context (routes, providers, cache configs), safety context (MCP servers, tool registry, audit events, tags), platform context (organizations, chargeback rules), and 30-day spend.
+
+This endpoint powers the emerald **Chargeback × Cross-Feature Context** card on the Chargeback page with drill-through links to Organization, Access Groups, API Keys, Telemetry, AI Hub, Gateway, MCP Servers, Tool Registry, Audit Log, Tags, and Platform Settings.
+
+## Chargeback Attribution Posture Bridge
+
+```
+GET /analytics/chargeback-attribution-posture
+```
+
+Returns identity context (workspace users, API keys, access groups), runtime context (cache configs, cache savings, chargeback rules), monitoring context (alert rules, audit events, tags), optimization context (chargeback rules, cache savings), and 30-day spend.
+
+This endpoint powers the emerald **Chargeback Attribution Context** card on the Chargeback page with drill-through links to Users, API Keys, Access Groups, Gateway, Monitoring, Audit Log, Tags, and Optimization.
+
 ## Related
 
 <CardGroup cols={2}>

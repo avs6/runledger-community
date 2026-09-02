@@ -25,7 +25,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getEngineeringMetrics, getBudgetDetailObservePosture } from '@/lib/api'
+import { getEngineeringMetrics, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import { formatCost, formatTokens } from '@/lib/utils'
 import type { EngineeringMetrics, CostByDimension, LifecycleStage, QualityFunnel } from '@/types/api'
@@ -314,6 +314,7 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
   }
 
   const budgetPosture = await getBudgetDetailObservePosture(session.apiKey).catch(() => null)
+  const budgetControlPosture = await getBudgetControlObservePosture(session.apiKey).catch(() => null)
 
   return (
     <div className="space-y-6">
@@ -403,6 +404,39 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
                 <Link href="/budgets?scope_type=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
                 <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
                 <Link href="/analytics?tab=savings" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Cost & Savings</Link>
+              </div>
+            </div>
+          )}
+
+          {budgetControlPosture && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Budget Control — Observe Posture</p>
+              </div>
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.active_budgets}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+                  <p className={`mt-1 text-lg font-semibold ${budgetControlPosture.budget_policy.breached_budgets > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlPosture.budget_policy.breached_budgets}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">At Risk</p>
+                  <p className={`mt-1 text-lg font-semibold ${budgetControlPosture.budget_policy.at_risk_budgets > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlPosture.budget_policy.at_risk_budgets}</p>
+                </div>
+                <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+                <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+                <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
+                <Link href="/budgets?tab=notifications" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Notifications</Link>
+                <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
               </div>
             </div>
           )}

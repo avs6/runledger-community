@@ -1,10 +1,10 @@
 # WU-013: Ledger × Cross-Feature Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - D (Compliance Closure)
 - **Target**: 05-FINOPS/Ledger
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

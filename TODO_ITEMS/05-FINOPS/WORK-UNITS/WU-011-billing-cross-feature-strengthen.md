@@ -1,10 +1,10 @@
 # WU-011: Billing × Cross-Feature Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - B (Billing & Reconciliation)
 - **Target**: 05-FINOPS/Billing periods, Billing period detail
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

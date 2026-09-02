@@ -4324,6 +4324,399 @@ export interface BudgetOverrideGovernancePosture {
   }
 }
 
+export interface BudgetDetailBuildPosture {
+  workspace_id: string
+  period_days: number
+  budget_context: {
+    active_budgets: number
+    total_limit_usd: number
+    breach_count: number
+    feature_budgets: number
+  }
+  build_context: {
+    prompts: number
+    agents: number
+    workflows: number
+    workflow_runs_30d: number
+  }
+  experiment_context: {
+    eval_experiments: number
+    eval_experiments_30d: number
+    replay_experiments: number
+    replay_experiments_30d: number
+    score_events_30d: number
+  }
+  spend_context: {
+    total_spend_30d: number
+    distinct_models_30d: number
+  }
+}
+
+export interface BudgetControlPlatformPosture {
+  period_days: number
+  platform_totals: {
+    organizations: number
+    total_budgets: number
+    total_limit_usd: number
+    total_breaches: number
+  }
+  org_budgets: Array<{
+    org_id: string
+    org_name: string
+    budget_count: number
+    total_limit_usd: number
+    breach_count: number
+  }>
+  override_context: {
+    total_overrides: number
+    active_overrides: number
+  }
+  spend_context: {
+    total_spend_30d: number
+    distinct_models_30d: number
+  }
+}
+
+export interface BillingOrgScopePosture {
+  workspace_id: string
+  period_days: number
+  billing_context: {
+    total_periods: number
+    open_periods: number
+    closed_periods: number
+    total_billed_usd: number
+  }
+  org_context: {
+    workspace_users: number
+    access_groups: number
+    api_keys: number
+  }
+  attribution_context: {
+    calls_30d: number
+    distinct_models: number
+    avg_cost_per_call: number
+  }
+  spend_context: {
+    total_spend_30d: number
+    distinct_models_30d: number
+  }
+}
+
+export interface FinOpsInternalPosture {
+  workspace_id: string
+  period_days: number
+  budget_context: {
+    total_budgets: number
+    active_budgets: number
+    total_limit_usd: number
+    breached_budgets: number
+  }
+  billing_context: {
+    total_periods: number
+    open_periods: number
+    total_billed_usd: number
+  }
+  chargeback_context: {
+    total_rules: number
+    active_rules: number
+  }
+  ledger_context: {
+    total_snapshots: number
+    latest_snapshot_date: string
+  }
+  override_context: {
+    total_overrides: number
+    active_overrides: number
+  }
+  notification_context: {
+    total_notifications: number
+    spend_30d: number
+  }
+}
+
+export interface BudgetControlObservePosture {
+  workspace_id: string
+  period_days: number
+  budget_policy: {
+    total_budgets: number
+    active_budgets: number
+    breached_budgets: number
+    at_risk_budgets: number
+    avg_utilization_pct: number
+    total_limit_usd: number
+  }
+  override_status: {
+    total_overrides: number
+    active_overrides: number
+  }
+  notification_summary: {
+    total_notifications: number
+    calls_30d: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface BudgetControlBuildPosture {
+  workspace_id: string
+  period_days: number
+  budget_policy: {
+    total_budgets: number
+    active_budgets: number
+    breached_budgets: number
+    avg_utilization_pct: number
+    total_limit_usd: number
+  }
+  override_context: {
+    total_overrides: number
+    active_overrides: number
+  }
+  scope_context: Record<string, number>
+  spend_context: {
+    total_spend_30d: number
+    distinct_models_30d: number
+  }
+}
+
+export interface BillingCrossFeaturePosture {
+  workspace_id: string
+  period_days: number
+  gateway_context: {
+    routes: number
+    active_providers_30d: number
+    cache_configs: number
+    rate_limit_endpoints: number
+    distinct_models_30d: number
+  }
+  safety_context: {
+    tool_registry_count: number
+    alert_rules: number
+    audit_events_30d: number
+    tags: number
+  }
+  platform_context: {
+    total_organizations: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface ChargebackCrossFeaturePosture {
+  workspace_id: string
+  period_days: number
+  org_context: {
+    workspace_users: number
+    access_groups: number
+    api_keys: number
+    otlp_batches_30d: number
+    hub_models: number
+  }
+  gateway_context: {
+    routes: number
+    active_providers_30d: number
+    cache_configs: number
+  }
+  safety_context: {
+    mcp_servers: number
+    tool_registry_count: number
+    audit_events_30d: number
+    tags: number
+  }
+  platform_context: {
+    total_organizations: number
+    chargeback_rules: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface LedgerCrossFeaturePosture {
+  workspace_id: string
+  period_days: number
+  org_context: {
+    workspace_users: number
+    workspaces: number
+    access_groups: number
+  }
+  observe_context: {
+    billing_periods: number
+    total_spend_30d: number
+    distinct_models_30d: number
+  }
+  safety_context: {
+    audit_events_30d: number
+    tags: number
+  }
+  platform_context: {
+    total_organizations: number
+  }
+  ledger_context: {
+    total_snapshots: number
+    latest_snapshot_date: string
+  }
+}
+
+export interface BudgetScopeGovernancePosture {
+  workspace_id: string
+  period_days: number
+  identity_context: {
+    workspace_users: number
+    api_keys: number
+    access_groups: number
+    hub_models: number
+  }
+  runtime_context: {
+    routes: number
+    active_providers_30d: number
+    cache_configs: number
+    total_spend_30d: number
+  }
+  governance_context: {
+    alert_rules: number
+    audit_events_30d: number
+    tags: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface BudgetOverrideExceptionPosture {
+  workspace_id: string
+  period_days: number
+  override_context: {
+    total_overrides: number
+    active_overrides: number
+    expired_overrides: number
+    active_override_limit_usd: number
+  }
+  approval_context: {
+    pending_approvals: number
+    approved_30d: number
+    denied_30d: number
+  }
+  runtime_context: {
+    active_routes: number
+    rate_limited_routes: number
+  }
+  monitoring_context: {
+    alert_rules: number
+    audit_events_30d: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface BillingReconciliationPosture {
+  workspace_id: string
+  period_days: number
+  identity_context: {
+    workspace_users: number
+    api_keys: number
+    access_groups: number
+  }
+  provider_context: {
+    active_providers_30d: number
+    cache_configs: number
+    cache_hit_savings_usd: number
+    distinct_models_30d: number
+  }
+  optimization_context: {
+    billing_periods: number
+    alert_rules: number
+    cache_savings_usd: number
+  }
+  evidence_context: {
+    audit_events_30d: number
+    alert_rules: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface BillingDetailEvidencePosture {
+  workspace_id: string
+  period_days: number
+  identity_context: {
+    workspace_users: number
+    api_keys: number
+    access_groups: number
+  }
+  gateway_context: {
+    active_routes: number
+    distinct_models_30d: number
+  }
+  observe_context: {
+    sessions_30d: number
+    requests_30d: number
+  }
+  build_context: {
+    replay_experiments: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface ChargebackAttributionPosture {
+  workspace_id: string
+  period_days: number
+  identity_context: {
+    workspace_users: number
+    api_keys: number
+    access_groups: number
+  }
+  runtime_context: {
+    cache_configs: number
+    cache_hit_savings_usd: number
+    chargeback_rules: number
+  }
+  monitoring_context: {
+    alert_rules: number
+    audit_events_30d: number
+    tags: number
+  }
+  optimization_context: {
+    chargeback_rules: number
+    cache_savings_usd: number
+  }
+  spend_context: {
+    total_spend_30d: number
+  }
+}
+
+export interface BudgetDetailDrillbackPosture {
+  workspace_id: string
+  period_days: number
+  scope_context: {
+    workspace_users: number
+    access_groups: number
+    api_keys: number
+  }
+  runtime_context: {
+    cache_configs: number
+    rate_limited_routes: number
+  }
+  evidence_context: {
+    runs_30d: number
+    requests_30d: number
+    audit_events_30d: number
+  }
+  workflow_context: {
+    workflows: number
+    workflow_runs_30d: number
+  }
+  spend_context: {
+    total_spend_30d: number
+    distinct_models_30d: number
+  }
+}
+
 export interface BillingPeriodPerformancePosture {
   workspace_id: string
   cache: {

@@ -1,10 +1,10 @@
 # WU-018: Billing Detail Evidence Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - B (Billing and Reconciliation)
 - **Target**: 05-FINOPS/billing-period-detail
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

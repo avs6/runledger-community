@@ -59,6 +59,18 @@ flowchart LR
 | `latest_backup_snapshot` | Latest backup evidence record |
 | `recent_audit_event_count` | Recent audit activity that supports the close trail |
 
+## Ledger × Cross-Feature Posture Bridge
+
+The ledger cross-feature posture endpoint surfaces org scope, observe economics, safety audit context, and platform posture alongside compliance data so operators can see the full landscape that feeds ledger integrity and evidence chains.
+
+```
+GET /analytics/ledger-cross-feature-posture
+```
+
+Returns org context (users, workspaces, access groups), observe context (billing periods, 30-day spend, distinct models), safety context (audit events, tags), platform context (organizations), and ledger context (snapshots, latest snapshot date).
+
+This endpoint powers the emerald **Ledger × Cross-Feature Context** card on Platform Settings with drill-through links to Organization, Economics, Billing, Audit Log, and Tags.
+
 ## Related
 
 <CardGroup cols={2}>

@@ -1,10 +1,10 @@
 # WU-010: Budget Control × Build & Improve PARTIAL Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - A (Spend Control Plane)
 - **Target**: 05-FINOPS/Budgets, Budget overrides, Budget notifications
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

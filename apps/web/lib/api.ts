@@ -5118,8 +5118,68 @@ export async function getBudgetOverrideGovernancePosture(apiKey: string): Promis
   return apiFetch<import('@/types/api').BudgetOverrideGovernancePosture>('/analytics/budget-override-governance-posture', apiKey)
 }
 
+export async function getBudgetDetailBuildPosture(apiKey: string): Promise<import('@/types/api').BudgetDetailBuildPosture> {
+  return apiFetch<import('@/types/api').BudgetDetailBuildPosture>('/analytics/budget-detail-build-posture', apiKey)
+}
+
+export async function getBudgetControlPlatformPosture(apiKey: string): Promise<import('@/types/api').BudgetControlPlatformPosture> {
+  return apiFetch<import('@/types/api').BudgetControlPlatformPosture>('/analytics/budget-control-platform-posture', apiKey)
+}
+
 export async function getBillingPeriodPerformancePosture(apiKey: string): Promise<import('@/types/api').BillingPeriodPerformancePosture> {
   return apiFetch<import('@/types/api').BillingPeriodPerformancePosture>('/analytics/billing-period-performance-posture', apiKey)
+}
+
+export async function getBillingOrgScopePosture(apiKey: string): Promise<import('@/types/api').BillingOrgScopePosture> {
+  return apiFetch<import('@/types/api').BillingOrgScopePosture>('/analytics/billing-org-scope-posture', apiKey)
+}
+
+export async function getFinOpsInternalPosture(apiKey: string): Promise<import('@/types/api').FinOpsInternalPosture> {
+  return apiFetch<import('@/types/api').FinOpsInternalPosture>('/analytics/finops-internal-posture', apiKey)
+}
+
+export async function getBudgetControlObservePosture(apiKey: string): Promise<import('@/types/api').BudgetControlObservePosture> {
+  return apiFetch<import('@/types/api').BudgetControlObservePosture>('/analytics/budget-control-observe-posture', apiKey)
+}
+
+export async function getBudgetControlBuildPosture(apiKey: string): Promise<import('@/types/api').BudgetControlBuildPosture> {
+  return apiFetch<import('@/types/api').BudgetControlBuildPosture>('/analytics/budget-control-build-posture', apiKey)
+}
+
+export async function getBillingCrossFeaturePosture(apiKey: string): Promise<import('@/types/api').BillingCrossFeaturePosture> {
+  return apiFetch<import('@/types/api').BillingCrossFeaturePosture>('/analytics/billing-cross-feature-posture', apiKey)
+}
+
+export async function getChargebackCrossFeaturePosture(apiKey: string): Promise<import('@/types/api').ChargebackCrossFeaturePosture> {
+  return apiFetch<import('@/types/api').ChargebackCrossFeaturePosture>('/analytics/chargeback-cross-feature-posture', apiKey)
+}
+
+export async function getLedgerCrossFeaturePosture(apiKey: string): Promise<import('@/types/api').LedgerCrossFeaturePosture> {
+  return apiFetch<import('@/types/api').LedgerCrossFeaturePosture>('/analytics/ledger-cross-feature-posture', apiKey)
+}
+
+export async function getBudgetScopeGovernancePosture(apiKey: string): Promise<import('@/types/api').BudgetScopeGovernancePosture> {
+  return apiFetch<import('@/types/api').BudgetScopeGovernancePosture>('/analytics/budget-scope-governance-posture', apiKey)
+}
+
+export async function getBudgetDetailDrillbackPosture(apiKey: string): Promise<import('@/types/api').BudgetDetailDrillbackPosture> {
+  return apiFetch<import('@/types/api').BudgetDetailDrillbackPosture>('/analytics/budget-detail-drillback-posture', apiKey)
+}
+
+export async function getBudgetOverrideExceptionPosture(apiKey: string): Promise<import('@/types/api').BudgetOverrideExceptionPosture> {
+  return apiFetch<import('@/types/api').BudgetOverrideExceptionPosture>('/analytics/budget-override-exception-posture', apiKey)
+}
+
+export async function getBillingReconciliationPosture(apiKey: string): Promise<import('@/types/api').BillingReconciliationPosture> {
+  return apiFetch<import('@/types/api').BillingReconciliationPosture>('/analytics/billing-reconciliation-posture', apiKey)
+}
+
+export async function getBillingDetailEvidencePosture(apiKey: string): Promise<import('@/types/api').BillingDetailEvidencePosture> {
+  return apiFetch<import('@/types/api').BillingDetailEvidencePosture>('/analytics/billing-detail-evidence-posture', apiKey)
+}
+
+export async function getChargebackAttributionPosture(apiKey: string): Promise<import('@/types/api').ChargebackAttributionPosture> {
+  return apiFetch<import('@/types/api').ChargebackAttributionPosture>('/analytics/chargeback-attribution-posture', apiKey)
 }
 
 export async function getGatewayFinopsPosture(apiKey: string): Promise<import('@/types/api').GatewayFinopsPosture> {

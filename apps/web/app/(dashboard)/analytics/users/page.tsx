@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Building2, ChevronLeft, AlertTriangle, Search, DollarSign, Network } from 'lucide-react'
-import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture, getModelUsageGatewayPosture, getBudgetDetailObservePosture } from '@/lib/api'
-import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture, ModelUsageGatewayPosture, BudgetDetailObservePosture } from '@/types/api'
+import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture, getModelUsageGatewayPosture, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
+import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture, ModelUsageGatewayPosture, BudgetDetailObservePosture, BudgetControlObservePosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const TIER_COLOURS: Record<string, string> = {
@@ -40,6 +40,7 @@ export default function UsersPage() {
   const [orgPosture, setOrgPosture] = useState<UserAnalyticsOrgPosture | null>(null)
   const [gatewayPosture, setGatewayPosture] = useState<ModelUsageGatewayPosture | null>(null)
   const [budgetPosture, setBudgetPosture] = useState<BudgetDetailObservePosture | null>(null)
+  const [budgetControlPosture, setBudgetControlPosture] = useState<BudgetControlObservePosture | null>(null)
 
   useEffect(() => {
     if (!session?.apiKey) return
@@ -57,6 +58,7 @@ export default function UsersPage() {
     getUserAnalyticsOrgPosture(key).then(setOrgPosture).catch(() => {})
     getModelUsageGatewayPosture(key).then(setGatewayPosture).catch(() => {})
     getBudgetDetailObservePosture(key).then(setBudgetPosture).catch(() => {})
+    getBudgetControlObservePosture(key).then(setBudgetControlPosture).catch(() => {})
   }, [session?.apiKey])
 
   const anomalySet = new Set(anomalies.map((a) => a.end_user_id))
@@ -207,6 +209,42 @@ export default function UsersPage() {
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing Periods</Link>
             <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
             <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
+          </div>
+        </div>
+      )}
+
+      {budgetControlPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Budget Control — Observe Posture</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{budgetControlPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Active Budgets</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.active_budgets}</p>
+              <p className="text-xs text-slate-400">{budgetControlPosture.budget_policy.avg_utilization_pct}% avg util · {budgetControlPosture.budget_policy.at_risk_budgets} at-risk</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Breached</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.breached_budgets}</p>
+              <p className="text-xs text-slate-400">${budgetControlPosture.budget_policy.total_limit_usd.toFixed(2)} total limit</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Overrides</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.override_status.total_overrides}</p>
+              <p className="text-xs text-slate-400">{budgetControlPosture.override_status.active_overrides} active</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">30d Spend</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${budgetControlPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-xs text-slate-400">{budgetControlPosture.notification_summary.total_notifications} notifications</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/budgets" className="text-emerald-700 hover:underline dark:text-emerald-400">Budgets →</Link>
+            <Link href="/budgets?tab=overrides" className="text-emerald-700 hover:underline dark:text-emerald-400">Overrides →</Link>
+            <Link href="/budgets?tab=notifications" className="text-emerald-700 hover:underline dark:text-emerald-400">Notifications →</Link>
           </div>
         </div>
       )}
