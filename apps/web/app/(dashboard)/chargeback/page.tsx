@@ -22,8 +22,11 @@ import {
   getChargebackReport,
   listChargebackRules,
   updateChargebackRule,
+  getFinOpsInternalPosture,
+  getChargebackCrossFeaturePosture,
+  getChargebackAttributionPosture,
 } from '@/lib/api'
-import type { ChargebackReport, ChargebackRuleResponse } from '@/types/api'
+import type { ChargebackReport, ChargebackRuleResponse, ChargebackCrossFeaturePosture, ChargebackAttributionPosture, FinOpsInternalPosture } from '@/types/api'
 
 type Tab = 'overview' | 'rules' | 'allocations' | 'exceptions' | 'exports'
 
@@ -111,6 +114,9 @@ export default function ChargebackPage() {
   const [report, setReport] = useState<ChargebackReport | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [exporting, setExporting] = useState<'csv' | 'json' | null>(null)
+  const [finopsPosture, setFinopsPosture] = useState<FinOpsInternalPosture | null>(null)
+  const [chargebackCrossPosture, setChargebackCrossPosture] = useState<ChargebackCrossFeaturePosture | null>(null)
+  const [attributionPosture, setAttributionPosture] = useState<ChargebackAttributionPosture | null>(null)
 
   const fetchRules = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
@@ -147,7 +153,12 @@ export default function ChargebackPage() {
 
   useEffect(() => {
     void fetchRules()
-  }, [fetchRules])
+    if (apiKey) {
+      getFinOpsInternalPosture(apiKey).then(setFinopsPosture).catch(() => {})
+      getChargebackCrossFeaturePosture(apiKey).then(setChargebackCrossPosture).catch(() => {})
+      getChargebackAttributionPosture(apiKey).then(setAttributionPosture).catch(() => {})
+    }
+  }, [fetchRules, apiKey])
 
   useEffect(() => {
     if (
@@ -262,6 +273,141 @@ export default function ChargebackPage() {
           </p>
         </div>
       </div>
+
+      {finopsPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">FinOps Internal Posture</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{finopsPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Budgets</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.budget_context.total_budgets}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.budget_context.active_budgets} active · {finopsPosture.budget_context.breached_budgets} breached</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Billing Periods</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.billing_context.total_periods}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${finopsPosture.billing_context.total_billed_usd.toFixed(2)} billed</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Ledger Snapshots</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.ledger_context.total_snapshots}</p>
+              <p className="text-xs text-slate-400">latest: {finopsPosture.ledger_context.latest_snapshot_date}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Overrides</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.override_context.total_overrides}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.override_context.active_overrides} active</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Notifications</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.notification_context.total_notifications}</p>
+              <p className="text-xs text-slate-400">${finopsPosture.notification_context.spend_30d.toFixed(2)} 30d spend</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/budgets" className="text-emerald-700 hover:underline dark:text-emerald-400">Budgets →</Link>
+            <Link href="/billing" className="text-emerald-700 hover:underline dark:text-emerald-400">Billing →</Link>
+            <Link href="/settings?tab=compliance" className="text-emerald-700 hover:underline dark:text-emerald-400">Ledger →</Link>
+          </div>
+        </div>
+      )}
+
+      {chargebackCrossPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Chargeback × Cross-Feature Context</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{chargebackCrossPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Org</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.org_context.access_groups} groups</p>
+              <p className="text-xs text-slate-400">{chargebackCrossPosture.org_context.api_keys} keys · {chargebackCrossPosture.org_context.workspace_users} users</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Gateway</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.gateway_context.routes} routes</p>
+              <p className="text-xs text-slate-400">{chargebackCrossPosture.gateway_context.active_providers_30d} providers · {chargebackCrossPosture.gateway_context.cache_configs} caches</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Safety</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.safety_context.mcp_servers} MCP servers</p>
+              <p className="text-xs text-slate-400">{chargebackCrossPosture.safety_context.tool_registry_count} tools · {chargebackCrossPosture.safety_context.tags} tags</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Platform</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.platform_context.total_organizations} orgs</p>
+              <p className="text-xs text-slate-400">{chargebackCrossPosture.platform_context.chargeback_rules} rules</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Spend</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${chargebackCrossPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-xs text-slate-400">{chargebackCrossPosture.safety_context.audit_events_30d} audit events</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/organizations" className="text-emerald-600 hover:underline dark:text-emerald-400">Organization →</Link>
+            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
+            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
+            <Link href="/telemetry" className="text-emerald-600 hover:underline dark:text-emerald-400">Telemetry →</Link>
+            <Link href="/ai-hub" className="text-emerald-600 hover:underline dark:text-emerald-400">AI Hub →</Link>
+            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
+            <Link href="/mcp-servers" className="text-emerald-600 hover:underline dark:text-emerald-400">MCP Servers →</Link>
+            <Link href="/tool-registry" className="text-emerald-600 hover:underline dark:text-emerald-400">Tool Registry →</Link>
+            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
+            <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
+            <Link href="/settings" className="text-emerald-600 hover:underline dark:text-emerald-400">Platform →</Link>
+          </div>
+        </div>
+      )}
+
+      {attributionPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Chargeback Attribution Context</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{attributionPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Identity</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.identity_context.workspace_users} users</p>
+              <p className="text-xs text-slate-400">{attributionPosture.identity_context.api_keys} keys · {attributionPosture.identity_context.access_groups} groups</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Runtime</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.runtime_context.chargeback_rules} rules</p>
+              <p className="text-xs text-slate-400">{attributionPosture.runtime_context.cache_configs} caches · ${attributionPosture.runtime_context.cache_hit_savings_usd.toFixed(2)} savings</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Monitoring</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.monitoring_context.alert_rules} alert rules</p>
+              <p className="text-xs text-slate-400">{attributionPosture.monitoring_context.audit_events_30d} audit events · {attributionPosture.monitoring_context.tags} tags</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Optimization</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${attributionPosture.optimization_context.cache_savings_usd.toFixed(2)}</p>
+              <p className="text-xs text-slate-400">cache savings</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Spend</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${attributionPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/analytics/users" className="text-emerald-600 hover:underline dark:text-emerald-400">Users →</Link>
+            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
+            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
+            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
+            <Link href="/monitoring" className="text-emerald-600 hover:underline dark:text-emerald-400">Monitoring →</Link>
+            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
+            <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
+            <Link href="/optimization" className="text-emerald-600 hover:underline dark:text-emerald-400">Optimization →</Link>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {([

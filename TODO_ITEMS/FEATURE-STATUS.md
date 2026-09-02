@@ -41,7 +41,7 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 | **B** — Runtime Protection | Guardrails | P:4 | OK | OK | OK | OK | OK | OK |
 | **C** — Performance Controls | Response cache, Rate limits | P:2 | P:3 | OK | P:3 | S:10 | P:14 | OK |
 
-**Hot spots**: WU-015 closed 4 FinOps cells for Guardrails (Budgets, Budget detail, Billing periods, Chargeback all P→S). 02-B × 05 moves from **—** to **OK**. 4 paired cells updated in 05-FINOPS (N/A→S). 02-A × 01 at **P:10**, 02-A × 03 at **P:8**, 02-A × 04 at **P:3**, 02-A × 05 at **P:3**. 02-B now **OK** across all cross-family columns. 02-C × 06 at **P:14**.
+**Hot spots**: WU-011 added Billing Cross-Feature Posture endpoint and emerald card to Billing and Billing Period Detail with gateway, safety, and platform context (24 cells P→S: 8 Gateway, 10 Safety, 4 Platform across Billing periods + detail). WU-012 added Chargeback Cross-Feature Posture endpoint and emerald card to Chargeback with org, gateway, safety, and platform context (15 cells P→S: 5 Org, 3 Gateway, 5 Safety, 2 Platform). 05-B × 04 and 05-B × 07 now **OK**. 05-C × 01, 05-C × 04, and 05-C × 07 now **OK**. Prior: WU-015 closed 4 FinOps cells for Guardrails. 02-B × 05 at **OK**. 02-C × 06 at **P:14**.
 
 ---
 
@@ -75,12 +75,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-Self | 06-Build | 07-Platform |
 |--------|----------|--------|------------|------------|-----------|---------|----------|-------------|
-| **A** — Budget Control | Budgets, Budget detail, Budget overrides | P:3 | P:1 | G:10 P:29 | P:1 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
-| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | OK | P:30 | P:10 | P:12 | P:26 | P:4 |
-| **C** — Attribution | Chargeback | P:4 | OK | P:15 | P:4 | G:1 P:5 | P:13 | P:2 |
-| **D** — Compliance | Ledger | P:1 | P:1 | P:5 | P:2 | G:1 P:6 | — | P:1 |
+| **A** — Budget Control | Budgets, Budget detail, Budget overrides | P:1 | P:1 | G:10 P:29 | P:1 | G:4 P:18 | G:12 P:31 | G:1 P:5 |
+| **B** — Billing & Recon | Billing periods, Billing period detail | G:1 P:7 | OK | P:30 | OK | P:12 | P:26 | OK |
+| **C** — Attribution | Chargeback | OK | OK | P:15 | OK | G:1 P:5 | P:13 | OK |
+| **D** — Compliance | Ledger | P:1 | P:1 | P:4 | P:1 | G:1 P:6 | — | OK |
 
-**Hot spots**: 05-A is still the most GAP-heavy bundle in the product, but 05-A/B/C × 02 are now all `OK` after WU-003 closed all remaining Model gateway FinOps cells. Budget detail remains the single biggest cohesion blocker across other families (Observe, Build). 05-A × 04 is now down to **P:1** after WU-004 closed all 5 Budget overrides Safety PARTIAL cells via Budget Override Governance Posture endpoint and card (amber theme). 05-B x 01 is down to **1 GAP** after the org-profile billing posture bridge landed.
+**Hot spots**: WU-018 added Billing Detail Evidence Posture endpoint and emerald card to Billing Period Detail with identity, gateway, observe, and build context. 3 cells P→S: Billing period detail × Users (05-B × 01), × Sessions list (05-B × 03), × Replay lab (05-B × 06, P:25 → **P:24**). WU-019 added Chargeback Attribution Posture endpoint and emerald card to Chargeback with identity, runtime, monitoring, and optimization context. 3 cells P→S: Chargeback × Users (05-C × 01), × Monitoring (05-C × 03), × Optimization opportunities (05-C × 06). Prior: WU-017 added billing reconciliation posture (2 cells P→S).
 
 ---
 
@@ -195,9 +195,9 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 | A | Budgets | `OK` | `OK` | `NO` | `RE-AUDITED: PARTIAL (WU-001)` |
 | A | Budget detail | `OK` | `OK` | `NO` | `RE-AUDITED: PARTIAL (WU-001)` |
 | A | Budget overrides | `PARTIAL` | `OK` | `NO` | `RE-AUDITED: PARTIAL (WU-001)` |
-| B | Billing periods | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
-| B | Billing period detail | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
-| C | Chargeback | `OK` | `OK` | `NO` | `RE-AUDIT REQUIRED` |
+| B | Billing periods | `OK` | `OK` | `OK` | `RE-AUDITED: OK (WU-011)` |
+| B | Billing period detail | `OK` | `OK` | `OK` | `RE-AUDITED: OK (WU-011)` |
+| C | Chargeback | `OK` | `OK` | `OK` | `RE-AUDITED: PARTIAL (WU-012)` |
 | D | Ledger | `OK` | `OK` | `OK` | `RE-AUDIT REQUIRED` |
 
 ### 06 — Build & Improve
@@ -257,7 +257,7 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 
 | Rank | Bundle | Total GAPs | Worst Relationship | Root Cause |
 |------|--------|------------|--------------------|-----------| 
-| 1 | **05-A** Budget Control | **40** | 05-A x 06-Build (12G) | WU-001 closed 8 GAPs in 05-A × 01-Org. WU-003 closed 4 PARTIALs in 05-A × 03-Observe (Budget detail × Workspace dashboard/Analytics users/User detail/Engineering). Budget detail still the biggest blocker across Build, Safety |
+| 1 | **05-A** Budget Control | **22** | 05-A x 07-Platform (0G) | WU-001 closed 8 GAPs in 05-A × 01-Org. WU-003 closed 4 PARTIALs in 05-A × 03-Observe. WU-005 closed 12 PARTIALs in 05-A × 06-Build. WU-006 closed 6 PARTIALs in 05-A × 07-Platform (Budgets/Budget detail/Overrides × All orgs/Platform settings P→S). |
 | 2 | **01-B** Identity & Scope | **9** | 01-B x 05-FinOps (5G) | Access groups and API keys propagate through FinOps, Observe, Safety & Governance, and Build & Improve. WU-006 closed 22 Safety cells, WU-007 closed 22 Build cells to STRONG. WU-013 closed 14 internal and 8 Platform cells to STRONG. Remaining pressure is FinOps and Observe drill-through. |
 | 2b | **01-A** Org Foundation | **5** | 01-A x 04-Safety (5G) | Organization profile Safety & Governance row has 5 remaining GAPs (MCP servers, search tools, policy dry run, approvals, data capture). WU-014 closed 4 GAPs to PARTIAL (tool registry, tool policies, governance pack, tags). |
 | 3 | **03-B** Investigation | **0** | — | WU-002 closed all FinOps budget-detail GAPs. All 4 investigation surfaces now show inline budget posture with drill-through. |
@@ -368,21 +368,21 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-002 | 05-FINOPS | Budget control × Gateway & Routing | 02-GATEWAY-AND-ROUTING | COMPLETED | 05-A |
 | WU-003 | 05-FINOPS | Budget detail × Observe surfaces bridge | 03-OBSERVE | COMPLETED | 05-A |
 | WU-004 | 05-FINOPS | Budget control × Safety & Governance | 04-SAFETY-AND-GOVERNANCE | COMPLETED | 05-A |
-| WU-005 | 05-FINOPS | Budget detail × Build & Improve surfaces | 06-BUILD-AND-IMPROVE | NOT_STARTED | 05-A |
-| WU-006 | 05-FINOPS | Budget control × Platform scope | 07-PLATFORM-AND-UTILITY | NOT_STARTED | 05-A |
-| WU-007 | 05-FINOPS | Billing × Org access-group scope | 01-ORG-AND-ACCESS | NOT_STARTED | 05-B |
-| WU-008 | 05-FINOPS | Internal FinOps cohesion | 05-SELF | NOT_STARTED | 05-A/C/D |
-| WU-009 | 05-FINOPS | Budget control × Observe PARTIAL strengthen | 03-OBSERVE | NOT_STARTED | 05-A |
-| WU-010 | 05-FINOPS | Budget control × Build PARTIAL strengthen | 06-BUILD-AND-IMPROVE | NOT_STARTED | 05-A |
-| WU-011 | 05-FINOPS | Billing × cross-feature strengthen | 02/04/07 | NOT_STARTED | 05-B |
-| WU-012 | 05-FINOPS | Chargeback × cross-feature strengthen | 01/02/04/07 | NOT_STARTED | 05-C |
-| WU-013 | 05-FINOPS | Ledger × cross-feature strengthen | 01/03/04/07 | NOT_STARTED | 05-D |
-| WU-014 | 05-FINOPS | Budgets scope runtime governance refresh | 01/02/03/04/07 | NOT_STARTED | 05-A |
-| WU-015 | 05-FINOPS | Budget detail drillback refresh | 01/02/03/04/06 | NOT_STARTED | 05-A |
-| WU-016 | 05-FINOPS | Budget overrides exception refresh | 01/02/03/04/07 | NOT_STARTED | 05-A |
-| WU-017 | 05-FINOPS | Billing periods reconciliation refresh | 01/02/03/04/06/07 | NOT_STARTED | 05-B |
-| WU-018 | 05-FINOPS | Billing detail evidence refresh | 01/02/03/04/06/07 | NOT_STARTED | 05-B |
-| WU-019 | 05-FINOPS | Chargeback attribution refresh | 01/02/03/04/06/07 | NOT_STARTED | 05-C |
+| WU-005 | 05-FINOPS | Budget detail × Build & Improve surfaces | 06-BUILD-AND-IMPROVE | COMPLETED | 05-A |
+| WU-006 | 05-FINOPS | Budget control × Platform scope | 07-PLATFORM-AND-UTILITY | COMPLETED | 05-A |
+| WU-007 | 05-FINOPS | Billing × Org access-group scope | 01-ORG-AND-ACCESS | COMPLETED | 05-B |
+| WU-008 | 05-FINOPS | Internal FinOps cohesion | 05-SELF | COMPLETED | 05-A/C/D |
+| WU-009 | 05-FINOPS | Budget control × Observe PARTIAL strengthen | 03-OBSERVE | COMPLETED | 05-A |
+| WU-010 | 05-FINOPS | Budget control × Build PARTIAL strengthen | 06-BUILD-AND-IMPROVE | COMPLETED | 05-A |
+| WU-011 | 05-FINOPS | Billing × cross-feature strengthen | 02/04/07 | COMPLETED | 05-B |
+| WU-012 | 05-FINOPS | Chargeback × cross-feature strengthen | 01/02/04/07 | COMPLETED | 05-C |
+| WU-013 | 05-FINOPS | Ledger × cross-feature strengthen | 01/03/04/07 | COMPLETED | 05-D |
+| WU-014 | 05-FINOPS | Budgets scope runtime governance refresh | 01/02/03/04/07 | COMPLETED | 05-A |
+| WU-015 | 05-FINOPS | Budget detail drillback refresh | 01/02/03/04/06 | COMPLETED | 05-A |
+| WU-016 | 05-FINOPS | Budget overrides exception refresh | 01/02/03/04/07 | COMPLETED | 05-A |
+| WU-017 | 05-FINOPS | Billing periods reconciliation refresh | 01/02/03/04/06/07 | COMPLETED | 05-B |
+| WU-018 | 05-FINOPS | Billing detail evidence refresh | 01/02/03/04/06/07 | COMPLETED | 05-B |
+| WU-019 | 05-FINOPS | Chargeback attribution refresh | 01/02/03/04/06/07 | COMPLETED | 05-C |
 | WU-001 | 06-BUILD-AND-IMPROVE | Interactive Build × Org & Gateway scope | 01/02 | NOT_STARTED | 06-A |
 | WU-002 | 06-BUILD-AND-IMPROVE | Interactive Build × Observe bridge | 03-OBSERVE | NOT_STARTED | 06-A |
 | WU-003 | 06-BUILD-AND-IMPROVE | Managed assets × cross-feature strengthen | 01/02/03/05 | NOT_STARTED | 06-B |

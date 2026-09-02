@@ -725,6 +725,149 @@ class BudgetOverrideGovernancePosture(BaseModel):
     tag_context: dict[str, int]
 
 
+class BudgetDetailBuildPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    build_context: dict[str, int]
+    experiment_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BudgetControlPlatformPosture(BaseModel):
+    period_days: int
+    platform_totals: dict[str, int | float]
+    org_budgets: list[dict[str, str | int | float]]
+    override_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BillingOrgScopePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    billing_context: dict[str, int | float]
+    org_context: dict[str, int]
+    attribution_context: dict[str, int | float]
+    spend_context: dict[str, float]
+
+
+class FinOpsInternalPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int | float]
+    chargeback_context: dict[str, int]
+    ledger_context: dict[str, int]
+    override_context: dict[str, int]
+    notification_context: dict[str, int]
+
+
+class BudgetControlObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_policy: dict[str, int | float]
+    override_status: dict[str, int]
+    notification_summary: dict[str, int | float]
+    spend_context: dict[str, float]
+
+
+class BudgetControlBuildPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_policy: dict[str, int | float]
+    override_context: dict[str, int]
+    scope_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BillingCrossFeaturePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    gateway_context: dict[str, int | float]
+    safety_context: dict[str, int]
+    platform_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class ChargebackCrossFeaturePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int]
+    gateway_context: dict[str, int | float]
+    safety_context: dict[str, int]
+    platform_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class LedgerCrossFeaturePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, int]
+    observe_context: dict[str, int | float]
+    safety_context: dict[str, int]
+    platform_context: dict[str, int]
+    ledger_context: dict[str, int | str]
+
+
+class BudgetScopeGovernancePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    identity_context: dict[str, int]
+    runtime_context: dict[str, int | float]
+    governance_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BudgetDetailDrillbackPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    scope_context: dict[str, int]
+    runtime_context: dict[str, int | float]
+    evidence_context: dict[str, int]
+    workflow_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BudgetOverrideExceptionPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    override_context: dict[str, int | float]
+    approval_context: dict[str, int]
+    runtime_context: dict[str, int]
+    monitoring_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BillingReconciliationPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    identity_context: dict[str, int]
+    provider_context: dict[str, int | float]
+    optimization_context: dict[str, int | float]
+    evidence_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class BillingDetailEvidencePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    identity_context: dict[str, int]
+    gateway_context: dict[str, int | float]
+    observe_context: dict[str, int]
+    build_context: dict[str, int]
+    spend_context: dict[str, float]
+
+
+class ChargebackAttributionPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    identity_context: dict[str, int]
+    runtime_context: dict[str, int | float]
+    monitoring_context: dict[str, int]
+    optimization_context: dict[str, int | float]
+    spend_context: dict[str, float]
+
+
 class SimulationResult(BaseModel):
     affected_requests: int
     current_cost_usd: Decimal

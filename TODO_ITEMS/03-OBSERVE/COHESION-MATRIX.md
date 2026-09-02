@@ -1,6 +1,6 @@
 # Observe â€” Cohesion Matrix
 
-Last updated: 2026-08-31 (04-SAFETY WU-020)
+Last updated: 2026-09-01
 
 This file tracks how Observe features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -28,6 +28,7 @@ Current row major feature under audit: `Observe`
 | Observe | Model usage | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | Model Usage shows FinOps Model Budget Utilization card via `GET /analytics/model-budget-utilization` with per-model spend vs. budget limit, utilization percentage, and drill-through to Model Budgets, Budgets, Budget Detail, Billing Periods, Billing Detail, and Chargeback. |
 | Observe | Analytics economics | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | Analytics Economics shows FinOps Budget Context card via `GET /analytics/economics-finops-posture` with budgets, overrides, notifications, ledger snapshots, and 30d spend context. Drill-through links to Budgets, Budget Detail, Budget Overrides, Notifications, Billing Periods, Chargeback, and Ledger. |
 | Observe | Cost and savings | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | Cost & Savings shows FinOps Detail Context card via shared `GET /analytics/economics-finops-posture` with billing periods, overrides, notifications, and ledger snapshots. Drill-through links to Budget Detail, Budget Overrides, Notifications, Billing Periods, Chargeback, and Ledger. |
+| Observe | Billing summary | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `PARTIAL` | `STRONG` | WU-013 added Ledger Cross-Feature Posture endpoint with observe context (billing periods, spend). Ledger P→S via observe context tile with drill-through to Billing. |
 | Observe | Outcomes and ROI | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | WU-018 adds Budget Detail drill-through link to FinOps Outcomes Context card. Budget detail P→S. Prior WU-007 FinOps Outcomes Context card via `GET /analytics/outcomes-finops-posture` with active budgets, breaches, billing periods, chargeback rules, and 30d outcome count. Drill-through links to Budgets, Budget Detail, Billing Periods, Billing Period Detail, and Chargeback. |
 | Observe | Workspace dashboard | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `N/A` | WU-003 (05-FINOPS): Workspace Dashboard now shows Budget Posture card via `GET /analytics/budget-detail-observe-posture` with active budgets, total limit, 30d spend, breach count. Drill-through links to Budgets, Billing Periods, Chargeback, Economics, Cost & Savings. |
 | Observe | Analytics users | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | `STRONG` | `STRONG` | `N/A` | WU-003 (05-FINOPS): Analytics Users page now shows Budget & Per-User Attribution card via `GET /analytics/budget-detail-observe-posture` with users with budgets, active users 30d, user-scoped budget total/spend. Drill-through links to Budgets, User Budgets, Billing, Chargeback, Economics. |

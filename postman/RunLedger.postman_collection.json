@@ -2953,6 +2953,426 @@
           "response": []
         },
         {
+          "name": "Budget Detail Build Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-detail-build-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-detail-build-posture"
+              ]
+            },
+            "description": "Budget detail build posture: active budget counts, build asset counts (prompts, agents, workflows), experiment activity (eval/replay experiments, score events), and 30-day spend context for Build & Improve surfaces."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Control Platform Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-control-platform-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-control-platform-posture"
+              ]
+            },
+            "description": "Budget control platform posture (platform admin only): cross-org budget totals, per-org budget counts and limits, override context, and platform-wide 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Org Scope Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/billing-org-scope-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "billing-org-scope-posture"
+              ]
+            },
+            "description": "Billing org scope posture: billing period counts, org scope (users, access groups, API keys), attribution context (calls, models, avg cost), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "FinOps Internal Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/finops-internal-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "finops-internal-posture"
+              ]
+            },
+            "description": "FinOps internal posture: budget totals, billing periods, chargeback rules, ledger snapshots, overrides, notifications, and 30-day spend across all FinOps sub-features."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Control Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-control-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-control-observe-posture"
+              ]
+            },
+            "description": "Budget control observe posture: budget policy (total, active, breached, at-risk, avg utilization, total limit), override status, notification summary, and 30-day spend context."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Control Build Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-control-build-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-control-build-posture"
+              ]
+            },
+            "description": "Budget control build posture: budget policy (total, active, breached, avg utilization, total limit), override context, scope type distribution, and 30-day spend with distinct model count."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Cross-Feature Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/billing-cross-feature-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "billing-cross-feature-posture"
+              ]
+            },
+            "description": "Billing cross-feature posture: gateway context (routes, providers, caches, rate limits, models), safety context (tools, alert rules, audit events, tags), platform context (organizations), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Chargeback Cross-Feature Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/chargeback-cross-feature-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "chargeback-cross-feature-posture"
+              ]
+            },
+            "description": "Chargeback cross-feature posture: org context (users, access groups, API keys, telemetry, hub models), gateway context (routes, providers, caches), safety context (MCP servers, tools, audit events, tags), platform context (organizations, chargeback rules), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Ledger Cross-Feature Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/ledger-cross-feature-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "ledger-cross-feature-posture"
+              ]
+            },
+            "description": "Ledger cross-feature posture: org context (users, workspaces, access groups), observe context (billing periods, 30-day spend, distinct models), safety context (audit events, tags), platform context (organizations), and ledger context (snapshots, latest snapshot date)."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Scope Governance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-scope-governance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-scope-governance-posture"
+              ]
+            },
+            "description": "Budget scope governance posture: identity context (users, API keys, access groups, hub models), runtime context (routes, active providers, cache configs), governance context (alert rules, audit events, tags), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Detail Drillback Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-detail-drillback-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-detail-drillback-posture"
+              ]
+            },
+            "description": "Budget detail drillback posture: scope context (users, access groups, API keys), runtime context (cache configs, rate-limited routes), evidence context (runs, requests, audit events), workflow context (workflows, workflow runs), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Budget Override Exception Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/budget-override-exception-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "budget-override-exception-posture"
+              ]
+            },
+            "description": "Budget override exception posture: override lifecycle (total, active, expired, limit USD), approval workflow (pending, approved, denied), runtime context (routes, rate-limited), monitoring context (alert rules, audit events), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Reconciliation Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/billing-reconciliation-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "billing-reconciliation-posture"
+              ]
+            },
+            "description": "Billing reconciliation posture: identity context (users, API keys, access groups), provider context (active providers, cache configs, cache savings, models), optimization context (billing periods, alert rules, cache savings), evidence context (audit events, alert rules), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Billing Detail Evidence Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/billing-detail-evidence-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "billing-detail-evidence-posture"
+              ]
+            },
+            "description": "Billing detail evidence posture: identity context (users, API keys, access groups), gateway context (routes, models), observe context (sessions, requests), build context (replay experiments), and 30-day spend."
+          },
+          "response": []
+        },
+        {
+          "name": "Chargeback Attribution Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/chargeback-attribution-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "chargeback-attribution-posture"
+              ]
+            },
+            "description": "Chargeback attribution posture: identity context (users, API keys, access groups), runtime context (cache configs, cache savings, chargeback rules), monitoring context (alert rules, audit events, tags), optimization context (chargeback rules, cache savings), and 30-day spend."
+          },
+          "response": []
+        },
+        {
           "name": "Billing Period Performance Posture",
           "request": {
             "method": "GET",

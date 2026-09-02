@@ -29,7 +29,7 @@ from sqlalchemy import String, case, cast, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_user, get_current_workspace
+from runledger_api.core.deps import get_current_user, get_current_workspace, require_platform_admin
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.agents import Agent, WorkflowDefinition, WorkflowRun
@@ -125,7 +125,22 @@ from runledger_api.schemas.analytics import (
     AlertRulesRuntimePosture,
     AuditLogRuntimePosture,
     GovernancePackRuntimePosture,
+    BillingOrgScopePosture,
+    BudgetControlPlatformPosture,
+    BudgetDetailBuildPosture,
     BudgetDetailObservePosture,
+    FinOpsInternalPosture,
+    BudgetControlObservePosture,
+    BudgetControlBuildPosture,
+    BillingCrossFeaturePosture,
+    ChargebackCrossFeaturePosture,
+    LedgerCrossFeaturePosture,
+    BudgetScopeGovernancePosture,
+    BudgetDetailDrillbackPosture,
+    BudgetOverrideExceptionPosture,
+    BillingReconciliationPosture,
+    BillingDetailEvidencePosture,
+    ChargebackAttributionPosture,
     BudgetOrgScopePosture,
     BudgetOverrideGovernancePosture,
     TagsRuntimePosture,
@@ -12120,5 +12135,2002 @@ async def budget_override_governance_posture(
         tag_context={
             "budget_tags": budget_tags,
             "override_tags": override_tags,
+        },
+    )
+
+
+@router.get(
+    "/budget-detail-build-posture",
+    response_model=BudgetDetailBuildPosture,
+)
+async def budget_detail_build_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    t_from = _default_from()
+    t_to = _default_to()
+
+    active_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_limit = (
+        await db.execute(
+            select(func.coalesce(func.sum(Budget.limit_usd), 0)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    breach_count = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+                Budget.current_spend_usd > Budget.limit_usd,
+            )
+        )
+    ).scalar() or 0
+
+    feature_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "feature_tag",
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    prompt_count = (
+        await db.execute(
+            select(func.count(Prompt.id)).where(
+                Prompt.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    agent_count = (
+        await db.execute(
+            select(func.count(Agent.id)).where(
+                Agent.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    workflow_count = (
+        await db.execute(
+            select(func.count(WorkflowDefinition.id)).where(
+                WorkflowDefinition.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    workflow_runs_30d = (
+        await db.execute(
+            select(func.count(WorkflowRun.id)).where(
+                WorkflowRun.workspace_id == workspace.id,
+                WorkflowRun.started_at >= t_from,
+                WorkflowRun.started_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    eval_experiments = (
+        await db.execute(
+            select(func.count(EvalExperiment.id)).where(
+                EvalExperiment.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    eval_experiments_30d = (
+        await db.execute(
+            select(func.count(EvalExperiment.id)).where(
+                EvalExperiment.workspace_id == workspace.id,
+                EvalExperiment.created_at >= t_from,
+                EvalExperiment.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    replay_experiments = (
+        await db.execute(
+            select(func.count(ReplayExperiment.id)).where(
+                ReplayExperiment.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    replay_experiments_30d = (
+        await db.execute(
+            select(func.count(ReplayExperiment.id)).where(
+                ReplayExperiment.workspace_id == workspace.id,
+                ReplayExperiment.created_at >= t_from,
+                ReplayExperiment.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    score_events_30d = (
+        await db.execute(
+            select(func.count(ScoreEvent.id)).where(
+                ScoreEvent.workspace_id == workspace.id,
+                ScoreEvent.created_at >= t_from,
+                ScoreEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetDetailBuildPosture(
+        workspace_id=str(workspace.id),
+        period_days=30,
+        budget_context={
+            "active_budgets": active_budgets,
+            "total_limit_usd": float(total_limit),
+            "breach_count": breach_count,
+            "feature_budgets": feature_budgets,
+        },
+        build_context={
+            "prompts": prompt_count,
+            "agents": agent_count,
+            "workflows": workflow_count,
+            "workflow_runs_30d": workflow_runs_30d,
+        },
+        experiment_context={
+            "eval_experiments": eval_experiments,
+            "eval_experiments_30d": eval_experiments_30d,
+            "replay_experiments": replay_experiments,
+            "replay_experiments_30d": replay_experiments_30d,
+            "score_events_30d": score_events_30d,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+            "distinct_models_30d": distinct_models_30d,
+        },
+    )
+
+
+@router.get(
+    "/budget-control-platform-posture",
+    response_model=BudgetControlPlatformPosture,
+)
+async def budget_control_platform_posture(
+    admin: tuple = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace, user = admin
+    t_from = _default_from()
+    t_to = _default_to()
+
+    rows = (
+        await db.execute(
+            select(
+                Tenant.id,
+                Tenant.name,
+                func.count(Budget.id).label("budget_count"),
+                func.coalesce(func.sum(Budget.limit_usd), 0).label("total_limit"),
+                func.count(Budget.id).filter(
+                    Budget.current_spend_usd > Budget.limit_usd
+                ).label("breach_count"),
+            )
+            .select_from(Tenant)
+            .outerjoin(Workspace, Workspace.tenant_id == Tenant.id)
+            .outerjoin(
+                Budget,
+                sa.and_(
+                    Budget.workspace_id == Workspace.id,
+                    Budget.is_active.is_(True),
+                ),
+            )
+            .group_by(Tenant.id, Tenant.name)
+            .order_by(Tenant.name)
+        )
+    ).all()
+
+    org_budgets = []
+    total_budgets = 0
+    total_limit_usd = 0.0
+    total_breaches = 0
+    for row in rows:
+        org_budgets.append({
+            "org_id": str(row.id),
+            "org_name": row.name,
+            "budget_count": row.budget_count,
+            "total_limit_usd": float(row.total_limit),
+            "breach_count": row.breach_count,
+        })
+        total_budgets += row.budget_count
+        total_limit_usd += float(row.total_limit)
+        total_breaches += row.breach_count
+
+    total_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).select_from(BudgetOverride).join(
+                Budget, Budget.id == BudgetOverride.budget_id
+            )
+        )
+    ).scalar() or 0
+
+    active_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).select_from(BudgetOverride).join(
+                Budget, Budget.id == BudgetOverride.budget_id
+            ).where(BudgetOverride.is_active.is_(True))
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetControlPlatformPosture(
+        period_days=30,
+        platform_totals={
+            "organizations": len(rows),
+            "total_budgets": total_budgets,
+            "total_limit_usd": total_limit_usd,
+            "total_breaches": total_breaches,
+        },
+        org_budgets=org_budgets,
+        override_context={
+            "total_overrides": total_overrides,
+            "active_overrides": active_overrides,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+            "distinct_models_30d": distinct_models_30d,
+        },
+    )
+
+
+@router.get("/billing-org-scope-posture", response_model=BillingOrgScopePosture)
+async def billing_org_scope_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    billing_periods = (
+        await db.execute(
+            select(BillingPeriod).where(BillingPeriod.workspace_id == workspace_id)
+        )
+    ).scalars().all()
+
+    open_periods = sum(1 for bp in billing_periods if bp.status == "open")
+    closed_periods = sum(1 for bp in billing_periods if bp.status == "closed")
+    total_billed_usd = sum(float(bp.total_cost_usd or 0) for bp in billing_periods)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count()).select_from(WorkspaceUser).where(
+                WorkspaceUser.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count()).select_from(AccessGroup).where(
+                AccessGroup.workspace_id == workspace_id,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count()).select_from(ApiKey).where(
+                ApiKey.workspace_id == workspace_id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    calls_30d = (
+        await db.execute(
+            select(func.count()).select_from(ProviderCall).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BillingOrgScopePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        billing_context={
+            "total_periods": len(billing_periods),
+            "open_periods": open_periods,
+            "closed_periods": closed_periods,
+            "total_billed_usd": total_billed_usd,
+        },
+        org_context={
+            "workspace_users": workspace_users,
+            "access_groups": access_groups,
+            "api_keys": api_keys,
+        },
+        attribution_context={
+            "calls_30d": calls_30d,
+            "distinct_models": distinct_models,
+            "avg_cost_per_call": round(spend_30d / calls_30d, 6) if calls_30d else 0,
+        },
+        spend_context={
+            "total_spend_30d": spend_30d,
+            "distinct_models_30d": distinct_models,
+        },
+    )
+
+
+@router.get("/finops-internal-posture", response_model=FinOpsInternalPosture)
+async def finops_internal_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    budgets = (
+        await db.execute(
+            select(Budget).where(Budget.workspace_id == workspace_id)
+        )
+    ).scalars().all()
+
+    active_budgets = sum(1 for b in budgets if b.is_active)
+    total_limit_usd = sum(float(b.limit_usd or 0) for b in budgets)
+    breached = sum(1 for b in budgets if getattr(b, "breach_count", 0) > 0)
+
+    billing_periods = (
+        await db.execute(
+            select(BillingPeriod).where(BillingPeriod.workspace_id == workspace_id)
+        )
+    ).scalars().all()
+
+    open_periods = sum(1 for bp in billing_periods if bp.status == "open")
+    total_billed_usd = sum(float(bp.total_cost_usd or 0) for bp in billing_periods)
+
+    chargeback_rules = (
+        await db.execute(
+            select(func.count()).select_from(ChargebackRule).where(
+                ChargebackRule.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    active_chargeback = (
+        await db.execute(
+            select(func.count()).select_from(ChargebackRule).where(
+                ChargebackRule.workspace_id == workspace_id,
+                ChargebackRule.status == "active",
+            )
+        )
+    ).scalar() or 0
+
+    ledger_snapshots = (
+        await db.execute(
+            select(func.count()).select_from(LedgerSnapshot).where(
+                LedgerSnapshot.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    latest_snapshot = (
+        await db.execute(
+            select(LedgerSnapshot.snapshot_date).where(
+                LedgerSnapshot.workspace_id == workspace_id
+            ).order_by(LedgerSnapshot.snapshot_date.desc()).limit(1)
+        )
+    ).scalar()
+
+    budget_ids = [b.id for b in budgets]
+
+    total_overrides = 0
+    active_overrides = 0
+    if budget_ids:
+        total_overrides = (
+            await db.execute(
+                select(func.count()).select_from(BudgetOverride).where(
+                    BudgetOverride.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+
+        active_overrides = (
+            await db.execute(
+                select(func.count()).select_from(BudgetOverride).where(
+                    BudgetOverride.budget_id.in_(budget_ids),
+                    BudgetOverride.is_active.is_(True),
+                )
+            )
+        ).scalar() or 0
+
+    total_notifications = 0
+    if budget_ids:
+        total_notifications = (
+            await db.execute(
+                select(func.count()).select_from(BudgetNotification).where(
+                    BudgetNotification.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+
+    spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    return FinOpsInternalPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        budget_context={
+            "total_budgets": len(budgets),
+            "active_budgets": active_budgets,
+            "total_limit_usd": total_limit_usd,
+            "breached_budgets": breached,
+        },
+        billing_context={
+            "total_periods": len(billing_periods),
+            "open_periods": open_periods,
+            "total_billed_usd": total_billed_usd,
+        },
+        chargeback_context={
+            "total_rules": chargeback_rules,
+            "active_rules": active_chargeback,
+        },
+        ledger_context={
+            "total_snapshots": ledger_snapshots,
+            "latest_snapshot_date": str(latest_snapshot) if latest_snapshot else "none",
+        },
+        override_context={
+            "total_overrides": total_overrides,
+            "active_overrides": active_overrides,
+        },
+        notification_context={
+            "total_notifications": total_notifications,
+            "spend_30d": spend_30d,
+        },
+    )
+
+
+@router.get("/budget-control-observe-posture", response_model=BudgetControlObservePosture)
+async def budget_control_observe_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    budgets = (
+        await db.execute(
+            select(Budget).where(Budget.workspace_id == workspace_id)
+        )
+    ).scalars().all()
+
+    active_budgets = sum(1 for b in budgets if b.is_active)
+    total_limit_usd = sum(float(b.limit_usd or 0) for b in budgets)
+    breached = sum(1 for b in budgets if getattr(b, "breach_count", 0) > 0)
+    at_risk = sum(
+        1 for b in budgets
+        if b.is_active and float(getattr(b, "pct_used", 0) or 0) >= 80
+        and float(getattr(b, "pct_used", 0) or 0) < 100
+    )
+    avg_utilization = (
+        sum(float(getattr(b, "pct_used", 0) or 0) for b in budgets) / len(budgets)
+        if budgets else 0
+    )
+
+    budget_ids = [b.id for b in budgets]
+
+    total_overrides = 0
+    active_overrides = 0
+    if budget_ids:
+        total_overrides = (
+            await db.execute(
+                select(func.count()).select_from(BudgetOverride).where(
+                    BudgetOverride.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+        active_overrides = (
+            await db.execute(
+                select(func.count()).select_from(BudgetOverride).where(
+                    BudgetOverride.budget_id.in_(budget_ids),
+                    BudgetOverride.is_active.is_(True),
+                )
+            )
+        ).scalar() or 0
+
+    total_notifications = 0
+    if budget_ids:
+        total_notifications = (
+            await db.execute(
+                select(func.count()).select_from(BudgetNotification).where(
+                    BudgetNotification.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+
+    spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    calls_30d = (
+        await db.execute(
+            select(func.count()).select_from(ProviderCall).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetControlObservePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        budget_policy={
+            "total_budgets": len(budgets),
+            "active_budgets": active_budgets,
+            "breached_budgets": breached,
+            "at_risk_budgets": at_risk,
+            "avg_utilization_pct": round(avg_utilization, 1),
+            "total_limit_usd": total_limit_usd,
+        },
+        override_status={
+            "total_overrides": total_overrides,
+            "active_overrides": active_overrides,
+        },
+        notification_summary={
+            "total_notifications": total_notifications,
+            "calls_30d": calls_30d,
+        },
+        spend_context={
+            "total_spend_30d": spend_30d,
+        },
+    )
+
+
+@router.get("/budget-control-build-posture", response_model=BudgetControlBuildPosture)
+async def budget_control_build_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    budgets = (
+        await db.execute(
+            select(Budget).where(Budget.workspace_id == workspace_id)
+        )
+    ).scalars().all()
+
+    active_budgets = sum(1 for b in budgets if b.is_active)
+    total_limit_usd = sum(float(b.limit_usd or 0) for b in budgets)
+    breached = sum(1 for b in budgets if getattr(b, "breach_count", 0) > 0)
+    avg_utilization = (
+        sum(float(getattr(b, "pct_used", 0) or 0) for b in budgets) / len(budgets)
+        if budgets else 0
+    )
+
+    scope_types: dict[str, int] = {}
+    for b in budgets:
+        st = getattr(b, "scope_type", "workspace") or "workspace"
+        scope_types[st] = scope_types.get(st, 0) + 1
+
+    budget_ids = [b.id for b in budgets]
+
+    total_overrides = 0
+    active_overrides = 0
+    if budget_ids:
+        total_overrides = (
+            await db.execute(
+                select(func.count()).select_from(BudgetOverride).where(
+                    BudgetOverride.budget_id.in_(budget_ids)
+                )
+            )
+        ).scalar() or 0
+        active_overrides = (
+            await db.execute(
+                select(func.count()).select_from(BudgetOverride).where(
+                    BudgetOverride.budget_id.in_(budget_ids),
+                    BudgetOverride.is_active.is_(True),
+                )
+            )
+        ).scalar() or 0
+
+    spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetControlBuildPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        budget_policy={
+            "total_budgets": len(budgets),
+            "active_budgets": active_budgets,
+            "breached_budgets": breached,
+            "avg_utilization_pct": round(avg_utilization, 1),
+            "total_limit_usd": total_limit_usd,
+        },
+        override_context={
+            "total_overrides": total_overrides,
+            "active_overrides": active_overrides,
+        },
+        scope_context=scope_types,
+        spend_context={
+            "total_spend_30d": spend_30d,
+            "distinct_models_30d": distinct_models,
+        },
+    )
+
+
+@router.get("/billing-cross-feature-posture", response_model=BillingCrossFeaturePosture)
+async def billing_cross_feature_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    routes = (
+        await db.execute(
+            select(func.count()).select_from(GatewayRoute).where(
+                GatewayRoute.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    providers = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.provider))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count()).select_from(ResponseCacheConfig).where(
+                ResponseCacheConfig.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    rate_limit_endpoints = (
+        await db.execute(
+            select(func.count()).select_from(GatewayPassThroughEndpoint).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    provider_spend = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    tool_count = (
+        await db.execute(
+            select(func.count()).select_from(ToolRegistry).where(
+                ToolRegistry.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(
+            select(func.count()).select_from(AlertRule).where(
+                AlertRule.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count()).select_from(AuditEvent).where(
+                AuditEvent.workspace_id == workspace_id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    tags = (
+        await db.execute(
+            select(func.count()).select_from(Tag).where(
+                Tag.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    total_orgs = (
+        await db.execute(
+            select(func.count()).select_from(Tenant)
+        )
+    ).scalar() or 0
+
+    return BillingCrossFeaturePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        gateway_context={
+            "routes": routes,
+            "active_providers_30d": providers,
+            "cache_configs": cache_configs,
+            "rate_limit_endpoints": rate_limit_endpoints,
+            "distinct_models_30d": distinct_models,
+        },
+        safety_context={
+            "tool_registry_count": tool_count,
+            "alert_rules": alert_rules,
+            "audit_events_30d": audit_events_30d,
+            "tags": tags,
+        },
+        platform_context={
+            "total_organizations": total_orgs,
+        },
+        spend_context={
+            "total_spend_30d": provider_spend,
+        },
+    )
+
+
+@router.get("/chargeback-cross-feature-posture", response_model=ChargebackCrossFeaturePosture)
+async def chargeback_cross_feature_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count()).select_from(WorkspaceUser).where(
+                WorkspaceUser.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count()).select_from(AccessGroup).where(
+                AccessGroup.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count()).select_from(ApiKey).where(
+                ApiKey.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    otlp_batches_30d = (
+        await db.execute(
+            select(func.count()).select_from(OtlpIngestBatch).where(
+                OtlpIngestBatch.workspace_id == workspace_id,
+                OtlpIngestBatch.created_at >= t_from,
+                OtlpIngestBatch.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count()).select_from(HubModel).where(
+                HubModel.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    routes = (
+        await db.execute(
+            select(func.count()).select_from(GatewayRoute).where(
+                GatewayRoute.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    providers = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.provider))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count()).select_from(ResponseCacheConfig).where(
+                ResponseCacheConfig.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    mcp_servers = (
+        await db.execute(
+            select(func.count()).select_from(McpServer).where(
+                McpServer.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    tool_count = (
+        await db.execute(
+            select(func.count()).select_from(ToolRegistry).where(
+                ToolRegistry.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count()).select_from(AuditEvent).where(
+                AuditEvent.workspace_id == workspace_id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    tags = (
+        await db.execute(
+            select(func.count()).select_from(Tag).where(
+                Tag.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    total_orgs = (
+        await db.execute(
+            select(func.count()).select_from(Tenant)
+        )
+    ).scalar() or 0
+
+    provider_spend = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    chargeback_rules = (
+        await db.execute(
+            select(func.count()).select_from(ChargebackRule).where(
+                ChargebackRule.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    return ChargebackCrossFeaturePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        org_context={
+            "workspace_users": workspace_users,
+            "access_groups": access_groups,
+            "api_keys": api_keys,
+            "otlp_batches_30d": otlp_batches_30d,
+            "hub_models": hub_models,
+        },
+        gateway_context={
+            "routes": routes,
+            "active_providers_30d": providers,
+            "cache_configs": cache_configs,
+        },
+        safety_context={
+            "mcp_servers": mcp_servers,
+            "tool_registry_count": tool_count,
+            "audit_events_30d": audit_events_30d,
+            "tags": tags,
+        },
+        platform_context={
+            "total_organizations": total_orgs,
+            "chargeback_rules": chargeback_rules,
+        },
+        spend_context={
+            "total_spend_30d": provider_spend,
+        },
+    )
+
+
+@router.get("/ledger-cross-feature-posture", response_model=LedgerCrossFeaturePosture)
+async def ledger_cross_feature_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count()).select_from(WorkspaceUser).where(
+                WorkspaceUser.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    workspaces = (
+        await db.execute(
+            select(func.count()).select_from(Workspace)
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count()).select_from(AccessGroup).where(
+                AccessGroup.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    billing_periods = (
+        await db.execute(
+            select(func.count()).select_from(BillingPeriod).where(
+                BillingPeriod.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    provider_spend = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count()).select_from(AuditEvent).where(
+                AuditEvent.workspace_id == workspace_id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    tags = (
+        await db.execute(
+            select(func.count()).select_from(Tag).where(
+                Tag.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    total_orgs = (
+        await db.execute(
+            select(func.count()).select_from(Tenant)
+        )
+    ).scalar() or 0
+
+    snapshots = (
+        await db.execute(
+            select(func.count()).select_from(LedgerSnapshot).where(
+                LedgerSnapshot.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    latest_snapshot_row = (
+        await db.execute(
+            select(LedgerSnapshot.snapshot_date).where(
+                LedgerSnapshot.workspace_id == workspace_id
+            ).order_by(LedgerSnapshot.snapshot_date.desc()).limit(1)
+        )
+    ).scalar()
+    latest_snapshot_date = str(latest_snapshot_row) if latest_snapshot_row else "none"
+
+    return LedgerCrossFeaturePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        org_context={
+            "workspace_users": workspace_users,
+            "workspaces": workspaces,
+            "access_groups": access_groups,
+        },
+        observe_context={
+            "billing_periods": billing_periods,
+            "total_spend_30d": provider_spend,
+            "distinct_models_30d": distinct_models,
+        },
+        safety_context={
+            "audit_events_30d": audit_events_30d,
+            "tags": tags,
+        },
+        platform_context={
+            "total_organizations": total_orgs,
+        },
+        ledger_context={
+            "total_snapshots": snapshots,
+            "latest_snapshot_date": latest_snapshot_date,
+        },
+    )
+
+
+@router.get("/budget-scope-governance-posture", response_model=BudgetScopeGovernancePosture)
+async def budget_scope_governance_posture(
+    workspace_id: str = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    t_to = datetime.utcnow()
+    t_from = t_to - timedelta(days=30)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count()).select_from(WorkspaceUser).where(
+                WorkspaceUser.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count()).select_from(ApiKey).where(
+                ApiKey.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count()).select_from(AccessGroup).where(
+                AccessGroup.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count()).select_from(HubModel).where(
+                HubModel.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    routes = (
+        await db.execute(
+            select(func.count()).select_from(GatewayRoute).where(
+                GatewayRoute.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    providers = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.provider))).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count()).select_from(ResponseCacheConfig).where(
+                ResponseCacheConfig.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    provider_spend = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                    ProviderCall.workspace_id == workspace_id,
+                    ProviderCall.created_at >= t_from,
+                    ProviderCall.created_at < t_to,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    alert_rules = (
+        await db.execute(
+            select(func.count()).select_from(AlertRule).where(
+                AlertRule.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count()).select_from(AuditEvent).where(
+                AuditEvent.workspace_id == workspace_id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    tags = (
+        await db.execute(
+            select(func.count()).select_from(Tag).where(
+                Tag.workspace_id == workspace_id
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetScopeGovernancePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        identity_context={
+            "workspace_users": workspace_users,
+            "api_keys": api_keys,
+            "access_groups": access_groups,
+            "hub_models": hub_models,
+        },
+        runtime_context={
+            "routes": routes,
+            "active_providers_30d": providers,
+            "cache_configs": cache_configs,
+            "total_spend_30d": provider_spend,
+        },
+        governance_context={
+            "alert_rules": alert_rules,
+            "audit_events_30d": audit_events_30d,
+            "tags": tags,
+        },
+        spend_context={
+            "total_spend_30d": provider_spend,
+        },
+    )
+
+
+@router.get(
+    "/budget-detail-drillback-posture",
+    response_model=BudgetDetailDrillbackPosture,
+)
+async def budget_detail_drillback_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace_id = str(workspace.id)
+    t_from = _default_from()
+    t_to = _default_to()
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.rate_limit_rpm.isnot(None),
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.started_at >= t_from,
+                AgentRun.started_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    total_requests_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    workflows = (
+        await db.execute(
+            select(func.count(WorkflowDefinition.id)).where(
+                WorkflowDefinition.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    workflow_runs_30d = (
+        await db.execute(
+            select(func.count(WorkflowRun.id)).where(
+                WorkflowRun.workspace_id == workspace.id,
+                WorkflowRun.started_at >= t_from,
+                WorkflowRun.started_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetDetailDrillbackPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        scope_context={
+            "workspace_users": workspace_users,
+            "access_groups": access_groups,
+            "api_keys": api_keys,
+        },
+        runtime_context={
+            "cache_configs": cache_configs,
+            "rate_limited_routes": rate_limited_routes,
+        },
+        evidence_context={
+            "runs_30d": total_runs_30d,
+            "requests_30d": total_requests_30d,
+            "audit_events_30d": audit_events_30d,
+        },
+        workflow_context={
+            "workflows": workflows,
+            "workflow_runs_30d": workflow_runs_30d,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+            "distinct_models_30d": distinct_models_30d,
+        },
+    )
+
+
+@router.get(
+    "/budget-override-exception-posture",
+    response_model=BudgetOverrideExceptionPosture,
+)
+async def budget_override_exception_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace_id = str(workspace.id)
+    t_from = _default_from()
+    t_to = _default_to()
+
+    ws_budgets = select(Budget.id).where(Budget.workspace_id == workspace.id).scalar_subquery()
+
+    total_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                )
+            )
+        )
+    ).scalar() or 0
+
+    active_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                ),
+                BudgetOverride.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    expired_overrides = (
+        await db.execute(
+            select(func.count(BudgetOverride.id)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                ),
+                BudgetOverride.is_active.is_(False),
+            )
+        )
+    ).scalar() or 0
+
+    override_limit_total = (
+        await db.execute(
+            select(func.coalesce(func.sum(BudgetOverride.override_limit_usd), 0)).where(
+                BudgetOverride.budget_id.in_(
+                    select(Budget.id).where(Budget.workspace_id == workspace.id)
+                ),
+                BudgetOverride.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    pending_approvals = (
+        await db.execute(
+            select(func.count(Approval.id)).where(
+                Approval.workspace_id == workspace.id,
+                Approval.status == "pending",
+            )
+        )
+    ).scalar() or 0
+
+    approved_30d = (
+        await db.execute(
+            select(func.count(Approval.id)).where(
+                Approval.workspace_id == workspace.id,
+                Approval.status == "approved",
+                Approval.created_at >= t_from,
+                Approval.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    denied_30d = (
+        await db.execute(
+            select(func.count(Approval.id)).where(
+                Approval.workspace_id == workspace.id,
+                Approval.status == "denied",
+                Approval.created_at >= t_from,
+                Approval.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.rate_limit_rpm.isnot(None),
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(
+            select(func.count(AlertRule.id)).where(
+                AlertRule.workspace_id == workspace.id,
+                AlertRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BudgetOverrideExceptionPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        override_context={
+            "total_overrides": total_overrides,
+            "active_overrides": active_overrides,
+            "expired_overrides": expired_overrides,
+            "active_override_limit_usd": float(override_limit_total),
+        },
+        approval_context={
+            "pending_approvals": pending_approvals,
+            "approved_30d": approved_30d,
+            "denied_30d": denied_30d,
+        },
+        runtime_context={
+            "active_routes": routes,
+            "rate_limited_routes": rate_limited_routes,
+        },
+        monitoring_context={
+            "alert_rules": alert_rules,
+            "audit_events_30d": audit_events_30d,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+        },
+    )
+
+
+@router.get(
+    "/billing-reconciliation-posture",
+    response_model=BillingReconciliationPosture,
+)
+async def billing_reconciliation_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace_id = str(workspace.id)
+    t_from = _default_from()
+    t_to = _default_to()
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    active_providers = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.provider))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+                ResponseCacheConfig.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_hit_savings = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.is_cache_hit.is_(True),
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(
+            select(func.count(AlertRule.id)).where(
+                AlertRule.workspace_id == workspace.id,
+                AlertRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BillingReconciliationPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        identity_context={
+            "workspace_users": workspace_users,
+            "api_keys": api_keys,
+            "access_groups": access_groups,
+        },
+        provider_context={
+            "active_providers_30d": active_providers,
+            "cache_configs": cache_configs,
+            "cache_hit_savings_usd": float(cache_hit_savings),
+            "distinct_models_30d": distinct_models,
+        },
+        optimization_context={
+            "billing_periods": billing_periods,
+            "alert_rules": alert_rules,
+            "cache_savings_usd": float(cache_hit_savings),
+        },
+        evidence_context={
+            "audit_events_30d": audit_events_30d,
+            "alert_rules": alert_rules,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+        },
+    )
+
+
+@router.get(
+    "/billing-detail-evidence-posture",
+    response_model=BillingDetailEvidencePosture,
+)
+async def billing_detail_evidence_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace_id = str(workspace.id)
+    t_from = _default_from()
+    t_to = _default_to()
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    sessions_30d = (
+        await db.execute(
+            select(func.count(func.distinct(Span.session_id))).where(
+                Span.workspace_id == workspace.id,
+                Span.session_id.isnot(None),
+                Span.created_at >= t_from,
+                Span.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    replay_experiments = (
+        await db.execute(
+            select(func.count(ReplayExperiment.id)).where(
+                ReplayExperiment.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return BillingDetailEvidencePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        identity_context={
+            "workspace_users": workspace_users,
+            "api_keys": api_keys,
+            "access_groups": access_groups,
+        },
+        gateway_context={
+            "active_routes": routes,
+            "distinct_models_30d": distinct_models,
+        },
+        observe_context={
+            "sessions_30d": sessions_30d,
+            "requests_30d": requests_30d,
+        },
+        build_context={
+            "replay_experiments": replay_experiments,
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
+        },
+    )
+
+
+@router.get(
+    "/chargeback-attribution-posture",
+    response_model=ChargebackAttributionPosture,
+)
+async def chargeback_attribution_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace_id = str(workspace.id)
+    t_from = _default_from()
+    t_to = _default_to()
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+                ResponseCacheConfig.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_hit_savings = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.is_cache_hit.is_(True),
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(
+            select(func.count(AlertRule.id)).where(
+                AlertRule.workspace_id == workspace.id,
+                AlertRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= t_from,
+                AuditEvent.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    tags = (
+        await db.execute(
+            select(func.count(Tag.id)).where(
+                Tag.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rules = (
+        await db.execute(
+            select(func.count(ChargebackRule.id)).where(
+                ChargebackRule.workspace_id == workspace.id,
+                ChargebackRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_spend_30d = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= t_from,
+                ProviderCall.created_at < t_to,
+            )
+        )
+    ).scalar() or 0
+
+    return ChargebackAttributionPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        identity_context={
+            "workspace_users": workspace_users,
+            "api_keys": api_keys,
+            "access_groups": access_groups,
+        },
+        runtime_context={
+            "cache_configs": cache_configs,
+            "cache_hit_savings_usd": float(cache_hit_savings),
+            "chargeback_rules": chargeback_rules,
+        },
+        monitoring_context={
+            "alert_rules": alert_rules,
+            "audit_events_30d": audit_events_30d,
+            "tags": tags,
+        },
+        optimization_context={
+            "chargeback_rules": chargeback_rules,
+            "cache_savings_usd": float(cache_hit_savings),
+        },
+        spend_context={
+            "total_spend_30d": float(total_spend_30d),
         },
     )

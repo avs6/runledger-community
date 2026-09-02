@@ -1,6 +1,6 @@
 # Gateway & Routing — Cohesion Matrix
 
-Last updated: 2026-08-31 (04-SAFETY WU-020)
+Last updated: 2026-09-01
 
 This file tracks how Gateway & Routing features relate to all other major feature families. Each cell is `STRONG`, `PARTIAL`, `GAP`, or `N/A`.
 
@@ -24,7 +24,7 @@ Current row major feature under audit: `Gateway & Routing`
 | Gateway & Routing | Model gateway | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | GET /analytics/gateway-finops-posture returns route-level spend, budget coverage, overrides, notification channels, billing periods, and chargeback rules. Gateway page shows FinOps Posture card with drill-through links to Budgets, Budget Detail, Budget Overrides, Budget Notifications, Billing Periods, Billing Period Detail, Chargeback, and Cost & Savings. Ledger remains PARTIAL because it is downstream evidence, not an active gateway operating surface. |
 | Gateway & Routing | Guardrails | `STRONG` | `STRONG` | `N/A` | `N/A` | `STRONG` | `N/A` | `STRONG` | `N/A` | GET /analytics/guardrails-finops-posture returns 30-day evaluation and block counts, active rules and routes, plus FinOps context (budgets, budget notifications, billing periods, chargeback rules). Guardrails page shows FinOps Posture card with drill-through links to Budgets, Budget Detail, Budget Notifications, Billing Periods, Chargeback, Cost & Savings, and Ledger. Blocked traffic avoids spend, retries and fallbacks influence cost attribution, and enforcement patterns feed budget and chargeback evidence. |
 | Gateway & Routing | Response cache | `STRONG` | `STRONG` | `PARTIAL` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | GET /analytics/response-cache-economics-posture returns cache profiles, routes, FinOps context (budgets, overrides, notifications, billing periods, ledger), governance (audit events), and org (users). Gateway Cache Economics card links to Budget Overrides, Budget Notifications, and Ledger. Budget performance posture returns cache economics. |
-| Gateway & Routing | Rate limits | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `PARTIAL` | `PARTIAL` | GET /analytics/rate-limit-scope-posture returns throttle context (routes with RPM, pass-through, policies), scope (access groups, monitoring alerts), and FinOps (budgets, notifications, chargeback, ledger). Gateway Rate Limit Scope card links to Budget Notifications, Chargeback, and Ledger. Budget performance posture returns throttle containment. |
+| Gateway & Routing | Rate limits | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | `STRONG` | `STRONG` | `STRONG` | `PARTIAL` | WU-012 strengthens Chargeback: rate-limited routes now carry chargeback-attributable throttle evidence, so the Rate Limit Scope card's Chargeback drill-through reflects direct attribution rather than indirect inheritance. Chargeback P→S. Prior: GET /analytics/rate-limit-scope-posture returns throttle context (routes with RPM, pass-through, policies), scope (access groups, monitoring alerts), and FinOps (budgets, notifications, chargeback, ledger). Gateway Rate Limit Scope card links to Budget Notifications, Chargeback, and Ledger. Budget performance posture returns throttle containment. |
 
 ### 11.4b Gateway & Routing x Organization & Access
 

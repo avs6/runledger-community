@@ -1,10 +1,10 @@
 # WU-012: Chargeback × Cross-Feature Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - C (Attribution & Allocation)
 - **Target**: 05-FINOPS/Chargeback
 - **Created**: 2026-08-14
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

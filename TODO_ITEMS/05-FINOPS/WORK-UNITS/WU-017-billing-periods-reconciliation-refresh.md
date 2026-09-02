@@ -1,10 +1,10 @@
 # WU-017: Billing Periods Reconciliation Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - B (Billing and Reconciliation)
 - **Target**: 05-FINOPS/billing-periods
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

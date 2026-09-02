@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Activity, ArrowRight, Clock, Cpu, DollarSign, GitBranch, Network, Route, Sparkles, Table2, Tags, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBestValueModels, getCostQuality, getInvestigationGatewayRuntimePosture, getModelBudgetUtilization, getModelUsageGatewayPosture, getRunFlow } from '@/lib/api'
+import { getBestValueModels, getBudgetControlObservePosture, getCostQuality, getInvestigationGatewayRuntimePosture, getModelBudgetUtilization, getModelUsageGatewayPosture, getRunFlow } from '@/lib/api'
 import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
 import {
   ModelQualityCostBars,
@@ -268,6 +268,7 @@ export default async function ModelUsagePage({
     from: win.from,
     to: win.to,
   })
+  const budgetControlPosture = await getBudgetControlObservePosture(session.apiKey).catch(() => null)
   const [costQuality, bestValue, modelBudgets, gatewayPosture, gatewayRuntime] = await Promise.all([
     getCostQuality(session.apiKey, {
       score_name: 'quality',
@@ -447,6 +448,39 @@ export default async function ModelUsagePage({
             <Link href="/request-explorer" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Request Explorer</Link>
             <Link href="/tags" className="rounded-full bg-violet-100 px-3 py-1 font-medium text-violet-700 hover:bg-violet-200 transition-colors">Tags</Link>
             <Link href="/monitoring/telemetry" className="rounded-full bg-blue-100 px-3 py-1 font-medium text-blue-700 hover:bg-blue-200 transition-colors dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">Telemetry</Link>
+          </div>
+        </div>
+      )}
+
+      {budgetControlPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Budget Control — Observe Posture</p>
+          </div>
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.active_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetControlPosture.budget_policy.breached_budgets > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlPosture.budget_policy.breached_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">At Risk</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetControlPosture.budget_policy.at_risk_budgets > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlPosture.budget_policy.at_risk_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
+            <Link href="/budgets?tab=notifications" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Notifications</Link>
+            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
           </div>
         </div>
       )}

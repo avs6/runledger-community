@@ -1,10 +1,10 @@
 # WU-019: Chargeback Attribution Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 05-FinOps - C (Attribution and Allocation)
 - **Target**: 05-FINOPS/chargeback
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-01
 
 ## Cohesion Cells to Close
 

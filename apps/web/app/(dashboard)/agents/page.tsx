@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAgents } from '@/lib/api'
+import { getAgents, getBudgetDetailBuildPosture, getBudgetControlBuildPosture } from '@/lib/api'
 import type { AgentResponse } from '@/types/api'
 
 function money(v: number | null) {
@@ -96,6 +96,9 @@ export default async function AgentsPage() {
     // API may not be reachable yet
   }
 
+  const budgetBuildPosture = await getBudgetDetailBuildPosture(session.apiKey).catch(() => null)
+  const budgetControlBuildPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -108,6 +111,67 @@ export default async function AgentsPage() {
           </p>
         </div>
       </div>
+
+      {budgetBuildPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget &amp; Build Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetBuildPosture.budget_context.active_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Agents</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetBuildPosture.build_context.agents}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetBuildPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetBuildPosture.budget_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetBuildPosture.budget_context.breach_count}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?scope=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
+            <Link href="/model-scorecards" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Model Scorecards</Link>
+          </div>
+        </div>
+      )}
+
+      {budgetControlBuildPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Control — Build Posture</p>
+          </div>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetControlBuildPosture.budget_policy.active_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
+              <p className={`mt-1 text-lg font-semibold ${budgetControlBuildPosture.budget_policy.breached_budgets > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlBuildPosture.budget_policy.breached_budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{Object.keys(budgetControlBuildPosture.scope_context).length}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
+            <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
+            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
 
       {agents.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center dark:border-slate-700 dark:bg-slate-900/50">

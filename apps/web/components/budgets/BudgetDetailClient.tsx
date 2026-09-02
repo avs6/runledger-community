@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
-import { createBudgetOverride, revokeBudgetOverride, updateBudget, getBudgetPerformancePosture, getBudgetOrgScopePosture, getBudgetOverrideGovernancePosture } from '@/lib/api'
-import type { Breach, Budget, BudgetOverride, BudgetPerformancePosture, BudgetOrgScopePosture, BudgetOverrideGovernancePosture } from '@/types/api'
+import { createBudgetOverride, revokeBudgetOverride, updateBudget, getBudgetPerformancePosture, getBudgetOrgScopePosture, getBudgetOverrideGovernancePosture, getFinOpsInternalPosture, getBudgetDetailDrillbackPosture, getBudgetOverrideExceptionPosture } from '@/lib/api'
+import type { Breach, Budget, BudgetOverride, BudgetPerformancePosture, BudgetOrgScopePosture, BudgetOverrideGovernancePosture, FinOpsInternalPosture, BudgetDetailDrillbackPosture, BudgetOverrideExceptionPosture } from '@/types/api'
 import BreachHistoryTable from './BreachHistoryTable'
 
 interface Props {
@@ -70,6 +70,9 @@ export default function BudgetDetailClient({
   const [orgLoading, setOrgLoading] = useState(false)
   const [govPosture, setGovPosture] = useState<BudgetOverrideGovernancePosture | null>(null)
   const [govLoading, setGovLoading] = useState(false)
+  const [finopsPosture, setFinopsPosture] = useState<FinOpsInternalPosture | null>(null)
+  const [drillbackPosture, setDrillbackPosture] = useState<BudgetDetailDrillbackPosture | null>(null)
+  const [exceptionPosture, setExceptionPosture] = useState<BudgetOverrideExceptionPosture | null>(null)
 
   useEffect(() => {
     if (apiKey && initialBudget.id) {
@@ -90,6 +93,18 @@ export default function BudgetDetailClient({
         .then(setGovPosture)
         .catch(() => {})
         .finally(() => setGovLoading(false))
+
+      getFinOpsInternalPosture(apiKey)
+        .then(setFinopsPosture)
+        .catch(() => {})
+
+      getBudgetDetailDrillbackPosture(apiKey)
+        .then(setDrillbackPosture)
+        .catch(() => {})
+
+      getBudgetOverrideExceptionPosture(apiKey)
+        .then(setExceptionPosture)
+        .catch(() => {})
     }
   }, [apiKey, initialBudget.id])
 
@@ -715,6 +730,137 @@ export default function BudgetDetailClient({
           <p className="mt-4 text-sm text-slate-400">Governance posture unavailable.</p>
         )}
       </div>
+
+      {finopsPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">FinOps Internal Posture</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{finopsPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Billing Periods</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.billing_context.total_periods}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${finopsPosture.billing_context.total_billed_usd.toFixed(2)} billed</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Chargeback Rules</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.chargeback_context.total_rules}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.chargeback_context.active_rules} active</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Ledger Snapshots</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.ledger_context.total_snapshots}</p>
+              <p className="text-xs text-slate-400">latest: {finopsPosture.ledger_context.latest_snapshot_date}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Overrides</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.override_context.total_overrides}</p>
+              <p className="text-xs text-slate-400">{finopsPosture.override_context.active_overrides} active</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-xs text-slate-500">Notifications</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.notification_context.total_notifications}</p>
+              <p className="text-xs text-slate-400">${finopsPosture.notification_context.spend_30d.toFixed(2)} 30d spend</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/billing" className="text-emerald-700 hover:underline dark:text-emerald-400">Billing →</Link>
+            <Link href="/chargeback" className="text-emerald-700 hover:underline dark:text-emerald-400">Chargeback →</Link>
+            <Link href="/settings?tab=compliance" className="text-emerald-700 hover:underline dark:text-emerald-400">Ledger →</Link>
+            <Link href="/budgets" className="text-emerald-700 hover:underline dark:text-emerald-400">Budgets →</Link>
+          </div>
+        </div>
+      )}
+
+      {drillbackPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Budget Detail Drillback Context</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{drillbackPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Scope Owners</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.scope_context.workspace_users} users</p>
+              <p className="text-xs text-slate-400">{drillbackPosture.scope_context.access_groups} groups · {drillbackPosture.scope_context.api_keys} keys</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Runtime</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.runtime_context.cache_configs} caches</p>
+              <p className="text-xs text-slate-400">{drillbackPosture.runtime_context.rate_limited_routes} rate-limited routes</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Evidence</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.evidence_context.runs_30d} runs</p>
+              <p className="text-xs text-slate-400">{drillbackPosture.evidence_context.requests_30d.toLocaleString()} requests · {drillbackPosture.evidence_context.audit_events_30d} audit</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Workflows</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.workflow_context.workflows} definitions</p>
+              <p className="text-xs text-slate-400">{drillbackPosture.workflow_context.workflow_runs_30d} runs 30d</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Spend</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${drillbackPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-xs text-slate-400">{drillbackPosture.spend_context.distinct_models_30d} models</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/analytics/users" className="text-emerald-600 hover:underline dark:text-emerald-400">Users →</Link>
+            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
+            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
+            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
+            <Link href="/runs" className="text-emerald-600 hover:underline dark:text-emerald-400">Runs →</Link>
+            <Link href="/request-flow" className="text-emerald-600 hover:underline dark:text-emerald-400">Request Flow →</Link>
+            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
+            <Link href="/workflows" className="text-emerald-600 hover:underline dark:text-emerald-400">Workflows →</Link>
+          </div>
+        </div>
+      )}
+
+      {exceptionPosture && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Override Exception Context</h2>
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">{exceptionPosture.period_days}d window</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Overrides</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.override_context.total_overrides}</p>
+              <p className="text-xs text-slate-400">{exceptionPosture.override_context.active_overrides} active · {exceptionPosture.override_context.expired_overrides} expired</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Approvals</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.approval_context.pending_approvals} pending</p>
+              <p className="text-xs text-slate-400">{exceptionPosture.approval_context.approved_30d} approved · {exceptionPosture.approval_context.denied_30d} denied</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Runtime</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.runtime_context.active_routes} routes</p>
+              <p className="text-xs text-slate-400">{exceptionPosture.runtime_context.rate_limited_routes} rate-limited</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Monitoring</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.monitoring_context.alert_rules} alert rules</p>
+              <p className="text-xs text-slate-400">{exceptionPosture.monitoring_context.audit_events_30d} audit events</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+              <p className="text-xs text-slate-500">Override Limit</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${exceptionPosture.override_context.active_override_limit_usd.toFixed(2)}</p>
+              <p className="text-xs text-slate-400">${exceptionPosture.spend_context.total_spend_30d.toFixed(2)} spend 30d</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/approvals" className="text-emerald-600 hover:underline dark:text-emerald-400">Approvals →</Link>
+            <Link href="/alerts" className="text-emerald-600 hover:underline dark:text-emerald-400">Alert Rules →</Link>
+            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
+            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
+            <Link href="/governance" className="text-emerald-600 hover:underline dark:text-emerald-400">Governance →</Link>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <p className="text-xs uppercase tracking-wide text-slate-500">Breach History</p>
