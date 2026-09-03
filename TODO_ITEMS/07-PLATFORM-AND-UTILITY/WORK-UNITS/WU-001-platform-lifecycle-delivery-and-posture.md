@@ -1,26 +1,26 @@
 # WU-001: Platform lifecycle delivery and posture completion
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: Platform & Utility - Platform Lifecycle Control Plane
 - **Target**: 07-PLATFORM-AND-UTILITY/All organizations (`/organizations`)
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
 
 ## Cohesion Cells to Close
 
 | Source Feature | Target Feature | Cell | Current | Target |
 |----------------|----------------|------|---------|--------|
-| All organizations | Budgets | 07x05 | PARTIAL | STRONG |
-| All organizations | Billing periods | 07x05 | PARTIAL | STRONG |
-| All organizations | Chargeback | 07x05 | PARTIAL | STRONG |
-| All organizations | Ledger | 07x05 | PARTIAL | STRONG |
-| All organizations | Onboarding | 07x01 | PARTIAL | STRONG |
-| All organizations | Workspaces | 07x01 | PARTIAL | STRONG |
-| All organizations | API keys | 07x01 | PARTIAL | STRONG |
-| All organizations | Platform settings | 07x07 | PARTIAL | STRONG |
-| All organizations | Model gateway | 07x02 | PARTIAL | STRONG |
-| All organizations | Guardrails | 07x04 | PARTIAL | STRONG |
-| All organizations | Audit log | 07x04 | PARTIAL | STRONG |
+| All organizations | Budgets | 07x05 | STRONG | STRONG |
+| All organizations | Billing periods | 07x05 | STRONG | STRONG |
+| All organizations | Chargeback | 07x05 | STRONG | STRONG |
+| All organizations | Ledger | 07x05 | STRONG | STRONG |
+| All organizations | Onboarding | 07x01 | STRONG | STRONG |
+| All organizations | Workspaces | 07x01 | STRONG | STRONG |
+| All organizations | API keys | 07x01 | STRONG | STRONG |
+| All organizations | Platform settings | 07x07 | STRONG | STRONG |
+| All organizations | Model gateway | 07x02 | STRONG | STRONG |
+| All organizations | Guardrails | 07x04 | STRONG | STRONG |
+| All organizations | Audit log | 07x04 | STRONG | STRONG |
 
 ## Paired Features (files to update)
 
@@ -48,3 +48,22 @@
 4. All listed cohesion cells updated to target state.
 5. All paired feature files updated.
 6. `FEATURE-STATUS.md` dashboard updated.
+
+## Completion Notes
+
+### What shipped
+
+- **Backend**: New `GET /analytics/platform-lifecycle-posture` endpoint (platform admin only) via `PlatformLifecyclePosture` Pydantic model. Returns cross-org FinOps lifecycle (billing periods, active periods, chargeback rules, ledger snapshots), gateway readiness (routes, providers, guardrail rules), governance posture (audit events 7d, tool policies, alert rules), and org access context (workspaces, API keys, users).
+- **UI**: Organizations page now shows 5 posture cards: Budget Control Platform Posture (existing emerald), FinOps Lifecycle (emerald), Gateway Readiness (violet), Governance & Audit (amber), and Org & Access Lifecycle (blue). Each card has drill-through links to owning surfaces.
+- **Docs**: `docs/administration/organizations.mdx` expanded with Platform Posture Cards section documenting all 5 cards and Lifecycle Boundaries section clarifying what organizations owns vs. delegates.
+- **Postman**: Platform Lifecycle Posture request added to the analytics folder.
+- **Scripts**: `scripts/org_lifecycle_posture_smoke.py` validates endpoint structure.
+- **Examples**: `examples/157_platform_lifecycle_posture.py` demonstrates the posture fetch.
+
+### Cohesion cells
+
+Most cells listed in WU-001 were already upgraded to STRONG by prior WUs (05-FINOPS WU-006/011/012/013, etc.) before this WU started. The remaining PARTIAL cell (All organizations × Audit log) is now STRONG because the organizations page surfaces audit event counts via the platform lifecycle posture endpoint with drill-through to the Audit Log page. All 11 listed cells are now STRONG.
+
+### What remains partial
+
+Monitoring, Telemetry, Evaluation studio, and Optimization simulator remain PARTIAL for All organizations — these are outside WU-001 scope and targeted by WU-005.

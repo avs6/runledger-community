@@ -1,10 +1,14 @@
 # WU-007: Plugins Collapse Ownership Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 07-Platform - C (Utility Route Collapse and Discovery Ownership)
 - **Target**: 07-PLATFORM-AND-UTILITY/plugins
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-03
+
+## Completion Notes
+
+Docs: Updated plugins.mdx with Adjacent Relationships section documenting Tool Registry & Tool Policies (plugin hooks governed by tool policy enforcement), Monitoring (execution logs provide operational audit trail, alert rules can reference plugin events), and Evaluation Studio (experiments consume plugin-provided tool connections). Added lifecycle note about tool policy enforcement. Most target cells were already at target from prior WUs (Onboarding STRONG, self STRONG, Evaluation studio STRONG from WU-003). Actual cell changes: Tool registry N/A→P (plugin hooks governed by tool policies), Monitoring N/A→P (execution logs feed operational monitoring).
 
 ## Cohesion Cells to Close
 

@@ -172,6 +172,9 @@ from runledger_api.schemas.analytics import (
     VectorStoresLifecyclePosture,
     BudgetOrgScopePosture,
     BudgetOverrideGovernancePosture,
+    PlatformAdminObservePosture,
+    PlatformLifecyclePosture,
+    PlatformSettingsConvergencePosture,
     TagsRuntimePosture,
     TrendMetric,
     TrendPoint,
@@ -16781,5 +16784,307 @@ async def vector_store_detail_evidence_posture(
         build_context={
             "workflows": workflows,
             "eval_experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/platform-lifecycle-posture",
+    response_model=PlatformLifecyclePosture,
+)
+async def platform_lifecycle_posture(
+    admin: tuple = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace, user = admin
+    t_from = _default_from()
+    period_days = _DEFAULT_LOOKBACK_DAYS
+
+    billing_periods = (
+        await db.execute(select(func.count(BillingPeriod.id)))
+    ).scalar() or 0
+
+    active_billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.status == "open"
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rules = (
+        await db.execute(select(func.count(ChargebackRule.id)))
+    ).scalar() or 0
+
+    ledger_snapshots = (
+        await db.execute(select(func.count(LedgerSnapshot.id)))
+    ).scalar() or 0
+
+    gateway_routes = (
+        await db.execute(select(func.count(GatewayRoute.id)))
+    ).scalar() or 0
+
+    providers = (
+        await db.execute(
+            select(func.count(func.distinct(GatewayRoute.provider)))
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(select(func.count(GuardrailRule.id)))
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    tool_policies = (
+        await db.execute(select(func.count(ToolPolicy.id)))
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(select(func.count(AlertRule.id)))
+    ).scalar() or 0
+
+    total_workspaces = (
+        await db.execute(select(func.count(Workspace.id)))
+    ).scalar() or 0
+
+    total_api_keys = (
+        await db.execute(select(func.count(ApiKey.id)))
+    ).scalar() or 0
+
+    total_users = (
+        await db.execute(select(func.count(TenantUser.id)))
+    ).scalar() or 0
+
+    return PlatformLifecyclePosture(
+        period_days=period_days,
+        finops_context={
+            "billing_periods": billing_periods,
+            "active_billing_periods": active_billing_periods,
+            "chargeback_rules": chargeback_rules,
+            "ledger_snapshots": ledger_snapshots,
+        },
+        gateway_context={
+            "gateway_routes": gateway_routes,
+            "distinct_providers": providers,
+            "guardrail_rules": guardrail_rules,
+        },
+        governance_context={
+            "audit_events_30d": audit_events_30d,
+            "tool_policies": tool_policies,
+            "alert_rules": alert_rules,
+        },
+        org_access_context={
+            "total_workspaces": total_workspaces,
+            "total_api_keys": total_api_keys,
+            "total_users": total_users,
+        },
+    )
+
+
+@router.get(
+    "/platform-settings-convergence-posture",
+    response_model=PlatformSettingsConvergencePosture,
+)
+async def platform_settings_convergence_posture(
+    admin: tuple = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace, user = admin
+    t_from = _default_from()
+    period_days = _DEFAULT_LOOKBACK_DAYS
+
+    otlp_batches = (
+        await db.execute(
+            select(func.count(OtlpIngestBatch.id)).where(
+                OtlpIngestBatch.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    otlp_spans = (
+        await db.execute(
+            select(func.coalesce(func.sum(OtlpIngestBatch.span_count), 0)).where(
+                OtlpIngestBatch.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    capture_policies = (
+        await db.execute(select(func.count(CapturePolicy.id)))
+    ).scalar() or 0
+
+    audit_events = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    security_events = (
+        await db.execute(
+            select(func.count(SecurityEvent.id)).where(
+                SecurityEvent.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    ledger_snapshots = (
+        await db.execute(select(func.count(LedgerSnapshot.id)))
+    ).scalar() or 0
+
+    ledger_closures = (
+        await db.execute(
+            select(func.count(LedgerSnapshot.id)).where(
+                LedgerSnapshot.is_signed.is_(True)
+            )
+        )
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(select(func.count(AlertRule.id)))
+    ).scalar() or 0
+
+    alert_firings = (
+        await db.execute(
+            select(func.count(AlertFiring.id)).where(
+                AlertFiring.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    return PlatformSettingsConvergencePosture(
+        period_days=period_days,
+        telemetry_context={
+            "otlp_batches_7d": otlp_batches,
+            "otlp_spans_7d": otlp_spans,
+            "capture_policies": capture_policies,
+        },
+        audit_context={
+            "audit_events_7d": audit_events,
+            "security_events_7d": security_events,
+        },
+        compliance_context={
+            "ledger_snapshots": ledger_snapshots,
+            "ledger_closures": ledger_closures,
+        },
+        ops_context={
+            "alert_rules": alert_rules,
+            "alert_firings_7d": alert_firings,
+        },
+    )
+
+
+@router.get(
+    "/platform-admin-observe-posture",
+    response_model=PlatformAdminObservePosture,
+)
+async def platform_admin_observe_posture(
+    admin: tuple = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace, user = admin
+    t_from = _default_from()
+    period_days = _DEFAULT_LOOKBACK_DAYS
+
+    alert_rules = (
+        await db.execute(select(func.count(AlertRule.id)))
+    ).scalar() or 0
+
+    alert_firings = (
+        await db.execute(
+            select(func.count(AlertFiring.id)).where(
+                AlertFiring.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    otlp_batches = (
+        await db.execute(
+            select(func.count(OtlpIngestBatch.id)).where(
+                OtlpIngestBatch.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    otlp_spans = (
+        await db.execute(
+            select(func.coalesce(func.sum(OtlpIngestBatch.span_count), 0)).where(
+                OtlpIngestBatch.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(select(func.count(GuardrailRule.id)))
+    ).scalar() or 0
+
+    guardrail_events = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    tool_policies = (
+        await db.execute(select(func.count(ToolPolicy.id)))
+    ).scalar() or 0
+
+    governance_packs = (
+        await db.execute(select(func.count(CapturePolicy.id)))
+    ).scalar() or 0
+
+    eval_experiments = (
+        await db.execute(select(func.count(EvalExperiment.id)))
+    ).scalar() or 0
+
+    eval_datasets = (
+        await db.execute(select(func.count(EvalDataset.id)))
+    ).scalar() or 0
+
+    agents = (
+        await db.execute(select(func.count(Agent.id)))
+    ).scalar() or 0
+
+    workflow_runs = (
+        await db.execute(
+            select(func.count(WorkflowRun.id)).where(
+                WorkflowRun.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    return PlatformAdminObservePosture(
+        period_days=period_days,
+        monitoring_context={
+            "alert_rules": alert_rules,
+            "alert_firings_7d": alert_firings,
+            "guardrail_events_7d": guardrail_events,
+        },
+        telemetry_context={
+            "otlp_batches_7d": otlp_batches,
+            "otlp_spans_7d": otlp_spans,
+        },
+        governance_context={
+            "guardrail_rules": guardrail_rules,
+            "tool_policies": tool_policies,
+            "capture_policies": governance_packs,
+        },
+        build_context={
+            "eval_experiments": eval_experiments,
+            "eval_datasets": eval_datasets,
+            "agents": agents,
+            "workflow_runs_7d": workflow_runs,
         },
     )

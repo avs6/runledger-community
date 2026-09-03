@@ -1,0 +1,50 @@
+---
+title: "Platform Settings"
+description: "Convergence console for compliance, retention, delivery, storage, and backup controls with telemetry and audit posture summaries."
+---
+
+The **Platform Settings** page is platform-admin-only. It is the convergence console for operational and compliance controls that apply across the RunLedger installation.
+
+## Settings Tabs
+
+| Tab | Controls |
+|-----|----------|
+| **Compliance** | Ledger closures, snapshots, and verification |
+| **Data Retention** | Capture-policy scopes, preview, and PII test |
+| **Email & SMTP** | Delivery preferences, status, test, history, and log |
+| **Storage** | Ops status, feature flags, policy evaluation, queues, and storage |
+| **Backup & Restore** | Config, run, drill, snapshots, history, and connection test |
+
+## Platform Posture Cards
+
+Platform Settings surfaces three posture card groups at the top of the page:
+
+- **Budget Control — Platform Posture** (emerald): cross-org budget totals, 30-day spend, active overrides, and breach counts. Drill-through to Budgets, Feature Budgets, All Organizations, and Economics.
+- **Ledger × Cross-Feature Context** (emerald): org scope, observe context, safety context, platform context, and ledger snapshot history. Drill-through to Organization, Economics, Billing, Audit Log, and Tags.
+- **Telemetry & Capture Convergence** (cyan): OTLP batch and span ingestion counts, capture policy counts. Drill-through to Telemetry, Retention, Monitoring, and Organizations.
+- **Audit & Compliance Convergence** (amber): audit events, security events, ledger snapshots, ledger closures, alert rules, and alert firings. Drill-through to Audit Log, Alerts, Governance, Evaluation Studio, and Organizations.
+
+## Convergence Posture Endpoint
+
+`GET /analytics/platform-settings-convergence-posture` (platform admin only) returns:
+
+- **telemetry_context**: OTLP batches (7d), spans ingested (7d), capture policies
+- **audit_context**: audit events (7d), security events (7d)
+- **compliance_context**: ledger snapshots, ledger closures (signed)
+- **ops_context**: alert rules, alert firings (7d)
+
+## Ownership Boundaries
+
+Platform Settings owns the **platform-wide defaults and compliance control plane**. It does not own:
+
+- **Organization-level overrides** — those live in Organization Console
+- **Workspace-scoped telemetry views** — those live in Telemetry
+- **Individual audit event investigation** — that lives in Audit Log
+- **Alert rule management** — that lives in Alert Rules
+- **Evaluation experiments** — those live in Evaluation Studio; Platform Settings surfaces compliance context that evaluation workflows consume
+
+## Adjacent Relationships
+
+- **Evaluation Studio**: capture policies and compliance posture configured here affect data governance constraints that evaluation experiments operate within. The convergence cards link to Evaluation Studio for this reason.
+- **Organizations**: Platform Settings and Organizations share the `require_platform_admin` context and cross-link to each other. Organizations owns the lifecycle control plane; Settings owns the defaults and compliance control plane.
+- **Monitoring**: alert rules and guardrail events tracked in convergence posture reflect operational health that Monitoring surfaces in detail.

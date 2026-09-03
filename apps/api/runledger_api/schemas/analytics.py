@@ -1142,3 +1142,27 @@ class SimulationResult(BaseModel):
     confidence: str
     impacts: list[SimulationImpact]
     description: str
+
+
+class PlatformLifecyclePosture(BaseModel):
+    period_days: int
+    finops_context: dict[str, int]
+    gateway_context: dict[str, int]
+    governance_context: dict[str, int]
+    org_access_context: dict[str, int]
+
+
+class PlatformSettingsConvergencePosture(BaseModel):
+    period_days: int
+    telemetry_context: dict[str, int]
+    audit_context: dict[str, int]
+    compliance_context: dict[str, int]
+    ops_context: dict[str, int]
+
+
+class PlatformAdminObservePosture(BaseModel):
+    period_days: int
+    monitoring_context: dict[str, int]
+    telemetry_context: dict[str, int]
+    governance_context: dict[str, int]
+    build_context: dict[str, int]

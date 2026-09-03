@@ -6236,3 +6236,73 @@ export interface VectorStoreDetailEvidencePosture {
   cost_context: { cost_30d: number; chargeback_rules: number }
   build_context: { workflows: number; eval_experiments: number }
 }
+
+export interface PlatformLifecyclePosture {
+  period_days: number
+  finops_context: {
+    billing_periods: number
+    active_billing_periods: number
+    chargeback_rules: number
+    ledger_snapshots: number
+  }
+  gateway_context: {
+    gateway_routes: number
+    distinct_providers: number
+    guardrail_rules: number
+  }
+  governance_context: {
+    audit_events_30d: number
+    tool_policies: number
+    alert_rules: number
+  }
+  org_access_context: {
+    total_workspaces: number
+    total_api_keys: number
+    total_users: number
+  }
+}
+
+export interface PlatformSettingsConvergencePosture {
+  period_days: number
+  telemetry_context: {
+    otlp_batches_7d: number
+    otlp_spans_7d: number
+    capture_policies: number
+  }
+  audit_context: {
+    audit_events_7d: number
+    security_events_7d: number
+  }
+  compliance_context: {
+    ledger_snapshots: number
+    ledger_closures: number
+  }
+  ops_context: {
+    alert_rules: number
+    alert_firings_7d: number
+  }
+}
+
+export interface PlatformAdminObservePosture {
+  period_days: number
+  monitoring_context: {
+    alert_rules: number
+    alert_firings_7d: number
+    guardrail_events_7d: number
+  }
+  telemetry_context: {
+    otlp_batches_7d: number
+    otlp_spans_7d: number
+  }
+  governance_context: {
+    guardrail_rules: number
+    tool_policies: number
+    capture_policies: number
+  }
+  build_context: {
+    eval_experiments: number
+    eval_datasets: number
+    agents: number
+    workflow_runs_7d: number
+  }
+}

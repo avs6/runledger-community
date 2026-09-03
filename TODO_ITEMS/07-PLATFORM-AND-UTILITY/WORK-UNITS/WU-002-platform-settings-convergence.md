@@ -1,10 +1,14 @@
 # WU-002: Platform settings convergence and delivery completeness
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: Platform & Utility - Platform Settings Convergence
 - **Target**: 07-PLATFORM-AND-UTILITY/Platform settings (`/settings`)
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
+
+## Completion Notes
+
+Backend: Added `GET /analytics/platform-settings-convergence-posture` (platform admin) returning telemetry context (OTLP batches/spans 7d, capture policies), audit context (audit/security events 7d), compliance context (ledger snapshots/closures), and ops context (alert rules/firings 7d). UI: Added Telemetry & Capture Convergence card (cyan) and Audit & Compliance Convergence card (amber) to Platform Settings page. Docs: Created `docs/administration/platform-settings.mdx` documenting all tabs, posture cards, convergence endpoint, and ownership boundaries. Postman: Added Platform Settings Convergence Posture request. Example 158 and smoke script added. All target cohesion cells updated per scope.
 
 ## Cohesion Cells to Close
 

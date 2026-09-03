@@ -1,10 +1,14 @@
 # WU-005: All Organizations Posture Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 07-Platform - A (Platform Lifecycle Control Plane)
 - **Target**: 07-PLATFORM-AND-UTILITY/all-organizations
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-03
+
+## Completion Notes
+
+Backend: `GET /analytics/platform-admin-observe-posture` (shared with WU-004) returns monitoring, telemetry, governance, and build context for the All Organizations posture refresh. UI: Organizations page now has 7 posture cards covering FinOps, gateway, governance, org access, monitoring, telemetry, and build context with drill-through to all owning surfaces. Docs: organizations.mdx updated with observe posture endpoint and new card documentation. Most target cells were already STRONG from prior WUs (Budgets, Billing periods, Onboarding, API keys, Model gateway, Audit log). Actual cell changes from this WU: Monitoring P→S, Evaluation studio P→S (via build context card with eval experiments and drill-through to Evaluation Studio).
 
 ## Cohesion Cells to Close
 

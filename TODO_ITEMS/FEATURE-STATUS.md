@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-09-03
+Last updated: 2026-09-03 (07-PLATFORM WU-007)
 
 ## Purpose
 
@@ -101,11 +101,11 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Self |
 |--------|----------|--------|------------|------------|-----------|-----------|----------|---------|
-| **A** — Platform Lifecycle | All organizations | P:2 | OK | P:1 | P:2 | P:4 | — | P:1 |
-| **B** — Platform Settings | Platform settings | P:1 | OK | OK | P:1 | P:3 | — | P:1 |
-| **C** — Utility Collapse | Plugins | OK | — | — | — | — | P:1 | OK |
+| **A** — Platform Lifecycle | All organizations | OK | OK | OK | OK | OK | P:1 | OK |
+| **B** — Platform Settings | Platform settings | P:1 | OK | OK | OK | P:3 | P:1 | OK |
+| **C** — Utility Collapse | Plugins | OK | — | P:1 | P:1 | — | OK | OK |
 
-**Hot spots**: None — Platform is the leanest feature family with no GAPs and mostly light PARTIALs.
+**Hot spots**: WU-006 completes Platform Settings converged posture refresh: Evaluation Studio and Organizations drill-through added to convergence cards. Evaluation studio N/A→P, self P→S. 06-Build moves from — to P:1, 07-Self moves from P:1 to OK. WU-007 re-audits Plugins collapsed ownership: Governance pack N/A→P (plugin hooks governed by tool policies), Monitoring N/A→P (execution logs feed monitoring). 03-Observe moves from — to P:1, 04-Safety moves from — to P:1. Prior: WU-004/005 completed observe posture for All organizations. Remaining PARTIALs: Optimization simulator (06-Build P:1 in 07-A), Evaluation studio (06-Build P:1 in 07-B), Monitoring (03-Observe P:1 in 07-C), Governance pack (04-Safety P:1 in 07-C).
 
 ---
 
@@ -230,8 +230,8 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
 | A | All organizations | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
-| B | Platform settings | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| C | Plugins | `PARTIAL` | `LEGACY` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Platform settings | `OK` | `OK` | `PARTIAL` | `COMPLETED` |
+| C | Plugins | `OK` | `LEGACY` | `PARTIAL` | `COMPLETED` |
 
 ### 08 — Planned Architecture
 
@@ -273,7 +273,7 @@ Bundles ranked by total cross-feature GAP count (most urgent first):
 | 13 | **04-C** Data & Security | **0** | — | WU-009 adds Gateway & Observe Runtime posture cards to Data Capture, Security, and Tags. 4 cells closed (Data capture × Runs list/Run detail/Request flow/Request explorer P→S). Prior: WU-008 Org & Access card (5 cells), WU-003 FinOps Budget Attribution card. |
 | 14 | **04-D** Evidence & Audit | **0** | — | WU-018/019 add Runtime Scope & Evidence posture cards (cyan) to Audit Log and Governance Pack. All target cells already STRONG from prior WUs — no cell changes needed. Remaining PARTIALs are diagonal self-cohesion (P:2) and Onboarding (P:2). Prior: WU-011 self-cohesion closure, WU-010 Cross-Feature Evidence card. |
 | 15 | **01-D** Capability Catalog | **0** | — | WU-010 closed the AI hub budget detail GAP and all Safety & Governance and Platform gaps |
-| 15 | **07-A** Platform Lifecycle | **0** | — | — |
+| 15 | **07-A** Platform Lifecycle | **0** | — | WU-001 completes lifecycle hub with platform-lifecycle-posture endpoint and 4 posture cards. Audit log P→S. 01-Org and 05-FinOps now OK. |
 
 **Pattern**: Budget detail (05-A) is the root cause behind **most GAPs across the entire product**. Fixing budget detail unlocks cohesion improvements in 6 of the other 7 major features.
 
@@ -411,7 +411,7 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-026 | 06-BUILD-AND-IMPROVE | Model scorecards intelligence refresh | 01/02/03/05 | COMPLETED | 06-D |
 | WU-027 | 06-BUILD-AND-IMPROVE | Vector stores list lifecycle refresh | 01/03/05 | COMPLETED | 06-B |
 | WU-028 | 06-BUILD-AND-IMPROVE | Vector store detail evidence refresh | 03/05 | COMPLETED | 06-B |
-| WU-001 | 07-PLATFORM-AND-UTILITY | All organizations delivery & posture completion | 01/02/04/05 | NOT_STARTED | 07-A |
+| WU-001 | 07-PLATFORM-AND-UTILITY | All organizations delivery & posture completion | 01/02/04/05 | COMPLETED | 07-A |
 | WU-002 | 07-PLATFORM-AND-UTILITY | Platform settings convergence & delivery completeness | 01/02/03/04/05 | NOT_STARTED | 07-B |
 | WU-003 | 07-PLATFORM-AND-UTILITY | Plugins collapse & discovery ownership cleanup | 01/06 | NOT_STARTED | 07-C |
 | WU-004 | 07-PLATFORM-AND-UTILITY | Platform admin cohesion & posture rollups | 01/02/03/04/06 | NOT_STARTED | 07-A/B/C |

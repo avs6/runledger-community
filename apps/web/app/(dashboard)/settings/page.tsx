@@ -15,6 +15,7 @@ import type {
   LedgerVerifyResult,
   PlatformWebhookDefaults,
   PlatformWebhookDefaultsTestResult,
+  PlatformSettingsConvergencePosture,
 } from '@/types/api'
 import {
   getBudgetControlPlatformPosture,
@@ -23,6 +24,7 @@ import {
   listLedgerSnapshots,
   generateLedgerSnapshot,
   verifyLedgerSnapshot,
+  getPlatformSettingsConvergencePosture,
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
 import RetentionTab from '@/components/settings/RetentionTab'
@@ -146,6 +148,7 @@ export default function SettingsPage() {
   const [testingPlatformWebhooks, setTestingPlatformWebhooks] = useState(false)
   const [budgetPlatformPosture, setBudgetPlatformPosture] = useState<BudgetControlPlatformPosture | null>(null)
   const [ledgerCrossPosture, setLedgerCrossPosture] = useState<LedgerCrossFeaturePosture | null>(null)
+  const [convergencePosture, setConvergencePosture] = useState<PlatformSettingsConvergencePosture | null>(null)
 
 
 
@@ -236,6 +239,7 @@ export default function SettingsPage() {
     if (apiKey) {
       getBudgetControlPlatformPosture(apiKey).then(setBudgetPlatformPosture).catch(() => {})
       getLedgerCrossFeaturePosture(apiKey).then(setLedgerCrossPosture).catch(() => {})
+      getPlatformSettingsConvergencePosture(apiKey).then(setConvergencePosture).catch(() => {})
     }
   }, [apiKey])
 
@@ -409,6 +413,78 @@ export default function SettingsPage() {
             <Link href="/billing" className="text-emerald-600 hover:underline dark:text-emerald-400">Billing →</Link>
             <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
             <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
+          </div>
+        </div>
+      )}
+
+      {convergencePosture && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Telemetry & Capture Convergence</p>
+              <span className="text-xs text-cyan-600 dark:text-cyan-400">{convergencePosture.period_days}d</span>
+            </div>
+            <div className="grid gap-3 grid-cols-3">
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">OTLP Batches</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{convergencePosture.telemetry_context.otlp_batches_7d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Spans Ingested</p>
+                <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">{convergencePosture.telemetry_context.otlp_spans_7d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Capture Policies</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{convergencePosture.telemetry_context.capture_policies}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+              <Link href="/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
+              <Link href="/retention" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Retention →</Link>
+              <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring →</Link>
+              <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Organizations →</Link>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Audit & Compliance Convergence</p>
+              <span className="text-xs text-amber-600 dark:text-amber-400">{convergencePosture.period_days}d</span>
+            </div>
+            <div className="grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{convergencePosture.audit_context.audit_events_7d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Security Events</p>
+                <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">{convergencePosture.audit_context.security_events_7d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Ledger Snapshots</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{convergencePosture.compliance_context.ledger_snapshots}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Ledger Closures</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{convergencePosture.compliance_context.ledger_closures}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{convergencePosture.ops_context.alert_rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Firings</p>
+                <p className={`mt-1 text-lg font-semibold ${convergencePosture.ops_context.alert_firings_7d > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{convergencePosture.ops_context.alert_firings_7d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+              <Link href="/audit" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Audit Log →</Link>
+              <Link href="/alerts" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Alerts →</Link>
+              <Link href="/governance" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
+              <Link href="/evaluation" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Evaluation Studio →</Link>
+              <Link href="/organizations" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Organizations →</Link>
+            </div>
           </div>
         </div>
       )}
