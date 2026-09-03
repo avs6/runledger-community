@@ -1,0 +1,38 @@
+---
+title: "Plugins"
+description: "Collapsed plugin surface — discovery lives in Onboarding, backend CRUD powers MCP governance and builder workflows."
+---
+
+The **Plugins** route (`/plugins`) is intentionally collapsed. The UI redirects to `/onboarding?section=connections` because plugin discovery and setup are owned by the Onboarding surface.
+
+## Why Plugins Is Collapsed
+
+Plugins started as a standalone admin destination but evolved into a backend-only capability surface. The user-facing discovery and connection management now lives in **Onboarding → Connections**, where it fits naturally into the setup and integration workflow.
+
+## Backend API (Active)
+
+The plugin CRUD API remains active and is consumed by MCP tool governance and builder workflows:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/plugins` | Install/create a plugin |
+| `GET` | `/plugins` | List plugins |
+| `GET` | `/plugins/{id}` | Get plugin detail |
+| `PUT` | `/plugins/{id}` | Update plugin |
+| `DELETE` | `/plugins/{id}` | Uninstall (deactivate) plugin |
+| `GET` | `/plugins/{id}/executions` | Plugin execution log |
+| `POST` | `/plugins/seed-defaults` | Seed default plugins |
+
+## Ownership Model
+
+- **Onboarding** owns user-facing plugin discovery and connection setup
+- **Evaluation studio** consumes plugin connections as tool integrations in builder workflows
+- **MCP governance** uses the plugin CRUD backend for tool policy enforcement
+- **Platform settings** does not own plugins — they are workspace-scoped, not platform-wide
+
+## Lifecycle Notes
+
+- The `/plugins` redirect is a permanent product decision, not a temporary gap
+- Backend endpoints are workspace-scoped (Bearer API key auth)
+- Plugin execution logs provide audit trail for MCP tool calls
+- Seed defaults bootstraps standard integrations during onboarding

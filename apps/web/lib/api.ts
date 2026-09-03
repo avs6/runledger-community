@@ -5434,3 +5434,7 @@ export async function getVectorStoreDetailEvidencePosture(apiKey: string): Promi
 export async function getPlatformLifecyclePosture(apiKey: string): Promise<import('@/types/api').PlatformLifecyclePosture> {
   return apiFetch<import('@/types/api').PlatformLifecyclePosture>('/analytics/platform-lifecycle-posture', apiKey)
 }
+
+export async function getPlatformSettingsConvergencePosture(apiKey: string): Promise<import('@/types/api').PlatformSettingsConvergencePosture> {
+  return apiFetch<import('@/types/api').PlatformSettingsConvergencePosture>('/analytics/platform-settings-convergence-posture', apiKey)
+}

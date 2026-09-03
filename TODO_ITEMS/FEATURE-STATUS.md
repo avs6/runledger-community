@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-09-03 (07-PLATFORM WU-001)
+Last updated: 2026-09-03 (07-PLATFORM WU-003)
 
 ## Purpose
 
@@ -102,10 +102,10 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Self |
 |--------|----------|--------|------------|------------|-----------|-----------|----------|---------|
 | **A** — Platform Lifecycle | All organizations | OK | OK | P:2 | P:1 | OK | P:2 | P:1 |
-| **B** — Platform Settings | Platform settings | P:1 | OK | OK | P:1 | P:3 | — | P:1 |
-| **C** — Utility Collapse | Plugins | OK | — | — | — | — | P:1 | OK |
+| **B** — Platform Settings | Platform settings | P:1 | OK | P:1 | OK | P:3 | — | P:1 |
+| **C** — Utility Collapse | Plugins | OK | — | — | — | — | OK | OK |
 
-**Hot spots**: WU-001 completes All organizations lifecycle hub with platform-lifecycle-posture endpoint and 4 new posture cards (FinOps Lifecycle, Gateway Readiness, Governance & Audit, Org & Access Lifecycle). Audit log P→S. 01-Org and 05-FinOps columns now OK (prior WUs had already upgraded cells but FEATURE-STATUS was stale). 04-Safety moves from P:2 to P:1. Remaining PARTIALs: Monitoring/Telemetry (03-Observe P:2), Governance pack (04-Safety P:1), Evaluation studio/Optimization simulator (06-Build P:2), All orgs self-cohesion (07-Self P:1).
+**Hot spots**: WU-002 adds platform-settings-convergence-posture endpoint and 2 new posture cards (Telemetry & Capture Convergence cyan, Audit & Compliance Convergence amber) to Platform Settings. Telemetry P→S, Audit log P→S. 04-Safety moves from P:1 to OK. 03-Observe corrected to P:1 (Monitoring still PARTIAL). WU-003 completes Plugins collapsed ownership model: docs, Postman (7 requests), example 159. Evaluation studio P→S. 06-Build moves from P:1 to OK. Prior: WU-001 completed All organizations lifecycle hub. Remaining PARTIALs: Monitoring (03-Observe P:1 in 07-A), Governance pack (04-Safety P:1 in 07-A), Optimization simulator (06-Build P:1 in 07-A), self-cohesion partials (07-Self).
 
 ---
 
@@ -230,8 +230,8 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
 | A | All organizations | `OK` | `OK` | `OK` | `RE-AUDITED: OK` |
-| B | Platform settings | `OK` | `OK` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| C | Plugins | `PARTIAL` | `LEGACY` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| B | Platform settings | `OK` | `OK` | `PARTIAL` | `COMPLETED` |
+| C | Plugins | `OK` | `LEGACY` | `PARTIAL` | `COMPLETED` |
 
 ### 08 — Planned Architecture
 

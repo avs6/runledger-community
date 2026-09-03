@@ -1150,3 +1150,11 @@ class PlatformLifecyclePosture(BaseModel):
     gateway_context: dict[str, int]
     governance_context: dict[str, int]
     org_access_context: dict[str, int]
+
+
+class PlatformSettingsConvergencePosture(BaseModel):
+    period_days: int
+    telemetry_context: dict[str, int]
+    audit_context: dict[str, int]
+    compliance_context: dict[str, int]
+    ops_context: dict[str, int]

@@ -1,10 +1,14 @@
 # WU-003: Plugins collapse and discovery ownership cleanup
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: Platform & Utility - Utility Route Collapse and Discovery Ownership
 - **Target**: 07-PLATFORM-AND-UTILITY/Plugins (`/plugins`)
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
+
+## Completion Notes
+
+No backend changes needed — plugin CRUD already complete. Docs: Created `docs/administration/plugins.mdx` documenting collapsed ownership model, backend API table, ownership boundaries (Onboarding owns discovery, Evaluation studio consumes connections, MCP governance uses CRUD). Postman: Added Plugins folder with 7 requests (Create, List, Get, Update, Deactivate, Executions, Seed Defaults). Example 159 covers full plugin lifecycle. All target cohesion cells updated per scope.
 
 ## Cohesion Cells to Close
 

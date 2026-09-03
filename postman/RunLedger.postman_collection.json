@@ -3939,6 +3939,34 @@
           "response": []
         },
         {
+          "name": "Platform Settings Convergence Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/platform-settings-convergence-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "platform-settings-convergence-posture"
+              ]
+            },
+            "description": "Platform settings convergence posture (platform admin only): telemetry context (OTLP batches, spans, capture policies), audit context (audit events, security events), compliance context (ledger snapshots, closures), and ops context (alert rules, firings)."
+          },
+          "response": []
+        },
+        {
           "name": "Eval Replay Org Gateway Posture",
           "request": {
             "method": "GET",
@@ -21582,6 +21610,214 @@
               ]
             },
             "description": "Cross-org model capability summary (org admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Plugins",
+      "item": [
+        {
+          "name": "Create Plugin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"example-webhook\",\n  \"description\": \"Forwards events to a webhook\",\n  \"plugin_type\": \"webhook\",\n  \"hooks\": [\"on_run_complete\"],\n  \"config\": {\"url\": \"https://example.com/hook\"}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/plugins",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins"
+              ]
+            },
+            "description": "Install/create a new plugin in the current workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "List Plugins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/plugins",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins"
+              ]
+            },
+            "description": "List all plugins in the current workspace."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plugin",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/plugins/{{plugin_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins",
+                "{{plugin_id}}"
+              ]
+            },
+            "description": "Get a single plugin by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Plugin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\",\n  \"priority\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/plugins/{{plugin_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins",
+                "{{plugin_id}}"
+              ]
+            },
+            "description": "Update a plugin's configuration or metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Plugin",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/plugins/{{plugin_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins",
+                "{{plugin_id}}"
+              ]
+            },
+            "description": "Deactivate (uninstall) a plugin."
+          },
+          "response": []
+        },
+        {
+          "name": "Plugin Executions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/plugins/{{plugin_id}}/executions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins",
+                "{{plugin_id}}",
+                "executions"
+              ]
+            },
+            "description": "View execution log for a plugin."
+          },
+          "response": []
+        },
+        {
+          "name": "Seed Default Plugins",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/plugins/seed-defaults",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins",
+                "seed-defaults"
+              ]
+            },
+            "description": "Seed default plugins for the current workspace."
           },
           "response": []
         }

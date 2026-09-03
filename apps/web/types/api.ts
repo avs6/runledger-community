@@ -6261,3 +6261,24 @@ export interface PlatformLifecyclePosture {
     total_users: number
   }
 }
+
+export interface PlatformSettingsConvergencePosture {
+  period_days: number
+  telemetry_context: {
+    otlp_batches_7d: number
+    otlp_spans_7d: number
+    capture_policies: number
+  }
+  audit_context: {
+    audit_events_7d: number
+    security_events_7d: number
+  }
+  compliance_context: {
+    ledger_snapshots: number
+    ledger_closures: number
+  }
+  ops_context: {
+    alert_rules: number
+    alert_firings_7d: number
+  }
+}
