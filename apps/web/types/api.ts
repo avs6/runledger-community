@@ -6282,3 +6282,27 @@ export interface PlatformSettingsConvergencePosture {
     alert_firings_7d: number
   }
 }
+
+export interface PlatformAdminObservePosture {
+  period_days: number
+  monitoring_context: {
+    alert_rules: number
+    alert_firings_7d: number
+    guardrail_events_7d: number
+  }
+  telemetry_context: {
+    otlp_batches_7d: number
+    otlp_spans_7d: number
+  }
+  governance_context: {
+    guardrail_rules: number
+    tool_policies: number
+    capture_policies: number
+  }
+  build_context: {
+    eval_experiments: number
+    eval_datasets: number
+    agents: number
+    workflow_runs_7d: number
+  }
+}

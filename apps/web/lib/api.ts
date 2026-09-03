@@ -5438,3 +5438,7 @@ export async function getPlatformLifecyclePosture(apiKey: string): Promise<impor
 export async function getPlatformSettingsConvergencePosture(apiKey: string): Promise<import('@/types/api').PlatformSettingsConvergencePosture> {
   return apiFetch<import('@/types/api').PlatformSettingsConvergencePosture>('/analytics/platform-settings-convergence-posture', apiKey)
 }
+
+export async function getPlatformAdminObservePosture(apiKey: string): Promise<import('@/types/api').PlatformAdminObservePosture> {
+  return apiFetch<import('@/types/api').PlatformAdminObservePosture>('/analytics/platform-admin-observe-posture', apiKey)
+}

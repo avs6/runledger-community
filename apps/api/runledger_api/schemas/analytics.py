@@ -1158,3 +1158,11 @@ class PlatformSettingsConvergencePosture(BaseModel):
     audit_context: dict[str, int]
     compliance_context: dict[str, int]
     ops_context: dict[str, int]
+
+
+class PlatformAdminObservePosture(BaseModel):
+    period_days: int
+    monitoring_context: dict[str, int]
+    telemetry_context: dict[str, int]
+    governance_context: dict[str, int]
+    build_context: dict[str, int]

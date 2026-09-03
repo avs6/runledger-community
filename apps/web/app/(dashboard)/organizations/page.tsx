@@ -23,11 +23,12 @@ import {
   createOrganization,
   deletePlatformOrganization,
   getBudgetControlPlatformPosture,
+  getPlatformAdminObservePosture,
   getPlatformLifecyclePosture,
   listPlatformOrganizations,
   updatePlatformOrganization,
 } from '@/lib/api'
-import type { BudgetControlPlatformPosture, PlatformLifecyclePosture, TenantResponse, TenantStatus } from '@/types/api'
+import type { BudgetControlPlatformPosture, PlatformAdminObservePosture, PlatformLifecyclePosture, TenantResponse, TenantStatus } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
@@ -86,6 +87,7 @@ export default function OrganizationsPage() {
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [budgetPlatformPosture, setBudgetPlatformPosture] = useState<BudgetControlPlatformPosture | null>(null)
   const [lifecyclePosture, setLifecyclePosture] = useState<PlatformLifecyclePosture | null>(null)
+  const [observePosture, setObservePosture] = useState<PlatformAdminObservePosture | null>(null)
 
   const load = useCallback(async () => {
     if (!apiKey || !isPlatformAdmin) {
@@ -107,6 +109,7 @@ export default function OrganizationsPage() {
     if (apiKey) {
       getBudgetControlPlatformPosture(apiKey).then(setBudgetPlatformPosture).catch(() => {})
       getPlatformLifecyclePosture(apiKey).then(setLifecyclePosture).catch(() => {})
+      getPlatformAdminObservePosture(apiKey).then(setObservePosture).catch(() => {})
     }
   }, [load, apiKey])
 
@@ -365,6 +368,81 @@ export default function OrganizationsPage() {
             <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
             <Link href="/users" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Users</Link>
             <Link href="/onboarding" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Onboarding</Link>
+            <Link href="/settings" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {observePosture && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Monitoring & Telemetry</p>
+              <span className="text-xs text-cyan-600 dark:text-cyan-400">{observePosture.period_days}d</span>
+            </div>
+            <div className="grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.monitoring_context.alert_rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Firings</p>
+                <p className={`mt-1 text-lg font-semibold ${observePosture.monitoring_context.alert_firings_7d > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{observePosture.monitoring_context.alert_firings_7d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">OTLP Batches</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.telemetry_context.otlp_batches_7d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Spans Ingested</p>
+                <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">{observePosture.telemetry_context.otlp_spans_7d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+              <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring →</Link>
+              <Link href="/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
+              <Link href="/alerts" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules →</Link>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Governance & Build Context</p>
+              <span className="text-xs text-amber-600 dark:text-amber-400">{observePosture.period_days}d</span>
+            </div>
+            <div className="grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.governance_context.guardrail_rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tool Policies</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.governance_context.tool_policies}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.build_context.eval_experiments}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Agents</p>
+                <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">{observePosture.build_context.agents}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Capture Policies</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.governance_context.capture_policies}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Workflow Runs</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.build_context.workflow_runs_7d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+              <Link href="/governance" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
+              <Link href="/evaluation" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Evaluation Studio →</Link>
+              <Link href="/agents" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Agents →</Link>
+              <Link href="/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings →</Link>
+            </div>
           </div>
         </div>
       )}

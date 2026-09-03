@@ -22,7 +22,18 @@ The Organizations page surfaces downstream posture summaries so platform admins 
 - **FinOps Lifecycle** (emerald): billing period counts (total and active), chargeback rules, and ledger snapshots. Drill-through to Billing Periods, Chargeback, and Ledger (Compliance).
 - **Gateway Readiness** (violet): total gateway routes, distinct providers, and guardrail rules. Drill-through to Model Gateway, Guardrails, and Provider Profiles.
 - **Governance & Audit** (amber): recent audit events, tool policy count, and alert rule count. Drill-through to Audit Log, Tool Policies, and Alert Rules.
-- **Org & Access Lifecycle** (blue): total workspaces, API keys, and users across the platform. Drill-through to Workspaces, API Keys, Users, and Onboarding.
+- **Org & Access Lifecycle** (blue): total workspaces, API keys, and users across the platform. Drill-through to Workspaces, API Keys, Users, Onboarding, and Platform Settings.
+- **Monitoring & Telemetry** (cyan): alert rules, alert firings, OTLP batch and span ingestion counts. Drill-through to Monitoring, Telemetry, and Alert Rules.
+- **Governance & Build Context** (amber): guardrail rules, tool policies, capture policies, eval experiments, agents, and workflow runs. Drill-through to Governance, Evaluation Studio, Agents, and Platform Settings.
+
+### Observe Posture Endpoint
+
+`GET /analytics/platform-admin-observe-posture` (platform admin only) returns:
+
+- **monitoring_context**: alert rules, alert firings (7d), guardrail events (7d)
+- **telemetry_context**: OTLP batches (7d), spans ingested (7d)
+- **governance_context**: guardrail rules, tool policies, capture policies
+- **build_context**: eval experiments, eval datasets, agents, workflow runs (7d)
 
 ## Lifecycle Boundaries
 

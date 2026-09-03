@@ -172,6 +172,7 @@ from runledger_api.schemas.analytics import (
     VectorStoresLifecyclePosture,
     BudgetOrgScopePosture,
     BudgetOverrideGovernancePosture,
+    PlatformAdminObservePosture,
     PlatformLifecyclePosture,
     PlatformSettingsConvergencePosture,
     TagsRuntimePosture,
@@ -16979,5 +16980,111 @@ async def platform_settings_convergence_posture(
         ops_context={
             "alert_rules": alert_rules,
             "alert_firings_7d": alert_firings,
+        },
+    )
+
+
+@router.get(
+    "/platform-admin-observe-posture",
+    response_model=PlatformAdminObservePosture,
+)
+async def platform_admin_observe_posture(
+    admin: tuple = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace, user = admin
+    t_from = _default_from()
+    period_days = _DEFAULT_LOOKBACK_DAYS
+
+    alert_rules = (
+        await db.execute(select(func.count(AlertRule.id)))
+    ).scalar() or 0
+
+    alert_firings = (
+        await db.execute(
+            select(func.count(AlertFiring.id)).where(
+                AlertFiring.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    otlp_batches = (
+        await db.execute(
+            select(func.count(OtlpIngestBatch.id)).where(
+                OtlpIngestBatch.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    otlp_spans = (
+        await db.execute(
+            select(func.coalesce(func.sum(OtlpIngestBatch.span_count), 0)).where(
+                OtlpIngestBatch.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(select(func.count(GuardrailRule.id)))
+    ).scalar() or 0
+
+    guardrail_events = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    tool_policies = (
+        await db.execute(select(func.count(ToolPolicy.id)))
+    ).scalar() or 0
+
+    governance_packs = (
+        await db.execute(select(func.count(CapturePolicy.id)))
+    ).scalar() or 0
+
+    eval_experiments = (
+        await db.execute(select(func.count(EvalExperiment.id)))
+    ).scalar() or 0
+
+    eval_datasets = (
+        await db.execute(select(func.count(EvalDataset.id)))
+    ).scalar() or 0
+
+    agents = (
+        await db.execute(select(func.count(Agent.id)))
+    ).scalar() or 0
+
+    workflow_runs = (
+        await db.execute(
+            select(func.count(WorkflowRun.id)).where(
+                WorkflowRun.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    return PlatformAdminObservePosture(
+        period_days=period_days,
+        monitoring_context={
+            "alert_rules": alert_rules,
+            "alert_firings_7d": alert_firings,
+            "guardrail_events_7d": guardrail_events,
+        },
+        telemetry_context={
+            "otlp_batches_7d": otlp_batches,
+            "otlp_spans_7d": otlp_spans,
+        },
+        governance_context={
+            "guardrail_rules": guardrail_rules,
+            "tool_policies": tool_policies,
+            "capture_policies": governance_packs,
+        },
+        build_context={
+            "eval_experiments": eval_experiments,
+            "eval_datasets": eval_datasets,
+            "agents": agents,
+            "workflow_runs_7d": workflow_runs,
         },
     )

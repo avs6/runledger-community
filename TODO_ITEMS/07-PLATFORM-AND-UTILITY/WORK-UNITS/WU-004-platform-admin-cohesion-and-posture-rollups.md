@@ -1,10 +1,14 @@
 # WU-004: Platform admin cohesion and posture rollups
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: Platform & Utility - Platform Posture Summaries and Admin Workflow Cohesion
 - **Target**: 07-PLATFORM-AND-UTILITY/Platform admin workflow (`/organizations`, `/settings`, `/plugins`)
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
+
+## Completion Notes
+
+Backend: Added `GET /analytics/platform-admin-observe-posture` (platform admin) returning monitoring context (alert rules/firings, guardrail events), telemetry context (OTLP batches/spans), governance context (guardrail rules, tool policies, capture policies), and build context (eval experiments/datasets, agents, workflow runs). UI: Added Monitoring & Telemetry card (cyan) and Governance & Build Context card (amber) to Organizations page. Added Platform Settings drill-through link to Org & Access Lifecycle card. Docs: Updated organizations.mdx with new posture cards and observe posture endpoint documentation. Postman: Added Platform Admin Observe Posture request. Example 160 and smoke script added. Several cells were already STRONG from prior WUs; actual cell changes: All orgs × Monitoring P→S, All orgs × Telemetry P→S, All orgs × Governance pack P→S, All orgs × Platform settings self P→S (via cross-navigation).
 
 ## Cohesion Cells to Close
 

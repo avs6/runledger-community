@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-09-03 (07-PLATFORM WU-003)
+Last updated: 2026-09-03 (07-PLATFORM WU-005)
 
 ## Purpose
 
@@ -101,11 +101,11 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Self |
 |--------|----------|--------|------------|------------|-----------|-----------|----------|---------|
-| **A** — Platform Lifecycle | All organizations | OK | OK | P:2 | P:1 | OK | P:2 | P:1 |
-| **B** — Platform Settings | Platform settings | P:1 | OK | P:1 | OK | P:3 | — | P:1 |
+| **A** — Platform Lifecycle | All organizations | OK | OK | OK | OK | OK | P:1 | OK |
+| **B** — Platform Settings | Platform settings | P:1 | OK | OK | OK | P:3 | — | P:1 |
 | **C** — Utility Collapse | Plugins | OK | — | — | — | — | OK | OK |
 
-**Hot spots**: WU-002 adds platform-settings-convergence-posture endpoint and 2 new posture cards (Telemetry & Capture Convergence cyan, Audit & Compliance Convergence amber) to Platform Settings. Telemetry P→S, Audit log P→S. 04-Safety moves from P:1 to OK. 03-Observe corrected to P:1 (Monitoring still PARTIAL). WU-003 completes Plugins collapsed ownership model: docs, Postman (7 requests), example 159. Evaluation studio P→S. 06-Build moves from P:1 to OK. Prior: WU-001 completed All organizations lifecycle hub. Remaining PARTIALs: Monitoring (03-Observe P:1 in 07-A), Governance pack (04-Safety P:1 in 07-A), Optimization simulator (06-Build P:1 in 07-A), self-cohesion partials (07-Self).
+**Hot spots**: WU-004/005 add platform-admin-observe-posture endpoint and Monitoring & Telemetry (cyan) + Governance & Build Context (amber) posture cards to Organizations. All orgs: Monitoring P→S, Telemetry P→S, Governance pack P→S, Evaluation studio P→S, self-cohesion P→S. 03-Observe moves from P:2 to OK, 04-Safety moves from P:1 to OK, 06-Build moves from P:2 to P:1, 07-Self moves from P:1 to OK. Platform settings: Monitoring P→S via shared observe workflow. 03-Observe moves from P:1 to OK. Prior: WU-002/003 completed settings convergence and plugins collapse. Only remaining PARTIAL: Optimization simulator (06-Build P:1 in 07-A — advisory surface, not a closed loop).
 
 ---
 
