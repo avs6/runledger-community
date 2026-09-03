@@ -1,9 +1,9 @@
 ---
 title: "Organizations"
-description: "Platform-admin lifecycle hub for creating, editing, suspending, and deleting organizations."
+description: "Platform-admin lifecycle hub for creating, editing, suspending, and deleting organizations with downstream posture summaries."
 ---
 
-The **Organizations** page is platform-admin-only. It is the lifecycle hub for every tenant on a RunLedger installation.
+The **Organizations** page is platform-admin-only. It is the canonical lifecycle hub for every tenant on a RunLedger installation.
 
 ## What Platform Admins Can Do
 
@@ -14,6 +14,26 @@ The **Organizations** page is platform-admin-only. It is the lifecycle hub for e
 - Suspend or reactivate non-default, non-current organizations.
 - Delete non-default, non-current organizations with typed-name confirmation.
 
+## Platform Posture Cards
+
+The Organizations page surfaces downstream posture summaries so platform admins can assess cross-org health without leaving the lifecycle hub:
+
+- **Budget Control — Platform Posture** (emerald): cross-org budget totals, 30-day spend, active overrides, and breach counts. Drill-through to Budgets, Feature Budgets, Economics, and Platform Settings.
+- **FinOps Lifecycle** (emerald): billing period counts (total and active), chargeback rules, and ledger snapshots. Drill-through to Billing Periods, Chargeback, and Ledger (Compliance).
+- **Gateway Readiness** (violet): total gateway routes, distinct providers, and guardrail rules. Drill-through to Model Gateway, Guardrails, and Provider Profiles.
+- **Governance & Audit** (amber): recent audit events, tool policy count, and alert rule count. Drill-through to Audit Log, Tool Policies, and Alert Rules.
+- **Org & Access Lifecycle** (blue): total workspaces, API keys, and users across the platform. Drill-through to Workspaces, API Keys, Users, and Onboarding.
+
+## Lifecycle Boundaries
+
+Organizations owns the **lifecycle control plane** — create, suspend, reactivate, delete. It does not own:
+
+- **Org Profile**: org-admin self-service rename and profile edits inside one organization.
+- **Platform Settings**: compliance, retention, backup, email, and storage configuration.
+- **Onboarding**: guided setup flow for workspace, gateway, and safety configuration.
+
+Each posture card links to the owning surface. Organizations summarizes but does not duplicate editing controls.
+
 ## Safety Rules
 
 The default organization and the organization you are currently switched into cannot be suspended or deleted. Switch to another organization before deleting a non-default org.
@@ -22,6 +42,8 @@ Deleting an organization removes its workspaces and tenant memberships. Users wh
 
 ## Related Pages
 
-- **Org Profile** is for org-admin self-service rename/profile edits inside one organization.
-- **Users** manages user identity and membership.
-- **Workspace** manages teams/workspaces inside the active organization.
+- [Org Profile](/administration/org-profile) — org-admin self-service inside one organization.
+- [Users](/administration/users) — user identity and membership management.
+- [Workspaces](/administration/workspaces) — team/workspace management inside the active organization.
+- [Platform Settings](/administration/platform-settings) — compliance, retention, backup, and ops configuration.
+- [Onboarding](/administration/onboarding) — guided setup for new organizations.

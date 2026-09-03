@@ -5430,3 +5430,7 @@ export async function getVectorStoresLifecyclePosture(apiKey: string): Promise<i
 export async function getVectorStoreDetailEvidencePosture(apiKey: string): Promise<import('@/types/api').VectorStoreDetailEvidencePosture> {
   return apiFetch<import('@/types/api').VectorStoreDetailEvidencePosture>('/analytics/vector-store-detail-evidence-posture', apiKey)
 }
+
+export async function getPlatformLifecyclePosture(apiKey: string): Promise<import('@/types/api').PlatformLifecyclePosture> {
+  return apiFetch<import('@/types/api').PlatformLifecyclePosture>('/analytics/platform-lifecycle-posture', apiKey)
+}

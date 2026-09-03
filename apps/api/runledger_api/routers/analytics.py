@@ -172,6 +172,7 @@ from runledger_api.schemas.analytics import (
     VectorStoresLifecyclePosture,
     BudgetOrgScopePosture,
     BudgetOverrideGovernancePosture,
+    PlatformLifecyclePosture,
     TagsRuntimePosture,
     TrendMetric,
     TrendPoint,
@@ -16781,5 +16782,106 @@ async def vector_store_detail_evidence_posture(
         build_context={
             "workflows": workflows,
             "eval_experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/platform-lifecycle-posture",
+    response_model=PlatformLifecyclePosture,
+)
+async def platform_lifecycle_posture(
+    admin: tuple = Depends(require_platform_admin),
+    db: AsyncSession = Depends(get_db),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    workspace, user = admin
+    t_from = _default_from()
+    period_days = _DEFAULT_LOOKBACK_DAYS
+
+    billing_periods = (
+        await db.execute(select(func.count(BillingPeriod.id)))
+    ).scalar() or 0
+
+    active_billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.status == "open"
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rules = (
+        await db.execute(select(func.count(ChargebackRule.id)))
+    ).scalar() or 0
+
+    ledger_snapshots = (
+        await db.execute(select(func.count(LedgerSnapshot.id)))
+    ).scalar() or 0
+
+    gateway_routes = (
+        await db.execute(select(func.count(GatewayRoute.id)))
+    ).scalar() or 0
+
+    providers = (
+        await db.execute(
+            select(func.count(func.distinct(GatewayRoute.provider)))
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(select(func.count(GuardrailRule.id)))
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.created_at >= t_from
+            )
+        )
+    ).scalar() or 0
+
+    tool_policies = (
+        await db.execute(select(func.count(ToolPolicy.id)))
+    ).scalar() or 0
+
+    alert_rules = (
+        await db.execute(select(func.count(AlertRule.id)))
+    ).scalar() or 0
+
+    total_workspaces = (
+        await db.execute(select(func.count(Workspace.id)))
+    ).scalar() or 0
+
+    total_api_keys = (
+        await db.execute(select(func.count(ApiKey.id)))
+    ).scalar() or 0
+
+    total_users = (
+        await db.execute(select(func.count(TenantUser.id)))
+    ).scalar() or 0
+
+    return PlatformLifecyclePosture(
+        period_days=period_days,
+        finops_context={
+            "billing_periods": billing_periods,
+            "active_billing_periods": active_billing_periods,
+            "chargeback_rules": chargeback_rules,
+            "ledger_snapshots": ledger_snapshots,
+        },
+        gateway_context={
+            "gateway_routes": gateway_routes,
+            "distinct_providers": providers,
+            "guardrail_rules": guardrail_rules,
+        },
+        governance_context={
+            "audit_events_30d": audit_events_30d,
+            "tool_policies": tool_policies,
+            "alert_rules": alert_rules,
+        },
+        org_access_context={
+            "total_workspaces": total_workspaces,
+            "total_api_keys": total_api_keys,
+            "total_users": total_users,
         },
     )

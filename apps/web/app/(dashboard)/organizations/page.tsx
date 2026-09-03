@@ -23,10 +23,11 @@ import {
   createOrganization,
   deletePlatformOrganization,
   getBudgetControlPlatformPosture,
+  getPlatformLifecyclePosture,
   listPlatformOrganizations,
   updatePlatformOrganization,
 } from '@/lib/api'
-import type { BudgetControlPlatformPosture, TenantResponse, TenantStatus } from '@/types/api'
+import type { BudgetControlPlatformPosture, PlatformLifecyclePosture, TenantResponse, TenantStatus } from '@/types/api'
 
 const inputCls =
   'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
@@ -84,6 +85,7 @@ export default function OrganizationsPage() {
   const [editStatus, setEditStatus] = useState<TenantStatus>('active')
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [budgetPlatformPosture, setBudgetPlatformPosture] = useState<BudgetControlPlatformPosture | null>(null)
+  const [lifecyclePosture, setLifecyclePosture] = useState<PlatformLifecyclePosture | null>(null)
 
   const load = useCallback(async () => {
     if (!apiKey || !isPlatformAdmin) {
@@ -102,7 +104,10 @@ export default function OrganizationsPage() {
 
   useEffect(() => {
     load()
-    if (apiKey) getBudgetControlPlatformPosture(apiKey).then(setBudgetPlatformPosture).catch(() => {})
+    if (apiKey) {
+      getBudgetControlPlatformPosture(apiKey).then(setBudgetPlatformPosture).catch(() => {})
+      getPlatformLifecyclePosture(apiKey).then(setLifecyclePosture).catch(() => {})
+    }
   }, [load, apiKey])
 
   const filtered = useMemo(() => {
@@ -257,6 +262,109 @@ export default function OrganizationsPage() {
             <Link href="/budgets?scope=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
             <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
             <Link href="/settings" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {lifecyclePosture && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">FinOps Lifecycle</p>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Billing Periods</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.finops_context.billing_periods}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Active Periods</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{lifecyclePosture.finops_context.active_billing_periods}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.finops_context.chargeback_rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Ledger Snapshots</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.finops_context.ledger_snapshots}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+              <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing Periods</Link>
+              <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
+              <Link href="/settings?tab=compliance" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Ledger</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway Readiness</p>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Gateway Routes</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.gateway_context.gateway_routes}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Providers</p>
+                <p className="mt-1 text-lg font-semibold text-violet-600 dark:text-violet-400">{lifecyclePosture.gateway_context.distinct_providers}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3 col-span-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.gateway_context.guardrail_rules}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
+              <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
+              <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+              <Link href="/provider-profiles" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Provider Profiles</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Governance & Audit</p>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events (7d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.governance_context.audit_events_30d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Tool Policies</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.governance_context.tool_policies}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3 col-span-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
+                <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">{lifecyclePosture.governance_context.alert_rules}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+              <Link href="/audit-log" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
+              <Link href="/tool-policies" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tool Policies</Link>
+              <Link href="/alerts" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lifecyclePosture && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Org & Access Lifecycle</p>
+          <div className="mt-3 grid gap-3 grid-cols-3">
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Workspaces</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.org_access_context.total_workspaces}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">API Keys</p>
+              <p className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">{lifecyclePosture.org_access_context.total_api_keys}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Users</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.org_access_context.total_users}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+            <Link href="/workspaces" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Workspaces</Link>
+            <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
+            <Link href="/users" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Users</Link>
+            <Link href="/onboarding" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Onboarding</Link>
           </div>
         </div>
       )}

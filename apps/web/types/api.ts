@@ -6236,3 +6236,28 @@ export interface VectorStoreDetailEvidencePosture {
   cost_context: { cost_30d: number; chargeback_rules: number }
   build_context: { workflows: number; eval_experiments: number }
 }
+
+export interface PlatformLifecyclePosture {
+  period_days: number
+  finops_context: {
+    billing_periods: number
+    active_billing_periods: number
+    chargeback_rules: number
+    ledger_snapshots: number
+  }
+  gateway_context: {
+    gateway_routes: number
+    distinct_providers: number
+    guardrail_rules: number
+  }
+  governance_context: {
+    audit_events_30d: number
+    tool_policies: number
+    alert_rules: number
+  }
+  org_access_context: {
+    total_workspaces: number
+    total_api_keys: number
+    total_users: number
+  }
+}
