@@ -1,10 +1,14 @@
 # WU-006: Platform Settings Converged Posture Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 07-Platform - B (Platform Settings Convergence)
 - **Target**: 07-PLATFORM-AND-UTILITY/platform-settings
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-03
+
+## Completion Notes
+
+UI: Added Evaluation Studio and Organizations drill-through links to convergence posture cards (amber: Audit & Compliance, cyan: Telemetry & Capture). Added Monitoring drill-through to telemetry card. Docs: Updated platform-settings.mdx with Adjacent Relationships section documenting Evaluation Studio (compliance context affects data governance constraints for experiments), Organizations (shared platform-admin context), and Monitoring (alert/guardrail operational health). Most target cells were already STRONG from prior WUs (Budgets, Chargeback, Org profile, Workspaces, Guardrails, Monitoring, Governance pack). Actual cell changes: Evaluation studio N/A→P (compliance context linkage), Platform settings self P→S (Organizations cross-navigation).
 
 ## Cohesion Cells to Close
 

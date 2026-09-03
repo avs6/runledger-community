@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-09-03 (07-PLATFORM WU-005)
+Last updated: 2026-09-03 (07-PLATFORM WU-007)
 
 ## Purpose
 
@@ -102,10 +102,10 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Self |
 |--------|----------|--------|------------|------------|-----------|-----------|----------|---------|
 | **A** — Platform Lifecycle | All organizations | OK | OK | OK | OK | OK | P:1 | OK |
-| **B** — Platform Settings | Platform settings | P:1 | OK | OK | OK | P:3 | — | P:1 |
-| **C** — Utility Collapse | Plugins | OK | — | — | — | — | OK | OK |
+| **B** — Platform Settings | Platform settings | P:1 | OK | OK | OK | P:3 | P:1 | OK |
+| **C** — Utility Collapse | Plugins | OK | — | P:1 | P:1 | — | OK | OK |
 
-**Hot spots**: WU-004/005 add platform-admin-observe-posture endpoint and Monitoring & Telemetry (cyan) + Governance & Build Context (amber) posture cards to Organizations. All orgs: Monitoring P→S, Telemetry P→S, Governance pack P→S, Evaluation studio P→S, self-cohesion P→S. 03-Observe moves from P:2 to OK, 04-Safety moves from P:1 to OK, 06-Build moves from P:2 to P:1, 07-Self moves from P:1 to OK. Platform settings: Monitoring P→S via shared observe workflow. 03-Observe moves from P:1 to OK. Prior: WU-002/003 completed settings convergence and plugins collapse. Only remaining PARTIAL: Optimization simulator (06-Build P:1 in 07-A — advisory surface, not a closed loop).
+**Hot spots**: WU-006 completes Platform Settings converged posture refresh: Evaluation Studio and Organizations drill-through added to convergence cards. Evaluation studio N/A→P, self P→S. 06-Build moves from — to P:1, 07-Self moves from P:1 to OK. WU-007 re-audits Plugins collapsed ownership: Governance pack N/A→P (plugin hooks governed by tool policies), Monitoring N/A→P (execution logs feed monitoring). 03-Observe moves from — to P:1, 04-Safety moves from — to P:1. Prior: WU-004/005 completed observe posture for All organizations. Remaining PARTIALs: Optimization simulator (06-Build P:1 in 07-A), Evaluation studio (06-Build P:1 in 07-B), Monitoring (03-Observe P:1 in 07-C), Governance pack (04-Safety P:1 in 07-C).
 
 ---
 

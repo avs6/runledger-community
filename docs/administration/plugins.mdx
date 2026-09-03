@@ -30,9 +30,16 @@ The plugin CRUD API remains active and is consumed by MCP tool governance and bu
 - **MCP governance** uses the plugin CRUD backend for tool policy enforcement
 - **Platform settings** does not own plugins — they are workspace-scoped, not platform-wide
 
+## Adjacent Relationships
+
+- **Tool Registry & Tool Policies**: plugin hooks are governed by tool policies. When a plugin registers hooks (`on_run_complete`, `on_alert_fired`, etc.), tool policy enforcement determines whether those hooks execute. Plugin CRUD is the registration surface; Tool Policies is the governance surface.
+- **Monitoring**: plugin execution logs (`GET /plugins/{id}/executions`) provide an operational audit trail. Alert rules can reference plugin-generated events, and guardrail events may be triggered by plugin hook executions. Monitoring surfaces plugin operational health at the platform level.
+- **Evaluation Studio**: evaluation experiments consume plugin-provided tool connections. When an experiment needs external tool access, it resolves through the plugin connection graph registered via this API.
+
 ## Lifecycle Notes
 
 - The `/plugins` redirect is a permanent product decision, not a temporary gap
 - Backend endpoints are workspace-scoped (Bearer API key auth)
 - Plugin execution logs provide audit trail for MCP tool calls
 - Seed defaults bootstraps standard integrations during onboarding
+- Plugin hooks are subject to tool policy enforcement from the governance layer

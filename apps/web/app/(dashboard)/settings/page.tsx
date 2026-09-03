@@ -441,6 +441,8 @@ export default function SettingsPage() {
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
               <Link href="/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
               <Link href="/retention" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Retention →</Link>
+              <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring →</Link>
+              <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Organizations →</Link>
             </div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
@@ -480,6 +482,8 @@ export default function SettingsPage() {
               <Link href="/audit" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Audit Log →</Link>
               <Link href="/alerts" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Alerts →</Link>
               <Link href="/governance" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
+              <Link href="/evaluation" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Evaluation Studio →</Link>
+              <Link href="/organizations" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Organizations →</Link>
             </div>
           </div>
         </div>
