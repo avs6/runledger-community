@@ -10,6 +10,67 @@ runtime — so a prompt change is auditable and reversible instead of a silent c
   <img src="/images/prompts.png" alt="Prompt registry" />
 </Frame>
 
+## Workspace & Provider Context
+
+The Prompts list page now displays workspace scope and model/provider awareness through a
+posture card:
+
+- **Workspace & Model Context** (blue) — workspace name, hub model catalog (active/total),
+  distinct providers, prompts with model hints vs. total, gateway routes, routing policies,
+  and workspace users. Drill-through links to Organization, AI Hub, Provider Profiles,
+  and Gateway.
+
+```bash
+curl http://localhost:8201/analytics/prompts-org-gateway-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
+## Observe & Analytics Context (Prompt Detail)
+
+The Prompt detail page displays a cyan **Observe & Analytics Context** posture card
+bridging version-level prompt management to the full observability surface:
+
+- Runs (30d), distinct models, 30-day total cost, and average cost per call.
+- Drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer,
+  Model Usage, and Cost & Savings.
+
+```bash
+curl "http://localhost:8201/analytics/prompt-detail-observe-posture?prompt_name=my-prompt" \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
+## Observe & Analytics Context (Prompts List)
+
+The Prompts list page displays a cyan **Observe & Analytics Context** card and a rose **Build & Improve Loop** card:
+
+- **Observe context** — runs 30d, provider calls 30d, distinct models, spend 30d with drill-through to Analytics Overview, Runs, Model Usage, and Cost & Savings.
+- **Build loop** — eval datasets, experiments, workflows, and replay experiments with drill-through to Evaluation Studio, Workflows, Replay Lab, and Optimization.
+
+```bash
+curl http://localhost:8201/analytics/prompts-list-observe-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
+## AI Hub & Cost Attribution Context (Prompt Detail)
+
+The Prompt detail page displays an amber **AI Hub & Cost Attribution Context** card connecting prompt versions to the model registry and chargeback attribution:
+
+- Hub models (total/active), chargeback rules, and attributed cost 30d.
+- Drill-through links to AI Hub, Chargeback, and Cost & Savings.
+
+```bash
+curl http://localhost:8201/analytics/prompt-detail-hub-finops-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
 ## Key features
 
 - **Versioning** — every edit is a new immutable version.

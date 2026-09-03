@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { listPrompts, createPrompt, deletePrompt, getBudgetDetailBuildPosture, getBudgetControlBuildPosture } from '@/lib/api'
-import type { PromptResponse, BudgetDetailBuildPosture, BudgetControlBuildPosture } from '@/types/api'
+import { listPrompts, createPrompt, deletePrompt, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getPromptsOrgGatewayPosture, getPromptsListObservePosture, getBuildInternalPosture } from '@/lib/api'
+import type { PromptResponse, BudgetDetailBuildPosture, BudgetControlBuildPosture, PromptsOrgGatewayPosture, PromptsListObservePosture, BuildInternalPosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookText, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -42,6 +42,9 @@ export default function PromptsPage() {
   const [showForm, setShowForm] = useState(false)
   const [budgetBuildPosture, setBudgetBuildPosture] = useState<BudgetDetailBuildPosture | null>(null)
   const [budgetControlBuildPosture, setBudgetControlBuildPosture] = useState<BudgetControlBuildPosture | null>(null)
+  const [orgGatewayPosture, setOrgGatewayPosture] = useState<PromptsOrgGatewayPosture | null>(null)
+  const [observePosture, setObservePosture] = useState<PromptsListObservePosture | null>(null)
+  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
 
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
@@ -61,6 +64,9 @@ export default function PromptsPage() {
     loadPrompts()
     if (apiKey) getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {})
     if (apiKey) getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {})
+    if (apiKey) getPromptsOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {})
+    if (apiKey) getPromptsListObservePosture(apiKey).then(setObservePosture).catch(() => {})
+    if (apiKey) getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey])
 
@@ -176,6 +182,112 @@ export default function PromptsPage() {
             <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
+
+      {orgGatewayPosture && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Workspace &amp; Model Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.workspace_context.workspace_name}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.ai_hub_context.hub_active_models}/{orgGatewayPosture.ai_hub_context.hub_models}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Providers</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.provider_context.distinct_providers}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">With Model Hint</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.prompt_model_context.prompts_with_model_hint}/{orgGatewayPosture.prompt_model_context.total_prompts}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Gateway Routes</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.gateway_context.active_routes}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Routing Policies</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.gateway_context.routing_policies}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Users</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.workspace_context.workspace_users}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+            <Link href="/organization" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Organization</Link>
+            <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
+            <Link href="/provider-profiles" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Provider Profiles</Link>
+            <Link href="/gateway" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Gateway</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Observe & Analytics Context (cyan) — WU-011 */}
+      {observePosture && (
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-950/40 dark:to-gray-900 p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-cyan-800 dark:text-cyan-300 mb-3">Observe &amp; Analytics Context</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.observe_context.runs_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.observe_context.provider_calls_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Distinct Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.observe_context.distinct_models}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Spend 30d</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${observePosture.observe_context.spend_30d.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost &amp; Savings</Link>
+          </div>
+        </div>
+      )}
+
+      {/* Build & Improve Loop (rose) — WU-011 */}
+      {buildPosture && (
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-gradient-to-br from-rose-50 to-white dark:from-rose-950/40 dark:to-gray-900 p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-rose-800 dark:text-rose-300 mb-3">Build &amp; Improve Loop</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Datasets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.evaluation_context.datasets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.evaluation_context.experiments}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workflows</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.workflows_context.definitions}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Replay Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.replay_context.experiments}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
+            <Link href="/evaluation" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Evaluation Studio</Link>
+            <Link href="/workflows" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Workflows</Link>
+            <Link href="/replay" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Replay Lab</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Optimization</Link>
           </div>
         </div>
       )}

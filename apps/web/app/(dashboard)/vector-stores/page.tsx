@@ -1,8 +1,8 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getVectorCollections } from '@/lib/api'
-import type { VectorCollectionResponse } from '@/types/api'
+import { getVectorCollections, getVectorStoresLifecyclePosture } from '@/lib/api'
+import type { VectorCollectionResponse, VectorStoresLifecyclePosture } from '@/types/api'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
@@ -91,6 +91,8 @@ export default async function VectorStoresPage() {
     return <p className="p-8 text-slate-500">Failed to load vector stores.</p>
   }
 
+  const lifecyclePosture: VectorStoresLifecyclePosture | null = await getVectorStoresLifecyclePosture(apiKey).catch(() => null)
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6 md:p-10">
       <div className="flex items-center justify-between">
@@ -99,6 +101,42 @@ export default async function VectorStoresPage() {
         </h1>
         <span className="text-sm text-slate-500">{total} collection{total !== 1 ? 's' : ''}</span>
       </div>
+
+      {lifecyclePosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Workspace, Cost &amp; Build Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.workspace_context.workspace_name}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.observe_context.provider_calls_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cost 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${Number(lifecyclePosture.cost_context.cost_30d).toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workflows</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.build_context.workflows}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{lifecyclePosture.build_context.eval_experiments}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+            <Link href="/workspaces" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Workspaces</Link>
+            <Link href="/request-explorer" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Request Explorer</Link>
+            <Link href="/chargeback" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Chargeback</Link>
+            <Link href="/workflows" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Workflows</Link>
+            <Link href="/evaluation?tab=scores" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Evaluation Studio</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization</Link>
+          </div>
+        </div>
+      )}
 
       {collections.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center dark:border-slate-700 dark:bg-slate-900/40">

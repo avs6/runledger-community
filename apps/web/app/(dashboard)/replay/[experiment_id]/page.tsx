@@ -14,8 +14,8 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
-import { getExperimentResults, createRouteRecommendation, getBudgetDetailBuildPosture, getBudgetControlBuildPosture } from '@/lib/api'
-import type { ExperimentResults, BudgetDetailBuildPosture, BudgetControlBuildPosture } from '@/types/api'
+import { getExperimentResults, createRouteRecommendation, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getReplayResultAnalysisPosture } from '@/lib/api'
+import type { ExperimentResults, BudgetDetailBuildPosture, BudgetControlBuildPosture, ReplayResultAnalysisPosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
@@ -41,6 +41,7 @@ export default function ExperimentResultsPage() {
   const [recommending, setRecommending] = useState<number | null>(null)
   const [budgetBuildPosture, setBudgetBuildPosture] = useState<BudgetDetailBuildPosture | null>(null)
   const [budgetControlBuildPosture, setBudgetControlBuildPosture] = useState<BudgetControlBuildPosture | null>(null)
+  const [analysisPosture, setAnalysisPosture] = useState<ReplayResultAnalysisPosture | null>(null)
 
   const handleRecommendRoute = async (configIndex: number, model: string) => {
     const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
@@ -70,6 +71,7 @@ export default function ExperimentResultsPage() {
       .catch(() => setLoading(false))
     getBudgetDetailBuildPosture(session.apiKey as string).then(setBudgetBuildPosture).catch(() => {})
     getBudgetControlBuildPosture(session.apiKey as string).then(setBudgetControlBuildPosture).catch(() => {})
+    getReplayResultAnalysisPosture(session.apiKey as string).then(setAnalysisPosture).catch(() => {})
   }, [session?.apiKey, experimentId])
 
   if (loading) {
@@ -183,6 +185,41 @@ export default function ExperimentResultsPage() {
             <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
+
+      {analysisPosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Gateway, Runtime &amp; Cost Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{analysisPosture.gateway_context.guardrail_rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Configs</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{analysisPosture.gateway_context.cache_configs}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{analysisPosture.observe_context.runs_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{analysisPosture.observe_context.provider_calls_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cost 30d</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${analysisPosture.cost_context.cost_30d.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+            <Link href="/guardrails" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Guardrails</Link>
+            <Link href="/response-cache" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Response Cache</Link>
+            <Link href="/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
+            <Link href="/optimization-simulator" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization Simulator</Link>
           </div>
         </div>
       )}

@@ -1,10 +1,19 @@
 # WU-005: Evaluation & Replay × Observe Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - C (Evaluation and Replay Studio)
 - **Target**: 06-BUILD-AND-IMPROVE/Evaluation studio, Experiments, Replay lab
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `EvalReplayObservePosture` Pydantic schema + `GET /analytics/eval-replay-observe-posture` endpoint querying AgentRun, ProviderCall, ResponseCacheConfig for runs/requests/models/cost context
+- TypeScript: `EvalReplayObservePosture` interface + `getEvalReplayObservePosture` API function
+- UI: Cyan "Observe & Runtime Context" card on Evaluation Studio, Experiments, Replay Lab pages showing runs 30d, provider calls 30d, distinct models, total cost 30d with drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer, Model Usage, Cost & Savings
+- Docs: Added observe context sections to evaluations.mdx and replay-lab.mdx
+- Postman: Added "Eval Replay Observe Posture" entry
+- Example: `examples/134_eval_replay_observe_posture.py`
 
 ## Cohesion Cells to Close
 

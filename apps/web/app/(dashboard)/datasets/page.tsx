@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { listEvalDatasets, createEvalDataset, deleteEvalDataset } from '@/lib/api'
-import type { EvalDataset, DatasetItem } from '@/types/api'
+import { listEvalDatasets, createEvalDataset, deleteEvalDataset, getDatasetsEvalAssetPosture } from '@/lib/api'
+import type { EvalDataset, DatasetItem, DatasetsEvalAssetPosture } from '@/types/api'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Plus, Trash2, X, TableProperties } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
@@ -27,6 +28,7 @@ export default function DatasetsPage() {
   const [inputMode, setInputMode] = useState<'paste' | 'upload' | 'url'>('paste')
   const [urlInput, setUrlInput] = useState('')
   const [fetching, setFetching] = useState(false)
+  const [posture, setPosture] = useState<DatasetsEvalAssetPosture | null>(null)
 
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
@@ -43,7 +45,12 @@ export default function DatasetsPage() {
     }
   }
 
-  useEffect(() => { if (apiKey) load() }, [apiKey])
+  useEffect(() => {
+    if (apiKey) {
+      load()
+      getDatasetsEvalAssetPosture(apiKey).then(setPosture).catch(() => null)
+    }
+  }, [apiKey])
 
   function parseItems(text: string): DatasetItem[] {
     // Support CSV (input,expected_output) or JSON array
@@ -209,6 +216,76 @@ export default function DatasetsPage() {
               <button onClick={handleCreate} disabled={creating} className="flex-1 rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {posture && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Workspace & Datasets</p>
+            <div className="mt-3 space-y-2">
+              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white truncate">{posture.org_context.workspace_name}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Datasets</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{posture.org_context.datasets}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+              <Link href="/organization" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Workspaces</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe Context</p>
+            <div className="mt-3">
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{posture.observe_context.provider_calls_30d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+              <Link href="/analytics?tab=request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Chargeback & Cost</p>
+            <div className="mt-3 space-y-2">
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{posture.finops_context.chargeback_rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Cost (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${posture.finops_context.cost_30d.toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+              <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback Rules</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build & Eval Loop</p>
+            <div className="mt-3 space-y-2">
+              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{posture.build_context.eval_experiments}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Replay Experiments</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{posture.build_context.replay_experiments}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
+              <Link href="/evaluation" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Evaluation Studio</Link>
+              <Link href="/experiments" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Experiments</Link>
+              <Link href="/replay" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Replay Lab</Link>
             </div>
           </div>
         </div>

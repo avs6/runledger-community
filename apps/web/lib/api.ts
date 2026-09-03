@@ -5313,3 +5313,120 @@ export async function getGovernancePackRuntimePosture(apiKey: string): Promise<i
 export async function getTagsRuntimePosture(apiKey: string): Promise<import('@/types/api').TagsRuntimePosture> {
   return apiFetch<import('@/types/api').TagsRuntimePosture>('/analytics/tags-runtime-posture', apiKey)
 }
+
+export async function getPlaygroundOrgGatewayPosture(apiKey: string): Promise<import('@/types/api').PlaygroundOrgGatewayPosture> {
+  return apiFetch<import('@/types/api').PlaygroundOrgGatewayPosture>('/analytics/playground-org-gateway-posture', apiKey)
+}
+
+export async function getPromptsOrgGatewayPosture(apiKey: string): Promise<import('@/types/api').PromptsOrgGatewayPosture> {
+  return apiFetch<import('@/types/api').PromptsOrgGatewayPosture>('/analytics/prompts-org-gateway-posture', apiKey)
+}
+
+export async function getPlaygroundObservePosture(apiKey: string): Promise<import('@/types/api').PlaygroundObservePosture> {
+  return apiFetch<import('@/types/api').PlaygroundObservePosture>('/analytics/playground-observe-posture', apiKey)
+}
+
+export async function getPromptDetailObservePosture(apiKey: string, promptName?: string): Promise<import('@/types/api').PromptDetailObservePosture> {
+  const qs = promptName ? `?prompt_name=${encodeURIComponent(promptName)}` : ''
+  return apiFetch<import('@/types/api').PromptDetailObservePosture>(`/analytics/prompt-detail-observe-posture${qs}`, apiKey)
+}
+
+export async function getWorkflowDetailCrossFeaturePosture(apiKey: string): Promise<import('@/types/api').WorkflowDetailCrossFeaturePosture> {
+  return apiFetch<import('@/types/api').WorkflowDetailCrossFeaturePosture>('/analytics/workflow-detail-cross-feature-posture', apiKey)
+}
+
+export async function getEvalReplayOrgGatewayPosture(apiKey: string): Promise<import('@/types/api').EvalReplayOrgGatewayPosture> {
+  return apiFetch<import('@/types/api').EvalReplayOrgGatewayPosture>('/analytics/eval-replay-org-gateway-posture', apiKey)
+}
+
+export async function getEvalReplayObservePosture(apiKey: string): Promise<import('@/types/api').EvalReplayObservePosture> {
+  return apiFetch<import('@/types/api').EvalReplayObservePosture>('/analytics/eval-replay-observe-posture', apiKey)
+}
+
+export async function getOptimizationOrgGatewayPosture(apiKey: string): Promise<import('@/types/api').OptimizationOrgGatewayPosture> {
+  return apiFetch<import('@/types/api').OptimizationOrgGatewayPosture>('/analytics/optimization-org-gateway-posture', apiKey)
+}
+
+export async function getOptimizationObservePosture(apiKey: string): Promise<import('@/types/api').OptimizationObservePosture> {
+  return apiFetch<import('@/types/api').OptimizationObservePosture>('/analytics/optimization-observe-posture', apiKey)
+}
+
+export async function getOptimizationFinOpsPosture(apiKey: string): Promise<import('@/types/api').OptimizationFinOpsPosture> {
+  return apiFetch<import('@/types/api').OptimizationFinOpsPosture>('/analytics/optimization-finops-posture', apiKey)
+}
+
+export async function getBuildInternalPosture(apiKey: string): Promise<import('@/types/api').BuildInternalPosture> {
+  return apiFetch<import('@/types/api').BuildInternalPosture>('/analytics/build-internal-posture', apiKey)
+}
+
+export async function getPromptsListObservePosture(apiKey: string): Promise<import('@/types/api').PromptsListObservePosture> {
+  return apiFetch<import('@/types/api').PromptsListObservePosture>('/analytics/prompts-list-observe-posture', apiKey)
+}
+
+export async function getPromptDetailHubFinOpsPosture(apiKey: string): Promise<import('@/types/api').PromptDetailHubFinOpsPosture> {
+  return apiFetch<import('@/types/api').PromptDetailHubFinOpsPosture>('/analytics/prompt-detail-hub-finops-posture', apiKey)
+}
+
+export async function getAgentsListPosture(apiKey: string): Promise<import('@/types/api').AgentsListPosture> {
+  return apiFetch<import('@/types/api').AgentsListPosture>('/analytics/agents-list-posture', apiKey)
+}
+
+export async function getAgentDetailGovernancePosture(apiKey: string): Promise<import('@/types/api').AgentDetailGovernancePosture> {
+  return apiFetch<import('@/types/api').AgentDetailGovernancePosture>('/analytics/agent-detail-governance-posture', apiKey)
+}
+
+export async function getWorkflowsListPosture(apiKey: string): Promise<import('@/types/api').WorkflowsListPosture> {
+  return apiFetch<import('@/types/api').WorkflowsListPosture>('/analytics/workflows-list-posture', apiKey)
+}
+
+export async function getWorkflowDetailLoopPosture(apiKey: string): Promise<import('@/types/api').WorkflowDetailLoopPosture> {
+  return apiFetch<import('@/types/api').WorkflowDetailLoopPosture>('/analytics/workflow-detail-loop-posture', apiKey)
+}
+
+export async function getWorkflowRunEvidencePosture(apiKey: string): Promise<import('@/types/api').WorkflowRunEvidencePosture> {
+  return apiFetch<import('@/types/api').WorkflowRunEvidencePosture>('/analytics/workflow-run-evidence-posture', apiKey)
+}
+
+export async function getDatasetsEvalAssetPosture(apiKey: string): Promise<import('@/types/api').DatasetsEvalAssetPosture> {
+  return apiFetch<import('@/types/api').DatasetsEvalAssetPosture>('/analytics/datasets-eval-asset-posture', apiKey)
+}
+
+export async function getEvalStudioParentPosture(apiKey: string): Promise<import('@/types/api').EvalStudioParentPosture> {
+  return apiFetch<import('@/types/api').EvalStudioParentPosture>('/analytics/eval-studio-parent-posture', apiKey)
+}
+
+export async function getExperimentsComparisonPosture(apiKey: string): Promise<import('@/types/api').ExperimentsComparisonPosture> {
+  return apiFetch<import('@/types/api').ExperimentsComparisonPosture>('/analytics/experiments-comparison-posture', apiKey)
+}
+
+export async function getReplayLabModePosture(apiKey: string): Promise<import('@/types/api').ReplayLabModePosture> {
+  return apiFetch<import('@/types/api').ReplayLabModePosture>('/analytics/replay-lab-mode-posture', apiKey)
+}
+
+export async function getReplayResultAnalysisPosture(apiKey: string): Promise<import('@/types/api').ReplayResultAnalysisPosture> {
+  return apiFetch<import('@/types/api').ReplayResultAnalysisPosture>('/analytics/replay-result-analysis-posture', apiKey)
+}
+
+export async function getRunbooksRemediationPosture(apiKey: string): Promise<import('@/types/api').RunbooksRemediationPosture> {
+  return apiFetch<import('@/types/api').RunbooksRemediationPosture>('/analytics/runbooks-remediation-posture', apiKey)
+}
+
+export async function getOptOppsRationalePosture(apiKey: string): Promise<import('@/types/api').OptOppsRationalePosture> {
+  return apiFetch<import('@/types/api').OptOppsRationalePosture>('/analytics/opt-opps-rationale-posture', apiKey)
+}
+
+export async function getOptSimDecisionPosture(apiKey: string): Promise<import('@/types/api').OptSimDecisionPosture> {
+  return apiFetch<import('@/types/api').OptSimDecisionPosture>('/analytics/opt-sim-decision-posture', apiKey)
+}
+
+export async function getModelScorecardsIntelPosture(apiKey: string): Promise<import('@/types/api').ModelScorecardsIntelPosture> {
+  return apiFetch<import('@/types/api').ModelScorecardsIntelPosture>('/analytics/model-scorecards-intel-posture', apiKey)
+}
+
+export async function getVectorStoresLifecyclePosture(apiKey: string): Promise<import('@/types/api').VectorStoresLifecyclePosture> {
+  return apiFetch<import('@/types/api').VectorStoresLifecyclePosture>('/analytics/vector-stores-lifecycle-posture', apiKey)
+}
+
+export async function getVectorStoreDetailEvidencePosture(apiKey: string): Promise<import('@/types/api').VectorStoreDetailEvidencePosture> {
+  return apiFetch<import('@/types/api').VectorStoreDetailEvidencePosture>('/analytics/vector-store-detail-evidence-posture', apiKey)
+}

@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAgents, getBudgetDetailBuildPosture, getBudgetControlBuildPosture } from '@/lib/api'
+import { getAgents, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentsListPosture } from '@/lib/api'
 import type { AgentResponse } from '@/types/api'
 
 function money(v: number | null) {
@@ -98,6 +98,7 @@ export default async function AgentsPage() {
 
   const budgetBuildPosture = await getBudgetDetailBuildPosture(session.apiKey).catch(() => null)
   const budgetControlBuildPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
+  const agentsListPosture = await getAgentsListPosture(session.apiKey).catch(() => null)
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -171,6 +172,96 @@ export default async function AgentsPage() {
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
           </div>
         </div>
+      )}
+
+      {agentsListPosture && (
+        <>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Org &amp; AI Hub Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-3">
+              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.org_context.workspace_name}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.org_context.hub_models}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Active Models</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.org_context.active_models}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+              <Link href="/settings" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Workspaces</Link>
+              <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Provider Profiles Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-1">
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Distinct Providers</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.provider_context.distinct_providers}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
+              <Link href="/providers" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Provider Profiles</Link>
+              <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Runs Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-1">
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Runs (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.observe_context.runs_30d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+              <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs List</Link>
+              <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Chargeback &amp; Cost Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.finops_context.chargeback_rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${agentsListPosture.finops_context.spend_30d.toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
+              <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
+              <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Cost &amp; Savings</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Eval Datasets</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.eval_context.datasets}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Experiments</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{agentsListPosture.eval_context.experiments}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
+              <Link href="/evaluation" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Evaluation Studio</Link>
+              <Link href="/experiments" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Experiments</Link>
+            </div>
+          </div>
+        </>
       )}
 
       {agents.length === 0 ? (

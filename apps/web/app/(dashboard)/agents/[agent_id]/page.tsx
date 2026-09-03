@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAgent, getAgentStats, getAgentRuns, getBudgetDetailBuildPosture, getBudgetControlBuildPosture } from '@/lib/api'
+import { getAgent, getAgentStats, getAgentRuns, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentDetailGovernancePosture } from '@/lib/api'
 import type { AgentResponse, AgentStats, WorkflowRunSummary } from '@/types/api'
 
 function money(v: number | null | undefined) {
@@ -93,6 +93,7 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
 
   const budgetBuildPosture = await getBudgetDetailBuildPosture(session.apiKey).catch(() => null)
   const budgetControlBuildPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
+  const governancePosture = await getAgentDetailGovernancePosture(session.apiKey).catch(() => null)
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -199,6 +200,69 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
           </div>
         </div>
+      )}
+
+      {governancePosture && (
+        <>
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Guardrail &amp; Safety Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.guardrail_context.rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Events (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.guardrail_context.events_30d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Capture Policies</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.safety_context.capture_policies}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Security Events (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.safety_context.security_events_30d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
+              <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+              <Link href="/data-capture" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Data Capture</Link>
+              <Link href="/security" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Security Events</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Runs Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-1 md:grid-cols-1">
+              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Runs (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.observe_context.runs_30d}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+              <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs List</Link>
+              <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
+            <div className="mt-3 grid gap-3 grid-cols-2">
+              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Eval Datasets</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.eval_context.datasets}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Experiments</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.eval_context.experiments}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
+              <Link href="/evaluation" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Evaluation Studio</Link>
+              <Link href="/experiments" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Experiments</Link>
+            </div>
+          </div>
+        </>
       )}
 
       {stats && (

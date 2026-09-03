@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-08-31
+Last updated: 2026-09-03
 
 ## Purpose
 
@@ -19,9 +19,9 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 | Bundle | Features | 01-Self | 02-Gateway | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|---------|------------|------------|-----------|-----------|----------|-------------|
 | **A** — Org Foundation | Organization profile, Org settings | OK | S:4 P:1 | S:17 P:1 | S:7 P:3 | — | — | OK |
-| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:10 | S:15 P:3 | S:35 P:18 | S:36 P:7 | S:28 P:4 | S:34 P:27 | OK |
+| **B** — Identity & Scope | Users, Workspaces, Access groups, API keys | P:10 | S:15 P:3 | S:35 P:18 | S:36 P:7 | S:28 P:4 | S:37 P:24 | OK |
 | **C** — Onboarding & Setup | Onboarding, Integrations, Telemetry, MCP registry | P:7 | S:8 P:5 | S:12 P:22 | S:24 P:2 | S:12 P:4 | S:5 P:38 | P:5 |
-| **D** — Capability Catalog | AI hub, Projects, Team models | P:4 | S:2 P:3 | S:6 P:3 | OK | OK | S:1 P:14 | OK |
+| **D** — Capability Catalog | AI hub, Projects, Team models | P:4 | S:2 P:3 | S:6 P:3 | OK | OK | S:3 P:12 | OK |
 
 **Hot spots** (recomputed 2026-08-21 after status cleanup — all GAPs eliminated from Bundles A and B):
 
@@ -37,9 +37,9 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Self | 03-Observe | 04-Safety | 05-FinOps | 06-Build | 07-Platform |
 |--------|----------|--------|---------|------------|-----------|-----------|----------|-------------|
-| **A** — Provider & Routing | Provider profiles, Model gateway | P:10 | P:3 | P:8 | P:3 | P:3 | P:3 | OK |
+| **A** — Provider & Routing | Provider profiles, Model gateway | P:10 | P:3 | P:8 | P:3 | P:3 | P:2 | OK |
 | **B** — Runtime Protection | Guardrails | P:4 | OK | OK | OK | OK | OK | OK |
-| **C** — Performance Controls | Response cache, Rate limits | P:2 | P:3 | OK | P:3 | S:10 | P:14 | OK |
+| **C** — Performance Controls | Response cache, Rate limits | P:2 | P:3 | OK | P:3 | S:10 | P:13 | OK |
 
 **Hot spots**: WU-011 added Billing Cross-Feature Posture endpoint and emerald card to Billing and Billing Period Detail with gateway, safety, and platform context (24 cells P→S: 8 Gateway, 10 Safety, 4 Platform across Billing periods + detail). WU-012 added Chargeback Cross-Feature Posture endpoint and emerald card to Chargeback with org, gateway, safety, and platform context (15 cells P→S: 5 Org, 3 Gateway, 5 Safety, 2 Platform). 05-B × 04 and 05-B × 07 now **OK**. 05-C × 01, 05-C × 04, and 05-C × 07 now **OK**. Prior: WU-015 closed 4 FinOps cells for Guardrails. 02-B × 05 at **OK**. 02-C × 06 at **P:14**.
 
@@ -80,7 +80,7 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 | **C** — Attribution | Chargeback | OK | OK | P:15 | OK | G:1 P:5 | P:13 | OK |
 | **D** — Compliance | Ledger | P:1 | P:1 | P:4 | P:1 | G:1 P:6 | — | OK |
 
-**Hot spots**: WU-018 added Billing Detail Evidence Posture endpoint and emerald card to Billing Period Detail with identity, gateway, observe, and build context. 3 cells P→S: Billing period detail × Users (05-B × 01), × Sessions list (05-B × 03), × Replay lab (05-B × 06, P:25 → **P:24**). WU-019 added Chargeback Attribution Posture endpoint and emerald card to Chargeback with identity, runtime, monitoring, and optimization context. 3 cells P→S: Chargeback × Users (05-C × 01), × Monitoring (05-C × 03), × Optimization opportunities (05-C × 06). Prior: WU-017 added billing reconciliation posture (2 cells P→S).
+**Hot spots**: WU-027 adds amber Workspace, Cost & Build Context card to Vector Stores List via `GET /analytics/vector-stores-lifecycle-posture`. 1 cell N/A→S in 11.2e: Chargeback × Vector stores list. Prior WU-023: 1 cell P→S (Billing periods × Runbooks). Prior WU-020/021: 3 cells P→S. Prior WU-018/019: 6 cells P→S. Prior WU-017: billing reconciliation posture (2 cells P→S).
 
 ---
 
@@ -88,12 +88,12 @@ Cell notation: `G:X P:Y` = X gaps, Y partials. `P:Y` = no gaps, Y partials. `OK`
 
 | Bundle | Features | 01-Org | 02-Gateway | 03-Observe | 05-FinOps | 06-Self |
 |--------|----------|--------|------------|------------|-----------|---------|
-| **A** — Interactive Build | Playground, Prompts list, Prompt detail | P:5 | P:3 | P:16 | P:2 | P:9 |
-| **B** — Managed Execution | Agents, Workflows, Vector stores | P:3 | P:2 | P:5 | P:2 | P:2 |
-| **C** — Eval & Replay | Datasets, Eval studio, Experiments, Replay, Runbooks | P:8 | P:2 | P:24 | P:3 | P:14 |
-| **D** — Optimization | Optimization opp/sim, Model scorecards | P:7 | OK | P:20 | P:5 | P:11 |
+| **A** — Interactive Build | Playground, Prompts list, Prompt detail | P:1 | P:1 | P:1 | P:1 | P:1 |
+| **B** — Managed Execution | Agents, Workflows, Vector stores | P:2 | P:1 | P:1 | P:1 | P:5 |
+| **C** — Eval & Replay | Datasets, Eval studio, Experiments, Replay, Runbooks | P:1 | OK | P:3 | OK | OK |
+| **D** — Optimization | Optimization opp/sim, Model scorecards | OK | OK | P:3 | OK | OK |
 
-**Hot spots**: No GAPs in Build & Improve — all relationships are PARTIAL or better. WU-010 closed 35 Gateway cells to STRONG. WU-012 closed 5 more Gateway cells — 06-C × 02 down from P:4 to **P:2** (Replay lab/exp × RL closed), 06-D × 02 is now **OK** (Opt opp/sim × RL and Model scorecards × RC closed). Residual PARTIALs in 02 column are mostly Response cache columns. Highest PARTIAL density is in 06-C x 03 (24 partials between eval/replay and observe).
+**Hot spots**: WU-028 adds amber Observe, Cost & Build Evidence card to Vector Store Detail via `GET /analytics/vector-store-detail-evidence-posture`. New 11.7b row with 6 cells at STRONG (Chargeback, Request explorer, Runs list, Run detail, Workflows list, Evaluation studio), 1 PARTIAL (Cost and savings). 1 cell N/A→S in 05-FINOPS (Chargeback × Vector store detail). Bundle B 06-Self P:4→P:5 (new row adds 1 PARTIAL). Prior WU-027: Vector stores list lifecycle card, 5 cells STRONG + 1 PARTIAL. WU-026: Model scorecards 3 cells P→S, Bundle D 06-Self OK. WU-024/025: 6 cells. WU-022/023: 9 cells. WU-020/021: 3 cells. WU-009: 44 self-cohesion cells. WU-001–008: cross-feature bridges.
 
 ---
 
@@ -383,34 +383,34 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-017 | 05-FINOPS | Billing periods reconciliation refresh | 01/02/03/04/06/07 | COMPLETED | 05-B |
 | WU-018 | 05-FINOPS | Billing detail evidence refresh | 01/02/03/04/06/07 | COMPLETED | 05-B |
 | WU-019 | 05-FINOPS | Chargeback attribution refresh | 01/02/03/04/06/07 | COMPLETED | 05-C |
-| WU-001 | 06-BUILD-AND-IMPROVE | Interactive Build × Org & Gateway scope | 01/02 | NOT_STARTED | 06-A |
-| WU-002 | 06-BUILD-AND-IMPROVE | Interactive Build × Observe bridge | 03-OBSERVE | NOT_STARTED | 06-A |
-| WU-003 | 06-BUILD-AND-IMPROVE | Managed assets × cross-feature strengthen | 01/02/03/05 | NOT_STARTED | 06-B |
-| WU-004 | 06-BUILD-AND-IMPROVE | Evaluation & Replay × Org & Gateway scope | 01/02 | NOT_STARTED | 06-C |
-| WU-005 | 06-BUILD-AND-IMPROVE | Evaluation & Replay × Observe bridge | 03-OBSERVE | NOT_STARTED | 06-C |
-| WU-006 | 06-BUILD-AND-IMPROVE | Optimization × Org & Gateway scope | 01/02 | NOT_STARTED | 06-D |
-| WU-007 | 06-BUILD-AND-IMPROVE | Optimization × Observe bridge | 03-OBSERVE | NOT_STARTED | 06-D |
-| WU-008 | 06-BUILD-AND-IMPROVE | Build × FinOps strengthen | 05-FINOPS | NOT_STARTED | 06-A/C/D |
-| WU-009 | 06-BUILD-AND-IMPROVE | Internal Build cohesion tightening | 06-SELF | NOT_STARTED | 06-A/B/C/D |
-| WU-010 | 06-BUILD-AND-IMPROVE | Playground live lab refresh | 01/02/03/05 | NOT_STARTED | 06-A |
-| WU-011 | 06-BUILD-AND-IMPROVE | Prompts list registry refresh | 01/02/03/05 | NOT_STARTED | 06-A |
-| WU-012 | 06-BUILD-AND-IMPROVE | Prompt detail runtime loop refresh | 01/02/03/05 | NOT_STARTED | 06-A |
-| WU-013 | 06-BUILD-AND-IMPROVE | Agents list lifecycle refresh | 01/02/03/05 | NOT_STARTED | 06-B |
-| WU-014 | 06-BUILD-AND-IMPROVE | Agent detail memory governance refresh | 02/03/04 | NOT_STARTED | 06-B |
-| WU-015 | 06-BUILD-AND-IMPROVE | Workflows list catalog refresh | 01/02/03/05 | NOT_STARTED | 06-B |
-| WU-016 | 06-BUILD-AND-IMPROVE | Workflow detail cross loop refresh | 01/02/03/05 | NOT_STARTED | 06-B |
-| WU-017 | 06-BUILD-AND-IMPROVE | Workflow run evidence refresh | 02/03/04/05 | NOT_STARTED | 06-B |
-| WU-018 | 06-BUILD-AND-IMPROVE | Datasets evaluation asset refresh | 01/03/05 | NOT_STARTED | 06-C |
-| WU-019 | 06-BUILD-AND-IMPROVE | Evaluation studio parent refresh | 01/02/03/05 | NOT_STARTED | 06-C |
-| WU-020 | 06-BUILD-AND-IMPROVE | Experiments comparison refresh | 01/02/03/05 | NOT_STARTED | 06-C |
-| WU-021 | 06-BUILD-AND-IMPROVE | Replay lab mode refresh | 02/03/05 | NOT_STARTED | 06-C |
-| WU-022 | 06-BUILD-AND-IMPROVE | Replay result analysis refresh | 02/03/05 | NOT_STARTED | 06-C |
-| WU-023 | 06-BUILD-AND-IMPROVE | Runbooks remediation loop refresh | 02/03/04/05 | NOT_STARTED | 06-C |
-| WU-024 | 06-BUILD-AND-IMPROVE | Optimization opportunities rationale refresh | 02/03/05 | NOT_STARTED | 06-D |
-| WU-025 | 06-BUILD-AND-IMPROVE | Optimization simulator decision refresh | 02/03/05 | NOT_STARTED | 06-D |
-| WU-026 | 06-BUILD-AND-IMPROVE | Model scorecards intelligence refresh | 01/02/03/05 | NOT_STARTED | 06-D |
-| WU-027 | 06-BUILD-AND-IMPROVE | Vector stores list lifecycle refresh | 01/03/05 | NOT_STARTED | 06-B |
-| WU-028 | 06-BUILD-AND-IMPROVE | Vector store detail evidence refresh | 03/05 | NOT_STARTED | 06-B |
+| WU-001 | 06-BUILD-AND-IMPROVE | Interactive Build × Org & Gateway scope | 01/02 | COMPLETED | 06-A |
+| WU-002 | 06-BUILD-AND-IMPROVE | Interactive Build × Observe bridge | 03-OBSERVE | COMPLETED | 06-A |
+| WU-003 | 06-BUILD-AND-IMPROVE | Managed assets × cross-feature strengthen | 01/02/03/05 | COMPLETED | 06-B |
+| WU-004 | 06-BUILD-AND-IMPROVE | Evaluation & Replay × Org & Gateway scope | 01/02 | COMPLETED | 06-C |
+| WU-005 | 06-BUILD-AND-IMPROVE | Evaluation & Replay × Observe bridge | 03-OBSERVE | COMPLETED | 06-C |
+| WU-006 | 06-BUILD-AND-IMPROVE | Optimization × Org & Gateway scope | 01/02 | COMPLETED | 06-D |
+| WU-007 | 06-BUILD-AND-IMPROVE | Optimization × Observe bridge | 03-OBSERVE | COMPLETED | 06-D |
+| WU-008 | 06-BUILD-AND-IMPROVE | Build × FinOps strengthen | 05-FINOPS | COMPLETED | 06-A/C/D |
+| WU-009 | 06-BUILD-AND-IMPROVE | Internal Build cohesion tightening | 06-SELF | COMPLETED | 06-A/B/C/D |
+| WU-010 | 06-BUILD-AND-IMPROVE | Playground live lab refresh | 01/02/03/05 | COMPLETED | 06-A |
+| WU-011 | 06-BUILD-AND-IMPROVE | Prompts list registry refresh | 01/02/03/05 | COMPLETED | 06-A |
+| WU-012 | 06-BUILD-AND-IMPROVE | Prompt detail runtime loop refresh | 01/02/03/05 | COMPLETED | 06-A |
+| WU-013 | 06-BUILD-AND-IMPROVE | Agents list lifecycle refresh | 01/02/03/05 | COMPLETED | 06-B |
+| WU-014 | 06-BUILD-AND-IMPROVE | Agent detail memory governance refresh | 02/03/04 | COMPLETED | 06-B |
+| WU-015 | 06-BUILD-AND-IMPROVE | Workflows list catalog refresh | 01/02/03/05 | COMPLETED | 06-B |
+| WU-016 | 06-BUILD-AND-IMPROVE | Workflow detail cross loop refresh | 01/02/03/05 | COMPLETED | 06-B |
+| WU-017 | 06-BUILD-AND-IMPROVE | Workflow run evidence refresh | 02/03/04/05 | COMPLETED | 06-B |
+| WU-018 | 06-BUILD-AND-IMPROVE | Datasets evaluation asset refresh | 01/03/05 | COMPLETED | 06-C |
+| WU-019 | 06-BUILD-AND-IMPROVE | Evaluation studio parent refresh | 01/02/03/05 | COMPLETED | 06-C |
+| WU-020 | 06-BUILD-AND-IMPROVE | Experiments comparison refresh | 01/02/03/05 | COMPLETED | 06-C |
+| WU-021 | 06-BUILD-AND-IMPROVE | Replay lab mode refresh | 02/03/05 | COMPLETED | 06-C |
+| WU-022 | 06-BUILD-AND-IMPROVE | Replay result analysis refresh | 02/03/05 | COMPLETED | 06-C |
+| WU-023 | 06-BUILD-AND-IMPROVE | Runbooks remediation loop refresh | 02/03/04/05 | COMPLETED | 06-C |
+| WU-024 | 06-BUILD-AND-IMPROVE | Optimization opportunities rationale refresh | 02/03/05 | COMPLETED | 06-D |
+| WU-025 | 06-BUILD-AND-IMPROVE | Optimization simulator decision refresh | 02/03/05 | COMPLETED | 06-D |
+| WU-026 | 06-BUILD-AND-IMPROVE | Model scorecards intelligence refresh | 01/02/03/05 | COMPLETED | 06-D |
+| WU-027 | 06-BUILD-AND-IMPROVE | Vector stores list lifecycle refresh | 01/03/05 | COMPLETED | 06-B |
+| WU-028 | 06-BUILD-AND-IMPROVE | Vector store detail evidence refresh | 03/05 | COMPLETED | 06-B |
 | WU-001 | 07-PLATFORM-AND-UTILITY | All organizations delivery & posture completion | 01/02/04/05 | NOT_STARTED | 07-A |
 | WU-002 | 07-PLATFORM-AND-UTILITY | Platform settings convergence & delivery completeness | 01/02/03/04/05 | NOT_STARTED | 07-B |
 | WU-003 | 07-PLATFORM-AND-UTILITY | Plugins collapse & discovery ownership cleanup | 01/06 | NOT_STARTED | 07-C |

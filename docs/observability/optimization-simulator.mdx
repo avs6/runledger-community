@@ -53,6 +53,33 @@ All fields are optional — omit filters to simulate across all traffic.
 
 Returns `SimulationResult` with cost projections, latency estimates, quality risk, confidence, impact breakdown, and a human-readable description.
 
+## Organization, Gateway & Observe Context (Optimization Simulator)
+
+The Optimization Simulator page surfaces three posture cards:
+
+- **Organization & Access Context** (blue) — workspace, API keys, hub models
+- **Gateway & Routing Context** (violet) — providers, routes, guardrails, cache configs, rate limits
+- **Observe & Runtime Context** (cyan) — runs 30d, provider calls, distinct models, cost 30d
+
+```bash
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-org-gateway-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-observe-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-finops-posture
+```
+
+### FinOps & Budget Context
+
+The simulator also displays a **FinOps & Budget Context** card (emerald) showing active budgets, total limit, 30d spend, billing periods, and chargeback rules with drill-through to Budgets, Billing Periods, Chargeback, and Cost & Savings.
+
+### Build & Improve Loop
+
+The simulator also displays a **Build & Improve Loop** card (rose) via `GET /analytics/build-internal-posture` showing playground sessions, workflows, eval experiments, and score events with drill-through to Playground, Workflows, Evaluation Studio, and Model Scorecards.
+
 ## Related
 
 <CardGroup cols={2}>

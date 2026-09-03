@@ -32,6 +32,33 @@ Use this page after:
 3. `Model Scorecards` compares the model candidates directly.
 4. `Evaluation Studio` or `Replay Lab` provides deeper proof before a routing change.
 
+## Organization, Gateway & Observe Context (Model Scorecards)
+
+The Model Scorecards page surfaces three posture cards:
+
+- **Organization & Access Context** (blue) — workspace, API keys, hub models
+- **Gateway & Routing Context** (violet) — providers, routes, guardrails, cache configs, rate limits
+- **Observe & Runtime Context** (cyan) — runs 30d, provider calls, distinct models, cost 30d
+
+```bash
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-org-gateway-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-observe-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-finops-posture
+```
+
+### FinOps & Budget Context
+
+Model Scorecards also displays a **FinOps & Budget Context** card (emerald) showing active budgets, total limit, 30d spend, billing periods, and chargeback rules with drill-through to Budgets, Billing Periods, Chargeback, and Cost & Savings.
+
+### Build & Improve Loop
+
+Model Scorecards also displays a **Build & Improve Loop** card (rose) via `GET /analytics/build-internal-posture` showing playground sessions, workflows, eval experiments, prompts, and replay experiments with drill-through to Playground, Workflows, Evaluation Studio, Optimization, and Simulator.
+
 ## Related
 
 <CardGroup cols={2}>

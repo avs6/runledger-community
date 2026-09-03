@@ -1,8 +1,8 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getWorkflowRun, getWorkflow, getBudgetControlBuildPosture } from '@/lib/api'
-import type { WorkflowRunResponse, WorkflowStepResponse } from '@/types/api'
+import { getWorkflowRun, getWorkflow, getBudgetControlBuildPosture, getWorkflowRunEvidencePosture } from '@/lib/api'
+import type { WorkflowRunResponse, WorkflowStepResponse, WorkflowRunEvidencePosture } from '@/types/api'
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
@@ -129,6 +129,7 @@ export default async function WorkflowRunDetailPage({
   if (!run) return null
 
   const budgetControlBuildPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
+  const evidencePosture: WorkflowRunEvidencePosture | null = await getWorkflowRunEvidencePosture(session.apiKey).catch(() => null)
 
   const maxDuration = Math.max(...run.steps.map((s) => s.duration_ms ?? 0), 1)
 
@@ -190,6 +191,76 @@ export default async function WorkflowRunDetailPage({
             <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
+
+      {evidencePosture && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway &amp; Runtime Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-3">
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.gateway_context.guardrail_rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Configs</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.gateway_context.cache_configs}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Rate-Limited Routes</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.gateway_context.rate_limited_routes}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
+            <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+            <Link href="/gateway?tab=cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
+            <Link href="/gateway?tab=rate-limits" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Rate Limits</Link>
+          </div>
+        </div>
+      )}
+
+      {evidencePosture && (
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Request Flow Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2">
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.observe_context.runs_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.observe_context.provider_calls_30d}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+            <Link href="/analytics?tab=runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs List</Link>
+            <Link href="/analytics?tab=request-flow" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+          </div>
+        </div>
+      )}
+
+      {evidencePosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">FinOps &amp; Audit Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-3">
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Budgets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.finops_context.budgets}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cost (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${evidencePosture.finops_context.cost_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{evidencePosture.safety_context.audit_events_30d}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+            <Link href="/budgets" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Budget Detail</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
+            <Link href="/audit-log" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Audit Log</Link>
           </div>
         </div>
       )}

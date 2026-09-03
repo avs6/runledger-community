@@ -1,10 +1,10 @@
 # WU-003: Managed Assets × Cross-Feature Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - B (Managed Execution Assets)
 - **Target**: 06-BUILD-AND-IMPROVE/Workflow detail
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
 
 ## Cohesion Cells to Close
 
@@ -50,3 +50,12 @@
 5. All listed cohesion cells updated to target state
 6. All paired feature files updated
 7. FEATURE-STATUS.md dashboard updated
+
+## Completion Notes (2026-09-02)
+
+- Backend: Added `WorkflowDetailCrossFeaturePosture` schema and `GET /analytics/workflow-detail-cross-feature-posture` endpoint returning org context (workspace, access groups, API keys, hub models), gateway context (providers, routes, guardrails, cache, rate limits), observe context (runs, provider calls, models, cost), and FinOps context (budgets, billing periods, limit, spend).
+- UI: Added four cross-feature posture cards to Workflow detail page: blue "Organization & Access Context" (workspace, access groups, API keys, hub models with Organization/Access Groups/API Keys/AI Hub drill-through), violet "Gateway & Routing Context" (providers, routes, guardrails, cache with Provider Profiles/Guardrails/Response Cache/Rate Limits drill-through), cyan "Observe & Analytics Context" (runs, calls, models, cost with Analytics Overview/Request Explorer/Model Usage/Cost & Savings drill-through), and emerald "FinOps & Budget Context" (budgets, billing periods, limit, spend with Budgets/Billing Periods drill-through).
+- Docs: Added "Cross-Feature Context (Workflow Detail)" section to workflows.mdx with curl example.
+- Postman: Added "Workflow Detail Cross-Feature Posture" entry.
+- Examples: Added `132_workflow_detail_cross_feature_posture.py`.
+- Audit: Updated 06-BUILD COHESION-MATRIX (Workflow detail × 13 cells P→S), 01-ORG, 02-GATEWAY, 03-OBSERVE, 05-FINOPS COHESION-MATRIXes paired view, GAP-MATRIX notes, and FEATURE-STATUS counts.

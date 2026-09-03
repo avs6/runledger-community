@@ -95,3 +95,51 @@ python scripts/bench/report.py --api-key $RL_KEY --alias my-route
 
 The invariant across every stage: **cost reduction subject to a quality floor**. Optimizations are
 measured on the evaluation harness and can be turned off per route the moment quality regresses.
+
+## Organization, Gateway & Observe Context (Optimization Opportunities)
+
+The Optimization Opportunities page surfaces three posture cards:
+
+- **Organization & Access Context** (blue) — workspace, API keys, hub models with drill-through to Organization, API Keys, AI Hub
+- **Gateway & Routing Context** (violet) — providers, routes, guardrails, cache configs, rate limits with drill-through to Model Gateway, Routes, Guardrails, Response Cache, Rate Limits
+- **Observe & Runtime Context** (cyan) — runs 30d, provider calls, distinct models, cost 30d with drill-through to Analytics Overview, Runs, Request Flow, Request Explorer, Model Usage
+
+```bash
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-org-gateway-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-observe-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/optimization-finops-posture
+```
+
+## FinOps & Budget Context (Optimization Surfaces)
+
+All three optimization surfaces (Opportunities, Simulator, Model Scorecards) show a **FinOps & Budget Context** card (emerald) via `GET /analytics/optimization-finops-posture`:
+
+- **Budget context** — active budgets, total limit, 30d spend, notifications
+- **Billing context** — active / total billing periods
+- **Chargeback context** — chargeback rules (active / total)
+
+Drill-through links: Budgets, Billing Periods, Chargeback, Cost & Savings.
+
+## Build & Improve Loop (Optimization Surfaces)
+
+All three optimization surfaces also show a **Build & Improve Loop** card (rose) via `GET /analytics/build-internal-posture`:
+
+```bash
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/build-internal-posture
+```
+
+- **Playground context** — sessions 30d, provider calls 30d
+- **Prompts context** — total prompts
+- **Workflows context** — definitions, runs 30d
+- **Evaluation context** — datasets, experiments
+- **Replay context** — datasets, experiments
+- **Optimization context** — hub models, spend 30d
+- **Scorecards context** — hub models, score events 30d
+
+Drill-through links connect each optimization surface to Playground, Workflows, Evaluation Studio, and Model Scorecards.

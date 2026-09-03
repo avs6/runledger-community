@@ -1,8 +1,8 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getVectorCollection, getVectorCollectionStats, getVectorQueries } from '@/lib/api'
-import type { VectorCollectionStats, VectorQueryResponse } from '@/types/api'
+import { getVectorCollection, getVectorCollectionStats, getVectorQueries, getVectorStoreDetailEvidencePosture } from '@/lib/api'
+import type { VectorCollectionStats, VectorQueryResponse, VectorStoreDetailEvidencePosture } from '@/types/api'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
@@ -59,6 +59,7 @@ export default async function VectorStoreDetailPage({ params }: { params: Promis
   if (!apiKey) return <p className="p-8 text-slate-500">Sign in to view collection.</p>
 
   let coll, stats: VectorCollectionStats | null = null, queries
+  const evidencePosture = await getVectorStoreDetailEvidencePosture(apiKey).catch(() => null)
   try {
     ;[coll, stats, queries] = await Promise.all([
       getVectorCollection(apiKey, collection_id),
@@ -104,6 +105,48 @@ export default async function VectorStoreDetailPage({ params }: { params: Promis
           {coll.qdrant_collection}
         </span>
       </div>
+
+      {evidencePosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">
+            Observe, Cost & Build Evidence
+          </h2>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Provider Calls 30d</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.observe_context.provider_calls_30d.toLocaleString()}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Runs 30d</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.observe_context.runs_30d.toLocaleString()}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Cost 30d</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">${typeof evidencePosture.cost_context.cost_30d === 'number' ? evidencePosture.cost_context.cost_30d.toFixed(2) : '0.00'}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Chargeback Rules</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.cost_context.chargeback_rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Workflows</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.build_context.workflows}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Eval Experiments</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.build_context.eval_experiments}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link href="/request-explorer" className="text-amber-700 underline hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Request Explorer →</Link>
+            <Link href="/runs" className="text-amber-700 underline hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Run Detail →</Link>
+            <Link href="/chargeback" className="text-amber-700 underline hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Chargeback →</Link>
+            <Link href="/workflows" className="text-amber-700 underline hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Workflow Detail →</Link>
+            <Link href="/evaluation" className="text-amber-700 underline hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Evaluation Studio →</Link>
+            <Link href="/runbooks" className="text-amber-700 underline hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-300">Runbooks →</Link>
+          </div>
+        </div>
+      )}
 
       {stats && (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-5">

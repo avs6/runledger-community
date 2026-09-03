@@ -23,6 +23,22 @@ flowchart LR
   compare --> recommend[Promote winning config to route recommendation]
 ```
 
+## Organization, Gateway & Observe Context (Replay Lab)
+
+The Replay Lab page surfaces three posture cards:
+
+- **Organization & Access Context** (blue) — workspace, access groups, API keys, hub models
+- **Gateway & Routing Context** (violet) — providers, routes, guardrails, cache configs
+- **Observe & Runtime Context** (cyan) — runs 30d, provider calls, distinct models, cost 30d
+
+```bash
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/eval-replay-org-gateway-posture
+
+curl -H "Authorization: Bearer $KEY" \
+  $HOST/analytics/eval-replay-observe-posture
+```
+
 ## Related
 
 <CardGroup cols={2}>

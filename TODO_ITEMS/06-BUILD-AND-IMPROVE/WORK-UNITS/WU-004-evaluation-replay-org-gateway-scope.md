@@ -1,10 +1,19 @@
 # WU-004: Evaluation & Replay × Org & Gateway Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - C (Evaluation and Replay Studio)
 - **Target**: 06-BUILD-AND-IMPROVE/Evaluation studio, Experiments, Replay lab
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `EvalReplayOrgGatewayPosture` Pydantic schema + `GET /analytics/eval-replay-org-gateway-posture` endpoint querying WorkspaceUser, AccessGroup, ApiKey, HubModel, GatewayRoute, GuardrailRule, ResponseCacheConfig, RoutingPolicy
+- TypeScript: `EvalReplayOrgGatewayPosture` interface + `getEvalReplayOrgGatewayPosture` API function
+- UI: Blue "Organization & Access Context" card + violet "Gateway & Routing Context" card on Evaluation Studio, Experiments, Replay Lab pages with drill-through links to Organization, Access Groups, API Keys, AI Hub, Model Gateway, Routes, Guardrails, Response Cache
+- Docs: Added "Organization, Gateway & Observe Context" sections to evaluations.mdx and replay-lab.mdx
+- Postman: Added "Eval Replay Org Gateway Posture" entry
+- Example: `examples/133_eval_replay_org_gateway_posture.py`
 
 ## Cohesion Cells to Close
 

@@ -1,10 +1,20 @@
 # WU-009: Internal Build & Improve Cohesion Tightening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - A/B/C/D
 - **Target**: 06-BUILD-AND-IMPROVE/Self
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `BuildInternalPosture` Pydantic schema + `GET /analytics/build-internal-posture` endpoint querying AgentRun, Prompt, WorkflowDefinition, WorkflowRun, EvalDataset, EvalExperiment, ReplayDataset, ReplayExperiment, HubModel, ScoreEvent, ProviderCall for cross-surface context
+- TypeScript: `BuildInternalPosture` interface + `getBuildInternalPosture` API function
+- UI: Rose "Build & Improve Loop" card on all 9 target pages (Playground, Prompt detail, Workflow detail, Evaluation studio, Experiments, Replay lab, Optimization opportunities, Optimization simulator, Model scorecards) showing sibling surface stats with drill-through links
+- Docs: Added "Build & Improve Loop" sections to optimization.mdx, optimization-simulator.mdx, model-scorecards.mdx
+- Postman: Added "Build Internal Posture" entry
+- Example: `examples/138_build_internal_posture.py`
+- 44 self-cohesion cells closed (all targeted Build × Build PARTIAL cells in 11.7b → STRONG; 10 remain: 6 diagonal + 4 cross-feature)
 
 ## Cohesion Cells to Close
 

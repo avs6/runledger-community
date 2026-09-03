@@ -868,6 +868,267 @@ class ChargebackAttributionPosture(BaseModel):
     spend_context: dict[str, float]
 
 
+class PlaygroundOrgGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    workspace_context: dict[str, str | int]
+    api_key_context: dict[str, str | int]
+    ai_hub_context: dict[str, int]
+    provider_context: dict[str, int]
+    guardrail_context: dict[str, int]
+    cache_context: dict[str, int | float]
+    rate_limit_context: dict[str, int]
+
+
+class PromptsOrgGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    workspace_context: dict[str, str | int]
+    ai_hub_context: dict[str, int]
+    provider_context: dict[str, int]
+    gateway_context: dict[str, int]
+    prompt_model_context: dict[str, int]
+
+
+class EvalReplayOrgGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    workspace_context: dict[str, str | int]
+    access_group_context: dict[str, int]
+    api_key_context: dict[str, int]
+    ai_hub_context: dict[str, int]
+    provider_context: dict[str, int]
+    gateway_context: dict[str, int]
+    guardrail_context: dict[str, int]
+
+
+class EvalReplayObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    runs_context: dict[str, int]
+    request_flow_context: dict[str, int]
+    model_usage_context: dict[str, int | float]
+    cost_savings_context: dict[str, int | float]
+
+
+class OptimizationOrgGatewayPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    workspace_context: dict[str, str | int]
+    api_key_context: dict[str, int]
+    ai_hub_context: dict[str, int]
+    provider_context: dict[str, int]
+    gateway_context: dict[str, int]
+    guardrail_context: dict[str, int]
+    cache_context: dict[str, int]
+    rate_limit_context: dict[str, int]
+
+
+class OptimizationObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    runs_context: dict[str, int]
+    request_flow_context: dict[str, int]
+    model_usage_context: dict[str, int | float]
+    cost_savings_context: dict[str, int | float]
+
+
+class OptimizationFinOpsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    budget_context: dict[str, int | float]
+    billing_context: dict[str, int]
+    chargeback_context: dict[str, int]
+
+
+class BuildInternalPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    playground_context: dict[str, int]
+    prompts_context: dict[str, int]
+    workflows_context: dict[str, int]
+    evaluation_context: dict[str, int]
+    replay_context: dict[str, int]
+    optimization_context: dict[str, int | float]
+    scorecards_context: dict[str, int]
+
+
+class PromptsListObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    observe_context: dict[str, int | float]
+    eval_context: dict[str, int]
+
+
+class PromptDetailHubFinOpsPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    hub_context: dict[str, int]
+    chargeback_context: dict[str, int | float]
+
+
+class AgentsListPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, str | int]
+    provider_context: dict[str, int]
+    observe_context: dict[str, int]
+    finops_context: dict[str, int | float]
+    eval_context: dict[str, int]
+
+
+class AgentDetailGovernancePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    guardrail_context: dict[str, int]
+    observe_context: dict[str, int]
+    safety_context: dict[str, int]
+    eval_context: dict[str, int]
+
+
+class WorkflowsListPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, str | int]
+    gateway_context: dict[str, int]
+    observe_context: dict[str, int | float]
+    eval_context: dict[str, int]
+
+
+class WorkflowDetailLoopPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    runs_context: dict[str, int]
+    chargeback_context: dict[str, int | float]
+    optimization_context: dict[str, int]
+    eval_context: dict[str, int]
+
+
+class WorkflowRunEvidencePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    gateway_context: dict[str, int]
+    observe_context: dict[str, int]
+    finops_context: dict[str, int | float]
+    safety_context: dict[str, int]
+
+
+class DatasetsEvalAssetPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, str | int]
+    observe_context: dict[str, int]
+    finops_context: dict[str, int | float]
+    build_context: dict[str, int]
+
+
+class EvalStudioParentPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    billing_context: dict[str, int]
+    chargeback_context: dict[str, int | float]
+    eval_self_context: dict[str, int]
+
+
+class ExperimentsComparisonPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    billing_context: dict[str, int]
+    chargeback_context: dict[str, int | float]
+    comparison_context: dict[str, int]
+
+
+class ReplayLabModePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    chargeback_context: dict[str, int | float]
+    replay_context: dict[str, int]
+
+
+class ReplayResultAnalysisPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    gateway_context: dict[str, int]
+    observe_context: dict[str, int]
+    cost_context: dict[str, int | float]
+
+
+class RunbooksRemediationPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    observe_context: dict[str, int]
+    alert_context: dict[str, int]
+    cost_context: dict[str, int | float]
+    optimization_context: dict[str, int]
+
+
+class OptOppsRationalePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    cost_context: dict[str, int | float]
+    optimization_context: dict[str, int]
+
+
+class OptSimDecisionPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    cost_context: dict[str, int | float]
+    optimization_context: dict[str, int]
+
+
+class ModelScorecardsIntelPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    model_context: dict[str, int]
+    cost_context: dict[str, int | float]
+    optimization_context: dict[str, int]
+
+
+class VectorStoresLifecyclePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    workspace_context: dict[str, str]
+    observe_context: dict[str, int]
+    cost_context: dict[str, int | float]
+    build_context: dict[str, int]
+
+
+class VectorStoreDetailEvidencePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    observe_context: dict[str, int]
+    cost_context: dict[str, int | float]
+    build_context: dict[str, int]
+
+
+class PlaygroundObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    runs_context: dict[str, int]
+    request_flow_context: dict[str, int]
+    model_usage_context: dict[str, int | float]
+    cost_savings_context: dict[str, int | float]
+
+
+class PromptDetailObservePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    prompt_name: str
+    analytics_context: dict[str, int]
+    model_usage_context: dict[str, int | float]
+    cost_context: dict[str, int | float]
+    request_context: dict[str, int]
+
+
+class WorkflowDetailCrossFeaturePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    org_context: dict[str, str | int]
+    gateway_context: dict[str, int | float]
+    observe_context: dict[str, int | float]
+    finops_context: dict[str, int | float]
+
+
 class SimulationResult(BaseModel):
     affected_requests: int
     current_cost_usd: Decimal

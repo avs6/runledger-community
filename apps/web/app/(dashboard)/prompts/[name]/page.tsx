@@ -15,8 +15,11 @@ import {
   pullFromGithub,
   getBudgetDetailBuildPosture,
   getBudgetControlBuildPosture,
+  getPromptDetailObservePosture,
+  getBuildInternalPosture,
+  getPromptDetailHubFinOpsPosture,
 } from '@/lib/api'
-import type { PromptResponse, PromptVersion, VersionMetrics, GithubConfig, BudgetDetailBuildPosture, BudgetControlBuildPosture } from '@/types/api'
+import type { PromptResponse, PromptVersion, VersionMetrics, GithubConfig, BudgetDetailBuildPosture, BudgetControlBuildPosture, PromptDetailObservePosture, BuildInternalPosture, PromptDetailHubFinOpsPosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, GitBranch, Plus, ArrowUpCircle, Edit2, Upload, Download, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -122,6 +125,9 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
   const [ghSyncing, setGhSyncing] = useState(false)
   const [budgetBuildPosture, setBudgetBuildPosture] = useState<BudgetDetailBuildPosture | null>(null)
   const [budgetControlBuildPosture, setBudgetControlBuildPosture] = useState<BudgetControlBuildPosture | null>(null)
+  const [observePosture, setObservePosture] = useState<PromptDetailObservePosture | null>(null)
+  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
+  const [hubFinOpsPosture, setHubFinOpsPosture] = useState<PromptDetailHubFinOpsPosture | null>(null)
 
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
@@ -147,7 +153,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
     }
   }
 
-  useEffect(() => { load(); if (apiKey) { getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {}); getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {}) } }, [apiKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); if (apiKey) { getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {}); getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {}); getPromptDetailObservePosture(apiKey, decodedName).then(setObservePosture).catch(() => {}); getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {}); getPromptDetailHubFinOpsPosture(apiKey).then(setHubFinOpsPosture).catch(() => {}) } }, [apiKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleExpand(version: number) {
     setExpandedVersions(prev => {
@@ -369,6 +375,108 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
+
+      {observePosture && (
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Analytics Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.analytics_context.runs_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Distinct Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.model_usage_context.distinct_models_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Cost (30d)</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${observePosture.cost_context.total_cost_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Avg Cost/Call</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${observePosture.cost_context.avg_cost_per_call.toFixed(4)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/analytics?tab=request-flow" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+            <Link href="/analytics?tab=request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+            <Link href="/analytics?tab=model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost &amp; Savings</Link>
+          </div>
+        </div>
+      )}
+
+      {buildPosture && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-6">
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Playground 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.playground_context.sessions_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workflows</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.workflows_context.definitions}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.evaluation_context.experiments}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.optimization_context.hub_models}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Score Events 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.scorecards_context.score_events_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Replay Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.replay_context.experiments}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
+            <Link href="/playground" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Playground</Link>
+            <Link href="/workflows" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Workflows</Link>
+            <Link href="/evaluation?tab=scores" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Evaluation Studio</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Optimization</Link>
+            <Link href="/optimization-simulator" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Simulator</Link>
+            <Link href="/model-scorecards" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Model Scorecards</Link>
+          </div>
+        </div>
+      )}
+
+      {/* AI Hub & FinOps Context (amber/emerald) — WU-012 */}
+      {hubFinOpsPosture && (
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/40 dark:to-gray-900 p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3">AI Hub &amp; Cost Attribution Context</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{hubFinOpsPosture.hub_context.hub_models}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{hubFinOpsPosture.hub_context.active_models}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{hubFinOpsPosture.chargeback_context.rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Attributed Cost 30d</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${hubFinOpsPosture.chargeback_context.attributed_cost_30d.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+            <Link href="/ai-hub" className="text-xs text-amber-600 hover:underline dark:text-amber-400">AI Hub</Link>
+            <Link href="/chargeback" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Chargeback</Link>
+            <Link href="/cost-savings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
           </div>
         </div>
       )}
