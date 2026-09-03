@@ -100,10 +100,48 @@ Filter by `session_id` or `model`.
 
 ---
 
+## Gateway-Aware Experimentation
+
+The Playground is workspace-scoped and gateway-aware. Two posture cards display the
+active configuration context during experimentation:
+
+- **Workspace & Identity Context** (blue) — active workspace name, user count, API key
+  count, and AI hub model catalog (active/total). Drill-through links to Organization,
+  Users, API Keys, and AI Hub.
+- **Gateway Configuration Context** (violet) — distinct providers, active/total guardrails,
+  cache configs (enabled/total), and rate-limited routes. Drill-through links to Provider
+  Profiles, Gateway, Guardrails, Response Cache, and Rate Limits.
+
+```bash
+curl http://localhost:8201/analytics/playground-org-gateway-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
+## Observe-Aware Experimentation
+
+A cyan **Observe & Runtime Context** posture card bridges playground sessions to the
+full observability surface:
+
+- Runs (30d), provider calls, distinct models, and 30-day cost.
+- Drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer,
+  Model Usage, and Cost & Savings.
+
+```bash
+curl http://localhost:8201/analytics/playground-observe-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
 ## Dashboard
 
 The **Playground** page shows:
 
+- **Workspace & Identity Context** — workspace, API key, and AI hub model awareness.
+- **Gateway Configuration Context** — provider, guardrail, cache, and rate-limit posture.
+- **Observe & Runtime Context** — runs, provider calls, model usage, and cost context.
 - **Quick Send** — API usage examples for the send and compare endpoints.
 - **Sessions** — card grid with mode badges, favorite stars, system prompt preview, and
   last-updated timestamps.

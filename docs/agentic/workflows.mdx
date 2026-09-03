@@ -127,6 +127,82 @@ Returns per-step cost breakdown: `total_runs`, `total_cost`, `avg_cost_per_run`,
 
 ---
 
+## Cross-Feature Context (Workflow Detail)
+
+The Workflow detail page now displays four cross-feature posture cards for a complete
+operational picture:
+
+- **Organization & Access Context** (blue) — workspace, access groups, API keys, hub models.
+  Drill-through to Organization, Access Groups, API Keys, AI Hub.
+- **Gateway & Routing Context** (violet) — providers, active routes, guardrail rules, cache
+  configs. Drill-through to Provider Profiles, Guardrails, Response Cache, Rate Limits.
+- **Observe & Analytics Context** (cyan) — runs, provider calls, distinct models, 30-day cost.
+  Drill-through to Analytics Overview, Request Explorer, Model Usage, Cost & Savings.
+- **FinOps & Budget Context** (emerald) — active budgets, billing periods, budget limit,
+  30-day spend. Drill-through to Budgets, Billing Periods.
+
+```bash
+curl http://localhost:8201/analytics/workflow-detail-cross-feature-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+### Workflow Detail Loop Posture
+
+Three additional posture cards surface the optimization feedback loop on the
+Workflow detail page:
+
+- **Runs & Workflow Context** (cyan) — runs 30d, distinct workflows.
+  Drill-through to Runs List.
+- **Chargeback & Cost Context** (emerald) — chargeback rules, 30-day cost.
+  Drill-through to Chargeback Rules, Cost & Savings.
+- **Optimization & Eval Loop** (rose) — replay experiments, eval experiments.
+  Drill-through to Optimization Opportunities, Evaluation Studio.
+
+```bash
+curl http://localhost:8201/analytics/workflow-detail-loop-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+### Workflow Run Evidence Posture
+
+Three posture cards on the Workflow run detail page surface the runtime,
+cost, and audit evidence context for a single execution:
+
+- **Gateway & Runtime Context** (violet) — guardrail rules, cache configs,
+  rate-limited routes. Drill-through to Guardrails, Response Cache, Rate Limits.
+- **Observe & Request Flow Context** (cyan) — runs 30d, provider calls 30d.
+  Drill-through to Runs List, Request Flow.
+- **FinOps & Audit Context** (amber) — budgets, cost 30d, audit events 30d.
+  Drill-through to Budget Detail, Cost & Savings, Audit Log.
+
+```bash
+curl http://localhost:8201/analytics/workflow-run-evidence-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
+## Cross-Feature Context (Workflows List)
+
+The Workflows list page displays four posture cards giving a cross-feature
+overview before diving into individual workflows:
+
+- **Org & AI Hub Context** (blue) — workspace name, hub models, active models.
+  Drill-through to Workspaces, AI Hub.
+- **Gateway & Routing Context** (violet) — gateway routes, routing policies.
+  Drill-through to Model Gateway, Provider Profiles.
+- **Observe & Analytics Context** (cyan) — runs 30d, spend 30d.
+  Drill-through to Analytics Overview, Runs List, Cost & Savings.
+- **Build & Improve Loop** (rose) — eval datasets, experiments.
+  Drill-through to Evaluation Studio, Experiments.
+
+```bash
+curl http://localhost:8201/analytics/workflows-list-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+---
+
 ## Dashboard
 
 The **Workflows** page shows all workflow definitions with run counts, costs, and status.

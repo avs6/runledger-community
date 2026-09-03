@@ -1,10 +1,19 @@
 # WU-007: Optimization × Observe Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - D (Optimization and Decision Support)
 - **Target**: 06-BUILD-AND-IMPROVE/Optimization opportunities, Optimization simulator, Model scorecards
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `OptimizationObservePosture` Pydantic schema + `GET /analytics/optimization-observe-posture` endpoint querying AgentRun, ProviderCall, ResponseCacheConfig for runs/requests/models/cost context
+- TypeScript: `OptimizationObservePosture` interface + `getOptimizationObservePosture` API function
+- UI: Cyan "Observe & Runtime Context" card on Optimization Opportunities, Optimization Simulator, Model Scorecards pages showing runs 30d, provider calls 30d, distinct models, total cost 30d with drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer, Model Usage
+- Docs: Added observe context sections to optimization.mdx, optimization-simulator.mdx, model-scorecards.mdx
+- Postman: Added "Optimization Observe Posture" entry
+- Example: `examples/136_optimization_observe_posture.py`
 
 ## Cohesion Cells to Close
 

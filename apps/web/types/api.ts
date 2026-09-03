@@ -5975,3 +5975,264 @@ export interface TagsRuntimePosture {
   observe_attribution: { runs_30d: number; provider_calls_30d: number }
   finops_attribution: { active_budgets: number; chargeback_rules: number }
 }
+
+export interface PlaygroundOrgGatewayPosture {
+  workspace_id: string
+  period_days: number
+  workspace_context: { workspace_name: string; workspace_users: number }
+  api_key_context: { total_api_keys: number; active_key_name: string; active_key_prefix: string }
+  ai_hub_context: { hub_models: number; hub_active_models: number }
+  provider_context: { distinct_providers: number; active_routes: number }
+  guardrail_context: { guardrail_rules: number; active_guardrails: number }
+  cache_context: { cache_configs: number; cache_enabled: number; cache_savings_30d: number }
+  rate_limit_context: { rate_limited_routes: number; passthrough_endpoints: number }
+}
+
+export interface PromptsOrgGatewayPosture {
+  workspace_id: string
+  period_days: number
+  workspace_context: { workspace_name: string; workspace_users: number }
+  ai_hub_context: { hub_models: number; hub_active_models: number }
+  provider_context: { distinct_providers: number; active_routes: number }
+  gateway_context: { routing_policies: number; active_routes: number }
+  prompt_model_context: { total_prompts: number; prompts_with_model_hint: number }
+}
+
+export interface PlaygroundObservePosture {
+  workspace_id: string
+  period_days: number
+  runs_context: { runs_30d: number; total_runs: number }
+  request_flow_context: { provider_calls_30d: number; total_input_tokens: number; total_output_tokens: number }
+  model_usage_context: { distinct_models_30d: number; provider_calls_30d: number }
+  cost_savings_context: { total_cost_30d: number; cache_configs: number; estimated_savings: number }
+}
+
+export interface PromptDetailObservePosture {
+  workspace_id: string
+  period_days: number
+  prompt_name: string
+  analytics_context: { total_prompts: number; prompt_versions: number; runs_30d: number }
+  model_usage_context: { distinct_models_30d: number; provider_calls_30d: number }
+  cost_context: { total_cost_30d: number; avg_cost_per_call: number }
+  request_context: { provider_calls_30d: number; runs_30d: number }
+}
+
+export interface WorkflowDetailCrossFeaturePosture {
+  workspace_id: string
+  period_days: number
+  org_context: { workspace_name: string; workspace_users: number; access_groups: number; api_keys: number; hub_models: number }
+  gateway_context: { distinct_providers: number; active_routes: number; guardrail_rules: number; cache_configs: number; rate_limited_routes: number }
+  observe_context: { runs_30d: number; provider_calls_30d: number; distinct_models_30d: number; total_cost_30d: number }
+  finops_context: { active_budgets: number; billing_periods: number; total_budget_limit: number; total_spend_30d: number }
+}
+
+export interface EvalReplayOrgGatewayPosture {
+  workspace_id: string
+  period_days: number
+  workspace_context: { workspace_name: string; workspace_users: number }
+  access_group_context: { access_groups: number }
+  api_key_context: { api_keys: number }
+  ai_hub_context: { hub_models: number; hub_active_models: number }
+  provider_context: { distinct_providers: number; active_routes: number }
+  gateway_context: { guardrail_rules: number; cache_configs: number; routing_policies: number }
+  guardrail_context: { guardrail_rules: number }
+}
+
+export interface EvalReplayObservePosture {
+  workspace_id: string
+  period_days: number
+  runs_context: { runs_30d: number; total_runs: number }
+  request_flow_context: { provider_calls_30d: number; total_input_tokens: number; total_output_tokens: number }
+  model_usage_context: { distinct_models_30d: number; provider_calls_30d: number }
+  cost_savings_context: { total_cost_30d: number; cache_configs: number; estimated_savings: number }
+}
+
+export interface OptimizationOrgGatewayPosture {
+  workspace_id: string
+  period_days: number
+  workspace_context: { workspace_name: string; workspace_users: number }
+  api_key_context: { api_keys: number }
+  ai_hub_context: { hub_models: number; hub_active_models: number }
+  provider_context: { distinct_providers: number; active_routes: number }
+  gateway_context: { active_routes: number; guardrail_rules: number }
+  guardrail_context: { guardrail_rules: number }
+  cache_context: { cache_configs: number }
+  rate_limit_context: { rate_limited_routes: number }
+}
+
+export interface OptimizationObservePosture {
+  workspace_id: string
+  period_days: number
+  runs_context: { runs_30d: number; total_runs: number }
+  request_flow_context: { provider_calls_30d: number; total_input_tokens: number; total_output_tokens: number }
+  model_usage_context: { distinct_models_30d: number; provider_calls_30d: number }
+  cost_savings_context: { total_cost_30d: number; cache_configs: number; estimated_savings: number }
+}
+
+export interface OptimizationFinOpsPosture {
+  workspace_id: string
+  period_days: number
+  budget_context: { active_budgets: number; total_budgets: number; total_limit: number; spend_30d: number; notifications: number }
+  billing_context: { active_billing_periods: number; total_billing_periods: number }
+  chargeback_context: { chargeback_rules: number; active_chargeback_rules: number }
+}
+
+export interface BuildInternalPosture {
+  workspace_id: string
+  period_days: number
+  playground_context: { sessions_30d: number; provider_calls_30d: number }
+  prompts_context: { total_prompts: number }
+  workflows_context: { definitions: number; runs_30d: number }
+  evaluation_context: { datasets: number; experiments: number }
+  replay_context: { datasets: number; experiments: number }
+  optimization_context: { hub_models: number; spend_30d: number }
+  scorecards_context: { hub_models: number; score_events_30d: number }
+}
+
+export interface PromptsListObservePosture {
+  workspace_id: string
+  period_days: number
+  observe_context: { runs_30d: number; provider_calls_30d: number; distinct_models: number; spend_30d: number }
+  eval_context: { datasets: number; experiments: number }
+}
+
+export interface PromptDetailHubFinOpsPosture {
+  workspace_id: string
+  period_days: number
+  hub_context: { hub_models: number; active_models: number }
+  chargeback_context: { rules: number; attributed_cost_30d: number }
+}
+
+export interface AgentsListPosture {
+  workspace_id: string
+  period_days: number
+  org_context: { workspace_name: string; hub_models: number; active_models: number }
+  provider_context: { distinct_providers: number }
+  observe_context: { runs_30d: number }
+  finops_context: { chargeback_rules: number; spend_30d: number }
+  eval_context: { datasets: number; experiments: number }
+}
+
+export interface AgentDetailGovernancePosture {
+  workspace_id: string
+  period_days: number
+  guardrail_context: { rules: number; events_30d: number }
+  observe_context: { runs_30d: number }
+  safety_context: { capture_policies: number; security_events_30d: number }
+  eval_context: { datasets: number; experiments: number }
+}
+
+export interface WorkflowsListPosture {
+  workspace_id: string
+  period_days: number
+  org_context: { workspace_name: string; hub_models: number; active_models: number }
+  gateway_context: { gateway_routes: number; routing_policies: number }
+  observe_context: { runs_30d: number; spend_30d: number }
+  eval_context: { datasets: number; experiments: number }
+}
+
+export interface WorkflowDetailLoopPosture {
+  workspace_id: string
+  period_days: number
+  runs_context: { runs_30d: number; distinct_workflows: number }
+  chargeback_context: { rules: number; cost_30d: number }
+  optimization_context: { replay_experiments: number }
+  eval_context: { experiments: number }
+}
+
+export interface WorkflowRunEvidencePosture {
+  workspace_id: string
+  period_days: number
+  gateway_context: { guardrail_rules: number; cache_configs: number; rate_limited_routes: number }
+  observe_context: { runs_30d: number; provider_calls_30d: number }
+  finops_context: { budgets: number; cost_30d: number }
+  safety_context: { audit_events_30d: number }
+}
+
+export interface DatasetsEvalAssetPosture {
+  workspace_id: string
+  period_days: number
+  org_context: { workspace_name: string; datasets: number }
+  observe_context: { provider_calls_30d: number }
+  finops_context: { chargeback_rules: number; cost_30d: number }
+  build_context: { eval_experiments: number; replay_experiments: number }
+}
+
+export interface EvalStudioParentPosture {
+  workspace_id: string
+  period_days: number
+  billing_context: { billing_periods: number; open_periods: number }
+  chargeback_context: { chargeback_rules: number; cost_30d: number }
+  eval_self_context: { datasets: number; experiments: number; replay_experiments: number }
+}
+
+export interface ExperimentsComparisonPosture {
+  workspace_id: string
+  period_days: number
+  billing_context: { billing_periods: number; open_periods: number }
+  chargeback_context: { chargeback_rules: number; cost_30d: number }
+  comparison_context: { eval_experiments: number; replay_experiments: number; datasets: number }
+}
+
+export interface ReplayLabModePosture {
+  workspace_id: string
+  period_days: number
+  chargeback_context: { chargeback_rules: number; cost_30d: number }
+  replay_context: { replay_experiments: number; replay_datasets: number }
+}
+
+export interface ReplayResultAnalysisPosture {
+  workspace_id: string
+  period_days: number
+  gateway_context: { guardrail_rules: number; cache_configs: number }
+  observe_context: { runs_30d: number; provider_calls_30d: number }
+  cost_context: { cost_30d: number; replay_experiments: number }
+}
+
+export interface RunbooksRemediationPosture {
+  workspace_id: string
+  period_days: number
+  observe_context: { runs_30d: number; provider_calls_30d: number }
+  alert_context: { alert_rules: number; alert_firings_30d: number }
+  cost_context: { cost_30d: number; billing_periods: number }
+  optimization_context: { eval_experiments: number }
+}
+
+export interface OptOppsRationalePosture {
+  workspace_id: string
+  period_days: number
+  cost_context: { cost_30d: number }
+  optimization_context: { eval_experiments: number; replay_experiments: number; score_events_30d: number }
+}
+
+export interface OptSimDecisionPosture {
+  workspace_id: string
+  period_days: number
+  cost_context: { cost_30d: number }
+  optimization_context: { eval_experiments: number; replay_experiments: number; score_events_30d: number }
+}
+
+export interface ModelScorecardsIntelPosture {
+  workspace_id: string
+  period_days: number
+  model_context: { hub_models: number; distinct_models_30d: number }
+  cost_context: { cost_30d: number }
+  optimization_context: { score_events_30d: number; eval_experiments: number }
+}
+
+export interface VectorStoresLifecyclePosture {
+  workspace_id: string
+  period_days: number
+  workspace_context: { workspace_name: string }
+  observe_context: { provider_calls_30d: number }
+  cost_context: { cost_30d: number; chargeback_rules: number }
+  build_context: { workflows: number; eval_experiments: number }
+}
+
+export interface VectorStoreDetailEvidencePosture {
+  workspace_id: string
+  period_days: number
+  observe_context: { provider_calls_30d: number; runs_30d: number }
+  cost_context: { cost_30d: number; chargeback_rules: number }
+  build_context: { workflows: number; eval_experiments: number }
+}

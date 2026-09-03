@@ -141,6 +141,35 @@ from runledger_api.schemas.analytics import (
     BillingReconciliationPosture,
     BillingDetailEvidencePosture,
     ChargebackAttributionPosture,
+    PlaygroundOrgGatewayPosture,
+    PlaygroundObservePosture,
+    PromptsOrgGatewayPosture,
+    PromptDetailObservePosture,
+    WorkflowDetailCrossFeaturePosture,
+    EvalReplayOrgGatewayPosture,
+    EvalReplayObservePosture,
+    OptimizationOrgGatewayPosture,
+    OptimizationObservePosture,
+    OptimizationFinOpsPosture,
+    BuildInternalPosture,
+    PromptsListObservePosture,
+    PromptDetailHubFinOpsPosture,
+    AgentsListPosture,
+    AgentDetailGovernancePosture,
+    WorkflowsListPosture,
+    WorkflowDetailLoopPosture,
+    WorkflowRunEvidencePosture,
+    DatasetsEvalAssetPosture,
+    EvalStudioParentPosture,
+    ExperimentsComparisonPosture,
+    ReplayLabModePosture,
+    ReplayResultAnalysisPosture,
+    RunbooksRemediationPosture,
+    OptOppsRationalePosture,
+    OptSimDecisionPosture,
+    ModelScorecardsIntelPosture,
+    VectorStoreDetailEvidencePosture,
+    VectorStoresLifecyclePosture,
     BudgetOrgScopePosture,
     BudgetOverrideGovernancePosture,
     TagsRuntimePosture,
@@ -14132,5 +14161,2625 @@ async def chargeback_attribution_posture(
         },
         spend_context={
             "total_spend_30d": float(total_spend_30d),
+        },
+    )
+
+
+@router.get("/playground-org-gateway-posture")
+async def playground_org_gateway_posture(
+    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    workspace_id = str(workspace.id)
+    since = datetime.now(UTC) - timedelta(days=30)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    active_api_key_row = await db.execute(
+        select(ApiKey.name, ApiKey.key_prefix).where(
+            ApiKey.workspace_id == workspace.id
+        ).limit(1)
+    )
+    active_key = active_api_key_row.first()
+    api_key_name = active_key.name if active_key else ""
+    api_key_prefix = active_key.key_prefix if active_key else ""
+
+    hub_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(HubModel.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    hub_active = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id,
+                HubModel.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers_row = await db.execute(
+        select(func.count(func.distinct(GatewayRoute.provider))).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )
+    distinct_providers = distinct_providers_row.scalar() or 0
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    active_guardrails = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id,
+                GuardrailRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    cache_enabled = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+                ResponseCacheConfig.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_hit_savings = (
+        await db.execute(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= since,
+                ProviderCall.cache_hit.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.rpm_limit.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    passthrough_count = (
+        await db.execute(
+            select(func.count(GatewayPassThroughEndpoint.id)).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    return PlaygroundOrgGatewayPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        workspace_context={
+            "workspace_name": workspace.name,
+            "workspace_users": workspace_users,
+        },
+        api_key_context={
+            "total_api_keys": api_keys,
+            "active_key_name": api_key_name,
+            "active_key_prefix": api_key_prefix,
+        },
+        ai_hub_context={
+            "hub_models": hub_models,
+            "hub_active_models": hub_active,
+        },
+        provider_context={
+            "distinct_providers": distinct_providers,
+            "active_routes": active_routes,
+        },
+        guardrail_context={
+            "guardrail_rules": guardrail_rules,
+            "active_guardrails": active_guardrails,
+        },
+        cache_context={
+            "cache_configs": cache_configs,
+            "cache_enabled": cache_enabled,
+            "cache_savings_30d": float(cache_hit_savings),
+        },
+        rate_limit_context={
+            "rate_limited_routes": rate_limited_routes,
+            "passthrough_endpoints": passthrough_count,
+        },
+    )
+
+
+@router.get("/prompts-org-gateway-posture")
+async def prompts_org_gateway_posture(
+    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+):
+    workspace_id = str(workspace.id)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(HubModel.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    hub_active = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id,
+                HubModel.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers_row = await db.execute(
+        select(func.count(func.distinct(GatewayRoute.provider))).where(
+            GatewayRoute.workspace_id == workspace.id,
+            GatewayRoute.is_active.is_(True),
+        )
+    )
+    distinct_providers = distinct_providers_row.scalar() or 0
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    prompt_count = (
+        await db.execute(
+            select(func.count(Prompt.id)).where(Prompt.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    prompts_with_model_hint = (
+        await db.execute(
+            select(func.count(Prompt.id)).where(
+                Prompt.workspace_id == workspace.id,
+                Prompt.model_hint.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    return PromptsOrgGatewayPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        workspace_context={
+            "workspace_name": workspace.name,
+            "workspace_users": workspace_users,
+        },
+        ai_hub_context={
+            "hub_models": hub_models,
+            "hub_active_models": hub_active,
+        },
+        provider_context={
+            "distinct_providers": distinct_providers,
+            "active_routes": active_routes,
+        },
+        gateway_context={
+            "routing_policies": routing_policies,
+            "active_routes": active_routes,
+        },
+        prompt_model_context={
+            "total_prompts": prompt_count,
+            "prompts_with_model_hint": prompts_with_model_hint,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# WU-002: Playground Observe Posture
+# ---------------------------------------------------------------------------
+
+
+@router.get("/playground-observe-posture")
+async def playground_observe_posture(
+    user: TenantUser = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> PlaygroundObservePosture:
+    workspace_id = str(workspace.id)
+    cutoff = datetime.utcnow() - timedelta(days=30)
+
+    runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_runs = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(AgentRun.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    provider_calls_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_cost_row = await db.execute(
+        select(func.sum(ProviderCall.cost_usd)).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    total_cost_30d = float(total_cost_row.scalar() or 0)
+
+    total_tokens_row = await db.execute(
+        select(
+            func.sum(ProviderCall.input_tokens),
+            func.sum(ProviderCall.output_tokens),
+        ).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    tokens_row = total_tokens_row.one()
+    total_input_tokens = int(tokens_row[0] or 0)
+    total_output_tokens = int(tokens_row[1] or 0)
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    cache_enabled = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+                ResponseCacheConfig.is_enabled.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_savings = float(cache_configs * 0.12) if cache_enabled > 0 else 0.0
+
+    return PlaygroundObservePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        runs_context={
+            "runs_30d": runs_30d,
+            "total_runs": total_runs,
+        },
+        request_flow_context={
+            "provider_calls_30d": provider_calls_30d,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+        },
+        model_usage_context={
+            "distinct_models_30d": distinct_models_30d,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        cost_savings_context={
+            "total_cost_30d": total_cost_30d,
+            "cache_configs": cache_configs,
+            "estimated_savings": cache_savings,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# WU-002: Prompt Detail Observe Posture
+# ---------------------------------------------------------------------------
+
+
+@router.get("/prompt-detail-observe-posture")
+async def prompt_detail_observe_posture(
+    user: TenantUser = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    prompt_name: str | None = None,
+) -> PromptDetailObservePosture:
+    workspace_id = str(workspace.id)
+    cutoff = datetime.utcnow() - timedelta(days=30)
+
+    prompt_count = (
+        await db.execute(
+            select(func.count(Prompt.id)).where(Prompt.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    versions_count = 0
+    resolved_name = prompt_name or ""
+    if prompt_name:
+        prompt_row = await db.execute(
+            select(Prompt).where(
+                Prompt.workspace_id == workspace.id,
+                Prompt.name == prompt_name,
+            )
+        )
+        prompt_obj = prompt_row.scalar_one_or_none()
+        if prompt_obj:
+            resolved_name = prompt_obj.name
+            versions_count = prompt_obj.version
+
+    runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    provider_calls_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_cost_row = await db.execute(
+        select(func.sum(ProviderCall.cost_usd)).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    total_cost_30d = float(total_cost_row.scalar() or 0)
+
+    avg_cost_per_call = total_cost_30d / provider_calls_30d if provider_calls_30d > 0 else 0.0
+
+    return PromptDetailObservePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        prompt_name=resolved_name,
+        analytics_context={
+            "total_prompts": prompt_count,
+            "prompt_versions": versions_count,
+            "runs_30d": runs_30d,
+        },
+        model_usage_context={
+            "distinct_models_30d": distinct_models,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        cost_context={
+            "total_cost_30d": total_cost_30d,
+            "avg_cost_per_call": round(avg_cost_per_call, 6),
+        },
+        request_context={
+            "provider_calls_30d": provider_calls_30d,
+            "runs_30d": runs_30d,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# WU-003: Workflow Detail Cross-Feature Posture
+# ---------------------------------------------------------------------------
+
+
+@router.get("/workflow-detail-cross-feature-posture")
+async def workflow_detail_cross_feature_posture(
+    user: TenantUser = Depends(get_current_user),
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> WorkflowDetailCrossFeaturePosture:
+    workspace_id = str(workspace.id)
+    cutoff = datetime.utcnow() - timedelta(days=30)
+
+    # Org context
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(HubModel.workspace_id == workspace.id)
+        )
+    ).scalar() or 0
+
+    # Gateway context
+    distinct_providers = (
+        await db.execute(
+            select(func.count(func.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayPassThroughEndpoint.id)).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+                GatewayPassThroughEndpoint.rate_limit_rpm.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    # Observe context
+    runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    provider_calls_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_cost_row = await db.execute(
+        select(func.sum(ProviderCall.cost_usd)).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    total_cost_30d = float(total_cost_row.scalar() or 0)
+
+    # FinOps context
+    active_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    budget_limit_row = await db.execute(
+        select(func.sum(Budget.limit_usd)).where(
+            Budget.workspace_id == workspace.id,
+            Budget.is_active.is_(True),
+        )
+    )
+    total_budget_limit = float(budget_limit_row.scalar() or 0)
+
+    return WorkflowDetailCrossFeaturePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        org_context={
+            "workspace_name": workspace.name,
+            "workspace_users": workspace_users,
+            "access_groups": access_groups,
+            "api_keys": api_keys,
+            "hub_models": hub_models,
+        },
+        gateway_context={
+            "distinct_providers": distinct_providers,
+            "active_routes": active_routes,
+            "guardrail_rules": guardrail_rules,
+            "cache_configs": cache_configs,
+            "rate_limited_routes": rate_limited_routes,
+        },
+        observe_context={
+            "runs_30d": runs_30d,
+            "provider_calls_30d": provider_calls_30d,
+            "distinct_models_30d": distinct_models_30d,
+            "total_cost_30d": total_cost_30d,
+        },
+        finops_context={
+            "active_budgets": active_budgets,
+            "billing_periods": billing_periods,
+            "total_budget_limit": total_budget_limit,
+            "total_spend_30d": total_cost_30d,
+        },
+    )
+
+
+@router.get("/eval-replay-org-gateway-posture")
+async def get_eval_replay_org_gateway_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> EvalReplayOrgGatewayPosture:
+    workspace_id = str(workspace.id)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    hub_active_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id,
+                HubModel.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(func.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    return EvalReplayOrgGatewayPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        workspace_context={
+            "workspace_name": workspace.name,
+            "workspace_users": workspace_users,
+        },
+        access_group_context={
+            "access_groups": access_groups,
+        },
+        api_key_context={
+            "api_keys": api_keys,
+        },
+        ai_hub_context={
+            "hub_models": hub_models,
+            "hub_active_models": hub_active_models,
+        },
+        provider_context={
+            "distinct_providers": distinct_providers,
+            "active_routes": active_routes,
+        },
+        gateway_context={
+            "guardrail_rules": guardrail_rules,
+            "cache_configs": cache_configs,
+            "routing_policies": routing_policies,
+        },
+        guardrail_context={
+            "guardrail_rules": guardrail_rules,
+        },
+    )
+
+
+@router.get("/eval-replay-observe-posture")
+async def get_eval_replay_observe_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> EvalReplayObservePosture:
+    workspace_id = str(workspace.id)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
+
+    runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_runs = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    provider_calls_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    token_row = await db.execute(
+        select(
+            func.sum(ProviderCall.input_tokens),
+            func.sum(ProviderCall.output_tokens),
+        ).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    token_result = token_row.one()
+    total_input_tokens = int(token_result[0] or 0)
+    total_output_tokens = int(token_result[1] or 0)
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    cost_row = await db.execute(
+        select(func.sum(ProviderCall.cost_usd)).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    total_cost_30d = float(cost_row.scalar() or 0)
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    estimated_savings = round(total_cost_30d * 0.15, 2) if cache_configs > 0 else 0.0
+
+    return EvalReplayObservePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        runs_context={
+            "runs_30d": runs_30d,
+            "total_runs": total_runs,
+        },
+        request_flow_context={
+            "provider_calls_30d": provider_calls_30d,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+        },
+        model_usage_context={
+            "distinct_models_30d": distinct_models_30d,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        cost_savings_context={
+            "total_cost_30d": total_cost_30d,
+            "cache_configs": cache_configs,
+            "estimated_savings": estimated_savings,
+        },
+    )
+
+
+@router.get("/optimization-org-gateway-posture")
+async def get_optimization_org_gateway_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> OptimizationOrgGatewayPosture:
+    workspace_id = str(workspace.id)
+
+    workspace_users = (
+        await db.execute(
+            select(func.count(WorkspaceUser.id)).where(
+                WorkspaceUser.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+                ApiKey.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    hub_active_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id,
+                HubModel.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(func.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    rate_limited_routes = (
+        await db.execute(
+            select(func.count(GatewayPassThroughEndpoint.id)).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+                GatewayPassThroughEndpoint.rate_limit_rpm.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    return OptimizationOrgGatewayPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        workspace_context={
+            "workspace_name": workspace.name,
+            "workspace_users": workspace_users,
+        },
+        api_key_context={
+            "api_keys": api_keys,
+        },
+        ai_hub_context={
+            "hub_models": hub_models,
+            "hub_active_models": hub_active_models,
+        },
+        provider_context={
+            "distinct_providers": distinct_providers,
+            "active_routes": active_routes,
+        },
+        gateway_context={
+            "active_routes": active_routes,
+            "guardrail_rules": guardrail_rules,
+        },
+        guardrail_context={
+            "guardrail_rules": guardrail_rules,
+        },
+        cache_context={
+            "cache_configs": cache_configs,
+        },
+        rate_limit_context={
+            "rate_limited_routes": rate_limited_routes,
+        },
+    )
+
+
+@router.get("/optimization-observe-posture")
+async def get_optimization_observe_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+) -> OptimizationObservePosture:
+    workspace_id = str(workspace.id)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
+
+    runs_30d = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_runs = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    provider_calls_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    token_row = await db.execute(
+        select(
+            func.sum(ProviderCall.input_tokens),
+            func.sum(ProviderCall.output_tokens),
+        ).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    token_result = token_row.one()
+    total_input_tokens = int(token_result[0] or 0)
+    total_output_tokens = int(token_result[1] or 0)
+
+    distinct_models_30d = (
+        await db.execute(
+            select(func.count(func.distinct(ProviderCall.model))).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    cost_row = await db.execute(
+        select(func.sum(ProviderCall.cost_usd)).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    total_cost_30d = float(cost_row.scalar() or 0)
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id
+            )
+        )
+    ).scalar() or 0
+
+    estimated_savings = round(total_cost_30d * 0.15, 2) if cache_configs > 0 else 0.0
+
+    return OptimizationObservePosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        runs_context={
+            "runs_30d": runs_30d,
+            "total_runs": total_runs,
+        },
+        request_flow_context={
+            "provider_calls_30d": provider_calls_30d,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+        },
+        model_usage_context={
+            "distinct_models_30d": distinct_models_30d,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        cost_savings_context={
+            "total_cost_30d": total_cost_30d,
+            "cache_configs": cache_configs,
+            "estimated_savings": estimated_savings,
+        },
+    )
+
+
+@router.get("/analytics/optimization-finops-posture")
+async def optimization_finops_posture(
+    workspace_id: str | None = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user=Depends(get_current_user),
+) -> OptimizationFinOpsPosture:
+    workspace = await _resolve_workspace(db, current_user, workspace_id)
+    workspace_id = str(workspace.id)
+    cutoff = datetime.utcnow() - timedelta(days=30)
+
+    active_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    budget_limit_row = await db.execute(
+        select(func.coalesce(func.sum(Budget.limit_amount), 0)).where(
+            Budget.workspace_id == workspace.id,
+            Budget.is_active.is_(True),
+        )
+    )
+    total_limit = float(budget_limit_row.scalar() or 0)
+
+    spend_row = await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0)).where(
+            ProviderCall.workspace_id == workspace.id,
+            ProviderCall.created_at >= cutoff,
+        )
+    )
+    spend_30d = float(spend_row.scalar() or 0)
+
+    notifications = (
+        await db.execute(
+            select(func.count(BudgetNotification.id)).where(
+                BudgetNotification.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    active_billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id,
+                BillingPeriod.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_billing_periods = (
+        await db.execute(
+            select(func.count(BillingPeriod.id)).where(
+                BillingPeriod.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    chargeback_rules = (
+        await db.execute(
+            select(func.count(ChargebackRule.id)).where(
+                ChargebackRule.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    active_chargeback_rules = (
+        await db.execute(
+            select(func.count(ChargebackRule.id)).where(
+                ChargebackRule.workspace_id == workspace.id,
+                ChargebackRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    return OptimizationFinOpsPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        budget_context={
+            "active_budgets": active_budgets,
+            "total_budgets": total_budgets,
+            "total_limit": total_limit,
+            "spend_30d": spend_30d,
+            "notifications": notifications,
+        },
+        billing_context={
+            "active_billing_periods": active_billing_periods,
+            "total_billing_periods": total_billing_periods,
+        },
+        chargeback_context={
+            "chargeback_rules": chargeback_rules,
+            "active_chargeback_rules": active_chargeback_rules,
+        },
+    )
+
+
+@router.get("/analytics/build-internal-posture")
+async def get_build_internal_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> BuildInternalPosture:
+    workspace_id, workspace, _ = await _resolve_workspace(request, db)
+    cutoff = datetime.utcnow() - timedelta(days=30)
+
+    playground_sessions = (
+        await db.execute(
+            select(func.count(AgentRun.id)).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    total_prompts = (
+        await db.execute(
+            select(func.count(Prompt.id)).where(
+                Prompt.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    workflow_definitions = (
+        await db.execute(
+            select(func.count(WorkflowDefinition.id)).where(
+                WorkflowDefinition.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    workflow_runs_30d = (
+        await db.execute(
+            select(func.count(WorkflowRun.id)).where(
+                WorkflowRun.workspace_id == workspace.id,
+                WorkflowRun.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    eval_datasets = (
+        await db.execute(
+            select(func.count(EvalDataset.id)).where(
+                EvalDataset.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    eval_experiments = (
+        await db.execute(
+            select(func.count(EvalExperiment.id)).where(
+                EvalExperiment.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    replay_datasets = (
+        await db.execute(
+            select(func.count(ReplayDataset.id)).where(
+                ReplayDataset.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    replay_experiments = (
+        await db.execute(
+            select(func.count(ReplayExperiment.id)).where(
+                ReplayExperiment.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    hub_models = (
+        await db.execute(
+            select(func.count(HubModel.id)).where(
+                HubModel.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    score_events_30d = (
+        await db.execute(
+            select(func.count(ScoreEvent.id)).where(
+                ScoreEvent.workspace_id == workspace.id,
+                ScoreEvent.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    provider_calls_30d = (
+        await db.execute(
+            select(func.count(ProviderCall.id)).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= cutoff,
+            )
+        )
+    ).scalar() or 0
+
+    spend_30d = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(ProviderCall.cost), 0)).where(
+                    ProviderCall.workspace_id == workspace.id,
+                    ProviderCall.created_at >= cutoff,
+                )
+            )
+        ).scalar() or 0
+    )
+
+    return BuildInternalPosture(
+        workspace_id=workspace_id,
+        period_days=30,
+        playground_context={
+            "sessions_30d": playground_sessions,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        prompts_context={
+            "total_prompts": total_prompts,
+        },
+        workflows_context={
+            "definitions": workflow_definitions,
+            "runs_30d": workflow_runs_30d,
+        },
+        evaluation_context={
+            "datasets": eval_datasets,
+            "experiments": eval_experiments,
+        },
+        replay_context={
+            "datasets": replay_datasets,
+            "experiments": replay_experiments,
+        },
+        optimization_context={
+            "hub_models": hub_models,
+            "spend_30d": spend_30d,
+        },
+        scorecards_context={
+            "hub_models": hub_models,
+            "score_events_30d": score_events_30d,
+        },
+    )
+
+
+# ── WU-011  Prompts list observe posture ──────────────────────────
+@router.get(
+    "/analytics/prompts-list-observe-posture",
+    response_model=PromptsListObservePosture,
+    tags=["analytics"],
+)
+async def prompts_list_observe_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> PromptsListObservePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    distinct_models = (await db.execute(
+        select(func.count(distinct(ProviderCall.model))).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    spend_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_datasets = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return PromptsListObservePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        observe_context={
+            "runs_30d": runs_30d,
+            "provider_calls_30d": provider_calls_30d,
+            "distinct_models": distinct_models,
+            "spend_30d": float(spend_30d),
+        },
+        eval_context={
+            "datasets": eval_datasets,
+            "experiments": eval_experiments,
+        },
+    )
+
+
+# ── WU-012  Prompt detail hub + FinOps posture ───────────────────
+@router.get(
+    "/analytics/prompt-detail-hub-finops-posture",
+    response_model=PromptDetailHubFinOpsPosture,
+    tags=["analytics"],
+)
+async def prompt_detail_hub_finops_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> PromptDetailHubFinOpsPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    hub_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    active_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+            HubModel.is_active == True,
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    attributed_cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    return PromptDetailHubFinOpsPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        hub_context={
+            "hub_models": hub_models,
+            "active_models": active_models,
+        },
+        chargeback_context={
+            "rules": chargeback_rules,
+            "attributed_cost_30d": float(attributed_cost_30d),
+        },
+    )
+
+
+# ── WU-013  Agents list posture ───────────────────────────────────
+@router.get(
+    "/analytics/agents-list-posture",
+    response_model=AgentsListPosture,
+    tags=["analytics"],
+)
+async def agents_list_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> AgentsListPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    workspace = (await db.execute(
+        select(Workspace).where(Workspace.id == workspace_id)
+    )).scalar_one_or_none()
+    workspace_name = workspace.name if workspace else ""
+
+    hub_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    active_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+            HubModel.is_active == True,
+        )
+    )).scalar_one()
+
+    distinct_providers = (await db.execute(
+        select(func.count(distinct(ProviderCall.provider))).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    spend_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_datasets = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return AgentsListPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        org_context={
+            "workspace_name": workspace_name,
+            "hub_models": hub_models,
+            "active_models": active_models,
+        },
+        provider_context={
+            "distinct_providers": distinct_providers,
+        },
+        observe_context={
+            "runs_30d": runs_30d,
+        },
+        finops_context={
+            "chargeback_rules": chargeback_rules,
+            "spend_30d": float(spend_30d),
+        },
+        eval_context={
+            "datasets": eval_datasets,
+            "experiments": eval_experiments,
+        },
+    )
+
+
+# ── WU-014  Agent detail governance posture ───────────────────────
+@router.get(
+    "/analytics/agent-detail-governance-posture",
+    response_model=AgentDetailGovernancePosture,
+    tags=["analytics"],
+)
+async def agent_detail_governance_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> AgentDetailGovernancePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    guardrail_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    guardrail_events_30d = (await db.execute(
+        select(func.count(GuardrailEvent.id)).where(
+            GuardrailEvent.workspace_id == workspace_id,
+            GuardrailEvent.created_at >= since,
+        )
+    )).scalar_one()
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    capture_policies = (await db.execute(
+        select(func.count(CapturePolicy.id)).where(
+            CapturePolicy.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    security_events_30d = (await db.execute(
+        select(func.count(SecurityEvent.id)).where(
+            SecurityEvent.workspace_id == workspace_id,
+            SecurityEvent.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_datasets = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return AgentDetailGovernancePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        guardrail_context={
+            "rules": guardrail_rules,
+            "events_30d": guardrail_events_30d,
+        },
+        observe_context={
+            "runs_30d": runs_30d,
+        },
+        safety_context={
+            "capture_policies": capture_policies,
+            "security_events_30d": security_events_30d,
+        },
+        eval_context={
+            "datasets": eval_datasets,
+            "experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/workflows-list-posture",
+    response_model=WorkflowsListPosture,
+    tags=["analytics"],
+)
+async def workflows_list_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> WorkflowsListPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    ws = (await db.execute(
+        select(Workspace.name).where(Workspace.id == workspace_id)
+    )).scalar_one_or_none() or workspace_id
+
+    hub_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    active_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+            HubModel.is_active == True,
+        )
+    )).scalar_one()
+
+    gateway_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    routing_policies = (await db.execute(
+        select(func.count(RoutingPolicy.id)).where(
+            RoutingPolicy.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    spend_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_datasets = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return WorkflowsListPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        org_context={
+            "workspace_name": ws,
+            "hub_models": hub_models,
+            "active_models": active_models,
+        },
+        gateway_context={
+            "gateway_routes": gateway_routes,
+            "routing_policies": routing_policies,
+        },
+        observe_context={
+            "runs_30d": runs_30d,
+            "spend_30d": spend_30d,
+        },
+        eval_context={
+            "datasets": eval_datasets,
+            "experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/workflow-detail-loop-posture",
+    response_model=WorkflowDetailLoopPosture,
+    tags=["analytics"],
+)
+async def workflow_detail_loop_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> WorkflowDetailLoopPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    runs_30d = (await db.execute(
+        select(func.count(WorkflowRun.id)).where(
+            WorkflowRun.workspace_id == workspace_id,
+            WorkflowRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    distinct_workflows = (await db.execute(
+        select(func.count(func.distinct(WorkflowRun.workflow_id))).where(
+            WorkflowRun.workspace_id == workspace_id,
+            WorkflowRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return WorkflowDetailLoopPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        runs_context={
+            "runs_30d": runs_30d,
+            "distinct_workflows": distinct_workflows,
+        },
+        chargeback_context={
+            "rules": chargeback_rules,
+            "cost_30d": cost_30d,
+        },
+        optimization_context={
+            "replay_experiments": replay_experiments,
+        },
+        eval_context={
+            "experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/workflow-run-evidence-posture",
+    response_model=WorkflowRunEvidencePosture,
+    tags=["analytics"],
+)
+async def workflow_run_evidence_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> WorkflowRunEvidencePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    guardrail_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cache_configs = (await db.execute(
+        select(func.count(ResponseCacheConfig.id)).where(
+            ResponseCacheConfig.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    rate_limited_routes = (await db.execute(
+        select(func.count(GatewayRoute.id)).where(
+            GatewayRoute.workspace_id == workspace_id,
+            GatewayRoute.rate_limit_rpm.isnot(None),
+        )
+    )).scalar_one()
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    budget_total = (await db.execute(
+        select(func.count(Budget.id)).where(
+            Budget.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    audit_events_30d = (await db.execute(
+        select(func.count(AuditEvent.id)).where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.created_at >= since,
+        )
+    )).scalar_one()
+
+    return WorkflowRunEvidencePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        gateway_context={
+            "guardrail_rules": guardrail_rules,
+            "cache_configs": cache_configs,
+            "rate_limited_routes": rate_limited_routes,
+        },
+        observe_context={
+            "runs_30d": runs_30d,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        finops_context={
+            "budgets": budget_total,
+            "cost_30d": cost_30d,
+        },
+        safety_context={
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/analytics/datasets-eval-asset-posture",
+    response_model=DatasetsEvalAssetPosture,
+    tags=["analytics"],
+)
+async def datasets_eval_asset_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> DatasetsEvalAssetPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    ws = (await db.execute(
+        select(Workspace.name).where(Workspace.id == workspace_id)
+    )).scalar_one_or_none() or "—"
+
+    datasets_total = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return DatasetsEvalAssetPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        org_context={
+            "workspace_name": ws,
+            "datasets": datasets_total,
+        },
+        observe_context={
+            "provider_calls_30d": provider_calls_30d,
+        },
+        finops_context={
+            "chargeback_rules": chargeback_rules,
+            "cost_30d": cost_30d,
+        },
+        build_context={
+            "eval_experiments": eval_experiments,
+            "replay_experiments": replay_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/eval-studio-parent-posture",
+    response_model=EvalStudioParentPosture,
+    tags=["analytics"],
+)
+async def eval_studio_parent_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> EvalStudioParentPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    billing_periods_total = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    billing_periods_open = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace_id,
+            BillingPeriod.status == "open",
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_datasets = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return EvalStudioParentPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        billing_context={
+            "billing_periods": billing_periods_total,
+            "open_periods": billing_periods_open,
+        },
+        chargeback_context={
+            "chargeback_rules": chargeback_rules,
+            "cost_30d": cost_30d,
+        },
+        eval_self_context={
+            "datasets": eval_datasets,
+            "experiments": eval_experiments,
+            "replay_experiments": replay_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/experiments-comparison-posture",
+    response_model=ExperimentsComparisonPosture,
+    tags=["analytics"],
+)
+async def experiments_comparison_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> ExperimentsComparisonPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    billing_periods_total = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    billing_periods_open = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace_id,
+            BillingPeriod.status == "open",
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_datasets = (await db.execute(
+        select(func.count(EvalDataset.id)).where(
+            EvalDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return ExperimentsComparisonPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        billing_context={
+            "billing_periods": billing_periods_total,
+            "open_periods": billing_periods_open,
+        },
+        chargeback_context={
+            "chargeback_rules": chargeback_rules,
+            "cost_30d": cost_30d,
+        },
+        comparison_context={
+            "eval_experiments": eval_experiments,
+            "replay_experiments": replay_experiments,
+            "datasets": eval_datasets,
+        },
+    )
+
+
+@router.get(
+    "/analytics/replay-lab-mode-posture",
+    response_model=ReplayLabModePosture,
+    tags=["analytics"],
+)
+async def replay_lab_mode_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> ReplayLabModePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    replay_datasets = (await db.execute(
+        select(func.count(ReplayDataset.id)).where(
+            ReplayDataset.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return ReplayLabModePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        chargeback_context={
+            "chargeback_rules": chargeback_rules,
+            "cost_30d": cost_30d,
+        },
+        replay_context={
+            "replay_experiments": replay_experiments,
+            "replay_datasets": replay_datasets,
+        },
+    )
+
+
+@router.get(
+    "/analytics/replay-result-analysis-posture",
+    response_model=ReplayResultAnalysisPosture,
+    tags=["analytics"],
+)
+async def replay_result_analysis_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> ReplayResultAnalysisPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    guardrail_rules = (await db.execute(
+        select(func.count(GuardrailRule.id)).where(
+            GuardrailRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    cache_configs = (await db.execute(
+        select(func.count(ResponseCacheConfig.id)).where(
+            ResponseCacheConfig.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return ReplayResultAnalysisPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        gateway_context={
+            "guardrail_rules": guardrail_rules,
+            "cache_configs": cache_configs,
+        },
+        observe_context={
+            "runs_30d": runs_30d,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        cost_context={
+            "cost_30d": cost_30d,
+            "replay_experiments": replay_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/runbooks-remediation-posture",
+    response_model=RunbooksRemediationPosture,
+    tags=["analytics"],
+)
+async def runbooks_remediation_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> RunbooksRemediationPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    alert_rules = (await db.execute(
+        select(func.count(AlertRule.id)).where(
+            AlertRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    alert_firings_30d = (await db.execute(
+        select(func.count(AlertFiring.id)).where(
+            AlertFiring.workspace_id == workspace_id,
+            AlertFiring.fired_at >= since,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    billing_periods = (await db.execute(
+        select(func.count(BillingPeriod.id)).where(
+            BillingPeriod.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return RunbooksRemediationPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        observe_context={
+            "runs_30d": runs_30d,
+            "provider_calls_30d": provider_calls_30d,
+        },
+        alert_context={
+            "alert_rules": alert_rules,
+            "alert_firings_30d": alert_firings_30d,
+        },
+        cost_context={
+            "cost_30d": cost_30d,
+            "billing_periods": billing_periods,
+        },
+        optimization_context={
+            "eval_experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/opt-opps-rationale-posture",
+    response_model=OptOppsRationalePosture,
+    tags=["analytics"],
+)
+async def opt_opps_rationale_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> OptOppsRationalePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    score_events_30d = (await db.execute(
+        select(func.count(ScoreEvent.id)).where(
+            ScoreEvent.workspace_id == workspace_id,
+            ScoreEvent.created_at >= since,
+        )
+    )).scalar_one()
+
+    return OptOppsRationalePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        cost_context={
+            "cost_30d": cost_30d,
+        },
+        optimization_context={
+            "eval_experiments": eval_experiments,
+            "replay_experiments": replay_experiments,
+            "score_events_30d": score_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/analytics/opt-sim-decision-posture",
+    response_model=OptSimDecisionPosture,
+    tags=["analytics"],
+)
+async def opt_sim_decision_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> OptSimDecisionPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    replay_experiments = (await db.execute(
+        select(func.count(ReplayExperiment.id)).where(
+            ReplayExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    score_events_30d = (await db.execute(
+        select(func.count(ScoreEvent.id)).where(
+            ScoreEvent.workspace_id == workspace_id,
+            ScoreEvent.created_at >= since,
+        )
+    )).scalar_one()
+
+    return OptSimDecisionPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        cost_context={
+            "cost_30d": cost_30d,
+        },
+        optimization_context={
+            "eval_experiments": eval_experiments,
+            "replay_experiments": replay_experiments,
+            "score_events_30d": score_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/analytics/model-scorecards-intel-posture",
+    response_model=ModelScorecardsIntelPosture,
+    tags=["analytics"],
+)
+async def model_scorecards_intel_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> ModelScorecardsIntelPosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    hub_models = (await db.execute(
+        select(func.count(HubModel.id)).where(
+            HubModel.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    distinct_models_30d = (await db.execute(
+        select(func.count(func.distinct(ProviderCall.model))).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    score_events_30d = (await db.execute(
+        select(func.count(ScoreEvent.id)).where(
+            ScoreEvent.workspace_id == workspace_id,
+            ScoreEvent.created_at >= since,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return ModelScorecardsIntelPosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        model_context={
+            "hub_models": hub_models,
+            "distinct_models_30d": distinct_models_30d,
+        },
+        cost_context={
+            "cost_30d": cost_30d,
+        },
+        optimization_context={
+            "score_events_30d": score_events_30d,
+            "eval_experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/vector-stores-lifecycle-posture",
+    response_model=VectorStoresLifecyclePosture,
+    tags=["analytics"],
+)
+async def vector_stores_lifecycle_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> VectorStoresLifecyclePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    workspace = (await db.execute(
+        select(Workspace.name).where(Workspace.id == workspace_id)
+    )).scalar_one_or_none() or "unknown"
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    workflows = (await db.execute(
+        select(func.count(WorkflowDefinition.id)).where(
+            WorkflowDefinition.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return VectorStoresLifecyclePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        workspace_context={
+            "workspace_name": workspace,
+        },
+        observe_context={
+            "provider_calls_30d": provider_calls_30d,
+        },
+        cost_context={
+            "cost_30d": cost_30d,
+            "chargeback_rules": chargeback_rules,
+        },
+        build_context={
+            "workflows": workflows,
+            "eval_experiments": eval_experiments,
+        },
+    )
+
+
+@router.get(
+    "/analytics/vector-store-detail-evidence-posture",
+    response_model=VectorStoreDetailEvidencePosture,
+    tags=["analytics"],
+)
+async def vector_store_detail_evidence_posture(
+    request: Request,
+    db: AsyncSession = Depends(get_async_session),
+) -> VectorStoreDetailEvidencePosture:
+    workspace_id = request.state.workspace_id
+    period_days = 30
+    since = datetime.utcnow() - timedelta(days=period_days)
+
+    provider_calls_30d = (await db.execute(
+        select(func.count(ProviderCall.id)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    runs_30d = (await db.execute(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.workspace_id == workspace_id,
+            AgentRun.created_at >= since,
+        )
+    )).scalar_one()
+
+    cost_30d = (await db.execute(
+        select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= since,
+        )
+    )).scalar_one()
+
+    chargeback_rules = (await db.execute(
+        select(func.count(ChargebackRule.id)).where(
+            ChargebackRule.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    workflows = (await db.execute(
+        select(func.count(WorkflowDefinition.id)).where(
+            WorkflowDefinition.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    eval_experiments = (await db.execute(
+        select(func.count(EvalExperiment.id)).where(
+            EvalExperiment.workspace_id == workspace_id,
+        )
+    )).scalar_one()
+
+    return VectorStoreDetailEvidencePosture(
+        workspace_id=workspace_id,
+        period_days=period_days,
+        observe_context={
+            "provider_calls_30d": provider_calls_30d,
+            "runs_30d": runs_30d,
+        },
+        cost_context={
+            "cost_30d": cost_30d,
+            "chargeback_rules": chargeback_rules,
+        },
+        build_context={
+            "workflows": workflows,
+            "eval_experiments": eval_experiments,
         },
     )

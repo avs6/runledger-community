@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAgent, getAgentMemories, getAgentMemoryStats, getAgentMemoryAudit } from '@/lib/api'
+import { getAgent, getAgentMemories, getAgentMemoryStats, getAgentMemoryAudit, getAgentDetailGovernancePosture } from '@/lib/api'
 import type { AgentMemoryResponse, AgentMemoryStats, AgentMemoryAuditResponse } from '@/types/api'
 
 function bytes(n: number) {
@@ -93,13 +93,14 @@ export default async function AgentMemoryPage({ params }: { params: Promise<{ ag
     return <p className="p-8 text-slate-500">Sign in to view agent memory.</p>
   }
 
-  let agent, memories, stats: AgentMemoryStats | null = null, audit
+  let agent, memories, stats: AgentMemoryStats | null = null, audit, governancePosture
   try {
-    ;[agent, memories, stats, audit] = await Promise.all([
+    ;[agent, memories, stats, audit, governancePosture] = await Promise.all([
       getAgent(apiKey, agent_id),
       getAgentMemories(apiKey, agent_id, { limit: 100 }),
       getAgentMemoryStats(apiKey, agent_id),
       getAgentMemoryAudit(apiKey, agent_id, { limit: 50 }),
+      getAgentDetailGovernancePosture(apiKey).catch(() => null),
     ])
   } catch {
     return (
@@ -122,6 +123,39 @@ export default async function AgentMemoryPage({ params }: { params: Promise<{ ag
         <span className="text-slate-400">/</span>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Memory</h1>
       </div>
+
+      {/* Governance Posture */}
+      {governancePosture && (
+        <>
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Guardrail &amp; Safety Context</p>
+            <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Guardrail Rules</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.guardrail_context.rules}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Capture Policies</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.safety_context.capture_policies}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Security Events (30d)</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.safety_context.security_events_30d}</p>
+              </div>
+              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Eval Datasets</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{governancePosture.eval_context.datasets}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
+              <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+              <Link href="/data-capture" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Data Capture</Link>
+              <Link href="/security" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Security Events</Link>
+              <Link href="/evaluation" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Evaluation Studio</Link>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Stats */}
       {stats && (

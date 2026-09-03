@@ -1,10 +1,19 @@
 # WU-006: Optimization × Org & Gateway Scope
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - D (Optimization and Decision Support)
 - **Target**: 06-BUILD-AND-IMPROVE/Optimization opportunities, Optimization simulator, Model scorecards
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `OptimizationOrgGatewayPosture` Pydantic schema + `GET /analytics/optimization-org-gateway-posture` endpoint querying WorkspaceUser, ApiKey, HubModel, GatewayRoute, GuardrailRule, ResponseCacheConfig, GatewayPassThroughEndpoint
+- TypeScript: `OptimizationOrgGatewayPosture` interface + `getOptimizationOrgGatewayPosture` API function
+- UI: Blue "Organization & Access Context" card + violet "Gateway & Routing Context" card on Optimization Opportunities, Optimization Simulator, Model Scorecards pages with drill-through links to Organization, API Keys, AI Hub, Model Gateway, Routes, Guardrails, Response Cache, Rate Limits
+- Docs: Added "Organization, Gateway & Observe Context" sections to optimization.mdx, optimization-simulator.mdx, model-scorecards.mdx
+- Postman: Added "Optimization Org Gateway Posture" entry
+- Example: `examples/135_optimization_org_gateway_posture.py`
 
 ## Cohesion Cells to Close
 

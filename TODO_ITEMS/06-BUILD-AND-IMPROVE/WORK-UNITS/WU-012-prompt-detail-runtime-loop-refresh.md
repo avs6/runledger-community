@@ -1,10 +1,20 @@
 # WU-012: Prompt Detail Runtime Loop Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build - A (Interactive Build Surfaces)
 - **Target**: 06-BUILD-AND-IMPROVE/prompt-detail
 - **Created**: 2026-08-16
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `PromptDetailHubFinOpsPosture` schema + `GET /analytics/prompt-detail-hub-finops-posture` endpoint querying HubModel, ChargebackRule, ProviderCall for hub + chargeback context
+- TypeScript: `PromptDetailHubFinOpsPosture` interface + `getPromptDetailHubFinOpsPosture` API function
+- UI: Amber "AI Hub & Cost Attribution Context" card on Prompt detail page showing hub models (total/active), chargeback rules, attributed cost 30d with drill-through to AI Hub, Chargeback, Cost & Savings
+- Docs: Added "AI Hub & Cost Attribution Context (Prompt Detail)" section to prompts.mdx
+- Postman: Added "Prompt Detail Hub FinOps Posture" entry
+- Example: `examples/140_prompt_detail_hub_finops_posture.py`
+- Pre-closed cells: Provider profiles, Model gateway (already STRONG), Runs list, Request flow, Optimization opportunities (WU-002/009). New cells closed: AI hub P→S, Chargeback P→S
 
 ## Cohesion Cells to Close
 

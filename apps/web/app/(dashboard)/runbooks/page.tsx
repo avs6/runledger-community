@@ -21,8 +21,8 @@ import {
   ChevronRight,
   Shield,
 } from 'lucide-react'
-import { listRunbooks, generateRunbook, exportRunbook, getBudgetControlBuildPosture } from '@/lib/api'
-import type { RunbookResponse, BudgetControlBuildPosture } from '@/types/api'
+import { listRunbooks, generateRunbook, exportRunbook, getBudgetControlBuildPosture, getRunbooksRemediationPosture } from '@/lib/api'
+import type { RunbookResponse, BudgetControlBuildPosture, RunbooksRemediationPosture } from '@/types/api'
 
 const PAGE_SIZE = 20
 
@@ -66,9 +66,13 @@ export default function RunbooksPage() {
   const [generateRunId, setGenerateRunId] = useState('')
   const [generating, setGenerating] = useState(false)
   const [budgetControlBuildPosture, setBudgetControlBuildPosture] = useState<BudgetControlBuildPosture | null>(null)
+  const [remediationPosture, setRemediationPosture] = useState<RunbooksRemediationPosture | null>(null)
 
   useEffect(() => {
-    if (apiKey) getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {})
+    if (apiKey) {
+      getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {})
+      getRunbooksRemediationPosture(apiKey).then(setRemediationPosture).catch(() => {})
+    }
   }, [apiKey])
 
   useEffect(() => {
@@ -188,6 +192,41 @@ export default function RunbooksPage() {
             <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
+
+      {remediationPosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Observe, Alert &amp; Cost Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{remediationPosture.observe_context.runs_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{remediationPosture.alert_context.alert_rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Alert Firings 30d</p>
+              <p className={`mt-1 text-lg font-semibold ${remediationPosture.alert_context.alert_firings_30d > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{remediationPosture.alert_context.alert_firings_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cost 30d</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${remediationPosture.cost_context.cost_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{remediationPosture.optimization_context.eval_experiments}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+            <Link href="/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
+            <Link href="/alerts" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Alert Rules</Link>
+            <Link href="/billing" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Billing Periods</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization</Link>
           </div>
         </div>
       )}

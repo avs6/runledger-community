@@ -3373,6 +3373,824 @@
           "response": []
         },
         {
+          "name": "Playground Org & Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/playground-org-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "playground-org-gateway-posture"
+              ]
+            },
+            "description": "Playground org and gateway posture: workspace context (name, users), API key context (total keys, active key name/prefix), AI hub context (models, active models), provider context (distinct providers, active routes), guardrail context (rules, active), cache context (configs, enabled, 30d savings), and rate limit context (rate-limited routes, passthrough endpoints)."
+          },
+          "response": []
+        },
+        {
+          "name": "Prompts Org & Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/prompts-org-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "prompts-org-gateway-posture"
+              ]
+            },
+            "description": "Prompts org and gateway posture: workspace context (name, users), AI hub context (models, active models), provider context (distinct providers, active routes), gateway context (routing policies, active routes), and prompt model context (total prompts, prompts with model hint)."
+          },
+          "response": []
+        },
+        {
+          "name": "Playground Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/playground-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "playground-observe-posture"
+              ]
+            },
+            "description": "Playground observe posture: runs context (runs 30d, total runs), request flow context (provider calls, input/output tokens), model usage context (distinct models, provider calls), and cost/savings context (total cost, cache configs, estimated savings)."
+          },
+          "response": []
+        },
+        {
+          "name": "Prompt Detail Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/prompt-detail-observe-posture?prompt_name=my-prompt",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "prompt-detail-observe-posture"
+              ],
+              "query": [
+                {
+                  "key": "prompt_name",
+                  "value": "my-prompt"
+                }
+              ]
+            },
+            "description": "Prompt detail observe posture: analytics context (total prompts, versions, runs 30d), model usage context (distinct models, provider calls), cost context (total cost, avg cost per call), and request context (provider calls, runs)."
+          },
+          "response": []
+        },
+        {
+          "name": "Workflow Detail Cross-Feature Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/workflow-detail-cross-feature-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "workflow-detail-cross-feature-posture"
+              ]
+            },
+            "description": "Workflow detail cross-feature posture: org context (workspace, access groups, API keys, hub models), gateway context (providers, routes, guardrails, cache, rate limits), observe context (runs, provider calls, distinct models, cost), and finops context (budgets, billing periods, budget limit, spend)."
+          },
+          "response": []
+        },
+        {
+          "name": "Workflows List Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/workflows-list-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "workflows-list-posture"
+              ]
+            },
+            "description": "Workflows list posture: org context (workspace, hub models, active models), gateway context (routes, routing policies), observe context (runs 30d, spend 30d), and eval context (datasets, experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Workflow Detail Loop Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/workflow-detail-loop-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "workflow-detail-loop-posture"
+              ]
+            },
+            "description": "Workflow detail loop posture: runs context (runs 30d, distinct workflows), chargeback context (rules, cost 30d), optimization context (replay experiments), and eval context (experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Workflow Run Evidence Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/workflow-run-evidence-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "workflow-run-evidence-posture"
+              ]
+            },
+            "description": "Workflow run evidence posture: gateway context (guardrail rules, cache configs, rate-limited routes), observe context (runs 30d, provider calls 30d), finops context (budgets, cost 30d), and safety context (audit events 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Datasets Eval Asset Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/datasets-eval-asset-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "datasets-eval-asset-posture"
+              ]
+            },
+            "description": "Datasets eval asset posture: org context (workspace, datasets), observe context (provider calls 30d), finops context (chargeback rules, cost 30d), and build context (eval experiments, replay experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Eval Studio Parent Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/eval-studio-parent-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "eval-studio-parent-posture"
+              ]
+            },
+            "description": "Eval studio parent posture: billing context (billing periods, open periods), chargeback context (chargeback rules, cost 30d), and eval self context (datasets, experiments, replay experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Experiments Comparison Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/experiments-comparison-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "experiments-comparison-posture"
+              ]
+            },
+            "description": "Experiments comparison posture: billing context (billing periods, open periods), chargeback context (chargeback rules, cost 30d), and comparison context (eval experiments, replay experiments, datasets)."
+          },
+          "response": []
+        },
+        {
+          "name": "Replay Lab Mode Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/replay-lab-mode-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "replay-lab-mode-posture"
+              ]
+            },
+            "description": "Replay lab mode posture: chargeback context (chargeback rules, cost 30d) and replay context (replay experiments, replay datasets)."
+          },
+          "response": []
+        },
+        {
+          "name": "Replay Result Analysis Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/replay-result-analysis-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "replay-result-analysis-posture"
+              ]
+            },
+            "description": "Replay result analysis posture: gateway context (guardrail rules, cache configs), observe context (runs 30d, provider calls 30d), and cost context (cost 30d, replay experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Runbooks Remediation Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/runbooks-remediation-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "runbooks-remediation-posture"
+              ]
+            },
+            "description": "Runbooks remediation posture: observe context (runs 30d, provider calls 30d), alert context (alert rules, alert firings 30d), cost context (cost 30d, billing periods), and optimization context (eval experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Opt Opps Rationale Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/opt-opps-rationale-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "opt-opps-rationale-posture"
+              ]
+            },
+            "description": "Optimization opportunities rationale posture: cost context (cost 30d) and optimization context (eval experiments, replay experiments, score events 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Opt Sim Decision Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/opt-sim-decision-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "opt-sim-decision-posture"
+              ]
+            },
+            "description": "Optimization simulator decision posture: cost context (cost 30d) and optimization context (eval experiments, replay experiments, score events 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Model Scorecards Intel Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/model-scorecards-intel-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "model-scorecards-intel-posture"
+              ]
+            },
+            "description": "Model scorecards intelligence posture: model context (hub models, distinct models 30d), cost context (cost 30d), and optimization context (score events 30d, eval experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Vector Stores Lifecycle Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/vector-stores-lifecycle-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "vector-stores-lifecycle-posture"
+              ]
+            },
+            "description": "Vector stores lifecycle posture: workspace context (workspace name), observe context (provider calls 30d), cost context (cost 30d, chargeback rules), and build context (workflows, eval experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Vector Store Detail Evidence Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/vector-store-detail-evidence-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "vector-store-detail-evidence-posture"
+              ]
+            },
+            "description": "Vector store detail evidence posture: observe context (provider calls 30d, runs 30d), cost context (cost 30d, chargeback rules), and build context (workflows, eval experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Eval Replay Org Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/eval-replay-org-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "eval-replay-org-gateway-posture"
+              ]
+            },
+            "description": "Evaluation & replay org/gateway posture: workspace, access groups, API keys, AI hub models, providers, routes, guardrails, cache configs, routing policies."
+          },
+          "response": []
+        },
+        {
+          "name": "Eval Replay Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/eval-replay-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "eval-replay-observe-posture"
+              ]
+            },
+            "description": "Evaluation & replay observe posture: runs (30d/total), request flow (provider calls, tokens), model usage (distinct models), cost & savings (cost, cache configs, estimated savings)."
+          },
+          "response": []
+        },
+        {
+          "name": "Optimization Org Gateway Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/optimization-org-gateway-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "optimization-org-gateway-posture"
+              ]
+            },
+            "description": "Optimization org/gateway posture: workspace, API keys, AI hub models, providers, routes, guardrails, cache configs, rate-limited routes."
+          },
+          "response": []
+        },
+        {
+          "name": "Optimization Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/optimization-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "optimization-observe-posture"
+              ]
+            },
+            "description": "Optimization observe posture: runs (30d/total), request flow (provider calls, tokens), model usage (distinct models), cost & savings (cost, cache configs, estimated savings)."
+          },
+          "response": []
+        },
+        {
+          "name": "Optimization FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/optimization-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "optimization-finops-posture"
+              ]
+            },
+            "description": "Optimization FinOps posture: budget context (active budgets, total limit, spend 30d, notifications), billing context (active/total billing periods), chargeback context (rules, active rules)."
+          },
+          "response": []
+        },
+        {
+          "name": "Build Internal Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/build-internal-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "build-internal-posture"
+              ]
+            },
+            "description": "Build & Improve internal posture: playground context (sessions 30d, provider calls 30d), prompts context (total prompts), workflows context (definitions, runs 30d), evaluation context (datasets, experiments), replay context (datasets, experiments), optimization context (hub models, spend 30d), scorecards context (hub models, score events 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Prompts List Observe Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/prompts-list-observe-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "prompts-list-observe-posture"
+              ]
+            },
+            "description": "Prompts list observe posture: observe context (runs 30d, provider calls 30d, distinct models, spend 30d), eval context (datasets, experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Prompt Detail Hub FinOps Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/prompt-detail-hub-finops-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "prompt-detail-hub-finops-posture"
+              ]
+            },
+            "description": "Prompt detail hub and FinOps posture: hub context (hub models, active models), chargeback context (rules, attributed cost 30d)."
+          },
+          "response": []
+        },
+        {
+          "name": "Agents List Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/agents-list-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "agents-list-posture"
+              ]
+            },
+            "description": "Agents list posture: org context (workspace, hub models), provider context (distinct providers), observe context (runs 30d), finops context (chargeback rules, spend 30d), eval context (datasets, experiments)."
+          },
+          "response": []
+        },
+        {
+          "name": "Agent Detail Governance Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/agent-detail-governance-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "agent-detail-governance-posture"
+              ]
+            },
+            "description": "Agent detail governance posture: guardrail context (rules, events 30d), observe context (runs 30d), safety context (capture policies, security events 30d), eval context (datasets, experiments)."
+          },
+          "response": []
+        },
+        {
           "name": "Billing Period Performance Posture",
           "request": {
             "method": "GET",

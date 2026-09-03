@@ -1,10 +1,20 @@
 # WU-008: Build × FinOps Strengthening
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - A/C/D
 - **Target**: 06-BUILD-AND-IMPROVE/Playground, Prompt detail, Evaluation studio, Experiments, Replay lab, Optimization opportunities, Optimization simulator, Model scorecards
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
+
+## Completion Notes
+
+- Backend: `OptimizationFinOpsPosture` Pydantic schema + `GET /analytics/optimization-finops-posture` endpoint querying Budget, BillingPeriod, ChargebackRule, ProviderCall, BudgetNotification for budget/billing/chargeback context
+- TypeScript: `OptimizationFinOpsPosture` interface + `getOptimizationFinOpsPosture` API function
+- UI: Emerald "FinOps & Budget Context" card on Optimization Opportunities, Optimization Simulator, Model Scorecards pages showing active budgets, total limit, 30d spend, billing periods (active/total) with drill-through links to Budgets, Billing Periods, Chargeback, Cost & Savings
+- Docs: Added "FinOps & Budget Context" sections to optimization.mdx, optimization-simulator.mdx, model-scorecards.mdx
+- Postman: Added "Optimization FinOps Posture" entry
+- Example: `examples/137_optimization_finops_posture.py`
+- Note: 6 of 10 original target cells (Playground/Prompt detail/Eval studio/Experiments/Replay lab × Budgets, Model scorecards × Budgets) were already STRONG from prior 05-FINOPS WU-005. Actual cells closed: Opt opps × Budgets P→S, Opt sim × Budgets/Billing periods/Chargeback P→S, Model scorecards × Billing periods/Chargeback P→S (6 cells total)
 
 ## Cohesion Cells to Close
 

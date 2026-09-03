@@ -1,10 +1,10 @@
 # WU-002: Interactive Build × Observe Bridge
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 06-Build & Improve - A (Interactive Build Surfaces)
 - **Target**: 06-BUILD-AND-IMPROVE/Playground, Prompt detail and versions
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-02
 
 ## Cohesion Cells to Close
 
@@ -47,3 +47,12 @@
 4. All listed cohesion cells updated to target state
 5. All paired feature files updated
 6. FEATURE-STATUS.md dashboard updated
+
+## Completion Notes (2026-09-02)
+
+- Backend: Added `PlaygroundObservePosture` schema and `GET /analytics/playground-observe-posture` endpoint returning runs context (30d/total), request flow context (provider calls, tokens), model usage context (distinct models), and cost/savings context (total cost, cache configs, estimated savings). Added `PromptDetailObservePosture` schema and `GET /analytics/prompt-detail-observe-posture` endpoint returning analytics context (prompts, versions, runs), model usage, cost (total/avg), and request context.
+- UI: Added cyan "Observe & Runtime Context" posture card to Playground page with runs, provider calls, distinct models, cost, and drill-through links to Analytics Overview, Runs, Request Flow, Request Explorer, Model Usage, Cost & Savings. Added cyan "Observe & Analytics Context" posture card to Prompt detail page with same drill-through links.
+- Docs: Added "Observe-Aware Experimentation" section to playground.mdx and "Observe & Analytics Context" section to prompts.mdx with curl examples.
+- Postman: Added "Playground Observe Posture" and "Prompt Detail Observe Posture" entries.
+- Examples: Added `130_playground_observe_posture.py` and `131_prompt_detail_observe_posture.py`.
+- Audit: Updated 06-BUILD COHESION-MATRIX (Playground/Prompt detail × 7 Observe columns P→S each = 14 cells), 03-OBSERVE COHESION-MATRIX paired view, GAP-MATRIX notes, and FEATURE-STATUS counts.

@@ -139,6 +139,38 @@ Every store, update, delete, and PII detection event is logged with timestamp, a
 
 ---
 
+## Agents List Posture (Agents List)
+
+A cross-domain posture card surfacing org, provider, observe, finops, and evaluation context
+for the agents list page.
+
+```bash
+curl http://localhost:8201/analytics/agents-list-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns `org_context` (workspace name, hub models, active models), `provider_context`
+(distinct providers), `observe_context` (runs 30d), `finops_context` (chargeback rules,
+spend 30d), and `eval_context` (datasets, experiments).
+
+---
+
+## Agent Detail Governance Posture (Agent Detail & Memory)
+
+A governance posture card surfacing guardrail, observe, safety, and evaluation context
+for the agent detail and agent memory pages.
+
+```bash
+curl http://localhost:8201/analytics/agent-detail-governance-posture \
+  -H "Authorization: Bearer rl_..."
+```
+
+Returns `guardrail_context` (rules, events 30d), `observe_context` (runs 30d),
+`safety_context` (capture policies, security events 30d), and `eval_context`
+(datasets, experiments).
+
+---
+
 ## Dashboard
 
 The **Agents** page in the dashboard shows a card grid of all registered agents with type

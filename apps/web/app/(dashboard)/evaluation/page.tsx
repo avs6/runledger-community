@@ -17,12 +17,20 @@ import {
   getCostQuality, getBestValueModels,
   getBudgetDetailBuildPosture,
   getBudgetControlBuildPosture,
+  getEvalReplayOrgGatewayPosture,
+  getEvalReplayObservePosture,
+  getBuildInternalPosture,
+  getEvalStudioParentPosture,
 } from '@/lib/api'
 import type {
   EvalDataset, EvalExperiment, DatasetItem, PromptResponse,
   EvaluatorResponse, CostQualityPoint, BestValueModel,
   BudgetDetailBuildPosture,
   BudgetControlBuildPosture,
+  EvalReplayOrgGatewayPosture,
+  EvalReplayObservePosture,
+  BuildInternalPosture,
+  EvalStudioParentPosture,
 } from '@/types/api'
 import QualityScoresTab from '@/components/evaluation/QualityScoresTab'
 
@@ -848,7 +856,12 @@ export default function EvaluationPage() {
     }
   }, [apiKey])
 
-  useEffect(() => { refresh(); if (apiKey) { getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {}); getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {}) } }, [refresh])
+  const [orgGatewayPosture, setOrgGatewayPosture] = useState<EvalReplayOrgGatewayPosture | null>(null)
+  const [observePosture, setObservePosture] = useState<EvalReplayObservePosture | null>(null)
+  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
+  const [parentPosture, setParentPosture] = useState<EvalStudioParentPosture | null>(null)
+
+  useEffect(() => { refresh(); if (apiKey) { getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {}); getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {}); getEvalReplayOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {}); getEvalReplayObservePosture(apiKey).then(setObservePosture).catch(() => {}); getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {}); getEvalStudioParentPosture(apiKey).then(setParentPosture).catch(() => {}) } }, [refresh])
   useEffect(() => {
     const next = parseTab(searchParams.get('tab'))
     setTab((current) => (current === next ? current : next))
@@ -981,6 +994,169 @@ export default function EvaluationPage() {
             <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
             <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          </div>
+        </div>
+      )}
+
+      {orgGatewayPosture && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Organization &amp; Access Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.workspace_context.workspace_name}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Access Groups</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.access_group_context.access_groups}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">API Keys</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.api_key_context.api_keys}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.ai_hub_context.hub_models}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+            <Link href="/organization" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Organization</Link>
+            <Link href="/access-groups" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Access Groups</Link>
+            <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
+            <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
+          </div>
+        </div>
+      )}
+
+      {orgGatewayPosture && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway &amp; Routing Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Providers</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.provider_context.distinct_providers}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Active Routes</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.provider_context.active_routes}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Guardrails</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.guardrail_context.guardrail_rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Configs</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.gateway_context.cache_configs}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
+            <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
+            <Link href="/routes" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Routes</Link>
+            <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+            <Link href="/response-cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
+          </div>
+        </div>
+      )}
+
+      {observePosture && (
+        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Runtime Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.runs_context.runs_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.request_flow_context.provider_calls_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Distinct Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.model_usage_context.distinct_models_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Cost 30d</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${observePosture.cost_savings_context.total_cost_30d.toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/analytics?tab=requests" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
+            <Link href="/request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
+            <Link href="/analytics?tab=models" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost &amp; Savings</Link>
+          </div>
+        </div>
+      )}
+
+      {buildPosture && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Playground 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.playground_context.sessions_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Workflows</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.workflows_context.definitions}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.optimization_context.hub_models}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Score Events 30d</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.scorecards_context.score_events_30d}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Replay Experiments</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.replay_context.experiments}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
+            <Link href="/playground" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Playground</Link>
+            <Link href="/workflows" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Workflows</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Optimization</Link>
+            <Link href="/optimization-simulator" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Simulator</Link>
+            <Link href="/model-scorecards" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Model Scorecards</Link>
+          </div>
+        </div>
+      )}
+
+      {parentPosture && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Billing &amp; Chargeback Context</p>
+          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Billing Periods</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.billing_context.billing_periods}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Open Periods</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.billing_context.open_periods}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.chargeback_context.chargeback_rules}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cost 30d</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${parentPosture.chargeback_context.cost_30d.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Assets</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.eval_self_context.datasets + parentPosture.eval_self_context.experiments + parentPosture.eval_self_context.replay_experiments}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
+            <Link href="/billing" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Billing Periods</Link>
+            <Link href="/chargeback" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Chargeback Rules</Link>
+            <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
+            <Link href="/datasets" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Datasets</Link>
+            <Link href="/experiments" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Experiments</Link>
+            <Link href="/replay" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Replay Lab</Link>
           </div>
         </div>
       )}
