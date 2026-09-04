@@ -177,7 +177,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-60 min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-[#eef3f8]/95 px-3 py-4 backdrop-blur-xl dark:border-[hsl(220_10%_16%)] dark:bg-[hsl(220_13%_9%/0.98)]">
+    <aside className="flex h-full w-60 min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-[#eef3f8]/95 px-3 py-4 backdrop-blur-xl dark:border-[#252830] dark:bg-[#141720]/98">
       <div className="mb-5 shrink-0 px-2">
         <RunLedgerLogo markSize={30} />
       </div>
