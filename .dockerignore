@@ -1,0 +1,8 @@
+node_modules
+.next
+.env*.local
+.kilo
+.git
+TODO_ITEMS
+*.log
+docker-volumes

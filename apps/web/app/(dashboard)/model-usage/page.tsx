@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { Activity, ArrowRight, Clock, Cpu, DollarSign, GitBranch, Network, Route, Sparkles, Table2, Tags, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getBestValueModels, getBudgetControlObservePosture, getCostQuality, getInvestigationGatewayRuntimePosture, getModelBudgetUtilization, getModelUsageGatewayPosture, getRunFlow } from '@/lib/api'
-import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
+import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
+import { getDashboardWindow } from '@/lib/dashboard-window'
 import {
   ModelQualityCostBars,
   RoutingDistribution,

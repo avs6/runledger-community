@@ -423,6 +423,135 @@
     background-color: hsl(var(--surface-inverse)) !important;
     color: hsl(var(--primary-foreground)) !important;
   }
+
+  /* ── Auto-dark: remap light-only Tailwind classes when no dark: override exists ── */
+  /* Backgrounds */
+  .dark main .bg-white,
+  .dark main .bg-white\/90,
+  .dark main .bg-white\/80,
+  .dark main .bg-white\/60,
+  .dark main .dark\:bg-white,
+  .dark main .dark\:bg-white\/90,
+  .dark main .dark\:bg-white\/80,
+  .dark main .dark\:bg-white\/75 {
+    background-color: hsl(var(--card)) !important;
+  }
+
+  .dark main .dark\:bg-slate-100\/80,
+  .dark main .dark\:bg-slate-100 {
+    background-color: hsl(var(--surface-tertiary)) !important;
+  }
+
+  .dark main .dark\:divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark main .bg-\[\#f8fafc\],
+  .dark main .bg-\[\#f4f8fc\],
+  .dark main .bg-\[\#f4f8fc\]\/95,
+  .dark main .bg-slate-50 {
+    background-color: hsl(var(--surface-secondary)) !important;
+  }
+
+  .dark main .bg-slate-100 {
+    background-color: hsl(var(--surface-tertiary)) !important;
+  }
+
+  /* Text */
+  .dark main .text-slate-950,
+  .dark main .text-slate-900 {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark main .text-slate-800 {
+    color: hsl(210 17% 90%) !important;
+  }
+
+  .dark main .text-slate-700 {
+    color: hsl(210 17% 82%) !important;
+  }
+
+  .dark main .text-slate-600 {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  .dark main .text-slate-500 {
+    color: hsl(215 14% 50%) !important;
+  }
+
+  /* Gray text (used by some pages) */
+  .dark main .text-gray-400,
+  .dark main .text-gray-500 {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  .dark main .text-gray-600,
+  .dark main .text-gray-700,
+  .dark main .text-gray-800 {
+    color: hsl(210 17% 82%) !important;
+  }
+
+  .dark main .text-gray-900 {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  /* Gray borders */
+  .dark main .border-gray-200,
+  .dark main .border-gray-300 {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  /* Gray backgrounds */
+  .dark main .bg-gray-50,
+  .dark main .bg-gray-100 {
+    background-color: hsl(var(--surface-tertiary)) !important;
+  }
+
+  .dark main .bg-gray-900 {
+    background-color: hsl(var(--surface-secondary)) !important;
+  }
+
+  /* Borders */
+  .dark main .border-slate-200,
+  .dark main .border-slate-300,
+  .dark main .border-slate-100,
+  .dark main .dark\:border-slate-300,
+  .dark main .dark\:border-slate-200 {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  /* Dividers */
+  .dark main .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+  .dark main .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+  .dark main .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  /* Rings */
+  .dark main .ring-slate-200,
+  .dark main .ring-slate-300 {
+    --tw-ring-color: hsl(var(--border)) !important;
+  }
+
+  /* Hover states */
+  .dark main .hover\:bg-blue-50:hover,
+  .dark main .hover\:bg-slate-50:hover {
+    background-color: hsl(var(--accent)) !important;
+  }
+
+  .dark main .hover\:bg-slate-100:hover,
+  .dark main .hover\:bg-gray-100:hover {
+    background-color: hsl(var(--surface-tertiary)) !important;
+  }
+
+  /* Form inputs — ensure inputs/selects/textareas get dark bg */
+  .dark main input[class*="bg-white"],
+  .dark main select[class*="bg-white"],
+  .dark main textarea[class*="bg-white"] {
+    background-color: hsl(var(--input-bg)) !important;
+    color: hsl(var(--input-text)) !important;
+    border-color: hsl(var(--input-border)) !important;
+  }
 }
 
 /* ── Print styles (used by "Print / Save PDF" in Runs) ───────────────────── */

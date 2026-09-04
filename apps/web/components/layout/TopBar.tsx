@@ -155,7 +155,7 @@ export default function TopBar() {
   const wsDropdown = mounted && wsMenuOpen && dropdownPos ? createPortal(
     <div
       ref={dropdownRef}
-      className="fixed w-64 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-xl dark:border-[hsl(220,10%,18%)] dark:bg-[hsl(220,13%,12%)]"
+      className="fixed w-64 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-xl dark:border-[hsl(220_10%_18%)] dark:bg-[hsl(220_13%_12%)]"
       style={{ top: dropdownPos.top, left: dropdownPos.left, zIndex: 99999 }}
     >
       <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800">
@@ -199,7 +199,7 @@ export default function TopBar() {
   ) : null
 
   return (
-    <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-[#f8fafc]/95 px-4 dark:border-[hsl(220,10%,16%)] dark:bg-[hsl(220,13%,9%)]/98">
+    <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-[#f8fafc]/95 px-4 dark:border-[hsl(220_10%_16%)] dark:bg-[hsl(220_13%_9%/0.98)]">
       {/* Left: org > workspace breadcrumb + switcher */}
       <div className="flex items-center gap-1.5">
         {orgName && (
@@ -269,7 +269,7 @@ export default function TopBar() {
           {userMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-lg dark:border-[hsl(220,10%,18%)] dark:bg-[hsl(220,13%,12%)]">
+              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-lg dark:border-[hsl(220_10%_18%)] dark:bg-[hsl(220_13%_12%)]">
                 <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                   <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{displayName}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{email}</p>

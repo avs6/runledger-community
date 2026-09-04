@@ -26,7 +26,8 @@ import {
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getEngineeringMetrics, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
-import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
+import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
+import { getDashboardWindow } from '@/lib/dashboard-window'
 import { formatCost, formatTokens } from '@/lib/utils'
 import type { EngineeringMetrics, CostByDimension, LifecycleStage, QualityFunnel } from '@/types/api'
 
@@ -55,25 +56,25 @@ function KpiCard({
     purple: 'text-purple-600 bg-purple-50',
   }
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-300 dark:bg-white/90">
+    <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-[hsl(220_10%_20%)] dark:bg-[hsl(220_13%_13%)]">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{title}</p>
         <span className={`rounded-lg p-1.5 ${colors[accent]}`}>
           <Icon className="h-3.5 w-3.5" />
         </span>
       </div>
-      <p className="mt-2 text-xl font-bold text-slate-950">{value}</p>
-      {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
+      <p className="mt-2 text-xl font-bold text-slate-950 dark:text-white">{value}</p>
+      {sub && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
     </div>
   )
 }
 
 function SectionCard({ title, children, icon: Icon }: { title: string; children: React.ReactNode; icon: React.ElementType }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-300 dark:bg-white/90">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-        <Icon className="h-4 w-4 text-blue-600" />
-        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+    <div className="rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-[hsl(220_10%_20%)] dark:bg-[hsl(220_13%_13%)]">
+      <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4 dark:border-[hsl(220_10%_20%)]">
+        <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        <h2 className="text-base font-semibold text-slate-950 dark:text-white">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
     </div>
@@ -94,10 +95,10 @@ function CostTable({ title, items }: { title: string; items: CostByDimension[] }
           return (
             <div key={item.name}>
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-slate-700 truncate max-w-[180px]" title={item.name}>{item.name}</span>
-                <span className="font-mono text-slate-600">{formatCost(item.cost_usd)} <span className="text-slate-400">({item.call_count})</span></span>
+                <span className="font-medium text-slate-700 dark:text-slate-200 truncate max-w-[180px]" title={item.name}>{item.name}</span>
+                <span className="font-mono text-slate-600 dark:text-slate-300">{formatCost(item.cost_usd)} <span className="text-slate-400">({item.call_count})</span></span>
               </div>
-              <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100">
+              <div className="mt-1 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800">
                 <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
               </div>
             </div>
@@ -126,12 +127,12 @@ function FunnelChart({ funnel }: { funnel: QualityFunnel }) {
         return (
           <div key={stage.label}>
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-slate-700">{stage.label}</span>
-              <span className="font-mono text-slate-600">
+              <span className="font-medium text-slate-700 dark:text-slate-200">{stage.label}</span>
+              <span className="font-mono text-slate-600 dark:text-slate-300">
                 {stage.count.toLocaleString()} <span className="text-slate-400">({pct.toFixed(1)}%)</span>
               </span>
             </div>
-            <div className="mt-1 h-4 w-full rounded-lg bg-slate-100">
+            <div className="mt-1 h-4 w-full rounded-lg bg-slate-100 dark:bg-slate-800">
               <div className={`h-4 rounded-lg ${stage.color} transition-all`} style={{ width: `${Math.max(pct, 0.5)}%` }} />
             </div>
           </div>
@@ -320,27 +321,27 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Engineering Dashboard</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Engineering Dashboard</h1>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
             Latency, errors, retries, cache performance, cost breakdowns, and quality funnel for your AI systems.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/request-explorer"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-[hsl(220_10%_20%)] dark:bg-[hsl(220_13%_16%)] dark:text-slate-200 dark:hover:bg-slate-700/50"
           >
             Request Explorer <Search className="h-4 w-4" />
           </Link>
           <Link
             href="/request-flow"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-[hsl(220_10%_20%)] dark:bg-[hsl(220_13%_16%)] dark:text-slate-200 dark:hover:bg-slate-700/50"
           >
             Request Flow <Route className="h-4 w-4" />
           </Link>
           <Link
             href="/model-usage"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-[hsl(220_10%_20%)] dark:bg-[hsl(220_13%_16%)] dark:text-slate-200 dark:hover:bg-slate-700/50"
           >
             Model Usage <Cpu className="h-4 w-4" />
           </Link>
@@ -356,10 +357,10 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
       />
 
       {!metrics ? (
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-12 text-center shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-12 text-center shadow-sm dark:border-[hsl(220_10%_20%)] dark:bg-[hsl(220_13%_13%)]">
           <Activity className="mx-auto h-8 w-8 text-slate-400" />
-          <p className="mt-3 text-base font-semibold text-slate-950">No engineering data available</p>
-          <p className="mt-1 text-sm text-slate-500">Send traffic through SDK, Gateway, or OTLP to see metrics here.</p>
+          <p className="mt-3 text-base font-semibold text-slate-950 dark:text-white">No engineering data available</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Send traffic through SDK, Gateway, or OTLP to see metrics here.</p>
         </div>
       ) : (
         <>
@@ -443,19 +444,19 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
 
           {/* Prompt Lifecycle Pipeline */}
           <SectionCard title="Request Lifecycle Pipeline" icon={Route}>
-            <p className="mb-4 text-sm text-slate-600">How requests flow through the system: received → routed → cached → completed → outcome → positive feedback.</p>
+            <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">How requests flow through the system: received → routed → cached → completed → outcome → positive feedback.</p>
             <LifecyclePipeline stages={metrics.lifecycle_stages} />
           </SectionCard>
 
           {/* Quality Funnel + Agent Dependency side by side */}
           <div className="grid gap-6 xl:grid-cols-2">
             <SectionCard title="Quality Funnel" icon={Filter}>
-              <p className="mb-4 text-sm text-slate-600">Conversion from total requests to positive outcomes.</p>
+              <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">Conversion from total requests to positive outcomes.</p>
               <FunnelChart funnel={metrics.quality_funnel} />
             </SectionCard>
 
             <SectionCard title="Agent Dependency Graph" icon={BrainCircuit}>
-              <p className="mb-4 text-sm text-slate-600">How agents, models, tools, memory, and policies connect in the request path.</p>
+              <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">How agents, models, tools, memory, and policies connect in the request path.</p>
               <AgentDependencyGraph />
             </SectionCard>
           </div>

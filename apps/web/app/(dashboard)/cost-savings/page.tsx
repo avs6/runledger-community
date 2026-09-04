@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { ArrowRight, Banknote, Flame, LineChart, Network, PiggyBank, Target, TrendingDown, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getBudgetRollup, getEconomicsFinopsPosture, getEconomicsGatewayPosture, getRunFlow } from '@/lib/api'
-import DashboardScopeBar, { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
+import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
+import { getDashboardWindow } from '@/lib/dashboard-window'
 import {
   CostBreakdownBars,
   CostHeatmap,
