@@ -199,7 +199,7 @@ export default function TopBar() {
   ) : null
 
   return (
-    <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-[#f8fafc]/95 px-4 dark:border-[#252830] dark:bg-[#141720]/98">
+    <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-[#f8fafc]/95 px-4 dark:border-[#252830] dark:bg-[#151821]">
       {/* Left: org > workspace breadcrumb + switcher */}
       <div className="flex items-center gap-1.5">
         {orgName && (
