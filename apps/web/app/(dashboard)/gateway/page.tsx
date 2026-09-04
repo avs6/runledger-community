@@ -1586,18 +1586,18 @@ export default function GatewayPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Runtime Status</p>
-              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.runtime_status.rust_gateway_port}</p>
-              <p className="text-xs text-slate-400">{consumerMigrationPosture.runtime_status.python_stub_status} stub · {consumerMigrationPosture.runtime_status.active_routes} routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">:{consumerMigrationPosture.runtime_status.live_data_plane_port}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.runtime_status.live_data_plane} · {consumerMigrationPosture.runtime_status.active_routes} routes</p>
             </div>
             <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Legacy Deprecation</p>
-              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.legacy_deprecation.router_sidecar_status}</p>
-              <p className="text-xs text-slate-400">{consumerMigrationPosture.legacy_deprecation.compose_profile} profile · {consumerMigrationPosture.legacy_deprecation.helm_replicas} replicas</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.legacy_deprecation.router_sidecar}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.legacy_deprecation.router_sidecar_profile} profile · {consumerMigrationPosture.legacy_deprecation.python_completion_stub}</p>
             </div>
             <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Consumer Assets</p>
-              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.consumer_assets.distinct_providers}</p>
-              <p className="text-xs text-slate-400">{consumerMigrationPosture.consumer_assets.api_keys} keys · {consumerMigrationPosture.consumer_assets.total_routes} total routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.runtime_status.distinct_providers}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.consumer_assets.api_keys} keys · {consumerMigrationPosture.runtime_status.total_routes} total routes</p>
             </div>
             <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Observe (7d)</p>
