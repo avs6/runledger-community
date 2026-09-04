@@ -416,6 +416,129 @@ The gateway runtime architecture is only complete when all of the following are 
 - docs, scripts, and examples reflect the split architecture
 - operators can see deployment mode and runtime health clearly
 
+## Runtime boundary posture API
+
+The analytics endpoint `GET /analytics/gateway-runtime-boundary-posture` exposes the current architecture split state for the workspace:
+
+- **Rust data plane** — service identity, port, capabilities list, count of routes eligible for direct HTTP execution, active routes, and distinct provider count.
+- **Python control plane** — module inventory, ownership domains, route and policy counts, passthrough and cache config counts.
+- **Hot-path migration** — legacy stub status (410 GONE), runtime ownership assignments (preflight in Python, execution in Rust, finalize in Python), guardrail and budget counts that participate in the split.
+- **Runtime contracts** — the explicit internal API paths that form the Rust-to-Python boundary (preflight, finalize, resolve-api-key, provider-execute, route-result, mirror, signed events, snapshot).
+- **Observe context** — 7-day request and cache hit counts, monitoring alerts, and 30-day audit event counts for the workspace.
+
+This posture card is rendered on the Model Gateway page in the UI with teal-themed boundary visibility.
+
+## Sidecar collapse — runtime consolidation
+
+The standalone `runledger-router` Python sidecar (formerly port 8105, Docker Compose profile `aux`) has been absorbed into `runledger-gateway-rs`. Intelligent routing classification (complexity × risk → tier, reasoning effort) now executes inside the Rust data plane as part of the request pipeline:
+
+- **Classifier endpoint**: `POST /classify` on `runledger-gateway-rs:8210`
+- **Classifier modes**: `heuristic`, `llm`, `hybrid` (unchanged from the former sidecar)
+- **Topology change**: `ROUTER_SVC_URL` now defaults to `http://runledger-gateway-rs:8210`; the former `runledger-router` service is moved to the `deprecated` Docker Compose profile
+- **Fail-open**: if classification fails, the request proceeds to its requested alias (passthrough)
+
+The posture endpoint `GET /analytics/sidecar-collapse-posture` exposes:
+
+- **Collapsed service** — former name, port, deprecation status
+- **Gateway-rs absorption** — service identity, classifier endpoint, enabled route counts
+- **Topology simplification** — services removed, env vars redirected, affected Compose profiles
+- **Routing classification** — owner, routing group/policy counts, guardrails, cache configs
+- **Observe context** — 7-day request and routed request counts
+
+This posture card is rendered on the Model Gateway page in the UI with amber-themed consolidation visibility.
+
+## Consumer migration — legacy cleanup
+
+All consumer-facing data-plane assets (chat completions, streaming, pass-through endpoints) have migrated from the Python inline runtime (port 8201) to the Rust gateway (`runledger-gateway-rs`, port 8210). The Python `/gateway/chat/completions` endpoint now returns **410 GONE** as a compatibility stub:
+
+- **Rust data plane**: `POST http://localhost:8210/gateway/chat/completions` (production traffic)
+- **Python control plane**: port 8201 retains routes, stats, analytics, budgets, and all management APIs
+- **Benchmark scripts**: default `--base-url` updated from `http://localhost:8201` to `http://localhost:8210`
+- **SDK env var**: `RUNLEDGER_GATEWAY_BASE_URL=http://localhost:8210/gateway`
+
+The posture endpoint `GET /analytics/consumer-migration-posture` exposes:
+
+- **Runtime status** — Rust gateway port, Python stub status, active/total route counts, distinct providers
+- **Legacy deprecation** — router sidecar status, Compose profile, Helm replica count
+- **Consumer assets** — provider count, API key count, total routes
+- **Observe context** — 7d/30d request volumes, cache hits, audit events
+
+This posture card is rendered on the Model Gateway page in the UI with orange-themed migration visibility.
+
+## Runtime scope model — governance enforcement
+
+The Rust data plane consumes scope context from the Python control plane during preflight to make runtime governance decisions. The scope model formalizes how identity propagates through enforcement:
+
+- **Identity inputs**: `workspace_id`, `api_key_id`, `access_group_id`, `org_id` — carried in every preflight request from Rust to Python
+- **Scope types**: `workspace`, `access_group`, `group`, `search_tool` — each maps to a tool policy scope with distinct enforcement behaviour
+- **Enforcement points**: gateway preflight, guardrails evaluation, tool policy matching, budget checks
+- **Policy actions**: `allow`, `audit`, `block`, `require_approval`, `deny` — resolved per-request against scope-matched policies
+
+The posture endpoint `GET /analytics/runtime-scope-model-posture` exposes:
+
+- **Identity model** — access group count, member count, groups with budget/guardrail constraints, API key count, supported scope types
+- **Policy enforcement** — tool policy counts by scope type (workspace vs access-group), guardrail rules, 30d guardrail events, available policy actions
+- **Scope propagation** — Rust/Python plane addresses, preflight scope inputs, enforcement point inventory, active route count
+- **Observe context** — 30d request volume, guardrail events, audit events
+
+This posture card is rendered on the Model Gateway page in the UI with violet-themed governance visibility.
+
+## Scope enforcement evidence loop
+
+Building on the runtime scope model, the enforcement evidence loop closes the gap between policy decisions and observability. Each guardrail evaluation produces an event with decision (`allow`, `block`, `modify`), reason, rule identity, latency, model, and user context. Tool policy evaluations resolve scope-matched policies (workspace-scoped vs access-group-scoped) against the request's identity inputs.
+
+The posture endpoint `GET /analytics/scope-enforcement-evidence-posture` exposes:
+
+- **Enforcement summary** — 30d guardrail events by decision (blocked, allowed, modified), false positive count, distinct rules triggered, active guardrail rule count
+- **Scope friction** — tool policies by scope type, block rate %, false positive rate %, access groups with guardrail profiles
+- **Violation lineage** — scope inputs (workspace_id, api_key_id, access_group_id, org_id), enforcement points, decision outcomes, evidence fields carried on each event
+- **Evidence loop** — 30d request volume, audit events, API key count, observe surfaces (guardrail_events, audit_events, gateway_requests), governance surfaces (tool_policies, guardrail_rules, access_groups)
+
+This posture card is rendered on the Model Gateway page in the UI with emerald-themed evidence visibility.
+
+## Pipeline studio — flow visualization
+
+The Pipeline Studio (`/pipeline-studio`) provides a workflow-centered view of the full ingest-to-outcome pipeline. Rather than inspecting individual gateway, observe, or governance surfaces in isolation, the pipeline view shows how data flows through the system end-to-end:
+
+- **Stages**: ingest → routing → enforcement → execution → reporting
+- **Routing nodes**: active routes, distinct providers, routing groups, routing policies
+- **Traffic overlay**: 7d/30d request volumes, cache hits, audit events
+- **Enforcement overlay**: guardrail rules, events, blocks, tool policies, enforcement points
+- **FinOps overlay**: budget count, cost tracking model, budget enforcement point
+- **Build overlay**: agent and workflow counts, pipeline participant types
+
+The posture endpoint `GET /analytics/pipeline-studio-posture` provides the backing data for the pipeline graph, traffic volume overlays, enforcement hotspots, and FinOps/build context panels.
+
+### API explorer — generated Swagger UI
+
+RunLedger generates its OpenAPI specification from the FastAPI control plane and serves an interactive reference UI via [Scalar](https://scalar.com/) at the `/reference` endpoint. The spec format is OpenAPI 3.1 JSON, auto-generated from route metadata.
+
+Endpoint ownership is partitioned across planes:
+
+- **Control plane** (`localhost:8000 / 8201`): organizations, workspaces, provider profiles, budgets, guardrails, SCIM, SSO, API keys, settings, model registry
+- **Data plane** (`localhost:8210` — gateway-rs): `/v1/chat/completions`, `/v1/embeddings`, semantic cache, model routing, token metering
+- **Observability** (`localhost:8000`): analytics posture endpoints, OTLP ingest, audit trail, eval/replay, traces, spans, cost attribution
+- **Admin** (`localhost:8000`): bootstrap, system health, migrations, license management
+
+SDK snippets target Python, TypeScript, Go, and cURL. The authentication model is `x-api-key` header with workspace- or session-scoped tokens.
+
+The posture endpoint `GET /analytics/api-explorer-posture` provides the backing data for the API explorer page, including OpenAPI surface metadata, endpoint ownership by plane, SDK support details, and 30-day observe context.
+
+### Design system — tokens, scope, and dark mode
+
+RunLedger uses a semantic design token system defined in `globals.css` and surfaced through the design system posture endpoint. The token system covers:
+
+- **Color tokens**: 22 semantic CSS custom properties for background, foreground, card, border, muted, accent, destructive, chart, and ring
+- **Scope visual language**: distinct color assignments per scope level — platform (slate), organization (blue), workspace (indigo), access group (violet), API key (amber) — so context is instantly recognizable
+- **Status semantics**: operational states (success/warning/error/info/neutral), severity levels (low/medium/high/critical), and runtime states (active/degraded/down/maintenance) with consistent color mappings
+- **Typography**: three font stacks — sans (Inter/Segoe UI), display (Plus Jakarta Sans), mono (JetBrains Mono) — with OpenType feature settings
+- **Dark mode**: class-based `.dark` strategy with semantic token overrides; legacy hard-coded utilities are mapped through semantic surface tokens (`--surface-primary`, `--surface-secondary`, `--surface-tertiary`) rather than raw color values
+- **Density modes**: default (48px row) and compact (36px row) modes for data-heavy operator pages, toggled via `data-density="compact"` attribute
+- **Elevation**: three shadow levels (sm, md, lg) with mode-aware opacity
+- **Layout shells**: five consistent admin layouts (platform, org, gateway, observability, build) with collapsible sidebar navigation and 1600px max content width
+
+The posture endpoint `GET /analytics/design-system-posture` provides the backing data for the design system page, including token inventory, dark mode status, scope color mappings, layout shell configuration, density mode settings, and status semantic definitions.
+
 ## Related documents
 
 - [Model Gateway overview](./overview.mdx)

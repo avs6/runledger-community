@@ -7,7 +7,7 @@ provider endpoint, and prints a compact summary plus a JSON manifest.
 
 Example:
     python scripts/bench/run_benchmark.py \
-        --base-url http://localhost:8201 \
+        --base-url http://localhost:8210 \
         --api-key rl_... \
         --alias chat \
         --repeat 30 \
@@ -96,7 +96,7 @@ async def _run_requests(
 
 async def main_async() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base-url", default="http://localhost:8201")
+    ap.add_argument("--base-url", default="http://localhost:8210")
     ap.add_argument("--api-key", required=True)
     ap.add_argument("--alias", required=True, help="Gateway alias to target")
     ap.add_argument("--profile", default="baseline")

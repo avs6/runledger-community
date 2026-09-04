@@ -1,16 +1,16 @@
 # WU-003: Consumer Migration and Legacy Cleanup
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 08-Planned Architecture - A (Rust Runtime and Gateway Data-Plane Consolidation)
 - **Target**: 08-PLANNED-ARCHITECTURE/Legacy Python gateway deprecation and consumer migration
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
 
 ## Delivery Gaps to Close
 
 | Feature | Backend | UI | Actions | Docs | Postman | Scripts | Source |
 |---------|---------|-----|---------|------|---------|---------|--------|
-| Legacy Python gateway deprecation | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL | GAP-MATRIX §9 |
+| Legacy Python gateway deprecation | OK | OK | OK | OK | OK | OK | GAP-MATRIX §9 |
 
 Note: No COHESION-MATRIX exists for Planned Architecture. Gaps derived from GAP-MATRIX and BLUEPRINT cross-feature integration requirements.
 

@@ -18,7 +18,11 @@ import {
   getFlywheelSettings, updateFlywheelSettings, listFlywheelRecommendations,
   applyFlywheelRecommendation, dismissFlywheelRecommendation, runFlywheel,
   listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint, testGatewayPassThroughEndpoint, listGatewayPassThroughStats, getGatewayBenchmarkComparison,
-  getGatewayRateLimitOverview, getGatewayFinopsPosture, getGatewayObservePosture, getGatewaySafetyPosture, getGatewayBuildPosture, getPerformanceControlsOrgPosture, getGatewayInternalPosture, getGatewayControlPlanePosture, getResponseCacheEconomicsPosture, getRateLimitScopePosture,
+  getGatewayRateLimitOverview, getGatewayFinopsPosture, getGatewayObservePosture, getGatewaySafetyPosture, getGatewayBuildPosture, getPerformanceControlsOrgPosture, getGatewayInternalPosture, getGatewayControlPlanePosture, getResponseCacheEconomicsPosture, getRateLimitScopePosture, getGatewayRuntimeBoundaryPosture,
+  getSidecarCollapsePosture,
+  getConsumerMigrationPosture,
+  getRuntimeScopeModelPosture,
+  getScopeEnforcementEvidencePosture,
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
@@ -30,7 +34,7 @@ import type {
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
   GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
-  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture,
+  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture,
 } from '@/types/api'
 
 const inputCls =
@@ -244,6 +248,11 @@ export default function GatewayPage() {
   const [controlPlanePosture, setControlPlanePosture] = useState<GatewayControlPlanePosture | null>(null)
   const [cacheEconomicsPosture, setCacheEconomicsPosture] = useState<ResponseCacheEconomicsPosture | null>(null)
   const [rateLimitScopePosture, setRateLimitScopePosture] = useState<RateLimitScopePosture | null>(null)
+  const [runtimeBoundaryPosture, setRuntimeBoundaryPosture] = useState<GatewayRuntimeBoundaryPosture | null>(null)
+  const [sidecarCollapsePosture, setSidecarCollapsePosture] = useState<SidecarCollapsePosture | null>(null)
+  const [consumerMigrationPosture, setConsumerMigrationPosture] = useState<ConsumerMigrationPosture | null>(null)
+  const [runtimeScopeModelPosture, setRuntimeScopeModelPosture] = useState<RuntimeScopeModelPosture | null>(null)
+  const [scopeEnforcementEvidencePosture, setScopeEnforcementEvidencePosture] = useState<ScopeEnforcementEvidencePosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -302,6 +311,11 @@ export default function GatewayPage() {
     getGatewayControlPlanePosture(apiKey).then(setControlPlanePosture).catch(() => {})
     getResponseCacheEconomicsPosture(apiKey).then(setCacheEconomicsPosture).catch(() => {})
     getRateLimitScopePosture(apiKey).then(setRateLimitScopePosture).catch(() => {})
+    getGatewayRuntimeBoundaryPosture(apiKey).then(setRuntimeBoundaryPosture).catch(() => {})
+    getSidecarCollapsePosture(apiKey).then(setSidecarCollapsePosture).catch(() => {})
+    getConsumerMigrationPosture(apiKey).then(setConsumerMigrationPosture).catch(() => {})
+    getRuntimeScopeModelPosture(apiKey).then(setRuntimeScopeModelPosture).catch(() => {})
+    getScopeEnforcementEvidencePosture(apiKey).then(setScopeEnforcementEvidencePosture).catch(() => {})
   }, [apiKey])
 
   if (!canManage) {
@@ -1439,6 +1453,266 @@ export default function GatewayPage() {
             <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
             <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
             <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimeBoundaryPosture && (
+        <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-teal-900 dark:text-teal-100">Runtime Boundary — Rust Data Plane & Python Control Plane</h2>
+            <p className="mt-0.5 text-xs text-teal-700 dark:text-teal-400">
+              Architecture split visibility: Rust gateway-rs owns live request execution, Python owns control-plane configuration, preflight decisions, and finalize/metering.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Rust Data Plane</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeBoundaryPosture.rust_data_plane.service}</p>
+              <p className="text-xs text-slate-400">Port {runtimeBoundaryPosture.rust_data_plane.port} · {runtimeBoundaryPosture.rust_data_plane.capabilities.length} capabilities</p>
+            </div>
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Direct HTTP Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeBoundaryPosture.rust_data_plane.direct_http_routes}</p>
+              <p className="text-xs text-slate-400">{runtimeBoundaryPosture.rust_data_plane.active_routes} active · {runtimeBoundaryPosture.rust_data_plane.distinct_providers} providers</p>
+            </div>
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Python Control Plane</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeBoundaryPosture.python_control_plane.modules.length} modules</p>
+              <p className="text-xs text-slate-400">{runtimeBoundaryPosture.python_control_plane.ownership.length} ownership domains</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Legacy Stub</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeBoundaryPosture.hot_path_migration.legacy_stub}</p>
+              <p className="text-xs text-slate-400">{runtimeBoundaryPosture.hot_path_migration.legacy_route}</p>
+            </div>
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Runtime Contracts</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">9</p>
+              <p className="text-xs text-slate-400">preflight · finalize · snapshot · events + 5 internal</p>
+            </div>
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Requests (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeBoundaryPosture.observe_context.requests_7d}</p>
+              <p className="text-xs text-slate-400">{runtimeBoundaryPosture.observe_context.cache_hits_7d} cache hits</p>
+            </div>
+            <div className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400">Guardrails & Budgets</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeBoundaryPosture.hot_path_migration.active_guardrails}</p>
+              <p className="text-xs text-slate-400">{runtimeBoundaryPosture.hot_path_migration.budgets} budgets enforced</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Runs</Link>
+            <Link href="/analytics/monitoring" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Monitoring</Link>
+            <Link href="/budgets" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Budgets</Link>
+            <Link href="/tool-policies" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Tool Policies</Link>
+            <Link href="/guardrails" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Guardrails</Link>
+            <Link href="/audit-log" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Audit Log</Link>
+            <Link href="/admin/settings" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {sidecarCollapsePosture && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-amber-900 dark:text-amber-100">Sidecar Collapse — Runtime Consolidation</h2>
+            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+              The standalone runledger-router sidecar has been absorbed into runledger-gateway-rs. Intelligent routing classification now runs inside the Rust data plane.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Collapsed Service</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.collapsed_service.name}</p>
+              <p className="text-xs text-slate-400">Port {sidecarCollapsePosture.collapsed_service.former_port} · {sidecarCollapsePosture.collapsed_service.status}</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Absorbed By</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.gateway_rs_absorption.service}</p>
+              <p className="text-xs text-slate-400">Port {sidecarCollapsePosture.gateway_rs_absorption.port} · {sidecarCollapsePosture.gateway_rs_absorption.classifier_modes.length} classifier modes</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">IR-Enabled Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.gateway_rs_absorption.ir_enabled_routes}</p>
+              <p className="text-xs text-slate-400">{sidecarCollapsePosture.gateway_rs_absorption.active_routes} active · {sidecarCollapsePosture.gateway_rs_absorption.distinct_providers} providers</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Services Removed</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.topology_simplification.services_removed.length}</p>
+              <p className="text-xs text-slate-400">{sidecarCollapsePosture.topology_simplification.services_removed.join(', ')}</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Routing Groups</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.routing_classification.routing_groups}</p>
+              <p className="text-xs text-slate-400">{sidecarCollapsePosture.routing_classification.routing_policies} policies</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Requests (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.observe_context.requests_7d}</p>
+              <p className="text-xs text-slate-400">{sidecarCollapsePosture.observe_context.routed_requests_7d} routed</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Guardrails</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{sidecarCollapsePosture.routing_classification.active_guardrails}</p>
+              <p className="text-xs text-slate-400">{sidecarCollapsePosture.routing_classification.cache_configs} cache configs</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
+            <Link href="/optimization" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization</Link>
+            <Link href="/analytics/monitoring" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Monitoring</Link>
+            <Link href="/guardrails" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Guardrails</Link>
+            <Link href="/admin/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {consumerMigrationPosture && (
+        <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Consumer Migration & Legacy Cleanup</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Migration status of consumer-facing assets from Python inline runtime to Rust data plane, legacy deprecation progress, and observe context.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Runtime Status</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.runtime_status.rust_gateway_port}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.runtime_status.python_stub_status} stub · {consumerMigrationPosture.runtime_status.active_routes} routes</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Legacy Deprecation</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.legacy_deprecation.router_sidecar_status}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.legacy_deprecation.compose_profile} profile · {consumerMigrationPosture.legacy_deprecation.helm_replicas} replicas</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Consumer Assets</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.consumer_assets.distinct_providers}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.consumer_assets.api_keys} keys · {consumerMigrationPosture.consumer_assets.total_routes} total routes</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Observe (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationPosture.observe_context.requests_7d}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationPosture.observe_context.cache_hits_7d} cache hits · {consumerMigrationPosture.observe_context.audit_events_30d} audits (30d)</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
+            <Link href="/optimization" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Optimization</Link>
+            <Link href="/admin/settings" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {runtimeScopeModelPosture && (
+        <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Runtime Scope Model</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Identity propagation, policy enforcement scope, and runtime governance evidence across workspace, access-group, and API-key boundaries.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Access Groups</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.identity_model.access_groups}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.identity_model.access_group_members} members · {runtimeScopeModelPosture.identity_model.api_keys} keys</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Tool Policies</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.policy_enforcement.active_tool_policies}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.policy_enforcement.workspace_scoped_policies} workspace · {runtimeScopeModelPosture.policy_enforcement.access_group_scoped_policies} group-scoped</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Guardrails</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.policy_enforcement.guardrail_rules}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.policy_enforcement.guardrail_events_30d} events (30d)</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Scope Budget/Guardrail</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.identity_model.groups_with_budget}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.identity_model.groups_with_guardrails} with guardrails</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Enforcement Points</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.scope_propagation.enforcement_points.length}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.scope_propagation.active_routes} active routes</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Scope Inputs</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.scope_propagation.preflight_scope_inputs.length}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.identity_model.scope_types.length} scope types</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Requests (30d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{runtimeScopeModelPosture.observe_context.requests_30d}</p>
+              <p className="text-xs text-slate-400">{runtimeScopeModelPosture.observe_context.audit_events_30d} audit events</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/governance" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Governance</Link>
+            <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
+            <Link href="/analytics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Analytics</Link>
+            <Link href="/admin/settings" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {scopeEnforcementEvidencePosture && (
+        <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800/40 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold dark:text-white">Scope Enforcement & Evidence Loop</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Enforcement decisions with scope lineage, violation friction rates, and evidence closure across guardrails, tool policies, and observe surfaces.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Guardrail Events</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{scopeEnforcementEvidencePosture.enforcement_summary.guardrail_events_30d}</p>
+              <p className="text-xs text-slate-400">{scopeEnforcementEvidencePosture.enforcement_summary.distinct_rules_triggered} rules triggered (30d)</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Blocked / Allowed</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{scopeEnforcementEvidencePosture.enforcement_summary.blocked_30d} / {scopeEnforcementEvidencePosture.enforcement_summary.allowed_30d}</p>
+              <p className="text-xs text-slate-400">{scopeEnforcementEvidencePosture.enforcement_summary.modified_30d} modified</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Friction Rate</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{scopeEnforcementEvidencePosture.scope_friction.block_rate_pct}%</p>
+              <p className="text-xs text-slate-400">{scopeEnforcementEvidencePosture.scope_friction.false_positive_rate_pct}% false positive</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Scope Policies</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{scopeEnforcementEvidencePosture.scope_friction.total_tool_policies}</p>
+              <p className="text-xs text-slate-400">{scopeEnforcementEvidencePosture.scope_friction.workspace_scoped} workspace · {scopeEnforcementEvidencePosture.scope_friction.access_group_scoped} group</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Evidence (30d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{scopeEnforcementEvidencePosture.evidence_loop.requests_30d}</p>
+              <p className="text-xs text-slate-400">{scopeEnforcementEvidencePosture.evidence_loop.audit_events_30d} audit events</p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">False Positives</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{scopeEnforcementEvidencePosture.enforcement_summary.false_positives_30d}</p>
+              <p className="text-xs text-slate-400">{scopeEnforcementEvidencePosture.enforcement_summary.active_guardrail_rules} active rules</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/governance" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Governance</Link>
+            <Link href="/guardrails" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Guardrails</Link>
+            <Link href="/analytics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Analytics</Link>
+            <Link href="/analytics/monitoring" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Monitoring</Link>
           </div>
         </div>
       )}

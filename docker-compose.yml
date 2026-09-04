@@ -196,7 +196,8 @@ services:
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
-      ROUTER_SVC_URL: http://runledger-router:8105
+      ROUTER_SVC_URL: http://runledger-gateway-rs:8210
+      GATEWAY_RS_URL: http://runledger-gateway-rs:8210
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
       FLYWHEEL_SVC_URL: http://runledger-flywheel:8109
@@ -331,7 +332,8 @@ services:
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
-      ROUTER_SVC_URL: http://runledger-router:8105
+      ROUTER_SVC_URL: http://runledger-gateway-rs:8210
+      GATEWAY_RS_URL: http://runledger-gateway-rs:8210
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
       FLYWHEEL_SVC_URL: http://runledger-flywheel:8109
@@ -517,7 +519,8 @@ services:
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8200
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
-      ROUTER_SVC_URL: http://runledger-router:8105
+      ROUTER_SVC_URL: http://runledger-gateway-rs:8210
+      GATEWAY_RS_URL: http://runledger-gateway-rs:8210
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
       FLYWHEEL_SVC_URL: http://runledger-flywheel:8109
@@ -651,13 +654,18 @@ services:
       retries: 5
       start_period: 60s
 
+  # ── DEPRECATED: runledger-router sidecar ──────────────────────────────────
+  # Intelligent routing classification is now absorbed into runledger-gateway-rs.
+  # This standalone sidecar is retained only for backwards-compatible deployments
+  # that still set ROUTER_SVC_URL to the old address.  New deployments should
+  # point ROUTER_SVC_URL at runledger-gateway-rs:8210 (the default).
   runledger-router:
     image: abijith13/runledger-router:${RUNLEDGER_TAG:-v1alpha2}
     build:
       context: ./apps/router-svc
     container_name: runledger-router
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    profiles: ["deprecated"]
     ports:
       - "${ROUTER_PORT:-8105}:8105"
     environment:

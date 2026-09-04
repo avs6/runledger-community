@@ -12,12 +12,71 @@
   --orb-1: rgba(147, 197, 253, 0.12);
   --orb-2: rgba(203, 213, 225, 0.18);
   --orb-3: rgba(226, 232, 240, 0.20);
+
+  /* ── Scope visual language ── */
+  --scope-platform: 215 16% 47%;
+  --scope-organization: 213 68% 46%;
+  --scope-workspace: 245 58% 51%;
+  --scope-access-group: 263 70% 50%;
+  --scope-api-key: 38 92% 50%;
+
+  /* ── Status semantics ── */
+  --status-success: 152 69% 31%;
+  --status-warning: 38 92% 50%;
+  --status-error: 0 84% 58%;
+  --status-info: 213 68% 46%;
+  --status-neutral: 215 16% 47%;
+
+  /* ── Severity ── */
+  --severity-low: 215 16% 47%;
+  --severity-medium: 38 92% 50%;
+  --severity-high: 24 95% 53%;
+  --severity-critical: 0 84% 58%;
+
+  /* ── Runtime ── */
+  --runtime-active: 152 69% 31%;
+  --runtime-degraded: 38 92% 50%;
+  --runtime-down: 0 84% 58%;
+  --runtime-maintenance: 213 68% 46%;
+
+  /* ── Density ── */
+  --row-height: 48px;
+  --row-padding-y: 12px;
+  --table-font-size: 14px;
 }
 
 .dark {
   --orb-1: rgba(147, 197, 253, 0.10);
   --orb-2: rgba(148, 163, 184, 0.10);
   --orb-3: rgba(203, 213, 225, 0.05);
+
+  --scope-platform: 215 20% 55%;
+  --scope-organization: 213 68% 55%;
+  --scope-workspace: 245 58% 60%;
+  --scope-access-group: 263 70% 60%;
+  --scope-api-key: 38 80% 55%;
+
+  --status-success: 152 60% 40%;
+  --status-warning: 38 80% 55%;
+  --status-error: 0 70% 55%;
+  --status-info: 213 68% 55%;
+  --status-neutral: 215 20% 55%;
+
+  --severity-low: 215 20% 55%;
+  --severity-medium: 38 80% 55%;
+  --severity-high: 24 85% 58%;
+  --severity-critical: 0 70% 55%;
+
+  --runtime-active: 152 60% 40%;
+  --runtime-degraded: 38 80% 55%;
+  --runtime-down: 0 70% 55%;
+  --runtime-maintenance: 213 68% 55%;
+}
+
+[data-density="compact"] {
+  --row-height: 36px;
+  --row-padding-y: 6px;
+  --table-font-size: 12px;
 }
 
 @layer base {
@@ -48,6 +107,23 @@
     --chart-4: 166 28% 40%;
     --chart-5: 358 62% 54%;
     --radius: 0.75rem;
+
+    /* ── Elevation ── */
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.04);
+    --shadow-lg: 0 10px 24px rgba(100, 116, 139, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+
+    /* ── Surface layers ── */
+    --surface-primary: 0 0% 100%;
+    --surface-secondary: 210 25% 98%;
+    --surface-tertiary: 210 24% 95%;
+    --surface-inverse: 222 47% 11%;
+
+    /* ── Form ── */
+    --input-bg: 0 0% 100% / 0.86;
+    --input-text: 222 47% 10%;
+    --input-border: 212 22% 80%;
+    --input-placeholder: 215 16% 47%;
   }
 
   .dark {
@@ -76,6 +152,20 @@
     --chart-3: 36 48% 48%;
     --chart-4: 166 28% 40%;
     --chart-5: 358 62% 54%;
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+    --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 10px 24px rgba(15, 23, 42, 0.14), 0 1px 2px rgba(15, 23, 42, 0.06);
+
+    --surface-primary: 210 28% 98%;
+    --surface-secondary: 210 25% 96%;
+    --surface-tertiary: 211 24% 93%;
+    --surface-inverse: 222 32% 13%;
+
+    --input-bg: 210 25% 96% / 0.92;
+    --input-text: 222 32% 13%;
+    --input-border: 212 20% 82%;
+    --input-placeholder: 215 16% 47%;
   }
 
   * {
@@ -131,56 +221,80 @@
   [class*="rounded-xl"][class*="border"] {
     --rl-soft-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px rgba(100, 116, 139, 0.08);
   }
+
+  /* ── Scope badge utilities ── */
+  .scope-badge-platform { background-color: hsl(var(--scope-platform) / 0.12); color: hsl(var(--scope-platform)); border: 1px solid hsl(var(--scope-platform) / 0.25); }
+  .scope-badge-org { background-color: hsl(var(--scope-organization) / 0.12); color: hsl(var(--scope-organization)); border: 1px solid hsl(var(--scope-organization) / 0.25); }
+  .scope-badge-workspace { background-color: hsl(var(--scope-workspace) / 0.12); color: hsl(var(--scope-workspace)); border: 1px solid hsl(var(--scope-workspace) / 0.25); }
+  .scope-badge-access-group { background-color: hsl(var(--scope-access-group) / 0.12); color: hsl(var(--scope-access-group)); border: 1px solid hsl(var(--scope-access-group) / 0.25); }
+  .scope-badge-api-key { background-color: hsl(var(--scope-api-key) / 0.12); color: hsl(var(--scope-api-key)); border: 1px solid hsl(var(--scope-api-key) / 0.25); }
+
+  /* ── Status indicator utilities ── */
+  .status-success { color: hsl(var(--status-success)); }
+  .status-warning { color: hsl(var(--status-warning)); }
+  .status-error { color: hsl(var(--status-error)); }
+  .status-info { color: hsl(var(--status-info)); }
+  .status-neutral { color: hsl(var(--status-neutral)); }
+
+  /* ── Severity indicator utilities ── */
+  .severity-low { background-color: hsl(var(--severity-low) / 0.12); color: hsl(var(--severity-low)); }
+  .severity-medium { background-color: hsl(var(--severity-medium) / 0.12); color: hsl(var(--severity-medium)); }
+  .severity-high { background-color: hsl(var(--severity-high) / 0.12); color: hsl(var(--severity-high)); }
+  .severity-critical { background-color: hsl(var(--severity-critical) / 0.12); color: hsl(var(--severity-critical)); }
+
+  /* ── Density-aware table rows ── */
+  .rl-table-row {
+    height: var(--row-height);
+    padding-top: var(--row-padding-y);
+    padding-bottom: var(--row-padding-y);
+    font-size: var(--table-font-size);
+  }
 }
 
-/*
-  Legacy dark-mode compatibility.
-  The app used to be a deep navy UI. The current brand uses a Windows-like
-  light gray/blue theme in both modes, so old dark:* utilities need to be
-  softened globally until every page has been migrated to semantic tokens.
-*/
+/* ── Semantic form inputs (replaces legacy compatibility overrides) ── */
 @layer utilities {
-  body:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
-  body:not(.dark) select,
-  body:not(.dark) textarea {
-    background-color: rgba(255, 255, 255, 0.86) !important;
-    color: rgb(15, 23, 42) !important;
-    border-color: rgb(203, 213, 225) !important;
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    background-color: hsl(var(--input-bg)) !important;
+    color: hsl(var(--input-text)) !important;
+    border-color: hsl(var(--input-border)) !important;
   }
 
-  body:not(.dark) input::placeholder,
-  body:not(.dark) textarea::placeholder {
-    color: rgb(100, 116, 139) !important;
+  input::placeholder,
+  textarea::placeholder {
+    color: hsl(var(--input-placeholder)) !important;
   }
 
-  body:not(.dark) main .bg-slate-950:not(pre):not(code):not(a):not(button):not([role="button"]),
-  body:not(.dark) main .bg-slate-900:not(pre):not(code):not(a):not(button):not([role="button"]),
-  body:not(.dark) main .bg-slate-800:not(pre):not(code):not(a):not(button):not([role="button"]),
-  body:not(.dark) main .bg-gray-900:not(pre):not(code):not(a):not(button):not([role="button"]),
-  body:not(.dark) main .bg-gray-800:not(pre):not(code):not(a):not(button):not([role="button"]) {
-    background-color: rgba(248, 250, 252, 0.9) !important;
+  /* ── Surface normalization — map old hard-coded dark utilities to semantic surfaces ── */
+  main .bg-slate-950:not(pre):not(code):not(a):not(button):not([role="button"]),
+  main .bg-slate-900:not(pre):not(code):not(a):not(button):not([role="button"]),
+  main .bg-slate-800:not(pre):not(code):not(a):not(button):not([role="button"]),
+  main .bg-gray-900:not(pre):not(code):not(a):not(button):not([role="button"]),
+  main .bg-gray-800:not(pre):not(code):not(a):not(button):not([role="button"]) {
+    background-color: hsl(var(--surface-secondary)) !important;
   }
 
-  body:not(.dark) main .border-slate-950,
-  body:not(.dark) main .border-slate-900,
-  body:not(.dark) main .border-slate-800,
-  body:not(.dark) main .border-gray-900,
-  body:not(.dark) main .border-gray-800 {
-    border-color: rgb(203, 213, 225) !important;
+  main .border-slate-950,
+  main .border-slate-900,
+  main .border-slate-800,
+  main .border-gray-900,
+  main .border-gray-800 {
+    border-color: hsl(var(--border)) !important;
   }
 
-  body:not(.dark) main :not(a):not(button).text-white,
-  body:not(.dark) main :not(a):not(button).text-gray-100,
-  body:not(.dark) main :not(a):not(button).text-slate-100,
-  body:not(.dark) main :not(a):not(button).text-slate-200 {
-    color: rgb(15, 23, 42) !important;
+  main :not(a):not(button).text-white,
+  main :not(a):not(button).text-gray-100,
+  main :not(a):not(button).text-slate-100,
+  main :not(a):not(button).text-slate-200 {
+    color: hsl(var(--foreground)) !important;
   }
 
-  body:not(.dark) main :not(a):not(button).text-gray-300,
-  body:not(.dark) main :not(a):not(button).text-gray-400,
-  body:not(.dark) main :not(a):not(button).text-slate-300,
-  body:not(.dark) main :not(a):not(button).text-slate-400 {
-    color: rgb(71, 85, 105) !important;
+  main :not(a):not(button).text-gray-300,
+  main :not(a):not(button).text-gray-400,
+  main :not(a):not(button).text-slate-300,
+  main :not(a):not(button).text-slate-400 {
+    color: hsl(var(--muted-foreground)) !important;
   }
 
   .dark .dark\:bg-slate-950,
@@ -195,7 +309,7 @@
   .dark .dark\:bg-slate-900\/50,
   .dark .dark\:bg-slate-900\/40,
   .dark .dark\:bg-slate-900\/30 {
-    background-color: rgba(248, 250, 252, 0.86) !important;
+    background-color: hsl(var(--surface-secondary)) !important;
   }
 
   .dark .dark\:bg-slate-800,
@@ -206,7 +320,7 @@
   .dark .dark\:bg-slate-700,
   .dark .dark\:bg-slate-700\/60,
   .dark .dark\:bg-slate-700\/40 {
-    background-color: rgba(241, 245, 249, 0.92) !important;
+    background-color: hsl(var(--surface-tertiary)) !important;
   }
 
   .dark .dark\:border-slate-950,
@@ -217,12 +331,12 @@
   .dark .dark\:border-slate-700,
   .dark .dark\:border-slate-700\/60,
   .dark .dark\:border-slate-700\/50 {
-    border-color: rgb(203, 213, 225) !important;
+    border-color: hsl(var(--border)) !important;
   }
 
   .dark .dark\:divide-slate-800 > :not([hidden]) ~ :not([hidden]),
   .dark .dark\:divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
-    border-color: rgb(226, 232, 240) !important;
+    border-color: hsl(var(--border)) !important;
   }
 
   .dark .dark\:text-white,
@@ -230,47 +344,47 @@
   .dark .dark\:text-slate-50,
   .dark .dark\:text-slate-100,
   .dark .dark\:text-slate-200 {
-    color: rgb(15, 23, 42) !important;
+    color: hsl(var(--foreground)) !important;
   }
 
   .dark .dark\:text-slate-300,
   .dark .dark\:text-slate-400,
   .dark .dark\:text-gray-400,
   .dark .dark\:text-gray-500 {
-    color: rgb(71, 85, 105) !important;
+    color: hsl(var(--muted-foreground)) !important;
   }
 
   .dark .dark\:placeholder\:text-slate-500::placeholder,
   .dark .dark\:placeholder\:text-gray-500::placeholder {
-    color: rgb(100, 116, 139) !important;
+    color: hsl(var(--input-placeholder)) !important;
   }
 
   .dark .dark\:hover\:bg-slate-900:hover,
   .dark .dark\:hover\:bg-slate-800:hover,
   .dark .dark\:hover\:bg-slate-700:hover {
-    background-color: rgba(219, 234, 254, 0.58) !important;
+    background-color: hsl(var(--accent)) !important;
   }
 
   .bg-violet-600,
   .hover\:bg-violet-700:hover,
   .focus\:ring-violet-500:focus,
   .focus-visible\:ring-violet-500:focus-visible {
-    --tw-ring-color: rgb(59 130 246 / 0.35) !important;
+    --tw-ring-color: hsl(var(--ring) / 0.35) !important;
   }
 
   .bg-violet-600 {
-    background-color: rgb(37, 99, 235) !important;
+    background-color: hsl(var(--primary)) !important;
   }
 
   .hover\:bg-violet-700:hover {
-    background-color: rgb(29, 78, 216) !important;
+    background-color: hsl(213 68% 36%) !important;
   }
 
   .text-violet-700,
   .text-violet-600,
   .dark .dark\:text-violet-400,
   .dark .dark\:text-violet-300 {
-    color: rgb(37, 99, 235) !important;
+    color: hsl(var(--primary)) !important;
   }
 
   .bg-violet-100,
@@ -282,7 +396,7 @@
   .dark .dark\:bg-violet-950,
   .dark .dark\:bg-violet-950\/40,
   .dark .dark\:bg-violet-950\/30 {
-    background-color: rgb(219, 234, 254) !important;
+    background-color: hsl(var(--accent)) !important;
   }
 
   .border-violet-500,
@@ -290,7 +404,7 @@
   .border-violet-200,
   .dark .dark\:border-violet-800,
   .dark .dark\:border-violet-600 {
-    border-color: rgb(147, 197, 253) !important;
+    border-color: hsl(var(--ring) / 0.5) !important;
   }
 
   pre.dark\:bg-slate-950,
@@ -301,14 +415,13 @@
   .dark code.dark\:bg-slate-950,
   .dark pre.dark\:bg-slate-900,
   .dark code.dark\:bg-slate-900 {
-    background-color: #0f172a !important;
-    color: #dbeafe !important;
+    background-color: hsl(var(--surface-inverse)) !important;
+    color: hsl(var(--primary-foreground)) !important;
   }
 }
 
 /* ── Print styles (used by "Print / Save PDF" in Runs) ───────────────────── */
 @media print {
-  /* Hide app chrome */
   aside,
   header,
   [data-no-print],
@@ -317,7 +430,6 @@
     display: none !important;
   }
 
-  /* Reset layout */
   html, body {
     height: auto !important;
     overflow: visible !important;
@@ -331,18 +443,14 @@
   main { padding: 16px !important; overflow: visible !important; }
   .max-w-\[1600px\] { max-width: 100% !important; }
 
-  /* Show the injected print header */
   .rl-print-header { display: block !important; }
 
-  /* Table */
   table { width: 100% !important; border-collapse: collapse !important; }
   th { background: #f1f5f9 !important; font-size: 10px !important; padding: 6px 8px !important; text-align: left; border-bottom: 1px solid #cbd5e1 !important; }
   td { font-size: 11px !important; padding: 5px 8px !important; border-bottom: 1px solid #f1f5f9 !important; }
   tr:last-child td { border-bottom: none !important; }
 
-  /* Preserve link text without href clutter */
   a::after { content: '' !important; }
 
-  /* Page margins */
   @page { margin: 1.5cm 1.5cm 1.5cm 1.5cm; }
 }

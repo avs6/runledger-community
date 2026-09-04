@@ -1,6 +1,6 @@
 # RunLedger Feature Status Dashboard
 
-Last updated: 2026-09-03 (07-PLATFORM WU-007)
+Last updated: 2026-09-03 (08-PLANNED-ARCHITECTURE WU-009)
 
 ## Purpose
 
@@ -237,15 +237,15 @@ Each minor feature's GAP-MATRIX completion status. See per-folder GAP-MATRIX.md 
 
 | Bundle | Minor Feature | Backend | UI | Complete | Fix Status |
 |--------|---------------|---------|-----|----------|------------|
-| A | Gateway service split | `PARTIAL` | `MISSING` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| A | Gateway module review | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| A | Router collapse | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| A | Legacy deprecation | `PARTIAL` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| B | Scope-aware enforcement | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
-| C | Pipeline studio | `MISSING` | `MISSING` | `MISSING` | `RE-AUDITED: MISSING` |
-| C | API explorer | `OK` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| A | Gateway service split | `OK` | `OK` | `OK` | `COMPLETED (WU-001)` |
+| A | Gateway module review | `OK` | `OK` | `OK` | `COMPLETED (WU-001)` |
+| A | Router collapse | `OK` | `OK` | `OK` | `COMPLETED (WU-002)` |
+| A | Legacy deprecation | `OK` | `OK` | `OK` | `COMPLETED (WU-003)` |
+| B | Scope-aware enforcement | `OK` | `OK` | `OK` | `COMPLETED (WU-004)` |
+| C | Pipeline studio | `OK` | `OK` | `OK` | `COMPLETED (WU-006)` |
+| C | API explorer | `OK` | `OK` | `OK` | `COMPLETED (WU-007)` |
 | C | Help hub | `MISSING` | `MISSING` | `MISSING` | `RE-AUDITED: MISSING` |
-| D | Theme refresh | `PARTIAL` | `PARTIAL` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
+| D | Theme refresh | `OK` | `OK` | `OK` | `COMPLETED (WU-009)` |
 | D | Docs IA | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
 | D | Repo naming cleanup | `PARTIAL` | `N/A` | `PARTIAL` | `RE-AUDITED: PARTIAL` |
 
@@ -418,15 +418,15 @@ Work units live inside each major feature folder at `{folder}/WORK-UNITS/WU-NNN-
 | WU-005 | 07-PLATFORM-AND-UTILITY | All organizations posture refresh | 01/02/03/04/05/06 | NOT_STARTED | 07-A |
 | WU-006 | 07-PLATFORM-AND-UTILITY | Platform settings converged posture refresh | 01/02/03/04/05/06 | NOT_STARTED | 07-B |
 | WU-007 | 07-PLATFORM-AND-UTILITY | Plugins collapse ownership refresh | 01/03/04/06 | NOT_STARTED | 07-C |
-| WU-001 | 08-PLANNED-ARCHITECTURE | Rust runtime boundary cleanup | 02/03/04/05 | NOT_STARTED | 08-A |
-| WU-002 | 08-PLANNED-ARCHITECTURE | Sidecar collapse and runtime consolidation | 02/03/04 | NOT_STARTED | 08-A |
-| WU-003 | 08-PLANNED-ARCHITECTURE | Consumer migration and legacy cleanup | 02/03/05/06 | NOT_STARTED | 08-A |
-| WU-004 | 08-PLANNED-ARCHITECTURE | Runtime scope model definition | 01/02/04 | NOT_STARTED | 08-B |
-| WU-005 | 08-PLANNED-ARCHITECTURE | Scope-aware enforcement and evidence loop | 01/02/03/04 | NOT_STARTED | 08-B |
-| WU-006 | 08-PLANNED-ARCHITECTURE | Pipeline studio and flow builder | 02/03/04/05/06 | NOT_STARTED | 08-C |
-| WU-007 | 08-PLANNED-ARCHITECTURE | API explorer and generated Swagger UI | ALL | NOT_STARTED | 08-C |
+| WU-001 | 08-PLANNED-ARCHITECTURE | Rust runtime boundary cleanup | 02/03/04/05 | COMPLETED | 08-A |
+| WU-002 | 08-PLANNED-ARCHITECTURE | Sidecar collapse and runtime consolidation | 02/03/04 | COMPLETED | 08-A |
+| WU-003 | 08-PLANNED-ARCHITECTURE | Consumer migration and legacy cleanup | 02/03/05/06 | COMPLETED | 08-A |
+| WU-004 | 08-PLANNED-ARCHITECTURE | Runtime scope model definition | 01/02/04 | COMPLETED | 08-B |
+| WU-005 | 08-PLANNED-ARCHITECTURE | Scope-aware enforcement and evidence loop | 01/02/03/04 | COMPLETED | 08-B |
+| WU-006 | 08-PLANNED-ARCHITECTURE | Pipeline studio and flow builder | 02/03/04/05/06 | COMPLETED | 08-C |
+| WU-007 | 08-PLANNED-ARCHITECTURE | API explorer and generated Swagger UI | ALL | COMPLETED | 08-C |
 | WU-008 | 08-PLANNED-ARCHITECTURE | In-app help hub | 01/02/03 | NOT_STARTED | 08-C |
-| WU-009 | 08-PLANNED-ARCHITECTURE | Design system and dark-mode refresh | ALL | NOT_STARTED | 08-D |
+| WU-009 | 08-PLANNED-ARCHITECTURE | Design system and dark-mode refresh | ALL | COMPLETED | 08-D |
 | WU-010 | 08-PLANNED-ARCHITECTURE | Documentation IA and hierarchy | ALL | NOT_STARTED | 08-D |
 | WU-011 | 08-PLANNED-ARCHITECTURE | Repo naming and historical cleanup | ALL | NOT_STARTED | 08-D |
 | WU-012 | 08-PLANNED-ARCHITECTURE | Rust gateway split posture refresh | 02/03/04/05 | NOT_STARTED | 08-A |

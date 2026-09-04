@@ -1166,3 +1166,73 @@ class PlatformAdminObservePosture(BaseModel):
     telemetry_context: dict[str, int]
     governance_context: dict[str, int]
     build_context: dict[str, int]
+
+
+class GatewayRuntimeBoundaryPosture(BaseModel):
+    workspace_id: str
+    rust_data_plane: dict[str, Any]
+    python_control_plane: dict[str, Any]
+    hot_path_migration: dict[str, Any]
+    runtime_contracts: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class SidecarCollapsePosture(BaseModel):
+    workspace_id: str
+    collapsed_service: dict[str, Any]
+    gateway_rs_absorption: dict[str, Any]
+    topology_simplification: dict[str, Any]
+    routing_classification: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class ConsumerMigrationPosture(BaseModel):
+    workspace_id: str
+    runtime_status: dict[str, Any]
+    legacy_deprecation: dict[str, Any]
+    consumer_assets: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class RuntimeScopeModelPosture(BaseModel):
+    workspace_id: str
+    identity_model: dict[str, Any]
+    policy_enforcement: dict[str, Any]
+    scope_propagation: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class ScopeEnforcementEvidencePosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    enforcement_summary: dict[str, Any]
+    scope_friction: dict[str, Any]
+    violation_lineage: dict[str, Any]
+    evidence_loop: dict[str, Any]
+
+
+class PipelineStudioPosture(BaseModel):
+    workspace_id: str
+    pipeline_model: dict[str, Any]
+    traffic_overlay: dict[str, Any]
+    enforcement_overlay: dict[str, Any]
+    finops_overlay: dict[str, Any]
+    build_overlay: dict[str, Any]
+
+
+class ApiExplorerPosture(BaseModel):
+    workspace_id: str
+    openapi_surface: dict[str, Any]
+    endpoint_ownership: dict[str, Any]
+    sdk_support: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class DesignSystemPosture(BaseModel):
+    workspace_id: str
+    token_system: dict[str, Any]
+    dark_mode: dict[str, Any]
+    scope_visual_language: dict[str, Any]
+    layout_shells: dict[str, Any]
+    density_modes: dict[str, Any]
+    status_semantics: dict[str, Any]

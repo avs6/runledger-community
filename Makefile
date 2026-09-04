@@ -223,7 +223,8 @@ build-images:
 	docker build -t $(REGISTRY)/runledger-context-compiler:$(TAG)    ./apps/context-compiler-svc
 	docker build -t $(REGISTRY)/runledger-reranker:$(TAG)            ./apps/reranker-svc
 	docker build -t $(REGISTRY)/runledger-compression:$(TAG)         ./apps/compression-svc
-	docker build -t $(REGISTRY)/runledger-router:$(TAG)              ./apps/router-svc
+	# runledger-router sidecar deprecated — absorbed into runledger-gateway-rs
+	# docker build -t $(REGISTRY)/runledger-router:$(TAG)              ./apps/router-svc
 	docker build -t $(REGISTRY)/runledger-mcp-gateway:$(TAG)         ./apps/mcp-gateway
 	docker build -t $(REGISTRY)/runledger-memory-svc:$(TAG)          ./apps/memory-svc
 	docker build -t $(REGISTRY)/runledger-kg-svc:$(TAG)              ./apps/kg-svc

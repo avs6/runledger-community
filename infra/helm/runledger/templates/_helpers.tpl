@@ -122,7 +122,9 @@ env a given pod doesn't read is harmless; it keeps wiring in one place.
 - name: COMPRESSION_SVC_URL
   value: {{ printf "http://%s-compression:8104" $full | quote }}
 - name: ROUTER_SVC_URL
-  value: {{ printf "http://%s-router:8105" $full | quote }}
+  value: {{ printf "http://%s-gateway-rs:8210" $full | quote }}
+- name: GATEWAY_RS_URL
+  value: {{ printf "http://%s-gateway-rs:8210" $full | quote }}
 - name: KG_SVC_URL
   value: {{ printf "http://%s-kg:8106" $full | quote }}
 - name: MEMORY_SVC_URL

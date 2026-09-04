@@ -172,6 +172,14 @@ from runledger_api.schemas.analytics import (
     VectorStoresLifecyclePosture,
     BudgetOrgScopePosture,
     BudgetOverrideGovernancePosture,
+    GatewayRuntimeBoundaryPosture,
+    SidecarCollapsePosture,
+    ConsumerMigrationPosture,
+    RuntimeScopeModelPosture,
+    ScopeEnforcementEvidencePosture,
+    PipelineStudioPosture,
+    ApiExplorerPosture,
+    DesignSystemPosture,
     PlatformAdminObservePosture,
     PlatformLifecyclePosture,
     PlatformSettingsConvergencePosture,
@@ -17086,5 +17094,1241 @@ async def platform_admin_observe_posture(
             "eval_datasets": eval_datasets,
             "agents": agents,
             "workflow_runs_7d": workflow_runs,
+        },
+    )
+
+
+@router.get(
+    "/gateway-runtime-boundary-posture",
+    response_model=GatewayRuntimeBoundaryPosture,
+)
+async def gateway_runtime_boundary_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoutingGroup
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+    seven_days_ago = now - timedelta(days=7)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    direct_http_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.provider.in_(
+                    ["openai", "anthropic", "ollama", "vllm", "local", "groq", "mistral", "custom", "azure", "vertex"]
+                ),
+            )
+        )
+    ).scalar() or 0
+
+    routing_groups = (
+        await db.execute(
+            select(func.count(GatewayRoutingGroup.id)).where(
+                GatewayRoutingGroup.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    passthrough_endpoints = (
+        await db.execute(
+            select(func.count(GatewayPassThroughEndpoint.id)).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    active_guardrails = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id,
+                GuardrailRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.status == "cache_hit",
+            )
+        )
+    ).scalar() or 0
+
+    budgets = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    tool_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    monitoring_alerts = (
+        await db.execute(
+            select(func.count(AlertRule.id)).where(
+                AlertRule.workspace_id == workspace.id,
+                AlertRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return GatewayRuntimeBoundaryPosture(
+        workspace_id=str(workspace.id),
+        rust_data_plane={
+            "service": "runledger-gateway-rs",
+            "port": 8210,
+            "capabilities": [
+                "openai_compatible_chat_completions",
+                "direct_http_provider_execution",
+                "retry_and_fallback_loop",
+                "streaming_passthrough",
+                "hmac_signed_event_ingest",
+            ],
+            "direct_http_routes": direct_http_routes,
+            "active_routes": active_routes,
+            "distinct_providers": distinct_providers,
+        },
+        python_control_plane={
+            "modules": [
+                "gateway_routing",
+                "gateway_runtime",
+                "gateway_observability",
+                "gateway_passthrough",
+                "gateway_legacy",
+            ],
+            "ownership": [
+                "route_crud",
+                "routing_group_crud",
+                "routing_policy_crud",
+                "runtime_snapshot",
+                "preflight_decisions",
+                "finalize_and_metering",
+                "guardrail_evaluation",
+                "cache_management",
+                "passthrough_proxy",
+                "observability_stats",
+            ],
+            "total_routes": total_routes,
+            "routing_groups": routing_groups,
+            "routing_policies": routing_policies,
+            "passthrough_endpoints": passthrough_endpoints,
+            "cache_configs": cache_configs,
+        },
+        hot_path_migration={
+            "legacy_stub": "410_gone",
+            "legacy_route": "/gateway/chat/completions",
+            "runtime_owner": "runledger-gateway-rs",
+            "preflight_owner": "python_control_plane",
+            "execution_owner": "rust_data_plane",
+            "finalize_owner": "python_control_plane",
+            "active_guardrails": active_guardrails,
+            "budgets": budgets,
+        },
+        runtime_contracts={
+            "preflight": "/gateway/runtime/internal/preflight",
+            "finalize": "/gateway/runtime/internal/finalize",
+            "resolve_api_key": "/gateway/runtime/internal/resolve-api-key",
+            "provider_execute": "/gateway/runtime/internal/provider-execute",
+            "route_result": "/gateway/runtime/internal/route-result",
+            "mirror": "/gateway/runtime/internal/mirror",
+            "signed_events": "/gateway/runtime/events/signed",
+            "snapshot": "/gateway/runtime/snapshot",
+            "internal_snapshot": "/gateway/runtime/internal/snapshot",
+            "api_keys": api_keys,
+            "tool_policies": tool_policies,
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "cache_hits_7d": cache_hits_7d,
+            "monitoring_alerts": monitoring_alerts,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/sidecar-collapse-posture",
+    response_model=SidecarCollapsePosture,
+)
+async def sidecar_collapse_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoutingGroup
+
+    now = datetime.now(UTC)
+    seven_days_ago = now - timedelta(days=7)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    ir_enabled_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.intelligent_routing_enabled.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    routing_groups = (
+        await db.execute(
+            select(func.count(GatewayRoutingGroup.id)).where(
+                GatewayRoutingGroup.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    routed_requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.decision_reason.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    active_guardrails = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id,
+                GuardrailRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    return SidecarCollapsePosture(
+        workspace_id=str(workspace.id),
+        collapsed_service={
+            "name": "runledger-router",
+            "former_port": 8105,
+            "status": "deprecated",
+            "absorbed_by": "runledger-gateway-rs",
+            "profile": "deprecated",
+        },
+        gateway_rs_absorption={
+            "service": "runledger-gateway-rs",
+            "port": 8210,
+            "classifier_endpoint": "/classify",
+            "classifier_modes": ["heuristic", "llm", "hybrid"],
+            "ir_enabled_routes": ir_enabled_routes,
+            "active_routes": active_routes,
+            "distinct_providers": distinct_providers,
+        },
+        topology_simplification={
+            "services_removed": ["runledger-router"],
+            "env_vars_redirected": ["ROUTER_SVC_URL"],
+            "compose_profiles_affected": ["aux", "full-prod", "full-demo"],
+            "new_default_target": "http://runledger-gateway-rs:8210",
+        },
+        routing_classification={
+            "owner": "runledger-gateway-rs",
+            "classify_path": "/classify",
+            "fallback": "passthrough_to_requested_alias",
+            "routing_groups": routing_groups,
+            "routing_policies": routing_policies,
+            "cache_configs": cache_configs,
+            "active_guardrails": active_guardrails,
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "routed_requests_7d": routed_requests_7d,
+        },
+    )
+
+
+@router.get(
+    "/consumer-migration-posture",
+    response_model=ConsumerMigrationPosture,
+)
+async def consumer_migration_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    now = datetime.now(UTC)
+    seven_days_ago = now - timedelta(days=7)
+    thirty_days_ago = now - timedelta(days=30)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.status == "cache_hit",
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return ConsumerMigrationPosture(
+        workspace_id=str(workspace.id),
+        runtime_status={
+            "live_data_plane": "runledger-gateway-rs",
+            "live_data_plane_port": 8210,
+            "live_endpoint": "/gateway/chat/completions",
+            "control_plane": "runledger-api",
+            "control_plane_port": 8000,
+            "active_routes": active_routes,
+            "total_routes": total_routes,
+            "distinct_providers": distinct_providers,
+        },
+        legacy_deprecation={
+            "python_completion_stub": "410_gone",
+            "python_completion_route": "/gateway/chat/completions",
+            "router_sidecar": "deprecated",
+            "router_sidecar_profile": "deprecated",
+            "env_vars_migrated": ["ROUTER_SVC_URL", "GATEWAY_RS_URL"],
+        },
+        consumer_assets={
+            "api_keys": api_keys,
+            "docs_migrated": True,
+            "postman_migrated": True,
+            "examples_migrated": True,
+            "benchmark_migrated": True,
+            "migration_guide": "examples/163_consumer_migration_guide.py",
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "requests_30d": requests_30d,
+            "cache_hits_7d": cache_hits_7d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/runtime-scope-model-posture",
+    response_model=RuntimeScopeModelPosture,
+)
+async def runtime_scope_model_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    access_group_members = (
+        await db.execute(
+            select(func.count(AccessGroupMember.id)).where(
+                AccessGroupMember.group_id.in_(
+                    select(AccessGroup.id).where(AccessGroup.workspace_id == ws)
+                )
+            )
+        )
+    ).scalar() or 0
+
+    groups_with_budget = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+                AccessGroup.budget_usd.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    groups_with_guardrails = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+                AccessGroup.guardrail_profile.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    total_tool_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    active_tool_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    workspace_scoped_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type == "workspace",
+            )
+        )
+    ).scalar() or 0
+
+    access_group_scoped_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type == "access_group",
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == ws,
+                GuardrailRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == ws,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return RuntimeScopeModelPosture(
+        workspace_id=str(ws),
+        identity_model={
+            "workspace_id": str(ws),
+            "access_groups": access_groups,
+            "access_group_members": access_group_members,
+            "groups_with_budget": groups_with_budget,
+            "groups_with_guardrails": groups_with_guardrails,
+            "api_keys": api_keys,
+            "scope_types": ["workspace", "access_group", "group", "search_tool"],
+        },
+        policy_enforcement={
+            "total_tool_policies": total_tool_policies,
+            "active_tool_policies": active_tool_policies,
+            "workspace_scoped_policies": workspace_scoped_policies,
+            "access_group_scoped_policies": access_group_scoped_policies,
+            "guardrail_rules": guardrail_rules,
+            "guardrail_events_30d": guardrail_events_30d,
+            "policy_actions": ["allow", "audit", "block", "require_approval", "deny"],
+        },
+        scope_propagation={
+            "rust_data_plane": "runledger-gateway-rs:8210",
+            "python_control_plane": "runledger-api:8000",
+            "preflight_scope_inputs": ["workspace_id", "api_key_id", "access_group_id", "org_id"],
+            "enforcement_points": ["gateway_preflight", "guardrails", "tool_policy_eval", "budget_check"],
+            "active_routes": active_routes,
+        },
+        observe_context={
+            "requests_30d": requests_30d,
+            "guardrail_events_30d": guardrail_events_30d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/scope-enforcement-evidence-posture",
+    response_model=ScopeEnforcementEvidencePosture,
+)
+async def scope_enforcement_evidence_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    guardrail_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    blocked_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.decision == "block",
+            )
+        )
+    ).scalar() or 0
+
+    allowed_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.decision == "allow",
+            )
+        )
+    ).scalar() or 0
+
+    modified_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.decision == "modify",
+            )
+        )
+    ).scalar() or 0
+
+    false_positives_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.is_false_positive.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_rules_triggered = (
+        await db.execute(
+            select(func.count(sa.distinct(GuardrailEvent.guardrail_rule_id))).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    active_guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == ws,
+                GuardrailRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_tool_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    workspace_scoped = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type == "workspace",
+            )
+        )
+    ).scalar() or 0
+
+    group_scoped = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type == "access_group",
+            )
+        )
+    ).scalar() or 0
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    groups_with_guardrails = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+                AccessGroup.guardrail_profile.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    return ScopeEnforcementEvidencePosture(
+        workspace_id=str(ws),
+        period_days=30,
+        enforcement_summary={
+            "guardrail_events_30d": guardrail_events_30d,
+            "blocked_30d": blocked_events_30d,
+            "allowed_30d": allowed_events_30d,
+            "modified_30d": modified_events_30d,
+            "false_positives_30d": false_positives_30d,
+            "distinct_rules_triggered": distinct_rules_triggered,
+            "active_guardrail_rules": active_guardrail_rules,
+        },
+        scope_friction={
+            "total_tool_policies": total_tool_policies,
+            "workspace_scoped": workspace_scoped,
+            "access_group_scoped": group_scoped,
+            "access_groups": access_groups,
+            "groups_with_guardrails": groups_with_guardrails,
+            "block_rate_pct": round(blocked_events_30d / guardrail_events_30d * 100, 1) if guardrail_events_30d else 0.0,
+            "false_positive_rate_pct": round(false_positives_30d / guardrail_events_30d * 100, 1) if guardrail_events_30d else 0.0,
+        },
+        violation_lineage={
+            "scope_inputs": ["workspace_id", "api_key_id", "access_group_id", "org_id"],
+            "enforcement_points": ["gateway_preflight", "guardrails", "tool_policy_eval", "budget_check"],
+            "decision_outcomes": ["allow", "block", "modify", "audit", "require_approval", "deny"],
+            "evidence_fields": ["guardrail_name", "decision", "reason", "model", "user_id", "latency_ms"],
+        },
+        evidence_loop={
+            "requests_30d": requests_30d,
+            "audit_events_30d": audit_events_30d,
+            "api_keys": api_keys,
+            "observe_surfaces": ["guardrail_events", "audit_events", "gateway_requests"],
+            "governance_surfaces": ["tool_policies", "guardrail_rules", "access_groups"],
+        },
+    )
+
+
+@router.get(
+    "/pipeline-studio-posture",
+    response_model=PipelineStudioPosture,
+)
+async def pipeline_studio_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    seven_days_ago = now - timedelta(days=7)
+    thirty_days_ago = now - timedelta(days=30)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == ws,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == ws,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    routing_groups = (
+        await db.execute(
+            select(func.count(RoutingGroup.id)).where(
+                RoutingGroup.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.status == "cache_hit",
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == ws,
+                GuardrailRule.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    blocked_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.decision == "block",
+            )
+        )
+    ).scalar() or 0
+
+    tool_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    budget_count = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    agents = (
+        await db.execute(
+            select(func.count(Agent.id)).where(
+                Agent.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    workflows = (
+        await db.execute(
+            select(func.count(WorkflowDefinition.id)).where(
+                WorkflowDefinition.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return PipelineStudioPosture(
+        workspace_id=str(ws),
+        pipeline_model={
+            "stages": ["ingest", "routing", "enforcement", "execution", "reporting"],
+            "ingest_sources": ["api_keys", "sdk", "otlp"],
+            "routing_nodes": {
+                "active_routes": active_routes,
+                "distinct_providers": distinct_providers,
+                "routing_groups": routing_groups,
+                "routing_policies": routing_policies,
+            },
+            "execution_runtime": {
+                "data_plane": "runledger-gateway-rs:8210",
+                "control_plane": "runledger-api:8000",
+            },
+        },
+        traffic_overlay={
+            "requests_7d": requests_7d,
+            "requests_30d": requests_30d,
+            "cache_hits_7d": cache_hits_7d,
+            "audit_events_30d": audit_events_30d,
+        },
+        enforcement_overlay={
+            "guardrail_rules": guardrail_rules,
+            "guardrail_events_30d": guardrail_events_30d,
+            "blocked_events_30d": blocked_events_30d,
+            "tool_policies": tool_policies,
+            "enforcement_points": ["gateway_preflight", "guardrails", "tool_policy_eval", "budget_check"],
+        },
+        finops_overlay={
+            "budgets": budget_count,
+            "cost_tracking": "per_request",
+            "budget_enforcement": "preflight",
+        },
+        build_overlay={
+            "agents": agents,
+            "workflows": workflows,
+            "pipeline_participants": ["agents", "workflows", "evaluations", "prompts"],
+        },
+    )
+
+
+@router.get(
+    "/api-explorer-posture",
+    response_model=ApiExplorerPosture,
+)
+async def api_explorer_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == ws,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == ws,
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return ApiExplorerPosture(
+        workspace_id=str(ws),
+        openapi_surface={
+            "spec_url": "/openapi.json",
+            "reference_ui": "/reference",
+            "spec_format": "OpenAPI 3.1",
+            "generated": True,
+            "source_of_truth": "FastAPI auto-generated from route decorators",
+        },
+        endpoint_ownership={
+            "control_plane": {
+                "host": "runledger-api:8000",
+                "families": ["org", "gateway_routing", "gateway_runtime", "budgets", "analytics", "settings", "governance", "evaluations", "agents", "workflows", "prompts"],
+            },
+            "data_plane": {
+                "host": "runledger-gateway-rs:8210",
+                "families": ["chat_completions", "streaming", "passthrough"],
+            },
+            "observability": {
+                "host": "runledger-api:8000",
+                "families": ["analytics", "monitoring", "audit", "runs", "sessions", "request_explorer"],
+            },
+            "admin": {
+                "host": "runledger-api:8000",
+                "families": ["admin", "bootstrap", "platform_settings", "scim"],
+            },
+        },
+        sdk_support={
+            "languages": ["python", "typescript", "curl"],
+            "auth_model": "Bearer token (API key or session key)",
+            "api_keys": api_keys,
+            "active_routes": active_routes,
+        },
+        observe_context={
+            "requests_30d": requests_30d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/design-system-posture",
+    response_model=DesignSystemPosture,
+)
+async def design_system_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    ws = workspace.id
+
+    scope_types_q = (
+        await db.execute(
+            select(AccessGroup.id).where(AccessGroup.workspace_id == ws)
+        )
+    ).scalars().all()
+    access_group_count = len(scope_types_q)
+
+    api_key_count = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
+        )
+    ).scalar() or 0
+
+    return DesignSystemPosture(
+        workspace_id=str(ws),
+        token_system={
+            "categories": ["color", "spacing", "typography", "elevation", "radius", "chart"],
+            "color_tokens": 22,
+            "spacing_scale": "tailwind-default (0.25rem base)",
+            "typography_stacks": ["sans (Inter/Segoe UI)", "display (Plus Jakarta Sans)", "mono (JetBrains Mono)"],
+            "elevation_levels": 3,
+            "radius_default": "0.75rem",
+            "chart_palette_size": 5,
+        },
+        dark_mode={
+            "strategy": "class-based (.dark on html)",
+            "palette": "light-gray-blue (Windows-like, both modes)",
+            "legacy_overrides": True,
+            "legacy_override_reason": "Old dark:* utilities softened globally until full migration to semantic tokens",
+            "contrast_ratio_target": "WCAG AA (4.5:1 text, 3:1 UI)",
+        },
+        scope_visual_language={
+            "scope_levels": ["platform", "organization", "workspace", "access_group", "api_key"],
+            "scope_colors": {
+                "platform": "slate",
+                "organization": "blue",
+                "workspace": "indigo",
+                "access_group": "violet",
+                "api_key": "amber",
+            },
+            "access_groups": access_group_count,
+            "api_keys": api_key_count,
+        },
+        layout_shells={
+            "shells": ["platform_admin", "org_admin", "gateway_admin", "observability", "build"],
+            "sidebar_pattern": "collapsible icon+label navigation",
+            "content_max_width": "1600px",
+            "responsive_breakpoints": ["sm:640px", "md:768px", "lg:1024px", "xl:1280px", "2xl:1536px"],
+        },
+        density_modes={
+            "available": ["default", "compact"],
+            "compact_surfaces": ["runs_table", "request_explorer", "audit_log", "sessions_table"],
+            "default_row_height": "48px",
+            "compact_row_height": "36px",
+        },
+        status_semantics={
+            "operational_states": {
+                "success": "emerald",
+                "warning": "amber",
+                "error": "red",
+                "info": "blue",
+                "neutral": "slate",
+            },
+            "severity_levels": ["low", "medium", "high", "critical"],
+            "severity_colors": {
+                "low": "slate",
+                "medium": "amber",
+                "high": "orange",
+                "critical": "red",
+            },
+            "runtime_states": {
+                "active": "emerald",
+                "degraded": "amber",
+                "down": "red",
+                "maintenance": "blue",
+            },
         },
     )

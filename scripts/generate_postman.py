@@ -534,7 +534,7 @@ def _add_optimization_extras(items: list[dict]) -> None:
     items.append(
         {
             "name": "Router Service",
-            "description": "Direct calls to the intelligent-router microservice ({{router_url}}, default :8210). No auth.",
+            "description": "Direct calls to the intelligent routing classifier on runledger-gateway-rs ({{router_url}}, default :8210). Former runledger-router sidecar deprecated. No auth.",
             "item": [
                 _req(
                     "Health",
@@ -909,7 +909,7 @@ environment = {
             "value": "http://localhost:8210",
             "type": "default",
             "enabled": True,
-            "description": "Intelligent-router microservice base URL (optimization layer).",
+            "description": "Intelligent routing base URL — now served by runledger-gateway-rs (former runledger-router sidecar deprecated).",
         },
         {
             "key": "memory_url",

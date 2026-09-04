@@ -1,9 +1,13 @@
 """
-Client for the external router service (Phase 4).
+Client for the intelligent routing classifier.
 
-Fail-open: any error returns None (no routing decision), so the gateway falls back to the
-requested alias. Invoked only when the request opts in (body.intelligent_routing) or the route
-has intelligent_routing_enabled=True.
+The classifier now runs inside runledger-gateway-rs (the Rust data plane).
+ROUTER_SVC_URL defaults to the gateway-rs /classify endpoint.  The former
+standalone runledger-router sidecar is deprecated — set ROUTER_SVC_URL to
+the gateway-rs base URL (e.g. http://runledger-gateway-rs:8210).
+
+Fail-open: any error returns None (no routing decision), so the gateway
+falls back to the requested alias.
 """
 
 from __future__ import annotations
@@ -16,7 +20,8 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-_SVC_URL = os.getenv("ROUTER_SVC_URL", "").rstrip("/")
+_GATEWAY_RS_URL = os.getenv("GATEWAY_RS_URL", "http://runledger-gateway-rs:8210").rstrip("/")
+_SVC_URL = os.getenv("ROUTER_SVC_URL", _GATEWAY_RS_URL).rstrip("/")
 _TIMEOUT = float(os.getenv("ROUTER_TIMEOUT_SECONDS", "25"))
 
 

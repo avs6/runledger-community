@@ -1,16 +1,16 @@
 # WU-007: API Explorer and Generated Swagger UI
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 08-Planned Architecture - C (Pipeline, API, and Embedded Product Surfaces)
 - **Target**: 08-PLANNED-ARCHITECTURE/API explorer and generated Swagger UI
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
 
 ## Delivery Gaps to Close
 
 | Feature | Backend | UI | Actions | Docs | Postman | Scripts | Source |
 |---------|---------|-----|---------|------|---------|---------|--------|
-| API explorer and generated Swagger UI | PARTIAL | PARTIAL | PARTIAL | PARTIAL | LEGACY | MISSING | GAP-MATRIX §9 |
+| API explorer and generated Swagger UI | OK | OK | OK | OK | OK | OK | GAP-MATRIX §9 |
 
 Note: No COHESION-MATRIX exists for Planned Architecture. Postman is marked LEGACY — the goal is to collapse manual Postman-first maintenance into generated OpenAPI/Swagger.
 

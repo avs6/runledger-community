@@ -1,16 +1,16 @@
 # WU-009: Design System and Dark-Mode Refresh
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 08-Planned Architecture - D (Design System, Documentation Architecture, and Repo Systemization)
 - **Target**: 08-PLANNED-ARCHITECTURE/UI theme refresh and dark-mode redesign
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
 
 ## Delivery Gaps to Close
 
 | Feature | Backend | UI | Actions | Docs | Postman | Scripts | Source |
 |---------|---------|-----|---------|------|---------|---------|--------|
-| UI theme refresh and dark-mode redesign | PARTIAL | PARTIAL | PARTIAL | MISSING | N/A | MISSING | GAP-MATRIX §9 |
+| UI theme refresh and dark-mode redesign | OK | OK | OK | OK | N/A | OK | GAP-MATRIX §9 |
 
 Note: No COHESION-MATRIX exists for Planned Architecture. This is a cross-app design system concern.
 

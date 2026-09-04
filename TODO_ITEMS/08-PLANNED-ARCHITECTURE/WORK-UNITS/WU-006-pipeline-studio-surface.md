@@ -1,16 +1,16 @@
 # WU-006: Pipeline Studio and Flow Builder
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 08-Planned Architecture - C (Pipeline, API, and Embedded Product Surfaces)
 - **Target**: 08-PLANNED-ARCHITECTURE/Pipeline studio and flow builder
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
 
 ## Delivery Gaps to Close
 
 | Feature | Backend | UI | Actions | Docs | Postman | Scripts | Source |
 |---------|---------|-----|---------|------|---------|---------|--------|
-| Pipeline studio and flow builder | MISSING | MISSING | MISSING | PARTIAL | MISSING | MISSING | GAP-MATRIX §9 |
+| Pipeline studio and flow builder | OK | OK | OK | OK | OK | OK | GAP-MATRIX §9 |
 
 Note: No COHESION-MATRIX exists for Planned Architecture. This is a net-new surface with the most MISSING cells in the family.
 

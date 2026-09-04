@@ -25,8 +25,12 @@ flowchart TB
   fwd --> log[(decision_reason records the tier)]
 ```
 
-It runs as an inline gateway stage after the semantic cache and Context Compiler. **Fail-open**: if the
-router is unavailable, the request routes to the alias it was sent to (or a configured default tier).
+It runs as an inline gateway stage inside `runledger-gateway-rs` after the semantic cache and Context Compiler. **Fail-open**: if the
+classifier is unavailable, the request routes to the alias it was sent to (or a configured default tier).
+
+The classification logic was previously hosted in a standalone `runledger-router` sidecar.
+As of the sidecar collapse, it is now absorbed into the Rust data plane — the former sidecar
+is deprecated and moved to the `deprecated` Docker Compose profile.
 
 ### Complexity × Risk → tier (default matrix)
 
@@ -82,7 +86,7 @@ future cost × quality flywheel.
 
 | Service | Port | Role |
 |---|---|---|
-| `runledger-router` | 8210 | Classify + tier mapping |
+| `runledger-gateway-rs` | 8210 | Classify + tier mapping (absorbed from former `runledger-router` sidecar) |
 | local LLM (Ollama / vLLM) | external | `llm` / `hybrid` classifier |
 
 See [`examples/36_intelligent_routing.py`](https://github.com/avs6/runledger-community/blob/master/examples/36_intelligent_routing.py)

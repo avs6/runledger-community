@@ -1,16 +1,16 @@
 # WU-004: Runtime Scope Model Definition
 
-- **Status**: NOT_STARTED
+- **Status**: COMPLETED
 - **Bundle**: 08-Planned Architecture - B (Runtime Governance and Policy Enforcement Deepening)
 - **Target**: 08-PLANNED-ARCHITECTURE/Scope-aware runtime governance enforcement deepening
 - **Created**: 2026-08-15
-- **Completed**:
+- **Completed**: 2026-09-03
 
 ## Delivery Gaps to Close
 
 | Feature | Backend | UI | Actions | Docs | Postman | Scripts | Source |
 |---------|---------|-----|---------|------|---------|---------|--------|
-| Scope-aware runtime governance enforcement | PARTIAL | N/A | PARTIAL | PARTIAL | MISSING | MISSING | GAP-MATRIX §9 |
+| Scope-aware runtime governance enforcement | OK | OK | OK | OK | OK | OK | GAP-MATRIX §9 |
 
 Note: No COHESION-MATRIX exists for Planned Architecture. Gaps derived from GAP-MATRIX and BLUEPRINT cross-feature integration requirements.
 

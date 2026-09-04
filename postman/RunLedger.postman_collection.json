@@ -3995,6 +3995,230 @@
           "response": []
         },
         {
+          "name": "Gateway Runtime Boundary Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/gateway-runtime-boundary-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "gateway-runtime-boundary-posture"
+              ]
+            },
+            "description": "Gateway runtime boundary posture: Rust data plane status (service, capabilities, direct HTTP routes, providers), Python control plane ownership (modules, route/policy/cache counts), hot-path migration state (legacy stub, runtime owners, guardrails, budgets), runtime contract inventory (preflight, finalize, snapshot, events), and observe context (7d requests, cache hits, monitoring alerts, audit events)."
+          },
+          "response": []
+        },
+        {
+          "name": "Sidecar Collapse Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/sidecar-collapse-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "sidecar-collapse-posture"
+              ]
+            },
+            "description": "Sidecar collapse posture: the deprecated runledger-router sidecar status, gateway-rs absorption details (classifier endpoint, modes, IR-enabled routes), topology simplification (services removed, env vars redirected, Compose profiles affected), routing classification ownership (groups, policies, guardrails, cache configs), and observe context (7d requests, routed requests)."
+          },
+          "response": []
+        },
+        {
+          "name": "Consumer Migration Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/consumer-migration-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "consumer-migration-posture"
+              ]
+            },
+            "description": "Consumer migration posture: runtime status (Rust gateway port, Python stub deprecation, active routes, total routes, distinct providers), legacy deprecation (router sidecar status, Compose profile, Helm replicas), consumer assets (providers, API keys, routes), and observe context (7d/30d requests, cache hits, audit events)."
+          },
+          "response": []
+        },
+        {
+          "name": "Runtime Scope Model Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/runtime-scope-model-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "runtime-scope-model-posture"
+              ]
+            },
+            "description": "Runtime scope model posture: identity model (access groups, members, groups with budget/guardrails, API keys, scope types), policy enforcement (tool policies by scope type, guardrail rules, 30d guardrail events, policy actions), scope propagation (Rust/Python plane addresses, preflight scope inputs, enforcement points, active routes), and observe context (30d requests, guardrail events, audit events)."
+          },
+          "response": []
+        },
+        {
+          "name": "Scope Enforcement Evidence Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/scope-enforcement-evidence-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "scope-enforcement-evidence-posture"
+              ]
+            },
+            "description": "Scope enforcement evidence posture: enforcement summary (30d guardrail events by decision — blocked/allowed/modified, false positives, distinct rules triggered), scope friction (tool policies by scope type, block rate, false positive rate), violation lineage (scope inputs, enforcement points, decision outcomes, evidence fields), and evidence loop (30d requests, audit events, observe and governance surface inventory)."
+          },
+          "response": []
+        },
+        {
+          "name": "Pipeline Studio Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/pipeline-studio-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "pipeline-studio-posture"
+              ]
+            },
+            "description": "Pipeline studio posture: pipeline model (stages, ingest sources, routing nodes — active routes/providers/groups/policies, execution runtime — data/control plane), traffic overlay (7d/30d requests, cache hits, audit events), enforcement overlay (guardrail rules/events, blocked events, tool policies, enforcement points), finops overlay (budgets, cost tracking, budget enforcement), and build overlay (agents, workflows, pipeline participants)."
+          },
+          "response": []
+        },
+        {
+          "name": "API Explorer Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/api-explorer-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "api-explorer-posture"
+              ]
+            },
+            "description": "API explorer posture: OpenAPI surface (spec URL, reference UI, spec format, auto-generation, source of truth), endpoint ownership by plane (control, data, observability, admin — host and families), SDK support (languages, auth model, API keys, active routes), and observe context (requests and audit events over 30 days)."
+          },
+          "response": []
+        },
+        {
+          "name": "Design System Posture",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/design-system-posture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "design-system-posture"
+              ]
+            },
+            "description": "Design system posture: token system (color tokens, spacing, typography stacks, elevation, radius, chart palette), dark mode (strategy, palette, legacy overrides, contrast target), scope visual language (scope levels and colors, access groups, API keys), layout shells (sidebar, max width, breakpoints), density modes (default/compact row heights, compact surfaces), and status semantics (operational states, severity levels, runtime states with semantic color mappings)."
+          },
+          "response": []
+        },
+        {
           "name": "Eval Replay Org Gateway Posture",
           "request": {
             "method": "GET",

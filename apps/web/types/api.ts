@@ -6306,3 +6306,309 @@ export interface PlatformAdminObservePosture {
     workflow_runs_7d: number
   }
 }
+
+export interface GatewayRuntimeBoundaryPosture {
+  workspace_id: string
+  rust_data_plane: {
+    service: string
+    port: number
+    capabilities: string[]
+    direct_http_routes: number
+    active_routes: number
+    distinct_providers: number
+  }
+  python_control_plane: {
+    modules: string[]
+    ownership: string[]
+    total_routes: number
+    routing_groups: number
+    routing_policies: number
+    passthrough_endpoints: number
+    cache_configs: number
+  }
+  hot_path_migration: {
+    legacy_stub: string
+    legacy_route: string
+    runtime_owner: string
+    preflight_owner: string
+    execution_owner: string
+    finalize_owner: string
+    active_guardrails: number
+    budgets: number
+  }
+  runtime_contracts: {
+    preflight: string
+    finalize: string
+    resolve_api_key: string
+    provider_execute: string
+    route_result: string
+    mirror: string
+    signed_events: string
+    snapshot: string
+    internal_snapshot: string
+    api_keys: number
+    tool_policies: number
+  }
+  observe_context: {
+    requests_7d: number
+    cache_hits_7d: number
+    monitoring_alerts: number
+    audit_events_30d: number
+  }
+}
+
+export interface SidecarCollapsePosture {
+  workspace_id: string
+  collapsed_service: {
+    name: string
+    former_port: number
+    status: string
+    absorbed_by: string
+    profile: string
+  }
+  gateway_rs_absorption: {
+    service: string
+    port: number
+    classifier_endpoint: string
+    classifier_modes: string[]
+    ir_enabled_routes: number
+    active_routes: number
+    distinct_providers: number
+  }
+  topology_simplification: {
+    services_removed: string[]
+    env_vars_redirected: string[]
+    compose_profiles_affected: string[]
+    new_default_target: string
+  }
+  routing_classification: {
+    owner: string
+    classify_path: string
+    fallback: string
+    routing_groups: number
+    routing_policies: number
+    cache_configs: number
+    active_guardrails: number
+  }
+  observe_context: {
+    requests_7d: number
+    routed_requests_7d: number
+  }
+}
+
+export interface ConsumerMigrationPosture {
+  workspace_id: string
+  runtime_status: {
+    live_data_plane: string
+    live_data_plane_port: number
+    live_endpoint: string
+    control_plane: string
+    control_plane_port: number
+    active_routes: number
+    total_routes: number
+    distinct_providers: number
+  }
+  legacy_deprecation: {
+    python_completion_stub: string
+    python_completion_route: string
+    router_sidecar: string
+    router_sidecar_profile: string
+    env_vars_migrated: string[]
+  }
+  consumer_assets: {
+    api_keys: number
+    docs_migrated: boolean
+    postman_migrated: boolean
+    examples_migrated: boolean
+    benchmark_migrated: boolean
+    migration_guide: string
+  }
+  observe_context: {
+    requests_7d: number
+    requests_30d: number
+    cache_hits_7d: number
+    audit_events_30d: number
+  }
+}
+
+export interface RuntimeScopeModelPosture {
+  workspace_id: string
+  identity_model: {
+    workspace_id: string
+    access_groups: number
+    access_group_members: number
+    groups_with_budget: number
+    groups_with_guardrails: number
+    api_keys: number
+    scope_types: string[]
+  }
+  policy_enforcement: {
+    total_tool_policies: number
+    active_tool_policies: number
+    workspace_scoped_policies: number
+    access_group_scoped_policies: number
+    guardrail_rules: number
+    guardrail_events_30d: number
+    policy_actions: string[]
+  }
+  scope_propagation: {
+    rust_data_plane: string
+    python_control_plane: string
+    preflight_scope_inputs: string[]
+    enforcement_points: string[]
+    active_routes: number
+  }
+  observe_context: {
+    requests_30d: number
+    guardrail_events_30d: number
+    audit_events_30d: number
+  }
+}
+
+export interface ScopeEnforcementEvidencePosture {
+  workspace_id: string
+  period_days: number
+  enforcement_summary: {
+    guardrail_events_30d: number
+    blocked_30d: number
+    allowed_30d: number
+    modified_30d: number
+    false_positives_30d: number
+    distinct_rules_triggered: number
+    active_guardrail_rules: number
+  }
+  scope_friction: {
+    total_tool_policies: number
+    workspace_scoped: number
+    access_group_scoped: number
+    access_groups: number
+    groups_with_guardrails: number
+    block_rate_pct: number
+    false_positive_rate_pct: number
+  }
+  violation_lineage: {
+    scope_inputs: string[]
+    enforcement_points: string[]
+    decision_outcomes: string[]
+    evidence_fields: string[]
+  }
+  evidence_loop: {
+    requests_30d: number
+    audit_events_30d: number
+    api_keys: number
+    observe_surfaces: string[]
+    governance_surfaces: string[]
+  }
+}
+
+export interface PipelineStudioPosture {
+  workspace_id: string
+  pipeline_model: {
+    stages: string[]
+    ingest_sources: string[]
+    routing_nodes: {
+      active_routes: number
+      distinct_providers: number
+      routing_groups: number
+      routing_policies: number
+    }
+    execution_runtime: {
+      data_plane: string
+      control_plane: string
+    }
+  }
+  traffic_overlay: {
+    requests_7d: number
+    requests_30d: number
+    cache_hits_7d: number
+    audit_events_30d: number
+  }
+  enforcement_overlay: {
+    guardrail_rules: number
+    guardrail_events_30d: number
+    blocked_events_30d: number
+    tool_policies: number
+    enforcement_points: string[]
+  }
+  finops_overlay: {
+    budgets: number
+    cost_tracking: string
+    budget_enforcement: string
+  }
+  build_overlay: {
+    agents: number
+    workflows: number
+    pipeline_participants: string[]
+  }
+}
+
+export interface ApiExplorerPosture {
+  workspace_id: string
+  openapi_surface: {
+    spec_url: string
+    reference_ui: string
+    spec_format: string
+    generated: boolean
+    source_of_truth: string
+  }
+  endpoint_ownership: {
+    control_plane: { host: string; families: string[] }
+    data_plane: { host: string; families: string[] }
+    observability: { host: string; families: string[] }
+    admin: { host: string; families: string[] }
+  }
+  sdk_support: {
+    languages: string[]
+    auth_model: string
+    api_keys: number
+    active_routes: number
+  }
+  observe_context: {
+    requests_30d: number
+    audit_events_30d: number
+  }
+}
+
+export interface DesignSystemPosture {
+  workspace_id: string
+  token_system: {
+    categories: string[]
+    color_tokens: number
+    spacing_scale: string
+    typography_stacks: string[]
+    elevation_levels: number
+    radius_default: string
+    chart_palette_size: number
+  }
+  dark_mode: {
+    strategy: string
+    palette: string
+    legacy_overrides: boolean
+    legacy_override_reason: string
+    contrast_ratio_target: string
+  }
+  scope_visual_language: {
+    scope_levels: string[]
+    scope_colors: Record<string, string>
+    access_groups: number
+    api_keys: number
+  }
+  layout_shells: {
+    shells: string[]
+    sidebar_pattern: string
+    content_max_width: string
+    responsive_breakpoints: string[]
+  }
+  density_modes: {
+    available: string[]
+    compact_surfaces: string[]
+    default_row_height: string
+    compact_row_height: string
+  }
+  status_semantics: {
+    operational_states: Record<string, string>
+    severity_levels: string[]
+    severity_colors: Record<string, string>
+    runtime_states: Record<string, string>
+  }
+}

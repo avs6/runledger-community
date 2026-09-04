@@ -5442,3 +5442,35 @@ export async function getPlatformSettingsConvergencePosture(apiKey: string): Pro
 export async function getPlatformAdminObservePosture(apiKey: string): Promise<import('@/types/api').PlatformAdminObservePosture> {
   return apiFetch<import('@/types/api').PlatformAdminObservePosture>('/analytics/platform-admin-observe-posture', apiKey)
 }
+
+export async function getGatewayRuntimeBoundaryPosture(apiKey: string): Promise<import('@/types/api').GatewayRuntimeBoundaryPosture> {
+  return apiFetch<import('@/types/api').GatewayRuntimeBoundaryPosture>('/analytics/gateway-runtime-boundary-posture', apiKey)
+}
+
+export async function getSidecarCollapsePosture(apiKey: string): Promise<import('@/types/api').SidecarCollapsePosture> {
+  return apiFetch<import('@/types/api').SidecarCollapsePosture>('/analytics/sidecar-collapse-posture', apiKey)
+}
+
+export async function getConsumerMigrationPosture(apiKey: string): Promise<import('@/types/api').ConsumerMigrationPosture> {
+  return apiFetch<import('@/types/api').ConsumerMigrationPosture>('/analytics/consumer-migration-posture', apiKey)
+}
+
+export async function getRuntimeScopeModelPosture(apiKey: string): Promise<import('@/types/api').RuntimeScopeModelPosture> {
+  return apiFetch<import('@/types/api').RuntimeScopeModelPosture>('/analytics/runtime-scope-model-posture', apiKey)
+}
+
+export async function getScopeEnforcementEvidencePosture(apiKey: string): Promise<import('@/types/api').ScopeEnforcementEvidencePosture> {
+  return apiFetch<import('@/types/api').ScopeEnforcementEvidencePosture>('/analytics/scope-enforcement-evidence-posture', apiKey)
+}
+
+export async function getPipelineStudioPosture(apiKey: string): Promise<import('@/types/api').PipelineStudioPosture> {
+  return apiFetch<import('@/types/api').PipelineStudioPosture>('/analytics/pipeline-studio-posture', apiKey)
+}
+
+export async function getApiExplorerPosture(apiKey: string): Promise<import('@/types/api').ApiExplorerPosture> {
+  return apiFetch<import('@/types/api').ApiExplorerPosture>('/analytics/api-explorer-posture', apiKey)
+}
+
+export async function getDesignSystemPosture(apiKey: string): Promise<import('@/types/api').DesignSystemPosture> {
+  return apiFetch<import('@/types/api').DesignSystemPosture>('/analytics/design-system-posture', apiKey)
+}
