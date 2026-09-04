@@ -131,7 +131,7 @@ export default function TagsPage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [tagList, tagTree, autoRules, simulationResult, posture, orgP, gwP, govI] = await Promise.all([
+      const [tagList, tagTree, autoRules, simulationResult, posture, orgP, gwP, govI, rtP] = await Promise.all([
         getTags(apiKey, { include_inactive: true }),
         getTagTree(apiKey),
         getAutoTagRules(apiKey),
