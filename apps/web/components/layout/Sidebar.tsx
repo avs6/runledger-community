@@ -140,17 +140,17 @@ export default function Sidebar() {
         href={href}
         className={`group relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium tracking-[-0.01em] transition-all duration-150 ${
           active
-            ? 'bg-blue-100 text-slate-950 shadow-sm ring-1 ring-blue-200 dark:bg-blue-200 dark:text-slate-950 dark:ring-blue-300'
-            : 'text-slate-600 hover:bg-blue-50 hover:text-slate-950 dark:text-slate-600 dark:hover:bg-blue-100 dark:hover:text-slate-950'
+            ? 'bg-blue-100 text-slate-950 shadow-sm ring-1 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-100 dark:ring-blue-500/30 dark:shadow-none'
+            : 'text-slate-600 hover:bg-blue-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100'
         }`}
       >
         {active && (
           <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-blue-500" />
         )}
-        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-blue-700' : 'text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-700'}`} />
+        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-blue-700 dark:text-blue-400' : 'text-slate-500 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300'}`} />
         <span className="truncate">{label}</span>
         {badge && (
-          <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 dark:bg-blue-200 dark:text-blue-800">
+          <span className="ml-auto rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
             {badge}
           </span>
         )}
@@ -165,7 +165,7 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={() => toggleSection(id)}
-          className="mb-1 flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.19em] text-slate-500 transition-colors hover:bg-blue-50 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-blue-100 dark:hover:text-slate-700"
+          className="mb-1 flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.19em] text-slate-500 transition-colors hover:bg-blue-50 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800/60 dark:hover:text-slate-300"
           aria-expanded={open}
         >
           <span>{label}</span>
@@ -177,7 +177,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-60 min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-[#eef3f8]/95 px-3 py-4 backdrop-blur-xl dark:border-slate-300 dark:bg-[#dbe5ef]/95">
+    <aside className="flex h-full w-60 min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-[#eef3f8]/95 px-3 py-4 backdrop-blur-xl dark:border-[hsl(220,10%,16%)] dark:bg-[hsl(220,13%,9%)]/98">
       <div className="mb-5 shrink-0 px-2">
         <RunLedgerLogo markSize={30} />
       </div>

@@ -7,6 +7,11 @@
   color: #0f172a;
 }
 
+.dark ::selection {
+  background-color: rgba(56, 130, 246, 0.30);
+  color: #f1f5f9;
+}
+
 /* ── Background orb CSS vars — toggled by .dark ── */
 :root {
   --orb-1: rgba(147, 197, 253, 0.12);
@@ -46,31 +51,31 @@
 }
 
 .dark {
-  --orb-1: rgba(147, 197, 253, 0.10);
-  --orb-2: rgba(148, 163, 184, 0.10);
-  --orb-3: rgba(203, 213, 225, 0.05);
+  --orb-1: rgba(56, 130, 246, 0.04);
+  --orb-2: rgba(100, 116, 139, 0.03);
+  --orb-3: rgba(71, 85, 105, 0.02);
 
-  --scope-platform: 215 20% 55%;
-  --scope-organization: 213 68% 55%;
-  --scope-workspace: 245 58% 60%;
-  --scope-access-group: 263 70% 60%;
-  --scope-api-key: 38 80% 55%;
+  --scope-platform: 215 20% 60%;
+  --scope-organization: 217 72% 60%;
+  --scope-workspace: 245 58% 65%;
+  --scope-access-group: 263 70% 65%;
+  --scope-api-key: 38 85% 58%;
 
-  --status-success: 152 60% 40%;
-  --status-warning: 38 80% 55%;
-  --status-error: 0 70% 55%;
-  --status-info: 213 68% 55%;
-  --status-neutral: 215 20% 55%;
+  --status-success: 152 60% 45%;
+  --status-warning: 38 85% 58%;
+  --status-error: 0 72% 58%;
+  --status-info: 217 72% 60%;
+  --status-neutral: 215 20% 60%;
 
-  --severity-low: 215 20% 55%;
-  --severity-medium: 38 80% 55%;
-  --severity-high: 24 85% 58%;
-  --severity-critical: 0 70% 55%;
+  --severity-low: 215 20% 60%;
+  --severity-medium: 38 85% 58%;
+  --severity-high: 24 85% 60%;
+  --severity-critical: 0 72% 58%;
 
-  --runtime-active: 152 60% 40%;
-  --runtime-degraded: 38 80% 55%;
-  --runtime-down: 0 70% 55%;
-  --runtime-maintenance: 213 68% 55%;
+  --runtime-active: 152 60% 45%;
+  --runtime-degraded: 38 85% 58%;
+  --runtime-down: 0 72% 58%;
+  --runtime-maintenance: 217 72% 60%;
 }
 
 [data-density="compact"] {
@@ -127,45 +132,45 @@
   }
 
   .dark {
-    /* ── Dark ────────────────────────────────────── */
-    --background: 210 30% 94%;
-    --foreground: 222 32% 13%;
-    --card: 210 28% 98%;
-    --card-foreground: 222 32% 13%;
-    --popover: 210 28% 98%;
-    --popover-foreground: 222 32% 13%;
-    --primary: 213 68% 44%;
+    /* ── Dark — neutral charcoal (crypto-dashboard) ── */
+    --background: 220 13% 10%;
+    --foreground: 210 17% 95%;
+    --card: 220 13% 13%;
+    --card-foreground: 210 17% 93%;
+    --popover: 220 14% 12%;
+    --popover-foreground: 210 17% 93%;
+    --primary: 217 72% 56%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 211 26% 91%;
-    --secondary-foreground: 222 32% 16%;
-    --muted: 211 24% 92%;
-    --muted-foreground: 218 14% 40%;
-    --accent: 213 46% 90%;
-    --accent-foreground: 222 32% 13%;
-    --destructive: 0 70% 50%;
+    --secondary: 220 12% 18%;
+    --secondary-foreground: 210 17% 88%;
+    --muted: 220 12% 17%;
+    --muted-foreground: 215 14% 55%;
+    --accent: 217 40% 20%;
+    --accent-foreground: 210 17% 93%;
+    --destructive: 0 62% 52%;
     --destructive-foreground: 0 0% 98%;
-    --border: 212 20% 84%;
-    --input: 212 20% 84%;
-    --ring: 213 68% 48%;
-    --chart-1: 213 68% 48%;
-    --chart-2: 214 42% 46%;
-    --chart-3: 36 48% 48%;
-    --chart-4: 166 28% 40%;
-    --chart-5: 358 62% 54%;
+    --border: 220 10% 20%;
+    --input: 220 10% 20%;
+    --ring: 217 72% 56%;
+    --chart-1: 217 72% 56%;
+    --chart-2: 173 58% 42%;
+    --chart-3: 38 85% 55%;
+    --chart-4: 280 60% 58%;
+    --chart-5: 0 62% 52%;
 
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
-    --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.12), 0 1px 3px rgba(15, 23, 42, 0.06);
-    --shadow-lg: 0 10px 24px rgba(15, 23, 42, 0.14), 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.30), 0 1px 3px rgba(0, 0, 0, 0.15);
+    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.15);
 
-    --surface-primary: 210 28% 98%;
-    --surface-secondary: 210 25% 96%;
-    --surface-tertiary: 211 24% 93%;
-    --surface-inverse: 222 32% 13%;
+    --surface-primary: 220 13% 13%;
+    --surface-secondary: 220 13% 16%;
+    --surface-tertiary: 220 12% 20%;
+    --surface-inverse: 210 17% 95%;
 
-    --input-bg: 210 25% 96% / 0.92;
-    --input-text: 222 32% 13%;
-    --input-border: 212 20% 82%;
-    --input-placeholder: 215 16% 47%;
+    --input-bg: 220 13% 15% / 0.95;
+    --input-text: 210 17% 93%;
+    --input-border: 220 10% 24%;
+    --input-placeholder: 215 14% 45%;
   }
 
   * {

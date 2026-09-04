@@ -14,11 +14,11 @@ interface Workspace {
 }
 
 function roleBadge(role: string | null, isPlatformAdmin: boolean) {
-  if (isPlatformAdmin) return { label: 'Platform Admin', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-200 dark:text-blue-800' }
-  if (role === 'org_admin') return { label: 'Org Admin', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-200 dark:text-blue-800' }
-  if (role === 'workspace_admin') return { label: 'WS Admin', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-200 dark:text-blue-800' }
-  if (role === 'member') return { label: 'Member', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-200 dark:text-slate-700' }
-  if (role === 'viewer') return { label: 'Viewer', cls: 'bg-slate-100 text-slate-500 dark:bg-slate-200 dark:text-slate-600' }
+  if (isPlatformAdmin) return { label: 'Platform Admin', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300' }
+  if (role === 'org_admin') return { label: 'Org Admin', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300' }
+  if (role === 'workspace_admin') return { label: 'WS Admin', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' }
+  if (role === 'member') return { label: 'Member', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300' }
+  if (role === 'viewer') return { label: 'Viewer', cls: 'bg-slate-100 text-slate-500 dark:bg-slate-700/40 dark:text-slate-400' }
   return null
 }
 
@@ -155,7 +155,7 @@ export default function TopBar() {
   const wsDropdown = mounted && wsMenuOpen && dropdownPos ? createPortal(
     <div
       ref={dropdownRef}
-      className="fixed w-64 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-xl dark:border-slate-300 dark:bg-[#edf3f9]"
+      className="fixed w-64 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-xl dark:border-[hsl(220,10%,18%)] dark:bg-[hsl(220,13%,12%)]"
       style={{ top: dropdownPos.top, left: dropdownPos.left, zIndex: 99999 }}
     >
       <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800">
@@ -172,8 +172,8 @@ export default function TopBar() {
               onClick={() => handleSwitchWorkspace(ws)}
               className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
                 isCurrent
-                  ? 'bg-blue-50 text-blue-800 dark:bg-blue-100 dark:text-blue-800'
-                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-700 dark:hover:bg-blue-50'
+                  ? 'bg-blue-50 text-blue-800 dark:bg-blue-100 dark:text-blue-300'
+                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-700 dark:hover:bg-slate-800/40'
               }`}
             >
               <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white ${
@@ -199,7 +199,7 @@ export default function TopBar() {
   ) : null
 
   return (
-    <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-[#f8fafc]/95 px-4 dark:border-slate-300 dark:bg-[#edf3f9]/95">
+    <header className="relative z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-[#f8fafc]/95 px-4 dark:border-[hsl(220,10%,16%)] dark:bg-[hsl(220,13%,9%)]/98">
       {/* Left: org > workspace breadcrumb + switcher */}
       <div className="flex items-center gap-1.5">
         {orgName && (
@@ -217,7 +217,7 @@ export default function TopBar() {
           ref={wsButtonRef}
           onClick={() => wsMenuOpen ? setWsMenuOpen(false) : openWsMenu()}
           disabled={switching}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold tracking-[-0.015em] text-slate-700 transition-colors hover:bg-blue-50 dark:hover:bg-blue-100 disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold tracking-[-0.015em] text-slate-700 transition-colors hover:bg-blue-50 dark:hover:bg-slate-800/50 disabled:opacity-60"
         >
           <LayoutGrid className={`h-3.5 w-3.5 ${switching ? 'animate-spin text-blue-500' : 'text-blue-700'}`} />
           <span>{workspaceName}</span>
@@ -230,7 +230,7 @@ export default function TopBar() {
           </span>
         )}
         {dashboardScope && (
-          <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 sm:inline-flex dark:bg-slate-200 dark:text-slate-700">
+          <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 sm:inline-flex dark:bg-slate-700/40 dark:text-slate-300">
             {dashboardScope} Scope
           </span>
         )}
@@ -244,7 +244,7 @@ export default function TopBar() {
         {/* Theme toggle */}
         <button
           onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-slate-700 dark:text-slate-600 dark:hover:bg-blue-100 dark:hover:text-slate-800"
+          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-blue-50 hover:text-slate-700 dark:text-slate-600 dark:hover:bg-slate-800/50 dark:hover:text-slate-200"
           aria-label="Toggle theme"
         >
           {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -254,9 +254,9 @@ export default function TopBar() {
         <div className="relative">
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-blue-50 dark:hover:bg-blue-100"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-slate-700 transition-colors hover:bg-blue-50 dark:hover:bg-slate-800/50"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-200">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-500/15">
               {isPlatformAdmin
                 ? <Shield className="h-3.5 w-3.5 text-blue-700" />
                 : <User className="h-3.5 w-3.5 text-blue-700" />
@@ -269,7 +269,7 @@ export default function TopBar() {
           {userMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
-              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-lg dark:border-slate-300 dark:bg-[#edf3f9]">
+              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-slate-200 bg-[#f8fafc] py-1.5 shadow-lg dark:border-[hsl(220,10%,18%)] dark:bg-[hsl(220,13%,12%)]">
                 <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                   <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{displayName}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{email}</p>
