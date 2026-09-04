@@ -7,8 +7,8 @@ import Link from 'next/link'
 import { Filter, Layers } from 'lucide-react'
 import { getAccessGroups } from '@/lib/api'
 import type { AccessGroupResponse } from '@/types/api'
-export { getDashboardWindow } from '@/lib/dashboard-window'
-export type { DashboardRange } from '@/lib/dashboard-window'
+import { getDashboardWindow, type DashboardRange } from '@/lib/dashboard-window'
+export { getDashboardWindow, type DashboardRange } from '@/lib/dashboard-window'
 
 const ranges = [
   { key: '24h', label: '24h' },
