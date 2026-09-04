@@ -15260,7 +15260,7 @@ async def get_optimization_observe_posture(
 @router.get("/analytics/optimization-finops-posture")
 async def optimization_finops_posture(
     workspace_id: str | None = None,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ) -> OptimizationFinOpsPosture:
     workspace = await _resolve_workspace(db, current_user, workspace_id)
@@ -15515,7 +15515,7 @@ async def get_build_internal_posture(
 )
 async def prompts_list_observe_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> PromptsListObservePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -15585,7 +15585,7 @@ async def prompts_list_observe_posture(
 )
 async def prompt_detail_hub_finops_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> PromptDetailHubFinOpsPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -15639,7 +15639,7 @@ async def prompt_detail_hub_finops_posture(
 )
 async def agents_list_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> AgentsListPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -15735,7 +15735,7 @@ async def agents_list_posture(
 )
 async def agent_detail_governance_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> AgentDetailGovernancePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -15814,7 +15814,7 @@ async def agent_detail_governance_posture(
 )
 async def workflows_list_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> WorkflowsListPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -15905,7 +15905,7 @@ async def workflows_list_posture(
 )
 async def workflow_detail_loop_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> WorkflowDetailLoopPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -15977,7 +15977,7 @@ async def workflow_detail_loop_posture(
 )
 async def workflow_run_evidence_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> WorkflowRunEvidencePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16065,7 +16065,7 @@ async def workflow_run_evidence_posture(
 )
 async def datasets_eval_asset_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> DatasetsEvalAssetPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16141,7 +16141,7 @@ async def datasets_eval_asset_posture(
 )
 async def eval_studio_parent_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> EvalStudioParentPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16217,7 +16217,7 @@ async def eval_studio_parent_posture(
 )
 async def experiments_comparison_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> ExperimentsComparisonPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16293,7 +16293,7 @@ async def experiments_comparison_posture(
 )
 async def replay_lab_mode_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> ReplayLabModePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16345,7 +16345,7 @@ async def replay_lab_mode_posture(
 )
 async def replay_result_analysis_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> ReplayResultAnalysisPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16415,7 +16415,7 @@ async def replay_result_analysis_posture(
 )
 async def runbooks_remediation_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> RunbooksRemediationPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16495,7 +16495,7 @@ async def runbooks_remediation_posture(
 )
 async def opt_opps_rationale_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> OptOppsRationalePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16548,7 +16548,7 @@ async def opt_opps_rationale_posture(
 )
 async def opt_sim_decision_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> OptSimDecisionPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16601,7 +16601,7 @@ async def opt_sim_decision_posture(
 )
 async def model_scorecards_intel_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> ModelScorecardsIntelPosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16664,7 +16664,7 @@ async def model_scorecards_intel_posture(
 )
 async def vector_stores_lifecycle_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> VectorStoresLifecyclePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
@@ -16733,7 +16733,7 @@ async def vector_stores_lifecycle_posture(
 )
 async def vector_store_detail_evidence_posture(
     request: Request,
-    db: AsyncSession = Depends(get_async_session),
+    db: AsyncSession = Depends(get_db),
 ) -> VectorStoreDetailEvidencePosture:
     workspace_id = request.state.workspace_id
     period_days = 30
