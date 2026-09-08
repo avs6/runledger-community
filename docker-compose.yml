@@ -67,7 +67,7 @@ services:
     image: qdrant/qdrant:v1.12.4
     container_name: runledger-qdrant
     restart: unless-stopped
-    profiles: ["infra", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${QDRANT_HTTP_PORT:-8202}:6333"
       - "${QDRANT_GRPC_PORT:-8203}:6334"
@@ -83,7 +83,7 @@ services:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
     container_name: runledger-minio
     restart: unless-stopped
-    profiles: ["backup", "infra", "full-demo"]
+    # profiles: removed — always starts
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
@@ -105,7 +105,7 @@ services:
     image: docker.redpanda.com/redpandadata/redpanda:v26.1.5
     container_name: runledger-redpanda
     restart: unless-stopped
-    profiles: ["streaming", "infra", "full-demo"]
+    # profiles: removed — always starts
     command:
       - redpanda
       - start
@@ -146,7 +146,7 @@ services:
     image: docker.redpanda.com/redpandadata/console:v3.1.0
     container_name: runledger-redpanda-console
     restart: unless-stopped
-    profiles: ["streaming", "infra", "full-demo"]
+    # profiles: removed — always starts
     environment:
       CONFIG_FILEPATH: /tmp/console-config.yml
     entrypoint:
@@ -444,7 +444,7 @@ services:
     image: caddy:2-alpine
     container_name: runledger-caddy
     restart: unless-stopped
-    profiles: ["tls-demo", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "3443:3443"
       - "8443:8443"
@@ -466,7 +466,7 @@ services:
       context: ./apps/embedding-svc
     container_name: runledger-embedding-svc
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${EMBEDDING_PORT:-8204}:8100"
     environment:
@@ -486,7 +486,7 @@ services:
       context: ./apps/semantic-cache-svc
     container_name: runledger-semantic-cache-svc
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${SEMANTIC_CACHE_PORT:-8205}:8101"
     environment:
@@ -512,7 +512,7 @@ services:
       context: ./apps/mcp-gateway
     container_name: runledger-mcp-gateway
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${MCP_PORT:-8206}:8200"
     environment:
@@ -534,7 +534,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: runledger-memory-db
     restart: unless-stopped
-    profiles: ["infra", "full-demo"]
+    # profiles: removed — always starts
     environment:
       POSTGRES_USER: letta
       POSTGRES_PASSWORD: letta
@@ -553,7 +553,7 @@ services:
     image: letta/letta:latest
     container_name: runledger-letta
     restart: unless-stopped
-    profiles: ["infra", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${LETTA_PORT:-8214}:8283"
     environment:
@@ -571,7 +571,7 @@ services:
       context: ./apps/memory-svc
     container_name: runledger-memory-svc
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${MEMORY_PORT:-8211}:8107"
     environment:
@@ -590,7 +590,7 @@ services:
       context: ./apps/kg-svc
     container_name: runledger-kg-svc
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${KG_PORT:-8212}:8106"
     volumes:
@@ -608,7 +608,7 @@ services:
       context: ./apps/skill-registry
     container_name: runledger-skill-registry
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${SKILL_PORT:-8213}:8108"
     volumes:
@@ -620,7 +620,7 @@ services:
       context: ./apps/reranker-svc
     container_name: runledger-reranker
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${RERANKER_PORT:-8208}:8102"
     environment:
@@ -640,7 +640,7 @@ services:
       context: ./apps/compression-svc
     container_name: runledger-compression
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${COMPRESSION_PORT:-8209}:8104"
     environment:
@@ -686,7 +686,7 @@ services:
       context: ./apps/context-compiler-svc
     container_name: runledger-context-compiler
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${CONTEXT_COMPILER_PORT:-8207}:8103"
     environment:
@@ -714,7 +714,7 @@ services:
       context: ./apps/flywheel-svc
     container_name: runledger-flywheel
     restart: unless-stopped
-    profiles: ["aux", "full-prod", "full-demo"]
+    # profiles: removed — always starts
     ports:
       - "${FLYWHEEL_PORT:-8215}:8109"
     healthcheck:
@@ -731,7 +731,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.114.0
     container_name: runledger-otel-collector
     restart: unless-stopped
-    profiles: ["observability", "otel", "infra", "full-demo"]
+    # profiles: removed — always starts
     command: ["--config=/etc/otel/config.yaml"]
     configs:
       - source: otel_config
