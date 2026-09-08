@@ -6378,8 +6378,8 @@ async def investigation_org_identity_posture(
         await db.execute(
             select(func.count(OtlpIngestBatch.id)).where(
                 OtlpIngestBatch.workspace_id == workspace.id,
-                OtlpIngestBatch.created_at >= t_from,
-                OtlpIngestBatch.created_at < t_to,
+                OtlpIngestBatch.received_at >= t_from,
+                OtlpIngestBatch.received_at < t_to,
             )
         )
     ).scalar() or 0
@@ -13073,8 +13073,8 @@ async def chargeback_cross_feature_posture(
         await db.execute(
             select(func.count()).select_from(OtlpIngestBatch).where(
                 OtlpIngestBatch.workspace_id == workspace_id,
-                OtlpIngestBatch.created_at >= t_from,
-                OtlpIngestBatch.created_at < t_to,
+                OtlpIngestBatch.received_at >= t_from,
+                OtlpIngestBatch.received_at < t_to,
             )
         )
     ).scalar() or 0
@@ -14225,7 +14225,7 @@ async def playground_org_gateway_posture(
         await db.execute(
             select(func.count(HubModel.id)).where(
                 HubModel.workspace_id == workspace.id,
-                HubModel.is_active.is_(True),
+                HubModel.is_deprecated.is_(False),
             )
         )
     ).scalar() or 0
@@ -14371,7 +14371,7 @@ async def prompts_org_gateway_posture(
         await db.execute(
             select(func.count(HubModel.id)).where(
                 HubModel.workspace_id == workspace.id,
-                HubModel.is_active.is_(True),
+                HubModel.is_deprecated.is_(False),
             )
         )
     ).scalar() or 0
@@ -14873,7 +14873,7 @@ async def get_eval_replay_org_gateway_posture(
         await db.execute(
             select(func.count(HubModel.id)).where(
                 HubModel.workspace_id == workspace.id,
-                HubModel.is_active.is_(True),
+                HubModel.is_deprecated.is_(False),
             )
         )
     ).scalar() or 0
@@ -15085,7 +15085,7 @@ async def get_optimization_org_gateway_posture(
         await db.execute(
             select(func.count(HubModel.id)).where(
                 HubModel.workspace_id == workspace.id,
-                HubModel.is_active.is_(True),
+                HubModel.is_deprecated.is_(False),
             )
         )
     ).scalar() or 0
@@ -15607,7 +15607,7 @@ async def prompt_detail_hub_finops_posture(
     active_models = (await db.execute(
         select(func.count(HubModel.id)).where(
             HubModel.workspace_id == workspace_id,
-            HubModel.is_active == True,
+            HubModel.is_deprecated == False,
         )
     )).scalar_one()
 
@@ -15666,7 +15666,7 @@ async def agents_list_posture(
     active_models = (await db.execute(
         select(func.count(HubModel.id)).where(
             HubModel.workspace_id == workspace_id,
-            HubModel.is_active == True,
+            HubModel.is_deprecated == False,
         )
     )).scalar_one()
 
@@ -15840,7 +15840,7 @@ async def workflows_list_posture(
     active_models = (await db.execute(
         select(func.count(HubModel.id)).where(
             HubModel.workspace_id == workspace_id,
-            HubModel.is_active == True,
+            HubModel.is_deprecated == False,
         )
     )).scalar_one()
 
@@ -16920,7 +16920,7 @@ async def platform_settings_convergence_posture(
     otlp_batches = (
         await db.execute(
             select(func.count(OtlpIngestBatch.id)).where(
-                OtlpIngestBatch.created_at >= t_from
+                OtlpIngestBatch.received_at >= t_from
             )
         )
     ).scalar() or 0
@@ -16928,7 +16928,7 @@ async def platform_settings_convergence_posture(
     otlp_spans = (
         await db.execute(
             select(func.coalesce(func.sum(OtlpIngestBatch.span_count), 0)).where(
-                OtlpIngestBatch.created_at >= t_from
+                OtlpIngestBatch.received_at >= t_from
             )
         )
     ).scalar() or 0
@@ -17027,7 +17027,7 @@ async def platform_admin_observe_posture(
     otlp_batches = (
         await db.execute(
             select(func.count(OtlpIngestBatch.id)).where(
-                OtlpIngestBatch.created_at >= t_from
+                OtlpIngestBatch.received_at >= t_from
             )
         )
     ).scalar() or 0
@@ -17035,7 +17035,7 @@ async def platform_admin_observe_posture(
     otlp_spans = (
         await db.execute(
             select(func.coalesce(func.sum(OtlpIngestBatch.span_count), 0)).where(
-                OtlpIngestBatch.created_at >= t_from
+                OtlpIngestBatch.received_at >= t_from
             )
         )
     ).scalar() or 0
@@ -17579,7 +17579,7 @@ async def consumer_migration_posture(
         consumer_assets={
             "api_keys": api_keys,
             "docs_migrated": True,
-            "postman_migrated": True,
+            "swagger_ui_enabled": True,
             "examples_migrated": True,
             "benchmark_migrated": True,
             "migration_guide": "examples/163_consumer_migration_guide.py",

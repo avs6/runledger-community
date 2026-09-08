@@ -172,8 +172,8 @@ export default function TopBar() {
               onClick={() => handleSwitchWorkspace(ws)}
               className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
                 isCurrent
-                  ? 'bg-blue-50 text-blue-800 dark:bg-blue-100 dark:text-blue-300'
-                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-700 dark:hover:bg-slate-800/40'
+                  ? 'bg-blue-50 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                  : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800/40'
               }`}
             >
               <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white ${
@@ -189,7 +189,7 @@ export default function TopBar() {
       )}
       <div className="mx-3 border-t border-slate-100 dark:border-slate-800 mt-1 pt-1">
         {(isOrgAdmin || isPlatformAdmin) && (
-          <a href="/workspace" className="flex w-full items-center gap-2 px-0 py-1.5 text-xs text-slate-500 transition-colors hover:text-blue-700 dark:text-slate-600 dark:hover:text-blue-700">
+          <a href="/workspace" className="flex w-full items-center gap-2 px-0 py-1.5 text-xs text-slate-500 transition-colors hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-400">
             <LayoutGrid className="h-3.5 w-3.5" /> Manage workspaces
           </a>
         )}

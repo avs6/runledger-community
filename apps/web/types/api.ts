@@ -6418,7 +6418,7 @@ export interface ConsumerMigrationPosture {
   consumer_assets: {
     api_keys: number
     docs_migrated: boolean
-    postman_migrated: boolean
+    swagger_ui_enabled: boolean
     examples_migrated: boolean
     benchmark_migrated: boolean
     migration_guide: string

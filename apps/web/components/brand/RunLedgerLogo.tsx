@@ -63,8 +63,8 @@ export default function RunLedgerLogo({
   markSize = 36,
   showWordmark = true,
   className = '',
-  wordmarkClassName = 'text-sm text-slate-950 dark:text-slate-950',
-  taglineClassName = 'text-blue-700 dark:text-blue-700',
+  wordmarkClassName = 'text-sm text-slate-950 dark:text-slate-100',
+  taglineClassName = 'text-blue-700 dark:text-blue-400',
 }: RunLedgerLogoProps) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>

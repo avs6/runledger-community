@@ -711,8 +711,9 @@ export default function GuardrailsPage() {
           <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
           <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
         </div>
+      </div>
 
-        {observePosture && (
+      {observePosture && (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Guardrails Observe Posture</h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -827,7 +828,6 @@ export default function GuardrailsPage() {
             Add partner
           </button>
         </div>
-      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Evaluations" value={String(stats?.total_evaluations ?? '--')} />

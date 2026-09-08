@@ -258,9 +258,9 @@ function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
 }
 
 function riskClass(risk: Risk) {
-  if (risk === 'Low') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  if (risk === 'Medium') return 'bg-amber-50 text-amber-700 border-amber-200'
-  return 'bg-rose-50 text-rose-700 border-rose-200'
+  if (risk === 'Low') return 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+  if (risk === 'Medium') return 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+  return 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
 }
 
 export default async function OptimizationOpportunitiesPage({
@@ -301,12 +301,12 @@ export default async function OptimizationOpportunitiesPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Optimization Opportunities</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">Optimization Opportunities</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Rule-based recommendations backed by current dashboard evidence. This is the bridge from reporting to advisory intelligence.
           </p>
         </div>
-        <Link href="/experiments" className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100">
+        <Link href="/experiments" className="inline-flex items-center gap-1 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/60 px-3 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 transition-colors hover:bg-blue-100 dark:hover:bg-blue-900">
           Experiment lab <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
@@ -320,7 +320,7 @@ export default async function OptimizationOpportunitiesPage({
             <Link
               key={scope}
               href={`/optimization-opportunities?scope=${scope}&range=${win.range}`}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${active ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'}`}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${active ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700'}`}
             >
               {scopeLabel(scope)}
             </Link>
@@ -329,24 +329,24 @@ export default async function OptimizationOpportunitiesPage({
       </div>
 
       {orgGatewayPosture && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Organization &amp; Access Context</p>
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Organization &amp; Access Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Workspace</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.workspace_context.workspace_name}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.workspace_context.workspace_name}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">API Keys</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.api_key_context.api_keys}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.api_key_context.api_keys}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Hub Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.ai_hub_context.hub_models}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.ai_hub_context.hub_models}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Active Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.ai_hub_context.hub_active_models}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.ai_hub_context.hub_active_models}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200">
@@ -358,24 +358,24 @@ export default async function OptimizationOpportunitiesPage({
       )}
 
       {orgGatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Gateway &amp; Routing Context</p>
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-900 bg-violet-50/50 dark:bg-violet-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway &amp; Routing Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Providers</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.provider_context.distinct_providers}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.provider_context.distinct_providers}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Active Routes</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.provider_context.active_routes}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.provider_context.active_routes}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Guardrails</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.guardrail_context.guardrail_rules}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.guardrail_context.guardrail_rules}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Cache Configs</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.cache_context.cache_configs}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.cache_context.cache_configs}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200">
@@ -389,22 +389,22 @@ export default async function OptimizationOpportunitiesPage({
       )}
 
       {observePosture && (
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600">Observe &amp; Runtime Context</p>
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-900 bg-cyan-50/50 dark:bg-cyan-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Runtime Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Runs 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{observePosture.runs_context.runs_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{observePosture.runs_context.runs_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Provider Calls 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{observePosture.request_flow_context.provider_calls_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{observePosture.request_flow_context.provider_calls_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Distinct Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{observePosture.model_usage_context.distinct_models_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{observePosture.model_usage_context.distinct_models_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Total Cost 30d</p>
               <p className="mt-1 text-lg font-semibold text-cyan-600">${observePosture.cost_savings_context.total_cost_30d.toFixed(2)}</p>
             </div>
@@ -420,12 +420,12 @@ export default async function OptimizationOpportunitiesPage({
       )}
 
       {finOpsPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/30 p-5 shadow-sm">
           <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">FinOps &amp; Budget Context</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
             <div>
               <p className="text-[11px] text-emerald-600">Active budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{finOpsPosture.budget_context.active_budgets}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{finOpsPosture.budget_context.active_budgets}</p>
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Total limit</p>
@@ -437,7 +437,7 @@ export default async function OptimizationOpportunitiesPage({
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Billing periods</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{finOpsPosture.billing_context.active_billing_periods} / {finOpsPosture.billing_context.total_billing_periods}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{finOpsPosture.billing_context.active_billing_periods} / {finOpsPosture.billing_context.total_billing_periods}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200">
@@ -450,24 +450,24 @@ export default async function OptimizationOpportunitiesPage({
       )}
 
       {buildPosture && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Build &amp; Improve Loop</p>
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Playground 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.playground_context.sessions_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.playground_context.sessions_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Workflows</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.workflows_context.definitions}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.workflows_context.definitions}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Eval Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.evaluation_context.experiments}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.evaluation_context.experiments}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Score Events 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.scorecards_context.score_events_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.scorecards_context.score_events_30d}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200">
@@ -480,24 +480,24 @@ export default async function OptimizationOpportunitiesPage({
       )}
 
       {rationalePosture && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Cost, Evaluation &amp; Optimization Context</p>
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Cost, Evaluation &amp; Optimization Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Cost 30d</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">${Number(rationalePosture.cost_context.cost_30d).toFixed(2)}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Eval Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{rationalePosture.optimization_context.eval_experiments}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{rationalePosture.optimization_context.eval_experiments}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Replay Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{rationalePosture.optimization_context.replay_experiments}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{rationalePosture.optimization_context.replay_experiments}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Score Events 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{rationalePosture.optimization_context.score_events_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{rationalePosture.optimization_context.score_events_30d}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200">
@@ -518,44 +518,44 @@ export default async function OptimizationOpportunitiesPage({
       />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Opportunities</p>
             <Lightbulb className="h-5 w-5 text-blue-700" />
           </div>
-          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{recommendations.length}</p>
+          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">{recommendations.length}</p>
           <p className="mt-1 text-xs text-slate-500">Rule-backed cards from sampled telemetry</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Projected savings</p>
             <PiggyBank className="h-5 w-5 text-emerald-700" />
           </div>
-          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{money(totalProjected)}</p>
+          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">{money(totalProjected)}</p>
           <p className="mt-1 text-xs text-slate-500">{percent(total > 0 ? (totalProjected / total) * 100 : 0)} of sampled spend</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Measured savings</p>
             <ShieldCheck className="h-5 w-5 text-emerald-700" />
           </div>
-          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{money(measuredSavings)}</p>
+          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">{money(measuredSavings)}</p>
           <p className="mt-1 text-xs text-slate-500">Realized from persisted provider-call attribution</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Scope spend</p>
             <Gauge className="h-5 w-5 text-blue-700" />
           </div>
-          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{money(total)}</p>
+          <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">{money(total)}</p>
           <p className="mt-1 text-xs text-slate-500">{items.length.toLocaleString()} sampled records</p>
         </div>
       </div>
 
       {recommendations.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white/80 p-10 text-center shadow-sm">
+        <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-10 text-center shadow-sm">
           <Sparkles className="mx-auto h-8 w-8 text-blue-600" />
-          <h2 className="mt-4 text-lg font-semibold text-slate-950">No strong recommendations yet</h2>
+          <h2 className="mt-4 text-lg font-semibold text-slate-950 dark:text-white">No strong recommendations yet</h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-slate-500">
             Send richer model, route, tool, cache, and outcome telemetry. RunLedger will start producing advisory cards as usage patterns emerge.
           </p>
@@ -563,45 +563,45 @@ export default async function OptimizationOpportunitiesPage({
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
           {recommendations.map((rec) => (
-            <div key={rec.id} className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+            <div key={rec.id} className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{rec.category}</span>
+                    <span className="rounded-full bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">{rec.category}</span>
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${riskClass(rec.risk)}`}>{rec.risk} risk</span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{rec.confidence} confidence</span>
+                    <span className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">{rec.confidence} confidence</span>
                   </div>
-                  <h2 className="mt-3 text-lg font-semibold text-slate-950">{rec.title}</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{rec.problem}</p>
+                  <h2 className="mt-3 text-lg font-semibold text-slate-950 dark:text-white">{rec.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{rec.problem}</p>
                 </div>
                 <div className="grid gap-2 text-right">
-                  <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-emerald-800">
+                  <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 px-4 py-3 text-emerald-800 dark:text-emerald-200">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em]">Projected</p>
                     <p className="font-display text-2xl font-semibold tracking-[-0.04em]">{money(rec.projectedSavings)}</p>
                     <p className="text-xs">{percent(rec.projectedSavingsPct)} segment lift</p>
                   </div>
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-blue-800">
+                  <div className="rounded-2xl border border-blue-100 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/60 px-4 py-3 text-blue-800 dark:text-blue-200">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em]">Measured so far</p>
                     <p className="font-display text-xl font-semibold tracking-[-0.04em]">{money(rec.realizedSavings)}</p>
                     <p className="text-xs">Persisted savings in this segment</p>
                   </div>
                 </div>
               </div>
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+              <div className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/60 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Evidence</p>
                 <div className="mt-2 grid gap-2 md:grid-cols-3">
                   {rec.evidence.map((item) => (
-                    <div key={item} className="rounded-xl bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">{item}</div>
+                    <div key={item} className="rounded-xl bg-white dark:bg-slate-800 px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm">{item}</div>
                   ))}
                 </div>
               </div>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2 text-sm text-slate-600">
+                <div className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
                   {rec.risk === 'High' ? <AlertTriangle className="mt-0.5 h-4 w-4 text-rose-600" /> : <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-600" />}
                   <span>{rec.action}</span>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Link href={rec.href} className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                  <Link href={rec.href} className="inline-flex items-center gap-1 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/60 px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900">
                     {rec.cta}
                   </Link>
                   <Link href={`/experiments?recommendation=${rec.id}`} className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
@@ -614,12 +614,12 @@ export default async function OptimizationOpportunitiesPage({
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <Route className="mt-0.5 h-5 w-5 text-blue-700" />
           <div>
-            <h2 className="font-semibold text-slate-950">How recommendations are generated</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <h2 className="font-semibold text-slate-950 dark:text-white">How recommendations are generated</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
               This view uses deterministic rules over request-flow telemetry: model mismatch, cache hit rate, reasoning-heavy routes, tool overuse, latency outliers, failed spend, local-model eligibility, and outcome success. A learned advisory engine can augment these recommendations over time.
             </p>
           </div>

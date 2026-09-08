@@ -19,7 +19,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-BRIDGE = ROOT / "scripts" / "runledger" / "mcp_stdio_bridge.py"
+BRIDGE = ROOT / "scripts" / "mcp" / "mcp_stdio_bridge.py"
 
 
 def load_state(path: Path) -> dict[str, Any]:

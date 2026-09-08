@@ -65,13 +65,22 @@ export default function ApiDocsPage() {
         </div>
         <div className="flex items-center gap-2">
           <a
+            href={`${apiBase}/docs`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50 dark:border-blue-700 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700"
+          >
+            <Code2 className="h-3.5 w-3.5" />
+            Swagger UI
+          </a>
+          <a
             href={`${apiBase}/reference`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm hover:bg-purple-50 dark:border-purple-700 dark:bg-slate-800 dark:text-purple-300 dark:hover:bg-slate-700"
           >
             <BookOpen className="h-3.5 w-3.5" />
-            Open Scalar
+            Scalar Reference
           </a>
           <button
             onClick={refresh}

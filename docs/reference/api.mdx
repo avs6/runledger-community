@@ -25,30 +25,25 @@ http://localhost:8210/gateway/chat/completions
 
 Use the control plane for route, policy, stats, and operator APIs; use the Rust gateway for live OpenAI-compatible completions traffic.
 
-## Planned API explorer direction
+## Swagger UI
 
-The long-term product direction is to make the OpenAPI spec the single source for:
+FastAPI's built-in Swagger UI is available at:
 
-- the live browser-based API explorer
-- any future Swagger-style or embedded API GUI
-- downstream generated artifacts
-
-That means the spec remains the durable contract even if the presentation layer changes away from today's Scalar UI.
-
-## Postman
-
-A generated Postman collection + environment live in the repo under
-[`postman/`](https://github.com/avs6/runledger-community/tree/master/postman) — import both, set `base_url`
-and `api_key`, and every endpoint (including the optimization microservices) is ready to call.
-
-To regenerate the collection after changing the API, run the generator against your live OpenAPI spec:
-
-```bash
-curl -s http://localhost:8201/openapi.json -o /tmp/openapi.json
-python scripts/generate_postman.py /tmp/openapi.json \
-  postman/RunLedger.postman_collection.json \
-  postman/RunLedger.postman_environment.json
 ```
+http://localhost:8201/docs
+```
+
+Use it to try out endpoints directly in the browser with your workspace API key. The companion ReDoc view is at `http://localhost:8201/redoc`.
+
+## Scalar Reference
+
+A richer interactive reference powered by Scalar is at:
+
+```
+http://localhost:8201/reference
+```
+
+Both UIs are generated from the same OpenAPI spec — the spec remains the durable contract.
 
 ## Authentication
 

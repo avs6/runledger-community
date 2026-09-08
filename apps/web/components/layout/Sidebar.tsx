@@ -80,7 +80,6 @@ const observeNav = [
   { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
-  { href: '/monitoring/telemetry', label: 'Telemetry', icon: Radio },
   { href: '/evaluations', label: 'Quality Scores', icon: GraduationCap },
   { href: '/outcomes', label: 'Outcomes & ROI', icon: TrendingUp },
 ] as const
@@ -130,8 +129,13 @@ export default function Sidebar() {
   const isActive = (href: string) => {
     if (href === '/analytics') return pathname === '/analytics'
     if (href === '/organization') return pathname === '/organization'
+    if (href === '/monitoring') return pathname === '/monitoring'
+    if (href === '/guardrails') return pathname === '/guardrails'
     return pathname === href || pathname.startsWith(`${href}/`)
   }
+
+  const isGroupActive = (parentHref: string) =>
+    pathname === parentHref || pathname.startsWith(`${parentHref}/`)
 
   function NavLink({ href, label, icon: Icon, badge }: { href: string; label: string; icon: React.ElementType; badge?: string }) {
     const active = isActive(href)
@@ -155,6 +159,38 @@ export default function Sidebar() {
           </span>
         )}
       </Link>
+    )
+  }
+
+  function NavGroup({ parentHref, parentLabel, parentIcon, children }: { parentHref: string; parentLabel: string; parentIcon: React.ElementType; children: ReactNode }) {
+    const expanded = isGroupActive(parentHref)
+    const Icon = parentIcon
+    const active = isActive(parentHref)
+    return (
+      <div>
+        <Link
+          href={parentHref}
+          className={`group relative flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium tracking-[-0.01em] transition-all duration-150 ${
+            active
+              ? 'bg-blue-100 text-slate-950 shadow-sm ring-1 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-100 dark:ring-blue-500/30 dark:shadow-none'
+              : expanded
+                ? 'text-slate-700 dark:text-slate-300'
+                : 'text-slate-600 hover:bg-blue-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-slate-100'
+          }`}
+        >
+          {active && (
+            <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-blue-500" />
+          )}
+          <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-blue-700 dark:text-blue-400' : 'text-slate-500 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300'}`} />
+          <span className="truncate">{parentLabel}</span>
+          <ChevronDown className={`ml-auto h-3 w-3 text-slate-400 transition-transform ${expanded ? '' : '-rotate-90'}`} />
+        </Link>
+        {expanded && (
+          <div className="ml-4 mt-0.5 flex flex-col gap-0.5 border-l border-slate-200 pl-1.5 dark:border-slate-700">
+            {children}
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -185,9 +221,15 @@ export default function Sidebar() {
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <nav className="flex flex-col gap-0.5">
           <Section id="observe" label="Observe">
-            {observeNav.map(({ href, label, icon }) => (
-              <NavLink key={href} href={href} label={label} icon={icon} />
-            ))}
+            {observeNav.map(({ href, label, icon }) =>
+              href === '/monitoring' ? (
+                <NavGroup key={href} parentHref="/monitoring" parentLabel="Monitoring" parentIcon={Activity}>
+                  <NavLink href="/monitoring/telemetry" label="Telemetry" icon={Radio} />
+                </NavGroup>
+              ) : (
+                <NavLink key={href} href={href} label={label} icon={icon} />
+              )
+            )}
           </Section>
 
           <Section id="build" label="Build & Improve">
@@ -204,8 +246,9 @@ export default function Sidebar() {
                   <NavLink href="/provider-profiles" label="Provider Profiles" icon={Database} />
                 </>
               )}
-              <NavLink href="/guardrails" label="Guardrails" icon={ShieldAlert} />
-              <NavLink href="/guardrails/violations" label="Guardrail Violations" icon={ShieldAlert} />
+              <NavGroup parentHref="/guardrails" parentLabel="Guardrails" parentIcon={ShieldAlert}>
+                <NavLink href="/guardrails/violations" label="Violations" icon={ShieldAlert} />
+              </NavGroup>
             </Section>
           )}
 

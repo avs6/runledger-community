@@ -87,13 +87,13 @@ function pct(v: string | number | null) {
 }
 
 const inputCls =
-  'rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-300 dark:bg-white dark:text-slate-900'
+  'rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100'
 
 const riskColors: Record<string, { bg: string; text: string; icon: typeof CheckCircle2 }> = {
-  low: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: CheckCircle2 },
-  medium: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: AlertTriangle },
-  high: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-700', icon: AlertTriangle },
-  unknown: { bg: 'bg-slate-100 border-slate-200', text: 'text-slate-600', icon: Gauge },
+  low: { bg: 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 },
+  medium: { bg: 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300', icon: AlertTriangle },
+  high: { bg: 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800', text: 'text-rose-700 dark:text-rose-300', icon: AlertTriangle },
+  unknown: { bg: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700', text: 'text-slate-600 dark:text-slate-300', icon: Gauge },
 }
 
 export default function OptimizationSimulatorPage() {
@@ -153,7 +153,7 @@ export default function OptimizationSimulatorPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <FlaskConical className="h-5 w-5 text-violet-600" />
-            <h1 className="font-display text-2xl font-semibold tracking-[-0.045em] text-slate-950">
+            <h1 className="font-display text-2xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white">
               Optimization Simulator
             </h1>
           </div>
@@ -164,24 +164,24 @@ export default function OptimizationSimulatorPage() {
       </div>
 
       {orgGatewayPosture && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Organization &amp; Access Context</p>
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Organization &amp; Access Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Workspace</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.workspace_context.workspace_name}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.workspace_context.workspace_name}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">API Keys</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.api_key_context.api_keys}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.api_key_context.api_keys}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Hub Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.ai_hub_context.hub_models}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.ai_hub_context.hub_models}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Active Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.ai_hub_context.hub_active_models}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.ai_hub_context.hub_active_models}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200">
@@ -193,24 +193,24 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {orgGatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Gateway &amp; Routing Context</p>
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-900 bg-violet-50/50 dark:bg-violet-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway &amp; Routing Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Providers</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.provider_context.distinct_providers}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.provider_context.distinct_providers}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Active Routes</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.provider_context.active_routes}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.provider_context.active_routes}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Guardrails</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.guardrail_context.guardrail_rules}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.guardrail_context.guardrail_rules}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Cache Configs</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{orgGatewayPosture.cache_context.cache_configs}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{orgGatewayPosture.cache_context.cache_configs}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200">
@@ -224,22 +224,22 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {observePosture && (
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600">Observe &amp; Runtime Context</p>
+        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-900 bg-cyan-50/50 dark:bg-cyan-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Runtime Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Runs 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{observePosture.runs_context.runs_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{observePosture.runs_context.runs_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Provider Calls 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{observePosture.request_flow_context.provider_calls_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{observePosture.request_flow_context.provider_calls_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Distinct Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{observePosture.model_usage_context.distinct_models_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{observePosture.model_usage_context.distinct_models_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Total Cost 30d</p>
               <p className="mt-1 text-lg font-semibold text-cyan-600">${observePosture.cost_savings_context.total_cost_30d.toFixed(2)}</p>
             </div>
@@ -255,12 +255,12 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {finOpsPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/30 p-5 shadow-sm">
           <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">FinOps &amp; Budget Context</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
             <div>
               <p className="text-[11px] text-emerald-600">Active budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{finOpsPosture.budget_context.active_budgets}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{finOpsPosture.budget_context.active_budgets}</p>
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Total limit</p>
@@ -272,7 +272,7 @@ export default function OptimizationSimulatorPage() {
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Billing periods</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{finOpsPosture.billing_context.active_billing_periods} / {finOpsPosture.billing_context.total_billing_periods}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{finOpsPosture.billing_context.active_billing_periods} / {finOpsPosture.billing_context.total_billing_periods}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200">
@@ -285,24 +285,24 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {buildPosture && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Build &amp; Improve Loop</p>
+        <div className="rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Playground 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.playground_context.sessions_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.playground_context.sessions_30d}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Workflows</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.workflows_context.definitions}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.workflows_context.definitions}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Eval Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.evaluation_context.experiments}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.evaluation_context.experiments}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Score Events 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{buildPosture.scorecards_context.score_events_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{buildPosture.scorecards_context.score_events_30d}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200">
@@ -315,24 +315,24 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {decisionPosture && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">Cost, Evaluation &amp; Optimization Context</p>
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Cost, Evaluation &amp; Optimization Context</p>
           <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Cost 30d</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">${Number(decisionPosture.cost_context.cost_30d).toFixed(2)}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Eval Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{decisionPosture.optimization_context.eval_experiments}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{decisionPosture.optimization_context.eval_experiments}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Replay Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{decisionPosture.optimization_context.replay_experiments}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{decisionPosture.optimization_context.replay_experiments}</p>
             </div>
-            <div className="rounded-xl bg-white/80 p-3">
+            <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Score Events 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{decisionPosture.optimization_context.score_events_30d}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{decisionPosture.optimization_context.score_events_30d}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200">
@@ -345,7 +345,7 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {/* ── Configuration panel ── */}
-      <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-5">
           <Layers className="h-4 w-4 text-blue-700" />
           <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Simulation Parameters</h2>
@@ -353,28 +353,28 @@ export default function OptimizationSimulatorPage() {
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-600">Current model</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Current model</span>
             <select value={currentModel} onChange={e => setCurrentModel(e.target.value)} className={`w-full ${inputCls}`}>
               {MODELS.map(m => <option key={`cur-${m.value}`} value={m.value}>{m.label || 'Any (all models)'}</option>)}
             </select>
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-600">Proposed model</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Proposed model</span>
             <select value={proposedModel} onChange={e => setProposedModel(e.target.value)} className={`w-full ${inputCls}`}>
               {MODELS.map(m => <option key={`prop-${m.value}`} value={m.value}>{m.label || 'No change'}</option>)}
             </select>
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-600">Intent filter</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Intent filter</span>
             <select value={intent} onChange={e => setIntent(e.target.value)} className={`w-full ${inputCls}`}>
               {INTENTS.map(i => <option key={i} value={i}>{i || 'All intents'}</option>)}
             </select>
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-slate-600">Time range</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Time range</span>
             <select value={range} onChange={e => setRange(e.target.value)} className={`w-full ${inputCls}`}>
               {RANGES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
@@ -388,7 +388,7 @@ export default function OptimizationSimulatorPage() {
                 onChange={e => setEnableCache(e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">Enable caching</span>
+              <span className="text-sm text-slate-700 dark:text-slate-300">Enable caching</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -397,7 +397,7 @@ export default function OptimizationSimulatorPage() {
                 onChange={e => setEnableCompression(e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">Enable prompt compression</span>
+              <span className="text-sm text-slate-700 dark:text-slate-300">Enable prompt compression</span>
             </label>
           </div>
 
@@ -425,7 +425,7 @@ export default function OptimizationSimulatorPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Projected savings</p>
                 <PiggyBank className="h-5 w-5 text-emerald-600" />
               </div>
-              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 tabular-nums">
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white tabular-nums">
                 {money(result.projected_savings_usd)}
               </p>
               <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-emerald-600">
@@ -439,7 +439,7 @@ export default function OptimizationSimulatorPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Current cost</p>
                 <DollarSign className="h-5 w-5 text-blue-600" />
               </div>
-              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 tabular-nums">
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white tabular-nums">
                 {money(result.current_cost_usd)}
               </p>
               <p className="mt-1 text-xs text-slate-500">
@@ -453,11 +453,11 @@ export default function OptimizationSimulatorPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Affected requests</p>
                 <Zap className="h-5 w-5 text-violet-600" />
               </div>
-              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 tabular-nums">
+              <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950 dark:text-white tabular-nums">
                 {result.affected_requests.toLocaleString()}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${result.confidence === 'high' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : result.confidence === 'medium' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${result.confidence === 'high' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : result.confidence === 'medium' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
                   {result.confidence} confidence
                 </span>
               </p>
@@ -482,25 +482,25 @@ export default function OptimizationSimulatorPage() {
 
           {/* Latency comparison */}
           {(result.current_avg_latency_ms || result.projected_latency_ms) && (
-            <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="h-4 w-4 text-blue-700" />
-                <h3 className="text-sm font-semibold text-slate-950">Latency Impact</h3>
+                <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Latency Impact</h3>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 p-4">
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Current avg</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
                     {result.current_avg_latency_ms ? `${parseFloat(result.current_avg_latency_ms).toFixed(0)}ms` : 'n/a'}
                   </p>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4">
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Projected avg</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">
+                  <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
                     {result.projected_latency_ms ? `${parseFloat(result.projected_latency_ms).toFixed(0)}ms` : 'n/a'}
                   </p>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4">
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Delta</p>
                   <p className={`mt-1 text-2xl font-semibold tabular-nums ${result.latency_delta_pct && parseFloat(result.latency_delta_pct) > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
                     {pct(result.latency_delta_pct)}
@@ -512,25 +512,25 @@ export default function OptimizationSimulatorPage() {
 
           {/* Impact breakdown */}
           {result.impacts.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 className="h-4 w-4 text-blue-700" />
-                <h3 className="text-sm font-semibold text-slate-950">Impact Breakdown</h3>
+                <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Impact Breakdown</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <th className="pb-3 pr-4">Change</th>
                       <th className="pb-3 pr-4">Current</th>
                       <th className="pb-3 pr-4">Projected</th>
                       <th className="pb-3 text-right">Cost delta</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {result.impacts.map((impact, i) => (
-                      <tr key={i} className="hover:bg-slate-50/80">
-                        <td className="py-3 pr-4 font-medium text-slate-900">{impact.label}</td>
+                      <tr key={i} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                        <td className="py-3 pr-4 font-medium text-slate-900 dark:text-slate-100">{impact.label}</td>
                         <td className="py-3 pr-4 text-slate-600">{impact.current_value}</td>
                         <td className="py-3 pr-4 font-medium text-blue-700">{impact.projected_value}</td>
                         <td className={`py-3 text-right font-semibold tabular-nums ${impact.delta_pct && parseFloat(impact.delta_pct) < 0 ? 'text-emerald-600' : impact.delta_pct && parseFloat(impact.delta_pct) > 0 ? 'text-rose-600' : 'text-slate-500'}`}>
@@ -545,11 +545,11 @@ export default function OptimizationSimulatorPage() {
           )}
 
           {/* Description summary */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/60 p-5 text-sm text-slate-600 dark:text-slate-300">
             <div className="flex items-start gap-3">
               <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
               <div>
-                <p className="font-semibold text-slate-900">Simulation summary</p>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">Simulation summary</p>
                 <p className="mt-1 leading-6">{result.description}</p>
               </div>
             </div>
@@ -559,9 +559,9 @@ export default function OptimizationSimulatorPage() {
 
       {/* Empty state when no result yet */}
       {!result && !running && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/60 px-6 py-20 text-center">
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 px-6 py-20 text-center">
           <Cpu className="h-10 w-10 text-slate-400" />
-          <h2 className="mt-4 text-lg font-semibold text-slate-700">Configure a simulation</h2>
+          <h2 className="mt-4 text-lg font-semibold text-slate-700 dark:text-slate-200">Configure a simulation</h2>
           <p className="mt-1.5 max-w-md text-sm text-slate-500">
             Choose a current route, propose changes (model swap, caching, compression), and run the simulation to preview projected savings, latency impact, and quality risk.
           </p>
@@ -570,9 +570,9 @@ export default function OptimizationSimulatorPage() {
 
       {/* No results empty state */}
       {result && result.affected_requests === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/60 px-6 py-20 text-center">
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 px-6 py-20 text-center">
           <ShieldCheck className="h-10 w-10 text-slate-400" />
-          <h2 className="mt-4 text-lg font-semibold text-slate-700">No matching requests</h2>
+          <h2 className="mt-4 text-lg font-semibold text-slate-700 dark:text-slate-200">No matching requests</h2>
           <p className="mt-1.5 max-w-md text-sm text-slate-500">
             No requests matched the current model/intent filters in the selected time range. Try broadening the filters or extending the time range.
           </p>
@@ -580,12 +580,12 @@ export default function OptimizationSimulatorPage() {
       )}
 
       {/* Methodology note */}
-      <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <FlaskConical className="mt-0.5 h-5 w-5 text-blue-700" />
           <div>
-            <h2 className="font-semibold text-slate-950">How simulations work</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
+            <h2 className="font-semibold text-slate-950 dark:text-white">How simulations work</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
               The simulator queries your real request telemetry, applies cost ratios from known model pricing tiers, and estimates cache/compression impact from industry benchmarks. Quality risk is derived from model capability tiers. Projections improve with more telemetry — simulations on 100+ requests have high confidence.
             </p>
           </div>
