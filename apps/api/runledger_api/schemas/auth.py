@@ -43,6 +43,7 @@ class TenantResponse(BaseModel):
     status: TenantStatusEnum = TenantStatusEnum.active
     is_default: bool
     owner_user_id: uuid.UUID | None
+    admin_email: str | None = None
     created_at: datetime
     workspace_count: int = 0
     member_count: int = 0

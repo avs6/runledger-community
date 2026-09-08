@@ -65,8 +65,43 @@ models:
     tags: [local, chat]
 
   - provider: ollama
+    model: qwen2.5-coder:7b
+    display_name: Qwen2.5 Coder 7B (local)
+    input_per_1m: 0.06
+    output_per_1m: 0.12
+    tags: [local, coding]
+
+  - provider: ollama
+    model: qwen3:4b
+    display_name: Qwen 3 4B (local)
+    input_per_1m: 0.02
+    output_per_1m: 0.04
+    tags: [local, chat, fast]
+
+  - provider: ollama
+    model: phi4-mini:latest
+    display_name: Phi-4 Mini (local)
+    input_per_1m: 0.03
+    output_per_1m: 0.06
+    tags: [local, chat]
+
+  - provider: ollama
+    model: gemma4:12b
+    display_name: Gemma 4 12B (local)
+    input_per_1m: 0.10
+    output_per_1m: 0.20
+    tags: [local, chat]
+
+  - provider: ollama
     model: nomic-embed-text
     display_name: Nomic Embed Text (local)
+    input_per_1m: 0.01
+    output_per_1m: 0.00
+    tags: [local, embedding]
+
+  - provider: ollama
+    model: qwen3-embedding:8b
+    display_name: Qwen 3 Embedding 8B (local)
     input_per_1m: 0.01
     output_per_1m: 0.00
     tags: [local, embedding]

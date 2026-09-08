@@ -48,6 +48,7 @@ import type {
   ToolUsageAnalyticsResponse,
 } from '@/types/api'
 import PolicyDryRunPanel from '@/components/governance/PolicyDryRunPanel'
+import { num } from '@/lib/utils'
 
 const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
@@ -742,7 +743,7 @@ export default function ToolPoliciesPage() {
                       <td className="px-4 py-3 text-emerald-600 font-mono text-xs">{item.allowed_calls}</td>
                       <td className="px-4 py-3 text-red-500 font-mono text-xs">{item.denied_calls}</td>
                       <td className="px-4 py-3 text-right text-xs text-slate-400 font-mono">
-                        {item.avg_duration_ms != null ? `${item.avg_duration_ms.toFixed(1)} ms` : '-'}
+                        {item.avg_duration_ms != null ? `${num(item.avg_duration_ms).toFixed(1)} ms` : '-'}
                       </td>
                     </tr>
                   ))}

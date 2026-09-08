@@ -23,7 +23,7 @@ import {
 import { authOptions } from '@/lib/auth'
 import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
-import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId } from '@/lib/utils'
+import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId, num } from '@/lib/utils'
 import type {
   GatewayRequestLog,
   InvestigationFinopsBudgetPosture,
@@ -375,7 +375,7 @@ function ToolTable({ calls }: { calls: ToolCallDetail[] }) {
       rows={calls.map((call) => [
         call.tool_name,
         call.tool_type,
-        call.risk_score == null ? '-' : call.risk_score.toFixed(2),
+        call.risk_score == null ? '-' : num(call.risk_score).toFixed(2),
         formatDuration(call.duration_ms),
         call.status,
       ])}
@@ -644,7 +644,7 @@ function RequestDetail({
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <LifecycleCard title="Providers" value={`${gatewayRuntime.provider_context.distinct_providers} providers`} detail={`${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.provider_context.routing_policies} policies`} icon={Network} />
             <LifecycleCard title="Guardrails" value={`${gatewayRuntime.guardrail_context.active_rules} rules`} detail={`${gatewayRuntime.guardrail_context.events_30d.toLocaleString()} events, ${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)`} icon={ShieldCheck} />
-            <LifecycleCard title="Cache" value={`${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits`} detail={`${gatewayRuntime.cache_context.enabled_configs} configs, $${gatewayRuntime.cache_context.savings_usd.toFixed(2)} saved`} icon={Sparkles} />
+            <LifecycleCard title="Cache" value={`${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits`} detail={`${gatewayRuntime.cache_context.enabled_configs} configs, $${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved`} icon={Sparkles} />
             <LifecycleCard title="Rate Limits" value={`${gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM-limited`} detail={`${gatewayRuntime.rate_limit_context.routes_with_cost_limits} cost-limited routes`} icon={Clock} />
           </div>
         </Card>

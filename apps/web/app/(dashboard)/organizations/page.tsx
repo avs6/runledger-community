@@ -29,6 +29,7 @@ import {
   updatePlatformOrganization,
 } from '@/lib/api'
 import type { BudgetControlPlatformPosture, PlatformAdminObservePosture, PlatformLifecyclePosture, TenantResponse, TenantStatus } from '@/types/api'
+import { num } from '@/lib/utils'
 
 const inputCls =
   'rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500'
@@ -116,7 +117,7 @@ export default function OrganizationsPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return organizations
-    return organizations.filter((org) => org.name.toLowerCase().includes(q) || org.plan.toLowerCase().includes(q))
+    return organizations.filter((org) => org.name.toLowerCase().includes(q) || org.plan.toLowerCase().includes(q) || (org.admin_email ?? '').toLowerCase().includes(q))
   }, [organizations, search])
 
   function openEdit(org: TenantResponse) {
@@ -249,7 +250,7 @@ export default function OrganizationsPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPlatformPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPlatformPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Active Overrides</p>
@@ -488,6 +489,7 @@ export default function OrganizationsPage() {
                           {org.is_default && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700 dark:bg-violet-950 dark:text-violet-300">Default</span>}
                           {isCurrent && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">Current</span>}
                         </div>
+                        {org.admin_email && <div className="text-xs text-violet-500 dark:text-violet-400">{org.admin_email}</div>}
                         <div className="text-xs text-slate-500">{org.id}</div>
                       </div>
                     </div>

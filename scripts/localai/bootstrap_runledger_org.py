@@ -20,14 +20,13 @@ from urllib import error, request
 
 DEFAULT_WORKSPACES = [
     "LiteLLM Gateway",
-    "Open WebUI",
-    "OpenHands",
-    "LangGraph",
-    "Hermes Agent",
+    "OpenWebUI",
+    "Codex",
+    "Langgraph",
+    "HermesAgent",
     "Claude Desktop",
-    "OpenAI Codex",
-    "Python Console",
-    "Backup Restore Lab",
+    "OpenAICodes",
+    "PythonAgents",
 ]
 
 
@@ -191,11 +190,11 @@ def _write_localai_files(stack: Path, base_url: str, org_admin_email: str, org_a
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create the LocalAI Agent Stack org/workspaces in RunLedger.")
     parser.add_argument("--base-url", default=os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201"))
-    parser.add_argument("--platform-email", default=os.getenv("RUNLEDGER_PLATFORM_EMAIL", "admin@homelab.com"))
-    parser.add_argument("--platform-password", default=os.getenv("RUNLEDGER_PLATFORM_PASSWORD", "Dell1234"))
-    parser.add_argument("--org-name", default="LocalAI Agent Stack")
-    parser.add_argument("--org-admin-email", default="admin@localai-agent-stack.example.com")
-    parser.add_argument("--org-admin-password", default="LocalAIStack123!")
+    parser.add_argument("--platform-email", default=os.getenv("RUNLEDGER_PLATFORM_EMAIL", "admin@runledger.local"))
+    parser.add_argument("--platform-password", default=os.getenv("RUNLEDGER_PLATFORM_PASSWORD", "runledger"))
+    parser.add_argument("--org-name", default="LocalAIAgentStack")
+    parser.add_argument("--org-admin-email", default="admin@localstack.com")
+    parser.add_argument("--org-admin-password", default="runledger")
     parser.add_argument("--org-admin-name", default="LocalAI Stack Admin")
     parser.add_argument("--state-file", default="scripts/.localai-runledger.json")
     parser.add_argument("--localai-stack", default=r"C:\Users\Abi\Desktop\LocalAIAgentStack")

@@ -38,6 +38,7 @@ import type {
   OpsQueueStatusItem,
   OpsStorageStatus,
 } from '@/types/api'
+import { num } from '@/lib/utils'
 import {
   getBackupConfig,
   getBackupHistory,
@@ -354,7 +355,7 @@ export default function SettingsPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPlatformPosture.platform_totals.total_limit_usd.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPlatformPosture.platform_totals.total_limit_usd).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Active Overrides</p>
@@ -389,7 +390,7 @@ export default function SettingsPage() {
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Observe</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{ledgerCrossPosture.observe_context.billing_periods} periods</p>
-              <p className="text-xs text-slate-400">${ledgerCrossPosture.observe_context.total_spend_30d.toFixed(2)} 30d spend</p>
+              <p className="text-xs text-slate-400">${num(ledgerCrossPosture.observe_context.total_spend_30d).toFixed(2)} 30d spend</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Safety</p>

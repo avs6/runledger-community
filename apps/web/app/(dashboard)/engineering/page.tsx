@@ -28,7 +28,7 @@ import { authOptions } from '@/lib/auth'
 import { getEngineeringMetrics, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
-import { formatCost, formatTokens } from '@/lib/utils'
+import { formatCost, formatTokens, num } from '@/lib/utils'
 import type { EngineeringMetrics, CostByDimension, LifecycleStage, QualityFunnel } from '@/types/api'
 
 interface PageProps {
@@ -129,7 +129,7 @@ function FunnelChart({ funnel }: { funnel: QualityFunnel }) {
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-slate-700 dark:text-slate-200">{stage.label}</span>
               <span className="font-mono text-slate-600 dark:text-slate-300">
-                {stage.count.toLocaleString()} <span className="text-slate-400">({pct.toFixed(1)}%)</span>
+                {stage.count.toLocaleString()} <span className="text-slate-400">({num(pct).toFixed(1)}%)</span>
               </span>
             </div>
             <div className="mt-1 h-4 w-full rounded-lg bg-slate-100 dark:bg-slate-800">
@@ -393,7 +393,7 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
                   <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.engineering_context.total_limit_usd.toFixed(2)}</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPosture.engineering_context.total_limit_usd).toFixed(2)}</p>
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
                   <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
@@ -430,7 +430,7 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
                 </div>
                 <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
                   <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">

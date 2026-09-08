@@ -11,6 +11,7 @@ import {
 import { useRole } from '@/components/rbac/useRole'
 import { getBudgetDetailObservePosture } from '@/lib/api'
 import type { BudgetDetailObservePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -515,11 +516,11 @@ export default function WorkspacePage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${budgetPosture.budget_context.total_limit_usd.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${num(budgetPosture.budget_context.total_limit_usd).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>

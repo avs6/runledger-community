@@ -20,6 +20,7 @@ import {
   getProviderProfileRuntimePosture,
 } from '@/lib/api'
 import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderProfileObservePosture, ProviderProfileRuntimePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -709,11 +710,11 @@ export default function ProviderProfilesPage() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
                     <span className="text-slate-500 dark:text-slate-400">Total Cost</span>
-                    <p className="font-semibold dark:text-white">${observeModal.data.cost.total_cost_usd.toFixed(4)}</p>
+                    <p className="font-semibold dark:text-white">${num(observeModal.data.cost.total_cost_usd).toFixed(4)}</p>
                   </div>
                   <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
                     <span className="text-slate-500 dark:text-slate-400">Total Savings</span>
-                    <p className="font-semibold dark:text-white">${observeModal.data.cost.total_savings_usd.toFixed(4)}</p>
+                    <p className="font-semibold dark:text-white">${num(observeModal.data.cost.total_savings_usd).toFixed(4)}</p>
                   </div>
                 </div>
               </div>
@@ -773,7 +774,7 @@ export default function ProviderProfilesPage() {
                   </div>
                   <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
                     <span className="text-slate-500 dark:text-slate-400">Total Limit</span>
-                    <p className="font-semibold dark:text-white">${postureModal.data.budgets.total_limit_usd.toFixed(2)}</p>
+                    <p className="font-semibold dark:text-white">${num(postureModal.data.budgets.total_limit_usd).toFixed(2)}</p>
                   </div>
                   <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
                     <span className="text-slate-500 dark:text-slate-400">Breaches</span>

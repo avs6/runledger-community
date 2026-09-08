@@ -3,12 +3,14 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getAgent, getAgentStats, getAgentRuns, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentDetailGovernancePosture } from '@/lib/api'
 import type { AgentResponse, AgentStats, WorkflowRunSummary } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function money(v: number | null | undefined) {
-  if (!v) return '$0.00'
-  if (v >= 1) return `$${v.toFixed(2)}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+  const n = num(v)
+  if (!n) return '$0.00'
+  if (num(n) >= 1) return `$${num(n).toFixed(2)}`
+  if (num(n) >= 0.001) return `$${num(n).toFixed(4)}`
+  return `$${num(n).toFixed(6)}`
 }
 
 function compact(value: number) {
@@ -18,7 +20,7 @@ function compact(value: number) {
 function duration(ms: number | null | undefined) {
   if (!ms) return '-'
   if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+  return `${(num(ms) / 1000).toFixed(1)}s`
 }
 
 function statusColor(status: string) {
@@ -151,7 +153,7 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetBuildPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Feature Budgets</p>
@@ -187,7 +189,7 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -268,7 +270,7 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
       {stats && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Total Runs" value={String(stats.total_runs)} sub={`${stats.completed_runs} completed, ${stats.failed_runs} failed`} />
-          <StatCard label="Success Rate" value={stats.success_rate != null ? `${(stats.success_rate * 100).toFixed(1)}%` : '-'} />
+          <StatCard label="Success Rate" value={stats.success_rate != null ? `${(num(stats.success_rate) * 100).toFixed(1)}%` : '-'} />
           <StatCard label="Total Cost" value={money(stats.total_cost)} sub={`${compact(stats.total_tokens)} tokens`} />
           <StatCard label="Avg Duration" value={duration(stats.avg_duration_ms)} sub={stats.last_run_at ? `Last: ${new Date(stats.last_run_at).toLocaleDateString()}` : 'No runs yet'} />
         </div>

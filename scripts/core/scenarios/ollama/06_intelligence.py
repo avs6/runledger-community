@@ -15,7 +15,7 @@ DESCRIPTION = "ML intelligence — anomaly detection, forecasting, top-K, patter
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("IntelliOps", "ML Intelligence")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     # ── 1. Ingest runs to build feature history ─────────────────────────
     runs = ws.ingest_runs(

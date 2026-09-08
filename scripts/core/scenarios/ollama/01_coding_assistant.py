@@ -19,7 +19,7 @@ OLLAMA = "http://host.docker.internal:11434/v1"
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("Acme Dev Tools", "Coding Assistant")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     ws.add_route(
         "code",

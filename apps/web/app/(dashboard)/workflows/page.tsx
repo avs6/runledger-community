@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
+import { num } from '@/lib/utils'
 import { getWorkflows, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getWorkflowsListPosture } from '@/lib/api'
 import type { WorkflowDefinitionResponse } from '@/types/api'
 
@@ -91,7 +92,7 @@ export default async function WorkflowsPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetBuildPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
@@ -123,7 +124,7 @@ export default async function WorkflowsPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -189,7 +190,7 @@ export default async function WorkflowsPage() {
               </div>
               <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Spend (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${workflowsListPosture.observe_context.spend_30d.toFixed(2)}</p>
+                <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${num(workflowsListPosture.observe_context.spend_30d).toFixed(2)}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">

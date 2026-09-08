@@ -37,6 +37,7 @@ import {
 } from 'recharts'
 import Link from 'next/link'
 import { Building2, Pencil, Plus, Save, Trash2, Wallet, X } from 'lucide-react'
+import { num } from '@/lib/utils'
 
 const WINDOWS = [7, 14, 30, 90]
 const LEDGER_PAGE_SIZE = 12
@@ -83,7 +84,7 @@ function money(value: string | null | undefined, digits = 4) {
   if (!value) return '—'
   const parsed = Number.parseFloat(value)
   if (!Number.isFinite(parsed)) return '—'
-  return `$${parsed.toFixed(digits)}`
+  return `$${num(parsed).toFixed(digits)}`
 }
 
 function formatDate(value: string) {
@@ -492,7 +493,7 @@ export default function OutcomesPage() {
                   <Tooltip
                     formatter={(value) => {
                       const numeric = valueToNumber(value)
-                      return numeric !== null ? `${numeric.toFixed(1)}%` : ''
+                      return numeric !== null ? `${num(numeric).toFixed(1)}%` : ''
                     }}
                   />
                   <Line type="monotone" dataKey="success_rate" stroke="#6366f1" strokeWidth={2} dot={false} name="Success Rate %" />

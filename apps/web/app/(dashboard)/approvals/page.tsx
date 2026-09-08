@@ -23,6 +23,7 @@ import {
   deleteAutoApprovalPolicy,
 } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
+import { num } from '@/lib/utils'
 import type {
   ApprovalResponse,
   ApprovalSummary,
@@ -322,7 +323,7 @@ export default function ApprovalsPage() {
             <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Breaches (30d)</p>
               <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{finopsPosture.budget_context.breach_count_30d}</p>
-              <p className="text-xs text-slate-500">${finopsPosture.budget_context.total_budget_limit_usd.toFixed(0)} total limit</p>
+              <p className="text-xs text-slate-500">${num(finopsPosture.budget_context.total_budget_limit_usd).toFixed(0)} total limit</p>
             </div>
             <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Alert Rules</p>

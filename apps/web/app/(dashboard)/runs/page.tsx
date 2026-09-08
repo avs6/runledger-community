@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { modelColor } from '@/lib/modelColors'
 import type { RunListItem } from '@/types/api'
+import { num } from '@/lib/utils'
 
 interface PageProps {
   searchParams: {
@@ -38,9 +39,9 @@ function parseCost(value: string | null | undefined) {
 }
 
 function money(value: number) {
-  if (value >= 1) return `$${value.toFixed(2)}`
-  if (value >= 0.001) return `$${value.toFixed(4)}`
-  return `$${value.toFixed(6)}`
+  if (num(value) >= 1) return `$${num(value).toFixed(2)}`
+  if (num(value) >= 0.001) return `$${num(value).toFixed(4)}`
+  return `$${num(value).toFixed(6)}`
 }
 
 function compact(value: number) {
@@ -283,7 +284,7 @@ async function RunsContent({ searchParams }: PageProps) {
             { label: 'Providers', value: `${gatewayRuntime.provider_context.distinct_providers} providers`, sub: `${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.provider_context.routing_policies} policies` },
             { label: 'Gateway Traffic', value: gatewayRuntime.route_context.gateway_requests_30d.toLocaleString(), sub: `${gatewayRuntime.route_context.cache_hits_30d.toLocaleString()} cache hits (30d)` },
             { label: 'Guardrails', value: `${gatewayRuntime.guardrail_context.active_rules} rules`, sub: `${gatewayRuntime.guardrail_context.events_30d.toLocaleString()} events, ${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)` },
-            { label: 'Cache', value: `${gatewayRuntime.cache_context.enabled_configs} configs`, sub: `${gatewayRuntime.cache_context.total_hits.toLocaleString()} total hits, $${gatewayRuntime.cache_context.savings_usd.toFixed(2)} saved` },
+            { label: 'Cache', value: `${gatewayRuntime.cache_context.enabled_configs} configs`, sub: `${gatewayRuntime.cache_context.total_hits.toLocaleString()} total hits, $${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved` },
           ].map((item) => (
             <div key={item.label} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm ring-1 ring-white/70 dark:border-slate-700 dark:bg-slate-900/80">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">{item.label}</p>

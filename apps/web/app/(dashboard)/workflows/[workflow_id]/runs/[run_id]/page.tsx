@@ -3,12 +3,13 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getWorkflowRun, getWorkflow, getBudgetControlBuildPosture, getWorkflowRunEvidencePosture } from '@/lib/api'
 import type { WorkflowRunResponse, WorkflowStepResponse, WorkflowRunEvidencePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
-  if (v >= 1) return `$${v.toFixed(2)}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+  if (num(v) >= 1) return `$${num(v).toFixed(2)}`
+  if (num(v) >= 0.001) return `$${num(v).toFixed(4)}`
+  return `$${num(v).toFixed(6)}`
 }
 
 function compact(value: number) {
@@ -18,7 +19,7 @@ function compact(value: number) {
 function duration(ms: number | null | undefined) {
   if (!ms) return '-'
   if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+  return `${(num(ms) / 1000).toFixed(1)}s`
 }
 
 function statusColor(status: string) {
@@ -180,7 +181,7 @@ export default async function WorkflowRunDetailPage({
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -250,7 +251,7 @@ export default async function WorkflowRunDetailPage({
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Cost (30d)</p>
-              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${evidencePosture.finops_context.cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${num(evidencePosture.finops_context.cost_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events (30d)</p>

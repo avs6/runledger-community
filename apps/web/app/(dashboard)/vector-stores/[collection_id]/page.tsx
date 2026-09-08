@@ -3,18 +3,19 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getVectorCollection, getVectorCollectionStats, getVectorQueries, getVectorStoreDetailEvidencePosture } from '@/lib/api'
 import type { VectorCollectionStats, VectorQueryResponse, VectorStoreDetailEvidencePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (num(n) < 1024 * 1024) return `${(num(n) / 1024).toFixed(1)} KB`
+  return `${(num(n) / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
-  if (v >= 1) return `$${v.toFixed(2)}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+  if (num(v) >= 1) return `$${num(v).toFixed(2)}`
+  if (num(v) >= 0.001) return `$${num(v).toFixed(4)}`
+  return `$${num(v).toFixed(6)}`
 }
 
 function timeAgo(iso: string | null) {
@@ -122,7 +123,7 @@ export default async function VectorStoreDetailPage({ params }: { params: Promis
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Cost 30d</p>
-              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">${typeof evidencePosture.cost_context.cost_30d === 'number' ? evidencePosture.cost_context.cost_30d.toFixed(2) : '0.00'}</p>
+              <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">${typeof evidencePosture.cost_context.cost_30d === 'number' ? num(evidencePosture.cost_context.cost_30d).toFixed(2) : '0.00'}</p>
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">Chargeback Rules</p>
@@ -154,7 +155,7 @@ export default async function VectorStoreDetailPage({ params }: { params: Promis
           <StatCard label="Size" value={bytes(stats.size_bytes)} />
           <StatCard label="Total Queries" value={stats.total_queries.toLocaleString()} />
           <StatCard label="Total Cost" value={money(stats.total_cost)} sub={`Query: ${money(stats.total_query_cost)} / Embed: ${money(stats.total_embed_cost)}`} />
-          <StatCard label="Avg Latency" value={stats.avg_query_latency_ms != null ? `${stats.avg_query_latency_ms.toFixed(0)}ms` : '-'} sub={stats.avg_results_per_query != null ? `${stats.avg_results_per_query.toFixed(1)} results/query` : ''} />
+          <StatCard label="Avg Latency" value={stats.avg_query_latency_ms != null ? `${num(stats.avg_query_latency_ms).toFixed(0)}ms` : '-'} sub={stats.avg_results_per_query != null ? `${num(stats.avg_results_per_query).toFixed(1)} results/query` : ''} />
         </div>
       )}
 

@@ -7,6 +7,7 @@ import { getRunFlow, getOptimizationOrgGatewayPosture, getOptimizationObservePos
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
 import type { RunFlowRecord, OptimizationOrgGatewayPosture, OptimizationObservePosture, OptimizationFinOpsPosture, BuildInternalPosture, OptOppsRationalePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
 type Risk = 'Low' | 'Medium' | 'High'
@@ -33,14 +34,14 @@ function parseMoney(value: string | null | undefined) {
 
 function money(value: number) {
   if (!Number.isFinite(value)) return '$0'
-  if (Math.abs(value) >= 1) return `$${value.toFixed(2)}`
-  if (Math.abs(value) >= 0.001) return `$${value.toFixed(4)}`
-  return `$${value.toFixed(6)}`
+  if (Math.abs(num(value)) >= 1) return `$${num(value).toFixed(2)}`
+  if (Math.abs(num(value)) >= 0.001) return `$${num(value).toFixed(4)}`
+  return `$${num(value).toFixed(6)}`
 }
 
 function percent(value: number) {
   if (!Number.isFinite(value)) return '0%'
-  return `${value.toFixed(0)}%`
+  return `${num(value).toFixed(0)}%`
 }
 
 function allowedScope(raw: string | undefined, isPlatformAdmin: boolean, isOrgAdmin: boolean): FlowScope {
@@ -406,7 +407,7 @@ export default async function OptimizationOpportunitiesPage({
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Total Cost 30d</p>
-              <p className="mt-1 text-lg font-semibold text-cyan-600">${observePosture.cost_savings_context.total_cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600">${num(observePosture.cost_savings_context.total_cost_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200">
@@ -433,7 +434,7 @@ export default async function OptimizationOpportunitiesPage({
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Spend 30d</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600">${finOpsPosture.budget_context.spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600">${num(finOpsPosture.budget_context.spend_30d).toFixed(2)}</p>
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Billing periods</p>

@@ -25,6 +25,7 @@ import {
 import Link from 'next/link'
 import { simulateOptimization, getOptimizationOrgGatewayPosture, getOptimizationObservePosture, getOptimizationFinOpsPosture, getBuildInternalPosture, getOptSimDecisionPosture } from '@/lib/api'
 import type { SimulationResult, OptimizationOrgGatewayPosture, OptimizationObservePosture, OptimizationFinOpsPosture, BuildInternalPosture, OptSimDecisionPosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 const MODELS = [
   { value: '', label: 'No change' },
@@ -74,16 +75,16 @@ function rangeWindow(range: string) {
 function money(v: string | number) {
   const n = typeof v === 'string' ? parseFloat(v) : v
   if (!Number.isFinite(n)) return '$0'
-  if (Math.abs(n) >= 1) return `$${n.toFixed(2)}`
-  if (Math.abs(n) >= 0.001) return `$${n.toFixed(4)}`
-  return `$${n.toFixed(6)}`
+  if (Math.abs(num(n)) >= 1) return `$${num(n).toFixed(2)}`
+  if (Math.abs(num(n)) >= 0.001) return `$${num(n).toFixed(4)}`
+  return `$${num(n).toFixed(6)}`
 }
 
 function pct(v: string | number | null) {
   if (v === null) return 'n/a'
   const n = typeof v === 'string' ? parseFloat(v) : v
   if (!Number.isFinite(n)) return 'n/a'
-  return `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
+  return `${num(n) >= 0 ? '+' : ''}${num(n).toFixed(1)}%`
 }
 
 const inputCls =
@@ -241,7 +242,7 @@ export default function OptimizationSimulatorPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-slate-800/80 p-3">
               <p className="text-xs text-slate-500">Total Cost 30d</p>
-              <p className="mt-1 text-lg font-semibold text-cyan-600">${observePosture.cost_savings_context.total_cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600">${num(observePosture.cost_savings_context.total_cost_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200">
@@ -268,7 +269,7 @@ export default function OptimizationSimulatorPage() {
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Spend 30d</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600">${finOpsPosture.budget_context.spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600">${num(finOpsPosture.budget_context.spend_30d).toFixed(2)}</p>
             </div>
             <div>
               <p className="text-[11px] text-emerald-600">Billing periods</p>

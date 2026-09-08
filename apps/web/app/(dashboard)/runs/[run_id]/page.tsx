@@ -11,7 +11,7 @@ import RunScorePanel from '@/components/runs/RunScorePanel'
 import {
   ChevronLeft, Cpu, Wrench, Layers, AlertTriangle,
 } from 'lucide-react'
-import { formatCost, formatTokens, formatDuration } from '@/lib/utils'
+import { formatCost, formatTokens, formatDuration, num } from '@/lib/utils'
 import type { InvestigationFinopsBudgetPosture, InvestigationGatewayRuntimePosture, InvestigationOrgIdentityPosture, OverviewScopePosture, ProviderCallDetail, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ function ToolCallsTable({ calls }: { calls: ToolCallDetail[] }) {
                 <td className="py-2 pr-4 font-semibold text-slate-700 dark:text-slate-300">{t.tool_name}</td>
                 <td className="py-2 pr-4 text-slate-500 dark:text-slate-400">{t.tool_type}</td>
                 <td className={`py-2 pr-4 font-mono font-semibold ${riskColor}`}>
-                  {t.risk_score != null ? t.risk_score.toFixed(2) : '—'}
+                  {t.risk_score != null ? num(t.risk_score).toFixed(2) : '—'}
                 </td>
                 <td className="py-2 pr-4 font-mono text-slate-500 dark:text-slate-400">
                   {formatDuration(t.duration_ms)}
@@ -230,7 +230,7 @@ function GovernanceEvidencePanel({ governance, scopePosture }: { governance: Run
 
 function FinopsBudgetPanel({ finops, runCost }: { finops: InvestigationFinopsBudgetPosture | null; runCost: number }) {
   if (!finops) return null
-  const fmt = (v: number) => (v >= 1 ? `$${v.toFixed(2)}` : v >= 0.001 ? `$${v.toFixed(4)}` : `$${v.toFixed(6)}`)
+  const fmt = (v: number) => (v >= 1 ? `$${num(v).toFixed(2)}` : v >= 0.001 ? `$${num(v).toFixed(4)}` : `$${num(v).toFixed(6)}`)
   return (
     <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -262,7 +262,7 @@ function GatewayRuntimePanel({ gateway }: { gateway: InvestigationGatewayRuntime
         <div>
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Gateway runtime context</p>
           <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-            {gateway.provider_context.distinct_providers} providers, {gateway.provider_context.active_routes} active routes • {gateway.guardrail_context.active_rules} guardrail rules ({gateway.guardrail_context.events_30d} events, {gateway.guardrail_context.blocks_30d} blocks) • {gateway.cache_context.enabled_configs} cache configs ({gateway.cache_context.total_hits.toLocaleString()} hits, ${gateway.cache_context.savings_usd.toFixed(2)} saved) • {gateway.rate_limit_context.routes_with_rpm_limits} routes with RPM limits
+            {gateway.provider_context.distinct_providers} providers, {gateway.provider_context.active_routes} active routes • {gateway.guardrail_context.active_rules} guardrail rules ({gateway.guardrail_context.events_30d} events, {gateway.guardrail_context.blocks_30d} blocks) • {gateway.cache_context.enabled_configs} cache configs ({gateway.cache_context.total_hits.toLocaleString()} hits, ${num(gateway.cache_context.savings_usd).toFixed(2)} saved) • {gateway.rate_limit_context.routes_with_rpm_limits} routes with RPM limits
           </p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs font-semibold text-violet-800 dark:text-violet-100">

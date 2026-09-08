@@ -7,6 +7,7 @@ import { Building2, ChevronLeft, AlertTriangle, Search, DollarSign, Network } fr
 import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture, getModelUsageGatewayPosture, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
 import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture, ModelUsageGatewayPosture, BudgetDetailObservePosture, BudgetControlObservePosture } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { num } from '@/lib/utils'
 
 const TIER_COLOURS: Record<string, string> = {
   P0: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
@@ -196,11 +197,11 @@ export default function UsersPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">User Budget Total</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.user_budget_context.user_scoped_budget_total.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPosture.user_budget_context.user_scoped_budget_total).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">User Spend</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${budgetPosture.user_budget_context.user_scoped_spend.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${num(budgetPosture.user_budget_context.user_scoped_spend).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
@@ -228,7 +229,7 @@ export default function UsersPage() {
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Breached</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.breached_budgets}</p>
-              <p className="text-xs text-slate-400">${budgetControlPosture.budget_policy.total_limit_usd.toFixed(2)} total limit</p>
+              <p className="text-xs text-slate-400">${num(budgetControlPosture.budget_policy.total_limit_usd).toFixed(2)} total limit</p>
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Overrides</p>
@@ -237,7 +238,7 @@ export default function UsersPage() {
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">30d Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${budgetControlPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(budgetControlPosture.spend_context.total_spend_30d).toFixed(2)}</p>
               <p className="text-xs text-slate-400">{budgetControlPosture.notification_summary.total_notifications} notifications</p>
             </div>
           </div>

@@ -17,7 +17,7 @@ DESCRIPTION = "Advanced budgets — tiers, model budgets, overrides, throttle/fa
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("BudgetLabs", "Advanced Budgets")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     # ── 1. Ingest runs to build spend history ─────────────────────────
     runs = ws.ingest_runs(

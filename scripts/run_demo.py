@@ -272,8 +272,8 @@ def main() -> int:
     # ── Traffic & Agents ──
     p = sub.add_parser("traffic", help="Generate agent traffic into a workspace.")
     p.add_argument("--continuous", action="store_true", help="Run indefinitely (Ctrl+C to stop).")
-    p.add_argument("--workspace", default="Python Console")
-    p.add_argument("--source", default="python-console")
+    p.add_argument("--workspace", default="PythonAgents")
+    p.add_argument("--source", default="python-agents")
     p.add_argument("--batches", type=int, default=12)
     p.add_argument("--batch-size", type=int, default=25)
     p.add_argument("--sleep", type=float, default=2.0, help="Seconds between batches.")
@@ -281,7 +281,7 @@ def main() -> int:
     p.add_argument("--base-url", default=None)
 
     p = sub.add_parser("otlp-traffic", help="Generate OTLP trace traffic into a workspace.")
-    p.add_argument("--workspace", default="Open WebUI")
+    p.add_argument("--workspace", default="OpenWebUI")
     p.add_argument("--source", default="localai-otlp")
     p.add_argument("--batches", type=int, default=2)
     p.add_argument("--traces", type=int, default=40)

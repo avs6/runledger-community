@@ -1691,6 +1691,7 @@ class Sim:
         self.platform_email: str | None = None
         self.platform_password: str | None = None
         self.workspaces: list[Workspace] = []
+        self._org_admins: dict[str, tuple[str, str, str]] = {}
 
     # ── low-level ────────────────────────────────────────────────────────────
     def post(
@@ -1869,6 +1870,135 @@ class Sim:
         ws = Workspace(self, org, name, key, ws_id, org_admin_key)
         self.workspaces.append(ws)
         say(f"  âœ“ {org} / {name}", "g")
+        return ws
+
+    # ── canonical org setup ────────────────────────────────────────────────
+
+    def setup_org(
+        self,
+        org_name: str,
+        *,
+        admin_email: str,
+        admin_password: str,
+        admin_full_name: str = "",
+        users: list[tuple[str, str, str]] | None = None,
+        workspaces: list[str] | None = None,
+        plan: str = "growth",
+    ) -> None:
+        """Create an org with multiple workspaces and users."""
+        tenant = self.post(
+            "/org/tenants",
+            {
+                "name": org_name,
+                "admin_email": admin_email,
+                "admin_password": admin_password,
+                "admin_full_name": admin_full_name or (org_name + " Admin"),
+                "skip_verification": True,
+            },
+            key=self.platform_key,
+            label="org " + org_name,
+        )
+        tenant_id = tenant.get("id")
+        if not tenant_id:
+            listing = self.get("/org/tenants", key=self.platform_key) or []
+            rows = listing if isinstance(listing, list) else listing.get("items", [])
+            tenant_id = next((t.get("id") for t in rows if t.get("name") == org_name), None)
+        if tenant_id:
+            self.put(
+                "/org/tenants/" + str(tenant_id),
+                {"plan": plan},
+                key=self.platform_key,
+                label="org plan " + org_name,
+                expect=(200,),
+            )
+
+        login = self._login(admin_email, admin_password)
+        admin_key = login.get("api_key", "")
+        default_ws_id = login.get("workspace_id", "")
+        if not admin_key:
+            say("  ! could not login to org " + org_name, "y")
+            return
+
+        self._org_admins[org_name] = (admin_email, admin_password, admin_key)
+
+        for email, full_name, role in (users or []):
+            if email == admin_email:
+                continue
+            self.post(
+                "/org/members/invite",
+                {"email": email, "full_name": full_name, "role": role, "temporary_password": admin_password},
+                key=admin_key,
+                label="invite " + email,
+                expect=(200, 201, 409),
+            )
+
+        ws_names = workspaces or []
+        existing = self.get("/org/workspaces", key=admin_key) or []
+        existing_items = existing if isinstance(existing, list) else existing.get("items", [])
+        existing_by_name = {w.get("name"): w for w in existing_items if isinstance(w, dict)}
+
+        if ws_names and default_ws_id:
+            first = ws_names[0]
+            if first not in existing_by_name:
+                self.put(
+                    "/org/workspaces/" + str(default_ws_id),
+                    {"name": first},
+                    key=admin_key,
+                    label="workspace rename -> " + first,
+                    expect=(200, 409),
+                )
+
+        for ws_name in ws_names[1:]:
+            if ws_name in existing_by_name:
+                continue
+            self.post(
+                "/org/workspaces",
+                {"name": ws_name},
+                key=admin_key,
+                label="workspace " + ws_name,
+                expect=(200, 201, 409),
+            )
+
+        n_ws = len(ws_names)
+        n_users = len(users or [])
+        say("  org %s -- %d workspace(s), %d user(s)" % (org_name, n_ws, n_users), "g")
+
+    def connect_workspace(self, org_name: str, workspace_name: str) -> Workspace:
+        """Get a Workspace handle for an already-created workspace."""
+        creds = self._org_admins.get(org_name)
+        if not creds:
+            raise RuntimeError("Org %r not set up -- call setup_org() first" % org_name)
+        _admin_email, _admin_password, admin_key = creds
+
+        ws_list = self.get("/org/workspaces", key=admin_key) or []
+        items = ws_list if isinstance(ws_list, list) else ws_list.get("items", [])
+        ws_entry = next(
+            (w for w in items if isinstance(w, dict) and w.get("name") == workspace_name),
+            None,
+        )
+        if not ws_entry:
+            say("  ! workspace %r not found in org %r" % (workspace_name, org_name), "y")
+            ws = Workspace(self, org_name, workspace_name, "", "", admin_key)
+            self.workspaces.append(ws)
+            return ws
+
+        ws_id = ws_entry["id"]
+        switched = self._switch_workspace(admin_key, ws_id)
+        session_key = switched.get("api_key", admin_key)
+
+        resp = self.post(
+            "/settings/api-keys",
+            {"name": "sim", "workspace_id": ws_id},
+            key=session_key,
+            label="key %s/%s" % (org_name, workspace_name),
+        )
+        key = resp.get("key", "")
+        if not key:
+            say("  ! no API key for %s/%s" % (org_name, workspace_name), "y")
+
+        ws = Workspace(self, org_name, workspace_name, key, ws_id, session_key)
+        self.workspaces.append(ws)
+        say("  %s / %s" % (org_name, workspace_name), "g")
         return ws
 
     def close(self) -> None:

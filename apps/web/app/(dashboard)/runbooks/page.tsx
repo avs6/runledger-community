@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { listRunbooks, generateRunbook, exportRunbook, getBudgetControlBuildPosture, getRunbooksRemediationPosture } from '@/lib/api'
 import type { RunbookResponse, BudgetControlBuildPosture, RunbooksRemediationPosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 const PAGE_SIZE = 20
 
@@ -181,7 +182,7 @@ export default function RunbooksPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -214,7 +215,7 @@ export default function RunbooksPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Cost 30d</p>
-              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${remediationPosture.cost_context.cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${num(remediationPosture.cost_context.cost_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Eval Experiments</p>

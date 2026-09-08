@@ -3,12 +3,13 @@ import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
 import { getPlaygroundSessions, getPlaygroundHistory, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getPlaygroundOrgGatewayPosture, getPlaygroundObservePosture, getBuildInternalPosture } from '@/lib/api'
 import type { PlaygroundSessionResponse, PlaygroundRequestResponse, PlaygroundOrgGatewayPosture, PlaygroundObservePosture, BuildInternalPosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
-  if (v >= 1) return `$${v.toFixed(2)}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+  if (num(v) >= 1) return `$${num(v).toFixed(2)}`
+  if (num(v) >= 0.001) return `$${num(v).toFixed(4)}`
+  return `$${num(v).toFixed(6)}`
 }
 
 function timeAgo(iso: string) {
@@ -139,7 +140,7 @@ export default async function PlaygroundPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetBuildPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Models Used</p>
@@ -175,7 +176,7 @@ export default async function PlaygroundPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -269,7 +270,7 @@ export default async function PlaygroundPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Total Cost (30d)</p>
-              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${observePosture.cost_savings_context.total_cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${num(observePosture.cost_savings_context.total_cost_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">

@@ -16,6 +16,7 @@ import {
 } from '@/components/dashboard/FinOpsCharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { BudgetRollupResponse, BudgetRollupWorkspace, EconomicsFinopsPosture, RunFlowRecord } from '@/types/api'
+import { num } from '@/lib/utils'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
 
@@ -69,14 +70,14 @@ function parseMoney(value: string | null | undefined) {
 
 function money(value: number) {
   if (!Number.isFinite(value)) return '$0'
-  if (Math.abs(value) >= 1) return `$${value.toFixed(2)}`
-  if (Math.abs(value) >= 0.001) return `$${value.toFixed(4)}`
-  return `$${value.toFixed(6)}`
+  if (Math.abs(num(value)) >= 1) return `$${num(value).toFixed(2)}`
+  if (Math.abs(num(value)) >= 0.001) return `$${num(value).toFixed(4)}`
+  return `$${num(value).toFixed(6)}`
 }
 
 function percent(value: number) {
   if (!Number.isFinite(value)) return '0%'
-  return `${value.toFixed(0)}%`
+  return `${num(value).toFixed(0)}%`
 }
 
 function allowedScope(raw: string | undefined, isPlatformAdmin: boolean, isOrgAdmin: boolean): FlowScope {

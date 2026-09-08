@@ -14,6 +14,7 @@ import {
 } from '@/lib/api'
 import BillingPeriodDetailClient from '@/components/billing/BillingPeriodDetailClient'
 import type { BillingAdjustmentList, BillingOrgScopePosture, BillingCrossFeaturePosture, BillingDetailEvidencePosture, PeriodBreakdown, ReconciliationResult } from '@/types/api'
+import { num } from '@/lib/utils'
 
 export default async function BillingPeriodDetailPage({
   params,
@@ -107,8 +108,8 @@ export default async function BillingPeriodDetailPage({
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Total Billed</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${billingOrgPosture.billing_context.total_billed_usd.toFixed(2)}</p>
-              <p className="text-xs text-slate-400">{billingOrgPosture.spend_context.total_spend_30d.toFixed(2)} 30d spend</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(billingOrgPosture.billing_context.total_billed_usd).toFixed(2)}</p>
+              <p className="text-xs text-slate-400">{num(billingOrgPosture.spend_context.total_spend_30d).toFixed(2)} 30d spend</p>
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Org Scope</p>
@@ -155,7 +156,7 @@ export default async function BillingPeriodDetailPage({
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${billingCrossPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(billingCrossPosture.spend_context.total_spend_30d).toFixed(2)}</p>
               <p className="text-xs text-slate-400">{billingCrossPosture.gateway_context.distinct_models_30d} models · {billingCrossPosture.gateway_context.rate_limit_endpoints} rate limits</p>
             </div>
           </div>
@@ -198,7 +199,7 @@ export default async function BillingPeriodDetailPage({
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${evidencePosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(evidencePosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">

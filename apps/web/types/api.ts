@@ -678,6 +678,7 @@ export interface TenantResponse {
   status: TenantStatus
   is_default: boolean
   owner_user_id: string | null
+  admin_email: string | null
   created_at: string
   workspace_count: number
   member_count: number

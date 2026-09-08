@@ -85,6 +85,25 @@ async def _tenant_response(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
             select(func.count()).select_from(TenantUser).where(TenantUser.tenant_id == tenant.id)
         )
     ).scalar() or 0
+    admin_email: str | None = None
+    if tenant.owner_user_id:
+        owner = await db.get(User, tenant.owner_user_id)
+        if owner:
+            admin_email = owner.email
+    if not admin_email:
+        row = (
+            await db.execute(
+                select(User.email)
+                .join(TenantUser, TenantUser.user_id == User.id)
+                .where(
+                    TenantUser.tenant_id == tenant.id,
+                    TenantUser.role == "org_admin",
+                )
+                .limit(1)
+            )
+        ).scalar()
+        if row:
+            admin_email = row
     return {
         "id": tenant.id,
         "name": tenant.name,
@@ -92,6 +111,7 @@ async def _tenant_response(db: AsyncSession, tenant: Tenant) -> dict[str, Any]:
         "status": tenant.status,
         "is_default": tenant.is_default,
         "owner_user_id": tenant.owner_user_id,
+        "admin_email": admin_email,
         "created_at": tenant.created_at,
         "workspace_count": workspace_count,
         "member_count": member_count,
@@ -172,6 +192,31 @@ async def list_platform_orgs(
             )
         ).all()
     }
+    owner_ids = [t.owner_user_id for t in tenants if t.owner_user_id]
+    owner_emails: dict[Any, str] = {}
+    if owner_ids:
+        rows = (
+            await db.execute(select(User.id, User.email).where(User.id.in_(owner_ids)))
+        ).all()
+        owner_emails = {uid: email for uid, email in rows}
+
+    admin_emails: dict[Any, str] = {}
+    missing = [t for t in tenants if t.owner_user_id not in owner_emails]
+    if missing:
+        admin_rows = (
+            await db.execute(
+                select(TenantUser.tenant_id, User.email)
+                .join(User, TenantUser.user_id == User.id)
+                .where(
+                    TenantUser.tenant_id.in_([t.id for t in missing]),
+                    TenantUser.role == TenantRoleEnum.org_admin,
+                )
+            )
+        ).all()
+        for tid, email in admin_rows:
+            if tid not in admin_emails:
+                admin_emails[tid] = email
+
     return [
         {
             "id": tenant.id,
@@ -180,6 +225,7 @@ async def list_platform_orgs(
             "status": tenant.status,
             "is_default": tenant.is_default,
             "owner_user_id": tenant.owner_user_id,
+            "admin_email": owner_emails.get(tenant.owner_user_id) or admin_emails.get(tenant.id),
             "created_at": tenant.created_at,
             "workspace_count": workspace_counts.get(tenant.id, 0),
             "member_count": member_counts.get(tenant.id, 0),

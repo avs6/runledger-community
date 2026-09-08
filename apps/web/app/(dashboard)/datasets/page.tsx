@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Plus, Trash2, X, TableProperties } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
+import { num } from '@/lib/utils'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -262,7 +263,7 @@ export default function DatasetsPage() {
               </div>
               <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Cost (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${posture.finops_context.cost_30d.toFixed(2)}</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(posture.finops_context.cost_30d).toFixed(2)}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">

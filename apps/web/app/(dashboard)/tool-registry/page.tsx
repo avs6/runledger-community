@@ -22,6 +22,7 @@ import {
   upsertToolRegistry,
 } from '@/lib/api'
 import type { SearchToolResponse, ToolRegistryResponse, ToolRegistryFinopsPosture, ToolGovernanceOrgPosture, ToolGovernanceGatewayPosture, GovernanceInternalPosture, ToolRegistryRuntimePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 const inputCls =
   'rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -293,12 +294,12 @@ export default function ToolRegistryPage() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Tool Spend (30d)</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">${finopsPosture.spend_context.tool_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">${num(finopsPosture.spend_context.tool_spend_30d).toFixed(2)}</p>
               <p className="text-xs text-slate-500">{finopsPosture.spend_context.tool_call_count_30d.toLocaleString()} tool calls</p>
             </div>
             <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Total Spend (30d)</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">${finopsPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">${num(finopsPosture.spend_context.total_spend_30d).toFixed(2)}</p>
               <p className="text-xs text-slate-500">{finopsPosture.spend_context.total_spend_30d > 0 ? ((finopsPosture.spend_context.tool_spend_30d / finopsPosture.spend_context.total_spend_30d) * 100).toFixed(1) : '0.0'}% from tools</p>
             </div>
             <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">

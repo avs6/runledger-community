@@ -3,11 +3,12 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getAgent, getAgentMemories, getAgentMemoryStats, getAgentMemoryAudit, getAgentDetailGovernancePosture } from '@/lib/api'
 import type { AgentMemoryResponse, AgentMemoryStats, AgentMemoryAuditResponse } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (num(n) < 1024 * 1024) return `${(num(n) / 1024).toFixed(1)} KB`
+  return `${(num(n) / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function timeAgo(iso: string | null) {

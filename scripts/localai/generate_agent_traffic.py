@@ -179,7 +179,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate LocalAI/agent traffic into RunLedger.")
     parser.add_argument("--state-file", default="scripts/.localai-runledger.json")
     parser.add_argument("--base-url", default=None)
-    parser.add_argument("--workspace", default="Python Console")
+    parser.add_argument("--workspace", default="PythonAgents")
     parser.add_argument("--source", default="python-console")
     parser.add_argument("--batches", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=25)

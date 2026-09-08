@@ -99,7 +99,7 @@ def main() -> int:
         inject_claude(Path(args.claude_config), base_url, key_for(state, "Claude Desktop"))
         print(f"Claude Desktop MCP updated: {args.claude_config}")
     if not args.skip_codex:
-        inject_codex(Path(args.codex_config), base_url, key_for(state, "OpenAI Codex"))
+        inject_codex(Path(args.codex_config), base_url, key_for(state, "Codex"))
         print(f"Codex MCP updated: {args.codex_config}")
 
     print("Restart Claude Desktop/Codex after config changes.")

@@ -55,6 +55,16 @@ LAB_WORKSPACE_MAP = {
     "mcp": ("LocalAIAgentStack", "LiteLLM Gateway"),
 }
 
+SCENARIO_WORKSPACE_MAP = {
+    "ollama-coding-assistant": ("HomeLab", "AgentTest"),
+    "ollama-local-rag": ("HomeLab", "AgentTest"),
+    "ollama-reasoning-agent": ("HomeLab", "AgentTest"),
+    "ollama-chat-support": ("HomeLab", "AgentTest"),
+    "ollama-guardrails": ("HomeLab", "AgentTest"),
+    "ollama-intelligence": ("HomeLab", "AgentTest"),
+    "ollama-advanced-budgets": ("HomeLab", "AgentTest"),
+}
+
 
 def workspace_full_name(org_name: str, workspace_name: str) -> str:
     return f"{org_name} - {workspace_name}"

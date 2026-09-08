@@ -58,3 +58,9 @@ export function formatTimestamp(iso: string): string {
 export function truncateId(id: string, chars = 8): string {
   return id.slice(0, chars) + '…'
 }
+
+/** Safely coerce any API value to a finite number (fallback 0). */
+export function num(v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}

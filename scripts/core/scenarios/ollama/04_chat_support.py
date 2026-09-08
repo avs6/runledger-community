@@ -19,7 +19,7 @@ OLLAMA = "http://host.docker.internal:11434/v1"
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("HelpDesk Local", "Support Bot")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     models = [
         "llama3.1:8b",

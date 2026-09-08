@@ -15,7 +15,7 @@ DESCRIPTION = "Content safety guardrails — custom rules, built-in filters, tem
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("SafeGuard AI", "Content Safety")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     # ── 1. Activate built-in content filters ─────────────────────────────────
     ws.activate_content_filters([

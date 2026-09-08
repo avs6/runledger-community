@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cleanup  # noqa: E402
 import scenarios  # noqa: E402
+from demo_scenario import DEMO_PASSWORD, ORGS  # noqa: E402
 from scenarios._base import Sim, say  # noqa: E402
 
 
@@ -405,6 +406,38 @@ def main() -> None:
     # 2b. Import the simulation pricing catalog (prices local Ollama models too) so the
     #     DB catalog matches the cost of the runs each scenario ingests.
     _import_pricing(sim)
+
+    # 2c. Create the canonical orgs (HomeLab + LocalAIAgentStack) with all their
+    #     workspaces and users so scenarios inject data into the right places.
+    say("\n→ setting up canonical orgs", "b")
+    for org in ORGS:
+        sim.setup_org(
+            org["name"],
+            admin_email=org["users"][0][0],
+            admin_password=DEMO_PASSWORD,
+            admin_full_name=org["users"][0][1],
+            users=org["users"],
+            workspaces=org["workspaces"],
+            plan=org.get("plan", "growth"),
+        )
+
+    # 2d. Remove any leftover orgs that aren't canonical or the default org.
+    canonical_names = {o["name"] for o in ORGS}
+    all_tenants = sim.get("/org/tenants", key=sim.platform_key) or []
+    tenant_rows = all_tenants if isinstance(all_tenants, list) else all_tenants.get("items", [])
+    for t in tenant_rows:
+        tname = t.get("name", "")
+        if tname in canonical_names or t.get("is_default"):
+            continue
+        tid = t.get("id")
+        if tid:
+            sim.http.request(
+                "DELETE",
+                f"{sim.base}/org/tenants/{tid}",
+                headers={"Authorization": f"Bearer {sim.platform_key}"},
+                json={"confirmation": tname},
+            )
+            say(f"  removed stale org: {tname}", "y")
 
     # 3. Run every scenario.
     mods = scenarios.discover(args.scenario_set)

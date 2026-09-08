@@ -8,12 +8,13 @@ import SpendByModelChart from '@/components/analytics/SpendByModelChart'
 import SpendByFeatureChart from '@/components/analytics/SpendByFeatureChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Search, Route, DollarSign } from 'lucide-react'
+import { num } from '@/lib/utils'
 
 function fmt$$(value: string): string {
   const n = parseFloat(value)
-  if (n >= 1) return `$${n.toFixed(2)}`
-  if (n >= 0.001) return `$${n.toFixed(4)}`
-  return `$${n.toFixed(6)}`
+  if (num(n) >= 1) return `$${num(n).toFixed(2)}`
+  if (num(n) >= 0.001) return `$${num(n).toFixed(4)}`
+  return `$${num(n).toFixed(6)}`
 }
 
 function fmtDate(iso: string | null): string {
@@ -112,7 +113,7 @@ export default async function UserSpendPage({ params, searchParams }: PageProps)
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
@@ -149,7 +150,7 @@ export default async function UserSpendPage({ params, searchParams }: PageProps)
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">

@@ -24,7 +24,7 @@ import {
 import { authOptions } from '@/lib/auth'
 import { getAccessGroupDashboard, getInvestigationAccessGroupPosture, getOrgDashboard, getOverviewFinopsBudgetPosture, getOverviewGatewayPosture, getOverviewGovernancePosture, getOverviewOrgPosture, getOverviewScopePosture, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
-import { formatAge, formatCost, formatTokens, truncateId } from '@/lib/utils'
+import { formatAge, formatCost, formatTokens, truncateId, num } from '@/lib/utils'
 import type { DashboardRange } from '@/components/dashboard/DashboardScopeBar'
 
 type Scope = 'workspace' | 'org' | 'platform'
@@ -70,15 +70,15 @@ function hrefFor(scope: Scope, range: DashboardRange, view: View) {
 function money(value: string | number | null | undefined) {
   const numeric = typeof value === 'number' ? value : Number.parseFloat(value ?? '0')
   if (!Number.isFinite(numeric)) return '$0'
-  if (Math.abs(numeric) >= 1) return `$${numeric.toFixed(2)}`
-  if (Math.abs(numeric) >= 0.001) return `$${numeric.toFixed(4)}`
-  return `$${numeric.toFixed(6)}`
+  if (Math.abs(num(numeric)) >= 1) return `$${num(numeric).toFixed(2)}`
+  if (Math.abs(num(numeric)) >= 0.001) return `$${num(numeric).toFixed(4)}`
+  return `$${num(numeric).toFixed(6)}`
 }
 
 function percent(value: string | null | undefined) {
   const numeric = Number.parseFloat(value ?? '0')
   if (!Number.isFinite(numeric)) return '0%'
-  return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(1)}%`
+  return `${num(numeric) >= 0 ? '+' : ''}${num(numeric).toFixed(1)}%`
 }
 
 function ScopeTabs({
@@ -483,8 +483,8 @@ export default async function AnalyticsOverviewPage({
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard title="Active Budgets" value={`${budgetPosture.budget_context.active_budgets}`} sub={`${budgetPosture.budget_context.budgets} total • ${budgetPosture.budget_context.breach_count} breached`} icon={Wallet} />
-            <StatCard title="Budget Limit" value={`$${budgetPosture.budget_context.total_limit_usd.toFixed(2)}`} sub={`${budgetPosture.budget_context.overrides} overrides (${budgetPosture.budget_context.active_overrides} active)`} icon={DollarSign} />
-            <StatCard title="Spend (30d)" value={`$${budgetPosture.spend_context.total_spend_30d.toFixed(2)}`} sub={`${budgetPosture.spend_context.total_runs_30d.toLocaleString()} runs`} icon={Activity} />
+            <StatCard title="Budget Limit" value={`$${num(budgetPosture.budget_context.total_limit_usd).toFixed(2)}`} sub={`${budgetPosture.budget_context.overrides} overrides (${budgetPosture.budget_context.active_overrides} active)`} icon={DollarSign} />
+            <StatCard title="Spend (30d)" value={`$${num(budgetPosture.spend_context.total_spend_30d).toFixed(2)}`} sub={`${budgetPosture.spend_context.total_runs_30d.toLocaleString()} runs`} icon={Activity} />
             <StatCard title="Notifications" value={`${budgetPosture.notification_context.active_notifications}`} sub={`${budgetPosture.notification_context.notifications} total configured`} icon={Shield} />
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -541,7 +541,7 @@ export default async function AnalyticsOverviewPage({
               <div className="rounded-xl border border-violet-200 bg-white/80 px-4 py-3 dark:border-violet-800 dark:bg-slate-900/60">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">Response Cache</p>
                 <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-50">{scopePosture.cache_context.enabled_configs}/{scopePosture.cache_context.cache_configs}</p>
-                <p className="text-xs text-slate-500">{scopePosture.cache_context.total_hits.toLocaleString()} hits • ${scopePosture.cache_context.total_savings_usd.toFixed(2)} saved</p>
+                <p className="text-xs text-slate-500">{scopePosture.cache_context.total_hits.toLocaleString()} hits • ${num(scopePosture.cache_context.total_savings_usd).toFixed(2)} saved</p>
               </div>
               <div className="rounded-xl border border-violet-200 bg-white/80 px-4 py-3 dark:border-violet-800 dark:bg-slate-900/60">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">Rate Limits</p>

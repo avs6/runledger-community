@@ -203,7 +203,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Generate LocalAI OTLP traffic into RunLedger.")
     parser.add_argument("--state-file", default="scripts/.localai-runledger.json")
     parser.add_argument("--base-url", default=None)
-    parser.add_argument("--workspace", default="Open WebUI")
+    parser.add_argument("--workspace", default="OpenWebUI")
     parser.add_argument("--source", default="localai-otlp")
     parser.add_argument("--batches", type=int, default=2)
     parser.add_argument("--traces", type=int, default=40)

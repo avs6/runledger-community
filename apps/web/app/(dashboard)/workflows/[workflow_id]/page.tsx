@@ -3,12 +3,13 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getWorkflow, getWorkflowRuns, getWorkflowCost, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getWorkflowDetailCrossFeaturePosture, getBuildInternalPosture, getWorkflowDetailLoopPosture } from '@/lib/api'
 import type { WorkflowDefinitionResponse, WorkflowRunResponse, WorkflowCostAttribution, WorkflowDetailCrossFeaturePosture, BuildInternalPosture, WorkflowDetailLoopPosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
-  if (v >= 1) return `$${v.toFixed(2)}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+  if (num(v) >= 1) return `$${num(v).toFixed(2)}`
+  if (num(v) >= 0.001) return `$${num(v).toFixed(4)}`
+  return `$${num(v).toFixed(6)}`
 }
 
 function compact(value: number) {
@@ -18,7 +19,7 @@ function compact(value: number) {
 function duration(ms: number | null | undefined) {
   if (!ms) return '-'
   if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+  return `${(num(ms) / 1000).toFixed(1)}s`
 }
 
 function statusColor(status: string) {
@@ -108,7 +109,7 @@ export default async function WorkflowDetailPage({ params }: { params: { workflo
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetBuildPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
@@ -140,7 +141,7 @@ export default async function WorkflowDetailPage({ params }: { params: { workflo
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -233,7 +234,7 @@ export default async function WorkflowDetailPage({ params }: { params: { workflo
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Total Cost (30d)</p>
-              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${crossFeaturePosture.observe_context.total_cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${num(crossFeaturePosture.observe_context.total_cost_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
@@ -259,11 +260,11 @@ export default async function WorkflowDetailPage({ params }: { params: { workflo
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Budget Limit</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${crossFeaturePosture.finops_context.total_budget_limit.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(crossFeaturePosture.finops_context.total_budget_limit).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${crossFeaturePosture.finops_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(crossFeaturePosture.finops_context.total_spend_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
@@ -327,7 +328,7 @@ export default async function WorkflowDetailPage({ params }: { params: { workflo
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Cost (30d)</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${loopPosture.chargeback_context.cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(loopPosture.chargeback_context.cost_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">

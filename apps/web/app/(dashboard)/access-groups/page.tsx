@@ -37,10 +37,11 @@ import type {
   GuardrailTemplate,
 } from '@/types/api'
 import { useRole } from '@/components/rbac/useRole'
+import { num } from '@/lib/utils'
 
 function budgetLabel(budget: number | null, period: string | null) {
   if (budget == null) return 'No budget cap'
-  return `$${budget.toFixed(2)}${period ? ` / ${period}` : ''}`
+  return `$${num(budget).toFixed(2)}${period ? ` / ${period}` : ''}`
 }
 
 const inputCls =

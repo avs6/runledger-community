@@ -27,6 +27,7 @@ import {
   getChargebackAttributionPosture,
 } from '@/lib/api'
 import type { ChargebackReport, ChargebackRuleResponse, ChargebackCrossFeaturePosture, ChargebackAttributionPosture, FinOpsInternalPosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 type Tab = 'overview' | 'rules' | 'allocations' | 'exceptions' | 'exports'
 
@@ -289,7 +290,7 @@ export default function ChargebackPage() {
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Billing Periods</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.billing_context.total_periods}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${finopsPosture.billing_context.total_billed_usd.toFixed(2)} billed</p>
+              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${num(finopsPosture.billing_context.total_billed_usd).toFixed(2)} billed</p>
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Ledger Snapshots</p>
@@ -304,7 +305,7 @@ export default function ChargebackPage() {
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Notifications</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.notification_context.total_notifications}</p>
-              <p className="text-xs text-slate-400">${finopsPosture.notification_context.spend_30d.toFixed(2)} 30d spend</p>
+              <p className="text-xs text-slate-400">${num(finopsPosture.notification_context.spend_30d).toFixed(2)} 30d spend</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -344,7 +345,7 @@ export default function ChargebackPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${chargebackCrossPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(chargebackCrossPosture.spend_context.total_spend_30d).toFixed(2)}</p>
               <p className="text-xs text-slate-400">{chargebackCrossPosture.safety_context.audit_events_30d} audit events</p>
             </div>
           </div>
@@ -379,7 +380,7 @@ export default function ChargebackPage() {
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Runtime</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.runtime_context.chargeback_rules} rules</p>
-              <p className="text-xs text-slate-400">{attributionPosture.runtime_context.cache_configs} caches · ${attributionPosture.runtime_context.cache_hit_savings_usd.toFixed(2)} savings</p>
+              <p className="text-xs text-slate-400">{attributionPosture.runtime_context.cache_configs} caches · ${num(attributionPosture.runtime_context.cache_hit_savings_usd).toFixed(2)} savings</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Monitoring</p>
@@ -388,12 +389,12 @@ export default function ChargebackPage() {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Optimization</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${attributionPosture.optimization_context.cache_savings_usd.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(attributionPosture.optimization_context.cache_savings_usd).toFixed(2)}</p>
               <p className="text-xs text-slate-400">cache savings</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${attributionPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(attributionPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">

@@ -12,6 +12,7 @@ import {
 } from '@/lib/api'
 import BudgetManager from '@/components/budgets/BudgetManager'
 import type { BudgetScopeGovernancePosture, FinOpsInternalPosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
@@ -105,12 +106,12 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Budgets</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.budget_context.total_budgets}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.budget_context.active_budgets} active · ${finopsPosture.budget_context.total_limit_usd.toFixed(2)} limit</p>
+              <p className="text-xs text-slate-400">{finopsPosture.budget_context.active_budgets} active · ${num(finopsPosture.budget_context.total_limit_usd).toFixed(2)} limit</p>
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Billing Periods</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.billing_context.total_periods}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${finopsPosture.billing_context.total_billed_usd.toFixed(2)} billed</p>
+              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${num(finopsPosture.billing_context.total_billed_usd).toFixed(2)} billed</p>
             </div>
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Chargeback Rules</p>
@@ -130,7 +131,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
             <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
               <p className="text-xs text-slate-500">Notifications</p>
               <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.notification_context.total_notifications}</p>
-              <p className="text-xs text-slate-400">${finopsPosture.notification_context.spend_30d.toFixed(2)} 30d spend</p>
+              <p className="text-xs text-slate-400">${num(finopsPosture.notification_context.spend_30d).toFixed(2)} 30d spend</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -165,7 +166,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${budgetScopePosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(budgetScopePosture.spend_context.total_spend_30d).toFixed(2)}</p>
               <p className="text-xs text-slate-400">{budgetScopePosture.identity_context.hub_models} hub models</p>
             </div>
           </div>

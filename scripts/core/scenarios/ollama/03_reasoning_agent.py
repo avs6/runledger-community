@@ -18,7 +18,7 @@ OLLAMA = "http://host.docker.internal:11434/v1"
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("ThinkLocal", "Reasoning")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     ws.add_route("deep", "deepseek-r1:14b", priority=10, base_url=OLLAMA)
     ws.add_route("fast", "deepseek-r1:8b", priority=20, base_url=OLLAMA)

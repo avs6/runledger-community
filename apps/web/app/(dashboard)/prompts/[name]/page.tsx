@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, GitBranch, Plus, ArrowUpCircle, Edit2, Upload, Download, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
+import { num } from '@/lib/utils'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
@@ -328,7 +329,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${budgetBuildPosture.spend_context.total_spend_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Models Used</p>
@@ -364,7 +365,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlBuildPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
@@ -393,11 +394,11 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Total Cost (30d)</p>
-              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${observePosture.cost_context.total_cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${num(observePosture.cost_context.total_cost_30d).toFixed(2)}</p>
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Cost/Call</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${observePosture.cost_context.avg_cost_per_call.toFixed(4)}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${num(observePosture.cost_context.avg_cost_per_call).toFixed(4)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
@@ -470,7 +471,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Attributed Cost 30d</p>
-              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${hubFinOpsPosture.chargeback_context.attributed_cost_30d.toFixed(2)}</p>
+              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${num(hubFinOpsPosture.chargeback_context.attributed_cost_30d).toFixed(2)}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
@@ -604,8 +605,8 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
                             {m && (
                               <>
                                 <span>{m.run_count} runs</span>
-                                {m.avg_cost_usd !== null && <span>${m.avg_cost_usd.toFixed(4)} avg</span>}
-                                {m.avg_score !== null && <span className="text-indigo-600 dark:text-indigo-400">★ {m.avg_score.toFixed(2)}</span>}
+                                {m.avg_cost_usd !== null && <span>${num(m.avg_cost_usd).toFixed(4)} avg</span>}
+                                {m.avg_score !== null && <span className="text-indigo-600 dark:text-indigo-400">★ {num(m.avg_score).toFixed(2)}</span>}
                               </>
                             )}
                             <span>{new Date(v.created_at).toLocaleDateString()}</span>

@@ -6,23 +6,27 @@ import sys
 
 from runledger_api.services.demo_mode import REPO_ROOT, now_iso, write_demo_state
 
+RUN_DEMO = REPO_ROOT / "scripts" / "run_demo.py"
+
+
+def _run_script(*args: str) -> None:
+    subprocess.run(
+        [sys.executable, str(RUN_DEMO), *args],
+        cwd=str(REPO_ROOT),
+        check=True,
+    )
+
 
 def _run_seed(profile: str) -> None:
     if profile == "quick":
-        from scripts import cleanup  # noqa: PLC0415
-
         write_demo_state(
             status="running",
             action="seed",
             profile="quick",
             message="Resetting demo data, then running quick REST demo seed.",
         )
-        cleanup.truncate()
-        subprocess.run(
-            [sys.executable, str(REPO_ROOT / "scripts" / "seed_demo.py")],
-            cwd=str(REPO_ROOT),
-            check=True,
-        )
+        _run_script("cleanup")
+        _run_script("seed-demo")
         write_demo_state(
             status="completed",
             action="seed",
@@ -38,11 +42,7 @@ def _run_seed(profile: str) -> None:
         profile="full",
         message="Running full simulator with scenarios, governance, guardrails, intelligence, and agent ops.",
     )
-    subprocess.run(
-        [sys.executable, str(REPO_ROOT / "scripts" / "full_simulate.py")],
-        cwd=str(REPO_ROOT),
-        check=True,
-    )
+    _run_script("full-simulate")
     write_demo_state(
         status="completed",
         action="seed",
@@ -53,15 +53,13 @@ def _run_seed(profile: str) -> None:
 
 
 def _run_reset() -> None:
-    from scripts import cleanup  # noqa: PLC0415
-
     write_demo_state(
         status="running",
         action="reset",
         profile="full",
         message="Resetting demo data to a clean slate.",
     )
-    cleanup.truncate()
+    _run_script("cleanup")
     write_demo_state(
         status="completed",
         action="reset",

@@ -18,7 +18,7 @@ OLLAMA = "http://host.docker.internal:11434/v1"
 
 
 def run(sim: Sim) -> None:
-    ws = sim.workspace("DataCo", "Knowledge Base")
+    ws = sim.connect_workspace("HomeLab", "AgentTest")
 
     ws.add_route("answer", "llama3.1:8b", priority=10, base_url=OLLAMA, semantic_cache_enabled=True)
     ws.add_route("embed", "nomic-embed-text", priority=10, base_url=OLLAMA)

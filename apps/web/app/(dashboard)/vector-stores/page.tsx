@@ -3,18 +3,19 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { getVectorCollections, getVectorStoresLifecyclePosture } from '@/lib/api'
 import type { VectorCollectionResponse, VectorStoresLifecyclePosture } from '@/types/api'
+import { num } from '@/lib/utils'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (num(n) < 1024 * 1024) return `${(num(n) / 1024).toFixed(1)} KB`
+  return `${(num(n) / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
-  if (v >= 1) return `$${v.toFixed(2)}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+  if (num(v) >= 1) return `$${num(v).toFixed(2)}`
+  if (num(v) >= 0.001) return `$${num(v).toFixed(4)}`
+  return `$${num(v).toFixed(6)}`
 }
 
 function statusBadge(s: string) {

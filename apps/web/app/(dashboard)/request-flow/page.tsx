@@ -10,6 +10,7 @@ import RequestFlowSankey, {
   type RequestFlowScope,
 } from '@/components/dashboard/RequestFlowSankey'
 import type { RunFlowResponse } from '@/types/api'
+import { num } from '@/lib/utils'
 
 interface PageProps {
   searchParams: {
@@ -68,9 +69,9 @@ function pct(value: number, total: number) {
 }
 
 function money(value: number) {
-  if (value >= 1) return `$${value.toFixed(2)}`
-  if (value >= 0.001) return `$${value.toFixed(4)}`
-  return `$${value.toFixed(6)}`
+  if (num(value) >= 1) return `$${num(value).toFixed(2)}`
+  if (num(value) >= 0.001) return `$${num(value).toFixed(4)}`
+  return `$${num(value).toFixed(6)}`
 }
 
 export default async function RequestFlowPage({ searchParams }: PageProps) {
@@ -255,7 +256,7 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-200">Gateway Runtime Context</p>
                   <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Provider routing, guardrails, cache, and rate limits across this scope</h2>
                   <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    {gatewayRuntime.provider_context.distinct_providers} providers, {gatewayRuntime.provider_context.active_routes} active routes, {gatewayRuntime.route_context.gateway_requests_30d.toLocaleString()} gateway requests (30d). {gatewayRuntime.guardrail_context.active_rules} guardrail rules ({gatewayRuntime.guardrail_context.blocks_30d} blocks). {gatewayRuntime.cache_context.total_hits.toLocaleString()} cache hits, ${gatewayRuntime.cache_context.savings_usd.toFixed(2)} saved.
+                    {gatewayRuntime.provider_context.distinct_providers} providers, {gatewayRuntime.provider_context.active_routes} active routes, {gatewayRuntime.route_context.gateway_requests_30d.toLocaleString()} gateway requests (30d). {gatewayRuntime.guardrail_context.active_rules} guardrail rules ({gatewayRuntime.guardrail_context.blocks_30d} blocks). {gatewayRuntime.cache_context.total_hits.toLocaleString()} cache hits, ${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs font-semibold text-violet-800 dark:text-violet-100">

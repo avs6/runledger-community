@@ -50,6 +50,7 @@ import {
   getGuardrailsObservePosture,
   getGuardrailsFinopsPosture,
 } from '@/lib/api'
+import { num } from '@/lib/utils'
 import type {
   ContentFilterStatus,
   GuardrailAlertResponse,
@@ -67,7 +68,7 @@ import type {
 
 function pct(value: number | null | undefined) {
   if (value == null) return '--'
-  return `${(value * 100).toFixed(1)}%`
+  return `${(num(value) * 100).toFixed(1)}%`
 }
 
 function fmtCurrency(value: number | null | undefined) {
@@ -728,17 +729,17 @@ export default function GuardrailsPage() {
               <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Blocks</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.evaluations.blocks.toLocaleString()}</p>
-                <p className="text-xs text-slate-400">{(observePosture.evaluations.block_rate * 100).toFixed(1)}% block rate</p>
+                <p className="text-xs text-slate-400">{(num(observePosture.evaluations.block_rate) * 100).toFixed(1)}% block rate</p>
               </div>
               <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Modifications</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.evaluations.modifications.toLocaleString()}</p>
-                <p className="text-xs text-slate-400">{(observePosture.evaluations.modification_rate * 100).toFixed(1)}% modification rate</p>
+                <p className="text-xs text-slate-400">{(num(observePosture.evaluations.modification_rate) * 100).toFixed(1)}% modification rate</p>
               </div>
               <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Avg Latency</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.performance.avg_latency_ms !== null ? `${observePosture.performance.avg_latency_ms.toFixed(0)}ms` : '—'}</p>
-                <p className="text-xs text-slate-400">max {observePosture.performance.max_latency_ms !== null ? `${observePosture.performance.max_latency_ms.toFixed(0)}ms` : '—'}</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.performance.avg_latency_ms !== null ? `${num(observePosture.performance.avg_latency_ms).toFixed(0)}ms` : '—'}</p>
+                <p className="text-xs text-slate-400">max {observePosture.performance.max_latency_ms !== null ? `${num(observePosture.performance.max_latency_ms).toFixed(0)}ms` : '—'}</p>
               </div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -834,7 +835,7 @@ export default function GuardrailsPage() {
         <MetricCard label="Block Rate" value={pct(stats?.block_rate)} />
         <MetricCard
           label="Average Latency"
-          value={stats?.avg_latency_ms != null ? `${stats.avg_latency_ms.toFixed(1)} ms` : '--'}
+          value={stats?.avg_latency_ms != null ? `${num(stats.avg_latency_ms).toFixed(1)} ms` : '--'}
         />
         <MetricCard label="False Positives" value={pct(stats?.false_positive_rate)} />
         <MetricCard label="Partner Checks" value={String(partners.length)} />
@@ -1077,7 +1078,7 @@ export default function GuardrailsPage() {
                     {playgroundResponse.overall_decision}
                   </span>
                   <span className="text-xs text-slate-500">
-                    {playgroundResponse.total_latency_ms.toFixed(1)} ms total
+                    {num(playgroundResponse.total_latency_ms).toFixed(1)} ms total
                   </span>
                 </div>
                 <div className="mt-4 space-y-3">
@@ -1495,7 +1496,7 @@ export default function GuardrailsPage() {
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
                         Expected {result.expected_decision} | Actual {result.actual_decision} |{' '}
-                        {result.latency_ms.toFixed(1)} ms
+                        {num(result.latency_ms).toFixed(1)} ms
                       </div>
                       {result.reason && (
                         <div className="mt-1 text-sm text-slate-500">{result.reason}</div>
@@ -1629,7 +1630,7 @@ export default function GuardrailsPage() {
                             {event.reason || 'No reason recorded'}
                           </div>
                           <div className="mt-2 text-xs text-slate-500">
-                            Model: {event.model || '--'} | {event.latency_ms.toFixed(1)} ms |{' '}
+                            Model: {event.model || '--'} | {num(event.latency_ms).toFixed(1)} ms |{' '}
                             {new Date(event.created_at).toLocaleString()}
                           </div>
                         </div>

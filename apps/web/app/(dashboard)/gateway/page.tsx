@@ -27,6 +27,7 @@ import {
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
 } from '@/lib/api'
+import { num } from '@/lib/utils'
 import type {
   ApiKeyResponse, BudgetTier, ModelBudget,
   GatewayRoute, GatewayRoutingGroup, GatewayRoutingGroupStrategy, GatewayRoutingStrategyComparisonItem, GatewayStats, GatewayRequestLog,
@@ -1145,17 +1146,17 @@ export default function GatewayPage() {
             </div>
             <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
               <p className="text-xs text-slate-500 dark:text-slate-400">Cache Performance</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{(observePosture.traffic.cache_hit_rate * 100).toFixed(1)}% hit rate</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{(num(observePosture.traffic.cache_hit_rate) * 100).toFixed(1)}% hit rate</p>
               <p className="text-xs text-slate-400">{observePosture.traffic.cache_hits.toLocaleString()} hits · {observePosture.traffic.cache_misses.toLocaleString()} misses</p>
             </div>
             <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
               <p className="text-xs text-slate-500 dark:text-slate-400">Throttling</p>
               <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.traffic.throttled_requests.toLocaleString()} throttled</p>
-              <p className="text-xs text-slate-400">{(observePosture.traffic.throttle_rate * 100).toFixed(2)}% throttle rate</p>
+              <p className="text-xs text-slate-400">{(num(observePosture.traffic.throttle_rate) * 100).toFixed(2)}% throttle rate</p>
             </div>
             <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Latency</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.performance.avg_latency_ms !== null ? `${observePosture.performance.avg_latency_ms.toFixed(0)}ms` : '—'}</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.performance.avg_latency_ms !== null ? `${num(observePosture.performance.avg_latency_ms).toFixed(0)}ms` : '—'}</p>
             </div>
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -1947,7 +1948,7 @@ export default function GatewayPage() {
             {[
               { label: 'Profiles', value: cacheStats.config_count.toLocaleString() },
               { label: 'Enabled', value: cacheStats.enabled_config_count.toLocaleString() },
-              { label: 'Hit Rate', value: cacheStats.hit_rate != null ? `${(cacheStats.hit_rate * 100).toFixed(1)}%` : '—' },
+              { label: 'Hit Rate', value: cacheStats.hit_rate != null ? `${(num(cacheStats.hit_rate) * 100).toFixed(1)}%` : '—' },
               { label: 'Savings', value: `$${Number(cacheStats.total_savings_usd || 0).toFixed(2)}` },
               { label: 'Live Capacity', value: cacheStats.live_entry_count.toLocaleString() },
             ].map((item) => (
@@ -3967,10 +3968,10 @@ function RecommendationPanel({ rec }: { rec: RoutingRecommendationResponse }) {
                   </td>
                   <td className="py-1.5 pr-4 text-right text-slate-500 dark:text-slate-400">{m.sample_count}</td>
                   <td className="py-1.5 pr-4 text-right text-slate-600 dark:text-slate-300">
-                    {m.success_rate > 0 ? `${(m.success_rate * 100).toFixed(1)}%` : '—'}
+                    {m.success_rate > 0 ? `${(num(m.success_rate) * 100).toFixed(1)}%` : '—'}
                   </td>
                   <td className="py-1.5 pr-4 text-right dark:text-slate-200">
-                    {m.cost_per_success != null ? `$${m.cost_per_success.toFixed(4)}` : '—'}
+                    {m.cost_per_success != null ? `$${num(m.cost_per_success).toFixed(4)}` : '—'}
                   </td>
                   <td className="py-1.5 text-right">
                     {imp != null ? (
@@ -4069,7 +4070,7 @@ function pctStr(v: string | null): string {
   if (v == null) return '—'
   const n = Number(v)
   if (!Number.isFinite(n)) return '—'
-  return `${n > 0 ? '↑' : '↓'}${Math.abs(n * 100).toFixed(1)}%`
+  return `${n > 0 ? '↑' : '↓'}${Math.abs(num(n) * 100).toFixed(1)}%`
 }
 
 function FlywheelPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {

@@ -17,7 +17,7 @@ import {
 } from 'recharts'
 import { getSession, getSessionCostOverTurns } from '@/lib/api'
 import type { SessionDetail, TurnCostResponse } from '@/types/api'
-import { formatCost, formatDuration } from '@/lib/utils'
+import { formatCost, formatDuration, num } from '@/lib/utils'
 
 function RunStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -185,7 +185,7 @@ export default function SessionDetailPage({
               />
               <YAxis
                 tick={{ fontSize: 11, fill: '#9ca3af' }}
-                tickFormatter={(v: number) => `$${v.toFixed(4)}`}
+                tickFormatter={(v: number) => `$${num(v).toFixed(4)}`}
               />
               <Tooltip
                 formatter={(v: unknown) => [`$${(v as number).toFixed(6)}`, '']}

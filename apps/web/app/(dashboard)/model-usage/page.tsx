@@ -18,6 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MODEL_FAMILY_COLORS, classifyModel as classifyModelFamily } from '@/lib/modelColors'
 import type { BestValueModel, RunFlowRecord } from '@/types/api'
+import { num } from '@/lib/utils'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
 
@@ -58,19 +59,19 @@ function parseMoney(value: string | null | undefined) {
 
 function money(value: number) {
   if (!Number.isFinite(value)) return '$0'
-  if (Math.abs(value) >= 1) return `$${value.toFixed(2)}`
-  if (Math.abs(value) >= 0.001) return `$${value.toFixed(4)}`
-  return `$${value.toFixed(6)}`
+  if (Math.abs(num(value)) >= 1) return `$${num(value).toFixed(2)}`
+  if (Math.abs(num(value)) >= 0.001) return `$${num(value).toFixed(4)}`
+  return `$${num(value).toFixed(6)}`
 }
 
 function percent(value: number) {
   if (!Number.isFinite(value)) return '0%'
-  return `${value.toFixed(0)}%`
+  return `${num(value).toFixed(0)}%`
 }
 
 function formatLatency(ms: number | null) {
   if (ms === null || !Number.isFinite(ms)) return 'n/a'
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`
+  if (num(ms) >= 1000) return `${(num(ms) / 1000).toFixed(1)}s`
   return `${Math.round(ms)}ms`
 }
 
@@ -474,7 +475,7 @@ export default async function ModelUsagePage({
             </div>
             <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{budgetControlPosture.budget_policy.avg_utilization_pct.toFixed(1)}%</p>
+              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
