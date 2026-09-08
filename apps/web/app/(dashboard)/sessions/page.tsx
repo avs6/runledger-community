@@ -4,6 +4,7 @@ import { KeyRound, MessageSquare, RefreshCw, Search, SlidersHorizontal } from 'l
 import { authOptions } from '@/lib/auth'
 import { listSessions } from '@/lib/api'
 import SessionsExportButton from '@/components/sessions/SessionsExportButton'
+import CollapsibleFilters from './CollapsibleFilters'
 import { formatCost, formatDuration } from '@/lib/utils'
 
 type TimePreset = 'all' | '1d' | '7d' | '30d'
@@ -139,121 +140,119 @@ export default async function SessionsPage({
         </div>
       </div>
 
-      <form action="/sessions" className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
-        </div>
+      <CollapsibleFilters hasFilters={hasFilters}>
+        <form action="/sessions" className="space-y-4">
+          <div className="grid gap-3 lg:grid-cols-6">
+            <div className="lg:col-span-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Search</label>
+              <div className="relative mt-1">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  name="q"
+                  defaultValue={searchParams?.q ?? ''}
+                  placeholder="Session ID or user..."
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+              </div>
+            </div>
 
-        <div className="grid gap-3 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Search</label>
-            <div className="relative mt-1">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">End user</label>
               <input
-                name="q"
-                defaultValue={searchParams?.q ?? ''}
-                placeholder="Session ID or user..."
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-900"
+                name="end_user_id"
+                defaultValue={searchParams?.end_user_id ?? ''}
+                placeholder="user ID"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">API Key</label>
+              <div className="relative mt-1">
+                <KeyRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  name="api_key_id"
+                  defaultValue={searchParams?.api_key_id ?? ''}
+                  placeholder="key_abc..."
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Time</label>
+              <select
+                name="time"
+                defaultValue={timePreset}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              >
+                <option value="all">All time</option>
+                <option value="1d">Today</option>
+                <option value="7d">7 days</option>
+                <option value="30d">30 days</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Min turns</label>
+              <input
+                type="number"
+                min={1}
+                name="min_turns"
+                defaultValue={searchParams?.min_turns ?? ''}
+                placeholder="3"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Min cost</label>
+              <input
+                type="number"
+                step="0.0001"
+                min={0}
+                name="min_cost"
+                defaultValue={searchParams?.min_cost ?? ''}
+                placeholder="0.0100"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">End user</label>
-            <input
-              name="end_user_id"
-              defaultValue={searchParams?.end_user_id ?? ''}
-              placeholder="user ID"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">API Key</label>
-            <div className="relative mt-1">
-              <KeyRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <div className="grid gap-3 lg:grid-cols-6">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Max cost</label>
               <input
-                name="api_key_id"
-                defaultValue={searchParams?.api_key_id ?? ''}
-                placeholder="key_abc..."
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-900"
+                type="number"
+                step="0.0001"
+                min={0}
+                name="max_cost"
+                defaultValue={searchParams?.max_cost ?? ''}
+                placeholder="0.5000"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Time</label>
-            <select
-              name="time"
-              defaultValue={timePreset}
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
             >
-              <option value="all">All time</option>
-              <option value="1d">Today</option>
-              <option value="7d">7 days</option>
-              <option value="30d">30 days</option>
-            </select>
+              Apply filters
+            </button>
+            {hasFilters && (
+              <Link
+                href="/sessions"
+                className="text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              >
+                Reset all
+              </Link>
+            )}
+            <ResultCount loaded={data.items.length} total={data.total} />
           </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Min turns</label>
-            <input
-              type="number"
-              min={1}
-              name="min_turns"
-              defaultValue={searchParams?.min_turns ?? ''}
-              placeholder="3"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Min cost</label>
-            <input
-              type="number"
-              step="0.0001"
-              min={0}
-              name="min_cost"
-              defaultValue={searchParams?.min_cost ?? ''}
-              placeholder="0.0100"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-6">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Max cost</label>
-            <input
-              type="number"
-              step="0.0001"
-              min={0}
-              name="max_cost"
-              defaultValue={searchParams?.max_cost ?? ''}
-              placeholder="0.5000"
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-violet-700"
-          >
-            Apply filters
-          </button>
-          {hasFilters && (
-            <Link
-              href="/sessions"
-              className="text-sm font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-            >
-              Reset all
-            </Link>
-          )}
-          <ResultCount loaded={data.items.length} total={data.total} />
-        </div>
-      </form>
+        </form>
+      </CollapsibleFilters>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <table className="min-w-full text-sm">

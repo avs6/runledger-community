@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
-import { BarChart3, CheckCircle2, Gauge, LockKeyhole, Route } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { BarChart3, CheckCircle2, Gauge, LockKeyhole, Moon, Route, Sun } from 'lucide-react'
 import RunLedgerLogo, { RunLedgerMark } from '@/components/brand/RunLedgerLogo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { resolvedTheme, setTheme } = useTheme()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -40,6 +42,14 @@ export default function LoginPage() {
     <main className="min-h-screen overflow-hidden bg-[#f3f6fa] text-slate-950 dark:bg-[#0a0e1a] dark:text-slate-50">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(147,197,253,0.26),transparent_28rem),radial-gradient(circle_at_85%_25%,rgba(203,213,225,0.36),transparent_24rem),linear-gradient(135deg,#f8fafc,#edf3f9_58%,#f3f6fa)] dark:bg-[radial-gradient(circle_at_18%_18%,rgba(59,130,246,0.12),transparent_28rem),radial-gradient(circle_at_85%_25%,rgba(51,65,85,0.2),transparent_24rem),linear-gradient(135deg,#0a0e1a,#0f172a_58%,#0a0e1a)]" />
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/45 to-transparent dark:via-blue-500/25" />
+
+      <button
+        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+        className="absolute right-5 top-5 z-10 rounded-xl border border-slate-200/80 bg-white/80 p-2.5 text-slate-500 shadow-sm backdrop-blur transition-colors hover:bg-blue-50 hover:text-slate-700 dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        aria-label="Toggle theme"
+      >
+        {resolvedTheme === 'dark' ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+      </button>
 
       <div className="relative grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
         <section className="hidden flex-col justify-between border-r border-slate-200/80 bg-[#eef3f8]/65 p-10 lg:flex xl:p-14 dark:border-slate-700/50 dark:bg-[#0d1225]/80">

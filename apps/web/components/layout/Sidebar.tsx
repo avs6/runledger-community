@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import {
   Activity,
   BarChart2,
@@ -18,7 +18,7 @@ import {
   FileText,
   FlaskConical,
   GitBranch,
-  GraduationCap,
+
   Key,
   Landmark,
   LayoutDashboard,
@@ -73,14 +73,12 @@ type SectionKey = keyof typeof defaultSections
 const observeNav = [
   { href: '/analytics', label: 'Overview', icon: LayoutDashboard },
   { href: '/runs', label: 'Runs', icon: LayoutList },
-  { href: '/sessions', label: 'Sessions', icon: MessageSquare },
-  { href: '/request-flow', label: 'Request Flow', icon: Route },
+{ href: '/request-flow', label: 'Request Flow', icon: Route },
   { href: '/request-explorer', label: 'Request Explorer', icon: Search },
   { href: '/analytics/breakdown', label: 'Analytics Breakdown', icon: BarChart2 },
   { href: '/engineering', label: 'Engineering', icon: Wrench },
   { href: '/model-usage', label: 'Model Usage', icon: Cpu },
   { href: '/monitoring', label: 'Monitoring', icon: Activity },
-  { href: '/evaluations', label: 'Quality Scores', icon: GraduationCap },
   { href: '/outcomes', label: 'Outcomes & ROI', icon: TrendingUp },
 ] as const
 
@@ -102,6 +100,7 @@ const buildNav = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { isPlatformAdmin, isOrgElevated, isWorkspaceAdmin, canAccessSettings } = useRole()
   const canAccessFinance = isWorkspaceAdmin || isOrgElevated || isPlatformAdmin
   const canAccessOrgControl = isOrgElevated || isPlatformAdmin
@@ -131,6 +130,7 @@ export default function Sidebar() {
     if (href === '/organization') return pathname === '/organization'
     if (href === '/monitoring') return pathname === '/monitoring'
     if (href === '/guardrails') return pathname === '/guardrails'
+    if (href === '/evaluation') return pathname === '/evaluation'
     return pathname === href || pathname.startsWith(`${href}/`)
   }
 

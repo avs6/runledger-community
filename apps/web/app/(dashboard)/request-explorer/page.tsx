@@ -674,21 +674,26 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
     ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
-  const requestExplorer = await getRequestExplorer(session.apiKey, {
-    q: searchParams.q,
-    status: searchParams.status,
-    intent: searchParams.feature_tag,
-    end_user_id: searchParams.end_user_id,
-    model: searchParams.model,
-    provider: searchParams.provider,
-    optimization: searchParams.optimization,
-    access_group_id: accessGroupId,
-    tag: searchParams.tag,
-    tool_name: searchParams.tool_name,
-    security_event_only: searchParams.security_event_only === 'true',
-    page: Number.isFinite(page) && page > 0 ? page : 1,
-    page_size: 50,
-  })
+  let requestExplorer: Awaited<ReturnType<typeof getRequestExplorer>>
+  try {
+    requestExplorer = await getRequestExplorer(session.apiKey, {
+      q: searchParams.q,
+      status: searchParams.status,
+      intent: searchParams.feature_tag,
+      end_user_id: searchParams.end_user_id,
+      model: searchParams.model,
+      provider: searchParams.provider,
+      optimization: searchParams.optimization,
+      access_group_id: accessGroupId,
+      tag: searchParams.tag,
+      tool_name: searchParams.tool_name,
+      security_event_only: searchParams.security_event_only === 'true',
+      page: Number.isFinite(page) && page > 0 ? page : 1,
+      page_size: 50,
+    })
+  } catch {
+    requestExplorer = { items: [], total: 0, page: 1, page_size: 50 }
+  }
   const selectedId = searchParams.run_id ?? requestExplorer.items[0]?.run_id ?? null
 
   const [runResult, governanceResult, graphResult, outcomesResult, gatewayResult, finopsResult, orgIdentityResult, gatewayRuntimeResult, scopePostureResult] = selectedId

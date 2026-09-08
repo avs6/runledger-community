@@ -9,6 +9,7 @@ import RequestFlowSankey, {
   type RequestFlowMode,
   type RequestFlowScope,
 } from '@/components/dashboard/RequestFlowSankey'
+import ContextAccordion from './ContextAccordion'
 import type { RunFlowResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 
@@ -115,35 +116,98 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
   const uniqueModels = new Set(items.map((run) => run.primary_model || 'Model Unknown')).size
   const succeeded = items.filter((run) => run.success).length
 
+  const contextSections: { color: string; label: string; summary: string; links: { href: string; text: string }[] }[] = []
+  if (governance) {
+    contextSections.push({
+      color: 'cyan',
+      label: 'Governance',
+      summary: `${governance.filtered_runs.toLocaleString()} scoped runs, ${governance.security.events.toLocaleString()} security events, ${governance.audit_log.governance_events.toLocaleString()} governance audit events.${scopePosture ? ` ${scopePosture.tool_context.pending_approvals} pending approvals, ${scopePosture.tool_context.capture_policies} capture policies.` : ''}`,
+      links: [
+        { href: '/tool-registry', text: 'Tool Registry' },
+        { href: '/tool-policies', text: 'Tool Policies' },
+        { href: '/approvals', text: 'Approvals' },
+        { href: '/security', text: 'Security' },
+        { href: '/alert-rules', text: 'Alert Rules' },
+        { href: '/audit', text: 'Audit Log' },
+        { href: '/governance-pack', text: 'Governance Pack' },
+        { href: '/tags', text: 'Tags' },
+      ],
+    })
+  }
+  if (finops) {
+    contextSections.push({
+      color: 'emerald',
+      label: 'Budget',
+      summary: `${finops.budget_context.active_budgets} active budgets (${finops.budget_context.breach_count} in breach), ${money(finops.spend_context.total_spend_30d)} spent across ${finops.spend_context.total_runs_30d.toLocaleString()} runs, ${finops.billing_context.open_billing_periods} open billing periods.`,
+      links: [
+        { href: '/budgets', text: 'Budgets' },
+        { href: '/budgets?view=detail', text: 'Budget Detail' },
+        { href: '/budget-overrides', text: 'Budget Overrides' },
+        { href: '/billing', text: 'Billing Periods' },
+        { href: '/billing?view=detail', text: 'Billing Period Detail' },
+        { href: '/chargeback', text: 'Chargeback' },
+        { href: '/model-budgets', text: 'Model Budgets' },
+      ],
+    })
+  }
+  if (orgIdentity) {
+    contextSections.push({
+      color: 'blue',
+      label: 'Org Identity',
+      summary: `${orgIdentity.user_context.workspace_users} workspace users, ${orgIdentity.user_context.distinct_end_users_30d} distinct end users, ${orgIdentity.api_key_context.total_keys} API keys (${orgIdentity.api_key_context.active_keys} active), ${orgIdentity.mcp_context.servers} MCP servers.`,
+      links: [
+        { href: '/organization', text: 'Organization' },
+        { href: '/users', text: 'Users' },
+        { href: '/api-keys', text: 'API Keys' },
+        { href: '/telemetry', text: 'Telemetry' },
+        { href: '/mcp-registry', text: 'MCP Registry' },
+      ],
+    })
+  }
+  if (gatewayRuntime) {
+    contextSections.push({
+      color: 'violet',
+      label: 'Gateway Runtime',
+      summary: `${gatewayRuntime.provider_context.distinct_providers} providers, ${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.route_context.gateway_requests_30d.toLocaleString()} gateway requests (30d). ${gatewayRuntime.guardrail_context.active_rules} guardrail rules (${gatewayRuntime.guardrail_context.blocks_30d} blocks). ${gatewayRuntime.cache_context.total_hits.toLocaleString()} cache hits, $${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved.`,
+      links: [
+        { href: '/provider-profiles', text: 'Provider Profiles' },
+        { href: '/gateway', text: 'Gateway Routes' },
+        { href: '/guardrails', text: 'Guardrails' },
+        { href: '/cache-config', text: 'Response Cache' },
+        { href: '/rate-limits', text: 'Rate Limits' },
+      ],
+    })
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
             AI Request Flow
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-            Follow AI traffic from incoming request to intent, skill, agent, model, tool, route, provider, outcome, and cost. Click any flow line to inspect the matching requests.
+          <p className="mt-0.5 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+            Follow AI traffic from request to intent, model, route, provider, outcome, and cost. Click any flow line to inspect.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <Link
             href={`/analytics?scope=${scope}&view=overview${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
           >
-            Analytics Overview <ArrowRight className="h-4 w-4" />
+            Analytics <ArrowRight className="h-3 w-3" />
           </Link>
           <Link
             href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
           >
-            Request Explorer <Search className="h-4 w-4" />
+            Explorer <Search className="h-3 w-3" />
           </Link>
           <Link
             href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-300 dark:bg-white dark:text-slate-700 dark:hover:border-blue-300 dark:hover:text-blue-700"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
           >
-            Focus Mode <Expand className="h-4 w-4" />
+            Focus <Expand className="h-3 w-3" />
           </Link>
         </div>
       </div>
@@ -159,117 +223,28 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
       ) : (
         <>
           {accessGroup && (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
-              Request Flow is filtered to the <span className="font-semibold">{accessGroup.name}</span> access group.
+            <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+              Filtered to <span className="font-semibold">{accessGroup.name}</span> access group.
             </div>
           )}
-          <div className="grid gap-4 md:grid-cols-4">
+
+          {/* Compact inline stats */}
+          <div className="flex flex-wrap gap-3">
             {[
-              { label: 'Runs sampled', value: items.length.toLocaleString(), icon: GitBranch },
-              { label: 'Intent groups', value: uniqueIntents.toLocaleString(), icon: Layers3 },
-              { label: 'Models observed', value: uniqueModels.toLocaleString(), icon: RouteIcon },
-              { label: 'Success rate', value: pct(succeeded, items.length), icon: ShieldCheck },
+              { label: 'Runs', value: items.length.toLocaleString(), icon: GitBranch },
+              { label: 'Intents', value: uniqueIntents.toLocaleString(), icon: Layers3 },
+              { label: 'Models', value: uniqueModels.toLocaleString(), icon: RouteIcon },
+              { label: 'Success', value: pct(succeeded, items.length), icon: ShieldCheck },
             ].map(({ label, value, icon: Icon }) => (
-              <div key={label} className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{label}</p>
-                  <Icon className="h-4 w-4 text-teal-600 dark:text-teal-300" />
-                </div>
-                <p className="mt-3 text-2xl font-semibold text-slate-950 dark:text-white">{value}</p>
+              <div key={label} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
+                <Icon className="h-3.5 w-3.5 text-teal-600 dark:text-teal-300" />
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
+                <span className="text-sm font-semibold text-slate-950 dark:text-white">{value}</span>
               </div>
             ))}
           </div>
 
-          {governance && (
-            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-5 shadow-sm dark:border-cyan-900/40 dark:bg-cyan-950/20">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-200">Governance Context</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Runtime policy evidence around this investigation scope</h2>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    {governance.filtered_runs.toLocaleString()} scoped runs, {governance.security.events.toLocaleString()} security events, and {governance.audit_log.governance_events.toLocaleString()} governance audit events are available for drill-through.
-                    {scopePosture && ` ${scopePosture.tool_context.pending_approvals} pending approvals, ${scopePosture.tool_context.capture_policies} capture policies.`}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold text-cyan-800 dark:text-cyan-100">
-                  <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
-                  <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
-                  <Link href="/approvals" className="hover:underline">Approvals</Link>
-                  <Link href="/security" className="hover:underline">Security</Link>
-                  <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
-                  <Link href="/audit" className="hover:underline">Audit Log</Link>
-                  <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
-                  <Link href="/tags" className="hover:underline">Tags</Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {finops && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-200">Budget Context</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">FinOps budget posture across this investigation scope</h2>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    {finops.budget_context.active_budgets} active budgets ({finops.budget_context.breach_count} in breach), {money(finops.spend_context.total_spend_30d)} spent across {finops.spend_context.total_runs_30d.toLocaleString()} runs, {finops.billing_context.open_billing_periods} open billing periods.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-100">
-                  <Link href="/budgets" className="hover:underline">Budgets</Link>
-                  <Link href="/budgets?view=detail" className="hover:underline">Budget Detail</Link>
-                  <Link href="/budget-overrides" className="hover:underline">Budget Overrides</Link>
-                  <Link href="/billing" className="hover:underline">Billing Periods</Link>
-                  <Link href="/billing?view=detail" className="hover:underline">Billing Period Detail</Link>
-                  <Link href="/chargeback" className="hover:underline">Chargeback</Link>
-                  <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {orgIdentity && (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-200">Org Identity Context</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Organization identity posture across this investigation scope</h2>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    {orgIdentity.user_context.workspace_users} workspace users, {orgIdentity.user_context.distinct_end_users_30d} distinct end users, {orgIdentity.api_key_context.total_keys} API keys ({orgIdentity.api_key_context.active_keys} active), {orgIdentity.mcp_context.servers} MCP servers.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold text-blue-800 dark:text-blue-100">
-                  <Link href="/organization" className="hover:underline">Organization</Link>
-                  <Link href="/users" className="hover:underline">Users</Link>
-                  <Link href="/api-keys" className="hover:underline">API Keys</Link>
-                  <Link href="/telemetry" className="hover:underline">Telemetry</Link>
-                  <Link href="/mcp-registry" className="hover:underline">MCP Registry</Link>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {gatewayRuntime && (
-            <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-5 shadow-sm dark:border-violet-900/40 dark:bg-violet-950/20">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-200">Gateway Runtime Context</p>
-                  <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Provider routing, guardrails, cache, and rate limits across this scope</h2>
-                  <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                    {gatewayRuntime.provider_context.distinct_providers} providers, {gatewayRuntime.provider_context.active_routes} active routes, {gatewayRuntime.route_context.gateway_requests_30d.toLocaleString()} gateway requests (30d). {gatewayRuntime.guardrail_context.active_rules} guardrail rules ({gatewayRuntime.guardrail_context.blocks_30d} blocks). {gatewayRuntime.cache_context.total_hits.toLocaleString()} cache hits, ${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold text-violet-800 dark:text-violet-100">
-                  <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
-                  <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
-                  <Link href="/guardrails" className="hover:underline">Guardrails</Link>
-                  <Link href="/cache-config" className="hover:underline">Response Cache</Link>
-                  <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
-                </div>
-              </div>
-            </div>
-          )}
-
+          {/* HERO: Request Flow Sankey */}
           <RequestFlowSankey
             flow={flow}
             scope={scope}
@@ -281,42 +256,45 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
             accessGroupId={accessGroupId}
           />
 
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Request Analysis Flow</p>
-              <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Start broad, then drill into evidence</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Use Analytics Overview for scope health, Request Flow for routing causality, and Request Explorer when you need the exact run, prompt path, and gateway evidence.
+          {/* Collapsible context sections */}
+          {contextSections.length > 0 && (
+            <ContextAccordion sections={contextSections} />
+          )}
+
+          {/* Compact bottom cards */}
+          <div className="grid gap-3 lg:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Analysis Flow</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-white">Start broad, drill into evidence</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <Link href={`/analytics?scope=${scope}&view=overview${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`} className="font-medium text-blue-600 hover:underline dark:text-blue-400">Overview</Link> for scope health, <Link href="/request-flow" className="font-medium text-blue-600 hover:underline dark:text-blue-400">Flow</Link> for routing causality, <Link href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'} className="font-medium text-blue-600 hover:underline dark:text-blue-400">Explorer</Link> for exact runs.
               </p>
             </div>
             <Link
               href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
-              className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
+              className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Drill-in</p>
-              <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Open Request Explorer</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Filter the exact requests behind a suspicious edge, inspect run detail, and correlate route, model, cache, and outcome behavior.
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Drill-in</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-white">Open Request Explorer</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Filter requests behind suspicious edges, inspect run detail.
               </p>
             </Link>
             <Link
               href={`/request-flow/focus?mode=${mode}&metric=${metric}&scope=${scope}&density=presentation&top=${topN}${collapseSmall ? '' : '&collapse=0'}${accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''}`}
-              className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
+              className="rounded-xl border border-slate-200 bg-white/80 px-4 py-3 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-950/45 dark:hover:border-blue-400 dark:hover:bg-slate-900"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Presentation Mode</p>
-              <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">Launch Focus Mode</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                Expand the same flow into a larger canvas for demos, incident review, and dense route-to-outcome debugging without changing the underlying dataset.
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Presentation</p>
+              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-white">Launch Focus Mode</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Larger canvas for demos and incident review.
               </p>
             </Link>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950/35 dark:text-slate-300">
-            <p className="font-semibold text-slate-950 dark:text-white">Scope note</p>
-            <p className="mt-1">
-              This page uses the backend flow aggregate API. Workspace scope is available to workspace access; org scope requires org admin; platform scope requires platform admin.
-            </p>
-          </div>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            <span className="font-medium">Scope:</span> Workspace access = workspace scope; org admin = org scope; platform admin = platform scope.
+          </p>
         </>
       )}
     </div>

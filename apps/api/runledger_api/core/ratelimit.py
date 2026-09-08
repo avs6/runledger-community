@@ -40,6 +40,10 @@ def _limits() -> dict[str, int]:
 
 
 async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
+    limit = _limits()[tier]
+    if limit <= 0:
+        return
+
     credentials: HTTPAuthorizationCredentials | None = await _bearer(request)
     token = (
         credentials.credentials
@@ -49,7 +53,6 @@ async def _check_rate_limit(tier: str, request: Request, redis: Redis) -> None:
     token_key = token[:16]
     epoch_minute = int(time.time() // 60)
     key = f"rl:ratelimit:{tier}:{token_key}:{epoch_minute}"
-    limit = _limits()[tier]
     reset_at = (epoch_minute + 1) * 60
 
     try:

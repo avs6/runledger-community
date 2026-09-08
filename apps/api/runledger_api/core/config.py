@@ -86,10 +86,10 @@ class Settings(BaseSettings):
 
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""
-    ingest_rate_limit_per_minute: int = 600
-    analytics_rate_limit_per_minute: int = 600
-    management_rate_limit_per_minute: int = 300
-    system_rate_limit_per_minute: int = 60
+    ingest_rate_limit_per_minute: int = 10000
+    analytics_rate_limit_per_minute: int = 0
+    management_rate_limit_per_minute: int = 0
+    system_rate_limit_per_minute: int = 600
 
     @property
     def is_development(self) -> bool:

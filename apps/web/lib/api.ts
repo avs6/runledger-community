@@ -157,6 +157,11 @@ async function apiFetch<T>(path: string, apiKey: string, init?: RequestInit): Pr
     cache: 'no-store',
   })
 
+  if (res.status === 401) {
+    const { redirect } = await import('next/navigation')
+    redirect('/login')
+  }
+
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${res.status}: ${text}`)

@@ -347,6 +347,7 @@ async def outcome_trend(
     db: DbDep,
     outcome_type: Annotated[str | None, Query()] = None,
     days: Annotated[int, Query(ge=7, le=90)] = 30,
+    window_days: Annotated[int | None, Query(ge=7, le=90)] = None,
 ) -> OutcomeTrend:
     """
     Return daily success rate and cost-per-success from rollup table.
@@ -354,7 +355,8 @@ async def outcome_trend(
     """
     from datetime import date
 
-    cutoff = date.today() - timedelta(days=days)
+    effective_days = window_days if window_days is not None else days
+    cutoff = date.today() - timedelta(days=effective_days)
 
     stmt = select(OutcomeRollupDaily).where(
         OutcomeRollupDaily.workspace_id == workspace.id,
@@ -392,6 +394,7 @@ async def workflow_roi(
     db: DbDep,
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    window_days: Annotated[int, Query(ge=1, le=365)] = 30,
     limit: Annotated[int, Query(le=50)] = 20,
 ) -> WorkflowROIList:
     """
@@ -399,7 +402,7 @@ async def workflow_roi(
     Joins agent_runs → outcomes → provider_calls.
     """
     t_to = _parse_dt(to_dt, _default_to())
-    t_from = _parse_dt(from_dt, t_to - timedelta(days=30))
+    t_from = _parse_dt(from_dt, t_to - timedelta(days=window_days))
 
     # Outcomes with feature_tag from agent_runs
     stmt = (
@@ -515,13 +518,14 @@ async def quality_outcome_correlation(
     db: DbDep,
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    window_days: Annotated[int, Query(ge=1, le=365)] = 30,
 ) -> list[QualityOutcomeCorrelation]:
     """
     Correlate avg quality score with success rate per outcome type.
     Joins outcomes → agent_runs → score_events on run_id.
     """
     t_to = _parse_dt(to_dt, _default_to())
-    t_from = _parse_dt(from_dt, t_to - timedelta(days=30))
+    t_from = _parse_dt(from_dt, t_to - timedelta(days=window_days))
 
     # Success rate per outcome type
     sr_result = await db.execute(

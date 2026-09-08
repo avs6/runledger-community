@@ -815,8 +815,8 @@ function InfoCard({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950">
+    <div className="rounded-2xl border border-slate-200 bg-white/85 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/45">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white">
         {icon}
         {title}
       </div>
@@ -877,9 +877,9 @@ export default function RequestFlowSankey({
 
   if (sample.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 p-10 text-center">
-        <p className="text-sm font-semibold text-slate-900">No request flow yet</p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white/80 p-10 text-center dark:border-slate-700 dark:bg-slate-950/40">
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">No request flow yet</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
           Send traffic through the SDK, OTLP, or Gateway and this view will map requests into intent, model, tool, and result paths.
         </p>
       </div>
@@ -934,30 +934,30 @@ export default function RequestFlowSankey({
 
   return (
     <div className={focus ? 'space-y-4' : 'space-y-4'}>
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-4">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
+        <div className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-slate-950">AI Request Flow</h2>
-              <p className="mt-1 max-w-3xl text-xs text-slate-500">{config.description}</p>
+              <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">AI Request Flow</h2>
+              <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">{config.description}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+              <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                 {(flow?.sampled_runs ?? sample.length).toLocaleString()} of {(flow?.total_runs ?? sample.length).toLocaleString()} runs
               </span>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {scope} scope / {flow?.workspace_count ?? 1} workspace{(flow?.workspace_count ?? 1) === 1 ? '' : 's'}
               </span>
               <Link
                 href={accessGroupId ? `/request-explorer?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-explorer'}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
               >
                 Request Explorer <ArrowRight className="h-3.5 w-3.5" />
               </Link>
               <RequestFlowDownloadButtons svgId={svgId} svgHref={svgDownloadUrl} fileBase={fileBase} />
               <Link
                 href={focus ? exitHref : focusHref}
-                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-slate-700 dark:hover:bg-blue-600"
               >
                 {focus ? 'Exit Focus' : 'Expand Flow'} {focus ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
               </Link>
@@ -971,8 +971,8 @@ export default function RequestFlowSankey({
                 href={flowLinkHref(basePath, config.key, metric, item.key, viewOptions)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === scope
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+                    ? 'bg-slate-900 text-white dark:bg-slate-600'
+                    : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-blue-950/40 dark:hover:text-blue-300'
                 }`}
               >
                 {item.label}
@@ -986,8 +986,8 @@ export default function RequestFlowSankey({
                 href={flowLinkHref(basePath, item.key, metric, scope, viewOptions)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === config.key
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'
+                    ? 'bg-slate-900 text-white dark:bg-slate-600'
+                    : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:bg-blue-950/40 dark:hover:text-blue-300'
                 }`}
               >
                 {item.label}
@@ -1001,8 +1001,8 @@ export default function RequestFlowSankey({
                 href={flowLinkHref(basePath, config.key, item.key, scope, viewOptions)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === metric
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-slate-200'
                 }`}
               >
                 Thickness: {item.label}
@@ -1017,8 +1017,8 @@ export default function RequestFlowSankey({
                 href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, density: item.key })}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item.key === activeDensity
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                    ? 'bg-slate-900 text-white dark:bg-slate-600'
+                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-slate-200'
                 }`}
               >
                 {item.label}
@@ -1031,8 +1031,8 @@ export default function RequestFlowSankey({
                 href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, topN: item })}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                   item === normalizedTopN
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                    ? 'bg-slate-900 text-white dark:bg-slate-600'
+                    : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-slate-200'
                 }`}
               >
                 {item}
@@ -1042,8 +1042,8 @@ export default function RequestFlowSankey({
               href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, collapseSmall: !collapseSmall })}
               className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                 collapseSmall
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                  : 'border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-slate-200'
               }`}
             >
               {collapseSmall ? 'Other: On' : 'Other: Off'}
@@ -1053,19 +1053,19 @@ export default function RequestFlowSankey({
                 <span className="ml-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Zoom</span>
                 <Link
                   href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: clamp(normalizedZoom - 0.25, 0.5, 4) })}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-300"
                 >
                   <ZoomOut className="h-3.5 w-3.5" /> Out
                 </Link>
                 <Link
                   href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: 1 })}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-300"
                 >
                   <RotateCcw className="h-3.5 w-3.5" /> Fit
                 </Link>
                 <Link
                   href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: clamp(normalizedZoom + 0.25, 0.5, 4) })}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700"
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-300"
                 >
                   <ZoomIn className="h-3.5 w-3.5" /> In
                 </Link>
@@ -1075,20 +1075,20 @@ export default function RequestFlowSankey({
                     href={flowLinkHref(basePath, config.key, metric, scope, { ...viewOptions, zoom: item })}
                     className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                       Math.round(normalizedZoom * 100) === item * 100
-                        ? 'bg-slate-900 text-white'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'
+                        ? 'bg-slate-900 text-white dark:bg-slate-600'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-300'
                     }`}
                   >
                     {item * 100}%
                   </Link>
                 ))}
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">{Math.round(normalizedZoom * 100)}%</span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{Math.round(normalizedZoom * 100)}%</span>
               </>
             ) : null}
           </div>
         </div>
 
-        <div className="overflow-auto bg-gradient-to-br from-white via-slate-50 to-blue-50/50">
+        <div className="overflow-auto bg-gradient-to-br from-white via-slate-50 to-blue-50/50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
           <svg
             id={svgId}
             width={diagramWidth}
@@ -1099,7 +1099,7 @@ export default function RequestFlowSankey({
               height: `${diagramHeight * normalizedZoom}px`,
               minWidth: `${diagramWidth * normalizedZoom}px`,
             }}
-            className="block bg-gradient-to-br from-white via-slate-50 to-blue-50/50"
+            className="block bg-gradient-to-br from-white via-slate-50 to-blue-50/50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950"
           >
             <defs>
               <filter id="flow-shadow" x="-10%" y="-10%" width="120%" height="120%">
@@ -1132,7 +1132,7 @@ export default function RequestFlowSankey({
             })}
 
             {config.layers.map((layer, index) => (
-              <text key={layer.key} x={layerX[index]} y="38" className="fill-slate-500 text-[11px] font-bold uppercase tracking-[0.16em]">
+              <text key={layer.key} x={layerX[index]} y="38" className="fill-slate-500 text-[11px] font-bold uppercase tracking-[0.16em] dark:fill-slate-400">
                 {layer.label}
               </text>
             ))}
@@ -1142,12 +1142,12 @@ export default function RequestFlowSankey({
               if (!pos) return null
               return (
                 <g key={node.id} transform={`translate(${pos.x}, ${pos.y - densityConfig.nodeHeight / 2})`} filter="url(#flow-shadow)">
-                  <rect width={densityConfig.nodeWidth} height={densityConfig.nodeHeight} rx="14" className="fill-white stroke-slate-200" />
+                  <rect width={densityConfig.nodeWidth} height={densityConfig.nodeHeight} rx="14" className="fill-white stroke-slate-200 dark:fill-slate-800 dark:stroke-slate-700" />
                   <rect x="0" width="5" height={densityConfig.nodeHeight} rx="2.5" fill={pos.color} />
-                  <text x="16" y={densityConfig.nodeHeight * 0.4} className="fill-slate-950 text-[12px] font-semibold">
+                  <text x="16" y={densityConfig.nodeHeight * 0.4} className="fill-slate-950 text-[12px] font-semibold dark:fill-slate-50">
                     {truncate(node.label, densityConfig.labelMax)}
                   </text>
-                  <text x="16" y={densityConfig.nodeHeight * 0.7} className="fill-slate-500 text-[10.5px]">
+                  <text x="16" y={densityConfig.nodeHeight * 0.7} className="fill-slate-500 text-[10.5px] dark:fill-slate-400">
                     {metricLabel(node, metric)}
                   </text>
                   <title>{tooltip(node)}</title>
@@ -1171,7 +1171,7 @@ export default function RequestFlowSankey({
         <InfoCard title="Optimization Hints" icon={<Lightbulb className="h-4 w-4 text-amber-600" />}>
           <div className="space-y-2">
             {recs.slice(0, 4).map((rec) => (
-              <p key={rec} className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+              <p key={rec} className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                 {rec}
               </p>
             ))}
@@ -1184,17 +1184,17 @@ export default function RequestFlowSankey({
 
 function RankedList({ items }: { items: Array<{ label: string; runs: number; cost: number; tokens: number }> }) {
   if (items.length === 0) {
-    return <p className="text-xs text-slate-500">No data yet.</p>
+    return <p className="text-xs text-slate-500 dark:text-slate-400">No data yet.</p>
   }
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <div key={item.label} className="rounded-xl bg-slate-50 px-3 py-2">
+        <div key={item.label} className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-800/60">
           <div className="flex items-center justify-between gap-3">
-            <p className="truncate text-xs font-semibold text-slate-800">{item.label}</p>
-            <p className="shrink-0 text-xs text-slate-500">{item.runs} reqs</p>
+            <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{item.label}</p>
+            <p className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{item.runs} reqs</p>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
             {formatCost(String(item.cost))} / {formatTokens(item.tokens)}
           </p>
         </div>
