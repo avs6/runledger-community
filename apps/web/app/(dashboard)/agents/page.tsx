@@ -11,7 +11,7 @@ import {
   Terminal, Wrench, Zap, X,
 } from 'lucide-react'
 import { getAgents, createAgent, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentsListPosture } from '@/lib/api'
-import type { AgentResponse } from '@/types/api'
+import type { AgentResponse, BudgetDetailBuildPosture } from '@/types/api'
 import { num } from '@/lib/utils'
 
 const inputCls =
@@ -173,7 +173,7 @@ export default function AgentsPage() {
   const activeCount = agents.filter(a => a.status === 'active').length
   const pausedCount = agents.filter(a => a.status === 'paused').length
   const typeCounts = agents.reduce((acc, a) => { acc[a.agent_type] = (acc[a.agent_type] || 0) + 1; return acc }, {} as Record<string, number>)
-  const bp = budgetBuildPosture as Record<string, Record<string, Record<string, number>>> | null
+  const bp = budgetBuildPosture as unknown as BudgetDetailBuildPosture | null
   const ap = agentsPosture as Record<string, Record<string, number>> | null
 
   return (
