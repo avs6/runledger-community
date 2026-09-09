@@ -160,7 +160,7 @@ export default async function WorkflowsPage() {
       {/* Posture chips — condensed */}
       <div className="grid gap-2 lg:grid-cols-3">
         {budgetBuildPosture && (
-          <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50/50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -185,7 +185,7 @@ export default async function WorkflowsPage() {
         )}
 
         {workflowsPosture && (
-          <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
+          <div className="rounded-xl border border-blue-300 bg-blue-50/50 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Network className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
@@ -208,7 +208,7 @@ export default async function WorkflowsPage() {
         )}
 
         {workflowsPosture && (
-          <div className="rounded-xl border border-rose-200/60 bg-rose-50/30 p-3 dark:border-rose-800/40 dark:bg-rose-950/20">
+          <div className="rounded-xl border border-rose-300 bg-rose-50/50 p-3 dark:border-rose-800/40 dark:bg-rose-950/20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <FlaskConical className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />

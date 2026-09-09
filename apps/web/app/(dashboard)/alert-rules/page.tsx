@@ -197,7 +197,7 @@ export default function AlertRulesPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-4xl">
+    <div className="mx-auto max-w-6xl space-y-6 p-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-950">Alert Rules</h1>
         <p className="mt-1 text-sm text-slate-600">Fire Slack notifications when a metric crosses a threshold. Evaluated every 5 minutes.</p>

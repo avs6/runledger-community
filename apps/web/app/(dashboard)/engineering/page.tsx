@@ -215,7 +215,7 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
           {(budgetPosture || budgetControlPosture) && (
             <div className="grid gap-2 lg:grid-cols-2">
               {budgetPosture && (
-                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -240,7 +240,7 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
               )}
 
               {budgetControlPosture && (
-                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />

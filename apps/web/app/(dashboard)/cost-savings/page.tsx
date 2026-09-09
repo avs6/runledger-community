@@ -309,7 +309,7 @@ export default async function CostSavingsPage({
             {postureChips.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {postureChips.map((c) => (
-                  <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                  <span key={c} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-slate-200 ring-1 ring-white/20">
                     {c}
                   </span>
                 ))}
@@ -336,7 +336,7 @@ export default async function CostSavingsPage({
             { label: 'Scope', value: scopeLabel(selectedScope) },
             { label: 'Range', value: win.label },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <div key={kpi.label} className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
               <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
             </div>
@@ -570,7 +570,7 @@ export default async function CostSavingsPage({
 
       {/* ── Context panels ── */}
       {finopsPosture && (
-        <div className="rounded-xl border border-cyan-200/50 bg-gradient-to-r from-cyan-50/60 to-blue-50/60 p-4 dark:border-cyan-800/30 dark:from-cyan-950/30 dark:to-blue-950/30">
+        <div className="rounded-xl border border-cyan-300 bg-gradient-to-r from-cyan-50 to-blue-50 p-4 dark:border-cyan-800/30 dark:from-cyan-950/30 dark:to-blue-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Wallet className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
             <h2 className="text-xs font-bold text-cyan-900 dark:text-cyan-200">FinOps Detail Context</h2>
@@ -592,7 +592,7 @@ export default async function CostSavingsPage({
       )}
 
       {gatewayPosture && (
-        <div className="rounded-xl border border-violet-200/50 bg-gradient-to-r from-violet-50/60 to-purple-50/60 p-4 dark:border-violet-800/30 dark:from-violet-950/30 dark:to-purple-950/30">
+        <div className="rounded-xl border border-violet-300 bg-gradient-to-r from-violet-50 to-purple-50 p-4 dark:border-violet-800/30 dark:from-violet-950/30 dark:to-purple-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
             <h2 className="text-xs font-bold text-violet-900 dark:text-violet-200">Gateway & Provider Context</h2>

@@ -496,17 +496,17 @@ export default function MonitoringPage() {
         {[
           {
             label: 'Security Events', value: securityEvents.length,
-            color: securityEvents.length > 0 ? 'border-red-200 dark:border-red-900 bg-red-50/60 dark:bg-red-950/30' : 'border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/30',
+            color: securityEvents.length > 0 ? 'border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30' : 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30',
             textColor: securityEvents.length > 0 ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300',
           },
           {
             label: 'Active Alerts', value: activeAlerts,
-            color: activeAlerts > 0 ? 'border-orange-200 dark:border-orange-900 bg-orange-50/60 dark:bg-orange-950/30' : 'border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/30',
+            color: activeAlerts > 0 ? 'border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950/30' : 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30',
             textColor: activeAlerts > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-emerald-700 dark:text-emerald-300',
           },
           {
             label: 'Gateway Errors', value: gatewayErrors,
-            color: gatewayErrors > 0 ? 'border-red-200 dark:border-red-900 bg-red-50/60 dark:bg-red-950/30' : 'border-emerald-200 dark:border-emerald-900 bg-emerald-50/60 dark:bg-emerald-950/30',
+            color: gatewayErrors > 0 ? 'border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30' : 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30',
             textColor: gatewayErrors > 0 ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300',
           },
         ].map((s) => (
@@ -519,7 +519,7 @@ export default function MonitoringPage() {
 
       {/* Posture chips */}
       {finopsPosture && (
-        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Wallet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -552,7 +552,7 @@ export default function MonitoringPage() {
       {opsPosture && (
         <div className="grid gap-2 lg:grid-cols-3">
           {/* Gateway ops */}
-          <div className="rounded-xl border border-violet-200/60 bg-violet-50/30 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
+          <div className="rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
             <div className="mb-2 flex items-center gap-1.5">
               <Network className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Gateway Ops</span>
@@ -575,7 +575,7 @@ export default function MonitoringPage() {
           </div>
 
           {/* Governance ops */}
-          <div className="rounded-xl border border-amber-200/60 bg-amber-50/30 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
             <div className="mb-2 flex items-center gap-1.5">
               <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Governance Ops</span>
@@ -598,7 +598,7 @@ export default function MonitoringPage() {
           </div>
 
           {/* Org & investigation */}
-          <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
+          <div className="rounded-xl border border-blue-300 bg-blue-50 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
             <div className="mb-2 flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Investigation</span>

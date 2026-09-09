@@ -152,13 +152,13 @@ function HeroStat({
   icon: React.ElementType
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
+    <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        <Icon className="h-3.5 w-3.5 text-white/50" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-white/50">{label}</span>
+        <Icon className="h-3.5 w-3.5 text-white/70" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-white/70">{label}</span>
       </div>
       <p className="mt-1 text-xl font-bold tracking-tight text-white">{value}</p>
-      <p className="mt-0.5 text-[11px] text-white/40">{sub}</p>
+      <p className="mt-0.5 text-[11px] text-white/60">{sub}</p>
     </div>
   )
 }
@@ -336,7 +336,7 @@ export default async function AnalyticsOverviewPage({
               <h1 className="text-2xl font-bold tracking-tight text-white">
                 Observability Command Center
               </h1>
-              <p className="mt-1 max-w-2xl text-xs text-white/40">
+              <p className="mt-1 max-w-2xl text-xs text-white/60">
                 Unified analytics, cost attribution, and platform health.
               </p>
               {accessGroup && (
@@ -369,7 +369,7 @@ export default async function AnalyticsOverviewPage({
               { href: '/cost-savings', label: 'Cost & Savings' },
               { href: '/model-usage', label: 'Models' },
             ].map(nav => (
-              <Link key={nav.label} href={nav.href} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/60 transition hover:bg-white/10 hover:text-white/90">
+              <Link key={nav.label} href={nav.href} className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/70 transition hover:bg-white/15 hover:text-white/90">
                 {nav.label}
               </Link>
             ))}

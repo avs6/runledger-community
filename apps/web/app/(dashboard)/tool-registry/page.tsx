@@ -321,7 +321,7 @@ export default function ToolGovernancePage() {
   if (!apiKey) return <div className="p-6 text-slate-400">Please sign in.</div>
 
   return (
-    <div className="space-y-3 max-w-7xl">
+    <div className="mx-auto max-w-6xl space-y-3">
       {/* ── Hero Header ── */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-cyan-950 to-indigo-950 px-5 py-4">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.15),transparent_60%)]" />

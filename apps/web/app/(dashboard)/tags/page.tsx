@@ -288,37 +288,37 @@ export default function TagsPage() {
 
         {/* KPI strip */}
         <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
             <p className="text-lg font-bold text-white">{activeTags}</p>
             <p className="text-[10px] text-slate-400">Active Tags</p>
           </div>
-          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
             <p className="text-lg font-bold text-white">{activeRules}</p>
             <p className="text-[10px] text-slate-400">Active Rules</p>
           </div>
-          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
             <p className="text-lg font-bold text-white">{simulation?.matched.length ?? 0}</p>
             <p className="text-[10px] text-slate-400">Sim Matches</p>
           </div>
-          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
             <p className="text-lg font-bold text-white">{tree.length}</p>
             <p className="text-[10px] text-slate-400">Root Nodes</p>
           </div>
           {finopsPosture && (
             <>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">${finopsPosture.spend_context.tagged_spend_30d?.toFixed(0) ?? '0'}</p>
                 <p className="text-[10px] text-slate-400">Tagged Spend 30d</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{finopsPosture.budget_context.tag_scoped_budgets ?? 0}</p>
                 <p className="text-[10px] text-slate-400">Tag Budgets</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{finopsPosture.chargeback_context.tag_dimension_rules ?? 0}</p>
                 <p className="text-[10px] text-slate-400">Chargeback Rules</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{finopsPosture.tag_context.distinct_tags_with_spend ?? 0}</p>
                 <p className="text-[10px] text-slate-400">Tags w/ Spend</p>
               </div>
@@ -330,26 +330,26 @@ export default function TagsPage() {
         <div className="relative mt-3 flex flex-wrap gap-1.5">
           {govInternal && (
             <>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{govInternal.tool_registry_context.total_tools}</span> tools
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{govInternal.tool_policies_context.active_policies}</span> policies
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{govInternal.audit_context.audit_events_30d}</span> audit 30d
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{govInternal.alert_rules_context.alert_firings_30d}</span> alerts 30d
               </span>
             </>
           )}
           {runtimePosture && (
             <>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{runtimePosture.observe_attribution.runs_30d}</span> runs 30d
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{runtimePosture.finops_attribution.chargeback_rules}</span> chargeback
               </span>
             </>

@@ -138,19 +138,19 @@ export default function AuditPage() {
         <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {crossPosture && (
             <>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{crossPosture.observe_context.audit_events_30d}</p>
                 <p className="text-[10px] text-slate-400">Audit Events 30d</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{crossPosture.finops_context.active_budgets}</p>
                 <p className="text-[10px] text-slate-400">Active Budgets</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{crossPosture.org_context.workspace_users}</p>
                 <p className="text-[10px] text-slate-400">Workspace Users</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{crossPosture.gateway_context.total_routes}</p>
                 <p className="text-[10px] text-slate-400">Gateway Routes</p>
               </div>
@@ -158,19 +158,19 @@ export default function AuditPage() {
           )}
           {runtimePosture && (
             <>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{runtimePosture.evidence_scope.audit_events_30d}</p>
                 <p className="text-[10px] text-slate-400">Evidence Events</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{runtimePosture.observe_lineage.runs_30d}</p>
                 <p className="text-[10px] text-slate-400">Runs 30d</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{runtimePosture.gateway_lineage.cache_configs}</p>
                 <p className="text-[10px] text-slate-400">Cache Configs</p>
               </div>
-              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{runtimePosture.finops_lineage.ledger_snapshots_30d}</p>
                 <p className="text-[10px] text-slate-400">Ledger Snapshots</p>
               </div>
@@ -187,7 +187,7 @@ export default function AuditPage() {
               { label: `${govInternal.security_context.security_events_30d} Security`, sub: '30d' },
               { label: `${govInternal.tags_context.active_tags} Tags`, sub: 'active' },
             ].map((c) => (
-              <span key={c.label} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span key={c.label} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{c.label}</span> {c.sub}
               </span>
             ))}

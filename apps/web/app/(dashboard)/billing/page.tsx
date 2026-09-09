@@ -66,7 +66,7 @@ export default async function BillingPage({
           {postureChips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {postureChips.map((c) => (
-                <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                <span key={c} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-slate-200 ring-1 ring-white/20">
                   {c}
                 </span>
               ))}
@@ -84,7 +84,7 @@ export default async function BillingPage({
             { label: 'Access Groups', value: billingOrgPosture ? String(billingOrgPosture.org_context.access_groups) : '—' },
             { label: 'API Keys', value: billingOrgPosture ? String(billingOrgPosture.org_context.api_keys) : '—' },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <div key={kpi.label} className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
               <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
             </div>
@@ -94,7 +94,7 @@ export default async function BillingPage({
 
       {/* ── Context panels ── */}
       {billingOrgPosture && (
-        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50/60 to-teal-50/60 p-4 dark:border-emerald-800/30 dark:from-emerald-950/30 dark:to-teal-950/30">
+        <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 dark:border-emerald-800/30 dark:from-emerald-950/30 dark:to-teal-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             <h2 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Billing × Org Scope Context</h2>
@@ -117,7 +117,7 @@ export default async function BillingPage({
       )}
 
       {billingCrossPosture && (
-        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-r from-teal-50/60 to-emerald-50/60 p-4 dark:border-teal-800/30 dark:from-teal-950/30 dark:to-emerald-950/30">
+        <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-teal-50 to-emerald-50 p-4 dark:border-teal-800/30 dark:from-teal-950/30 dark:to-emerald-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-teal-600 dark:text-teal-400" />
             <h2 className="text-xs font-bold text-teal-900 dark:text-teal-200">Billing × Cross-Feature Context</h2>
@@ -140,7 +140,7 @@ export default async function BillingPage({
       )}
 
       {reconciliationPosture && (
-        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50/60 to-green-50/60 p-4 dark:border-emerald-800/30 dark:from-emerald-950/30 dark:to-green-950/30">
+        <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 to-green-50 p-4 dark:border-emerald-800/30 dark:from-emerald-950/30 dark:to-green-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             <h2 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Billing Reconciliation Context</h2>

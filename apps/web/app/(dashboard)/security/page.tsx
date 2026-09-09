@@ -297,7 +297,7 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-8 p-8">
+    <div className="mx-auto max-w-6xl space-y-8 p-8">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">

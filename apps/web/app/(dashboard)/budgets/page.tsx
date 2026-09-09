@@ -87,7 +87,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
           {postureChips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {postureChips.map((c) => (
-                <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                <span key={c} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-slate-200 ring-1 ring-white/20">
                   {c}
                 </span>
               ))}
@@ -105,7 +105,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
             { label: 'Overrides', value: finopsPosture ? String(finopsPosture.override_context.total_overrides) : '0' },
             { label: 'Ledger Snaps', value: finopsPosture ? String(finopsPosture.ledger_context.total_snapshots) : '0' },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <div key={kpi.label} className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
               <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
             </div>
@@ -140,7 +140,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
 
       {/* ── Context panels ── */}
       {finopsPosture && (
-        <div className="rounded-xl border border-blue-200/50 bg-gradient-to-r from-blue-50/60 to-indigo-50/60 p-4 dark:border-blue-800/30 dark:from-blue-950/30 dark:to-indigo-950/30">
+        <div className="rounded-xl border border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 dark:border-blue-800/30 dark:from-blue-950/30 dark:to-indigo-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             <h2 className="text-xs font-bold text-blue-900 dark:text-blue-200">FinOps Internal Posture</h2>
@@ -165,7 +165,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
       )}
 
       {budgetScopePosture && (
-        <div className="rounded-xl border border-indigo-200/50 bg-gradient-to-r from-indigo-50/60 to-violet-50/60 p-4 dark:border-indigo-800/30 dark:from-indigo-950/30 dark:to-violet-950/30">
+        <div className="rounded-xl border border-indigo-300 bg-gradient-to-r from-indigo-50 to-violet-50 p-4 dark:border-indigo-800/30 dark:from-indigo-950/30 dark:to-violet-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
             <h2 className="text-xs font-bold text-indigo-900 dark:text-indigo-200">Budget Scope & Governance Context</h2>

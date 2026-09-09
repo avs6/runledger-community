@@ -297,7 +297,7 @@ export default function DataCapturePage() {
         {postures.length > 0 && (
           <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
             {postures.map((p) => (
-              <div key={p.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <div key={p.label} className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
                 <p className="text-lg font-bold text-white">{p.value}</p>
                 <p className="text-[10px] text-slate-400">{p.label}</p>
                 {p.sub && <p className="text-[10px] text-slate-500">{p.sub}</p>}
@@ -315,7 +315,7 @@ export default function DataCapturePage() {
               { label: `${govInternal.approvals_context.pending_approvals} Pending`, sub: 'approvals' },
               { label: `${govInternal.audit_context.audit_events_30d} Audit`, sub: '30d' },
             ].map((c) => (
-              <span key={c.label} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span key={c.label} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{c.label}</span> {c.sub}
               </span>
             ))}

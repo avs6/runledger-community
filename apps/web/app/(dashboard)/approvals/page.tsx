@@ -276,7 +276,7 @@ export default function ApprovalsPage() {
                   key={s}
                   onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
                   className={`rounded-lg px-3 py-2 text-left transition-all ${
-                    statusFilter === s ? 'bg-white/15 ring-1 ring-white/30' : 'bg-white/5 ring-1 ring-white/10 hover:bg-white/10'
+                    statusFilter === s ? 'bg-white/15 ring-1 ring-white/30' : 'bg-white/10 ring-1 ring-white/20 hover:bg-white/15'
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
@@ -294,33 +294,33 @@ export default function ApprovalsPage() {
         <div className="relative mt-3 flex flex-wrap gap-1.5">
           {finopsPosture && (
             <>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{finopsPosture.budget_context.total_budgets}</span> budgets
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{finopsPosture.budget_context.breach_count_30d}</span> breaches 30d
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{finopsPosture.alert_context.budget_alert_rules}</span> alert rules
               </span>
             </>
           )}
           {orgPosture && (
             <>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{orgPosture.user_context.total_users}</span> users
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{orgPosture.access_group_context.total_groups}</span> groups
               </span>
             </>
           )}
           {runtimePosture && (
             <>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{runtimePosture.observe_evidence.runs_30d}</span> runs 30d
               </span>
-              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
                 <span className="font-semibold text-white">{runtimePosture.gateway_escalation.guardrail_rules}</span> guardrails
               </span>
             </>

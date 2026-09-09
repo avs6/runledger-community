@@ -406,7 +406,7 @@ export default async function ModelUsagePage({
 
       {/* Gateway posture — compact chips */}
       {gatewayPosture && (
-        <div className="rounded-xl border border-violet-200/60 bg-violet-50/30 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
+        <div className="rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Network className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
@@ -448,7 +448,7 @@ export default async function ModelUsagePage({
 
       {/* Budget control — compact chips */}
       {budgetControlPosture && (
-        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -478,7 +478,7 @@ export default async function ModelUsagePage({
 
       {/* Model Budget Utilization — compact */}
       {modelBudgets && modelBudgets.models.filter(m => m.budget_limit_usd !== null).length > 0 && (
-        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Wallet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -501,13 +501,13 @@ export default async function ModelUsagePage({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-y border-emerald-200/60 bg-emerald-50/60 dark:border-emerald-800/40 dark:bg-emerald-950/30">
+                <tr className="border-y border-emerald-300 bg-emerald-50 dark:border-emerald-800/40 dark:bg-emerald-950/30">
                   {['Model', 'Spend', 'Reqs', 'Limit', 'Util', 'Action', ''].map(h => (
                     <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-emerald-100/60 dark:divide-emerald-800/40">
+              <tbody className="divide-y divide-emerald-100 dark:divide-emerald-800/40">
                 {modelBudgets.models.filter(m => m.budget_limit_usd !== null).map(m => {
                   const util = m.budget_limit_usd && m.budget_limit_usd > 0 ? (m.spend_30d / m.budget_limit_usd) * 100 : 0
                   return (

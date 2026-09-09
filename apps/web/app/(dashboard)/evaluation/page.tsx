@@ -150,7 +150,7 @@ function ExperimentsTab({
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+        <div className="rounded-xl border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 p-4">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <div><label className={labelCls}>Name *</label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. GPT-4o vs Claude" className={inputCls} /></div>
@@ -309,7 +309,7 @@ function DatasetsTab({
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+        <div className="rounded-xl border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 p-4">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><label className={labelCls}>Name *</label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Customer Q&A" className={inputCls} /></div>
@@ -436,7 +436,7 @@ function PromptsTab({
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+        <div className="rounded-xl border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 p-4">
           <form onSubmit={handleCreate} className="grid grid-cols-3 gap-3">
             <div><label className={labelCls}>Name *</label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="support-agent" className={inputCls} /></div>
             <div><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} /></div>
@@ -539,7 +539,7 @@ function EvaluatorsTab({
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+        <div className="rounded-xl border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 p-4">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><label className={labelCls}>Name</label><input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="e.g. Quality Judge" /></div>
@@ -733,26 +733,26 @@ function ReplayTab({
     <div className="space-y-3">
       {modePosture && (
         <div className="grid grid-cols-4 gap-2">
-          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Chargeback Rules</p>
             <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.chargeback_context.chargeback_rules}</p>
           </div>
-          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Cost 30d</p>
             <p className="text-sm font-bold text-amber-600 dark:text-amber-400">${num(modePosture.chargeback_context.cost_30d).toFixed(2)}</p>
           </div>
-          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Replay Experiments</p>
             <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.replay_context.replay_experiments}</p>
           </div>
-          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Replay Datasets</p>
             <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.replay_context.replay_datasets}</p>
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-3 rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/40 dark:bg-violet-950/20 px-3 py-2">
+      <div className="flex items-center gap-3 rounded-lg border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 px-3 py-2">
         <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
         <p className="text-xs text-violet-800 dark:text-violet-200">Experiments replay traffic through gateway routes and model configs.</p>
         <div className="ml-auto flex gap-1.5">
@@ -1051,7 +1051,7 @@ export default function EvaluationPage() {
       {/* ── Posture chips ──────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-2">
         {budgetControlBuildPosture && (
-          <div className="rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/20 px-3 py-2">
+          <div className="rounded-lg border border-emerald-300 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">FinOps</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{budgetControlBuildPosture.budget_policy.active_budgets} budgets</span>
@@ -1062,7 +1062,7 @@ export default function EvaluationPage() {
           </div>
         )}
         {orgGatewayPosture && (
-          <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 px-3 py-2">
+          <div className="rounded-lg border border-blue-300 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-950/20 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Org & Providers</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.distinct_providers} providers</span>
@@ -1073,7 +1073,7 @@ export default function EvaluationPage() {
           </div>
         )}
         {buildPosture && (
-          <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/40 bg-rose-50/30 dark:bg-rose-950/20 px-3 py-2">
+          <div className="rounded-lg border border-rose-300 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-950/20 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Build & Improve</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.playground_context.sessions_30d} playground</span>

@@ -309,7 +309,7 @@ export default function ChargebackPage() {
             {postureChips.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {postureChips.map((c) => (
-                  <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                  <span key={c} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-slate-200 ring-1 ring-white/20">
                     {c}
                   </span>
                 ))}
@@ -336,7 +336,7 @@ export default function ChargebackPage() {
             { label: 'Breakdown Rows', value: report ? String(report.breakdown.length) : '0' },
             { label: 'Exceptions', value: report ? String(report.breakdown.filter((r) => r.allocation_status !== 'allocated' || r.coverage_status !== 'budgeted').length) : '0' },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <div key={kpi.label} className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
               <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
             </div>
@@ -654,7 +654,7 @@ export default function ChargebackPage() {
           <p className="text-xs text-slate-500">Loading allocation exceptions…</p>
         ) : report ? (
           <div className="space-y-4">
-            <div className="rounded-xl border border-amber-200/50 bg-amber-50/60 p-4 dark:border-amber-800/30 dark:bg-amber-950/20">
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/30 dark:bg-amber-950/20">
               <h2 className="text-xs font-bold text-amber-900 dark:text-amber-200">Allocation Exceptions</h2>
               <p className="mt-1 text-[11px] text-amber-800/80 dark:text-amber-300/70">
                 Unallocated or weakly covered rows stay visible here so finance operators can fix attribution gaps.
@@ -750,7 +750,7 @@ export default function ChargebackPage() {
 
       {/* ── Context panels ── */}
       {finopsPosture && (
-        <div className="rounded-xl border border-rose-200/50 bg-gradient-to-r from-rose-50/60 to-orange-50/60 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-orange-950/30">
+        <div className="rounded-xl border border-rose-300 bg-gradient-to-r from-rose-50 to-orange-50 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-orange-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-rose-600 dark:text-rose-400" />
             <h2 className="text-xs font-bold text-rose-900 dark:text-rose-200">FinOps Internal Posture</h2>
@@ -775,7 +775,7 @@ export default function ChargebackPage() {
       )}
 
       {chargebackCrossPosture && (
-        <div className="rounded-xl border border-orange-200/50 bg-gradient-to-r from-orange-50/60 to-rose-50/60 p-4 dark:border-orange-800/30 dark:from-orange-950/30 dark:to-rose-950/30">
+        <div className="rounded-xl border border-orange-300 bg-gradient-to-r from-orange-50 to-rose-50 p-4 dark:border-orange-800/30 dark:from-orange-950/30 dark:to-rose-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
             <h2 className="text-xs font-bold text-orange-900 dark:text-orange-200">Cross-Feature Context</h2>
@@ -799,7 +799,7 @@ export default function ChargebackPage() {
       )}
 
       {attributionPosture && (
-        <div className="rounded-xl border border-rose-200/50 bg-gradient-to-r from-rose-50/60 to-pink-50/60 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-pink-950/30">
+        <div className="rounded-xl border border-rose-300 bg-gradient-to-r from-rose-50 to-pink-50 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-pink-950/30">
           <div className="flex items-center gap-2 mb-3">
             <Shield className="h-4 w-4 text-rose-600 dark:text-rose-400" />
             <h2 className="text-xs font-bold text-rose-900 dark:text-rose-200">Attribution Context</h2>
