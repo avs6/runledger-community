@@ -67,7 +67,7 @@ export default function RunGraph({
       source: e.source,
       target: e.target,
       type: 'smoothstep',
-      style: { stroke: '#d1d5db' },
+      style: { stroke: 'var(--graph-edge, #d1d5db)' },
     }))
     return applyDagreLayout(rawNodes, rawEdges)
   }, [graphNodes, graphEdges])
@@ -88,7 +88,7 @@ export default function RunGraph({
   )
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full [--graph-bg-dot:#e5e7eb] dark:[--graph-bg-dot:#334155] [--graph-minimap-node:#e5e7eb] dark:[--graph-minimap-node:#475569] [--graph-minimap-mask:rgba(255,255,255,0.6)] dark:[--graph-minimap-mask:rgba(0,0,0,0.5)] [--graph-edge:#d1d5db] dark:[--graph-edge:#475569]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -100,11 +100,11 @@ export default function RunGraph({
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
         maxZoom={2}
-        className="bg-gray-50"
+        className="bg-gray-50 dark:bg-slate-900"
       >
-        <Background color="#e5e7eb" gap={20} />
-        <Controls />
-        <MiniMap nodeColor="#e5e7eb" maskColor="rgba(255,255,255,0.6)" />
+        <Background color="var(--graph-bg-dot, #e5e7eb)" gap={20} />
+        <Controls className="dark:[&>button]:bg-slate-800 dark:[&>button]:border-slate-600 dark:[&>button]:text-slate-300 dark:[&>button:hover]:bg-slate-700" />
+        <MiniMap nodeColor="var(--graph-minimap-node, #e5e7eb)" maskColor="var(--graph-minimap-mask, rgba(255,255,255,0.6))" className="dark:bg-slate-800" />
       </ReactFlow>
       <SpanDetailPanel
         node={selectedNode}

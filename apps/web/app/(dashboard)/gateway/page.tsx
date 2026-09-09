@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
@@ -39,7 +40,7 @@ import type {
 } from '@/types/api'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
 function parseCsvTags(value: string): string[] {
   return value
@@ -255,6 +256,13 @@ export default function GatewayPage() {
   const [runtimeScopeModelPosture, setRuntimeScopeModelPosture] = useState<RuntimeScopeModelPosture | null>(null)
   const [scopeEnforcementEvidencePosture, setScopeEnforcementEvidencePosture] = useState<ScopeEnforcementEvidencePosture | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const TABS = ['overview', 'routes', 'policies', 'cache', 'rate-limits', 'posture', 'advanced'] as const
+  type Tab = (typeof TABS)[number]
+  const activeTab = (TABS.includes(searchParams.get('tab') as Tab) ? searchParams.get('tab') as Tab : 'overview') as Tab
+  const setTab = useCallback((t: Tab) => { router.replace(`/gateway?tab=${t}`, { scroll: false }) }, [router])
 
   const load = useCallback(async () => {
     if (!apiKey || !canManage) {
@@ -1021,60 +1029,181 @@ export default function GatewayPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h1 className="text-2xl font-bold tracking-tight dark:text-white">Model Gateway</h1>
+    <div className="space-y-3">
+      {/* ── Header ─────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25">
+            <Network className="h-5 w-5 text-white" />
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            OpenAI-compatible proxy with caching, fallback, and intelligent routing. Point your app&apos;s{' '}
-            <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">base_url</code> to{' '}
-            <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">/gateway</code>.
-          </p>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white">Model Gateway</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              OpenAI-compatible proxy with caching, fallback, and intelligent routing. Point <code className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">base_url</code> to <code className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">/gateway</code>.
+            </p>
+          </div>
         </div>
-        <button
-          onClick={load}
-          className="shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <Link href="/org-profile" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Org Profile</Link>
-        <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
-        <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
-        <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
-        <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
-        <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
-        <Link href="/monitoring/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry</Link>
-        <Link href="/mcp-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Registry</Link>
-        <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
-        <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
-        <Link href="/analytics/users?detail=true" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics User Detail</Link>
-        <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-        <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
-      </div>
-
-      {/* Stats strip */}
-      {gatewayStats && gatewayStats.total_requests > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="flex items-center gap-1.5">
+          <button onClick={load} className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+            <RefreshCw className="h-3 w-3" />Refresh
+          </button>
           {[
-            { label: 'Total Requests', value: gatewayStats.total_requests.toLocaleString() },
-            { label: 'Cache Hits', value: gatewayStats.cache_hits.toLocaleString() },
-            { label: 'Cache Hit Rate', value: `${(parseFloat(gatewayStats.cache_hit_rate) * 100).toFixed(1)}%` },
-            { label: 'Avg Latency', value: gatewayStats.avg_latency_ms ? `${parseFloat(gatewayStats.avg_latency_ms).toFixed(0)}ms` : '—' },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{s.label}</p>
-              <p className="text-xl font-semibold dark:text-white mt-0.5">{s.value}</p>
-            </div>
+            { label: 'Provider Profiles', href: '/provider-profiles' },
+            { label: 'Guardrails', href: '/guardrails' },
+            { label: 'API Keys', href: '/api-keys' },
+            { label: 'Telemetry', href: '/monitoring/telemetry' },
+            { label: 'MCP', href: '/mcp-registry' },
+          ].map(({ label, href }) => (
+            <Link key={label} href={href} className="rounded-full bg-violet-100 dark:bg-violet-900/30 px-2.5 py-1 text-[10px] font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/40 transition-colors">{label}</Link>
           ))}
         </div>
+      </div>
+
+      {/* ── KPI strip ──────────────────────────────────── */}
+      <div className="grid grid-cols-8 gap-2">
+        {[
+          { label: 'Requests', value: gatewayStats?.total_requests?.toLocaleString() ?? '—' },
+          { label: 'Cache Hits', value: gatewayStats?.cache_hits?.toLocaleString() ?? '—' },
+          { label: 'Hit Rate', value: gatewayStats?.cache_hit_rate ? `${(parseFloat(gatewayStats.cache_hit_rate) * 100).toFixed(1)}%` : '—', accent: true },
+          { label: 'Avg Latency', value: gatewayStats?.avg_latency_ms ? `${parseFloat(gatewayStats.avg_latency_ms).toFixed(0)}ms` : '—' },
+          { label: 'Routes', value: gatewayRoutes.length },
+          { label: 'Groups', value: routingGroups.length },
+          { label: 'Policies', value: routingPolicies.length },
+          { label: 'Cache Configs', value: cacheConfigs.length },
+        ].map(({ label, value, accent }) => (
+          <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
+            <p className={`text-sm font-bold ${accent ? 'text-violet-600 dark:text-violet-400' : 'text-slate-900 dark:text-white'}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Tab bar ────────────────────────────────────── */}
+      <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700 pb-px">
+        {([
+          ['overview', 'Overview'],
+          ['routes', 'Routes'],
+          ['policies', 'Policies'],
+          ['cache', 'Cache'],
+          ['rate-limits', 'Rate Limits'],
+          ['posture', 'Posture'],
+          ['advanced', 'Advanced'],
+        ] as [Tab, string][]).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-colors ${activeTab === key ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-b-2 border-violet-500' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Overview — condensed posture chip rows
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'overview' && (
+        <div className="space-y-3">
+          {/* Posture chip rows */}
+          <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">FinOps & Spend</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {finopsPosture ? [
+                `$${finopsPosture.spend.total_30d_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 30d`,
+                `${finopsPosture.spend.total_requests_30d.toLocaleString()} reqs`,
+                `${finopsPosture.budgets.active_count} budgets`,
+                `${finopsPosture.budgets.active_overrides} overrides`,
+                `${finopsPosture.notifications.active_channels} channels`,
+                `${finopsPosture.billing.open_periods} open periods`,
+                `${finopsPosture.chargeback.rule_count} chargeback rules`,
+                `${finopsPosture.routes.with_cost_caps} cost-capped`,
+                `${finopsPosture.routes.with_rate_limits} rate-limited`,
+              ].map((chip) => (
+                <span key={chip} className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{chip}</span>
+              )) : <span className="text-[10px] text-slate-400">Loading...</span>}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Observe & Traffic</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {observePosture ? [
+                `${observePosture.traffic.total_requests.toLocaleString()} requests`,
+                `${(num(observePosture.traffic.cache_hit_rate) * 100).toFixed(1)}% cache hit`,
+                `${observePosture.traffic.errors.toLocaleString()} errors`,
+                `${observePosture.traffic.throttled_requests.toLocaleString()} throttled`,
+                observePosture.performance.avg_latency_ms ? `${num(observePosture.performance.avg_latency_ms).toFixed(0)}ms avg` : null,
+                `$${observePosture.cost.total_cost_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent`,
+                `$${observePosture.cost.total_savings_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} saved`,
+                `${observePosture.runs.run_count.toLocaleString()} runs`,
+                `${observePosture.runs.distinct_users} users`,
+              ].filter(Boolean).map((chip) => (
+                <span key={chip} className="rounded-full bg-sky-100 dark:bg-sky-900/30 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">{chip}</span>
+              )) : <span className="text-[10px] text-slate-400">Loading...</span>}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Safety & Governance</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {safetyPosture ? [
+                `${safetyPosture.tool_governance.active_tool_policies} tool policies`,
+                `${safetyPosture.approvals.pending} pending approvals`,
+                `${safetyPosture.audit.gateway_events_30d.toLocaleString()} audit events`,
+                `${safetyPosture.alert_rules.active} alert rules`,
+                `${safetyPosture.gateway_context.active_guardrails} guardrails`,
+                `${safetyPosture.gateway_context.guardrail_blocks_30d.toLocaleString()} blocks`,
+                `${safetyPosture.tags.total} tags`,
+              ].map((chip) => (
+                <span key={chip} className="rounded-full bg-rose-100 dark:bg-rose-900/30 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">{chip}</span>
+              )) : <span className="text-[10px] text-slate-400">Loading...</span>}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Build & Improve</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {buildPosture ? [
+                `${buildPosture.prompts.total} prompts`,
+                `${buildPosture.agents.total} agents`,
+                `${buildPosture.workflows.total} workflows`,
+                `${buildPosture.workflows.runs} runs`,
+                `${buildPosture.evaluation.experiments} experiments`,
+                `${buildPosture.evaluation.datasets} datasets`,
+                `${buildPosture.gateway_context.active_routes} routes`,
+                `${buildPosture.gateway_context.active_guardrails} guardrails`,
+              ].map((chip) => (
+                <span key={chip} className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">{chip}</span>
+              )) : <span className="text-[10px] text-slate-400">Loading...</span>}
+            </div>
+          </div>
+
+          {/* Quick nav links */}
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { label: 'Org Profile', href: '/org-profile' },
+              { label: 'Onboarding', href: '/onboarding' },
+              { label: 'Users', href: '/users' },
+              { label: 'Workspaces', href: '/workspace' },
+              { label: 'Access Groups', href: '/access-groups' },
+              { label: 'Budgets', href: '/budgets' },
+              { label: 'Billing', href: '/billing' },
+              { label: 'Chargeback', href: '/chargeback' },
+              { label: 'Audit Log', href: '/audit-log' },
+              { label: 'Governance', href: '/governance' },
+              { label: 'Analytics', href: '/analytics/users?detail=true' },
+              { label: 'Platform Settings', href: '/admin/settings' },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">{label}</Link>
+            ))}
+          </div>
+        </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Posture — all posture detail blocks
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'posture' && (<div className="space-y-3">
 
       {finopsPosture && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -1767,7 +1896,13 @@ export default function GatewayPage() {
         </div>
       )}
 
-      {/* ── Routes ── */}
+      </div>)}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Rate Limits
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'rate-limits' && (<div className="space-y-3">
+
       {rateLimitOverview && (
         <section className="space-y-4">
           <div>
@@ -1862,6 +1997,13 @@ export default function GatewayPage() {
           </div>
         </section>
       )}
+
+      </div>)}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Cache — economics + profiles
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'cache' && (<div className="space-y-3">
 
       {cacheEconomicsPosture && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
@@ -1970,7 +2112,7 @@ export default function GatewayPage() {
             <input value={newCacheEmbeddingModel} onChange={(e) => setNewCacheEmbeddingModel(e.target.value)} className={inputCls} placeholder="Embedding model (optional)" />
             <input value={newCacheScopeModels} onChange={(e) => setNewCacheScopeModels(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="Scoped models (csv)" />
             <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={newCacheEnabled} onChange={(e) => setNewCacheEnabled(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              <input type="checkbox" checked={newCacheEnabled} onChange={(e) => setNewCacheEnabled(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
               Profile enabled
             </label>
             <textarea value={newCacheConfigStr} onChange={(e) => { setNewCacheConfigStr(e.target.value); setCacheConfigError('') }} className={`${inputCls} min-h-[110px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder='{"mode":"semantic"}' />
@@ -2075,7 +2217,7 @@ export default function GatewayPage() {
                     <input value={cacheEditState.embeddingModel} onChange={(e) => setCacheEditState({ ...cacheEditState, embeddingModel: e.target.value })} className={inputCls} placeholder="Embedding model" />
                     <input value={cacheEditState.scopeModels} onChange={(e) => setCacheEditState({ ...cacheEditState, scopeModels: e.target.value })} className={`${inputCls} sm:col-span-2`} placeholder="Scoped models (csv)" />
                     <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                      <input type="checkbox" checked={cacheEditState.isEnabled} onChange={(e) => setCacheEditState({ ...cacheEditState, isEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                      <input type="checkbox" checked={cacheEditState.isEnabled} onChange={(e) => setCacheEditState({ ...cacheEditState, isEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                       Profile enabled
                     </label>
                     <textarea value={cacheEditState.configStr} onChange={(e) => { setCacheEditState({ ...cacheEditState, configStr: e.target.value }); setCacheConfigError('') }} className={`${inputCls} min-h-[110px] font-mono text-xs sm:col-span-2`} placeholder='{"mode":"semantic"}' />
@@ -2095,6 +2237,13 @@ export default function GatewayPage() {
           })}
         </div>
       </section>
+
+      </div>)}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Routes — groups + comparison + provider routes
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'routes' && (<div className="space-y-3">
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -2185,7 +2334,7 @@ export default function GatewayPage() {
                     <option value="round_robin">round_robin</option>
                   </select>
                   <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                    <input type="checkbox" checked={groupEditState.isActive} onChange={(e) => setGroupEditState({ ...groupEditState, isActive: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    <input type="checkbox" checked={groupEditState.isActive} onChange={(e) => setGroupEditState({ ...groupEditState, isActive: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                     Group active
                   </label>
                   <textarea value={groupEditState.strategyConfigStr} onChange={(e) => { setGroupEditState({ ...groupEditState, strategyConfigStr: e.target.value }); setGroupEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"notes":"optional"}' />
@@ -2275,11 +2424,11 @@ export default function GatewayPage() {
           <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-4">
             <form onSubmit={handleCreateRoute} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Alias (route name) *</label>
+                <label className="text-xs text-slate-500 dark:text-slate-400">Alias (route name) *</label>
                 <input type="text" placeholder="e.g. gpt-4o" value={newRouteAlias} onChange={(e) => setNewRouteAlias(e.target.value)} className={inputCls} required />
               </div>
               <div className="flex flex-col gap-1 sm:col-span-2">
-                <label className="text-xs text-gray-500 dark:text-gray-400">Provider &amp; Model *</label>
+                <label className="text-xs text-slate-500 dark:text-slate-400">Provider &amp; Model *</label>
                 <select
                   className={inputCls}
                   value={`${newRouteProvider}::${newRouteTargetModel}`}
@@ -2342,8 +2491,8 @@ export default function GatewayPage() {
                   ))}
               </select>
               <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
-                <label className="text-xs text-gray-500 dark:text-gray-400">
-                  Provider Config JSON <span className="text-gray-400">(optional — Azure: deployment_name/api_version; Bedrock: region; Vertex: project/location)</span>
+                <label className="text-xs text-slate-500 dark:text-slate-400">
+                  Provider Config JSON <span className="text-slate-400">(optional — Azure: deployment_name/api_version; Bedrock: region; Vertex: project/location)</span>
                 </label>
                 <textarea
                   placeholder='e.g. {"deployment_name": "my-gpt4o", "api_version": "2024-02-01"}'
@@ -2365,19 +2514,19 @@ export default function GatewayPage() {
                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Runtime Controls</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Daily Cost Cap (USD)</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Daily Cost Cap (USD)</label>
                     <input type="number" placeholder="e.g. 10.00" step="0.01" min="0" value={newRouteDailyCap} onChange={(e) => setNewRouteDailyCap(e.target.value)} className={inputCls} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Monthly Cost Cap (USD)</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Monthly Cost Cap (USD)</label>
                     <input type="number" placeholder="e.g. 100.00" step="0.01" min="0" value={newRouteMonthlyCap} onChange={(e) => setNewRouteMonthlyCap(e.target.value)} className={inputCls} />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Per-User RPM Limit</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Per-User RPM Limit</label>
                     <input type="number" placeholder="e.g. 60" min="1" value={newRoutePerUserRpm} onChange={(e) => setNewRoutePerUserRpm(e.target.value)} className={inputCls} />
                   </div>
                   <div className="flex flex-col gap-1 sm:col-span-2">
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Fallback Chain Aliases</label>
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Fallback Chain Aliases</label>
                     <input
                       type="text"
                       placeholder="e.g. gpt-4o-mini, gpt-4.1-mini"
@@ -2395,9 +2544,9 @@ export default function GatewayPage() {
                       type="checkbox"
                       checked={newRoutePiiRedaction}
                       onChange={(e) => setNewRoutePiiRedaction(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <label htmlFor="pii-redact" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer">PII Redaction</label>
+                    <label htmlFor="pii-redact" className="text-xs text-slate-600 dark:text-slate-300 cursor-pointer">PII Redaction</label>
                   </div>
                   <div className="flex items-center gap-2 mt-4">
                     <input
@@ -2405,9 +2554,9 @@ export default function GatewayPage() {
                       type="checkbox"
                       checked={newRouteSemanticCache}
                       onChange={(e) => setNewRouteSemanticCache(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <label htmlFor="semantic-cache" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Also serve near-duplicate prompts from the semantic cache">Semantic Cache</label>
+                    <label htmlFor="semantic-cache" className="text-xs text-slate-600 dark:text-slate-300 cursor-pointer" title="Also serve near-duplicate prompts from the semantic cache">Semantic Cache</label>
                   </div>
                   <div className="flex items-center gap-2 mt-4">
                     <input
@@ -2415,14 +2564,14 @@ export default function GatewayPage() {
                       type="checkbox"
                       checked={newRouteContextCompiler}
                       onChange={(e) => setNewRouteContextCompiler(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <label htmlFor="context-compiler" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Shrink oversized requests before routing: dedup, tool-output compression, rerank, compaction">Context Compiler</label>
+                    <label htmlFor="context-compiler" className="text-xs text-slate-600 dark:text-slate-300 cursor-pointer" title="Shrink oversized requests before routing: dedup, tool-output compression, rerank, compaction">Context Compiler</label>
                   </div>
                   {newRouteContextCompiler && (
                     <div className="mt-2 flex flex-col gap-2 rounded-lg border border-indigo-200 dark:border-indigo-800 p-2">
                       <div className="flex flex-col gap-1">
-                        <label className="text-[11px] text-gray-500 dark:text-gray-400">Compaction model (local)</label>
+                        <label className="text-[11px] text-slate-500 dark:text-slate-400">Compaction model (local)</label>
                         <select className={inputCls} value={newRouteCompilerModel} onChange={(e) => setNewRouteCompilerModel(e.target.value)}>
                           <option value="">— default —</option>
                           {pricing.filter((p) => ['ollama', 'vllm', 'local'].includes(p.provider)).map((m) => (
@@ -2431,7 +2580,7 @@ export default function GatewayPage() {
                         </select>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-[11px] text-gray-500 dark:text-gray-400">Reranker model</label>
+                        <label className="text-[11px] text-slate-500 dark:text-slate-400">Reranker model</label>
                         <select className={inputCls} value={newRouteRerankerModel} onChange={(e) => setNewRouteRerankerModel(e.target.value)}>
                           <option value="flashrank">flashrank (fast, default)</option>
                           <option value="bge-reranker-base">BGE reranker (quality)</option>
@@ -2439,19 +2588,19 @@ export default function GatewayPage() {
                         </select>
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-[11px] text-gray-500 dark:text-gray-400">Engage threshold (tokens · 0 = always)</label>
+                        <label className="text-[11px] text-slate-500 dark:text-slate-400">Engage threshold (tokens · 0 = always)</label>
                         <input type="number" min="0" value={newRouteCompilerThreshold} onChange={(e) => setNewRouteCompilerThreshold(e.target.value)} className={inputCls} />
                       </div>
                       <div className="flex items-center gap-2 border-t border-indigo-200 dark:border-indigo-800 pt-2">
-                        <input id="tool-filter" type="checkbox" checked={newRouteToolFilter} onChange={(e) => setNewRouteToolFilter(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                        <label htmlFor="tool-filter" className="text-[11px] text-gray-600 dark:text-gray-300 cursor-pointer" title="Keep only the tools relevant to the request">Tool filtering</label>
+                        <input id="tool-filter" type="checkbox" checked={newRouteToolFilter} onChange={(e) => setNewRouteToolFilter(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                        <label htmlFor="tool-filter" className="text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer" title="Keep only the tools relevant to the request">Tool filtering</label>
                         {newRouteToolFilter && (
                           <input type="number" min="1" value={newRouteToolK} onChange={(e) => setNewRouteToolK(e.target.value)} className={`w-16 ${inputCls}`} title="Keep top-k tools" />
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <input id="skills" type="checkbox" checked={newRouteSkills} onChange={(e) => setNewRouteSkills(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                        <label htmlFor="skills" className="text-[11px] text-gray-600 dark:text-gray-300 cursor-pointer" title="Inject matched skill bodies from the registry">Skill injection</label>
+                        <input id="skills" type="checkbox" checked={newRouteSkills} onChange={(e) => setNewRouteSkills(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                        <label htmlFor="skills" className="text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer" title="Inject matched skill bodies from the registry">Skill injection</label>
                         {newRouteSkills && (
                           <input type="number" min="1" value={newRouteSkillK} onChange={(e) => setNewRouteSkillK(e.target.value)} className={`w-16 ${inputCls}`} title="Max skills injected" />
                         )}
@@ -2462,25 +2611,25 @@ export default function GatewayPage() {
                           type="checkbox"
                           checked={newRouteCompress}
                           onChange={(e) => setNewRouteCompress(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        <label htmlFor="compress" className="text-[11px] text-gray-600 dark:text-gray-300 cursor-pointer" title="LLMLingua-2 prompt compression — lossy, opt-in">Prompt compression (LLMLingua-2)</label>
+                        <label htmlFor="compress" className="text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer" title="LLMLingua-2 prompt compression — lossy, opt-in">Prompt compression (LLMLingua-2)</label>
                       </div>
                       {newRouteCompress && (
                         <>
                           <div className="flex flex-col gap-1">
-                            <label className="text-[11px] text-gray-500 dark:text-gray-400">Compression model</label>
+                            <label className="text-[11px] text-slate-500 dark:text-slate-400">Compression model</label>
                             <select className={inputCls} value={newRouteCompressModel} onChange={(e) => setNewRouteCompressModel(e.target.value)}>
                               <option value="bert-base-multilingual">bert-base-multilingual (fast, default)</option>
                               <option value="xlm-roberta-large">xlm-roberta-large (quality)</option>
                             </select>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <label className="text-[11px] text-gray-500 dark:text-gray-400">Keep rate (0.1–1.0 · lower = more aggressive)</label>
+                            <label className="text-[11px] text-slate-500 dark:text-slate-400">Keep rate (0.1–1.0 · lower = more aggressive)</label>
                             <input type="number" min="0.1" max="1" step="0.05" value={newRouteCompressRate} onChange={(e) => setNewRouteCompressRate(e.target.value)} className={inputCls} />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <label className="text-[11px] text-gray-500 dark:text-gray-400">Compress when</label>
+                            <label className="text-[11px] text-slate-500 dark:text-slate-400">Compress when</label>
                             <select className={inputCls} value={newRouteCompressWhen} onChange={(e) => setNewRouteCompressWhen(e.target.value)}>
                               <option value="over_budget">only over token budget</option>
                               <option value="over_pct">over a % of the budget</option>
@@ -2489,7 +2638,7 @@ export default function GatewayPage() {
                           </div>
                           {newRouteCompressWhen === 'over_pct' && (
                             <div className="flex flex-col gap-1">
-                              <label className="text-[11px] text-gray-500 dark:text-gray-400">Budget fraction to trigger (e.g. 0.8)</label>
+                              <label className="text-[11px] text-slate-500 dark:text-slate-400">Budget fraction to trigger (e.g. 0.8)</label>
                               <input type="number" min="0.1" max="1" step="0.05" value={newRouteCompressPct} onChange={(e) => setNewRouteCompressPct(e.target.value)} className={inputCls} />
                             </div>
                           )}
@@ -2506,13 +2655,13 @@ export default function GatewayPage() {
                     type="checkbox"
                     checked={newRouteIntelligent}
                     onChange={(e) => setNewRouteIntelligent(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <label htmlFor="intelligent-routing" className="text-xs text-gray-600 dark:text-gray-300 cursor-pointer" title="Classify complexity × risk and route to a model tier; also sets reasoning effort">Intelligent Routing</label>
+                  <label htmlFor="intelligent-routing" className="text-xs text-slate-600 dark:text-slate-300 cursor-pointer" title="Classify complexity × risk and route to a model tier; also sets reasoning effort">Intelligent Routing</label>
                 </div>
                 {newRouteIntelligent && (
                   <div className="mt-2 flex flex-col gap-1">
-                    <label className="text-[11px] text-gray-500 dark:text-gray-400">Routing config (JSON) — tiers, matrix, classifier_mode, llm_model, reasoning_effort, on_failure</label>
+                    <label className="text-[11px] text-slate-500 dark:text-slate-400">Routing config (JSON) — tiers, matrix, classifier_mode, llm_model, reasoning_effort, on_failure</label>
                     <textarea
                       rows={12}
                       value={newRouteRoutingConfigStr}
@@ -2706,19 +2855,19 @@ export default function GatewayPage() {
                           <textarea value={routeEditState.routeConfigStr} onChange={(e) => { setRouteEditState({ ...routeEditState, routeConfigStr: e.target.value }); setRouteEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder="Provider config JSON" />
                           <textarea value={routeEditState.routingConfigStr} onChange={(e) => { setRouteEditState({ ...routeEditState, routingConfigStr: e.target.value }); setRouteEditError('') }} className={`${inputCls} min-h-[120px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder="Routing config JSON" />
                           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" checked={routeEditState.piiRedactionEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, piiRedactionEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            <input type="checkbox" checked={routeEditState.piiRedactionEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, piiRedactionEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                             PII redaction
                           </label>
                           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" checked={routeEditState.semanticCacheEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, semanticCacheEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            <input type="checkbox" checked={routeEditState.semanticCacheEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, semanticCacheEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                             Semantic cache
                           </label>
                           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" checked={routeEditState.contextCompilerEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, contextCompilerEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            <input type="checkbox" checked={routeEditState.contextCompilerEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, contextCompilerEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                             Context compiler
                           </label>
                           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" checked={routeEditState.intelligentRoutingEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, intelligentRoutingEnabled: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            <input type="checkbox" checked={routeEditState.intelligentRoutingEnabled} onChange={(e) => setRouteEditState({ ...routeEditState, intelligentRoutingEnabled: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                             Intelligent routing
                           </label>
                           {routeEditError && <p className="text-xs text-red-500 sm:col-span-2 lg:col-span-3">{routeEditError}</p>}
@@ -2742,7 +2891,13 @@ export default function GatewayPage() {
         </div>
       </section>
 
-      {/* ── Routing Policies ── */}
+      </div>)}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Policies — routing policies + routing log
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'policies' && (<div className="space-y-3">
+
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -2902,7 +3057,7 @@ export default function GatewayPage() {
                               <option value="latency_optimized">latency_optimized</option>
                             </select>
                             <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                              <input type="checkbox" checked={policyEditState.isActive} onChange={(e) => setPolicyEditState({ ...policyEditState, isActive: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                              <input type="checkbox" checked={policyEditState.isActive} onChange={(e) => setPolicyEditState({ ...policyEditState, isActive: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                               Policy active
                             </label>
                             <textarea value={policyEditState.configStr} onChange={(e) => { setPolicyEditState({ ...policyEditState, configStr: e.target.value }); setPolicyEditError('') }} className={`${inputCls} min-h-[140px] font-mono text-xs sm:col-span-2`} />
@@ -3001,12 +3156,19 @@ export default function GatewayPage() {
         )}
       </section>
 
-      {/* ── Optimization flywheel ── */}
+      </div>)}
+
+      {/* ═══════════════════════════════════════════════════
+          TAB: Advanced — benchmark, passthrough, budget tiers, model quotas, flywheel
+         ═══════════════════════════════════════════════════ */}
+      {activeTab === 'advanced' && (<div className="space-y-3">
       {apiKey && <BenchmarkPanel apiKey={apiKey} />}
       {apiKey && <PassThroughPanel apiKey={apiKey} canManage={canManage} />}
       {apiKey && <BudgetTierPanel apiKey={apiKey} canManage={canManage} />}
       {apiKey && <ModelQuotaPanel apiKey={apiKey} canManage={canManage} />}
       {apiKey && <FlywheelPanel apiKey={apiKey} canManage={canManage} />}
+      </div>)}
+
     </div>
   )
 }
@@ -3431,7 +3593,7 @@ function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: bo
                   <textarea value={editState.headerConfigStr} onChange={(e) => { setEditState({ ...editState, headerConfigStr: e.target.value }); setEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"x-api-version":"2026-08"}' />
                   <textarea value={editState.defaultQueryStr} onChange={(e) => { setEditState({ ...editState, defaultQueryStr: e.target.value }); setEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2`} placeholder='{"region":"us"}' />
                   <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 sm:col-span-2">
-                    <input type="checkbox" checked={editState.isActive} onChange={(e) => setEditState({ ...editState, isActive: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    <input type="checkbox" checked={editState.isActive} onChange={(e) => setEditState({ ...editState, isActive: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
                     Endpoint active
                   </label>
                   {editError && <p className="text-xs text-red-500 sm:col-span-2">{editError}</p>}
@@ -3602,7 +3764,7 @@ function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canManage: boo
           <input value={form.tpm_limit} onChange={(e) => setForm({ ...form, tpm_limit: e.target.value })} className={inputCls} placeholder="TPM limit" type="number" />
           <input value={form.allowed_models} onChange={(e) => setForm({ ...form, allowed_models: e.target.value })} className={`${inputCls} lg:col-span-2`} placeholder="Allowed models (csv)" />
           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-            <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+            <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
             Default tier
           </label>
           <div className="lg:col-span-3 flex items-center gap-2">
@@ -4184,7 +4346,7 @@ function FlywheelPanel({ apiKey, canManage }: { apiKey: string; canManage: boole
               checked={settings.enabled}
               disabled={!canManage}
               onChange={(e) => patch({ enabled: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-slate-300"
             />
             <span className="dark:text-slate-200">Enabled</span>
           </label>

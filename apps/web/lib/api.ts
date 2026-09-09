@@ -4431,6 +4431,23 @@ export async function getVectorCollections(
   return apiFetch<import('@/types/api').VectorCollectionListResponse>(`/vector-stores${query}`, apiKey)
 }
 
+export async function createVectorCollection(
+  apiKey: string,
+  data: { name: string; qdrant_collection: string; description?: string; embedding_model?: string; dimensions?: number; distance_metric?: string; config?: Record<string, unknown> }
+): Promise<import('@/types/api').VectorCollectionResponse> {
+  return apiFetch<import('@/types/api').VectorCollectionResponse>('/vector-stores', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteVectorCollection(
+  apiKey: string,
+  collectionId: string
+): Promise<void> {
+  await apiFetch<void>(`/vector-stores/${collectionId}`, apiKey, { method: 'DELETE' })
+}
+
 export async function getVectorCollection(
   apiKey: string,
   collectionId: string

@@ -173,62 +173,6 @@ async def list_outcomes(
     )
 
 
-@router.get(
-    "/{outcome_id}",
-    response_model=OutcomeResponse,
-    dependencies=[Depends(analytics_rate_limit)],
-)
-async def get_outcome(
-    outcome_id: uuid.UUID,
-    workspace: WorkspaceDep,
-    db: DbDep,
-) -> OutcomeResponse:
-    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
-    return OutcomeResponse.model_validate(outcome)
-
-
-@router.put(
-    "/{outcome_id}",
-    response_model=OutcomeResponse,
-    dependencies=[Depends(management_rate_limit)],
-)
-async def update_outcome(
-    outcome_id: uuid.UUID,
-    body: OutcomeUpdate,
-    workspace: WorkspaceDep,
-    db: DbDep,
-) -> OutcomeResponse:
-    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
-    outcome.outcome_type = body.outcome_type
-    outcome.success = body.success
-    outcome.run_id = body.run_id
-    outcome.session_id = body.session_id
-    outcome.end_user_id = body.end_user_id
-    outcome.value_usd = body.value_usd
-    outcome.labels = body.labels
-    await db.commit()
-    await db.refresh(outcome)
-    log.info("outcome_updated", workspace_id=str(workspace.id), outcome_id=str(outcome.id))
-    return OutcomeResponse.model_validate(outcome)
-
-
-@router.delete(
-    "/{outcome_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
-)
-async def delete_outcome(
-    outcome_id: uuid.UUID,
-    workspace: WorkspaceDep,
-    db: DbDep,
-) -> Response:
-    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
-    await db.delete(outcome)
-    await db.commit()
-    log.info("outcome_deleted", workspace_id=str(workspace.id), outcome_id=str(outcome_id))
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
 # ── Summary: cost-per-outcome + ROI ───────────────────────────────────────────
 
 
@@ -594,3 +538,62 @@ async def quality_outcome_correlation(
 
     correlations.sort(key=lambda x: x.sample_count, reverse=True)
     return correlations
+
+
+# ── Single outcome CRUD (must be after static sub-routes) ────────────────────
+
+
+@router.get(
+    "/{outcome_id}",
+    response_model=OutcomeResponse,
+    dependencies=[Depends(analytics_rate_limit)],
+)
+async def get_outcome(
+    outcome_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> OutcomeResponse:
+    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    return OutcomeResponse.model_validate(outcome)
+
+
+@router.put(
+    "/{outcome_id}",
+    response_model=OutcomeResponse,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def update_outcome(
+    outcome_id: uuid.UUID,
+    body: OutcomeUpdate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> OutcomeResponse:
+    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    outcome.outcome_type = body.outcome_type
+    outcome.success = body.success
+    outcome.run_id = body.run_id
+    outcome.session_id = body.session_id
+    outcome.end_user_id = body.end_user_id
+    outcome.value_usd = body.value_usd
+    outcome.labels = body.labels
+    await db.commit()
+    await db.refresh(outcome)
+    log.info("outcome_updated", workspace_id=str(workspace.id), outcome_id=str(outcome.id))
+    return OutcomeResponse.model_validate(outcome)
+
+
+@router.delete(
+    "/{outcome_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(management_rate_limit)],
+)
+async def delete_outcome(
+    outcome_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> Response:
+    outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    await db.delete(outcome)
+    await db.commit()
+    log.info("outcome_deleted", workspace_id=str(workspace.id), outcome_id=str(outcome_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

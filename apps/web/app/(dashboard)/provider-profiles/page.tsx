@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Database, Plus, Pencil, Trash2, RefreshCw, Search, SlidersHorizontal, X, CloudDownload, Upload, FileDown } from 'lucide-react'
+import { Database, Plus, Pencil, Trash2, RefreshCw, Search, X, CloudDownload, Upload, FileDown, ChevronDown, ChevronUp } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
   listProviderPricing,
@@ -23,7 +23,7 @@ import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderPro
 import { num } from '@/lib/utils'
 
 const inputCls =
-  'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
 interface EditState {
   id: string
@@ -42,7 +42,6 @@ export default function ProviderProfilesPage() {
   const [pricing, setPricing] = useState<ProviderPricingResponse[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Add form
   const [showForm, setShowForm] = useState(false)
   const [newProvider, setNewProvider] = useState('')
   const [newModel, setNewModel] = useState('')
@@ -51,54 +50,40 @@ export default function ProviderProfilesPage() {
   const [newCachedCost, setNewCachedCost] = useState('')
   const [addingPricing, setAddingPricing] = useState(false)
 
-  // Edit
   const [editState, setEditState] = useState<EditState | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Filters
   const [pricingSearch, setPricingSearch] = useState('')
   const [pricingProviderFilter, setPricingProviderFilter] = useState('')
   const [pricingScopeFilter, setPricingScopeFilter] = useState<'all' | 'workspace' | 'global'>('all')
-  const [postureModal, setPostureModal] = useState<{ profile: ProviderPricingResponse; data: ProviderProfileFinopsPosture } | null>(null)
+
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [postureData, setPostureData] = useState<Record<string, ProviderProfileFinopsPosture>>({})
+  const [observeData, setObserveData] = useState<Record<string, ProviderProfileObservePosture>>({})
   const [postureLoading, setPostureLoading] = useState<string | null>(null)
-  const [observeModal, setObserveModal] = useState<{ profile: ProviderPricingResponse; data: ProviderProfileObservePosture } | null>(null)
-  const [observeLoading, setObserveLoading] = useState<string | null>(null)
   const [runtimePosture, setRuntimePosture] = useState<ProviderProfileRuntimePosture | null>(null)
 
-  async function openPostureModal(p: ProviderPricingResponse) {
+  async function loadPosture(p: ProviderPricingResponse) {
     if (!apiKey) return
+    if (postureData[p.id] && observeData[p.id]) return
     setPostureLoading(p.id)
     try {
-      const data = await getProviderProfileFinopsPosture(apiKey, p.id)
-      setPostureModal({ profile: p, data })
-    } catch {
-      toast.error('Failed to load financial posture')
+      const [finops, observe] = await Promise.all([
+        getProviderProfileFinopsPosture(apiKey, p.id).catch(() => null),
+        getProviderProfileObservePosture(apiKey, p.id).catch(() => null),
+      ])
+      if (finops) setPostureData((prev) => ({ ...prev, [p.id]: finops }))
+      if (observe) setObserveData((prev) => ({ ...prev, [p.id]: observe }))
     } finally {
       setPostureLoading(null)
     }
   }
 
-  async function openObserveModal(p: ProviderPricingResponse) {
-    if (!apiKey) return
-    setObserveLoading(p.id)
-    try {
-      const data = await getProviderProfileObservePosture(apiKey, p.id)
-      setObserveModal({ profile: p, data })
-    } catch {
-      toast.error('Failed to load observe posture')
-    } finally {
-      setObserveLoading(null)
-    }
-  }
-
   const load = useCallback(async () => {
-    if (!apiKey || !canManage) {
-      setLoading(false)
-      return
-    }
+    if (!apiKey || !canManage) { setLoading(false); return }
     setLoading(true)
     try {
       const data = await listProviderPricing(apiKey)
@@ -120,8 +105,8 @@ export default function ProviderProfilesPage() {
   if (!canManage) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Provider Profiles</h1>
-        <p className="mt-4 text-sm text-slate-500">Provider pricing and profile management is an organization-admin function.</p>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Provider Profiles</h1>
+        <p className="mt-2 text-xs text-slate-500">Provider pricing management requires org-admin access.</p>
       </div>
     )
   }
@@ -139,11 +124,7 @@ export default function ProviderProfilesPage() {
         cached_input_cost_per_1m: newCachedCost.trim() || null,
       })
       setPricing((prev) => [created, ...prev])
-      setNewProvider('')
-      setNewModel('')
-      setNewInputCost('')
-      setNewOutputCost('')
-      setNewCachedCost('')
+      setNewProvider(''); setNewModel(''); setNewInputCost(''); setNewOutputCost(''); setNewCachedCost('')
       setShowForm(false)
       toast.success('Provider profile added')
     } catch {
@@ -167,12 +148,11 @@ export default function ProviderProfilesPage() {
     if (!editState || !apiKey) return
     setSavingEdit(true)
     try {
-      const body = {
+      const updated = await updateProviderPricing(apiKey, editState.id, {
         input_cost_per_1m: editState.input,
         output_cost_per_1m: editState.output,
         cached_input_cost_per_1m: editState.cached.trim() || null,
-      }
-      const updated = await updateProviderPricing(apiKey, editState.id, body)
+      })
       setPricing((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
       setEditState(null)
       toast.success('Provider profile updated')
@@ -204,7 +184,7 @@ export default function ProviderProfilesPage() {
     try {
       const r = await importProviderPricing(apiKey, file)
       toast.success(`Imported: ${r.inserted} added, ${r.updated} updated, ${r.unchanged} unchanged`)
-      if (r.errors.length) toast.warning(`${r.errors.length} row(s) skipped — check the file`)
+      if (r.errors.length) toast.warning(`${r.errors.length} row(s) skipped`)
       await load()
     } catch (err: unknown) {
       toast.error(`Import failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -221,18 +201,16 @@ export default function ProviderProfilesPage() {
       const blob = new Blob([yaml], { type: 'text/yaml' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = 'pricing.example.yml'
-      a.click()
+      a.href = url; a.download = 'pricing.example.yml'; a.click()
       URL.revokeObjectURL(url)
     } catch {
-      toast.error('Could not fetch the example file')
+      toast.error('Could not fetch example file')
     }
   }
 
   async function handleReprice(provider: string, model: string) {
     if (!apiKey) return
-    if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich? This may take a minute.`)) return
+    if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich?`)) return
     try {
       const result = await repriceProvider(apiKey, { provider, model })
       toast.success(`Reprice queued — ${result.reset} calls reset`)
@@ -252,7 +230,6 @@ export default function ProviderProfilesPage() {
     }
   }
 
-  // Derived filter
   const uniqueProviders = Array.from(new Set(pricing.map((p) => p.provider))).sort()
   const filteredPricing = pricing.filter((p) => {
     if (pricingScopeFilter === 'workspace' && !p.workspace_id) return false
@@ -265,6 +242,10 @@ export default function ProviderProfilesPage() {
     return true
   })
 
+  // Group by provider
+  const grouped: Record<string, ProviderPricingResponse[]> = {}
+  filteredPricing.forEach((p) => { ;(grouped[p.provider] ??= []).push(p) })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -274,553 +255,325 @@ export default function ProviderProfilesPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Database className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-2xl font-bold tracking-tight dark:text-white">Provider Profiles</h1>
+    <div className="space-y-3">
+      {/* ── Header ───────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/25">
+            <Database className="h-5 w-5 text-white" />
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Workspace-scoped pricing overrides for AI providers. These rates are used for cost calculations across all runs.
-            {!canManage && (
-              <span className="ml-1 text-amber-600 dark:text-amber-400">Read-only — Org Admin access required to add or edit profiles.</span>
-            )}
-          </p>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white">Provider Profiles</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              AI provider pricing catalog. Used for cost calculations across all runs and gateway routes.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {canManage && (
-            <>
-              <input ref={fileInputRef} type="file" accept=".yml,.yaml,text/yaml" onChange={handleImportFile} className="hidden" />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1.5 text-sm text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
-                title="Import a pricing YAML — idempotent upsert into the catalog"
-              >
-                <Upload className={`h-3.5 w-3.5 ${importing ? 'animate-pulse' : ''}`} />
-                {importing ? 'Importing…' : 'Import YAML'}
-              </button>
-              <button
-                onClick={handleDownloadExample}
-                className="shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                title="Download the example pricing YAML"
-              >
-                <FileDown className="h-3.5 w-3.5" /> Example
-              </button>
-            </>
-          )}
-          <button
-            onClick={handlePullPricing}
-            disabled={syncing}
-            className="shrink-0 flex items-center gap-1.5 rounded-lg border border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors disabled:opacity-50"
-            title="Pull latest pricing from the internet"
-          >
-            <CloudDownload className={`h-3.5 w-3.5 ${syncing ? 'animate-pulse' : ''}`} />
-            {syncing ? 'Syncing…' : 'Pull from Internet'}
+        <div className="flex items-center gap-1.5">
+          <input ref={fileInputRef} type="file" accept=".yml,.yaml,text/yaml" onChange={handleImportFile} className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="flex items-center gap-1 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/40 disabled:opacity-50">
+            <Upload className={`h-3 w-3 ${importing ? 'animate-pulse' : ''}`} />{importing ? 'Importing…' : 'Import YAML'}
           </button>
-          <button
-            onClick={load}
-            className="shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          <button onClick={handleDownloadExample} className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+            <FileDown className="h-3 w-3" />Example
+          </button>
+          <button onClick={handlePullPricing} disabled={syncing} className="flex items-center gap-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/40 disabled:opacity-50">
+            <CloudDownload className={`h-3 w-3 ${syncing ? 'animate-pulse' : ''}`} />{syncing ? 'Syncing…' : 'Pull Internet'}
+          </button>
+          <button onClick={load} className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+            <RefreshCw className="h-3 w-3" />Refresh
           </button>
           {canManage && (
-            <button
-              onClick={() => setShowForm((v) => !v)}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {showForm ? 'Cancel' : 'Add Profile'}
+            <button onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1 rounded-lg bg-indigo-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-indigo-700">
+              <Plus className="h-3 w-3" />{showForm ? 'Cancel' : 'Add Profile'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Add form */}
+      {/* ── KPI strip ────────────────────────────── */}
+      <div className="grid grid-cols-6 gap-2">
+        {[
+          { label: 'Profiles', value: pricing.length },
+          { label: 'Providers', value: uniqueProviders.length },
+          { label: 'Workspace', value: pricing.filter((p) => p.workspace_id).length },
+          { label: 'Global', value: pricing.filter((p) => !p.workspace_id).length },
+          { label: 'With Budgets', value: pricing.filter((p) => p.budget_count > 0).length, accent: true },
+          { label: 'Runtime Alerts', value: runtimePosture?.observe_context?.monitoring_alerts ?? '—' },
+        ].map(({ label, value, accent }) => (
+          <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
+            <p className={`text-sm font-bold ${accent ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-900 dark:text-white'}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Quick nav chips ──────────────────────── */}
+      <div className="flex flex-wrap gap-1.5">
+        {[
+          { label: 'Gateway', href: '/gateway' },
+          { label: 'Guardrails', href: '/guardrails' },
+          { label: 'Budgets', href: '/budgets' },
+          { label: 'Billing', href: '/billing' },
+          { label: 'Analytics', href: '/analytics/model-usage' },
+          { label: 'Playground', href: '/playground' },
+        ].map(({ label, href }) => (
+          <Link key={label} href={href} className="rounded-full bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors">{label}</Link>
+        ))}
+      </div>
+
+      {/* ── Add form ─────────────────────────────── */}
       {showForm && canManage && (
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-5">
-          <h3 className="text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-3">New provider profile (workspace-scoped)</h3>
-          <form onSubmit={handleAddPricing} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 dark:text-gray-400">Provider *</label>
-              <input type="text" placeholder="e.g. openai" value={newProvider} onChange={(e) => setNewProvider(e.target.value)} className={inputCls} required />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 dark:text-gray-400">Model *</label>
-              <input type="text" placeholder="e.g. gpt-4o" value={newModel} onChange={(e) => setNewModel(e.target.value)} className={inputCls} required />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 dark:text-gray-400">Input cost / 1M tokens *</label>
-              <input type="number" step="0.0001" placeholder="e.g. 5.00" value={newInputCost} onChange={(e) => setNewInputCost(e.target.value)} className={inputCls} required />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 dark:text-gray-400">Output cost / 1M tokens *</label>
-              <input type="number" step="0.0001" placeholder="e.g. 15.00" value={newOutputCost} onChange={(e) => setNewOutputCost(e.target.value)} className={inputCls} required />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 dark:text-gray-400">Cached input cost / 1M (optional)</label>
-              <input type="number" step="0.0001" placeholder="e.g. 1.25" value={newCachedCost} onChange={(e) => setNewCachedCost(e.target.value)} className={inputCls} />
-            </div>
-            <div className="flex items-end">
-              <button type="submit" disabled={addingPricing || !newProvider.trim() || !newModel.trim()} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                {addingPricing ? 'Adding…' : 'Add Profile'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <form onSubmit={handleAddPricing} className="grid gap-2 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10 p-3 sm:grid-cols-3 lg:grid-cols-6">
+          <input type="text" placeholder="Provider (e.g. openai)" value={newProvider} onChange={(e) => setNewProvider(e.target.value)} className={inputCls} required />
+          <input type="text" placeholder="Model (e.g. gpt-4o)" value={newModel} onChange={(e) => setNewModel(e.target.value)} className={inputCls} required />
+          <input type="number" step="0.0001" placeholder="Input $/1M" value={newInputCost} onChange={(e) => setNewInputCost(e.target.value)} className={inputCls} required />
+          <input type="number" step="0.0001" placeholder="Output $/1M" value={newOutputCost} onChange={(e) => setNewOutputCost(e.target.value)} className={inputCls} required />
+          <input type="number" step="0.0001" placeholder="Cached $/1M (opt)" value={newCachedCost} onChange={(e) => setNewCachedCost(e.target.value)} className={inputCls} />
+          <button type="submit" disabled={addingPricing || !newProvider.trim() || !newModel.trim()} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+            {addingPricing ? 'Adding…' : 'Add Profile'}
+          </button>
+        </form>
       )}
 
-      {/* Filters */}
+      {/* ── Filters ──────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-40">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
           <input
             type="text"
             placeholder="Search provider or model…"
             value={pricingSearch}
             onChange={(e) => setPricingSearch(e.target.value)}
-            className={`pl-8 ${inputCls}`}
+            className={`pl-7 ${inputCls}`}
           />
           {pricingSearch && (
             <button onClick={() => setPricingSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3 w-3" />
             </button>
           )}
         </div>
-        <select value={pricingProviderFilter} onChange={(e) => setPricingProviderFilter(e.target.value)} className={inputCls}>
+        <select value={pricingProviderFilter} onChange={(e) => setPricingProviderFilter(e.target.value)} className={`w-auto ${inputCls}`}>
           <option value="">All providers</option>
           {uniqueProviders.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
+        <div className="flex items-center gap-0.5 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
           {(['all', 'workspace', 'global'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setPricingScopeFilter(s)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                pricingScopeFilter === s
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              className={`rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${pricingScopeFilter === s ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
               {s === 'all' ? 'All' : s === 'workspace' ? 'Workspace' : 'Global'}
             </button>
           ))}
         </div>
-        {(pricingSearch || pricingProviderFilter || pricingScopeFilter !== 'all') && (
-          <button
-            onClick={() => { setPricingSearch(''); setPricingProviderFilter(''); setPricingScopeFilter('all') }}
-            className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-          >
-            <SlidersHorizontal className="h-3 w-3" /> Clear filters
-          </button>
-        )}
+        <span className="text-[10px] text-slate-400">{filteredPricing.length} of {pricing.length} profiles</span>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {filteredPricing.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-2">
-            <Database className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {pricing.length === 0 ? 'No pricing yet — import a YAML to load your catalog.' : 'No profiles match the current filters.'}
-            </p>
-            {pricing.length === 0 && canManage && (
-              <button onClick={() => fileInputRef.current?.click()} className="mt-1 flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors">
-                <Upload className="h-3.5 w-3.5" /> Import pricing YAML
-              </button>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-              <tr>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Provider / Model</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Input / 1M</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Output / 1M</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Cached / 1M</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Budgets</th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Scope</th>
-                {canManage && <th className="px-4 py-2.5" />}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {filteredPricing.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium dark:text-slate-200">{p.display_name || <span className="capitalize">{p.provider}</span>}</span>
-                      <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{p.model}</span>
-                      {p.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {p.tags.map((t) => (
-                            <span key={t} className="rounded bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                              {t}
+      {/* ── Provider cards ────────────────────────── */}
+      {filteredPricing.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 dark:border-slate-700 py-12 gap-2">
+          <Database className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {pricing.length === 0 ? 'No pricing yet — import a YAML to load your catalog.' : 'No profiles match the current filters.'}
+          </p>
+          {pricing.length === 0 && canManage && (
+            <button onClick={() => fileInputRef.current?.click()} className="mt-1 flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
+              <Upload className="h-3 w-3" /> Import pricing YAML
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {Object.entries(grouped).map(([provider, models]) => (
+            <div key={provider} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 overflow-hidden">
+              {/* Provider header */}
+              <div className="flex items-center justify-between px-3 py-2 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/60 dark:border-slate-700/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white capitalize">{provider}</span>
+                  <span className="rounded-full bg-indigo-100 dark:bg-indigo-900/30 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">{models.length} models</span>
+                </div>
+              </div>
+
+              {/* Model table */}
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-700/40">
+                    <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Model</th>
+                    <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Input/1M</th>
+                    <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Output/1M</th>
+                    <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Cached/1M</th>
+                    <th className="px-3 py-1.5 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Scope</th>
+                    <th className="px-3 py-1.5 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Tags</th>
+                    {canManage && <th className="px-3 py-1.5 w-24" />}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/60 dark:divide-slate-700/30">
+                  {models.map((p) => {
+                    const isExpanded = expandedId === p.id
+                    const finops = postureData[p.id]
+                    const observe = observeData[p.id]
+                    return (
+                      <>
+                        <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
+                          <td className="px-3 py-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  if (isExpanded) { setExpandedId(null) } else { setExpandedId(p.id); void loadPosture(p) }
+                                }}
+                                className="text-slate-400 hover:text-indigo-500"
+                              >
+                                {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              </button>
+                              <span className="font-mono font-medium text-slate-900 dark:text-slate-100">{p.display_name || p.model}</span>
+                              {p.display_name && <span className="font-mono text-[10px] text-slate-400">{p.model}</span>}
+                            </div>
+                          </td>
+                          {editState?.id === p.id ? (
+                            <>
+                              <td className="px-3 py-1"><input type="number" step="0.0001" value={editState.input} onChange={(e) => setEditState({ ...editState, input: e.target.value })} className={`${inputCls} w-20 text-right`} /></td>
+                              <td className="px-3 py-1"><input type="number" step="0.0001" value={editState.output} onChange={(e) => setEditState({ ...editState, output: e.target.value })} className={`${inputCls} w-20 text-right`} /></td>
+                              <td className="px-3 py-1"><input type="number" step="0.0001" value={editState.cached} onChange={(e) => setEditState({ ...editState, cached: e.target.value })} className={`${inputCls} w-20 text-right`} placeholder="—" /></td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-3 py-1.5 text-right font-mono text-slate-700 dark:text-slate-300">${parseFloat(p.input_cost_per_1m).toFixed(4)}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-slate-700 dark:text-slate-300">${parseFloat(p.output_cost_per_1m).toFixed(4)}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-slate-400">{p.cached_input_cost_per_1m ? `$${parseFloat(p.cached_input_cost_per_1m).toFixed(4)}` : '—'}</td>
+                            </>
+                          )}
+                          <td className="px-3 py-1.5 text-center">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.workspace_id ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                              {p.workspace_id ? 'WS' : 'Global'}
                             </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  {editState?.id === p.id ? (
-                    <>
-                      <td className="px-4 py-2">
-                        <input type="number" step="0.0001" value={editState.input} onChange={(e) => setEditState({ ...editState, input: e.target.value })} className={`${inputCls} w-24 text-right`} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="number" step="0.0001" value={editState.output} onChange={(e) => setEditState({ ...editState, output: e.target.value })} className={`${inputCls} w-24 text-right`} />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="number" step="0.0001" value={editState.cached} onChange={(e) => setEditState({ ...editState, cached: e.target.value })} className={`${inputCls} w-24 text-right`} placeholder="—" />
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-4 py-2.5 text-right font-mono text-xs dark:text-slate-300">${parseFloat(p.input_cost_per_1m).toFixed(4)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-xs dark:text-slate-300">${parseFloat(p.output_cost_per_1m).toFixed(4)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-400">{p.cached_input_cost_per_1m ? `$${parseFloat(p.cached_input_cost_per_1m).toFixed(4)}` : '—'}</td>
-                    </>
-                  )}
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex flex-wrap gap-1.5">
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          {p.active_budget_count} active
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                          {p.budget_count} total
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-3 text-xs">
-                        <Link
-                          href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}`}
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
-                        >
-                          Budgets
-                        </Link>
-                        <Link
-                          href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}&view=detail`}
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
-                        >
-                          Budget Detail
-                        </Link>
-                        <Link
-                          href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}&view=overrides`}
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
-                        >
-                          Overrides
-                        </Link>
-                        <Link
-                          href="/billing-periods"
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
-                        >
-                          Billing Periods
-                        </Link>
-                        <Link
-                          href="/billing-periods?view=detail"
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
-                        >
-                          Billing Detail
-                        </Link>
-                        <Link
-                          href="/chargeback"
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400"
-                        >
-                          Chargeback
-                        </Link>
-                        <button
-                          onClick={() => openPostureModal(p)}
-                          disabled={postureLoading === p.id}
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400 disabled:opacity-50"
-                        >
-                          {postureLoading === p.id ? 'Loading…' : 'FinOps Posture'}
-                        </button>
-                        <button
-                          onClick={() => openObserveModal(p)}
-                          disabled={observeLoading === p.id}
-                          className="text-xs text-cyan-600 hover:underline dark:text-cyan-400 disabled:opacity-50"
-                        >
-                          {observeLoading === p.id ? 'Loading…' : 'Observe Posture'}
-                        </button>
-                        <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
-                        <Link href="/tool-policies" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Policies</Link>
-                        <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
-                        <Link href="/security" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Security</Link>
-                        <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
-                        <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
-                        <Link href="/playground" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Playground</Link>
-                        <Link href="/prompts" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Prompts</Link>
-                        <Link href="/workflows" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workflows</Link>
-                        <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
-                        <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
-                        <Link href="/replay" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Replay Lab</Link>
-                        <Link href="/optimization" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Optimization</Link>
-                        <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
-                        <Link href="/gateway#cache" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Response Cache</Link>
-                        <Link href="/gateway#rate-limits" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
-                        <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-                        <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
-                        <Link href="/budgets?view=notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
-                        <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
-                        <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
-                        <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
-                        <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
-                        <Link href="/mcp-servers" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Servers</Link>
-                        <Link href="/search-tools" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Search Tools</Link>
-                        <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-center">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.workspace_id ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
-                      {p.workspace_id ? 'Workspace' : 'Global'}
-                    </span>
-                  </td>
-                  {canManage && (
-                    <td className="px-4 py-2.5 text-right">
-                      {editState?.id === p.id ? (
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={handleSaveEdit} disabled={savingEdit} className="rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                            {savingEdit ? 'Saving…' : 'Save'}
-                          </button>
-                          <button onClick={() => setEditState(null)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-0.5">
-                          {p.workspace_id && (
-                            <button onClick={() => startEdit(p)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors" title="Edit">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            <div className="flex flex-wrap justify-center gap-0.5">
+                              {p.tags.map((t) => (
+                                <span key={t} className="rounded-full bg-sky-100 dark:bg-sky-900/30 px-1.5 py-0.5 text-[9px] font-medium text-sky-700 dark:text-sky-300">{t}</span>
+                              ))}
+                            </div>
+                          </td>
+                          {canManage && (
+                            <td className="px-3 py-1.5 text-right">
+                              {editState?.id === p.id ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <button onClick={handleSaveEdit} disabled={savingEdit} className="rounded bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">{savingEdit ? '…' : 'Save'}</button>
+                                  <button onClick={() => setEditState(null)} className="rounded border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {p.workspace_id && (
+                                    <button onClick={() => startEdit(p)} className="rounded p-1 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20" title="Edit">
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleReprice(p.provider, p.model)} className="rounded p-1 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" title="Re-enrich costs">
+                                    <RefreshCw className="h-3 w-3" />
+                                  </button>
+                                  {p.workspace_id && (
+                                    <button onClick={() => handleDeletePricing(p.id)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete">
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
                           )}
-                          <button onClick={() => handleReprice(p.provider, p.model)} className="rounded-lg p-1.5 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors" title="Re-enrich costs">
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          </button>
-                          {p.workspace_id && (
-                            <button onClick={() => handleDeletePricing(p.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                        </tr>
+                        {isExpanded && (
+                          <tr key={`${p.id}-detail`}>
+                            <td colSpan={canManage ? 7 : 6} className="px-3 py-2 bg-slate-50/50 dark:bg-slate-800/30">
+                              {postureLoading === p.id ? (
+                                <div className="flex items-center gap-2 text-xs text-slate-400"><RefreshCw className="h-3 w-3 animate-spin" /> Loading posture data...</div>
+                              ) : (
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {/* FinOps posture */}
+                                  {finops && (
+                                    <div className="rounded-lg border border-slate-200/60 dark:border-slate-700/40 p-2 space-y-1.5">
+                                      <h4 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">FinOps Posture</h4>
+                                      <div className="flex flex-wrap gap-1">
+                                        {[
+                                          `${finops.budgets.budget_count} budgets`,
+                                          `${finops.budgets.active_budget_count} active`,
+                                          `$${num(finops.budgets.total_limit_usd).toFixed(2)} limit`,
+                                          `${finops.budgets.breach_count} breaches`,
+                                          `${finops.overrides.override_count} overrides`,
+                                          `${finops.billing.billing_period_count} billing periods`,
+                                          `${finops.chargeback.chargeback_rule_count} chargeback rules`,
+                                        ].map((chip) => (
+                                          <span key={chip} className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:text-emerald-300">{chip}</span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Observe posture */}
+                                  {observe && (
+                                    <div className="rounded-lg border border-slate-200/60 dark:border-slate-700/40 p-2 space-y-1.5">
+                                      <h4 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Observe Posture</h4>
+                                      <div className="flex flex-wrap gap-1">
+                                        {[
+                                          `${observe.runs.run_count} runs`,
+                                          `${observe.runs.request_count} requests`,
+                                          `${observe.runs.error_count} errors`,
+                                          `$${num(observe.cost.total_cost_usd).toFixed(4)} cost`,
+                                          `$${num(observe.cost.total_savings_usd).toFixed(4)} saved`,
+                                          `${observe.tokens.input_tokens.toLocaleString()} in tokens`,
+                                          `${observe.tokens.output_tokens.toLocaleString()} out tokens`,
+                                          observe.performance.avg_latency_ms != null ? `${observe.performance.avg_latency_ms}ms avg` : null,
+                                        ].filter(Boolean).map((chip) => (
+                                          <span key={chip} className="rounded-full bg-sky-100 dark:bg-sky-900/30 px-1.5 py-0.5 text-[9px] font-medium text-sky-700 dark:text-sky-300">{chip}</span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {/* Quick links */}
+                                  <div className="sm:col-span-2 flex flex-wrap gap-1.5">
+                                    {[
+                                      { label: 'Budgets', href: `/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}` },
+                                      { label: 'Budget Overrides', href: `/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(p.id)}&view=overrides` },
+                                      { label: 'Billing', href: '/billing' },
+                                      { label: 'Chargeback', href: '/chargeback' },
+                                      { label: 'Gateway', href: '/gateway' },
+                                      { label: 'Playground', href: '/playground' },
+                                    ].map(({ label, href }) => (
+                                      <Link key={label} href={href} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[9px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">{label}</Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Info box */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-600 dark:text-slate-300">
-        <p className="font-medium mb-1">About provider profiles</p>
-        <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-400 list-disc list-inside">
-          <li>Workspace profiles override global defaults for cost calculations.</li>
-          <li>Global profiles are set by platform admins and apply org-wide.</li>
-          <li>Provider-profile budgets cap spend for a specific provider and model pair without creating a duplicate gateway policy surface.</li>
-          <li>The &ldquo;Re-enrich&rdquo; button (<RefreshCw className="inline h-3 w-3" />) resets past costs for that model and re-runs enrichment with the new rate.</li>
-          <li>Costs are in USD per 1 million tokens.</li>
-        </ul>
-      </div>
-
+      {/* ── Runtime posture strip ─────────────────── */}
       {runtimePosture && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3">Provider Profiles — Runtime & Scope Posture</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Budget Notifications</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.finops_context.budget_notifications}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Ledger Snapshots</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.finops_context.ledger_snapshots}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Users</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.org_context.users}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Monitoring Alerts</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.observe_context.monitoring_alerts}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">MCP Servers</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.governance_context.mcp_servers}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Search Tools</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.governance_context.search_tools}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Capture Policies</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.governance_context.capture_policies}</p>
-            </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2.5">
-              <span className="text-slate-500 dark:text-slate-400">Provider Profiles</span>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.provider_profiles}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 pt-3 mt-3 border-t border-slate-200 dark:border-slate-700">
-            <Link href="/budgets?view=notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
-            <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
-            <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
-            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
-            <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
-            <Link href="/mcp-servers" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">MCP Servers</Link>
-            <Link href="/search-tools" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Search Tools</Link>
-            <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
-          </div>
-        </div>
-      )}
-
-      {observeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setObserveModal(null)}>
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold dark:text-white">
-                Observe Posture — {observeModal.data.provider}/{observeModal.data.model}
-              </h3>
-              <button onClick={() => setObserveModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-4 text-sm">
-              <div>
-                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Runs & Requests (30d)</h4>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Runs</span>
-                    <p className="font-semibold dark:text-white">{observeModal.data.runs.run_count}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Requests</span>
-                    <p className="font-semibold dark:text-white">{observeModal.data.runs.request_count}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Errors</span>
-                    <p className="font-semibold dark:text-white">{observeModal.data.runs.error_count}</p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Cost & Savings (30d)</h4>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Total Cost</span>
-                    <p className="font-semibold dark:text-white">${num(observeModal.data.cost.total_cost_usd).toFixed(4)}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Total Savings</span>
-                    <p className="font-semibold dark:text-white">${num(observeModal.data.cost.total_savings_usd).toFixed(4)}</p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Tokens & Performance</h4>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Input Tokens</span>
-                    <p className="font-semibold dark:text-white">{observeModal.data.tokens.input_tokens.toLocaleString()}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Output Tokens</span>
-                    <p className="font-semibold dark:text-white">{observeModal.data.tokens.output_tokens.toLocaleString()}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Avg Latency</span>
-                    <p className="font-semibold dark:text-white">{observeModal.data.performance.avg_latency_ms != null ? `${observeModal.data.performance.avg_latency_ms}ms` : '--'}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
-                <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
-                <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
-                <Link href="/analytics/request-flow" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
-                <Link href="/analytics/request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
-                <Link href="/analytics/economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Economics</Link>
-                <Link href="/analytics/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
-                <Link href="/analytics/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {postureModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPostureModal(null)}>
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-lg w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold dark:text-white">
-                FinOps Posture — {postureModal.data.provider}/{postureModal.data.model}
-              </h3>
-              <button onClick={() => setPostureModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-4 text-sm">
-              <div>
-                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Budgets</h4>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Total</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.budgets.budget_count}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Active</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.budgets.active_budget_count}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Total Limit</span>
-                    <p className="font-semibold dark:text-white">${num(postureModal.data.budgets.total_limit_usd).toFixed(2)}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Breaches</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.budgets.breach_count}</p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Budget Overrides</h4>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Total</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.overrides.override_count}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Active</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.overrides.active_override_count}</p>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-1">Billing & Chargeback</h4>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Billing Periods</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.billing.billing_period_count}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Open</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.billing.open_billing_periods}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-2">
-                    <span className="text-slate-500 dark:text-slate-400">Chargeback Rules</span>
-                    <p className="font-semibold dark:text-white">{postureModal.data.chargeback.chargeback_rule_count}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
-                <Link href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(postureModal.profile.id)}`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
-                <Link href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(postureModal.profile.id)}&view=overrides`} className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Overrides</Link>
-                <Link href="/billing-periods" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
-                <Link href="/billing-periods?view=detail" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
-                <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
-                <Link href={`/budgets?scope_type=provider_profile&scope_id=${encodeURIComponent(postureModal.profile.id)}&create=1`} className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">+ New Budget</Link>
-              </div>
-            </div>
+        <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
+          <h3 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Runtime & Scope Posture</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              `${runtimePosture.provider_profiles} profiles`,
+              `${runtimePosture.finops_context.budget_notifications} budget notifications`,
+              `${runtimePosture.finops_context.ledger_snapshots} ledger snapshots`,
+              `${runtimePosture.org_context.users} users`,
+              `${runtimePosture.observe_context.monitoring_alerts} alerts`,
+              `${runtimePosture.governance_context.mcp_servers} MCP servers`,
+              `${runtimePosture.governance_context.search_tools} search tools`,
+              `${runtimePosture.governance_context.capture_policies} capture policies`,
+            ].map((chip) => (
+              <span key={chip} className="rounded-full bg-violet-100 dark:bg-violet-900/30 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">{chip}</span>
+            ))}
           </div>
         </div>
       )}

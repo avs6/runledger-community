@@ -269,7 +269,7 @@ function Card({ title, sub, children, action }: {
   )
 }
 
-export default function AnalyticsBreakdownClient() {
+export default function AnalyticsBreakdownClient({ embedded }: { embedded?: boolean } = {}) {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
 
@@ -344,37 +344,47 @@ export default function AnalyticsBreakdownClient() {
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <BarChart2 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Analytics Breakdown</h1>
+    <div className={embedded ? 'space-y-3 p-4' : 'max-w-6xl space-y-6'}>
+      {!embedded && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2">
+              <BarChart2 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Analytics Breakdown</h1>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Workspace-only cost, usage, and attribution charts behind the overview shell.
+            </p>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Workspace-only cost, usage, and attribution charts behind the overview shell.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            onClick={load}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-          </button>
-          <div className="group relative">
-            <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-              <Download className="h-3.5 w-3.5" /> Export
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={load}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
-            <div className="absolute right-0 top-full z-10 mt-1 hidden min-w-[100px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-lg group-hover:flex dark:border-slate-700 dark:bg-slate-800">
-              <button onClick={() => handleExport('csv')} className="px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700">CSV</button>
-              <button onClick={() => handleExport('json')} className="px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700">JSON</button>
+            <div className="group relative">
+              <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+                <Download className="h-3.5 w-3.5" /> Export
+              </button>
+              <div className="absolute right-0 top-full z-10 mt-1 hidden min-w-[100px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-lg group-hover:flex dark:border-slate-700 dark:bg-slate-800">
+                <button onClick={() => handleExport('csv')} className="px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700">CSV</button>
+                <button onClick={() => handleExport('json')} className="px-4 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700">JSON</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
+        {embedded && (
+          <button
+            onClick={load}
+            className="mr-1 flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-500 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+          >
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        )}
         <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
         <span className="mr-1 text-xs font-medium uppercase tracking-wide text-slate-400">Period</span>
         <div className="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -382,7 +392,7 @@ export default function AnalyticsBreakdownClient() {
             <button
               key={v}
               onClick={() => setPreset(v)}
-              className={`px-3 py-1.5 transition-colors ${
+              className={`px-2.5 py-1 text-xs transition-colors ${
                 preset === v
                   ? 'bg-blue-600 font-medium text-white'
                   : 'bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
@@ -396,7 +406,7 @@ export default function AnalyticsBreakdownClient() {
 
       {loading && !summary ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
       ) : summary ? (
         <KpiStrip summary={summary} />
@@ -406,7 +416,7 @@ export default function AnalyticsBreakdownClient() {
         {spendTime ? <SpendChart data={spendTime} /> : <Skeleton className="h-[240px] w-full rounded-lg" />}
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Card title="Spend by Model" sub="Cost attribution across providers">
           {byModel ? <ModelChart data={byModel} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
         </Card>
@@ -419,34 +429,36 @@ export default function AnalyticsBreakdownClient() {
         {byUser ? <UserTable data={byUser} /> : <div className="space-y-2">{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>}
       </Card>
 
-      <Card title="Model Breakdown" sub="Full cost, token, and call detail per model" action={<Layers className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
-        {byModel && byModel.items.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-              <tr>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Provider</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Model</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Input Tokens</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Output Tokens</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Calls</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {byModel.items.map((m, i) => (
-                <tr key={i} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{m.provider}</td>
-                  <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{m.model}</td>
-                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-violet-700 dark:text-violet-400">{fmt$(m.cost_usd)}</td>
-                  <td className="px-4 py-2.5 text-right text-slate-500">{m.input_tokens.toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right text-slate-500">{m.output_tokens.toLocaleString()}</td>
-                  <td className="px-4 py-2.5 text-right text-slate-500">{m.call_count}</td>
+      {!embedded && (
+        <Card title="Model Breakdown" sub="Full cost, token, and call detail per model" action={<Layers className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
+          {byModel && byModel.items.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+                <tr>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Provider</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Model</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Input Tokens</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Output Tokens</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Calls</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : <EmptyState label="No model data for this period" />}
-      </Card>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {byModel.items.map((m, i) => (
+                  <tr key={i} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{m.provider}</td>
+                    <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{m.model}</td>
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-violet-700 dark:text-violet-400">{fmt$(m.cost_usd)}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-500">{m.input_tokens.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-500">{m.output_tokens.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-500">{m.call_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <EmptyState label="No model data for this period" />}
+        </Card>
+      )}
     </div>
   )
 }

@@ -1,44 +1,86 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
+import {
+  ArrowRight, Bot, BrainCircuit, Cpu, DollarSign, FlaskConical,
+  GitBranch, Layers, Network, Plus, Route, Shield, Sparkles,
+  Terminal, Wrench, Zap,
+} from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { num } from '@/lib/utils'
 import { getWorkflows, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getWorkflowsListPosture } from '@/lib/api'
 import type { WorkflowDefinitionResponse } from '@/types/api'
 
-function statusBadge(status: string) {
-  const colors: Record<string, string> = {
-    active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-    archived: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-  }
-  return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${colors[status] || colors.active}`}>
-      {status}
-    </span>
-  )
+const statusDot: Record<string, string> = {
+  active: 'bg-emerald-400 shadow-emerald-400/50',
+  archived: 'bg-slate-400 shadow-slate-400/30',
+}
+
+const stepTypeConfig: Record<string, { color: string; icon: typeof Bot }> = {
+  model: { color: 'from-blue-500 to-cyan-400', icon: Cpu },
+  agent: { color: 'from-violet-500 to-purple-400', icon: BrainCircuit },
+  tool: { color: 'from-orange-500 to-amber-400', icon: Wrench },
+  conditional: { color: 'from-pink-500 to-rose-400', icon: GitBranch },
+  transform: { color: 'from-teal-500 to-emerald-400', icon: Sparkles },
 }
 
 function WorkflowCard({ wf }: { wf: WorkflowDefinitionResponse }) {
-  const stepCount = wf.steps_schema?.length ?? 0
+  const steps = wf.steps_schema ?? []
+  const stepCount = steps.length
 
   return (
     <Link
       href={`/workflows/${wf.id}`}
-      className="group rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm ring-1 ring-white/70 transition hover:border-blue-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/80 dark:ring-transparent dark:hover:border-blue-500"
+      className="group relative flex flex-col rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-sm transition-all hover:shadow-lg hover:shadow-cyan-500/10 dark:border-slate-700/60 dark:bg-slate-900/80 dark:hover:border-slate-600"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-slate-950 dark:text-slate-50">
-            {wf.name}
-          </h3>
+      {/* Gradient accent */}
+      <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500" />
+
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20">
+          <Route className="h-4.5 w-4.5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-bold text-slate-950 dark:text-white">{wf.name}</h3>
+            <span className={`h-2 w-2 shrink-0 rounded-full shadow-sm ${statusDot[wf.status] ?? statusDot.active}`} title={wf.status} />
+          </div>
           {wf.description && (
-            <p className="mt-1 line-clamp-2 text-xs text-slate-500">{wf.description}</p>
+            <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{wf.description}</p>
           )}
         </div>
-        {statusBadge(wf.status)}
       </div>
-      <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-3 text-[11px] text-slate-500 dark:border-slate-800">
-        <span>{stepCount} step{stepCount !== 1 ? 's' : ''} defined</span>
-        <span className="ml-auto text-[10px] text-slate-400">
+
+      {/* Step pipeline visualization */}
+      {stepCount > 0 && (
+        <div className="mt-3 flex items-center gap-0.5 overflow-hidden">
+          {steps.slice(0, 6).map((step: { name?: string; type?: string; step_type?: string }, i: number) => {
+            const st = stepTypeConfig[(step.type ?? step.step_type ?? 'model')] ?? stepTypeConfig.model
+            const StepIcon = st.icon
+            return (
+              <div key={i} className="flex items-center gap-0.5">
+                <div className={`flex items-center gap-1 rounded-md bg-gradient-to-r ${st.color} px-1.5 py-0.5 shadow-sm`} title={step.name ?? `Step ${i + 1}`}>
+                  <StepIcon className="h-2.5 w-2.5 text-white" />
+                  <span className="max-w-[60px] truncate text-[9px] font-semibold text-white">{step.name ?? `Step ${i + 1}`}</span>
+                </div>
+                {i < Math.min(steps.length, 6) - 1 && <ArrowRight className="h-2.5 w-2.5 text-slate-300 dark:text-slate-600" />}
+              </div>
+            )
+          })}
+          {stepCount > 6 && <span className="text-[9px] font-semibold text-slate-400">+{stepCount - 6}</span>}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2.5 text-[10px] text-slate-500 dark:border-slate-800">
+        <span className="flex items-center gap-0.5">
+          <Layers className="h-2.5 w-2.5 text-cyan-500" />
+          {stepCount} step{stepCount !== 1 ? 's' : ''}
+        </span>
+        <span className={`rounded-full px-1.5 py-px text-[9px] font-semibold ${
+          wf.status === 'active'
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+        }`}>{wf.status}</span>
+        <span className="ml-auto text-slate-400">
           {new Date(wf.created_at).toLocaleDateString()}
         </span>
       </div>
@@ -52,198 +94,233 @@ export default async function WorkflowsPage() {
 
   let workflows: WorkflowDefinitionResponse[] = []
   let total = 0
-
   try {
     const data = await getWorkflows(session.apiKey, { limit: 100 })
     workflows = data.workflows
     total = data.total
-  } catch {
-    // API may not be reachable
-  }
+  } catch { /* API may not be reachable */ }
 
   const budgetBuildPosture = await getBudgetDetailBuildPosture(session.apiKey).catch(() => null)
-  const budgetControlBuildPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
-  const workflowsListPosture = await getWorkflowsListPosture(session.apiKey).catch(() => null)
+  const budgetControlPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
+  const workflowsPosture = await getWorkflowsListPosture(session.apiKey).catch(() => null)
+
+  const activeCount = workflows.filter(w => w.status === 'active').length
+  const archivedCount = workflows.filter(w => w.status === 'archived').length
+  const totalSteps = workflows.reduce((s, w) => s + (w.steps_schema?.length ?? 0), 0)
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-[-0.04em] text-slate-950 dark:text-slate-50">
-            Workflows
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {total} workflow{total !== 1 ? 's' : ''} defined
-          </p>
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/25">
+            <Route className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-950 dark:text-white">Workflows</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Define multi-step pipelines, orchestrate agents and models.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { href: '/agents', label: 'Agents', icon: BrainCircuit },
+            { href: '/runs', label: 'Runs', icon: Zap },
+            { href: '/evaluation', label: 'Eval Studio', icon: FlaskConical },
+            { href: '/gateway', label: 'Gateway', icon: Network },
+          ].map(nav => (
+            <Link key={nav.label} href={nav.href} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <nav.icon className="h-3 w-3" /> {nav.label}
+            </Link>
+          ))}
         </div>
       </div>
 
-      {budgetBuildPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget &amp; Build Context</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetBuildPosture.budget_context.active_budgets}</p>
+      {/* KPI hero strip */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
+        {[
+          { label: 'Total', value: total, icon: Route, color: 'text-cyan-600 dark:text-cyan-400' },
+          { label: 'Active', value: activeCount, icon: Zap, color: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'Archived', value: archivedCount, icon: Shield, color: 'text-slate-500 dark:text-slate-400' },
+          { label: 'Total Steps', value: totalSteps, icon: Layers, color: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Runs 30d', value: workflowsPosture?.observe_context.runs_30d ?? 0, icon: Terminal, color: 'text-blue-600 dark:text-blue-400' },
+          { label: '30d Spend', value: workflowsPosture ? `$${num(workflowsPosture.observe_context.spend_30d).toFixed(2)}` : '$0', icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'GW Routes', value: workflowsPosture?.gateway_context.gateway_routes ?? 0, icon: Network, color: 'text-violet-600 dark:text-violet-400' },
+          { label: 'Routing', value: workflowsPosture?.gateway_context.routing_policies ?? 0, icon: GitBranch, color: 'text-violet-600 dark:text-violet-400' },
+        ].map(kpi => (
+          <div key={kpi.label} className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-1">
+              <kpi.icon className={`h-3 w-3 ${kpi.color}`} />
+              <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{kpi.label}</span>
             </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Workflows</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetBuildPosture.build_context.workflows}</p>
+            <p className="mt-1 text-base font-bold text-slate-950 dark:text-white">{kpi.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Posture chips — condensed */}
+      <div className="grid gap-2 lg:grid-cols-3">
+        {budgetBuildPosture && (
+          <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">FinOps</span>
+              </div>
+              <Link href="/budgets" className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">Manage</Link>
             </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
-              <p className={`mt-1 text-lg font-semibold ${budgetBuildPosture.budget_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetBuildPosture.budget_context.breach_count}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { l: 'Budgets', v: budgetBuildPosture.budget_context.active_budgets },
+                { l: 'Workflows', v: budgetBuildPosture.build_context.workflows },
+                { l: 'Spend', v: `$${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}` },
+                { l: 'Breached', v: budgetBuildPosture.budget_context.breach_count },
+              ].map(c => (
+                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
+                  <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
+                </span>
+              ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
-            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/budgets?scope=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
-            <Link href="/model-scorecards" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Model Scorecards</Link>
+        )}
+
+        {workflowsPosture && (
+          <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Network className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Models</span>
+              </div>
+              <Link href="/ai-hub" className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { l: 'Hub Models', v: workflowsPosture.org_context.hub_models },
+                { l: 'Active', v: workflowsPosture.org_context.active_models },
+              ].map(c => (
+                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
+                  <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
+                  <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
+                </span>
+              ))}
+            </div>
           </div>
+        )}
+
+        {workflowsPosture && (
+          <div className="rounded-xl border border-rose-200/60 bg-rose-50/30 p-3 dark:border-rose-800/40 dark:bg-rose-950/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <FlaskConical className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">Build & Improve</span>
+              </div>
+              <Link href="/evaluation" className="text-[10px] font-semibold text-rose-600 hover:underline dark:text-rose-400">Eval Studio</Link>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { l: 'Datasets', v: workflowsPosture.eval_context.datasets },
+                { l: 'Experiments', v: workflowsPosture.eval_context.experiments },
+              ].map(c => (
+                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] dark:border-rose-800 dark:bg-rose-950/40">
+                  <span className="font-medium text-rose-500 dark:text-rose-400">{c.l}</span>
+                  <span className="font-bold text-rose-700 dark:text-rose-300">{c.v}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Workflow grid */}
+      {workflows.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {workflows.map(wf => <WorkflowCard key={wf.id} wf={wf} />)}
         </div>
       )}
 
-      {budgetControlBuildPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Control — Build Posture</p>
+      {/* Registration guide — always visible */}
+      <div className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600">
+            <Plus className="h-3.5 w-3.5 text-white" />
           </div>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetControlBuildPosture.budget_policy.active_budgets}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
-              <p className={`mt-1 text-lg font-semibold ${budgetControlBuildPosture.budget_policy.breached_budgets > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlBuildPosture.budget_policy.breached_budgets}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{Object.keys(budgetControlBuildPosture.scope_context).length}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
-            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
-            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+          <div>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">Create a Workflow</p>
+            <p className="text-[10px] text-slate-500">Define step-by-step pipelines and track every execution</p>
           </div>
         </div>
-      )}
 
-      {workflowsListPosture && (
-        <>
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Org &amp; AI Hub Context</p>
-            <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-3">
-              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.org_context.workspace_name}</p>
-              </div>
-              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.org_context.hub_models}</p>
-              </div>
-              <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Active Models</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.org_context.active_models}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-              <Link href="/settings" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Workspaces</Link>
-              <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
-            </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">1. Define the Workflow</p>
+            <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-[11px] font-mono leading-relaxed text-green-400">{`curl -X POST /api/v1/workflows \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -d '{
+    "name": "customer-support",
+    "description": "Classify, route, respond",
+    "steps_schema": [
+      {"name": "classify", "step_type": "model",
+       "config": {"model": "gpt-4o-mini"}},
+      {"name": "route", "step_type": "conditional"},
+      {"name": "respond", "step_type": "agent",
+       "config": {"agent_id": "AGENT_ID"}}
+    ]
+  }'`}</pre>
           </div>
 
-          <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
-            <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway &amp; Routing Context</p>
-            <div className="mt-3 grid gap-3 grid-cols-2">
-              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Gateway Routes</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.gateway_context.gateway_routes}</p>
-              </div>
-              <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Routing Policies</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.gateway_context.routing_policies}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
-              <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
-              <Link href="/providers" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Provider Profiles</Link>
-            </div>
-          </div>
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">2. Start a Run</p>
+            <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-[11px] font-mono leading-relaxed text-green-400">{`curl -X POST /api/v1/workflows/{id}/runs \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -d '{
+    "trigger": "api",
+    "input_data": {
+      "message": "I need help with billing",
+      "customer_id": "cust_123"
+    }
+  }'
 
-          <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
-            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Analytics Context</p>
-            <div className="mt-3 grid gap-3 grid-cols-2">
-              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Runs (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.observe_context.runs_30d}</p>
-              </div>
-              <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Spend (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${num(workflowsListPosture.observe_context.spend_30d).toFixed(2)}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
-              <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
-              <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs List</Link>
-              <Link href="/analytics?tab=economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost &amp; Savings</Link>
-            </div>
+# Each step reports back:
+POST /api/v1/workflows/{id}/runs/{run_id}/steps
+  {"step_index": 0, "status": "completed",
+   "output_data": {"category": "billing"}}`}</pre>
           </div>
-
-          <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
-            <div className="mt-3 grid gap-3 grid-cols-2">
-              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Eval Datasets</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.eval_context.datasets}</p>
-              </div>
-              <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Experiments</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{workflowsListPosture.eval_context.experiments}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
-              <Link href="/evaluation" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Evaluation Studio</Link>
-              <Link href="/experiments" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Experiments</Link>
-            </div>
-          </div>
-        </>
-      )}
-
-      {workflows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center dark:border-slate-700 dark:bg-slate-900/50">
-          <p className="text-sm text-slate-500">
-            No workflows defined yet. Use the API to create workflow definitions and track runs.
-          </p>
-          <pre className="mx-auto mt-4 max-w-lg rounded-xl bg-slate-100 p-4 text-left text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-{`POST /workflows
-{
-  "name": "customer-support",
-  "description": "Route, classify, respond",
-  "steps_schema": [
-    {"name": "classify", "type": "model"},
-    {"name": "respond", "type": "agent"}
-  ]
-}`}
-          </pre>
         </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {workflows.map((wf) => (
-            <WorkflowCard key={wf.id} wf={wf} />
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            { type: 'model', desc: 'LLM inference — classify, summarize, generate.', icon: Cpu, color: 'from-blue-500 to-cyan-400' },
+            { type: 'agent', desc: 'Delegate to a registered agent.', icon: BrainCircuit, color: 'from-violet-500 to-purple-400' },
+            { type: 'tool', desc: 'Execute a tool — API call, search, code.', icon: Wrench, color: 'from-orange-500 to-amber-400' },
+            { type: 'conditional', desc: 'Branch logic — route by output.', icon: GitBranch, color: 'from-pink-500 to-rose-400' },
+            { type: 'transform', desc: 'Map, filter, reshape data between steps.', icon: Sparkles, color: 'from-teal-500 to-emerald-400' },
+          ].map(t => (
+            <div key={t.type} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 dark:border-slate-700 dark:bg-slate-800/60">
+              <div className="flex items-center gap-1.5">
+                <div className={`flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br ${t.color}`}>
+                  <t.icon className="h-3 w-3 text-white" />
+                </div>
+                <span className="text-[11px] font-bold text-slate-800 dark:text-white">{t.type}</span>
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">{t.desc}</p>
+            </div>
           ))}
         </div>
-      )}
+
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3 text-[10px] dark:border-slate-800">
+          <span className="font-semibold text-slate-500">After defining:</span>
+          {[
+            { l: 'Track runs', href: '/runs' },
+            { l: 'View cost/step', href: '#' },
+            { l: 'Set budgets', href: '/budgets' },
+            { l: 'Evaluate quality', href: '/evaluation' },
+          ].map(tip => (
+            <Link key={tip.l} href={tip.href} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium text-blue-600 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-400">
+              {tip.l}
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

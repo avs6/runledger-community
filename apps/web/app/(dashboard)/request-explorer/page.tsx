@@ -169,44 +169,38 @@ function requestHref(current: PageProps['searchParams'], updates: Record<string,
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-2xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-300 dark:bg-white/90 ${className}`}>
+    <div className={`rounded-xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-700 dark:bg-slate-800/90 ${className}`}>
       {children}
     </div>
   )
 }
 
-function FactCard({ fact }: { fact: DebugFact }) {
-  const Icon = fact.icon
+function Chip({ label, value, icon: Icon }: { label: string; value: string; icon: React.ElementType }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{fact.label}</p>
-        <Icon className="h-4 w-4 text-blue-600" />
-      </div>
-      <p className="mt-2 truncate text-sm font-semibold text-slate-950" title={fact.value}>
-        {fact.value}
-      </p>
-    </Card>
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs dark:border-slate-700 dark:bg-slate-800" title={value}>
+      <Icon className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+      <span className="font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="max-w-[140px] truncate font-semibold text-slate-900 dark:text-slate-100">{value}</span>
+    </span>
   )
 }
 
 function RunList({ requests, selectedRunId, searchParams }: { requests: RequestRecord[]; selectedRunId: string | null; searchParams: PageProps['searchParams'] }) {
   if (requests.length === 0) {
     return (
-      <Card className="p-8 text-center">
-        <p className="text-sm font-semibold text-slate-950">No requests found</p>
-        <p className="mt-1 text-sm text-slate-500">Try widening the filters or sending traffic through SDK, Gateway, or OTLP.</p>
+      <Card className="p-6 text-center">
+        <p className="text-sm font-semibold text-slate-950 dark:text-slate-100">No requests found</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Try widening the filters or sending traffic through SDK, Gateway, or OTLP.</p>
       </Card>
     )
   }
 
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-950">Recent Requests</h2>
-        <p className="mt-1 text-xs text-slate-500">Select one request to inspect prompt, route, tools, cost, and outcome.</p>
+      <div className="border-b border-slate-200 px-3 py-2 dark:border-slate-700">
+        <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">{requests.length} Requests</h2>
       </div>
-      <div className="max-h-[640px] overflow-y-auto">
+      <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
         {requests.map((request) => {
           const selected = request.run_id === selectedRunId
           const totalTokens = (request.input_tokens ?? 0) + (request.output_tokens ?? 0)
@@ -214,21 +208,16 @@ function RunList({ requests, selectedRunId, searchParams }: { requests: RequestR
             <Link
               key={request.id}
               href={requestHref(searchParams, { run_id: request.run_id })}
-              className={`block border-b border-slate-100 px-4 py-3 transition hover:bg-blue-50 ${selected ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}`}
+              className={`block border-b border-slate-100 px-3 py-2 transition hover:bg-blue-50 dark:border-slate-700/50 dark:hover:bg-blue-900/20 ${selected ? 'bg-blue-50 ring-1 ring-inset ring-blue-200 dark:bg-blue-900/30 dark:ring-blue-500/30' : ''}`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-xs font-semibold text-slate-950">{truncateId(request.run_id, 10)}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[11px] font-semibold text-slate-950 dark:text-slate-100">{truncateId(request.run_id, 10)}</span>
                 <RunStatusBadge status={request.status === 'success' ? 'succeeded' : request.status === 'error' ? 'failed' : request.status as 'running' | 'succeeded' | 'failed' | 'cancelled'} />
               </div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                <span className="truncate">{request.intent ?? 'General / Untagged'}</span>
-                <span className="truncate text-right font-mono">{request.model}</span>
+              <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="truncate">{request.model}</span>
                 <span>{formatCost(request.cost_usd)}</span>
-                <span className="text-right">{formatTokens(totalTokens)} tokens</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                <span>{request.provider}</span>
-                <span>{request.end_user_id ?? 'No user'}</span>
+                <span>{formatTokens(totalTokens)}</span>
               </div>
             </Link>
           )
@@ -239,65 +228,55 @@ function RunList({ requests, selectedRunId, searchParams }: { requests: RequestR
 }
 
 function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }) {
+  const inputCls = "w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
   return (
-    <form action="/request-explorer" className="grid gap-3 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-300 dark:bg-white/80 md:grid-cols-11">
+    <form action="/request-explorer" className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/80">
       {searchParams.access_group_id && <input type="hidden" name="access_group_id" value={searchParams.access_group_id} />}
-      <div className="md:col-span-2">
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Search</label>
-        <input
-          name="q"
-          defaultValue={searchParams.q ?? ''}
-          placeholder="Run ID, user, model..."
-          className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/30"
-        />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Status</label>
-        <select name="status" defaultValue={searchParams.status ?? ''} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
-          <option value="">Any</option>
-          <option value="succeeded">Succeeded</option>
-          <option value="failed">Failed</option>
-          <option value="running">Running</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Intent</label>
-        <input name="feature_tag" defaultValue={searchParams.feature_tag ?? ''} placeholder="support-chat" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Model</label>
-        <input name="model" defaultValue={searchParams.model ?? ''} placeholder="gpt, claude..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Provider</label>
-        <input name="provider" defaultValue={searchParams.provider ?? ''} placeholder="openai, anthropic..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Optimization</label>
-        <input name="optimization" defaultValue={searchParams.optimization ?? ''} placeholder="cache, routing..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Gov Tag</label>
-        <input name="tag" defaultValue={searchParams.tag ?? ''} placeholder="pci, prod..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tool</label>
-        <input name="tool_name" defaultValue={searchParams.tool_name ?? ''} placeholder="browser.search" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">API Key</label>
-        <input name="api_key_id" defaultValue={searchParams.api_key_id ?? ''} placeholder="key_abc123..." className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900" />
-      </div>
-      <div className="flex items-end">
-        <label className="flex h-[42px] w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900">
-          <input type="checkbox" name="security_event_only" value="true" defaultChecked={searchParams.security_event_only === 'true'} />
-          Security only
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-40">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Search</label>
+          <input name="q" defaultValue={searchParams.q ?? ''} placeholder="Run ID, user, model..." className={inputCls} />
+        </div>
+        <div className="w-24">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</label>
+          <select name="status" defaultValue={searchParams.status ?? ''} className={inputCls}>
+            <option value="">Any</option>
+            <option value="succeeded">Succeeded</option>
+            <option value="failed">Failed</option>
+            <option value="running">Running</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div className="w-28">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Intent</label>
+          <input name="feature_tag" defaultValue={searchParams.feature_tag ?? ''} placeholder="support-chat" className={inputCls} />
+        </div>
+        <div className="w-28">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Model</label>
+          <input name="model" defaultValue={searchParams.model ?? ''} placeholder="gpt, claude..." className={inputCls} />
+        </div>
+        <div className="w-28">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Provider</label>
+          <input name="provider" defaultValue={searchParams.provider ?? ''} placeholder="openai, anthropic..." className={inputCls} />
+        </div>
+        <div className="w-24">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tag</label>
+          <input name="tag" defaultValue={searchParams.tag ?? ''} placeholder="pci, prod..." className={inputCls} />
+        </div>
+        <div className="w-28">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tool</label>
+          <input name="tool_name" defaultValue={searchParams.tool_name ?? ''} placeholder="browser.search" className={inputCls} />
+        </div>
+        <div className="w-28">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">API Key</label>
+          <input name="api_key_id" defaultValue={searchParams.api_key_id ?? ''} placeholder="key_abc123..." className={inputCls} />
+        </div>
+        <label className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <input type="checkbox" name="security_event_only" value="true" defaultChecked={searchParams.security_event_only === 'true'} className="h-3 w-3" />
+          Security
         </label>
-      </div>
-      <div className="flex items-end gap-2">
-        <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
-          <Search className="h-4 w-4" />
+        <button type="submit" className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-700">
+          <Search className="h-3 w-3" />
           Explore
         </button>
       </div>
@@ -307,13 +286,13 @@ function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }
 
 function LifecycleCard({ title, value, detail, icon: Icon }: { title: string; value: string; detail: string; icon: React.ElementType }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-blue-600" />
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-700 dark:bg-slate-900/50">
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</p>
       </div>
-      <p className="mt-2 text-sm font-semibold text-slate-950">{value}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p>
+      <p className="mt-1 truncate text-xs font-semibold text-slate-950 dark:text-slate-100" title={value}>{value}</p>
+      <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400" title={detail}>{detail}</p>
     </div>
   )
 }
@@ -321,24 +300,21 @@ function LifecycleCard({ title, value, detail, icon: Icon }: { title: string; va
 function PayloadPanel({ run }: { run: RunDetailResponse }) {
   const messages = run.input_payload ?? []
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-slate-950">Prompt And Response</h2>
-          <p className="mt-1 text-xs text-slate-500">Shown when Data Capture is sampled or full.</p>
-        </div>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-          {messages.length} input message{messages.length === 1 ? '' : 's'}
+    <Card className="p-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-100">Prompt & Response</h2>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+          {messages.length} message{messages.length === 1 ? '' : 's'}
         </span>
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Prompt</p>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700">{promptPreview(run)}</pre>
+      <div className="mt-2 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Prompt</p>
+          <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-slate-50 p-2 text-[11px] leading-4 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{promptPreview(run)}</pre>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Final response</p>
-          <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700">{responsePreview(run)}</pre>
+        <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Response</p>
+          <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-slate-50 p-2 text-[11px] leading-4 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{responsePreview(run)}</pre>
         </div>
       </div>
     </Card>
@@ -434,20 +410,20 @@ function TableCard({
 }) {
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
-        <Icon className="h-4 w-4 text-blue-600" />
-        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
-        <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">{rows.length}</span>
+      <div className="flex items-center gap-1.5 border-b border-slate-200 px-3 py-2 dark:border-slate-700">
+        <Icon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">{title}</h2>
+        <span className="ml-auto rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-400">{rows.length}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="p-8 text-center text-sm text-slate-500">{empty}</p>
+        <p className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/80">
+              <tr className="border-b border-slate-100 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-900/50">
                 {headers.map((header) => (
-                  <th key={header} className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <th key={header} className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     {header}
                   </th>
                 ))}
@@ -455,9 +431,9 @@ function TableCard({
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={`${title}-${index}`} className="border-b border-slate-100">
+                <tr key={`${title}-${index}`} className="border-b border-slate-100 dark:border-slate-700/50">
                   {row.map((cell, cellIndex) => (
-                    <td key={`${title}-${index}-${cellIndex}`} className="max-w-[280px] truncate px-4 py-2 text-xs text-slate-700" title={cell}>
+                    <td key={`${title}-${index}-${cellIndex}`} className="max-w-[220px] truncate px-2.5 py-1.5 text-[11px] text-slate-700 dark:text-slate-300" title={cell}>
                       {cell}
                     </td>
                   ))}
@@ -514,88 +490,70 @@ function RequestDetail({
   ]
 
   return (
-    <div className="space-y-5">
-      <Card className="p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-slate-950">Request {truncateId(run.id, 12)}</h2>
-              <RunStatusBadge status={run.status} />
-            </div>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
-              Started {formatTimestamp(run.started_at)}. Session {run.session_id ?? 'not captured'}. Graph has {graphNodeCount} node{graphNodeCount === 1 ? '' : 's'}.
-            </p>
+    <div className="space-y-3">
+      <Card className="p-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-100">Request {truncateId(run.id, 12)}</h2>
+            <RunStatusBadge status={run.status} />
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">{formatTimestamp(run.started_at)} · {graphNodeCount} nodes</span>
           </div>
-          <Link href={accessGroupId ? `/runs/${run.id}?access_group_id=${encodeURIComponent(accessGroupId)}` : `/runs/${run.id}`} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
-            Open run detail <ArrowRight className="h-4 w-4" />
+          <Link href={accessGroupId ? `/runs/${run.id}?access_group_id=${encodeURIComponent(accessGroupId)}` : `/runs/${run.id}`} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+            Open run detail <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="flex flex-wrap gap-1.5">
         {facts.map((fact) => (
-          <FactCard key={fact.label} fact={fact} />
+          <Chip key={fact.label} label={fact.label} value={fact.value} icon={fact.icon} />
         ))}
       </div>
 
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-slate-950">Request Lifecycle</h2>
-        <p className="mt-1 text-sm text-slate-500">Explains the path with the fields RunLedger captures today.</p>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <LifecycleCard title="Prompt" value={run.input_payload ? 'Captured' : 'Not captured'} detail={run.input_payload ? `${run.input_payload.length} input message(s)` : 'Enable Data Capture for prompt text.'} icon={MessageSquareText} />
-          <LifecycleCard title="Cache" value={cacheStatus(run, gatewayMatch)} detail="Uses provider cached-token evidence and Gateway cache logs when available." icon={Sparkles} />
+      <Card className="p-3">
+        <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Request Lifecycle</h2>
+        <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <LifecycleCard title="Prompt" value={run.input_payload ? 'Captured' : 'Not captured'} detail={run.input_payload ? `${run.input_payload.length} input message(s)` : 'Enable Data Capture.'} icon={MessageSquareText} />
+          <LifecycleCard title="Cache" value={cacheStatus(run, gatewayMatch)} detail="Provider cached-token evidence and Gateway cache logs." icon={Sparkles} />
           <LifecycleCard title="Route" value={routeAlias} detail={decision} icon={Route} />
           <LifecycleCard title="Outcome" value={outcomeLabel} detail={optimizationStatus(run, gatewayMatch)} icon={CheckCircle2} />
         </div>
       </Card>
 
       {governance && (
-        <Card className="p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Governance Evidence</h2>
-              <p className="mt-1 text-sm text-slate-500">Inline runtime evidence for tool governance, security, alerting, audit, and governance-pack posture.{scopePosture && ` ${scopePosture.tool_context.capture_policies} capture policies configured.`}</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold text-cyan-700">
-              <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
-              <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
-              <Link href="/data-capture" className="hover:underline">Data Capture</Link>
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Governance</h2>
+            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-cyan-700 dark:text-cyan-400">
+              <Link href="/tool-registry" className="hover:underline">Registry</Link>
+              <Link href="/tool-policies" className="hover:underline">Policies</Link>
               <Link href="/security" className="hover:underline">Security</Link>
-              <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
-              <Link href="/audit" className="hover:underline">Audit Log</Link>
-              <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
+              <Link href="/audit" className="hover:underline">Audit</Link>
               <Link href="/tags" className="hover:underline">Tags</Link>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Tags" value={governance.tags.length ? governance.tags.join(', ') : 'No tags'} detail="Request and feature tags available for governance drill-through." icon={Tags} />
-            <LifecycleCard title="Tool Policies" value={String(governance.tool_evidence.reduce((sum, item) => sum + item.matched_policy_count, 0))} detail={`${governance.tool_evidence.length} tools with policy evidence`} icon={Wrench} />
-            <LifecycleCard title="Security Events" value={String(governance.security_events.length)} detail="Correlated by run, tool, or end user." icon={ShieldCheck} />
-            <LifecycleCard title="Alerts / Audit" value={`${governance.alert_evidence.length} / ${governance.audit_events.length}`} detail="Recent alert firings and governance audit events in the same runtime window." icon={Activity} />
+          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Tags" value={governance.tags.length ? governance.tags.join(', ') : 'No tags'} detail="Governance drill-through tags" icon={Tags} />
+            <LifecycleCard title="Tool Policies" value={String(governance.tool_evidence.reduce((sum, item) => sum + item.matched_policy_count, 0))} detail={`${governance.tool_evidence.length} tools matched`} icon={Wrench} />
+            <LifecycleCard title="Security Events" value={String(governance.security_events.length)} detail="Correlated by run/tool/user" icon={ShieldCheck} />
+            <LifecycleCard title="Alerts / Audit" value={`${governance.alert_evidence.length} / ${governance.audit_events.length}`} detail="Alert firings and audit events" icon={Activity} />
           </div>
         </Card>
       )}
 
       {finops && (
-        <Card className="p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Budget Context</h2>
-              <p className="mt-1 text-sm text-slate-500">FinOps budget posture for this request&apos;s workspace — budget utilization, billing periods, and chargeback attribution.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold text-emerald-700">
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Budget Context</h2>
+            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
               <Link href="/budgets" className="hover:underline">Budgets</Link>
-              <Link href="/budgets?view=detail" className="hover:underline">Budget Detail</Link>
-              <Link href="/budget-overrides" className="hover:underline">Budget Overrides</Link>
-              <Link href="/billing" className="hover:underline">Billing Periods</Link>
-              <Link href="/billing?view=detail" className="hover:underline">Billing Period Detail</Link>
+              <Link href="/billing" className="hover:underline">Billing</Link>
               <Link href="/chargeback" className="hover:underline">Chargeback</Link>
-              <Link href="/model-budgets" className="hover:underline">Model Budgets</Link>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Active Budgets" value={`${finops.budget_context.active_budgets} / ${finops.budget_context.budgets}`} detail={`${finops.budget_context.breach_count} budget(s) in breach`} icon={DollarSign} />
-            <LifecycleCard title="Budget Limit" value={formatCost(finops.budget_context.total_limit_usd)} detail={`${finops.budget_context.active_overrides} active overrides`} icon={ShieldCheck} />
+          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Active Budgets" value={`${finops.budget_context.active_budgets} / ${finops.budget_context.budgets}`} detail={`${finops.budget_context.breach_count} in breach`} icon={DollarSign} />
+            <LifecycleCard title="Budget Limit" value={formatCost(finops.budget_context.total_limit_usd)} detail={`${finops.budget_context.active_overrides} overrides`} icon={ShieldCheck} />
             <LifecycleCard title="30d Spend" value={formatCost(finops.spend_context.total_spend_30d)} detail={`${finops.spend_context.total_runs_30d.toLocaleString()} runs`} icon={Activity} />
             <LifecycleCard title="Billing" value={`${finops.billing_context.open_billing_periods} open`} detail={`${finops.billing_context.chargeback_rules} chargeback rules`} icon={Clock} />
           </div>
@@ -603,60 +561,52 @@ function RequestDetail({
       )}
 
       {orgIdentity && (
-        <Card className="p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Org Identity Context</h2>
-              <p className="mt-1 text-sm text-slate-500">Organization identity posture — workspace users, API keys, telemetry, and MCP registry correlation for this request.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold text-blue-700">
-              <Link href="/organization" className="hover:underline">Organization</Link>
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Org Identity</h2>
+            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-blue-700 dark:text-blue-400">
+              <Link href="/organization" className="hover:underline">Org</Link>
               <Link href="/users" className="hover:underline">Users</Link>
-              <Link href="/api-keys" className="hover:underline">API Keys</Link>
-              <Link href="/telemetry" className="hover:underline">Telemetry</Link>
-              <Link href="/mcp-registry" className="hover:underline">MCP Registry</Link>
+              <Link href="/api-keys" className="hover:underline">Keys</Link>
+              <Link href="/mcp-registry" className="hover:underline">MCP</Link>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Workspace Users" value={String(orgIdentity.user_context.workspace_users)} detail={`${orgIdentity.user_context.distinct_end_users_30d} distinct end users (30d)`} icon={User} />
-            <LifecycleCard title="API Keys" value={`${orgIdentity.api_key_context.active_keys} active`} detail={`${orgIdentity.api_key_context.total_keys} total, ${orgIdentity.api_key_context.keys_with_traffic_30d} with traffic`} icon={KeyRound} />
-            <LifecycleCard title="MCP Servers" value={String(orgIdentity.mcp_context.servers)} detail={`${orgIdentity.mcp_context.tool_calls_30d.toLocaleString()} tool calls (30d)`} icon={Network} />
-            <LifecycleCard title="Telemetry" value={`${orgIdentity.telemetry_context.batches_30d.toLocaleString()} batches`} detail={`${orgIdentity.telemetry_context.runs_30d.toLocaleString()} runs (30d)`} icon={Activity} />
+          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Users" value={String(orgIdentity.user_context.workspace_users)} detail={`${orgIdentity.user_context.distinct_end_users_30d} end users (30d)`} icon={User} />
+            <LifecycleCard title="API Keys" value={`${orgIdentity.api_key_context.active_keys} active`} detail={`${orgIdentity.api_key_context.total_keys} total`} icon={KeyRound} />
+            <LifecycleCard title="MCP Servers" value={String(orgIdentity.mcp_context.servers)} detail={`${orgIdentity.mcp_context.tool_calls_30d.toLocaleString()} calls (30d)`} icon={Network} />
+            <LifecycleCard title="Telemetry" value={`${orgIdentity.telemetry_context.batches_30d.toLocaleString()} batches`} detail={`${orgIdentity.telemetry_context.runs_30d.toLocaleString()} runs`} icon={Activity} />
           </div>
         </Card>
       )}
 
       {gatewayRuntime && (
-        <Card className="p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950">Gateway Runtime Context</h2>
-              <p className="mt-1 text-sm text-slate-500">Provider routing, guardrails, cache, and rate limits for this request&apos;s workspace.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold text-violet-700">
-              <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
-              <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
+        <Card className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Gateway Runtime</h2>
+            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400">
+              <Link href="/provider-profiles" className="hover:underline">Providers</Link>
+              <Link href="/gateway" className="hover:underline">Routes</Link>
               <Link href="/guardrails" className="hover:underline">Guardrails</Link>
-              <Link href="/cache-config" className="hover:underline">Response Cache</Link>
-              <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
+              <Link href="/cache-config" className="hover:underline">Cache</Link>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Providers" value={`${gatewayRuntime.provider_context.distinct_providers} providers`} detail={`${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.provider_context.routing_policies} policies`} icon={Network} />
-            <LifecycleCard title="Guardrails" value={`${gatewayRuntime.guardrail_context.active_rules} rules`} detail={`${gatewayRuntime.guardrail_context.events_30d.toLocaleString()} events, ${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)`} icon={ShieldCheck} />
-            <LifecycleCard title="Cache" value={`${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits`} detail={`${gatewayRuntime.cache_context.enabled_configs} configs, $${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved`} icon={Sparkles} />
-            <LifecycleCard title="Rate Limits" value={`${gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM-limited`} detail={`${gatewayRuntime.rate_limit_context.routes_with_cost_limits} cost-limited routes`} icon={Clock} />
+          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            <LifecycleCard title="Providers" value={`${gatewayRuntime.provider_context.distinct_providers} providers`} detail={`${gatewayRuntime.provider_context.active_routes} routes`} icon={Network} />
+            <LifecycleCard title="Guardrails" value={`${gatewayRuntime.guardrail_context.active_rules} rules`} detail={`${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)`} icon={ShieldCheck} />
+            <LifecycleCard title="Cache" value={`${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits`} detail={`$${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved`} icon={Sparkles} />
+            <LifecycleCard title="Rate Limits" value={`${gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM-limited`} detail={`${gatewayRuntime.rate_limit_context.routes_with_cost_limits} cost-limited`} icon={Clock} />
           </div>
         </Card>
       )}
 
       <PayloadPanel run={run} />
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-3 xl:grid-cols-2">
         <ProviderTable calls={run.provider_calls} />
         <ToolTable calls={run.tool_calls} />
       </div>
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-3 xl:grid-cols-2">
         <OutcomeTable outcomes={outcomes} />
         <SpanTable spans={run.spans} />
       </div>
@@ -728,24 +678,22 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   const pageCount = Math.max(1, Math.ceil(requestExplorer.total / requestExplorer.page_size))
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Request Explorer</h1>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Debug individual AI requests from prompt to route, model, tool calls, cost, latency, cache behavior, and final outcome.
-          </p>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-100">Request Explorer</h1>
+          <p className="text-xs text-slate-600 dark:text-slate-400">Debug individual AI requests — prompt, route, tools, cost, latency, cache, outcome.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href={accessGroupId ? `/analytics?scope=workspace&access_group_id=${encodeURIComponent(accessGroupId)}` : '/analytics'} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
-            Analytics Overview <ArrowRight className="h-4 w-4" />
+        <div className="flex flex-wrap gap-1.5">
+          <Link href={accessGroupId ? `/analytics?scope=workspace&access_group_id=${encodeURIComponent(accessGroupId)}` : '/analytics'} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+            Analytics <ArrowRight className="h-3 w-3" />
           </Link>
-          <Link href={accessGroupId ? `/request-flow?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-flow'} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-blue-50">
-            Back to flow <Route className="h-4 w-4" />
+          <Link href={accessGroupId ? `/request-flow?access_group_id=${encodeURIComponent(accessGroupId)}` : '/request-flow'} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+            Flow <Route className="h-3 w-3" />
           </Link>
           {highCostRequest && (
-            <Link href={requestHref(searchParams, { run_id: highCostRequest.run_id })} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
-              Inspect highest cost <DollarSign className="h-4 w-4" />
+            <Link href={requestHref(searchParams, { run_id: highCostRequest.run_id })} className="inline-flex items-center gap-1 rounded-lg bg-slate-950 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700">
+              Highest cost <DollarSign className="h-3 w-3" />
             </Link>
           )}
         </div>
@@ -754,82 +702,60 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       <FilterBar searchParams={searchParams} />
 
       {accessGroup && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
-          Request Explorer is filtered to the <span className="font-semibold">{accessGroup.name}</span> access group.
+        <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs text-blue-900 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+          Filtered to <span className="font-semibold">{accessGroup.name}</span> access group.
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <FactCard fact={{ label: 'Requests loaded', value: requestExplorer.items.length.toLocaleString(), icon: GitBranch }} />
-        <FactCard fact={{ label: 'Failures', value: failedCount.toLocaleString(), icon: ShieldCheck }} />
-        <FactCard fact={{ label: 'Highest cost', value: highCostRequest ? formatCost(highCostRequest.cost_usd) : '$0.00', icon: DollarSign }} />
-        <FactCard fact={{ label: 'Gateway log', value: gatewayResult?.status === 'fulfilled' ? 'Available' : 'Unavailable for role', icon: Route }} />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip label="Loaded" value={requestExplorer.items.length.toLocaleString()} icon={GitBranch} />
+        <Chip label="Failures" value={failedCount.toLocaleString()} icon={ShieldCheck} />
+        <Chip label="Highest" value={highCostRequest ? formatCost(highCostRequest.cost_usd) : '$0.00'} icon={DollarSign} />
+        <Chip label="Gateway" value={gatewayResult?.status === 'fulfilled' ? 'Available' : 'Unavailable'} icon={Route} />
+        <span className="ml-auto text-[11px] text-slate-500 dark:text-slate-400">
+          Page {requestExplorer.page}/{pageCount} · {requestExplorer.total.toLocaleString()} total
+          {requestExplorer.page > 1 && (
+            <Link href={requestHref(searchParams, { page: String(requestExplorer.page - 1) })} className="ml-2 font-semibold text-blue-600 hover:underline dark:text-blue-400">Prev</Link>
+          )}
+          {requestExplorer.page < pageCount && (
+            <Link href={requestHref(searchParams, { page: String(requestExplorer.page + 1) })} className="ml-2 font-semibold text-blue-600 hover:underline dark:text-blue-400">Next</Link>
+          )}
+        </span>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
+      <div className="grid gap-3 xl:grid-cols-[280px_1fr]">
         <RunList requests={requestExplorer.items} selectedRunId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
         {selectedRun ? (
           <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} governance={governance} finops={finops} orgIdentity={orgIdentity} gatewayRuntime={gatewayRuntimePosture} scopePosture={scopePosture} />
         ) : (
-          <Card className="p-12 text-center">
-            <p className="text-base font-semibold text-slate-950">Select a request</p>
-            <p className="mt-2 text-sm text-slate-500">Choose a recent run from the list to open its engineering debug view.</p>
+          <Card className="flex items-center justify-center p-8 text-center">
+            <div>
+              <p className="text-sm font-semibold text-slate-950 dark:text-slate-100">Select a request</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Choose a run from the list to inspect it.</p>
+            </div>
           </Card>
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Observe Workflow</p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-950">Use this after the flow view narrows the problem</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Start in Analytics Overview for scope health, move to Request Flow for routing causality, then use Request Explorer to inspect the exact run, prompt path, tools, route, and outcome evidence behind an edge.
-          </p>
+      <div className="grid gap-2 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/90">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Workflow</p>
+          <p className="mt-1 text-xs font-semibold text-slate-950 dark:text-slate-100">Start in Analytics, narrow with Request Flow, inspect here.</p>
         </div>
         <Link
           href={accessGroupId ? `/runs?access_group_id=${encodeURIComponent(accessGroupId)}` : '/runs'}
-          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70"
+          className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-800/90 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Run Detail</p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-950">Open the full run investigation page</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Jump into the run DAG, provider-call breakdown, payload capture, and cancellation flow when you need the dedicated execution-level view.
-          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Run Detail</p>
+          <p className="mt-1 text-xs font-semibold text-slate-950 dark:text-slate-100">Open the full run investigation page</p>
         </Link>
         <Link
           href="/sessions"
-          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70"
+          className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-800/90 dark:hover:border-blue-600 dark:hover:bg-blue-900/20"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Conversation Context</p>
-          <h2 className="mt-2 text-lg font-semibold text-slate-950">Pivot into Sessions</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Follow the same issue across multiple turns when cost, latency, or failure patterns span a whole conversation rather than a single request.
-          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sessions</p>
+          <p className="mt-1 text-xs font-semibold text-slate-950 dark:text-slate-100">Pivot into session-level investigation</p>
         </Link>
-      </div>
-
-      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-600 shadow-sm">
-        <span>
-          Page {requestExplorer.page} of {pageCount} • {requestExplorer.total.toLocaleString()} requests
-        </span>
-        <div className="flex items-center gap-2">
-          {requestExplorer.page > 1 && (
-            <Link
-              href={requestHref(searchParams, { page: String(requestExplorer.page - 1) })}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Previous
-            </Link>
-          )}
-          {requestExplorer.page < pageCount && (
-            <Link
-              href={requestHref(searchParams, { page: String(requestExplorer.page + 1) })}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Next
-            </Link>
-          )}
-        </div>
       </div>
     </div>
   )

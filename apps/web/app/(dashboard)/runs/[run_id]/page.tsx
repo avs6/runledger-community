@@ -317,14 +317,14 @@ export default async function RunDetailPage({
   const hasError = run.status === 'failed'
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3">
       {/* Back nav */}
       <div className="flex items-center gap-2">
         <Link
           href={accessGroupId ? `/runs?access_group_id=${encodeURIComponent(accessGroupId)}` : '/runs'}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
           Runs
         </Link>
       </div>
@@ -332,83 +332,14 @@ export default async function RunDetailPage({
       {/* Summary bar */}
       <RunSummaryBar run={run} />
 
-      {accessGroup && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
-          This run is being viewed inside the <span className="font-semibold">{accessGroup.name}</span> access-group investigation scope.
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/40">
-        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">Identity Provenance</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">End User</p>
-            <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-950 dark:text-slate-50">{run.end_user_id ?? 'Not captured'}</p>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">API Key</p>
-            <p className="mt-1 truncate font-mono text-sm font-semibold text-slate-950 dark:text-slate-50">{run.api_key_id ? run.api_key_id.slice(0, 12) + '…' : 'Not captured'}</p>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Model</p>
-            <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{run.primary_model ?? 'Unknown'}</p>
-          </div>
-          <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Feature Tag</p>
-            <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{run.feature_tag ?? 'Untagged'}</p>
-          </div>
-        </div>
-        {orgPosture && (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Workspace</p>
-              <p className="mt-1 truncate text-sm font-semibold text-slate-950 dark:text-slate-50">{orgPosture.org_context.workspace_name}</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">{orgPosture.org_context.workspace_users} users</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">MCP Registry</p>
-              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-slate-50">{orgPosture.mcp_context.servers} servers</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">{orgPosture.mcp_context.tool_calls_30d} tool calls (30d)</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white/80 px-4 py-3 dark:border-blue-800 dark:bg-slate-900/60">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">Telemetry</p>
-              <p className="mt-1 text-sm font-semibold text-slate-950 dark:text-slate-50">{orgPosture.telemetry_context.batches_30d} batches</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">{orgPosture.telemetry_context.runs_30d} runs (30d)</p>
-            </div>
-          </div>
-        )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/organization" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Organization</Link>
-          <Link href="/workspaces" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Workspaces</Link>
-          {run.end_user_id && <Link href={`/runs?end_user_id=${encodeURIComponent(run.end_user_id)}`} className="text-xs text-blue-700 hover:underline dark:text-blue-400">User Runs</Link>}
-          {run.api_key_id && <Link href={`/runs?api_key_id=${encodeURIComponent(run.api_key_id)}`} className="text-xs text-blue-700 hover:underline dark:text-blue-400">API Key Runs</Link>}
-          <Link href="/users" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Users</Link>
-          <Link href="/api-keys" className="text-xs text-blue-700 hover:underline dark:text-blue-400">API Keys</Link>
-          <Link href="/telemetry" className="text-xs text-blue-700 hover:underline dark:text-blue-400">Telemetry</Link>
-          <Link href="/mcp-registry" className="text-xs text-blue-700 hover:underline dark:text-blue-400">MCP Registry</Link>
-        </div>
-      </div>
-
-      <GovernanceEvidencePanel governance={governance} scopePosture={scopePosture} />
-      <FinopsBudgetPanel finops={finops} runCost={parseFloat(String(run.total_cost_usd ?? 0))} />
-      <GatewayRuntimePanel gateway={gatewayRuntime} />
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
-        <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Run actions</p>
-          <p className="mt-1 text-xs text-slate-500">Cancel a stuck run directly from the UI when it is still marked as running.</p>
-        </div>
-        <CancelRunButton runId={run.id} status={run.status} />
-      </div>
-
       {/* Error banner */}
       {hasError && (
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-800/50 dark:bg-red-950/30">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-800/50 dark:bg-red-950/30">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
           <div>
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400">Run failed</p>
+            <p className="text-xs font-semibold text-red-700 dark:text-red-400">Run failed</p>
             {run.provider_calls.filter(c => c.error_type).map(c => (
-              <p key={c.id} className="mt-0.5 font-mono text-xs text-red-600 dark:text-red-400">
+              <p key={c.id} className="mt-0.5 font-mono text-[11px] text-red-600 dark:text-red-400">
                 {c.provider}/{c.model}: {c.error_type}
               </p>
             ))}
@@ -416,9 +347,57 @@ export default async function RunDetailPage({
         </div>
       )}
 
-      {/* DAG graph */}
-      <div className="min-h-0 h-[340px] rounded-xl border border-gray-200 overflow-hidden dark:border-gray-700">
+      {/* DAG graph — hero */}
+      <div className="min-h-0 h-[480px] rounded-xl border border-gray-200 overflow-hidden dark:border-gray-700">
         <RunGraph graphNodes={graph.nodes} graphEdges={graph.edges} />
+      </div>
+
+      {accessGroup && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+          Viewing inside <span className="font-semibold">{accessGroup.name}</span> access-group scope.
+        </div>
+      )}
+
+      {/* Identity provenance — compact chips */}
+      <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 dark:border-blue-800 dark:bg-blue-950/40">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Identity Provenance</p>
+          <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-blue-700 dark:text-blue-400">
+            <Link href="/organization" className="hover:underline">Org</Link>
+            <Link href="/users" className="hover:underline">Users</Link>
+            <Link href="/api-keys" className="hover:underline">Keys</Link>
+            <Link href="/telemetry" className="hover:underline">Telemetry</Link>
+            <Link href="/mcp-registry" className="hover:underline">MCP</Link>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {[
+            { label: 'End User', value: run.end_user_id ?? 'Not captured' },
+            { label: 'API Key', value: run.api_key_id ? run.api_key_id.slice(0, 12) + '…' : 'Not captured' },
+            { label: 'Model', value: run.primary_model ?? 'Unknown' },
+            { label: 'Feature', value: run.feature_tag ?? 'Untagged' },
+            ...(orgPosture ? [
+              { label: 'Workspace', value: `${orgPosture.org_context.workspace_name} (${orgPosture.org_context.workspace_users} users)` },
+              { label: 'MCP', value: `${orgPosture.mcp_context.servers} servers` },
+              { label: 'Telemetry', value: `${orgPosture.telemetry_context.batches_30d} batches` },
+            ] : []),
+          ].map(({ label, value }) => (
+            <span key={label} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-white/80 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-slate-900/60">
+              <span className="font-medium text-blue-600 dark:text-blue-400">{label}</span>
+              <span className="max-w-[160px] truncate font-semibold text-slate-900 dark:text-slate-100">{value}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <GovernanceEvidencePanel governance={governance} scopePosture={scopePosture} />
+      <FinopsBudgetPanel finops={finops} runCost={parseFloat(String(run.total_cost_usd ?? 0))} />
+      <GatewayRuntimePanel gateway={gatewayRuntime} />
+
+      {/* Run actions — inline */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900">
+        <p className="text-xs text-slate-500 dark:text-slate-400">Cancel a stuck run when it is still marked as running.</p>
+        <CancelRunButton runId={run.id} status={run.status} />
       </div>
 
       {/* Payload viewer */}
@@ -426,36 +405,37 @@ export default async function RunDetailPage({
         <PayloadViewer run={run} />
       )}
 
-      {/* Provider calls */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
-        <div className="mb-3">
-          <SectionHeader
-            icon={<Cpu className="h-4 w-4" />}
-            title="Provider Calls"
-            count={run.provider_calls.length}
-          />
+      {/* Provider calls + Spans side by side on wide screens */}
+      <div className="grid gap-3 xl:grid-cols-2">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-slate-700/60 dark:bg-slate-900">
+          <div className="mb-2">
+            <SectionHeader
+              icon={<Cpu className="h-3.5 w-3.5" />}
+              title="Provider Calls"
+              count={run.provider_calls.length}
+            />
+          </div>
+          <ProviderCallsTable calls={run.provider_calls} />
         </div>
-        <ProviderCallsTable calls={run.provider_calls} />
-      </div>
 
-      {/* Spans */}
-      <div className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
-        <div className="mb-3">
-          <SectionHeader
-            icon={<Layers className="h-4 w-4" />}
-            title="Spans"
-            count={run.spans.length}
-          />
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-slate-700/60 dark:bg-slate-900">
+          <div className="mb-2">
+            <SectionHeader
+              icon={<Layers className="h-3.5 w-3.5" />}
+              title="Spans"
+              count={run.spans.length}
+            />
+          </div>
+          <SpansTable spans={run.spans} />
         </div>
-        <SpansTable spans={run.spans} />
       </div>
 
       {/* Tool calls */}
       {run.tool_calls.length > 0 && (
-        <div className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-700/60 dark:bg-slate-900">
-          <div className="mb-3">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-slate-700/60 dark:bg-slate-900">
+          <div className="mb-2">
             <SectionHeader
-              icon={<Wrench className="h-4 w-4" />}
+              icon={<Wrench className="h-3.5 w-3.5" />}
               title="Tool Calls"
               count={run.tool_calls.length}
             />

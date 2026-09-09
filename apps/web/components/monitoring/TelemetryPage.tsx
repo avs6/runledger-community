@@ -16,7 +16,7 @@ import {
 } from 'recharts'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
-import { Building2, Network, Shield } from 'lucide-react'
+import { Building2, Network, RefreshCw, Shield } from 'lucide-react'
 import { getOtlpBatchDetail, getOtlpInsights, getOtlpStats, getTelemetryOpsPosture, listOtlpBatches } from '@/lib/api'
 import type {
   OtlpBatchDetail,
@@ -82,7 +82,7 @@ export default function TelemetryPage() {
       setSelectedBatch(detail)
     } catch (err) {
       console.error(err)
-      toast.error('Failed to load telemetry batch detail')
+      toast.error('Failed to load batch detail')
     } finally {
       setLoadingBatchDetail(false)
     }
@@ -97,9 +97,9 @@ export default function TelemetryPage() {
 
   if (!canManageOrgSettings) {
     return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Telemetry</h1>
-        <p className="mt-4 text-sm text-slate-500">Telemetry management is an organization-admin function.</p>
+      <div className="p-6">
+        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Telemetry</h1>
+        <p className="mt-2 text-xs text-slate-500">Telemetry management is an organization-admin function.</p>
       </div>
     )
   }
@@ -108,145 +108,99 @@ export default function TelemetryPage() {
   const hasNextPage = Boolean(otlpBatches && offset + otlpBatches.items.length < otlpBatches.total)
 
   return (
-    <div className="space-y-6 p-8">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-600 dark:text-indigo-400">Observability</p>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">Telemetry</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Monitor traces, metrics, and logs received via the OTLP/HTTP JSON endpoints from any OpenTelemetry-compatible sender.
-        </p>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Use this page to verify ingest health, attribution quality, and batch-level payload shape before telemetry flows into Runs, Request Explorer, and the rest of the observability stack.
-        </p>
-        <div className="flex flex-wrap gap-2 mt-2">
-          <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
-          <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
-          <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
-          <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
-          <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
-          <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
-          <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
-          <Link href="/tool-policies" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Policies</Link>
-          <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
-          <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
-          <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules</Link>
-          <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
-          <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-lg font-bold text-slate-950 dark:text-white">Telemetry</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">OTLP traces, metrics, logs — ingest health, attribution, and batch inspection.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { href: '/monitoring', label: 'Monitoring' },
+            { href: '/gateway', label: 'Gateway' },
+            { href: '/guardrails', label: 'Guardrails' },
+            { href: '/alert-rules', label: 'Alerts' },
+          ].map(nav => (
+            <Link key={nav.label} href={nav.href} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              {nav.label}
+            </Link>
+          ))}
+          <button onClick={() => void load()} disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
+      {/* Posture chips */}
       {opsPosture && (
-        <div className="space-y-4">
-          {/* Gateway context */}
-          <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm dark:border-violet-800 dark:bg-violet-950/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-              <h2 className="text-base font-semibold text-violet-900 dark:text-violet-100">Gateway Context</h2>
+        <div className="grid gap-2 lg:grid-cols-3">
+          <div className="rounded-xl border border-violet-200/60 bg-violet-50/30 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Network className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Gateway Context</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 mb-4">
+            <div className="flex flex-wrap gap-1.5">
               {[
-                { label: 'Routes', value: String(opsPosture.gateway_context.active_routes) },
-                { label: 'Models', value: String(opsPosture.gateway_context.distinct_models) },
-                { label: 'Gateway Reqs 30d', value: String(opsPosture.gateway_context.gateway_requests_30d) },
-              ].map(({ label, value }) => (
-                <div key={label} className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">{label}</p>
-                  <p className="mt-1 text-lg font-semibold text-violet-900 dark:text-violet-100">{value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Model Gateway', href: '/gateway' },
-                { label: 'Provider Profiles', href: '/provider-profiles' },
-                { label: 'Guardrails', href: '/guardrails' },
-                { label: 'Response Cache', href: '/cache' },
-                { label: 'Rate Limits', href: '/rate-limits' },
-              ].map(({ label, href }) => (
-                <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
-                  {label}
-                </Link>
+                { l: 'Routes', v: opsPosture.gateway_context.active_routes },
+                { l: 'Models', v: opsPosture.gateway_context.distinct_models },
+                { l: 'GW Reqs 30d', v: opsPosture.gateway_context.gateway_requests_30d },
+              ].map(c => (
+                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] dark:border-violet-800 dark:bg-violet-950/40">
+                  <span className="font-medium text-violet-500 dark:text-violet-400">{c.l}</span>
+                  <span className="font-bold text-violet-700 dark:text-violet-300">{c.v}</span>
+                </span>
               ))}
             </div>
           </div>
 
-          {/* Governance context */}
-          <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm dark:border-amber-800 dark:bg-amber-950/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <h2 className="text-base font-semibold text-amber-900 dark:text-amber-100">Governance Context</h2>
+          <div className="rounded-xl border border-amber-200/60 bg-amber-50/30 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Governance</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 mb-4">
+            <div className="flex flex-wrap gap-1.5">
               {[
-                { label: 'Capture Policies', value: String(opsPosture.governance_context.capture_policies) },
-                { label: 'Security Events 30d', value: String(opsPosture.governance_context.security_events_30d) },
-                { label: 'Alert Rules', value: `${opsPosture.governance_context.active_alert_rules}/${opsPosture.governance_context.alert_rules}` },
-                { label: 'Audit Events 30d', value: String(opsPosture.governance_context.audit_events_30d) },
-                { label: 'Approvals', value: String(opsPosture.governance_context.approvals) },
-                { label: 'Tags', value: String(opsPosture.governance_context.tags) },
-              ].map(({ label, value }) => (
-                <div key={label} className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:text-amber-400">{label}</p>
-                  <p className="mt-1 text-lg font-semibold text-amber-900 dark:text-amber-100">{value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Tool Registry', href: '/tool-registry' },
-                { label: 'Tool Policies', href: '/tool-policies' },
-                { label: 'Data Capture', href: '/data-capture' },
-                { label: 'Security', href: '/monitoring' },
-                { label: 'Alert Rules', href: '/alert-rules' },
-                { label: 'Audit Log', href: '/audit' },
-                { label: 'Governance Pack', href: '/governance-pack' },
-              ].map(({ label, href }) => (
-                <Link key={label} href={href} className="rounded-lg border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-800/50">
-                  {label}
-                </Link>
+                { l: 'Capture', v: opsPosture.governance_context.capture_policies },
+                { l: 'Security 30d', v: opsPosture.governance_context.security_events_30d },
+                { l: 'Alerts', v: `${opsPosture.governance_context.active_alert_rules}/${opsPosture.governance_context.alert_rules}` },
+                { l: 'Audit 30d', v: opsPosture.governance_context.audit_events_30d },
+                { l: 'Approvals', v: opsPosture.governance_context.approvals },
+                { l: 'Tags', v: opsPosture.governance_context.tags },
+              ].map(c => (
+                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] dark:border-amber-800 dark:bg-amber-950/40">
+                  <span className="font-medium text-amber-500 dark:text-amber-400">{c.l}</span>
+                  <span className="font-bold text-amber-700 dark:text-amber-300">{c.v}</span>
+                </span>
               ))}
             </div>
           </div>
 
-          {/* Org & investigation context */}
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-base font-semibold text-blue-900 dark:text-blue-100">Org & Investigation Context</h2>
+          <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Investigation</span>
             </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+            <div className="flex flex-wrap gap-1.5">
               {[
-                { label: 'Users', value: String(opsPosture.org_context.workspace_users) },
-                { label: 'Batches 30d', value: String(opsPosture.org_context.telemetry_batches_30d) },
-                { label: 'Runs 30d', value: String(opsPosture.investigation_context.runs_30d) },
-                { label: 'Provider Calls 30d', value: String(opsPosture.investigation_context.provider_calls_30d) },
-              ].map(({ label, value }) => (
-                <div key={label} className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">{label}</p>
-                  <p className="mt-1 text-lg font-semibold text-blue-900 dark:text-blue-100">{value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Organization', href: '/organization' },
-                { label: 'Onboarding', href: '/onboarding' },
-                { label: 'Workspaces', href: '/workspaces' },
-                { label: 'Analytics Overview', href: '/analytics' },
-                { label: 'Runs', href: '/runs' },
-                { label: 'Request Flow', href: '/request-flow' },
-                { label: 'Request Explorer', href: '/request-explorer' },
-              ].map(({ label, href }) => (
-                <Link key={label} href={href} className="rounded-lg border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">
-                  {label}
-                </Link>
+                { l: 'Users', v: opsPosture.org_context.workspace_users },
+                { l: 'Batches 30d', v: opsPosture.org_context.telemetry_batches_30d },
+                { l: 'Runs 30d', v: opsPosture.investigation_context.runs_30d },
+                { l: 'Calls 30d', v: opsPosture.investigation_context.provider_calls_30d },
+              ].map(c => (
+                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
+                  <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
+                  <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
+                </span>
               ))}
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10">
+      {/* Stats KPI strip */}
+      <div className="grid grid-cols-5 gap-2 xl:grid-cols-10">
         {[
           { label: '24h Batches', value: otlpStats?.last_24h.batches },
           { label: '24h Traces', value: otlpStats?.last_24h.traces },
@@ -259,32 +213,26 @@ export default function TelemetryPage() {
           { label: '7d Metrics', value: otlpStats?.last_7d.metrics },
           { label: '7d Logs', value: otlpStats?.last_7d.logs },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-lg border border-gray-200 bg-white p-4 text-center dark:border-gray-700 dark:bg-gray-800">
-            <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-              {loading ? '...' : (stat.value ?? 0).toLocaleString()}
-            </div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{stat.label}</div>
+          <div key={stat.label} className="rounded-xl border border-slate-200 bg-white/90 p-2 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-base font-bold text-indigo-600 dark:text-indigo-400">
+              {loading ? '…' : (stat.value ?? 0).toLocaleString()}
+            </p>
+            <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div className="mb-3">
-            <h3 className="text-sm font-medium dark:text-gray-200">Last 24h Signal Trend</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Hourly counts across traces, metrics, and logs.</p>
-          </div>
-          <div className="h-72">
+      {/* Charts */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">24h Signal Trend</p>
+          <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={otlpInsights?.timeseries_24h ?? []} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+              <AreaChart data={otlpInsights?.timeseries_24h ?? []} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={(value) => new Date(value).toLocaleTimeString([], { hour: 'numeric' })}
-                  minTickGap={24}
-                />
-                <YAxis allowDecimals={false} />
-                <Tooltip labelFormatter={(value) => new Date(String(value)).toLocaleString()} />
+                <XAxis dataKey="timestamp" tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: 'numeric' })} minTickGap={24} tick={{ fontSize: 10 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                <Tooltip labelFormatter={(v) => new Date(String(v)).toLocaleString()} />
                 <Area type="monotone" dataKey="traces" stackId="1" stroke="#4f46e5" fill="#818cf8" fillOpacity={0.35} />
                 <Area type="monotone" dataKey="metrics" stackId="1" stroke="#0f766e" fill="#2dd4bf" fillOpacity={0.3} />
                 <Area type="monotone" dataKey="logs" stackId="1" stroke="#b45309" fill="#fbbf24" fillOpacity={0.25} />
@@ -293,68 +241,58 @@ export default function TelemetryPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div className="mb-3">
-            <h3 className="text-sm font-medium dark:text-gray-200">Top Instrumented Services</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Most common OTEL `service.name` values in recent resource payloads.</p>
-          </div>
-          <div className="h-72">
+        <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Top Services</p>
+          <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={otlpInsights?.top_services ?? []} layout="vertical" margin={{ top: 8, right: 12, left: 24, bottom: 0 }}>
+              <BarChart data={otlpInsights?.top_services ?? []} layout="vertical" margin={{ top: 4, right: 8, left: 16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-                <XAxis type="number" allowDecimals={false} />
-                <YAxis type="category" dataKey="service_name" width={120} />
+                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="service_name" width={100} tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Bar dataKey="resource_count" fill="#2563eb" radius={[0, 6, 6, 0]} />
+                <Bar dataKey="resource_count" fill="#2563eb" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div className="mb-3">
-            <h3 className="text-sm font-medium dark:text-gray-200">Attribution Coverage</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Resource-level semantic coverage across the last 7 days. Workspace attribution is enforced by the workspace API key; these fields improve session, feature, and deployment correlation.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Attribution + Semantics */}
+      <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Attribution Coverage (7d)</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
               ['Service', otlpInsights?.attribute_coverage.service_name_pct],
               ['Session', otlpInsights?.attribute_coverage.session_id_pct],
               ['End user', otlpInsights?.attribute_coverage.end_user_id_pct],
               ['Feature tag', otlpInsights?.attribute_coverage.feature_tag_pct],
-              ['Deploy version', otlpInsights?.attribute_coverage.deployment_version_pct],
-              ['Workspace label', otlpInsights?.attribute_coverage.workspace_name_pct],
-              ['Org label', otlpInsights?.attribute_coverage.organization_name_pct],
+              ['Deploy ver', otlpInsights?.attribute_coverage.deployment_version_pct],
+              ['Workspace', otlpInsights?.attribute_coverage.workspace_name_pct],
+              ['Org', otlpInsights?.attribute_coverage.organization_name_pct],
             ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
-                <div className="text-lg font-semibold text-slate-900 dark:text-white">{Number(value ?? 0).toFixed(1)}%</div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{label}</div>
+              <div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{Number(value ?? 0).toFixed(1)}%</p>
+                <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
               </div>
             ))}
           </div>
-          <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-            Resource maps analyzed: {(otlpInsights?.window.resource_maps_seen ?? 0).toLocaleString()} · Workspace scope: {otlpInsights?.window.workspace_name_hint ?? 'Current workspace'}
-          </div>
+          <p className="mt-2 text-[10px] text-slate-400">
+            {(otlpInsights?.window.resource_maps_seen ?? 0).toLocaleString()} resource maps · {otlpInsights?.window.workspace_name_hint ?? 'Current workspace'}
+          </p>
         </div>
 
-        <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div>
-            <h3 className="text-sm font-medium dark:text-gray-200">Collector Semantics</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Recent semantic dimensions present after collector enrichment.</p>
-          </div>
-          <div className="space-y-2">
+        <div className="rounded-xl border border-slate-200 bg-white/90 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-300">Collector Semantics</p>
+          <div className="space-y-1">
             {(otlpInsights?.semantic_dimensions ?? []).slice(0, 8).map((item) => (
-              <div key={item.key} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
-                <span className="font-mono text-xs dark:text-gray-300">{item.key}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{item.resource_count}</span>
+              <div key={item.key} className="flex items-center justify-between rounded-md border border-slate-100 px-2.5 py-1 text-xs dark:border-slate-700">
+                <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">{item.key}</span>
+                <span className="text-[10px] text-slate-400">{item.resource_count}</span>
               </div>
             ))}
             {(!otlpInsights || otlpInsights.semantic_dimensions.length === 0) && (
-              <div className="rounded border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <div className="rounded border border-dashed border-slate-300 px-3 py-4 text-center text-[11px] text-slate-400 dark:border-slate-700">
                 No semantic dimensions detected yet.
               </div>
             )}
@@ -362,218 +300,152 @@ export default function TelemetryPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-        <p className="mb-2 text-sm font-medium dark:text-gray-200">Quick start</p>
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-gray-900 p-3 text-xs font-mono text-green-400">{`# Install the OTel SDK + RunLedger-compatible exporter
+      {/* Quick start */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+        <p className="mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">Quick start</p>
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-2.5 text-[11px] font-mono text-green-400">{`# Install OTel SDK + RunLedger-compatible exporter
 pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
-# Option A: send through the shipped collector on localhost
+# Option A: localhost collector
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"
 
-# Option B: send signals directly to RunLedger
+# Option B: direct to RunLedger
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://YOUR_API/v1/traces
-export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://YOUR_API/v1/metrics
-export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=https://YOUR_API/v1/logs
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"
-
-# Or send a trace batch manually with curl
-curl -X POST https://YOUR_API/v1/traces \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"resourceSpans": [...]}'`}</pre>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Full setup guidance lives in Onboarding. Use this page after setup to validate signal health and inspect the exact batches landing in RunLedger.
-        </p>
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"`}</pre>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.3fr,0.7fr]">
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium dark:text-gray-200">Recent Ingest Batches</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Paginated batch history for traces, metrics, and logs.</p>
-            </div>
-            <button
-              onClick={() => void load()}
-              disabled={loading}
-              className="text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
-            >
-              {loading ? 'Loading...' : 'Refresh'}
-            </button>
+      {/* Batch table — full width */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Recent Ingest Batches</p>
+          <button onClick={() => void load()} disabled={loading} className="text-[10px] text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400">
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
+        {loading && !otlpBatches ? (
+          <div className="space-y-1.5">{[...Array(3)].map((_, i) => <div key={i} className="h-6 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />)}</div>
+        ) : !otlpBatches || otlpBatches.items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 py-6 text-center text-xs text-slate-400 dark:border-slate-600">
+            No batches received yet. Send traces, metrics, or logs to get started.
           </div>
-          {loading && !otlpBatches ? (
-            <div className="space-y-2">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-              ))}
-            </div>
-          ) : !otlpBatches || otlpBatches.items.length === 0 ? (
-            <div className="rounded border border-dashed border-gray-300 py-8 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
-              No batches received yet. Send traces, metrics, or logs to get started.
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Time</th>
-                    <th className="px-4 py-2 text-left">Signal</th>
-                    <th className="px-4 py-2 text-right">Traces</th>
-                    <th className="px-4 py-2 text-right">Spans</th>
-                    <th className="px-4 py-2 text-right">Metrics</th>
-                    <th className="px-4 py-2 text-right">Logs</th>
-                    <th className="px-4 py-2 text-left">Status</th>
-                    <th className="px-4 py-2 text-left">Inspect</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                  {otlpBatches.items.map((batch) => (
-                    <tr
-                      key={batch.id}
-                      className={`${selectedBatchId === batch.id ? 'bg-indigo-50 dark:bg-indigo-950/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}
-                    >
-                      <td className="px-4 py-2 font-mono text-xs dark:text-gray-300">{formatBatchTime(batch.created_at)}</td>
-                      <td className="px-4 py-2 text-xs font-medium uppercase dark:text-gray-300">{batch.signal_type}</td>
-                      <td className="px-4 py-2 text-right dark:text-gray-300">{batch.trace_count}</td>
-                      <td className="px-4 py-2 text-right dark:text-gray-300">{batch.span_count}</td>
-                      <td className="px-4 py-2 text-right dark:text-gray-300">{batch.metric_count}</td>
-                      <td className="px-4 py-2 text-right dark:text-gray-300">{batch.log_record_count}</td>
-                      <td className="px-4 py-2">
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          batch.status === 'accepted'
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                        }`}>
-                          {batch.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2">
-                        <button
-                          type="button"
-                          onClick={() => void inspectBatch(batch)}
-                          disabled={loadingBatchDetail && selectedBatchId === batch.id}
-                          className="rounded border border-slate-300 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                        >
-                          {loadingBatchDetail && selectedBatchId === batch.id ? 'Loading...' : 'Inspect'}
-                        </button>
-                      </td>
-                    </tr>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  {['Time', 'Signal', 'Traces', 'Spans', 'Metrics', 'Logs', 'Status', ''].map(h => (
+                    <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400">{h}</th>
                   ))}
-                </tbody>
-              </table>
-              <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                <div>
-                  Showing {offset + 1}-{Math.min(offset + (otlpBatches?.items.length ?? 0), otlpBatches?.total ?? 0)} of {otlpBatches?.total ?? 0} batches
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={!hasPreviousPage || loading}
-                    onClick={() => setOffset((prev) => Math.max(0, prev - PAGE_SIZE))}
-                    className="rounded border border-slate-300 px-3 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!hasNextPage || loading}
-                    onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
-                    className="rounded border border-slate-300 px-3 py-1 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Next
-                  </button>
-                </div>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white dark:divide-slate-700 dark:bg-slate-900">
+                {otlpBatches.items.map((batch) => (
+                  <tr key={batch.id} className={`cursor-pointer ${selectedBatchId === batch.id ? 'bg-indigo-50 dark:bg-indigo-950/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`} onClick={() => void inspectBatch(batch)}>
+                    <td className="whitespace-nowrap px-3 py-1.5 font-mono text-slate-500">{formatBatchTime(batch.created_at)}</td>
+                    <td className="px-3 py-1.5 font-medium uppercase text-slate-700 dark:text-slate-300">{batch.signal_type}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.trace_count}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.span_count}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.metric_count}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.log_record_count}</td>
+                    <td className="px-3 py-1.5">
+                      <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                        batch.status === 'accepted'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                      }`}>{batch.status}</span>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                        {loadingBatchDetail && selectedBatchId === batch.id ? '…' : 'Inspect'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-[10px] text-slate-400 dark:border-slate-700">
+              <span>{offset + 1}–{Math.min(offset + (otlpBatches?.items.length ?? 0), otlpBatches?.total ?? 0)} of {otlpBatches?.total ?? 0}</span>
+              <div className="flex gap-1.5">
+                <button type="button" disabled={!hasPreviousPage || loading} onClick={() => setOffset((prev) => Math.max(0, prev - PAGE_SIZE))}
+                  className="rounded border border-slate-300 px-2 py-0.5 font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">Prev</button>
+                <button type="button" disabled={!hasNextPage || loading} onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
+                  className="rounded border border-slate-300 px-2 py-0.5 font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">Next</button>
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Drill-in — full width below table */}
+      {selectedBatch && (
+        <div className="rounded-xl border border-indigo-200/60 bg-white/90 p-4 shadow-sm dark:border-indigo-800/40 dark:bg-slate-900">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Batch Drill-In</p>
+            <button onClick={() => { setSelectedBatch(null); setSelectedBatchId(null) }} className="rounded-md px-2 py-0.5 text-[10px] text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">Close</button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-10">
+            {[
+              ['Time', formatBatchTime(selectedBatch.created_at)],
+              ['Signal', selectedBatch.signal_type.toUpperCase()],
+              ['Status', selectedBatch.status],
+              ['Content', selectedBatch.content_type],
+              ['Encoding', selectedBatch.encoding ?? 'none'],
+              ['Bytes', selectedBatch.raw_payload_bytes.toLocaleString()],
+              ['Traces', selectedBatch.trace_count],
+              ['Spans', selectedBatch.span_count],
+              ['Metrics', selectedBatch.metric_count],
+              ['Logs', selectedBatch.log_record_count],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{typeof value === 'number' ? Number(value).toLocaleString() : value}</p>
+                <p className="text-[8px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {selectedBatch.error && (
+            <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+              {selectedBatch.error}
             </div>
           )}
-        </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div className="mb-3">
-            <h3 className="text-sm font-medium dark:text-gray-200">Batch Drill-In</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Inspect signal mix, resource maps, and raw payload preview for a selected ingest batch.</p>
-          </div>
-          {!selectedBatch ? (
-            <div className="rounded border border-dashed border-gray-300 px-3 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              Select a batch from the table to inspect it.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ['Time', formatBatchTime(selectedBatch.created_at)],
-                  ['Signal', selectedBatch.signal_type.toUpperCase()],
-                  ['Status', selectedBatch.status],
-                  ['Content type', selectedBatch.content_type],
-                  ['Encoding', selectedBatch.encoding ?? 'none'],
-                  ['Payload bytes', selectedBatch.raw_payload_bytes.toLocaleString()],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">{label}</div>
-                    <div className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{value}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-4 gap-3">
-                {[
-                  ['Traces', selectedBatch.trace_count],
-                  ['Spans', selectedBatch.span_count],
-                  ['Metrics', selectedBatch.metric_count],
-                  ['Logs', selectedBatch.log_record_count],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-lg border border-gray-200 bg-white p-3 text-center dark:border-gray-700 dark:bg-gray-800/40">
-                    <div className="text-lg font-semibold text-slate-900 dark:text-white">{Number(value).toLocaleString()}</div>
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">{label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {selectedBatch.error && (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
-                  {selectedBatch.error}
+          <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
+            <div>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                Resource maps ({selectedBatch.resource_map_count})
+              </p>
+              {selectedBatch.resource_maps.length === 0 ? (
+                <div className="rounded border border-dashed border-slate-300 px-3 py-4 text-center text-[11px] text-slate-400 dark:border-slate-700">
+                  No resource maps parsed.
+                </div>
+              ) : (
+                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  {selectedBatch.resource_maps.map((rm, i) => (
+                    <div key={`${rm.service_name ?? 'unknown'}-${i}`} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2 dark:border-slate-700 dark:bg-slate-800/60">
+                      <p className="text-[11px] font-semibold text-slate-800 dark:text-white">{rm.service_name ?? 'Unknown service'}</p>
+                      <p className="text-[10px] text-slate-400">{rm.attribute_count} attributes</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {rm.attribute_keys.map((key) => (
+                          <span key={key} className="rounded-full bg-white px-1.5 py-px text-[9px] text-slate-600 dark:bg-slate-900 dark:text-slate-300">{key}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Resource maps</h4>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{selectedBatch.resource_map_count} detected</span>
-                </div>
-                <div className="space-y-2">
-                  {selectedBatch.resource_maps.length === 0 ? (
-                    <div className="rounded border border-dashed border-gray-300 px-3 py-5 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                      No resource maps parsed from this batch.
-                    </div>
-                  ) : (
-                    selectedBatch.resource_maps.map((resourceMap, index) => (
-                      <div key={`${resourceMap.service_name ?? 'unknown'}-${index}`} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
-                        <div className="text-sm font-medium text-slate-900 dark:text-white">{resourceMap.service_name ?? 'Unknown service'}</div>
-                        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{resourceMap.attribute_count} attributes</div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {resourceMap.attribute_keys.map((key) => (
-                            <span key={key} className="rounded-full bg-white px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                              {key}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Payload preview</h4>
-                <pre className="max-h-[26rem] overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-green-300">
-                  {selectedBatch.raw_payload_preview ?? 'No payload preview available.'}
-                </pre>
-              </div>
             </div>
-          )}
+
+            <div>
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Payload preview</p>
+              <pre className="max-h-60 overflow-auto rounded-lg bg-slate-950 p-2.5 text-[10px] text-green-300">
+                {selectedBatch.raw_payload_preview ?? 'No preview available.'}
+              </pre>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

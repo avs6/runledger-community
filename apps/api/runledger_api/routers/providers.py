@@ -100,7 +100,7 @@ async def list_pricing(auth: OrgAdminDep, db: DbDep) -> ProviderPricingList:
     items = []
     for row in rows:
         counts = budget_counts.get(str(row.id), {})
-        base = ProviderPricingResponse.model_validate(row).model_dump()
+        base = ProviderPricingResponse.model_validate(row).model_dump(exclude={"budget_count", "active_budget_count"})
         items.append(
             ProviderPricingResponse(
                 **base,

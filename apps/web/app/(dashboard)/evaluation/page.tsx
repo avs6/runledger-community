@@ -7,7 +7,8 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import {
   FlaskConical, Database, BookText, Plus, Trash2, Play,
-  CheckCircle, Clock, XCircle, Loader2, Star,
+  CheckCircle, Clock, XCircle, Loader2, Star, Beaker,
+  Network, ChevronDown, ChevronRight, Sparkles,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
@@ -21,6 +22,7 @@ import {
   getEvalReplayObservePosture,
   getBuildInternalPosture,
   getEvalStudioParentPosture,
+  getReplayLabModePosture,
 } from '@/lib/api'
 import type {
   EvalDataset, EvalExperiment, DatasetItem, PromptResponse,
@@ -31,13 +33,12 @@ import type {
   EvalReplayObservePosture,
   BuildInternalPosture,
   EvalStudioParentPosture,
+  ReplayLabModePosture,
 } from '@/types/api'
 import QualityScoresTab from '@/components/evaluation/QualityScoresTab'
 import { num } from '@/lib/utils'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-type Tab = 'scores' | 'experiments' | 'datasets' | 'prompts' | 'evaluators'
+type Tab = 'scores' | 'experiments' | 'datasets' | 'prompts' | 'evaluators' | 'replay'
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -59,8 +60,8 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <tr key={i}>
           {Array.from({ length: cols }).map((_, j) => (
-            <td key={j} className="px-4 py-3">
-              <div className="h-4 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <td key={j} className="px-3 py-1.5">
+              <div className="h-3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
             </td>
           ))}
         </tr>
@@ -70,9 +71,26 @@ function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
 }
 
 const inputCls =
-  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
 
-const labelCls = 'block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1'
+const labelCls = 'block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5'
+
+const PAGE_SIZE = 20
+
+function Pagination({ page, totalPages, total, onPageChange }: { page: number; totalPages: number; total: number; onPageChange: (p: number) => void }) {
+  if (totalPages <= 1) return null
+  const from = page * PAGE_SIZE + 1
+  const to = Math.min((page + 1) * PAGE_SIZE, total)
+  return (
+    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2 mt-2">
+      <span className="text-[10px] text-slate-400">{from}–{to} of {total}</span>
+      <div className="flex gap-1">
+        <button onClick={() => onPageChange(page - 1)} disabled={page === 0} className="rounded px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30">Prev</button>
+        <button onClick={() => onPageChange(page + 1)} disabled={page >= totalPages - 1} className="rounded px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30">Next</button>
+      </div>
+    </div>
+  )
+}
 
 // ── Experiments tab ───────────────────────────────────────────────────────────
 
@@ -97,6 +115,10 @@ function ExperimentsTab({
   const [provider, setProvider] = useState('openai')
   const [creating, setCreating] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [page, setPage] = useState(0)
+
+  const totalPages = Math.ceil(experiments.length / PAGE_SIZE)
+  const paged = experiments.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -116,134 +138,86 @@ function ExperimentsTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Run prompts against datasets and evaluate model performance. Uses the datasets and prompts you have already created.
-        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Run prompts against datasets and evaluate model performance.</p>
         {canWrite && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Experiment
+          <button onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700">
+            <Plus className="h-3.5 w-3.5" /> New Experiment
           </button>
         )}
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-white">Create Experiment</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelCls}>Experiment Name *</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. GPT-4o vs Claude" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Description</label>
-                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} />
-              </div>
+        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div><label className={labelCls}>Name *</label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. GPT-4o vs Claude" className={inputCls} /></div>
+              <div><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} /></div>
               <div>
                 <label className={labelCls}>Dataset</label>
                 <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} className={inputCls}>
                   <option value="">— None —</option>
-                  {datasets.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.item_count} items)</option>
-                  ))}
+                  {datasets.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.item_count})</option>)}
                 </select>
               </div>
               <div>
                 <label className={labelCls}>Prompt</label>
                 <select value={promptName} onChange={(e) => { setPromptName(e.target.value); setPromptVersion('') }} className={inputCls}>
                   <option value="">— None —</option>
-                  {prompts.map((p) => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
+                  {prompts.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
               {promptName && (
-                <div>
-                  <label className={labelCls}>Prompt Version (blank = latest)</label>
-                  <input value={promptVersion} onChange={(e) => setPromptVersion(e.target.value)} type="number" min="1" placeholder="e.g. 3" className={inputCls} />
-                </div>
+                <div><label className={labelCls}>Version (blank = latest)</label><input value={promptVersion} onChange={(e) => setPromptVersion(e.target.value)} type="number" min="1" placeholder="e.g. 3" className={inputCls} /></div>
               )}
-              <div>
-                <label className={labelCls}>Model</label>
-                <input value={modelStr} onChange={(e) => setModelStr(e.target.value)} placeholder="gpt-4o" className={inputCls} />
-              </div>
+              <div><label className={labelCls}>Model</label><input value={modelStr} onChange={(e) => setModelStr(e.target.value)} placeholder="gpt-4o" className={inputCls} /></div>
               <div>
                 <label className={labelCls}>Provider</label>
                 <select value={provider} onChange={(e) => setProvider(e.target.value)} className={inputCls}>
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="google">Google</option>
-                  <option value="mistral">Mistral</option>
+                  <option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="google">Google</option><option value="mistral">Mistral</option>
                 </select>
               </div>
             </div>
-            <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={creating || !name}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
-                {creating ? 'Creating…' : 'Create Experiment'}
-              </button>
-              <button type="button" onClick={() => setShowForm(false)}
-                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
-                Cancel
-              </button>
+            <div className="flex gap-2">
+              <button type="submit" disabled={creating || !name} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creating ? 'Creating…' : 'Create'}</button>
+              <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Prompt / Models</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Actions</th>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Prompt / Models</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? <SkeletonRows cols={4} /> :
-             experiments.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-12 text-center">
-                  <FlaskConical className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No experiments yet. Create one above.</p>
-                </td>
-              </tr>
-            ) : experiments.map((exp) => (
-              <tr key={exp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{exp.name}</td>
-                <td className="px-4 py-3">
+             paged.length === 0 ? (
+              <tr><td colSpan={4} className="px-3 py-8 text-center text-xs text-slate-400">No experiments yet.</td></tr>
+            ) : paged.map((exp) => (
+              <tr key={exp.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200">{exp.name}</td>
+                <td className="px-3 py-1.5">
                   <div className="flex flex-wrap gap-1">
-                    {exp.prompt_name && (
-                      <span className="rounded-full bg-violet-100 dark:bg-violet-900/50 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300">
-                        {exp.prompt_name}{exp.prompt_version ? ` v${exp.prompt_version}` : ''}
-                      </span>
-                    )}
-                    {exp.models.map((m, i) => (
-                      <span key={i} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-mono text-slate-600 dark:text-slate-300">
-                        {m.model}
-                      </span>
-                    ))}
+                    {exp.prompt_name && <span className="rounded-full bg-violet-100 dark:bg-violet-900/50 px-1.5 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{exp.prompt_name}{exp.prompt_version ? ` v${exp.prompt_version}` : ''}</span>}
+                    {exp.models.map((m, i) => <span key={i} className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-600 dark:text-slate-300">{m.model}</span>)}
                   </div>
                 </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[exp.status] ?? STATUS_STYLES.pending}`}>
-                    {STATUS_ICON[exp.status]}
-                    {exp.status}
-                  </span>
+                <td className="px-3 py-1.5">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[exp.status] ?? STATUS_STYLES.pending}`}>{STATUS_ICON[exp.status]}{exp.status}</span>
                 </td>
                 {canWrite && (
-                  <td className="px-4 py-3">
-                    <button onClick={() => onRun(exp.id)}
-                      disabled={exp.status === 'running'}
-                      className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-40">
+                  <td className="px-3 py-1.5">
+                    <button onClick={() => onRun(exp.id)} disabled={exp.status === 'running'}
+                      className="flex items-center gap-1 rounded bg-violet-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-violet-700 disabled:opacity-40">
                       <Play className="h-3 w-3" /> Run
                     </button>
                   </td>
@@ -252,6 +226,7 @@ function ExperimentsTab({
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={experiments.length} onPageChange={setPage} />
       </div>
     </div>
   )
@@ -275,6 +250,10 @@ function DatasetsTab({
   const [creating, setCreating] = useState(false)
   const [fetching, setFetching] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [page, setPage] = useState(0)
+
+  const totalPages = Math.ceil(datasets.length / PAGE_SIZE)
+  const paged = datasets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   function parseItems(text: string): DatasetItem[] {
     const trimmed = text.trim()
@@ -288,8 +267,7 @@ function DatasetsTab({
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const text = await file.text()
-    setItemsText(text)
+    setItemsText(await file.text())
     setInputMode('paste')
   }
 
@@ -320,115 +298,81 @@ function DatasetsTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Test case collections (input / expected output pairs) shared with Experiments.
-        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Test case collections (input / expected output pairs) shared with Experiments.</p>
         {canWrite && (
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
-            <Plus className="h-4 w-4" /> New Dataset
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700">
+            <Plus className="h-3.5 w-3.5" /> New Dataset
           </button>
         )}
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-white">Create Dataset</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelCls}>Name *</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Customer Q&A" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Description</label>
-                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} />
-              </div>
+        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={labelCls}>Name *</label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Customer Q&A" className={inputCls} /></div>
+              <div><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} /></div>
             </div>
             <div>
-              <div className="flex gap-1 mb-3">
+              <div className="flex gap-1 mb-2">
                 {(['paste', 'upload', 'url'] as const).map(mode => (
                   <button key={mode} type="button" onClick={() => setInputMode(mode)}
-                    className={`rounded px-3 py-1 text-xs font-medium capitalize ${inputMode === mode ? 'bg-violet-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
-                    {mode === 'paste' ? 'Paste' : mode === 'upload' ? 'Upload File' : 'From URL'}
+                    className={`rounded px-2 py-0.5 text-[10px] font-medium capitalize ${inputMode === mode ? 'bg-violet-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                    {mode === 'paste' ? 'Paste' : mode === 'upload' ? 'Upload' : 'URL'}
                   </button>
                 ))}
               </div>
               {inputMode === 'paste' && (
-                <div>
-                  <label className={labelCls}>Items (CSV: input,expected_output — or JSON array)</label>
-                  <textarea value={itemsText} onChange={(e) => setItemsText(e.target.value)}
-                    rows={5} className={`${inputCls} font-mono`} placeholder={'What is 2+2?,4\nCapital of France?,Paris'} />
-                </div>
+                <div><label className={labelCls}>Items (CSV or JSON array)</label><textarea value={itemsText} onChange={(e) => setItemsText(e.target.value)} rows={4} className={`${inputCls} font-mono`} placeholder={'What is 2+2?,4\nCapital of France?,Paris'} /></div>
               )}
               {inputMode === 'upload' && (
                 <div>
-                  <label className={labelCls}>Upload CSV or JSON file</label>
-                  <input type="file" accept=".csv,.json,.txt" onChange={handleFileUpload}
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-violet-700 hover:file:bg-violet-100 dark:file:bg-violet-900/30 dark:file:text-violet-400" />
-                  {itemsText && <p className="mt-1 text-xs text-green-600">✓ File loaded — switch to Paste to review</p>}
+                  <label className={labelCls}>Upload CSV or JSON</label>
+                  <input type="file" accept=".csv,.json,.txt" onChange={handleFileUpload} className="block w-full text-xs text-slate-500 file:mr-3 file:rounded file:border-0 file:bg-violet-50 file:px-2.5 file:py-1 file:text-[10px] file:font-medium file:text-violet-700 dark:file:bg-violet-900/30 dark:file:text-violet-400" />
                 </div>
               )}
               {inputMode === 'url' && (
-                <div>
-                  <label className={labelCls}>File URL (HTTP/HTTPS or GitHub raw)</label>
-                  <div className="flex gap-2">
-                    <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
-                      className={inputCls} placeholder="https://raw.githubusercontent.com/..." />
-                    <button type="button" onClick={handleFetchUrl} disabled={fetching}
-                      className="shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 disabled:opacity-50">
-                      {fetching ? 'Fetching…' : 'Fetch'}
-                    </button>
-                  </div>
-                  {itemsText && <p className="mt-1 text-xs text-green-600">✓ Content loaded — switch to Paste to review</p>}
+                <div className="flex gap-2">
+                  <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} className={inputCls} placeholder="https://raw.githubusercontent.com/..." />
+                  <button type="button" onClick={handleFetchUrl} disabled={fetching} className="shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 text-[10px] font-medium text-slate-700 dark:text-slate-300 disabled:opacity-50">{fetching ? 'Fetching…' : 'Fetch'}</button>
                 </div>
               )}
             </div>
-            <div className="flex gap-2 pt-1">
-              <button type="submit" disabled={creating || !name}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
-                {creating ? 'Creating…' : 'Create Dataset'}
-              </button>
-              <button type="button" onClick={() => setShowForm(false)}
-                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
-                Cancel
-              </button>
+            <div className="flex gap-2">
+              <button type="submit" disabled={creating || !name} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creating ? 'Creating…' : 'Create'}</button>
+              <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Items</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Items</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? <SkeletonRows cols={4} /> :
-             datasets.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-12 text-center">
-                  <Database className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No datasets yet. Create one above or visit the Datasets page.</p>
-                </td>
-              </tr>
-            ) : datasets.map((d) => (
-              <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{d.name}</td>
-                <td className="px-4 py-3 max-w-xs truncate text-slate-500 dark:text-slate-400">{d.description ?? '—'}</td>
-                <td className="px-4 py-3 tabular-nums text-slate-600 dark:text-slate-300">{d.item_count}</td>
-                <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{new Date(d.created_at).toLocaleDateString()}</td>
+             paged.length === 0 ? (
+              <tr><td colSpan={4} className="px-3 py-8 text-center text-xs text-slate-400">No datasets yet.</td></tr>
+            ) : paged.map((d) => (
+              <tr key={d.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200">{d.name}</td>
+                <td className="px-3 py-1.5 max-w-xs truncate text-slate-500 dark:text-slate-400">{d.description ?? '—'}</td>
+                <td className="px-3 py-1.5 tabular-nums text-slate-600 dark:text-slate-300">{d.item_count}</td>
+                <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">{new Date(d.created_at).toLocaleDateString()}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={datasets.length} onPageChange={setPage} />
       </div>
     </div>
   )
@@ -452,6 +396,10 @@ function PromptsTab({
   const [defaultEnv, setDefaultEnv] = useState('production')
   const [creating, setCreating] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [page, setPage] = useState(0)
+
+  const totalPages = Math.ceil(prompts.length / PAGE_SIZE)
+  const paged = prompts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -477,94 +425,67 @@ function PromptsTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Version-controlled prompt templates with variable substitution and environment promotion.
-        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Version-controlled prompt templates with variable substitution.</p>
         {canWrite && (
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700">
-            <Plus className="h-4 w-4" /> New Prompt
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700">
+            <Plus className="h-3.5 w-3.5" /> New Prompt
           </button>
         )}
       </div>
 
       {showForm && canWrite && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-800 dark:text-white">Create Prompt</h3>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+          <form onSubmit={handleCreate} className="grid grid-cols-3 gap-3">
+            <div><label className={labelCls}>Name *</label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="support-agent" className={inputCls} /></div>
+            <div><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} /></div>
             <div>
-              <label className={labelCls}>Name *</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="support-agent" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Description</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Default Environment</label>
+              <label className={labelCls}>Default Env</label>
               <select value={defaultEnv} onChange={(e) => setDefaultEnv(e.target.value)} className={inputCls}>
-                <option value="production">production</option>
-                <option value="staging">staging</option>
-                <option value="dev">dev</option>
+                <option value="production">production</option><option value="staging">staging</option><option value="dev">dev</option>
               </select>
             </div>
-            <div className="sm:col-span-3 flex gap-2">
-              <button type="submit" disabled={creating}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">
-                {creating ? 'Creating…' : 'Create'}
-              </button>
-              <button type="button" onClick={() => setShowForm(false)}
-                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
-                Cancel
-              </button>
+            <div className="col-span-3 flex gap-2">
+              <button type="submit" disabled={creating} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creating ? 'Creating…' : 'Create'}</button>
+              <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
+        <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Env</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
-              <th className="px-4 py-3" />
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Env</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
+              <th className="px-3 py-1.5" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? <SkeletonRows cols={5} /> :
-             prompts.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-12 text-center">
-                  <BookText className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No prompts yet. Create your first prompt template above.</p>
-                </td>
-              </tr>
-            ) : prompts.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
+             paged.length === 0 ? (
+              <tr><td colSpan={5} className="px-3 py-8 text-center text-xs text-slate-400">No prompts yet.</td></tr>
+            ) : paged.map((p) => (
+              <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 cursor-pointer"
                 onClick={() => router.push(`/prompts/${encodeURIComponent(p.name)}`)}>
-                <td className="px-4 py-3 font-mono font-medium text-violet-700 dark:text-violet-400">{p.name}</td>
-                <td className="px-4 py-3 max-w-xs truncate text-slate-600 dark:text-slate-300">{p.description ?? <span className="text-slate-400">—</span>}</td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-600 dark:text-slate-300">{p.default_environment}</span>
-                </td>
-                <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{new Date(p.created_at).toLocaleDateString()}</td>
+                <td className="px-3 py-1.5 font-mono font-medium text-violet-700 dark:text-violet-400">{p.name}</td>
+                <td className="px-3 py-1.5 max-w-xs truncate text-slate-500 dark:text-slate-400">{p.description ?? '—'}</td>
+                <td className="px-3 py-1.5"><span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-slate-300">{p.default_environment}</span></td>
+                <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">{new Date(p.created_at).toLocaleDateString()}</td>
                 {canWrite && (
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(p.name) }}
-                      className="rounded p-1 text-slate-400 hover:text-red-500 dark:hover:text-red-400">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <td className="px-3 py-1.5 text-right">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(p.name) }} className="rounded p-0.5 text-slate-400 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                   </td>
                 )}
               </tr>
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} total={prompts.length} onPageChange={setPage} />
       </div>
     </div>
   )
@@ -607,157 +528,105 @@ function EvaluatorsTab({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Create evaluator */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Evaluators</h2>
-          {canWrite && (showForm ? (
-            <button
-              onClick={() => setShowForm(false)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-            >
-              Cancel
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />New Evaluator
-            </button>
-          ))}
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500 dark:text-slate-400">Rule-based and LLM-judge evaluator pipelines.</p>
+        {canWrite && (
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700">
+            {showForm ? 'Cancel' : <><Plus className="h-3.5 w-3.5" /> New Evaluator</>}
+          </button>
+        )}
+      </div>
 
-        {showForm && canWrite && (
-          <form onSubmit={handleSubmit} className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-4">
+      {showForm && canWrite && (
+        <div className="rounded-xl border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="e.g. Quality Judge" />
-              </div>
+              <div><label className={labelCls}>Name</label><input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="e.g. Quality Judge" /></div>
               <div>
                 <label className={labelCls}>Type</label>
-                <select value={type} onChange={(e) => { setType(e.target.value as 'rule' | 'llm_judge'); setConfigText(e.target.value === 'llm_judge' ? '{\n  "model": "gpt-4o-mini",\n  "criteria": "Rate the quality of the response from 0 to 1."\n}' : '{\n  "rules": []\n}') }} className={inputCls}>
-                  <option value="rule">Rule-based</option>
-                  <option value="llm_judge">LLM Judge</option>
+                <select value={type} onChange={(e) => { setType(e.target.value as 'rule' | 'llm_judge'); setConfigText(e.target.value === 'llm_judge' ? '{\n  "model": "gpt-4o-mini",\n  "criteria": "Rate quality 0-1."\n}' : '{\n  "rules": []\n}') }} className={inputCls}>
+                  <option value="rule">Rule-based</option><option value="llm_judge">LLM Judge</option>
                 </select>
               </div>
             </div>
-            <div>
-              <label className={labelCls}>Description (optional)</label>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="What does this evaluator check?" />
-            </div>
+            <div><label className={labelCls}>Description</label><input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="What does this evaluator check?" /></div>
             <div>
               <label className={labelCls}>Config (JSON)</label>
-              <textarea
-                value={configText}
-                onChange={(e) => { setConfigText(e.target.value); setConfigError('') }}
-                rows={6}
-                className={`${inputCls} font-mono text-xs`}
-              />
-              {configError && <p className="mt-1 text-xs text-red-500">{configError}</p>}
-              {type === 'rule' && (
-                <p className="mt-1 text-xs text-slate-400">
-                  Rules: <code className="font-mono">{'[{"field":"status","op":"eq","value":"succeeded","score_if_pass":1,"score_if_fail":0}]'}</code>
-                </p>
-              )}
+              <textarea value={configText} onChange={(e) => { setConfigText(e.target.value); setConfigError('') }} rows={4} className={`${inputCls} font-mono`} />
+              {configError && <p className="text-[10px] text-red-500">{configError}</p>}
             </div>
-            <button type="submit" disabled={creating || !name} className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors">
-              {creating && <Loader2 className="h-4 w-4 animate-spin" />}Create
-            </button>
+            <button type="submit" disabled={creating || !name} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creating ? 'Creating…' : 'Create'}</button>
           </form>
-        )}
-
-        {/* Evaluators table */}
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                <th className="pb-2 text-left font-medium px-1">Name</th>
-                <th className="pb-2 text-left font-medium px-1">Type</th>
-                <th className="pb-2 text-left font-medium px-1">Status</th>
-                <th className="pb-2 text-right font-medium px-1">Runs</th>
-                <th className="pb-2 text-left font-medium px-1">Last Run</th>
-                <th className="pb-2 px-1"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <SkeletonRows cols={6} />
-              ) : evaluators.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
-                    No evaluators yet — create one above.
-                  </td>
-                </tr>
-              ) : (
-                evaluators.map((ev) => (
-                  <tr key={ev.id} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                    <td className="py-2.5 px-1 font-medium text-slate-800 dark:text-slate-100">{ev.name}</td>
-                    <td className="py-2.5 px-1">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ev.type === 'llm_judge' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'}`}>
-                        {ev.type === 'llm_judge' ? 'LLM Judge' : 'Rule'}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-1">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ev.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                        {ev.status}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{ev.last_run_count.toLocaleString()}</td>
-                    <td className="py-2.5 px-1 text-slate-500 dark:text-slate-400 text-xs">
-                      {ev.last_run_at ? new Date(ev.last_run_at).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="py-2.5 px-1">
-                      <div className="flex items-center justify-end gap-2">
-                        {canWrite && (
-                          <button
-                            onClick={async () => { setRunning(ev.id); try { await onRun(ev.id) } finally { setRunning(null) } }}
-                            disabled={running === ev.id}
-                            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors disabled:opacity-50"
-                          >
-                            {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
-                          </button>
-                        )}
-                        {canWrite && (
-                          <button onClick={() => onDelete(ev.id)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</th>
+              <th className="px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Runs</th>
+              <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Last Run</th>
+              <th className="px-3 py-1.5" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {loading ? <SkeletonRows cols={6} /> :
+             evaluators.length === 0 ? (
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-xs text-slate-400">No evaluators yet.</td></tr>
+            ) : evaluators.map((ev) => (
+              <tr key={ev.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-100">{ev.name}</td>
+                <td className="px-3 py-1.5">
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${ev.type === 'llm_judge' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'}`}>
+                    {ev.type === 'llm_judge' ? 'LLM Judge' : 'Rule'}
+                  </span>
+                </td>
+                <td className="px-3 py-1.5">
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${ev.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>{ev.status}</span>
+                </td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{ev.last_run_count.toLocaleString()}</td>
+                <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400">{ev.last_run_at ? new Date(ev.last_run_at).toLocaleDateString() : '—'}</td>
+                <td className="px-3 py-1.5">
+                  <div className="flex items-center justify-end gap-1.5">
+                    {canWrite && (
+                      <button onClick={async () => { setRunning(ev.id); try { await onRun(ev.id) } finally { setRunning(null) } }} disabled={running === ev.id}
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30 disabled:opacity-50">
+                        {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
+                      </button>
+                    )}
+                    {canWrite && <button onClick={() => onDelete(ev.id)} className="rounded p-0.5 text-slate-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Cost-quality chart */}
       {costQuality.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-4">Cost vs Quality by Model</h2>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4">
+          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-2">Cost vs Quality by Model</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                  <th className="pb-2 text-left font-medium px-1">Model</th>
-                  <th className="pb-2 text-right font-medium px-1">Avg Cost</th>
-                  <th className="pb-2 text-right font-medium px-1">Avg Score</th>
-                  <th className="pb-2 text-right font-medium px-1">Runs</th>
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400">
+                  <th className="pb-1.5 text-left font-medium">Model</th>
+                  <th className="pb-1.5 text-right font-medium">Avg Cost</th>
+                  <th className="pb-1.5 text-right font-medium">Avg Score</th>
+                  <th className="pb-1.5 text-right font-medium">Runs</th>
                 </tr>
               </thead>
               <tbody>
                 {costQuality.map((pt) => (
                   <tr key={pt.model} className="border-b border-slate-50 dark:border-slate-800/50">
-                    <td className="py-2 px-1 font-mono text-xs text-slate-700 dark:text-slate-200">{pt.model}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(pt.avg_cost_usd).toFixed(6)}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                      {pt.avg_score != null ? Number(pt.avg_score).toFixed(3) : '—'}
-                    </td>
-                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{pt.run_count}</td>
+                    <td className="py-1.5 font-mono text-slate-700 dark:text-slate-200">{pt.model}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(pt.avg_cost_usd).toFixed(6)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{pt.avg_score != null ? Number(pt.avg_score).toFixed(3) : '—'}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{pt.run_count}</td>
                   </tr>
                 ))}
               </tbody>
@@ -766,36 +635,257 @@ function EvaluatorsTab({
         </div>
       )}
 
-      {/* Best value models */}
       {bestValue.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-          <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-1">Best Value Models</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Ranked by quality ÷ cost ratio (higher = better value)</p>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4">
+          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5">Best Value Models</h3>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-2">Ranked by quality / cost (higher = better)</p>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-                  <th className="pb-2 text-left font-medium px-1">Rank</th>
-                  <th className="pb-2 text-left font-medium px-1">Model</th>
-                  <th className="pb-2 text-right font-medium px-1">Avg Score</th>
-                  <th className="pb-2 text-right font-medium px-1">Avg Cost</th>
-                  <th className="pb-2 text-right font-medium px-1">Value Score</th>
-                  <th className="pb-2 text-right font-medium px-1">Runs</th>
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400">
+                  <th className="pb-1.5 text-left font-medium">#</th>
+                  <th className="pb-1.5 text-left font-medium">Model</th>
+                  <th className="pb-1.5 text-right font-medium">Score</th>
+                  <th className="pb-1.5 text-right font-medium">Cost</th>
+                  <th className="pb-1.5 text-right font-medium">Value</th>
+                  <th className="pb-1.5 text-right font-medium">Runs</th>
                 </tr>
               </thead>
               <tbody>
                 {bestValue.map((bv, i) => (
                   <tr key={bv.model} className="border-b border-slate-50 dark:border-slate-800/50">
-                    <td className="py-2 px-1 text-slate-500 dark:text-slate-400 text-xs font-medium">#{i + 1}</td>
-                    <td className="py-2 px-1 font-mono text-xs text-slate-700 dark:text-slate-200">{bv.model}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">{Number(bv.avg_score).toFixed(3)}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(bv.avg_cost_usd).toFixed(6)}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-violet-600 dark:text-violet-400 font-semibold">{Number(bv.value_score).toFixed(2)}</td>
-                    <td className="py-2 px-1 text-right tabular-nums text-slate-600 dark:text-slate-300">{bv.run_count}</td>
+                    <td className="py-1.5 text-slate-400">#{i + 1}</td>
+                    <td className="py-1.5 font-mono text-slate-700 dark:text-slate-200">{bv.model}</td>
+                    <td className="py-1.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">{Number(bv.avg_score).toFixed(3)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300">${Number(bv.avg_cost_usd).toFixed(6)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-violet-600 dark:text-violet-400 font-semibold">{Number(bv.value_score).toFixed(2)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{bv.run_count}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Replay tab ────────────────────────────────────────────────────────────────
+
+function ReplayTab({
+  datasets, experiments, loading, canWrite,
+  onCreateDataset, onCreateExperiment, onRunExperiment,
+  modePosture,
+}: {
+  datasets: EvalDataset[]
+  experiments: EvalExperiment[]
+  loading: boolean
+  canWrite: boolean
+  onCreateDataset: (data: { name: string; description?: string; items: DatasetItem[] }) => Promise<void>
+  onCreateExperiment: (data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) => Promise<void>
+  onRunExperiment: (id: string) => Promise<void>
+  modePosture: ReplayLabModePosture | null
+}) {
+  const [subTab, setSubTab] = useState<'datasets' | 'experiments'>('datasets')
+  const [showNewDs, setShowNewDs] = useState(false)
+  const [newDsName, setNewDsName] = useState('')
+  const [creatingDs, setCreatingDs] = useState(false)
+  const [showNewExp, setShowNewExp] = useState(false)
+  const [newExpName, setNewExpName] = useState('')
+  const [newExpDatasetId, setNewExpDatasetId] = useState('')
+  const [newExpModel, setNewExpModel] = useState('')
+  const [newExpProvider, setNewExpProvider] = useState('')
+  const [creatingExp, setCreatingExp] = useState(false)
+  const [expandedExp, setExpandedExp] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+
+  const items = subTab === 'datasets' ? datasets : experiments
+  const totalPages = Math.ceil(items.length / PAGE_SIZE)
+  const pagedDs = datasets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const pagedExp = experiments.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  const datasetMap = Object.fromEntries(datasets.map((d) => [d.id, d.name]))
+
+  async function handleCreateDs() {
+    if (!newDsName.trim()) return
+    setCreatingDs(true)
+    try {
+      await onCreateDataset({ name: newDsName.trim(), items: [] })
+      setNewDsName(''); setShowNewDs(false)
+    } finally { setCreatingDs(false) }
+  }
+
+  async function handleCreateExp() {
+    if (!newExpName.trim() || !newExpDatasetId || !newExpModel.trim() || !newExpProvider.trim()) return
+    setCreatingExp(true)
+    try {
+      await onCreateExperiment({
+        name: newExpName.trim(),
+        dataset_id: newExpDatasetId,
+        models: [{ model: newExpModel.trim(), provider: newExpProvider.trim(), label: null }],
+      })
+      setNewExpName(''); setNewExpDatasetId(''); setNewExpModel(''); setNewExpProvider(''); setShowNewExp(false)
+    } finally { setCreatingExp(false) }
+  }
+
+  return (
+    <div className="space-y-3">
+      {modePosture && (
+        <div className="grid grid-cols-4 gap-2">
+          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Chargeback Rules</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.chargeback_context.chargeback_rules}</p>
+          </div>
+          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Cost 30d</p>
+            <p className="text-sm font-bold text-amber-600 dark:text-amber-400">${num(modePosture.chargeback_context.cost_30d).toFixed(2)}</p>
+          </div>
+          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Replay Experiments</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.replay_context.replay_experiments}</p>
+          </div>
+          <div className="rounded-lg border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/40 dark:bg-amber-950/20 px-3 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Replay Datasets</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.replay_context.replay_datasets}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/40 dark:bg-violet-950/20 px-3 py-2">
+        <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+        <p className="text-xs text-violet-800 dark:text-violet-200">Experiments replay traffic through gateway routes and model configs.</p>
+        <div className="ml-auto flex gap-1.5">
+          {[{ label: 'Gateway', href: '/gateway' }, { label: 'Providers', href: '/provider-profiles' }, { label: 'Routes', href: '/routes' }].map(({ label, href }) => (
+            <Link key={label} href={href} className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50">{label}</Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
+        {(['datasets', 'experiments'] as const).map((t) => (
+          <button key={t} onClick={() => { setSubTab(t); setPage(0) }}
+            className={`px-3 py-1.5 text-xs font-medium capitalize ${subTab === t ? 'border-b-2 border-violet-500 text-violet-600 dark:text-violet-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'datasets' && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Replay datasets for model comparison.</p>
+            {canWrite && <button onClick={() => setShowNewDs(!showNewDs)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700"><Plus className="h-3.5 w-3.5" /> New Dataset</button>}
+          </div>
+          {showNewDs && (
+            <div className="flex items-center gap-2">
+              <input value={newDsName} onChange={(e) => setNewDsName(e.target.value)} placeholder="Dataset name" className={inputCls} />
+              <button onClick={handleCreateDs} disabled={creatingDs} className="rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creatingDs ? 'Creating…' : 'Create'}</button>
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Source</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Items</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {loading ? <SkeletonRows cols={4} /> :
+                 pagedDs.length === 0 ? (
+                  <tr><td colSpan={4} className="px-3 py-6 text-center text-xs text-slate-400">No datasets yet.</td></tr>
+                ) : pagedDs.map((d) => (
+                  <tr key={d.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                    <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200">{d.name}</td>
+                    <td className="px-3 py-1.5 text-slate-500">{d.source ?? '—'}</td>
+                    <td className="px-3 py-1.5 tabular-nums">{d.item_count}</td>
+                    <td className="px-3 py-1.5 text-slate-500">{new Date(d.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Pagination page={page} totalPages={Math.ceil(datasets.length / PAGE_SIZE)} total={datasets.length} onPageChange={setPage} />
+          </div>
+        </div>
+      )}
+
+      {subTab === 'experiments' && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Re-run datasets with different model configs to compare costs.</p>
+            {canWrite && <button onClick={() => setShowNewExp(!showNewExp)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700"><Plus className="h-3.5 w-3.5" /> New Experiment</button>}
+          </div>
+          {showNewExp && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input value={newExpName} onChange={(e) => setNewExpName(e.target.value)} placeholder="Experiment name" className={inputCls} />
+              <select value={newExpDatasetId} onChange={(e) => setNewExpDatasetId(e.target.value)} className={inputCls}>
+                <option value="">Select dataset</option>
+                {datasets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+              <input value={newExpModel} onChange={(e) => setNewExpModel(e.target.value)} placeholder="Model" className={inputCls} />
+              <input value={newExpProvider} onChange={(e) => setNewExpProvider(e.target.value)} placeholder="Provider" className={inputCls} />
+              <button onClick={handleCreateExp} disabled={creatingExp} className="rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creatingExp ? 'Creating…' : 'Create'}</button>
+            </div>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
+                  <th className="px-3 py-1.5 w-6" />
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dataset</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Models</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scores</th>
+                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
+                  <th className="px-3 py-1.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {loading ? <SkeletonRows cols={8} /> :
+                 pagedExp.length === 0 ? (
+                  <tr><td colSpan={8} className="px-3 py-6 text-center text-xs text-slate-400">No experiments yet.</td></tr>
+                ) : pagedExp.map((e) => (
+                  <>
+                    <tr key={e.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                      <td className="px-3 py-1.5">
+                        {e.status === 'completed' && e.results && (
+                          <button onClick={() => setExpandedExp(expandedExp === e.id ? null : e.id)}>
+                            {expandedExp === e.id ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200">{e.name}</td>
+                      <td className="px-3 py-1.5">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[e.status] ?? ''}`}>{STATUS_ICON[e.status]}{e.status}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-slate-500">{e.dataset_id ? datasetMap[e.dataset_id] ?? e.dataset_id.slice(0, 8) : '—'}</td>
+                      <td className="px-3 py-1.5 text-slate-500 font-mono">{e.models.map((m) => `${m.provider}/${m.model}`).join(', ') || '—'}</td>
+                      <td className="px-3 py-1.5 tabular-nums">{e.scores_created}</td>
+                      <td className="px-3 py-1.5 text-slate-500">{new Date(e.created_at).toLocaleDateString()}</td>
+                      <td className="px-3 py-1.5">
+                        {e.status === 'pending' && canWrite && (
+                          <button onClick={() => onRunExperiment(e.id)} className="flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-emerald-700">
+                            <Play className="h-3 w-3" /> Run
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    {expandedExp === e.id && e.results && (
+                      <tr key={`${e.id}-r`} className="border-b border-slate-100 dark:border-slate-800">
+                        <td colSpan={8} className="px-4 py-2">
+                          <pre className="max-h-48 overflow-auto rounded-lg bg-slate-50 dark:bg-slate-800 p-2 text-[10px] font-mono">{JSON.stringify(e.results, null, 2)}</pre>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
+            <Pagination page={page} totalPages={Math.ceil(experiments.length / PAGE_SIZE)} total={experiments.length} onPageChange={setPage} />
           </div>
         </div>
       )}
@@ -813,9 +903,7 @@ export default function EvaluationPage() {
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
   const parseTab = useCallback((value: string | null): Tab => {
-    if (value === 'scores' || value === 'experiments' || value === 'datasets' || value === 'prompts' || value === 'evaluators') {
-      return value
-    }
+    if (value === 'scores' || value === 'experiments' || value === 'datasets' || value === 'prompts' || value === 'evaluators' || value === 'replay') return value
     return 'experiments'
   }, [])
 
@@ -830,6 +918,11 @@ export default function EvaluationPage() {
   const [bestValue, setBestValue] = useState<BestValueModel[]>([])
   const [budgetBuildPosture, setBudgetBuildPosture] = useState<BudgetDetailBuildPosture | null>(null)
   const [budgetControlBuildPosture, setBudgetControlBuildPosture] = useState<BudgetControlBuildPosture | null>(null)
+  const [orgGatewayPosture, setOrgGatewayPosture] = useState<EvalReplayOrgGatewayPosture | null>(null)
+  const [observePosture, setObservePosture] = useState<EvalReplayObservePosture | null>(null)
+  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
+  const [parentPosture, setParentPosture] = useState<EvalStudioParentPosture | null>(null)
+  const [modePosture, setModePosture] = useState<ReplayLabModePosture | null>(null)
 
   const refresh = useCallback(async () => {
     if (!apiKey) return
@@ -852,380 +945,187 @@ export default function EvaluationPage() {
     } catch (err) {
       console.error(err)
       toast.error('Failed to load evaluation data')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }, [apiKey])
 
-  const [orgGatewayPosture, setOrgGatewayPosture] = useState<EvalReplayOrgGatewayPosture | null>(null)
-  const [observePosture, setObservePosture] = useState<EvalReplayObservePosture | null>(null)
-  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
-  const [parentPosture, setParentPosture] = useState<EvalStudioParentPosture | null>(null)
+  useEffect(() => {
+    refresh()
+    if (apiKey) {
+      getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {})
+      getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {})
+      getEvalReplayOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {})
+      getEvalReplayObservePosture(apiKey).then(setObservePosture).catch(() => {})
+      getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {})
+      getEvalStudioParentPosture(apiKey).then(setParentPosture).catch(() => {})
+      getReplayLabModePosture(apiKey).then(setModePosture).catch(() => {})
+    }
+  }, [refresh])
 
-  useEffect(() => { refresh(); if (apiKey) { getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {}); getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {}); getEvalReplayOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {}); getEvalReplayObservePosture(apiKey).then(setObservePosture).catch(() => {}); getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {}); getEvalStudioParentPosture(apiKey).then(setParentPosture).catch(() => {}) } }, [refresh])
   useEffect(() => {
     const next = parseTab(searchParams.get('tab'))
     setTab((current) => (current === next ? current : next))
   }, [parseTab, searchParams])
-
-  async function handleCreateExperiment(data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) {
-    try {
-      await createEvalExperiment(apiKey, data)
-      toast.success('Experiment created')
-      await refresh()
-    } catch { toast.error('Failed to create experiment') }
-  }
-
-  async function handleRunExperiment(id: string) {
-    try {
-      const updated = await runEvalExperiment(apiKey, id)
-      setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e)))
-      toast.success('Experiment completed')
-    } catch { toast.error('Failed to run experiment') }
-  }
-
-  async function handleCreateDataset(data: { name: string; description?: string; items: DatasetItem[] }) {
-    try {
-      await createEvalDataset(apiKey, data)
-      toast.success('Dataset created')
-      await refresh()
-    } catch { toast.error('Failed to create dataset') }
-  }
-
-  async function handleCreateEvaluator(data: { name: string; description: string; type: string; config: Record<string, unknown> }) {
-    try {
-      await createEvaluator(apiKey, data)
-      toast.success('Evaluator created')
-      await refresh()
-    } catch { toast.error('Failed to create evaluator') }
-  }
-
-  async function handleDeleteEvaluator(id: string) {
-    try {
-      await deleteEvaluator(apiKey, id)
-      toast.success('Evaluator deleted')
-      setEvaluators((prev) => prev.filter((e) => e.id !== id))
-    } catch { toast.error('Failed to delete evaluator') }
-  }
-
-  async function handleRunEvaluator(id: string) {
-    try {
-      await runEvaluator(apiKey, id)
-      toast.success('Evaluation queued — scores will appear shortly')
-      await refresh()
-    } catch { toast.error('Failed to queue evaluation') }
-  }
 
   function handleTabChange(next: Tab) {
     setTab(next)
     router.replace(`/evaluation?tab=${next}`)
   }
 
+  async function handleCreateExperiment(data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) {
+    try { await createEvalExperiment(apiKey, data); toast.success('Experiment created'); await refresh() } catch { toast.error('Failed to create experiment') }
+  }
+
+  async function handleRunExperiment(id: string) {
+    try { const updated = await runEvalExperiment(apiKey, id); setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e))); toast.success('Experiment completed') } catch { toast.error('Failed to run experiment') }
+  }
+
+  async function handleCreateDataset(data: { name: string; description?: string; items: DatasetItem[] }) {
+    try { await createEvalDataset(apiKey, data); toast.success('Dataset created'); await refresh() } catch { toast.error('Failed to create dataset') }
+  }
+
+  async function handleCreateEvaluator(data: { name: string; description: string; type: string; config: Record<string, unknown> }) {
+    try { await createEvaluator(apiKey, data); toast.success('Evaluator created'); await refresh() } catch { toast.error('Failed to create evaluator') }
+  }
+
+  async function handleDeleteEvaluator(id: string) {
+    try { await deleteEvaluator(apiKey, id); toast.success('Evaluator deleted'); setEvaluators((prev) => prev.filter((e) => e.id !== id)) } catch { toast.error('Failed to delete evaluator') }
+  }
+
+  async function handleRunEvaluator(id: string) {
+    try { await runEvaluator(apiKey, id); toast.success('Evaluation queued'); await refresh() } catch { toast.error('Failed to queue evaluation') }
+  }
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'scores', label: 'Scores', icon: <Star className="h-4 w-4" /> },
-    { id: 'experiments', label: 'Experiments', icon: <FlaskConical className="h-4 w-4" />, count: experiments.length },
-    { id: 'datasets', label: 'Datasets', icon: <Database className="h-4 w-4" />, count: datasets.length },
-    { id: 'prompts', label: 'Prompts', icon: <BookText className="h-4 w-4" />, count: prompts.length },
-    { id: 'evaluators', label: 'Evaluators', icon: <CheckCircle className="h-4 w-4" />, count: evaluators.length },
+    { id: 'scores', label: 'Scores', icon: <Star className="h-3.5 w-3.5" /> },
+    { id: 'experiments', label: 'Experiments', icon: <FlaskConical className="h-3.5 w-3.5" />, count: experiments.length },
+    { id: 'datasets', label: 'Datasets', icon: <Database className="h-3.5 w-3.5" />, count: datasets.length },
+    { id: 'prompts', label: 'Prompts', icon: <BookText className="h-3.5 w-3.5" />, count: prompts.length },
+    { id: 'evaluators', label: 'Evaluators', icon: <CheckCircle className="h-3.5 w-3.5" />, count: evaluators.length },
+    { id: 'replay', label: 'Replay Lab', icon: <Beaker className="h-3.5 w-3.5" /> },
   ]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Evaluations Studio</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Compare models with experiments, manage datasets and prompts, and run evaluator pipelines from one studio.
-        </p>
+    <div className="space-y-3">
+      {/* ── Gradient header ────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white">Evaluation Studio</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Compare models, manage datasets & prompts, run evaluator pipelines.</p>
+          </div>
+        </div>
+        <div className="flex gap-1.5">
+          {[
+            { label: 'Playground', href: '/playground' },
+            { label: 'Agents', href: '/agents' },
+            { label: 'Workflows', href: '/workflows' },
+            { label: 'Scorecards', href: '/model-scorecards' },
+          ].map(({ label, href }) => (
+            <Link key={label} href={href} className="rounded-full bg-violet-100 dark:bg-violet-900/30 px-2.5 py-1 text-[10px] font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/40 transition-colors">{label}</Link>
+          ))}
+        </div>
       </div>
 
-      {budgetBuildPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget &amp; Build Context</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetBuildPosture.budget_context.active_budgets}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Models Used</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetBuildPosture.spend_context.distinct_models_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
-              <p className={`mt-1 text-lg font-semibold ${budgetBuildPosture.budget_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetBuildPosture.budget_context.breach_count}</p>
-            </div>
+      {/* ── KPI strip ──────────────────────────────────────── */}
+      <div className="grid grid-cols-8 gap-2">
+        {[
+          { label: 'Experiments', value: experiments.length },
+          { label: 'Datasets', value: datasets.length },
+          { label: 'Prompts', value: prompts.length },
+          { label: 'Evaluators', value: evaluators.length },
+          { label: 'Scores', value: bestValue.length > 0 ? bestValue.reduce((a, b) => a + b.run_count, 0) : '—' },
+          { label: 'Active Budgets', value: budgetBuildPosture?.budget_context.active_budgets ?? '—' },
+          { label: '30d Spend', value: budgetBuildPosture ? `$${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}` : '—', accent: true },
+          { label: 'Hub Models', value: orgGatewayPosture?.ai_hub_context.hub_models ?? '—' },
+        ].map(({ label, value, accent }) => (
+          <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
+            <p className={`text-sm font-bold ${accent ? 'text-violet-600 dark:text-violet-400' : 'text-slate-900 dark:text-white'}`}>{value}</p>
           </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
-            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/budgets?scope=feature_tag" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Feature Budgets</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
-            <Link href="/model-scorecards" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Model Scorecards</Link>
-          </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {budgetControlBuildPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Control — Build Posture</p>
-          </div>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetControlBuildPosture.budget_policy.active_budgets}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
-              <p className={`mt-1 text-lg font-semibold ${budgetControlBuildPosture.budget_policy.breached_budgets > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetControlBuildPosture.budget_policy.breached_budgets}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Avg Utilization</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}%</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Scope Types</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{Object.keys(budgetControlBuildPosture.scope_context).length}</p>
+      {/* ── Posture chips ──────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-2">
+        {budgetControlBuildPosture && (
+          <div className="rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/20 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">FinOps</p>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{budgetControlBuildPosture.budget_policy.active_budgets} budgets</span>
+              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}% util</span>
+              {budgetControlBuildPosture.budget_policy.breached_budgets > 0 && <span className="rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-[10px] text-red-700 dark:text-red-300">{budgetControlBuildPosture.budget_policy.breached_budgets} breached</span>}
+              <Link href="/budgets" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
-            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/budgets?tab=overrides" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
-            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
+        )}
+        {orgGatewayPosture && (
+          <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Org & Providers</p>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.distinct_providers} providers</span>
+              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.active_routes} routes</span>
+              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.guardrail_context.guardrail_rules} guardrails</span>
+              <Link href="/gateway" className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">Gateway</Link>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {buildPosture && (
+          <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/40 bg-rose-50/30 dark:bg-rose-950/20 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Build & Improve</p>
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.playground_context.sessions_30d} playground</span>
+              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.workflows_context.definitions} workflows</span>
+              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.scorecards_context.score_events_30d} scores</span>
+              <Link href="/workflows" className="text-[10px] text-rose-600 hover:underline dark:text-rose-400">Workflows</Link>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {orgGatewayPosture && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Organization &amp; Access Context</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.workspace_context.workspace_name}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Access Groups</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.access_group_context.access_groups}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">API Keys</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.api_key_context.api_keys}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.ai_hub_context.hub_models}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-            <Link href="/organization" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Organization</Link>
-            <Link href="/access-groups" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Access Groups</Link>
-            <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
-            <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
-          </div>
-        </div>
-      )}
-
-      {orgGatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm dark:border-violet-900 dark:bg-violet-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">Gateway &amp; Routing Context</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Providers</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.provider_context.distinct_providers}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Routes</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.provider_context.active_routes}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Guardrails</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.guardrail_context.guardrail_rules}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Cache Configs</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgGatewayPosture.gateway_context.cache_configs}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
-            <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
-            <Link href="/routes" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Routes</Link>
-            <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
-            <Link href="/response-cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
-          </div>
-        </div>
-      )}
-
-      {observePosture && (
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5 shadow-sm dark:border-cyan-900 dark:bg-cyan-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Observe &amp; Runtime Context</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.runs_context.runs_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Provider Calls 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.request_flow_context.provider_calls_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Distinct Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{observePosture.model_usage_context.distinct_models_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-cyan-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Total Cost 30d</p>
-              <p className="mt-1 text-lg font-semibold text-cyan-600 dark:text-cyan-400">${num(observePosture.cost_savings_context.total_cost_30d).toFixed(2)}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
-            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
-            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
-            <Link href="/analytics?tab=requests" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Flow</Link>
-            <Link href="/request-explorer" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Request Explorer</Link>
-            <Link href="/analytics?tab=models" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost &amp; Savings</Link>
-          </div>
-        </div>
-      )}
-
-      {buildPosture && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm dark:border-rose-900 dark:bg-rose-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">Build &amp; Improve Loop</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Playground 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.playground_context.sessions_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Workflows</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.workflows_context.definitions}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Hub Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.optimization_context.hub_models}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Score Events 30d</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.scorecards_context.score_events_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-rose-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Replay Experiments</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{buildPosture.replay_context.experiments}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-200 dark:border-rose-800">
-            <Link href="/playground" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Playground</Link>
-            <Link href="/workflows" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Workflows</Link>
-            <Link href="/optimization-opportunities" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Optimization</Link>
-            <Link href="/optimization-simulator" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Simulator</Link>
-            <Link href="/model-scorecards" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Model Scorecards</Link>
-          </div>
-        </div>
-      )}
-
-      {parentPosture && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Billing &amp; Chargeback Context</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Billing Periods</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.billing_context.billing_periods}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Open Periods</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.billing_context.open_periods}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.chargeback_context.chargeback_rules}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Cost 30d</p>
-              <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">${num(parentPosture.chargeback_context.cost_30d).toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-amber-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Eval Assets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{parentPosture.eval_self_context.datasets + parentPosture.eval_self_context.experiments + parentPosture.eval_self_context.replay_experiments}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
-            <Link href="/billing" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Billing Periods</Link>
-            <Link href="/chargeback" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Chargeback Rules</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
-            <Link href="/datasets" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Datasets</Link>
-            <Link href="/experiments" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Experiments</Link>
-            <Link href="/replay" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Replay Lab</Link>
-          </div>
-        </div>
-      )}
-
-      {/* Tab bar */}
-      <div className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-1">
+      {/* ── Tab bar ────────────────────────────────────────── */}
+      <div className="flex gap-0.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-0.5">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => handleTabChange(t.id)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
               tab === t.id
                 ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-300 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
             }`}
           >
             {t.icon}
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                tab === t.id ? 'bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-              }`}>
-                {t.count}
-              </span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                tab === t.id ? 'bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+              }`}>{t.count}</span>
             )}
           </button>
         ))}
       </div>
 
+      {/* ── Tab content ────────────────────────────────────── */}
       {tab === 'scores' && <QualityScoresTab apiKey={apiKey} />}
       {tab === 'experiments' && (
-        <ExperimentsTab
-          experiments={experiments}
-          datasets={datasets}
-          prompts={prompts}
-          loading={loading}
-          onCreate={handleCreateExperiment}
-          onRun={handleRunExperiment}
-          canWrite={canWrite}
-        />
+        <ExperimentsTab experiments={experiments} datasets={datasets} prompts={prompts} loading={loading} onCreate={handleCreateExperiment} onRun={handleRunExperiment} canWrite={canWrite} />
       )}
       {tab === 'datasets' && (
-        <DatasetsTab
-          datasets={datasets}
-          loading={loading}
-          onCreate={handleCreateDataset}
-          canWrite={canWrite}
-        />
+        <DatasetsTab datasets={datasets} loading={loading} onCreate={handleCreateDataset} canWrite={canWrite} />
       )}
       {tab === 'prompts' && (
-        <PromptsTab
-          prompts={prompts}
-          loading={loading}
-          onRefresh={refresh}
-          canWrite={canWrite}
-        />
+        <PromptsTab prompts={prompts} loading={loading} onRefresh={refresh} canWrite={canWrite} />
       )}
       {tab === 'evaluators' && (
-        <EvaluatorsTab
-          evaluators={evaluators}
-          costQuality={costQuality}
-          bestValue={bestValue}
-          loading={loading}
-          onCreate={handleCreateEvaluator}
-          onDelete={handleDeleteEvaluator}
-          onRun={handleRunEvaluator}
-          canWrite={canWrite}
-        />
+        <EvaluatorsTab evaluators={evaluators} costQuality={costQuality} bestValue={bestValue} loading={loading} onCreate={handleCreateEvaluator} onDelete={handleDeleteEvaluator} onRun={handleRunEvaluator} canWrite={canWrite} />
+      )}
+      {tab === 'replay' && (
+        <ReplayTab datasets={datasets} experiments={experiments} loading={loading} canWrite={canWrite}
+          onCreateDataset={handleCreateDataset} onCreateExperiment={handleCreateExperiment} onRunExperiment={handleRunExperiment}
+          modePosture={modePosture} />
       )}
     </div>
   )
