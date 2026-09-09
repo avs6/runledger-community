@@ -469,7 +469,7 @@ export default function AgentsPage() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 px-6 py-14 text-center">
           <BrainCircuit className="h-8 w-8 text-slate-400" />
           <h2 className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">No agents registered</h2>
-          <p className="mt-1 max-w-md text-xs text-slate-500">Click "Register Agent" above to create your first agent, or use the API.</p>
+          <p className="mt-1 max-w-md text-xs text-slate-500">Click &ldquo;Register Agent&rdquo; above to create your first agent, or use the API.</p>
           <button onClick={() => setShowForm(true)} className="mt-3 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-blue-700 hover:to-cyan-600 transition-colors">
             <Plus className="mr-1 inline h-3 w-3" /> Register Agent
           </button>

@@ -229,15 +229,6 @@ export default function DataCapturePage() {
     }
   }
 
-  if (!canManageOrgSettings) {
-    return (
-      <div className="p-8">
-        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Data Capture</h1>
-        <p className="mt-2 text-xs text-slate-500">Data capture policy is an organization-admin function.</p>
-      </div>
-    )
-  }
-
   const compliance = COMPLIANCE_NOTES[privacyMode]
   const ComplianceIcon = compliance?.icon ?? Info
 
@@ -265,6 +256,15 @@ export default function DataCapturePage() {
     }
     return items
   }, [orgPosture, gatewayPosture, runtimePosture])
+
+  if (!canManageOrgSettings) {
+    return (
+      <div className="p-8">
+        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Data Capture</h1>
+        <p className="mt-2 text-xs text-slate-500">Data capture policy is an organization-admin function.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
