@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Shield } from 'lucide-react'
 import type { Budget, BudgetRollupResponse, NotificationResponse } from '@/types/api'
 import BudgetList from './BudgetList'
 import BudgetNotificationsPanel from './BudgetNotificationsPanel'
@@ -21,24 +21,6 @@ interface Props {
 
 function formatMoney(value: string) {
   return `$${parseFloat(value).toFixed(2)}`
-}
-
-function SummaryCard({
-  label,
-  value,
-  description,
-}: {
-  label: string
-  value: string
-  description: string
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-100">{value}</p>
-      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{description}</p>
-    </div>
-  )
 }
 
 export default function BudgetManager({
@@ -88,72 +70,66 @@ export default function BudgetManager({
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard
-          label="Active Budgets"
-          value={String(activeBudgets.length)}
-          description="Live policy objects currently enforcing spend behavior."
-        />
-        <SummaryCard
-          label="At Risk"
-          value={String(atRiskCount)}
-          description="Budgets currently at or above 80% of configured limit."
-        />
-        <SummaryCard
-          label="Current Spend"
-          value={rollup ? formatMoney(rollup.current_spend_usd) : '$0.00'}
-          description="Workspace rollup across currently active budget policies."
-        />
-        <SummaryCard
-          label="Channels"
-          value={String(notifications.length)}
-          description="Webhook or Slack destinations receiving budget events."
-        />
+    <div className="space-y-5">
+      {/* KPI cards */}
+      <div className="grid gap-3 md:grid-cols-4">
+        {[
+          { label: 'Active Budgets', value: String(activeBudgets.length), sub: 'Live policies enforcing spend.' },
+          { label: 'At Risk', value: String(atRiskCount), sub: 'Budgets at or above 80% of limit.' },
+          { label: 'Current Spend', value: rollup ? formatMoney(rollup.current_spend_usd) : '$0.00', sub: 'Workspace rollup.' },
+          { label: 'Channels', value: String(notifications.length), sub: 'Webhook/Slack destinations.' },
+        ].map(({ label, value, sub }) => (
+          <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+            <p className="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">{value}</p>
+            <p className="mt-1 text-[11px] text-slate-500">{sub}</p>
+          </div>
+        ))}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-2">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Spend Control Plane</p>
-          <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-100">
-            Budget policy, exceptions, and breach delivery in one place
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Budgets own the policy lifecycle. Overrides and notifications stay attached to that
-            policy instead of becoming separate FinOps products.
+      {/* Spend control banner + new budget */}
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Shield className="h-4 w-4 text-blue-500" />
+            <p className="text-xs font-bold text-slate-900 dark:text-white">Spend Control Plane</p>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Budgets own the policy lifecycle. Overrides and notifications stay attached to that policy instead of becoming separate products.
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
         >
-          <Plus className="h-4 w-4" />
-          New Budget
+          <Plus className="h-3.5 w-3.5" /> New Budget
         </button>
       </div>
 
       {initialScopeType && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+        <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2 text-[11px] text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
           Showing budget policy for <span className="font-semibold">{initialScopeType.replace('_', ' ')}</span>
-          {initialScopeId ? <> <span className="font-mono text-xs">{initialScopeId}</span></> : null}.
-          Create and edit budgets here without leaving the scoped flow.
+          {initialScopeId ? <> <span className="font-mono text-[10px]">{initialScopeId}</span></> : null}.
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`rounded-full px-4 py-2 text-sm font-medium ${
-              activeTab === tab.id
-                ? 'bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Tab bar */}
+      <div className="rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
+        <nav className="flex gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                activeTab === tab.id
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {activeTab === 'policies' && (

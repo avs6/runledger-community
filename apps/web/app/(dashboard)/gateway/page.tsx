@@ -1181,7 +1181,7 @@ export default function GatewayPage() {
           {/* Quick nav links */}
           <div className="flex flex-wrap gap-1.5">
             {[
-              { label: 'Org Profile', href: '/org-profile' },
+              { label: 'Org Settings', href: '/org-settings' },
               { label: 'Onboarding', href: '/onboarding' },
               { label: 'Users', href: '/users' },
               { label: 'Workspaces', href: '/workspace' },
@@ -1570,7 +1570,7 @@ export default function GatewayPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/org-profile" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Organization Profile</Link>
+            <Link href="/org-settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Organization Settings</Link>
             <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
             <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
             <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>

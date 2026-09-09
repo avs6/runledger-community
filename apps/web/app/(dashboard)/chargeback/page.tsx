@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  Shield,
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
@@ -87,6 +88,17 @@ const DEFAULT_RULE: RuleFormState = {
   weight: '1.0',
   require_approval: false,
 }
+
+const inputCls =
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500'
+
+const TABS: Array<[Tab, string]> = [
+  ['overview', 'Overview'],
+  ['rules', 'Rules'],
+  ['allocations', 'Allocations'],
+  ['exceptions', 'Exceptions'],
+  ['exports', 'Exports'],
+]
 
 export default function ChargebackPage() {
   const searchParams = useSearchParams()
@@ -247,370 +259,242 @@ export default function ChargebackPage() {
     }
   }
 
+  const postureChips: string[] = []
+  if (finopsPosture) {
+    postureChips.push(`${finopsPosture.budget_context.total_budgets} budgets`)
+    postureChips.push(`${finopsPosture.billing_context.open_periods} open periods`)
+    postureChips.push(`$${num(finopsPosture.billing_context.total_billed_usd).toFixed(2)} billed`)
+    postureChips.push(`${finopsPosture.chargeback_context.active_rules} CB rules`)
+    postureChips.push(`${finopsPosture.ledger_context.total_snapshots} snapshots`)
+  }
+  if (chargebackCrossPosture) {
+    postureChips.push(`${chargebackCrossPosture.org_context.access_groups} groups`)
+    postureChips.push(`${chargebackCrossPosture.gateway_context.routes} routes`)
+    postureChips.push(`$${num(chargebackCrossPosture.spend_context.total_spend_30d).toFixed(2)} 30d spend`)
+  }
+
   if (!canManageOrgSettings) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 p-6">
-        <div className="flex items-center gap-3">
-          <Receipt className="h-7 w-7 text-indigo-500" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Chargeback</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Chargeback management is available to organization admins and managers.
-            </p>
+      <div className="space-y-5">
+        <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-rose-950 to-orange-950 px-6 py-8 text-white shadow-lg">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(244,63,94,0.15),transparent_60%)]" />
+          <div className="relative flex items-center gap-3">
+            <Receipt className="h-6 w-6 text-rose-400" />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Chargeback</h1>
+              <p className="mt-1 text-[11px] text-slate-300">
+                Chargeback management is available to organization admins and managers.
+              </p>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Receipt className="h-7 w-7 text-indigo-500" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Chargeback</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Allocate AI cost across workflow tags, applications, users, providers, and other modern ownership dimensions.
-          </p>
-        </div>
-      </div>
-
-      {finopsPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">FinOps Internal Posture</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{finopsPosture.period_days}d window</span>
+    <div className="space-y-5">
+      {/* ── Hero ── */}
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-rose-950 to-orange-950 px-6 py-8 text-white shadow-lg">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(244,63,94,0.15),transparent_60%)]" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-6 w-6 text-rose-400" />
+              <h1 className="text-2xl font-bold tracking-tight">Chargeback</h1>
+            </div>
+            <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-300">
+              Allocate AI cost across workflow tags, applications, users, providers, and other modern ownership dimensions — with rules, reports, and finance-ready exports.
+            </p>
+            {postureChips.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {postureChips.map((c) => (
+                  <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Budgets</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.budget_context.total_budgets}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.budget_context.active_budgets} active · {finopsPosture.budget_context.breached_budgets} breached</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Billing Periods</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.billing_context.total_periods}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${num(finopsPosture.billing_context.total_billed_usd).toFixed(2)} billed</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Ledger Snapshots</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.ledger_context.total_snapshots}</p>
-              <p className="text-xs text-slate-400">latest: {finopsPosture.ledger_context.latest_snapshot_date}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Overrides</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.override_context.total_overrides}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.override_context.active_overrides} active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Notifications</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.notification_context.total_notifications}</p>
-              <p className="text-xs text-slate-400">${num(finopsPosture.notification_context.spend_30d).toFixed(2)} 30d spend</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/budgets" className="text-emerald-700 hover:underline dark:text-emerald-400">Budgets →</Link>
-            <Link href="/billing" className="text-emerald-700 hover:underline dark:text-emerald-400">Billing →</Link>
-            <Link href="/settings?tab=compliance" className="text-emerald-700 hover:underline dark:text-emerald-400">Ledger →</Link>
-          </div>
-        </div>
-      )}
-
-      {chargebackCrossPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Chargeback × Cross-Feature Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{chargebackCrossPosture.period_days}d window</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Org</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.org_context.access_groups} groups</p>
-              <p className="text-xs text-slate-400">{chargebackCrossPosture.org_context.api_keys} keys · {chargebackCrossPosture.org_context.workspace_users} users</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Gateway</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.gateway_context.routes} routes</p>
-              <p className="text-xs text-slate-400">{chargebackCrossPosture.gateway_context.active_providers_30d} providers · {chargebackCrossPosture.gateway_context.cache_configs} caches</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Safety</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.safety_context.mcp_servers} MCP servers</p>
-              <p className="text-xs text-slate-400">{chargebackCrossPosture.safety_context.tool_registry_count} tools · {chargebackCrossPosture.safety_context.tags} tags</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Platform</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{chargebackCrossPosture.platform_context.total_organizations} orgs</p>
-              <p className="text-xs text-slate-400">{chargebackCrossPosture.platform_context.chargeback_rules} rules</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(chargebackCrossPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-              <p className="text-xs text-slate-400">{chargebackCrossPosture.safety_context.audit_events_30d} audit events</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/organizations" className="text-emerald-600 hover:underline dark:text-emerald-400">Organization →</Link>
-            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
-            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
-            <Link href="/telemetry" className="text-emerald-600 hover:underline dark:text-emerald-400">Telemetry →</Link>
-            <Link href="/ai-hub" className="text-emerald-600 hover:underline dark:text-emerald-400">AI Hub →</Link>
-            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
-            <Link href="/mcp-servers" className="text-emerald-600 hover:underline dark:text-emerald-400">MCP Servers →</Link>
-            <Link href="/tool-registry" className="text-emerald-600 hover:underline dark:text-emerald-400">Tool Registry →</Link>
-            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
-            <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
-            <Link href="/settings" className="text-emerald-600 hover:underline dark:text-emerald-400">Platform →</Link>
-          </div>
-        </div>
-      )}
-
-      {attributionPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Chargeback Attribution Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{attributionPosture.period_days}d window</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Identity</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.identity_context.workspace_users} users</p>
-              <p className="text-xs text-slate-400">{attributionPosture.identity_context.api_keys} keys · {attributionPosture.identity_context.access_groups} groups</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Runtime</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.runtime_context.chargeback_rules} rules</p>
-              <p className="text-xs text-slate-400">{attributionPosture.runtime_context.cache_configs} caches · ${num(attributionPosture.runtime_context.cache_hit_savings_usd).toFixed(2)} savings</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Monitoring</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{attributionPosture.monitoring_context.alert_rules} alert rules</p>
-              <p className="text-xs text-slate-400">{attributionPosture.monitoring_context.audit_events_30d} audit events · {attributionPosture.monitoring_context.tags} tags</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Optimization</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(attributionPosture.optimization_context.cache_savings_usd).toFixed(2)}</p>
-              <p className="text-xs text-slate-400">cache savings</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(attributionPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/analytics/users" className="text-emerald-600 hover:underline dark:text-emerald-400">Users →</Link>
-            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
-            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
-            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
-            <Link href="/monitoring" className="text-emerald-600 hover:underline dark:text-emerald-400">Monitoring →</Link>
-            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
-            <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
-            <Link href="/optimization" className="text-emerald-600 hover:underline dark:text-emerald-400">Optimization →</Link>
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        {([
-          ['overview', 'Overview'],
-          ['rules', 'Rules'],
-          ['allocations', 'Allocations'],
-          ['exceptions', 'Exceptions'],
-          ['exports', 'Exports'],
-        ] as Array<[Tab, string]>).map(([value, label]) => (
           <button
-            key={value}
-            onClick={() => setActiveTab(value)}
-            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-              activeTab === value
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'
-            }`}
+            onClick={() => { setShowRuleForm((v) => !v); setActiveTab('rules') }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-orange-600 px-4 py-2 text-xs font-semibold shadow-md transition hover:brightness-110"
           >
-            {label}
+            <Plus className="h-3.5 w-3.5" /> New Rule
           </button>
-        ))}
-      </div>
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto_auto]">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-500">Period</span>
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
-          >
-            {months.map((month) => (
-              <option key={month} value={month}>
-                {month}
-              </option>
-            ))}
+        {/* KPI strip — from report + rules */}
+        <div className="relative mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+          {[
+            { label: 'Total Cost', value: report ? money(report.total_cost_usd) : '—' },
+            { label: 'Covered', value: report ? money(report.covered_cost_usd) : '—' },
+            { label: 'Unallocated', value: report ? money(report.unallocated_cost_usd) : '—' },
+            { label: 'Rules', value: String(rules.length) },
+            { label: 'Period', value: selectedPeriod },
+            { label: 'Dimension', value: DIMENSIONS.find((d) => d.value === reportDimension)?.label ?? reportDimension },
+            { label: 'Breakdown Rows', value: report ? String(report.breakdown.length) : '0' },
+            { label: 'Exceptions', value: report ? String(report.breakdown.filter((r) => r.allocation_status !== 'allocated' || r.coverage_status !== 'budgeted').length) : '0' },
+          ].map((kpi) => (
+            <div key={kpi.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
+              <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Period + dimension controls */}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-xs">
+          <span className="mb-1 block font-semibold text-slate-500 dark:text-slate-400">Period</span>
+          <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)} className={inputCls}>
+            {months.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-500">Dimension</span>
-          <select
-            value={reportDimension}
-            onChange={(e) => setReportDimension(e.target.value as DimensionType)}
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
-          >
-            {DIMENSIONS.map((dimension) => (
-              <option key={dimension.value} value={dimension.value}>
-                {dimension.label}
-              </option>
-            ))}
+        <label className="block text-xs">
+          <span className="mb-1 block font-semibold text-slate-500 dark:text-slate-400">Dimension</span>
+          <select value={reportDimension} onChange={(e) => setReportDimension(e.target.value as DimensionType)} className={inputCls}>
+            {DIMENSIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
           </select>
         </label>
         <button
           onClick={() => void fetchReport()}
-          className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           Refresh
         </button>
-        <button
-          onClick={() => setShowRuleForm((current) => !current)}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-        >
-          <Plus className="h-4 w-4" />
-          Rule
-        </button>
       </div>
 
-      {activeTab === 'overview' ? (
+      {/* Tab bar */}
+      <div className="rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
+        <nav className="flex flex-wrap gap-1">
+          {TABS.map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setActiveTab(value)}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                activeTab === value
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* ── Tab content ── */}
+
+      {activeTab === 'overview' && (
         loadingReport ? (
-          <p className="text-sm text-slate-500">Loading chargeback overview...</p>
+          <p className="text-xs text-slate-500">Loading chargeback overview…</p>
         ) : report ? (
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Total cost</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{money(report.total_cost_usd)}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Budget-covered</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{money(report.covered_cost_usd)}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Unallocated</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{money(report.unallocated_cost_usd)}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Rule count</p>
-                <p className="mt-2 text-2xl font-semibold text-slate-900 dark:text-white">{rules.length}</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-blue-600" />
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Top allocations</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart3 className="h-4 w-4 text-rose-500" />
+                  <h2 className="text-xs font-bold text-slate-900 dark:text-white">Top Allocations</h2>
                 </div>
-                <div className="mt-4 space-y-3">
+                <div className="space-y-3">
                   {report.breakdown.slice(0, 6).map((item) => (
                     <div key={`${item.dimension}-${item.dimension_value}`} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center justify-between text-xs">
                         <span className="text-slate-700 dark:text-slate-300">{item.dimension_value}</span>
-                        <span className="font-mono text-slate-900 dark:text-white">{money(item.cost_usd)}</span>
+                        <span className="font-mono font-semibold text-slate-900 dark:text-white">{money(item.cost_usd)}</span>
                       </div>
-                      <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
-                          className="h-2 rounded-full bg-blue-500"
+                          className="h-1.5 rounded-full bg-gradient-to-r from-rose-500 to-orange-500"
                           style={{ width: `${Math.min(100, Number.parseFloat(item.pct_of_total))}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-xs text-slate-500">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500">
                         <span>{pct(item.pct_of_total)} of total</span>
-                        <span>{item.coverage_status}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                          item.coverage_status === 'budgeted'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                        }`}>{item.coverage_status}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Bundle C posture</h2>
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center gap-2 mb-4">
+                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                  <h2 className="text-xs font-bold text-slate-900 dark:text-white">Chargeback Posture</h2>
                 </div>
-                <ul className="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                  <li>Chargeback now runs on real backend report and export endpoints instead of UI-only assumptions.</li>
-                  <li>Budget variance is shown where the current budget scope model already aligns to the chosen dimension.</li>
-                  <li>Unallocated buckets are explicit so allocation gaps are visible instead of silently disappearing.</li>
-                  <li>Deeper access-group and API-key-native attribution can layer on later without reopening legacy team/project concepts.</li>
+                <ul className="space-y-2 text-[11px] text-slate-600 dark:text-slate-300">
+                  <li>Chargeback runs on real backend report and export endpoints.</li>
+                  <li>Budget variance shown where scope aligns to chosen dimension.</li>
+                  <li>Unallocated buckets are explicit so gaps are visible.</li>
+                  <li>Access-group and API-key attribution can layer on later.</li>
                 </ul>
                 <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <Link href="/tool-registry" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Tool Registry</Link>
-                  <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-                  <Link href="/budgets?view=detail" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budget Detail</Link>
-                  <Link href="/ledger" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Ledger</Link>
+                  {[
+                    { label: 'Tool Registry', href: '/tool-registry' },
+                    { label: 'Budgets', href: '/budgets' },
+                    { label: 'Budget Detail', href: '/budgets?view=detail' },
+                    { label: 'Ledger', href: '/ledger' },
+                  ].map(({ label, href }) => (
+                    <Link key={label} href={href} className="text-[10px] font-semibold text-rose-600 hover:underline dark:text-rose-400">{label}</Link>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">
+          <div className="rounded-xl border border-dashed border-slate-300 p-6 text-xs text-slate-500 dark:border-slate-700">
             No chargeback report data is available for this period and dimension yet.
           </div>
         )
-      ) : null}
+      )}
 
-      {activeTab === 'rules' ? (
+      {activeTab === 'rules' && (
         <div className="space-y-4">
-          {showRuleForm ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <div className="grid gap-4 md:grid-cols-4">
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-500">Allocation type</span>
+          {showRuleForm && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <h3 className="mb-3 text-xs font-bold text-slate-900 dark:text-white">{editingRuleId ? 'Edit Rule' : 'Create Rule'}</h3>
+              <div className="grid gap-3 md:grid-cols-4">
+                <label className="block text-xs">
+                  <span className="mb-1 block font-semibold text-slate-500">Allocation type</span>
                   <select
                     value={ruleForm.allocation_type}
-                    onChange={(e) =>
-                      setRuleForm((current) => ({
-                        ...current,
-                        allocation_type: e.target.value as AllocationType,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                    onChange={(e) => setRuleForm((c) => ({ ...c, allocation_type: e.target.value as AllocationType }))}
+                    className={inputCls}
                   >
-                    {ALLOCATION_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
+                    {ALLOCATION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-500">Dimension</span>
+                <label className="block text-xs">
+                  <span className="mb-1 block font-semibold text-slate-500">Dimension</span>
                   <select
                     value={ruleForm.dimension}
-                    onChange={(e) =>
-                      setRuleForm((current) => ({
-                        ...current,
-                        dimension: e.target.value as DimensionType,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                    onChange={(e) => setRuleForm((c) => ({ ...c, dimension: e.target.value as DimensionType }))}
+                    className={inputCls}
                   >
-                    {DIMENSIONS.map((dimension) => (
-                      <option key={dimension.value} value={dimension.value}>
-                        {dimension.label}
-                      </option>
-                    ))}
+                    {DIMENSIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                   </select>
                 </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-500">Weight (0-1)</span>
+                <label className="block text-xs">
+                  <span className="mb-1 block font-semibold text-slate-500">Weight (0-1)</span>
                   <input
                     value={ruleForm.weight}
-                    onChange={(e) => setRuleForm((current) => ({ ...current, weight: e.target.value }))}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800"
+                    onChange={(e) => setRuleForm((c) => ({ ...c, weight: e.target.value }))}
+                    className={inputCls}
                   />
                 </label>
-                <label className="flex items-end gap-2 pb-2 text-sm text-slate-700 dark:text-slate-300">
+                <label className="flex items-end gap-2 pb-1 text-xs text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
                     checked={ruleForm.require_approval}
-                    onChange={(e) => setRuleForm((current) => ({ ...current, require_approval: e.target.checked }))}
+                    onChange={(e) => setRuleForm((c) => ({ ...c, require_approval: e.target.checked }))}
+                    className="rounded"
                   />
                   Require approval
                 </label>
@@ -619,257 +503,347 @@ export default function ChargebackPage() {
                 <button
                   onClick={() => void handleSaveRule()}
                   disabled={savingRule}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                  className="rounded-lg bg-gradient-to-r from-rose-600 to-orange-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
                 >
-                  {savingRule ? 'Saving...' : editingRuleId ? 'Save rule' : 'Create rule'}
+                  {savingRule ? 'Saving…' : editingRuleId ? 'Save Rule' : 'Create Rule'}
                 </button>
                 <button
                   onClick={resetRuleForm}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  className="rounded-lg border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
               </div>
             </div>
-          ) : null}
+          )}
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-                <tr>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Type</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Dimension</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Weight</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Status</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Created</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loadingRules ? (
-                  <tr className="bg-white dark:bg-slate-900">
-                    <td colSpan={6} className="px-4 py-6 text-center text-slate-500">Loading rules...</td>
-                  </tr>
-                ) : rules.length === 0 ? (
-                  <tr className="bg-white dark:bg-slate-900">
-                    <td colSpan={6} className="px-4 py-6 text-center text-slate-500">No chargeback rules yet.</td>
-                  </tr>
-                ) : (
-                  rules.map((rule) => (
-                    <tr key={rule.id} className="bg-white dark:bg-slate-900">
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{rule.allocation_type}</td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{rule.dimension}</td>
-                      <td className="px-4 py-3 font-mono text-slate-900 dark:text-white">{rule.weight}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          rule.status === 'active'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                            : rule.status === 'pending_approval'
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                              : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                        }`}>
-                          {rule.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">{new Date(rule.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingRuleId(rule.id)
-                              setRuleForm({
-                                allocation_type: rule.allocation_type as AllocationType,
-                                dimension: rule.dimension as DimensionType,
-                                weight: rule.weight,
-                                require_approval: rule.status === 'pending_approval',
-                              })
-                              setShowRuleForm(true)
-                            }}
-                            className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => void handleDeleteRule(rule.id)}
-                            className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {activeTab === 'allocations' ? (
-        loadingReport ? (
-          <p className="text-sm text-slate-500">Loading allocation report...</p>
-        ) : report ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-                <tr>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Value</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Allocation</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Cost</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">% of total</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Runs</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Calls</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Budget</th>
-                  <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Variance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {report.breakdown.length === 0 ? (
-                  <tr className="bg-white dark:bg-slate-900">
-                    <td colSpan={8} className="px-4 py-6 text-center text-slate-500">No allocation rows for this period.</td>
-                  </tr>
-                ) : (
-                  report.breakdown.map((item) => (
-                    <tr key={`${item.dimension}-${item.dimension_value}`} className="bg-white dark:bg-slate-900">
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.dimension_value}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          item.allocation_status === 'allocated'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                        }`}>
-                          {item.allocation_status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-slate-900 dark:text-white">{money(item.cost_usd)}</td>
-                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{pct(item.pct_of_total)}</td>
-                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{item.run_count}</td>
-                      <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{item.call_count}</td>
-                      <td className="px-4 py-3 text-right font-mono text-slate-700 dark:text-slate-300">
-                        {item.budget_usd ? money(item.budget_usd) : '--'}
-                      </td>
-                      <td className={`px-4 py-3 text-right font-mono ${
-                        item.variance_usd && Number.parseFloat(item.variance_usd) > 0
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-slate-700 dark:text-slate-300'
-                      }`}>
-                        {item.variance_usd ? money(item.variance_usd) : '--'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">
-            No allocation data is available for this selection.
-          </div>
-        )
-      ) : null}
-
-      {activeTab === 'exceptions' ? (
-        loadingReport ? (
-          <p className="text-sm text-slate-500">Loading allocation exceptions...</p>
-        ) : report ? (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Allocation exceptions</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Unallocated or weakly covered rows stay visible here so finance operators can fix attribution gaps instead of losing them in aggregate totals.
-              </p>
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-                  <tr>
-                    <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Value</th>
-                    <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Allocation</th>
-                    <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Coverage</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Cost</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Runs</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Calls</th>
+          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
+                    {['Type', 'Dimension', 'Weight', 'Status', 'Created', 'Actions'].map((h) => (
+                      <th key={h} className={`px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${h === 'Actions' ? 'text-right' : 'text-left'}`}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {report.breakdown.filter(
-                    (item) =>
-                      item.allocation_status !== 'allocated' || item.coverage_status !== 'budgeted'
-                  ).length === 0 ? (
+                  {loadingRules ? (
                     <tr className="bg-white dark:bg-slate-900">
-                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
-                        No allocation exceptions for this selection.
-                      </td>
+                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500">Loading rules…</td>
+                    </tr>
+                  ) : rules.length === 0 ? (
+                    <tr className="bg-white dark:bg-slate-900">
+                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500">No chargeback rules yet.</td>
                     </tr>
                   ) : (
-                    report.breakdown
-                      .filter(
-                        (item) =>
-                          item.allocation_status !== 'allocated' ||
-                          item.coverage_status !== 'budgeted'
-                      )
-                      .map((item) => (
-                        <tr key={`${item.dimension}-${item.dimension_value}`} className="bg-white dark:bg-slate-900">
-                          <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.dimension_value}</td>
-                          <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.allocation_status}</td>
-                          <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.coverage_status}</td>
-                          <td className="px-4 py-3 text-right font-mono text-slate-900 dark:text-white">
-                            {money(item.cost_usd)}
-                          </td>
-                          <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{item.run_count}</td>
-                          <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{item.call_count}</td>
-                        </tr>
-                      ))
+                    rules.map((rule) => (
+                      <tr key={rule.id} className="bg-white hover:bg-rose-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/50">
+                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{rule.allocation_type}</td>
+                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{rule.dimension}</td>
+                        <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 dark:text-white">{rule.weight}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            rule.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              : rule.status === 'pending_approval'
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                          }`}>
+                            {rule.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500">{new Date(rule.created_at).toLocaleDateString()}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                setEditingRuleId(rule.id)
+                                setRuleForm({
+                                  allocation_type: rule.allocation_type as AllocationType,
+                                  dimension: rule.dimension as DimensionType,
+                                  weight: rule.weight,
+                                  require_approval: rule.status === 'pending_approval',
+                                })
+                                setShowRuleForm(true)
+                              }}
+                              className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => void handleDeleteRule(rule.id)}
+                              className="rounded-md border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 dark:border-rose-800/40 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'allocations' && (
+        loadingReport ? (
+          <p className="text-xs text-slate-500">Loading allocation report…</p>
+        ) : report ? (
+          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
+                    {['Value', 'Allocation', 'Cost', '% of Total', 'Runs', 'Calls', 'Budget', 'Variance'].map((h) => (
+                      <th key={h} className={`px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${['Cost', '% of Total', 'Runs', 'Calls', 'Budget', 'Variance'].includes(h) ? 'text-right' : 'text-left'}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {report.breakdown.length === 0 ? (
+                    <tr className="bg-white dark:bg-slate-900">
+                      <td colSpan={8} className="px-4 py-6 text-center text-slate-500">No allocation rows for this period.</td>
+                    </tr>
+                  ) : (
+                    report.breakdown.map((item) => (
+                      <tr key={`${item.dimension}-${item.dimension_value}`} className="bg-white hover:bg-rose-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/50">
+                        <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">{item.dimension_value}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            item.allocation_status === 'allocated'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          }`}>
+                            {item.allocation_status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-900 dark:text-white">{money(item.cost_usd)}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{pct(item.pct_of_total)}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{item.run_count}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{item.call_count}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-slate-700 dark:text-slate-300">
+                          {item.budget_usd ? money(item.budget_usd) : '—'}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right font-mono ${
+                          item.variance_usd && Number.parseFloat(item.variance_usd) > 0
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-slate-700 dark:text-slate-300'
+                        }`}>
+                          {item.variance_usd ? money(item.variance_usd) : '—'}
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-700">
+          <div className="rounded-xl border border-dashed border-slate-300 p-6 text-xs text-slate-500 dark:border-slate-700">
+            No allocation data is available for this selection.
+          </div>
+        )
+      )}
+
+      {activeTab === 'exceptions' && (
+        loadingReport ? (
+          <p className="text-xs text-slate-500">Loading allocation exceptions…</p>
+        ) : report ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-200/50 bg-amber-50/60 p-4 dark:border-amber-800/30 dark:bg-amber-950/20">
+              <h2 className="text-xs font-bold text-amber-900 dark:text-amber-200">Allocation Exceptions</h2>
+              <p className="mt-1 text-[11px] text-amber-800/80 dark:text-amber-300/70">
+                Unallocated or weakly covered rows stay visible here so finance operators can fix attribution gaps.
+              </p>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
+                      {['Value', 'Allocation', 'Coverage', 'Cost', 'Runs', 'Calls'].map((h) => (
+                        <th key={h} className={`px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${['Cost', 'Runs', 'Calls'].includes(h) ? 'text-right' : 'text-left'}`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {report.breakdown.filter(
+                      (item) =>
+                        item.allocation_status !== 'allocated' || item.coverage_status !== 'budgeted'
+                    ).length === 0 ? (
+                      <tr className="bg-white dark:bg-slate-900">
+                        <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                          No allocation exceptions for this selection.
+                        </td>
+                      </tr>
+                    ) : (
+                      report.breakdown
+                        .filter(
+                          (item) =>
+                            item.allocation_status !== 'allocated' ||
+                            item.coverage_status !== 'budgeted'
+                        )
+                        .map((item) => (
+                          <tr key={`${item.dimension}-${item.dimension_value}`} className="bg-white hover:bg-rose-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/50">
+                            <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">{item.dimension_value}</td>
+                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.allocation_status}</td>
+                            <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{item.coverage_status}</td>
+                            <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-900 dark:text-white">{money(item.cost_usd)}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{item.run_count}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{item.call_count}</td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300 p-6 text-xs text-slate-500 dark:border-slate-700">
             No allocation exception data is available for this selection.
           </div>
         )
-      ) : null}
+      )}
 
-      {activeTab === 'exports' ? (
+      {activeTab === 'exports' && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Export chargeback evidence</h2>
-            <p className="mt-2 text-sm text-slate-500">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-xs font-bold text-slate-900 dark:text-white">Export Chargeback Evidence</h2>
+            <p className="mt-2 text-[11px] text-slate-500">
               Export the allocation report for downstream finance review, spreadsheet workflows, or compliance packaging.
             </p>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => void handleExport('csv')}
                 disabled={exporting !== null}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-orange-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
               >
-                <Download className="h-4 w-4" />
-                {exporting === 'csv' ? 'Exporting...' : 'Export CSV'}
+                <Download className="h-3.5 w-3.5" />
+                {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
               </button>
               <button
                 onClick={() => void handleExport('json')}
                 disabled={exporting !== null}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                <Download className="h-4 w-4" />
-                {exporting === 'json' ? 'Exporting...' : 'Export JSON'}
+                <Download className="h-3.5 w-3.5" />
+                {exporting === 'json' ? 'Exporting…' : 'Export JSON'}
               </button>
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Current Bundle C scope</h2>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-xs font-bold text-slate-900 dark:text-white">Current Scope</h2>
+            <ul className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
               <li>Modern report dimensions: workflow tag, application, end user, provider, model, intent, and workspace.</li>
-              <li>Budget variance appears where the current budget scope types already line up with chargeback.</li>
-              <li>Access-group and API-key-native allocation can deepen later without reintroducing teams or projects.</li>
-              <li>Shared-cost policy preview remains in Billing because that is the period-preparation surface, not the allocation reporting owner.</li>
+              <li>Budget variance appears where scope types align with chargeback.</li>
+              <li>Access-group and API-key-native allocation can deepen later.</li>
+              <li>Shared-cost policy preview remains in Billing (period-preparation surface).</li>
             </ul>
           </div>
         </div>
-      ) : null}
+      )}
+
+      {/* ── Context panels ── */}
+      {finopsPosture && (
+        <div className="rounded-xl border border-rose-200/50 bg-gradient-to-r from-rose-50/60 to-orange-50/60 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-orange-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <h2 className="text-xs font-bold text-rose-900 dark:text-rose-200">FinOps Internal Posture</h2>
+            <span className="ml-auto text-[10px] text-rose-500 dark:text-rose-400">{finopsPosture.period_days}d window</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
+            {[
+              { label: 'Budgets', value: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.total_budgets}` },
+              { label: 'Billing', value: `${finopsPosture.billing_context.open_periods}/${finopsPosture.billing_context.total_periods}` },
+              { label: 'CB Rules', value: `${finopsPosture.chargeback_context.active_rules}/${finopsPosture.chargeback_context.total_rules}` },
+              { label: 'Ledger', value: String(finopsPosture.ledger_context.total_snapshots) },
+              { label: 'Overrides', value: `${finopsPosture.override_context.active_overrides}/${finopsPosture.override_context.total_overrides}` },
+              { label: '30d Spend', value: `$${num(finopsPosture.notification_context.spend_30d).toFixed(2)}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">{label}</p>
+                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {chargebackCrossPosture && (
+        <div className="rounded-xl border border-orange-200/50 bg-gradient-to-r from-orange-50/60 to-rose-50/60 p-4 dark:border-orange-800/30 dark:from-orange-950/30 dark:to-rose-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            <h2 className="text-xs font-bold text-orange-900 dark:text-orange-200">Cross-Feature Context</h2>
+            <span className="ml-auto text-[10px] text-orange-500 dark:text-orange-400">{chargebackCrossPosture.period_days}d window</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            {[
+              { label: 'Org', value: `${chargebackCrossPosture.org_context.access_groups} groups · ${chargebackCrossPosture.org_context.workspace_users} users` },
+              { label: 'Gateway', value: `${chargebackCrossPosture.gateway_context.routes} routes · ${chargebackCrossPosture.gateway_context.active_providers_30d} providers` },
+              { label: 'Safety', value: `${chargebackCrossPosture.safety_context.mcp_servers} MCP · ${chargebackCrossPosture.safety_context.tool_registry_count} tools` },
+              { label: 'Platform', value: `${chargebackCrossPosture.platform_context.total_organizations} orgs · ${chargebackCrossPosture.platform_context.chargeback_rules} rules` },
+              { label: 'Spend', value: `$${num(chargebackCrossPosture.spend_context.total_spend_30d).toFixed(2)}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">{label}</p>
+                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {attributionPosture && (
+        <div className="rounded-xl border border-rose-200/50 bg-gradient-to-r from-rose-50/60 to-pink-50/60 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-pink-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <h2 className="text-xs font-bold text-rose-900 dark:text-rose-200">Attribution Context</h2>
+            <span className="ml-auto text-[10px] text-rose-500 dark:text-rose-400">{attributionPosture.period_days}d window</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            {[
+              { label: 'Identity', value: `${attributionPosture.identity_context.workspace_users} users · ${attributionPosture.identity_context.api_keys} keys` },
+              { label: 'Runtime', value: `${attributionPosture.runtime_context.chargeback_rules} rules · $${num(attributionPosture.runtime_context.cache_hit_savings_usd).toFixed(2)} savings` },
+              { label: 'Monitoring', value: `${attributionPosture.monitoring_context.alert_rules} alerts · ${attributionPosture.monitoring_context.tags} tags` },
+              { label: 'Optimization', value: `$${num(attributionPosture.optimization_context.cache_savings_usd).toFixed(2)} cache savings` },
+              { label: 'Spend', value: `$${num(attributionPosture.spend_context.total_spend_30d).toFixed(2)}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">{label}</p>
+                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick-nav footer ── */}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {[
+          { label: 'Cost & Savings', href: '/cost-savings' },
+          { label: 'Budgets', href: '/budgets' },
+          { label: 'Billing', href: '/billing' },
+          { label: 'Access Groups', href: '/access-groups' },
+          { label: 'API Keys', href: '/api-keys' },
+          { label: 'Gateway', href: '/gateway' },
+          { label: 'Tags', href: '/tags' },
+          { label: 'Audit Log', href: '/audit' },
+          { label: 'Monitoring', href: '/monitoring' },
+        ].map(({ label, href }) => (
+          <Link
+            key={label}
+            href={href}
+            className="rounded-full border border-rose-200 bg-rose-50/80 px-3 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

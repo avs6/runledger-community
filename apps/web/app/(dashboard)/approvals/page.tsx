@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { ScrollText, Plus, Trash2, Building2, Radio, Link2, Layers } from 'lucide-react'
+import { ScrollText, Plus, Trash2, ShieldCheck, X, Zap, Clock, CheckCircle2, XCircle, Ban, Pencil } from 'lucide-react'
 import {
   getApprovalSummary,
   getApprovalsAlertFinopsPosture,
@@ -36,6 +36,9 @@ import type {
   AutoApprovalPolicy,
 } from '@/types/api'
 
+const inputCls =
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500'
+
 const REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
   budget_increase: 'Budget Increase',
   prompt_promote: 'Prompt → Production',
@@ -49,31 +52,27 @@ const REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
   route_policy_change: 'Route Policy Change',
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  denied: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  cancelled: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
+const STATUS_CHIP: Record<string, { cls: string; icon: typeof Clock }> = {
+  pending: { cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: Clock },
+  approved: { cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle2 },
+  denied: { cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
+  cancelled: { cls: 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400', icon: Ban },
 }
 
 const REQUEST_TYPES: ApprovalRequestType[] = [
-  'budget_increase',
-  'prompt_promote',
-  'tool_allow',
-  'capture_policy_full',
-  'shadow_routing',
-  'premium_model_use',
-  'external_mcp_tool',
-  'long_agent_session',
-  'sensitive_export',
-  'route_policy_change',
+  'budget_increase', 'prompt_promote', 'tool_allow', 'capture_policy_full',
+  'shadow_routing', 'premium_model_use', 'external_mcp_tool', 'long_agent_session',
+  'sensitive_export', 'route_policy_change',
 ]
+
+type Tab = 'queue' | 'policies'
 
 export default function ApprovalsPage() {
   const { data: session } = useSession()
   const { isWorkspaceAdmin } = useRole()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
+  const [tab, setTab] = useState<Tab>('queue')
   const [summary, setSummary] = useState<ApprovalSummary | null>(null)
   const [approvals, setApprovals] = useState<ApprovalResponse[]>([])
   const [finopsPosture, setFinopsPosture] = useState<ApprovalsAlertFinopsPosture | null>(null)
@@ -93,7 +92,6 @@ export default function ApprovalsPage() {
   const [deciding, setDeciding] = useState<{ id: string; action: 'approve' | 'deny' } | null>(null)
   const [decisionNote, setDecisionNote] = useState('')
 
-  // Auto-approval policies
   const [autoPolicies, setAutoPolicies] = useState<AutoApprovalPolicy[]>([])
   const [loadingPolicies, setLoadingPolicies] = useState(false)
   const [showPolicyForm, setShowPolicyForm] = useState(false)
@@ -151,10 +149,7 @@ export default function ApprovalsPage() {
     if (!apiKey || !isWorkspaceAdmin) return
     setCreateLoading(true)
     try {
-      await createApproval(apiKey, {
-        request_type: createType,
-        reason: createReason || undefined,
-      })
+      await createApproval(apiKey, { request_type: createType, reason: createReason || undefined })
       toast.success('Approval request submitted')
       setShowCreate(false)
       setCreateReason('')
@@ -171,10 +166,10 @@ export default function ApprovalsPage() {
     try {
       if (deciding.action === 'approve') {
         await approveApproval(apiKey, deciding.id, decisionNote || undefined)
-        toast.success('Approval approved')
+        toast.success('Approved')
       } else {
         await denyApproval(apiKey, deciding.id, decisionNote || undefined)
-        toast.success('Approval denied')
+        toast.success('Denied')
       }
       setDeciding(null)
       setDecisionNote('')
@@ -200,16 +195,10 @@ export default function ApprovalsPage() {
     setCreatingPolicy(true)
     try {
       if (editingPolicyId) {
-        await updateAutoApprovalPolicy(apiKey, editingPolicyId, {
-          request_type: policyType,
-          condition: policyCondition.trim(),
-        })
+        await updateAutoApprovalPolicy(apiKey, editingPolicyId, { request_type: policyType, condition: policyCondition.trim() })
         toast.success('Auto-approval policy updated')
       } else {
-        await createAutoApprovalPolicy(apiKey, {
-          request_type: policyType,
-          condition: policyCondition.trim(),
-        })
+        await createAutoApprovalPolicy(apiKey, { request_type: policyType, condition: policyCondition.trim() })
         toast.success('Auto-approval policy created')
       }
       setShowPolicyForm(false)
@@ -245,521 +234,306 @@ export default function ApprovalsPage() {
   if (!isWorkspaceAdmin) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-950 dark:text-white">Approvals</h1>
-        <p className="mt-4 text-sm text-slate-500">Approvals require workspace-admin access.</p>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Approvals</h1>
+        <p className="mt-2 text-xs text-slate-500">Approvals require workspace-admin access.</p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950 dark:text-white">Approvals</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Governance workflow for sensitive actions — budget increases, production deploys, and more
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/audit?action=approval"
-            className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            <ScrollText className="h-4 w-4" /> Audit Trail
-          </Link>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            Request Approval
-          </button>
-        </div>
-      </div>
-
-      {/* Summary strip */}
-      {summary && (
-        <div className="grid grid-cols-4 gap-3">
-          {(['pending', 'approved', 'denied', 'cancelled'] as const).map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
-              className={`rounded-xl border p-3 text-left shadow-sm transition-colors ${
-                statusFilter === s
-                  ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/40'
-                  : 'border-slate-300 bg-white/90 hover:bg-blue-50/45 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800'
-              }`}
-            >
-              <div className="text-2xl font-bold text-slate-950 dark:text-white">{summary[s]}</div>
-              <div className="mt-0.5 text-xs capitalize text-slate-600 dark:text-slate-400">{s}</div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* FinOps Budget Context */}
-      {finopsPosture && (
-        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/40 p-5 space-y-4">
-          <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-6xl space-y-4 p-4">
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.15),transparent_60%)]" />
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/20 ring-1 ring-indigo-400/30">
+              <ShieldCheck className="h-5 w-5 text-indigo-400" />
+            </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">FinOps Budget Context</p>
-              <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">Budget Exception Workflows</p>
+              <h1 className="text-lg font-bold text-white">Governance Approvals</h1>
+              <p className="text-xs text-indigo-200/70">Exception workflows for sensitive actions — budget, deploy, export &amp; more</p>
             </div>
-            <Link href="/budgets" className="text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300">
-              Manage budgets &rarr;
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/audit?action=approval" className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/20">
+              <ScrollText className="h-3.5 w-3.5" /> Audit Trail
             </Link>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Increase Requests</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{finopsPosture.approval_context.budget_increase_total}</p>
-              <p className="text-xs text-slate-500">{finopsPosture.approval_context.budget_increase_pending} pending</p>
-            </div>
-            <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Active Budgets</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{finopsPosture.budget_context.total_budgets}</p>
-              <p className="text-xs text-slate-500">{finopsPosture.budget_context.active_overrides} active overrides</p>
-            </div>
-            <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Breaches (30d)</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{finopsPosture.budget_context.breach_count_30d}</p>
-              <p className="text-xs text-slate-500">${num(finopsPosture.budget_context.total_budget_limit_usd).toFixed(0)} total limit</p>
-            </div>
-            <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-white dark:bg-slate-900 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Alert Rules</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{finopsPosture.alert_context.budget_alert_rules}</p>
-              <p className="text-xs text-slate-500">{finopsPosture.alert_context.recent_firings_30d} firings (30d)</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/budgets" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/budgets?view=detail" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Budget Detail</Link>
-            <Link href="/alert-rules" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Alert Rules</Link>
-            <Link href="/chargeback" className="text-xs text-emerald-700 hover:underline dark:text-emerald-400">Chargeback</Link>
+            <button onClick={() => setShowCreate(true)} className="rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-indigo-400 hover:to-violet-400">
+              Request Approval
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Org & Access Scope */}
-      {orgPosture && (
-        <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Org &amp; Access Scope</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Workspace Users</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.user_context.total_users}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Access Groups</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.access_group_context.total_groups}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Pending Approvals</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.approval_context.pending_approvals}</p>
-              <p className="text-xs text-slate-500">{orgPosture.approval_context.total_approvals} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Active API Keys</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.api_key_context.total_keys}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/organization" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Organization</Link>
-            <Link href="/users" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Users</Link>
-            <Link href="/workspaces" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Workspaces</Link>
-            <Link href="/access-groups" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Access Groups</Link>
-            <Link href="/api-keys" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">API Keys</Link>
-            <Link href="/mcp-registry" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">MCP Registry</Link>
-          </div>
-        </div>
-      )}
-
-      {/* Gateway & Observe Runtime */}
-      {gatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-lg font-semibold text-violet-900 dark:text-violet-100">Gateway &amp; Observe Runtime</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Gateway Routes</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.provider_context.total_routes}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.provider_context.total_providers} providers</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Guardrails</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.guardrail_context.total_guardrails}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.guardrail_context.guardrail_events_30d} events (30d)</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Tool Calls (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.run_context.tool_runs_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.run_context.total_runs_30d} total runs</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Alert Firings (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.monitoring_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.monitoring_context.total_alert_rules} active rules</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/gateway" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Gateway</Link>
-            <Link href="/guardrails" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Guardrails</Link>
-            <Link href="/runs" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Runs</Link>
-            <Link href="/request-explorer" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Request Explorer</Link>
-            <Link href="/monitoring" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Monitoring</Link>
-          </div>
-        </div>
-      )}
-
-      {govInternal && (
-        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">Governance Cohesion</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Registered Tools</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_registry_context.total_tools}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_registry_context.enforced_tools} enforced</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Policies</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_policies_context.active_policies}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_policies_context.total_policies} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Audit Events 30d</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.audit_context.audit_events_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Tags</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tags_context.active_tags}</p>
-              <p className="text-xs text-slate-500">{govInternal.tags_context.total_tags} total</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/tool-registry" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Registry</Link>
-            <Link href="/tool-policies" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Policies</Link>
-            <Link href="/data-capture" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Data Capture</Link>
-            <Link href="/security" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Security</Link>
-            <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
-            <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
-            <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
-            <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
-          </div>
-        </div>
-      )}
-
-      {runtimePosture && (
-        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Alert Firings 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.monitoring_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.monitoring_context.active_alert_rules} rules active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Runs 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.observe_evidence.runs_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.observe_evidence.approval_linked_runs_30d} approval-linked</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Guardrail Rules</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_escalation.guardrail_rules}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.gateway_escalation.model_routes} model routes</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Budget Approvals 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.budget_context.budget_increase_approvals_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.budget_context.total_budgets} budgets active</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/workspaces" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Workspaces</Link>
-            <Link href="/api-keys" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">API Keys</Link>
-            <Link href="/model-gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
-            <Link href="/guardrails" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Guardrails</Link>
-            <Link href="/runs" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Runs</Link>
-            <Link href="/alert-rules" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Alert Rules</Link>
-            <Link href="/budgets" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Budgets</Link>
-          </div>
-        </div>
-      )}
-
-      {/* Approvals table */}
-      <div className="overflow-hidden rounded-xl border border-slate-300 bg-white/90 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center gap-3 border-b border-slate-200 p-4 dark:border-slate-700">
-          <h2 className="flex-1 text-sm font-semibold text-slate-950 dark:text-white">
-            {statusFilter ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Approvals` : 'All Approvals'}
-            {!loading && <span className="ml-2 font-normal text-slate-500">({total})</span>}
-          </h2>
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="denied">Denied</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-
-        {loading ? (
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse p-4">
-                <div className="mb-2 h-4 w-1/3 rounded bg-slate-100 dark:bg-slate-700" />
-                <div className="h-3 w-1/2 rounded bg-slate-100 dark:bg-slate-700" />
-              </div>
-            ))}
-          </div>
-        ) : approvals.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-600 dark:text-slate-400">
-            No approvals found.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-200 dark:divide-slate-700">
-            {approvals.map(approval => {
-              const filteredEntries = Object.entries(approval.request).filter(([k]) => k !== '_reason')
-              const requestContextStr: string | null = filteredEntries.length > 0
-                ? JSON.stringify(Object.fromEntries(filteredEntries))
-                : null
-              const reasonStr = approval.request._reason != null ? String(approval.request._reason) : null
+        {/* Summary KPI strip */}
+        {summary && (
+          <div className="relative mt-4 grid grid-cols-4 gap-2">
+            {(['pending', 'approved', 'denied', 'cancelled'] as const).map((s) => {
+              const chip = STATUS_CHIP[s]
+              const Icon = chip.icon
               return (
-                <div key={approval.id} className="p-4 text-slate-800 hover:bg-blue-50/45 dark:text-slate-200 dark:hover:bg-slate-800/40">
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-medium text-slate-950 dark:text-white">
-                          {REQUEST_TYPE_LABELS[approval.request_type] ?? approval.request_type}
-                        </span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[approval.status] ?? STATUS_COLORS.cancelled}`}>
-                          {approval.status}
-                        </span>
-                      </div>
-                      <div className="mt-1 space-y-0.5 text-xs text-slate-600 dark:text-slate-400">
-                        {approval.requested_by && (
-                          <div>Requested by: <span className="font-mono">{approval.requested_by}</span></div>
-                        )}
-                        <div>
-                          {new Date(approval.created_at).toLocaleString()}
-                          {approval.decided_at && (
-                            <> &rarr; decided {new Date(approval.decided_at).toLocaleString()}</>
-                          )}
-                        </div>
-                        {approval.decided_by && (
-                          <div>Decided by: <span className="font-mono">{approval.decided_by}</span></div>
-                        )}
-                        {approval.decision_note && (
-                          <div className="italic">&ldquo;{approval.decision_note}&rdquo;</div>
-                        )}
-                        {requestContextStr !== null && (
-                          <div className="mt-1 max-w-lg truncate rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                            {requestContextStr}
-                          </div>
-                        )}
-                        {reasonStr !== null && <div>Reason: {reasonStr}</div>}
-                        {approval.request_type === 'budget_increase' && (
-                          <div className="mt-1 flex gap-2">
-                            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">View Budgets</Link>
-                            <Link href="/budgets?view=detail" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budget Detail</Link>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {approval.status === 'pending' && (
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          onClick={() => { setDeciding({ id: approval.id, action: 'approve' }); setDecisionNote('') }}
-                          className="rounded-lg bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => { setDeciding({ id: approval.id, action: 'deny' }); setDecisionNote('') }}
-                          className="rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700"
-                        >
-                          Deny
-                        </button>
-                        <button
-                          onClick={() => handleCancel(approval.id)}
-                          className="rounded-lg border px-3 py-1 text-xs hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
+                  className={`rounded-lg px-3 py-2 text-left transition-all ${
+                    statusFilter === s ? 'bg-white/15 ring-1 ring-white/30' : 'bg-white/5 ring-1 ring-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 text-slate-400" />
+                    <span className="text-xl font-bold text-white">{summary[s]}</span>
                   </div>
-                </div>
+                  <p className="mt-0.5 text-[10px] capitalize text-slate-400">{s}</p>
+                </button>
               )
             })}
           </div>
         )}
+
+        {/* Posture chips */}
+        <div className="relative mt-3 flex flex-wrap gap-1.5">
+          {finopsPosture && (
+            <>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{finopsPosture.budget_context.total_budgets}</span> budgets
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{finopsPosture.budget_context.breach_count_30d}</span> breaches 30d
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{finopsPosture.alert_context.budget_alert_rules}</span> alert rules
+              </span>
+            </>
+          )}
+          {orgPosture && (
+            <>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{orgPosture.user_context.total_users}</span> users
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{orgPosture.access_group_context.total_groups}</span> groups
+              </span>
+            </>
+          )}
+          {runtimePosture && (
+            <>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{runtimePosture.observe_evidence.runs_30d}</span> runs 30d
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{runtimePosture.gateway_escalation.guardrail_rules}</span> guardrails
+              </span>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Auto-Approval Policies */}
-      <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Auto-Approval Policies</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Automatically approve requests matching specific conditions.
-            </p>
-          </div>
+      {/* Tab bar */}
+      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
+        {[
+          { key: 'queue' as Tab, label: 'Approval Queue', icon: ShieldCheck },
+          { key: 'policies' as Tab, label: 'Auto-Approval Policies', icon: Zap },
+        ].map(({ key, label, icon: Icon }) => (
           <button
-            onClick={() => {
-              if (showPolicyForm) {
-                setShowPolicyForm(false)
-                setEditingPolicyId(null)
-                setPolicyType('budget_increase')
-                setPolicyCondition('')
-              } else {
-                setShowPolicyForm(true)
-              }
-            }}
-            className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === key
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
           >
-            <Plus className="h-4 w-4" />
-            {showPolicyForm ? 'Cancel' : 'Add Policy'}
+            <Icon className="h-3.5 w-3.5" />
+            {label}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {showPolicyForm && (
-          <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Request Type</label>
-              <select
-                value={policyType}
-                onChange={(e) => setPolicyType(e.target.value as ApprovalRequestType)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-              >
-                {REQUEST_TYPES.map(t => (
-                  <option key={t} value={t}>{REQUEST_TYPE_LABELS[t]}</option>
-                ))}
-              </select>
+      {/* Queue tab */}
+      {tab === 'queue' && (
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 overflow-hidden">
+          <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-2.5 dark:border-slate-700">
+            <h2 className="flex-1 text-xs font-bold uppercase tracking-wider text-slate-500">
+              {statusFilter ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Approvals` : 'All Approvals'}
+              {!loading && <span className="ml-1 font-normal text-slate-400">({total})</span>}
+            </h2>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="denied">Denied</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="animate-pulse px-4 py-3">
+                  <div className="mb-1.5 h-3 w-1/3 rounded bg-slate-100 dark:bg-slate-700" />
+                  <div className="h-2.5 w-1/2 rounded bg-slate-100 dark:bg-slate-700" />
+                </div>
+              ))}
             </div>
+          ) : approvals.length === 0 ? (
+            <div className="px-4 py-10 text-center text-xs text-slate-400">No approvals found.</div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              {approvals.map(approval => {
+                const filteredEntries = Object.entries(approval.request).filter(([k]) => k !== '_reason')
+                const requestContextStr: string | null = filteredEntries.length > 0 ? JSON.stringify(Object.fromEntries(filteredEntries)) : null
+                const reasonStr = approval.request._reason != null ? String(approval.request._reason) : null
+                const chip = STATUS_CHIP[approval.status] ?? STATUS_CHIP.cancelled
+                const StatusIcon = chip.icon
+                return (
+                  <div key={approval.id} className="px-4 py-3 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/10">
+                    <div className="flex items-start gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                            {REQUEST_TYPE_LABELS[approval.request_type] ?? approval.request_type}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${chip.cls}`}>
+                            <StatusIcon className="h-2.5 w-2.5" />
+                            {approval.status}
+                          </span>
+                        </div>
+                        <div className="mt-1 space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                          {approval.requested_by && <div>By: <span className="font-mono">{approval.requested_by}</span></div>}
+                          <div>
+                            {new Date(approval.created_at).toLocaleString()}
+                            {approval.decided_at && <> &rarr; {new Date(approval.decided_at).toLocaleString()}</>}
+                          </div>
+                          {approval.decided_by && <div>Decided by: <span className="font-mono">{approval.decided_by}</span></div>}
+                          {approval.decision_note && <div className="italic text-slate-400">&ldquo;{approval.decision_note}&rdquo;</div>}
+                          {requestContextStr && (
+                            <div className="mt-1 max-w-lg truncate rounded-md bg-slate-50 px-2 py-1 font-mono text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-400">{requestContextStr}</div>
+                          )}
+                          {reasonStr && <div>Reason: {reasonStr}</div>}
+                        </div>
+                      </div>
+                      {approval.status === 'pending' && (
+                        <div className="flex shrink-0 gap-1.5">
+                          <button onClick={() => { setDeciding({ id: approval.id, action: 'approve' }); setDecisionNote('') }} className="rounded-md bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-emerald-500">Approve</button>
+                          <button onClick={() => { setDeciding({ id: approval.id, action: 'deny' }); setDecisionNote('') }} className="rounded-md bg-red-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-red-500">Deny</button>
+                          <button onClick={() => handleCancel(approval.id)} className="rounded-md border border-slate-200 px-2.5 py-1 text-[10px] text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800">Cancel</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Auto-Approval Policies tab */}
+      {tab === 'policies' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Condition</label>
-              <input
-                type="text"
-                placeholder='e.g. workspace:engineering or user:admin@*'
-                value={policyCondition}
-                onChange={(e) => setPolicyCondition(e.target.value)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-              />
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-indigo-500" />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Auto-Approval Policies</p>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Automatically approve requests matching specific conditions.</p>
             </div>
             <button
-              onClick={handleCreatePolicy}
-              disabled={creatingPolicy}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              onClick={() => {
+                if (showPolicyForm) { setShowPolicyForm(false); setEditingPolicyId(null); setPolicyType('budget_increase'); setPolicyCondition('') }
+                else setShowPolicyForm(true)
+              }}
+              className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:from-indigo-500 hover:to-violet-500"
             >
-              {creatingPolicy ? (editingPolicyId ? 'Saving...' : 'Creating...') : (editingPolicyId ? 'Save' : 'Create')}
+              {showPolicyForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+              {showPolicyForm ? 'Cancel' : 'Add Policy'}
             </button>
           </div>
-        )}
 
-        {loadingPolicies ? (
-          <p className="text-sm text-slate-400">Loading…</p>
-        ) : autoPolicies.length === 0 ? (
-          <p className="text-sm text-slate-400">No auto-approval policies configured.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-700">
-                  <th className="pb-2 font-medium text-slate-500">Request Type</th>
-                  <th className="pb-2 font-medium text-slate-500">Condition</th>
-                  <th className="pb-2 font-medium text-slate-500">Created By</th>
-                  <th className="pb-2 font-medium text-slate-500">Created</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {autoPolicies.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-100 dark:border-slate-800">
-                    <td className="py-3">{REQUEST_TYPE_LABELS[p.request_type] ?? p.request_type}</td>
-                    <td className="py-3 font-mono text-xs">{p.condition}</td>
-                    <td className="py-3 text-xs text-slate-500">{p.created_by ?? '—'}</td>
-                    <td className="py-3 text-xs text-slate-500">{new Date(p.created_at).toLocaleDateString()}</td>
-                    <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEditPolicy(p)}
-                          className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeletePolicy(p.id)}
-                          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+          {showPolicyForm && (
+            <div className="mb-4 grid gap-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 dark:border-indigo-800 dark:bg-indigo-950/20 md:grid-cols-3">
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Request Type</span>
+                <select value={policyType} onChange={(e) => setPolicyType(e.target.value as ApprovalRequestType)} className={inputCls}>
+                  {REQUEST_TYPES.map(t => <option key={t} value={t}>{REQUEST_TYPE_LABELS[t]}</option>)}
+                </select>
+              </label>
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Condition</span>
+                <input type="text" placeholder='e.g. workspace:engineering' value={policyCondition} onChange={(e) => setPolicyCondition(e.target.value)} className={inputCls} />
+              </label>
+              <div className="flex items-end">
+                <button onClick={handleCreatePolicy} disabled={creatingPolicy} className="rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50">
+                  {creatingPolicy ? 'Saving...' : editingPolicyId ? 'Save' : 'Create'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loadingPolicies ? (
+            <p className="text-xs text-slate-400">Loading...</p>
+          ) : autoPolicies.length === 0 ? (
+            <p className="text-xs text-slate-400">No auto-approval policies configured.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-3 py-2 font-medium text-slate-500">Request Type</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Condition</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Created By</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Created</th>
+                    <th className="px-3 py-2" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {autoPolicies.map((p) => (
+                    <tr key={p.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/10">
+                      <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-200">{REQUEST_TYPE_LABELS[p.request_type] ?? p.request_type}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-500">{p.condition}</td>
+                      <td className="px-3 py-2 text-[11px] text-slate-500">{p.created_by ?? '—'}</td>
+                      <td className="px-3 py-2 text-[11px] text-slate-500">{new Date(p.created_at).toLocaleDateString()}</td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => handleEditPolicy(p)} className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button onClick={() => handleDeletePolicy(p.id)} className="rounded-md border border-red-200 p-1.5 text-red-500 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create approval modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 text-slate-800 shadow-xl dark:bg-slate-900 dark:text-slate-200">
-            <h3 className="text-lg font-semibold text-slate-950 dark:text-white">Request Approval</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Request Type</label>
-                <select
-                  value={createType}
-                  onChange={e => setCreateType(e.target.value as ApprovalRequestType)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  {REQUEST_TYPES.map(t => (
-                    <option key={t} value={t}>{REQUEST_TYPE_LABELS[t]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Reason (optional)</label>
-                <textarea
-                  value={createReason}
-                  onChange={e => setCreateReason(e.target.value)}
-                  placeholder="Why is this change needed?"
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-                />
-              </div>
+          <div className="w-full max-w-md space-y-3 rounded-xl bg-white p-5 shadow-xl dark:bg-slate-900">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Request Approval</h3>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-medium text-slate-500">Request Type</label>
+              <select value={createType} onChange={e => setCreateType(e.target.value as ApprovalRequestType)} className={inputCls}>
+                {REQUEST_TYPES.map(t => <option key={t} value={t}>{REQUEST_TYPE_LABELS[t]}</option>)}
+              </select>
+              <label className="block text-[10px] font-medium text-slate-500">Reason (optional)</label>
+              <textarea value={createReason} onChange={e => setCreateReason(e.target.value)} placeholder="Why is this change needed?" rows={3} className={`resize-none ${inputCls}`} />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowCreate(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={createLoading}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {createLoading ? 'Submitting…' : 'Submit Request'}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button>
+              <button onClick={handleCreate} disabled={createLoading} className="rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50">
+                {createLoading ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
           </div>
@@ -769,41 +543,38 @@ export default function ApprovalsPage() {
       {/* Decision modal */}
       {deciding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 text-slate-800 shadow-xl dark:bg-slate-900 dark:text-slate-200">
-            <h3 className="text-lg font-semibold capitalize text-slate-950 dark:text-white">
-              {deciding.action} approval?
-            </h3>
+          <div className="w-full max-w-sm space-y-3 rounded-xl bg-white p-5 shadow-xl dark:bg-slate-900">
+            <h3 className="text-sm font-bold capitalize text-slate-900 dark:text-white">{deciding.action} approval?</h3>
             <div>
-              <label className="mb-1 block text-sm font-medium">Note (optional)</label>
-              <textarea
-                value={decisionNote}
-                onChange={e => setDecisionNote(e.target.value)}
-                placeholder="Reason for your decision…"
-                rows={3}
-                className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
-              />
+              <label className="mb-1 block text-[10px] font-medium text-slate-500">Note (optional)</label>
+              <textarea value={decisionNote} onChange={e => setDecisionNote(e.target.value)} placeholder="Reason for your decision..." rows={3} className={`resize-none ${inputCls}`} />
             </div>
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setDeciding(null)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Back
-              </button>
-              <button
-                onClick={handleDecide}
-                className={`rounded-lg px-4 py-2 text-sm text-white ${
-                  deciding.action === 'approve'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
-              >
+              <button onClick={() => setDeciding(null)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Back</button>
+              <button onClick={handleDecide} className={`rounded-lg px-4 py-1.5 text-xs font-semibold text-white ${deciding.action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
                 Confirm {deciding.action}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Quick nav footer */}
+      <div className="flex flex-wrap gap-1.5 pt-2">
+        {[
+          { href: '/audit', label: 'Audit Log' },
+          { href: '/security', label: 'Security' },
+          { href: '/data-capture', label: 'Data Capture' },
+          { href: '/tool-registry', label: 'Tool Governance' },
+          { href: '/governance-pack', label: 'Audit Pack' },
+          { href: '/alert-rules', label: 'Alert Rules' },
+          { href: '/budgets', label: 'Budgets' },
+        ].map((l) => (
+          <Link key={l.href} href={l.href} className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:ring-indigo-800 dark:hover:bg-indigo-950/50">
+            {l.label}
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

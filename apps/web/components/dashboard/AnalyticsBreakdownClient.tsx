@@ -78,6 +78,13 @@ function presetSubtitle(p: Preset, granularity: SpendGranularity) {
   return `${labels[granularity]} - last ${p}`
 }
 
+const kpiColorMap: Record<string, { border: string; bg: string }> = {
+  teal: { border: 'border-teal-200/60 dark:border-teal-800/40', bg: 'bg-teal-50/50 dark:bg-teal-950/20' },
+  violet: { border: 'border-violet-200/60 dark:border-violet-800/40', bg: 'bg-violet-50/50 dark:bg-violet-950/20' },
+  blue: { border: 'border-blue-200/60 dark:border-blue-800/40', bg: 'bg-blue-50/50 dark:bg-blue-950/20' },
+  cyan: { border: 'border-cyan-200/60 dark:border-cyan-800/40', bg: 'bg-cyan-50/50 dark:bg-cyan-950/20' },
+}
+
 function KpiStrip({ summary, prev }: { summary: AnalyticsSummary; prev?: AnalyticsSummary }) {
   const totalTokens = summary.total_input_tokens + summary.total_output_tokens
   const delta = summary.cost_delta_pct !== null ? parseFloat(summary.cost_delta_pct ?? '0') : null
@@ -97,22 +104,25 @@ function KpiStrip({ summary, prev }: { summary: AnalyticsSummary; prev?: Analyti
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(c => (
-        <div
-          key={c.label}
-          className={`rounded-xl border border-${c.color}-200/60 dark:border-${c.color}-800/40 bg-${c.color}-50/50 dark:bg-${c.color}-950/20 p-4`}
-        >
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">{c.label}</p>
-          <p className="mt-1.5 text-2xl font-bold text-slate-900 dark:text-white">{c.value}</p>
-          {c.sub && <p className="mt-0.5 text-xs text-slate-400">{c.sub}</p>}
-          {c.delta !== undefined && c.delta !== null && (
-            <div className={`mt-1 flex items-center gap-1 text-xs font-medium ${c.delta >= 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-              {c.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              {c.delta >= 0 ? '+' : ''}{c.delta.toFixed(1)}% vs prior period
-            </div>
-          )}
-        </div>
-      ))}
+      {cards.map(c => {
+        const cm = kpiColorMap[c.color] ?? kpiColorMap.blue
+        return (
+          <div
+            key={c.label}
+            className={`rounded-xl border ${cm.border} ${cm.bg} p-4`}
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">{c.label}</p>
+            <p className="mt-1.5 text-2xl font-bold text-slate-900 dark:text-white">{c.value}</p>
+            {c.sub && <p className="mt-0.5 text-xs text-slate-400">{c.sub}</p>}
+            {c.delta !== undefined && c.delta !== null && (
+              <div className={`mt-1 flex items-center gap-1 text-xs font-medium ${c.delta >= 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                {c.delta >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {c.delta >= 0 ? '+' : ''}{c.delta.toFixed(1)}% vs prior period
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -140,9 +150,9 @@ function SpendChart({ data }: { data: SpendOverTime }) {
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
-        <Tooltip formatter={(v, name) => [name === 'cost' ? `$${Number(v).toFixed(4)}` : Number(v).toLocaleString(), name === 'cost' ? 'Cost' : 'Calls']} />
+        <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+        <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+        <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '11px' }} formatter={(v, name) => [name === 'cost' ? `$${Number(v).toFixed(4)}` : Number(v).toLocaleString(), name === 'cost' ? 'Cost' : 'Calls']} />
         <Area type="monotone" dataKey="cost" stroke="#0d9488" strokeWidth={2} fill="url(#g1)" />
       </AreaChart>
     </ResponsiveContainer>
@@ -161,7 +171,7 @@ function ModelChart({ data }: { data: SpendByModel }) {
     <div className="space-y-4">
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
-          <Pie data={pie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: { name?: string; percent?: number }) => `${(name ?? '').split('/')[1] ?? name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false}>
+          <Pie data={pie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: { name?: string; percent?: number }) => `${(name ?? '').split('/')[1] ?? name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: 11, fill: '#94a3b8' }}>
             {pie.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Pie>
           <Tooltip formatter={(v) => fmt$(Number(v))} />
@@ -169,7 +179,7 @@ function ModelChart({ data }: { data: SpendByModel }) {
       </ResponsiveContainer>
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-700">
+          <tr className="border-b border-slate-100 text-slate-400 dark:border-slate-700 dark:text-slate-500">
             <th className="pb-1.5 text-left font-medium">Model</th>
             <th className="pb-1.5 text-right font-medium">Cost</th>
             <th className="pb-1.5 text-right font-medium">Tokens</th>
@@ -179,13 +189,13 @@ function ModelChart({ data }: { data: SpendByModel }) {
         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
           {data.items.map((m, i) => (
             <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-              <td className="flex items-center gap-1.5 py-1.5 font-mono">
+              <td className="flex items-center gap-1.5 py-1.5 font-mono text-slate-800 dark:text-slate-200">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
                 {m.model}
               </td>
-              <td className="py-1.5 text-right font-medium">{fmt$(m.cost_usd)}</td>
-              <td className="py-1.5 text-right text-slate-400">{fmtTokens(m.input_tokens + m.output_tokens)}</td>
-              <td className="py-1.5 text-right text-slate-400">{m.call_count}</td>
+              <td className="py-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmt$(m.cost_usd)}</td>
+              <td className="py-1.5 text-right text-slate-400 dark:text-slate-500">{fmtTokens(m.input_tokens + m.output_tokens)}</td>
+              <td className="py-1.5 text-right text-slate-400 dark:text-slate-500">{m.call_count}</td>
             </tr>
           ))}
         </tbody>
@@ -204,8 +214,8 @@ function FeatureChart({ data }: { data: SpendByFeature }) {
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={bars} layout="vertical" margin={{ left: 8, right: 16 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
-          <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `$${v}`} />
-          <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={110} />
+          <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+          <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} width={110} />
           <Tooltip formatter={(v) => [fmt$(Number(v)), 'Cost']} />
           <Bar dataKey="cost" fill="#7c3aed" radius={[0, 4, 4, 0]} />
         </BarChart>
@@ -344,7 +354,7 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
   }
 
   return (
-    <div className={embedded ? 'space-y-3 p-4' : 'max-w-6xl space-y-6'}>
+    <div className={embedded ? 'space-y-3' : 'max-w-6xl space-y-6'}>
       {!embedded && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

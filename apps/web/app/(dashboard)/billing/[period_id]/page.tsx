@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, FileSpreadsheet, Shield } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import {
   getBillingPeriod,
@@ -20,18 +20,20 @@ export default async function BillingPeriodDetailPage({
   params,
   searchParams,
 }: {
-  params: { period_id: string }
-  searchParams?: { access_group_id?: string; api_key_id?: string }
+  params: Promise<{ period_id: string }>
+  searchParams?: Promise<{ access_group_id?: string; api_key_id?: string }>
 }) {
   const session = await getServerSession(authOptions)
   if (!session) return null
 
-  const accessGroupId = searchParams?.access_group_id
-  const apiKeyId = searchParams?.api_key_id
+  const { period_id } = await params
+  const sp = (await searchParams) ?? {}
+  const accessGroupId = sp.access_group_id
+  const apiKeyId = sp.api_key_id
 
   let period
   try {
-    period = await getBillingPeriod(session.apiKey, params.period_id)
+    period = await getBillingPeriod(session.apiKey, period_id)
   } catch {
     notFound()
   }
@@ -50,25 +52,38 @@ export default async function BillingPeriodDetailPage({
   }
 
   await Promise.allSettled([
-    getReconciliation(session.apiKey, params.period_id, {
+    getReconciliation(session.apiKey, period_id, {
       access_group_id: accessGroupId,
       api_key_id: apiKeyId,
     }).then((result) => {
       reconciliation = result
     }),
-    getPeriodBreakdown(session.apiKey, params.period_id, {
+    getPeriodBreakdown(session.apiKey, period_id, {
       access_group_id: accessGroupId,
       api_key_id: apiKeyId,
     }).then((result) => {
       breakdown = result
     }),
-    listBillingAdjustments(session.apiKey, params.period_id).then((result) => {
+    listBillingAdjustments(session.apiKey, period_id).then((result) => {
       adjustments = result
     }),
   ])
 
+  const postureChips: string[] = []
+  if (billingOrgPosture) {
+    postureChips.push(`${billingOrgPosture.billing_context.total_periods} periods`)
+    postureChips.push(`$${num(billingOrgPosture.billing_context.total_billed_usd).toFixed(2)} billed`)
+    postureChips.push(`${billingOrgPosture.org_context.access_groups} groups`)
+    postureChips.push(`${billingOrgPosture.attribution_context.calls_30d} calls 30d`)
+  }
+  if (evidencePosture) {
+    postureChips.push(`${evidencePosture.identity_context.workspace_users} users`)
+    postureChips.push(`${evidencePosture.observe_context.sessions_30d} sessions`)
+    postureChips.push(`${evidencePosture.observe_context.requests_30d.toLocaleString()} requests`)
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center gap-2">
         <Link
           href={
@@ -78,139 +93,101 @@ export default async function BillingPeriodDetailPage({
                 ? `/api-keys/${encodeURIComponent(apiKeyId)}`
                 : '/billing'
           }
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
           Billing
         </Link>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {period.period_start} - {period.period_end}
-          </h1>
-          <p className="mt-0.5 font-mono text-xs text-gray-400">{params.period_id}</p>
+      {/* ── Hero ── */}
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-950 px-6 py-7 text-white shadow-lg">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.15),transparent_60%)]" />
+        <div className="relative">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+            <h1 className="text-xl font-bold tracking-tight">{period.period_start} — {period.period_end}</h1>
+          </div>
+          <p className="mt-1 font-mono text-[10px] text-slate-400">{period_id}</p>
+          {postureChips.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {postureChips.map((c) => (
+                <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      </section>
 
+      {/* ── Context panels ── */}
       {billingOrgPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Billing × Org Scope Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{billingOrgPosture.period_days}d window</span>
+        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50/60 to-teal-50/60 p-4 dark:border-emerald-800/30 dark:from-emerald-950/30 dark:to-teal-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <h2 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Billing × Org Scope</h2>
+            <span className="ml-auto text-[10px] text-emerald-500">{billingOrgPosture.period_days}d window</span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Periods</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{billingOrgPosture.billing_context.total_periods}</p>
-              <p className="text-xs text-slate-400">{billingOrgPosture.billing_context.open_periods} open · {billingOrgPosture.billing_context.closed_periods} closed</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Total Billed</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(billingOrgPosture.billing_context.total_billed_usd).toFixed(2)}</p>
-              <p className="text-xs text-slate-400">{num(billingOrgPosture.spend_context.total_spend_30d).toFixed(2)} 30d spend</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Org Scope</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{billingOrgPosture.org_context.access_groups} groups</p>
-              <p className="text-xs text-slate-400">{billingOrgPosture.org_context.api_keys} keys · {billingOrgPosture.org_context.workspace_users} users</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Attribution</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{billingOrgPosture.attribution_context.calls_30d.toLocaleString()} calls</p>
-              <p className="text-xs text-slate-400">{billingOrgPosture.attribution_context.distinct_models} models</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/access-groups" className="text-emerald-700 hover:underline dark:text-emerald-400">Access Groups →</Link>
-            <Link href="/api-keys" className="text-emerald-700 hover:underline dark:text-emerald-400">API Keys →</Link>
-            <Link href="/organizations" className="text-emerald-700 hover:underline dark:text-emerald-400">Organization →</Link>
-            <Link href="/telemetry" className="text-emerald-700 hover:underline dark:text-emerald-400">Telemetry →</Link>
-            <Link href="/ai-hub" className="text-emerald-700 hover:underline dark:text-emerald-400">AI Hub →</Link>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {[
+              { label: 'Periods', value: `${billingOrgPosture.billing_context.open_periods} open · ${billingOrgPosture.billing_context.closed_periods} closed` },
+              { label: 'Total Billed', value: `$${num(billingOrgPosture.billing_context.total_billed_usd).toFixed(2)}` },
+              { label: 'Org Scope', value: `${billingOrgPosture.org_context.access_groups} groups · ${billingOrgPosture.org_context.workspace_users} users` },
+              { label: 'Attribution', value: `${billingOrgPosture.attribution_context.calls_30d.toLocaleString()} calls · ${billingOrgPosture.attribution_context.distinct_models} models` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{label}</p>
+                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {billingCrossPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Billing × Cross-Feature Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{billingCrossPosture.period_days}d window</span>
+        <div className="rounded-xl border border-teal-200/50 bg-gradient-to-r from-teal-50/60 to-emerald-50/60 p-4 dark:border-teal-800/30 dark:from-teal-950/30 dark:to-emerald-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            <h2 className="text-xs font-bold text-teal-900 dark:text-teal-200">Cross-Feature Context</h2>
+            <span className="ml-auto text-[10px] text-teal-500">{billingCrossPosture.period_days}d window</span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Gateway</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{billingCrossPosture.gateway_context.routes} routes</p>
-              <p className="text-xs text-slate-400">{billingCrossPosture.gateway_context.active_providers_30d} providers · {billingCrossPosture.gateway_context.cache_configs} caches</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Safety</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{billingCrossPosture.safety_context.alert_rules} alert rules</p>
-              <p className="text-xs text-slate-400">{billingCrossPosture.safety_context.tool_registry_count} tools · {billingCrossPosture.safety_context.tags} tags</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Platform</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{billingCrossPosture.platform_context.total_organizations} orgs</p>
-              <p className="text-xs text-slate-400">{billingCrossPosture.safety_context.audit_events_30d} audit events</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(billingCrossPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-              <p className="text-xs text-slate-400">{billingCrossPosture.gateway_context.distinct_models_30d} models · {billingCrossPosture.gateway_context.rate_limit_endpoints} rate limits</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
-            <Link href="/tool-registry" className="text-emerald-600 hover:underline dark:text-emerald-400">Tool Registry →</Link>
-            <Link href="/alerts" className="text-emerald-600 hover:underline dark:text-emerald-400">Alert Rules →</Link>
-            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
-            <Link href="/tags" className="text-emerald-600 hover:underline dark:text-emerald-400">Tags →</Link>
-            <Link href="/settings" className="text-emerald-600 hover:underline dark:text-emerald-400">Platform →</Link>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {[
+              { label: 'Gateway', value: `${billingCrossPosture.gateway_context.routes} routes · ${billingCrossPosture.gateway_context.active_providers_30d} providers` },
+              { label: 'Safety', value: `${billingCrossPosture.safety_context.alert_rules} alerts · ${billingCrossPosture.safety_context.tool_registry_count} tools` },
+              { label: 'Platform', value: `${billingCrossPosture.platform_context.total_organizations} orgs · ${billingCrossPosture.safety_context.audit_events_30d} events` },
+              { label: 'Spend', value: `$${num(billingCrossPosture.spend_context.total_spend_30d).toFixed(2)} · ${billingCrossPosture.gateway_context.distinct_models_30d} models` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-teal-600 dark:text-teal-400">{label}</p>
+                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {evidencePosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Billing Detail Evidence Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{evidencePosture.period_days}d window</span>
+        <div className="rounded-xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50/60 to-green-50/60 p-4 dark:border-emerald-800/30 dark:from-emerald-950/30 dark:to-green-950/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <h2 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Detail Evidence Context</h2>
+            <span className="ml-auto text-[10px] text-emerald-500">{evidencePosture.period_days}d window</span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Identity</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.identity_context.workspace_users} users</p>
-              <p className="text-xs text-slate-400">{evidencePosture.identity_context.api_keys} keys · {evidencePosture.identity_context.access_groups} groups</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Gateway</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.gateway_context.active_routes} routes</p>
-              <p className="text-xs text-slate-400">{evidencePosture.gateway_context.distinct_models_30d} models</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Sessions</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.observe_context.sessions_30d}</p>
-              <p className="text-xs text-slate-400">{evidencePosture.observe_context.requests_30d.toLocaleString()} requests</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Replay</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{evidencePosture.build_context.replay_experiments} experiments</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(evidencePosture.spend_context.total_spend_30d).toFixed(2)}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/analytics/users" className="text-emerald-600 hover:underline dark:text-emerald-400">Users →</Link>
-            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
-            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
-            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
-            <Link href="/sessions" className="text-emerald-600 hover:underline dark:text-emerald-400">Sessions →</Link>
-            <Link href="/request-explorer" className="text-emerald-600 hover:underline dark:text-emerald-400">Request Explorer →</Link>
-            <Link href="/replay" className="text-emerald-600 hover:underline dark:text-emerald-400">Replay Lab →</Link>
-            <Link href="/organizations" className="text-emerald-600 hover:underline dark:text-emerald-400">Organizations →</Link>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            {[
+              { label: 'Identity', value: `${evidencePosture.identity_context.workspace_users} users · ${evidencePosture.identity_context.api_keys} keys` },
+              { label: 'Gateway', value: `${evidencePosture.gateway_context.active_routes} routes · ${evidencePosture.gateway_context.distinct_models_30d} models` },
+              { label: 'Sessions', value: `${evidencePosture.observe_context.sessions_30d} · ${evidencePosture.observe_context.requests_30d.toLocaleString()} reqs` },
+              { label: 'Replay', value: `${evidencePosture.build_context.replay_experiments} experiments` },
+              { label: 'Spend', value: `$${num(evidencePosture.spend_context.total_spend_30d).toFixed(2)}` },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{label}</p>
+                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}

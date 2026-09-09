@@ -255,7 +255,7 @@ export default function ModelScorecardsPage() {
                       <tr key={row.model} className="cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition" onClick={() => setExpandedModel(prev => prev === row.model ? null : row.model)}>
                         <td className="px-2 py-1.5 text-slate-400">{isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</td>
                         <td className="px-3 py-1.5">
-                          <span className="font-semibold text-slate-900 dark:text-white">{row.model}</span>
+                          <Link href={`/runs?model=${encodeURIComponent(row.model)}`} className="font-semibold text-slate-900 dark:text-white hover:text-amber-600 dark:hover:text-amber-400 hover:underline" onClick={(e) => e.stopPropagation()}>{row.model}</Link>
                           {row.provider && <span className="ml-1.5 text-[9px] text-slate-400">{row.provider}</span>}
                         </td>
                         <td className="px-3 py-1.5 font-mono text-slate-700 dark:text-slate-300 tabular-nums">{fmtUsd(row.total_cost_usd)}</td>
@@ -334,7 +334,20 @@ export default function ModelScorecardsPage() {
           <Sparkles className="mt-0.5 h-4 w-4 text-amber-600" />
           <div>
             <p className="text-xs font-bold text-slate-800 dark:text-white">Model Intelligence Flow</p>
-            <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">Start in Model Usage to see where traffic and spend concentrate, then use scorecards to compare quality, latency, cache, retries, and recommendation signals model by model. Move to Evaluation Studio for explicit experiments before changing routing.</p>
+            <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Start in <Link href="/model-usage" className="text-amber-600 dark:text-amber-400 hover:underline font-medium">Model Usage</Link> to see where traffic and spend concentrate, then use scorecards to compare quality, latency, cache, retries, and recommendation signals model by model. Move to <Link href="/evaluation" className="text-amber-600 dark:text-amber-400 hover:underline font-medium">Evaluation Studio</Link> for explicit experiments before changing <Link href="/gateway?tab=routing" className="text-amber-600 dark:text-amber-400 hover:underline font-medium">routing</Link>.
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {[
+                { label: '1. Model Usage', href: '/model-usage' },
+                { label: '2. Scorecards', href: '/model-scorecards' },
+                { label: '3. Eval Studio', href: '/evaluation' },
+                { label: '4. Optimization', href: '/optimization-opportunities' },
+                { label: '5. Gateway Routing', href: '/gateway?tab=routing' },
+              ].map(({ label, href }) => (
+                <Link key={label} href={href} className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors">{label}</Link>
+              ))}
+            </div>
           </div>
         </div>
       </div>

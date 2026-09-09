@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { Building2, DollarSign, Layers, Link2, Pencil, Plus, Radio, Tags, Trash2, Wand2, X } from 'lucide-react'
+import { BookOpen, ChevronRight, DollarSign, Pencil, Plus, Tags, Trash2, Wand2, X, Zap } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import {
   createAutoTagRule,
@@ -26,29 +26,31 @@ import {
 import type { AutoTaggingRuleResponse, AutoTaggingSimulationResponse, TagResponse, TagTreeNode, TagsFinopsBudgetPosture, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture, TagsRuntimePosture } from '@/types/api'
 
 const inputCls =
-  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-indigo-400'
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500'
 
 const MATCH_TYPES = ['equals', 'contains', 'regex', 'prefix', 'suffix'] as const
 
+type Tab = 'catalog' | 'rules' | 'simulation' | 'hierarchy'
+
 function TagNode({ node, depth = 0 }: { node: TagTreeNode; depth?: number }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-1.5">
       <div
-        className="rounded-2xl border border-slate-200 bg-white/80 p-4 dark:border-slate-700 dark:bg-slate-900/70"
-        style={{ marginLeft: depth * 20 }}
+        className="rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900/70"
+        style={{ marginLeft: depth * 16 }}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold text-slate-900 dark:text-slate-50">
-              {node.key}: {node.value}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-900 dark:text-slate-50">
+              {node.key}: <span className="text-amber-600 dark:text-amber-400">{node.value}</span>
             </p>
-            <p className="text-xs text-slate-500">{node.category}</p>
+            <p className="text-[10px] text-slate-500">{node.category}</p>
           </div>
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${node.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
             {node.is_active ? 'active' : 'inactive'}
           </span>
         </div>
-        {node.description && <p className="mt-2 text-sm text-slate-500">{node.description}</p>}
+        {node.description && <p className="mt-1 text-[10px] text-slate-500">{node.description}</p>}
       </div>
       {node.children.map((child) => (
         <TagNode key={child.id} node={child} depth={depth + 1} />
@@ -62,6 +64,7 @@ export default function TagsPage() {
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
   const { canWrite } = useRole()
 
+  const [tab, setTab] = useState<Tab>('catalog')
   const [tags, setTags] = useState<TagResponse[]>([])
   const [tree, setTree] = useState<TagTreeNode[]>([])
   const [rules, setRules] = useState<AutoTaggingRuleResponse[]>([])
@@ -80,6 +83,7 @@ export default function TagsPage() {
   const [tagDescription, setTagDescription] = useState('')
   const [parentTagId, setParentTagId] = useState('')
   const [tagIsActive, setTagIsActive] = useState(true)
+  const [showTagForm, setShowTagForm] = useState(false)
 
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
   const [ruleName, setRuleName] = useState('')
@@ -91,17 +95,10 @@ export default function TagsPage() {
   const [ruleTagValue, setRuleTagValue] = useState('')
   const [rulePriority, setRulePriority] = useState('100')
   const [ruleIsActive, setRuleIsActive] = useState(true)
+  const [showRuleForm, setShowRuleForm] = useState(false)
 
   const [simulationFields, setSimulationFields] = useState(
-    JSON.stringify(
-      {
-        feature: 'support-search',
-        prompt: 'search the docs for billing exports',
-        provider: 'openai',
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({ feature: 'support-search', prompt: 'search the docs for billing exports', provider: 'openai' }, null, 2),
   )
 
   const resetTagForm = useCallback(() => {
@@ -112,6 +109,7 @@ export default function TagsPage() {
     setTagDescription('')
     setParentTagId('')
     setTagIsActive(true)
+    setShowTagForm(false)
   }, [])
 
   const resetRuleForm = useCallback(() => {
@@ -125,6 +123,7 @@ export default function TagsPage() {
     setRuleTagValue('')
     setRulePriority('100')
     setRuleIsActive(true)
+    setShowRuleForm(false)
   }, [])
 
   const load = useCallback(async () => {
@@ -135,13 +134,7 @@ export default function TagsPage() {
         getTags(apiKey, { include_inactive: true }),
         getTagTree(apiKey),
         getAutoTagRules(apiKey),
-        simulateAutoTagging(apiKey, {
-          fields: {
-            feature: 'support-search',
-            prompt: 'search the docs for billing exports',
-            provider: 'openai',
-          },
-        }),
+        simulateAutoTagging(apiKey, { fields: { feature: 'support-search', prompt: 'search the docs for billing exports', provider: 'openai' } }),
         getTagsFinopsBudgetPosture(apiKey).catch(() => null),
         getDataProtectionOrgPosture(apiKey).catch(() => null),
         getDataProtectionGatewayPosture(apiKey).catch(() => null),
@@ -164,33 +157,17 @@ export default function TagsPage() {
     }
   }, [apiKey])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  useEffect(() => { void load() }, [load])
 
   async function handleSaveTag(e: React.FormEvent) {
     e.preventDefault()
     if (!apiKey) return
     try {
       if (editingTagId) {
-        await updateTag(apiKey, editingTagId, {
-          category: tagCategory,
-          key: tagKey,
-          value: tagValue,
-          description: tagDescription.trim() || null,
-          parent_tag_id: parentTagId || null,
-          is_active: tagIsActive,
-        })
+        await updateTag(apiKey, editingTagId, { category: tagCategory, key: tagKey, value: tagValue, description: tagDescription.trim() || null, parent_tag_id: parentTagId || null, is_active: tagIsActive })
         toast.success('Tag updated')
       } else {
-        await createTag(apiKey, {
-          category: tagCategory,
-          key: tagKey,
-          value: tagValue,
-          description: tagDescription.trim() || null,
-          parent_tag_id: parentTagId || null,
-          is_active: tagIsActive,
-        })
+        await createTag(apiKey, { category: tagCategory, key: tagKey, value: tagValue, description: tagDescription.trim() || null, parent_tag_id: parentTagId || null, is_active: tagIsActive })
         toast.success('Tag created')
       }
       resetTagForm()
@@ -208,6 +185,8 @@ export default function TagsPage() {
     setTagDescription(tag.description ?? '')
     setParentTagId(tag.parent_tag_id ?? '')
     setTagIsActive(tag.is_active)
+    setShowTagForm(true)
+    setTab('catalog')
   }
 
   async function handleDeleteTag(tag: TagResponse) {
@@ -227,30 +206,10 @@ export default function TagsPage() {
     if (!apiKey) return
     try {
       if (editingRuleId) {
-        await updateAutoTagRule(apiKey, editingRuleId, {
-          name: ruleName,
-          description: ruleDescription.trim() || null,
-          match_type: matchType,
-          match_field: matchField,
-          match_pattern: matchPattern,
-          tag_key: ruleTagKey,
-          tag_value: ruleTagValue,
-          priority: parseInt(rulePriority, 10) || 100,
-          is_active: ruleIsActive,
-        })
+        await updateAutoTagRule(apiKey, editingRuleId, { name: ruleName, description: ruleDescription.trim() || null, match_type: matchType, match_field: matchField, match_pattern: matchPattern, tag_key: ruleTagKey, tag_value: ruleTagValue, priority: parseInt(rulePriority, 10) || 100, is_active: ruleIsActive })
         toast.success('Auto-tagging rule updated')
       } else {
-        await createAutoTagRule(apiKey, {
-          name: ruleName,
-          description: ruleDescription.trim() || null,
-          match_type: matchType,
-          match_field: matchField,
-          match_pattern: matchPattern,
-          tag_key: ruleTagKey,
-          tag_value: ruleTagValue,
-          priority: parseInt(rulePriority, 10) || 100,
-          is_active: ruleIsActive,
-        })
+        await createAutoTagRule(apiKey, { name: ruleName, description: ruleDescription.trim() || null, match_type: matchType, match_field: matchField, match_pattern: matchPattern, tag_key: ruleTagKey, tag_value: ruleTagValue, priority: parseInt(rulePriority, 10) || 100, is_active: ruleIsActive })
         toast.success('Auto-tagging rule created')
       }
       resetRuleForm()
@@ -271,6 +230,8 @@ export default function TagsPage() {
     setRuleTagValue(rule.tag_value)
     setRulePriority(String(rule.priority))
     setRuleIsActive(rule.is_active)
+    setShowRuleForm(true)
+    setTab('rules')
   }
 
   async function handleDeleteRule(rule: AutoTaggingRuleResponse) {
@@ -298,429 +259,443 @@ export default function TagsPage() {
   }
 
   if (!apiKey) {
-    return <p className="p-8 text-slate-500">Sign in to view tag management.</p>
+    return <p className="p-8 text-xs text-slate-500">Sign in to view tag management.</p>
   }
 
+  const activeTags = tags.filter((t) => t.is_active).length
+  const activeRules = rules.filter((r) => r.is_active).length
+
   return (
-    <div className="mx-auto max-w-7xl space-y-8 p-6 md:p-10">
-      <div className="flex items-end justify-between gap-4">
-        <div>
+    <div className="mx-auto max-w-6xl space-y-4 p-4">
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-amber-950 to-orange-950 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,0.15),transparent_60%)]" />
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 ring-1 ring-amber-400/30">
+              <BookOpen className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Tag Management</h1>
+              <p className="text-xs text-amber-200/70">Hierarchical tags, auto-tagging rules &amp; classification simulation</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <Tags className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tag Management</h1>
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white ring-1 ring-white/10">{tags.length} tags</span>
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white ring-1 ring-white/10">{rules.length} rules</span>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Manage hierarchical tags and the auto-tagging rules that classify workflow traffic.
-          </p>
         </div>
-        <span className="text-sm text-slate-500">
-          {tags.length} tags · {rules.length} rules
-        </span>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Hierarchy</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">{tree.length === 0 ? 0 : tags.filter((item) => item.is_active).length}</p>
-          <p className="mt-1 text-sm text-slate-500">Active tags available for routing, governance, and reporting.</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Rule Coverage</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">{rules.filter((rule) => rule.is_active).length}</p>
-          <p className="mt-1 text-sm text-slate-500">Active rules ready to auto-apply tags during ingest and workflow activity.</p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Simulation</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-50">{simulation?.matched.length ?? 0}</p>
-          <p className="mt-1 text-sm text-slate-500">Rules matched against the current simulation payload.</p>
-        </div>
-      </div>
-
-      {finopsPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-800 dark:bg-emerald-950/40">
-          <div className="mb-4 flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100">FinOps Budget Attribution</h2>
+        {/* KPI strip */}
+        <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <p className="text-lg font-bold text-white">{activeTags}</p>
+            <p className="text-[10px] text-slate-400">Active Tags</p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-4 dark:bg-slate-900/60">
-              <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Tagged Spend (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-50">${finopsPosture.spend_context.tagged_spend_30d?.toFixed(2) ?? '0.00'}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-4 dark:bg-slate-900/60">
-              <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Tag-Scoped Budgets</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-50">{finopsPosture.budget_context.tag_scoped_budgets ?? 0}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-4 dark:bg-slate-900/60">
-              <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Tag Dimension Rules</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-50">{finopsPosture.chargeback_context.tag_dimension_rules ?? 0}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-4 dark:bg-slate-900/60">
-              <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Distinct Tags w/ Spend</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-50">{finopsPosture.tag_context.distinct_tags_with_spend ?? 0}</p>
-            </div>
+          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <p className="text-lg font-bold text-white">{activeRules}</p>
+            <p className="text-[10px] text-slate-400">Active Rules</p>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3 text-sm">
-            <Link href="/budgets" className="text-emerald-700 underline underline-offset-2 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100">Budgets</Link>
-            <Link href="/budgets/detail" className="text-emerald-700 underline underline-offset-2 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100">Budget Detail</Link>
-            <Link href="/chargeback" className="text-emerald-700 underline underline-offset-2 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100">Chargeback</Link>
+          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <p className="text-lg font-bold text-white">{simulation?.matched.length ?? 0}</p>
+            <p className="text-[10px] text-slate-400">Sim Matches</p>
           </div>
-        </div>
-      )}
-
-      {/* Org & Access Scope */}
-      {orgPosture && (
-        <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Org &amp; Access Scope</h2>
+          <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+            <p className="text-lg font-bold text-white">{tree.length}</p>
+            <p className="text-[10px] text-slate-400">Root Nodes</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Workspace Users</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.user_context.total_users}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Active Tags</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.tag_context.active_tags}</p>
-              <p className="text-xs text-slate-500">{orgPosture.tag_context.total_tags} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Capture Policies</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.capture_context.active_policies}</p>
-              <p className="text-xs text-slate-500">{orgPosture.capture_context.total_policies} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">MCP Servers</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.mcp_context.active_servers}</p>
-              <p className="text-xs text-slate-500">{orgPosture.mcp_context.total_servers} total</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/organization" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Organization</Link>
-            <Link href="/users" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Users</Link>
-            <Link href="/workspaces" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Workspaces</Link>
-            <Link href="/access-groups" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Access Groups</Link>
-            <Link href="/api-keys" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">API Keys</Link>
-            <Link href="/mcp-registry" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">MCP Registry</Link>
-          </div>
-        </div>
-      )}
-
-      {/* Gateway & Observe Runtime */}
-      {gatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-lg font-semibold text-violet-900 dark:text-violet-100">Gateway &amp; Observe Runtime</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Gateway Routes</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.provider_context.total_routes}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.provider_context.total_providers} providers</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Guardrails</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.guardrail_context.total_guardrails}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.guardrail_context.guardrail_events_30d} events 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Tool Calls (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.run_context.tool_runs_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.run_context.total_runs_30d} agent runs</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Alert Firings (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.monitoring_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.monitoring_context.total_alert_rules} rules</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/gateway" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Gateway</Link>
-            <Link href="/guardrails" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Guardrails</Link>
-            <Link href="/runs" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Runs</Link>
-            <Link href="/request-explorer" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Request Explorer</Link>
-            <Link href="/monitoring" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Monitoring</Link>
-          </div>
-        </div>
-      )}
-
-      {govInternal && (
-        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">Governance Cohesion</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Registered Tools</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_registry_context.total_tools}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_registry_context.enforced_tools} enforced</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Policies</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_policies_context.active_policies}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_policies_context.total_policies} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Audit Events (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.audit_context.audit_events_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Alert Firings (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.alert_rules_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{govInternal.alert_rules_context.active_alert_rules} active rules</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/tool-registry" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Registry</Link>
-            <Link href="/tool-policies" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Policies</Link>
-            <Link href="/approvals" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Approvals</Link>
-            <Link href="/data-capture" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Data Capture</Link>
-            <Link href="/security" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Security</Link>
-            <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
-            <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
-            <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
-          </div>
-        </div>
-      )}
-
-      {runtimePosture && (
-        <div className="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-5 dark:border-cyan-800 dark:bg-cyan-950/30">
-          <div className="mb-3 flex items-center gap-2">
-            <Layers className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-            <h2 className="text-sm font-semibold text-cyan-900 dark:text-cyan-200">Runtime Scope & Evidence</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.governance_attribution.tool_policies}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Tool Policies</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.governance_attribution.audit_events_30d}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.observe_attribution.runs_30d}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Runs 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{runtimePosture.finops_attribution.chargeback_rules}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Chargeback Rules</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/tool-policies" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Tool Policies →</Link>
-            <Link href="/audit" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Audit Log →</Link>
-            <Link href="/governance-pack" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Governance Pack →</Link>
-            <Link href="/analytics" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Runs →</Link>
-            <Link href="/request-flow" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Request Flow →</Link>
-            <Link href="/chargeback" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Chargeback →</Link>
-            <Link href="/budgets" className="text-cyan-700 hover:text-cyan-900 dark:text-cyan-400 dark:hover:text-cyan-300">Budgets →</Link>
-          </div>
-        </div>
-      )}
-
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-        <section className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Tag Catalog</h2>
-                <p className="text-sm text-slate-500">Create, edit, or retire the metadata vocabulary used across the suite.</p>
+          {finopsPosture && (
+            <>
+              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+                <p className="text-lg font-bold text-white">${finopsPosture.spend_context.tagged_spend_30d?.toFixed(0) ?? '0'}</p>
+                <p className="text-[10px] text-slate-400">Tagged Spend 30d</p>
               </div>
-              {editingTagId && (
-                <button onClick={resetTagForm} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+                <p className="text-lg font-bold text-white">{finopsPosture.budget_context.tag_scoped_budgets ?? 0}</p>
+                <p className="text-[10px] text-slate-400">Tag Budgets</p>
+              </div>
+              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+                <p className="text-lg font-bold text-white">{finopsPosture.chargeback_context.tag_dimension_rules ?? 0}</p>
+                <p className="text-[10px] text-slate-400">Chargeback Rules</p>
+              </div>
+              <div className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+                <p className="text-lg font-bold text-white">{finopsPosture.tag_context.distinct_tags_with_spend ?? 0}</p>
+                <p className="text-[10px] text-slate-400">Tags w/ Spend</p>
+              </div>
+            </>
+          )}
+        </div>
 
+        {/* Posture chips */}
+        <div className="relative mt-3 flex flex-wrap gap-1.5">
+          {govInternal && (
+            <>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{govInternal.tool_registry_context.total_tools}</span> tools
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{govInternal.tool_policies_context.active_policies}</span> policies
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{govInternal.audit_context.audit_events_30d}</span> audit 30d
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{govInternal.alert_rules_context.alert_firings_30d}</span> alerts 30d
+              </span>
+            </>
+          )}
+          {runtimePosture && (
+            <>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{runtimePosture.observe_attribution.runs_30d}</span> runs 30d
+              </span>
+              <span className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{runtimePosture.finops_attribution.chargeback_rules}</span> chargeback
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
+        {[
+          { key: 'catalog' as Tab, label: 'Tag Catalog', icon: Tags },
+          { key: 'rules' as Tab, label: 'Auto-Tagging Rules', icon: Zap },
+          { key: 'simulation' as Tab, label: 'Simulation', icon: Wand2 },
+          { key: 'hierarchy' as Tab, label: 'Hierarchy', icon: ChevronRight },
+        ].map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === key
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tag Catalog tab */}
+      {tab === 'catalog' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Tags className="h-4 w-4 text-amber-500" />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Tag Catalog</p>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">Create, edit, or retire the metadata vocabulary.</p>
+            </div>
             {canWrite && (
-              <form onSubmit={handleSaveTag} className="grid gap-3 md:grid-cols-2">
-                <input value={tagCategory} onChange={(e) => setTagCategory(e.target.value)} className={inputCls} placeholder="Category" required />
-                <input value={tagKey} onChange={(e) => setTagKey(e.target.value)} className={inputCls} placeholder="Key" required />
-                <input value={tagValue} onChange={(e) => setTagValue(e.target.value)} className={inputCls} placeholder="Value" required />
+              <button
+                onClick={() => showTagForm ? resetTagForm() : setShowTagForm(true)}
+                className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:from-amber-500 hover:to-orange-500"
+              >
+                {showTagForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                {showTagForm ? 'Cancel' : editingTagId ? 'Editing...' : 'Add Tag'}
+              </button>
+            )}
+          </div>
+
+          {showTagForm && canWrite && (
+            <form onSubmit={handleSaveTag} className="mb-4 grid gap-2 rounded-lg border border-amber-200 bg-amber-50/40 p-3 dark:border-amber-800 dark:bg-amber-950/20 md:grid-cols-2">
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Category</span>
+                <input value={tagCategory} onChange={(e) => setTagCategory(e.target.value)} className={inputCls} placeholder="workflow" required />
+              </label>
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Key</span>
+                <input value={tagKey} onChange={(e) => setTagKey(e.target.value)} className={inputCls} placeholder="environment" required />
+              </label>
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Value</span>
+                <input value={tagValue} onChange={(e) => setTagValue(e.target.value)} className={inputCls} placeholder="production" required />
+              </label>
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Parent Tag</span>
                 <select value={parentTagId} onChange={(e) => setParentTagId(e.target.value)} className={inputCls}>
-                  <option value="">No parent tag</option>
-                  {tags.filter((item) => item.id !== editingTagId).map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.category} / {item.key}={item.value}
-                    </option>
+                  <option value="">No parent</option>
+                  {tags.filter((t) => t.id !== editingTagId).map((t) => (
+                    <option key={t.id} value={t.id}>{t.category}/{t.key}={t.value}</option>
                   ))}
                 </select>
-                <textarea value={tagDescription} onChange={(e) => setTagDescription(e.target.value)} className={`${inputCls} min-h-[90px] md:col-span-2`} placeholder="Description (optional)" />
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 md:col-span-2">
-                  <input type="checkbox" checked={tagIsActive} onChange={(e) => setTagIsActive(e.target.checked)} />
-                  Active
+              </label>
+              <label className="text-xs md:col-span-2">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Description</span>
+                <textarea value={tagDescription} onChange={(e) => setTagDescription(e.target.value)} className={`${inputCls} min-h-[60px] resize-none`} placeholder="Optional description" />
+              </label>
+              <div className="flex items-center gap-3 md:col-span-2">
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={tagIsActive} onChange={(e) => setTagIsActive(e.target.checked)} className="rounded" /> Active
                 </label>
-                <div className="md:col-span-2">
-                  <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
-                    <Plus className="h-4 w-4" />
-                    {editingTagId ? 'Save Tag' : 'Create Tag'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="mt-5 space-y-2">
-              {loading ? (
-                <p className="text-sm text-slate-400">Loading tags...</p>
-              ) : tags.length === 0 ? (
-                <p className="text-sm text-slate-400">No tags created yet.</p>
-              ) : (
-                tags.map((tag) => (
-                  <div key={tag.id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                    <div>
-                      <p className="font-medium text-slate-900 dark:text-slate-100">
-                        {tag.key}={tag.value}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">{tag.category}</p>
-                      {tag.description && <p className="mt-1 text-xs text-slate-500">{tag.description}</p>}
-                    </div>
-                    {canWrite && (
-                      <div className="flex gap-2">
-                        <button onClick={() => startEditTag(tag)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => void handleDeleteTag(tag)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Hierarchy</h2>
-            {tree.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-sm text-slate-500 dark:border-slate-700">
-                No active tags created yet.
-              </div>
-            ) : (
-              tree.map((node) => <TagNode key={node.id} node={node} />)
-            )}
-          </section>
-        </section>
-
-        <section className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Auto-Tagging Rules</h2>
-                <p className="text-sm text-slate-500">Define runtime classification rules that apply tags automatically.</p>
-              </div>
-              {editingRuleId && (
-                <button onClick={resetRuleForm} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                  <X className="h-4 w-4" />
+                <button type="submit" className="rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-amber-500 hover:to-orange-500">
+                  {editingTagId ? 'Save Tag' : 'Create Tag'}
                 </button>
-              )}
+              </div>
+            </form>
+          )}
+
+          {loading ? (
+            <p className="text-xs text-slate-400">Loading tags...</p>
+          ) : tags.length === 0 ? (
+            <p className="text-xs text-slate-400">No tags created yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-3 py-2 font-medium text-slate-500">Tag</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Category</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Status</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Description</th>
+                    {canWrite && <th className="px-3 py-2" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tags.map((tag) => (
+                    <tr key={tag.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-amber-50/30 dark:hover:bg-amber-950/10">
+                      <td className="px-3 py-2">
+                        <span className="font-mono text-[11px] font-semibold text-slate-900 dark:text-white">{tag.key}</span>
+                        <span className="font-mono text-[11px] text-slate-500">=</span>
+                        <span className="font-mono text-[11px] text-amber-600 dark:text-amber-400">{tag.value}</span>
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-slate-500">{tag.category}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${tag.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                          {tag.is_active ? 'active' : 'inactive'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 max-w-xs truncate text-[10px] text-slate-500">{tag.description || '—'}</td>
+                      {canWrite && (
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => startEditTag(tag)} className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => void handleDeleteTag(tag)} className="rounded-md border border-red-200 p-1.5 text-red-500 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </div>
+      )}
 
+      {/* Auto-Tagging Rules tab */}
+      {tab === 'rules' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Auto-Tagging Rules</p>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">Runtime classification rules that apply tags automatically.</p>
+            </div>
             {canWrite && (
-              <form onSubmit={handleSaveRule} className="grid gap-3">
-                <input value={ruleName} onChange={(e) => setRuleName(e.target.value)} className={inputCls} placeholder="Rule name" required />
-                <textarea value={ruleDescription} onChange={(e) => setRuleDescription(e.target.value)} className={`${inputCls} min-h-[80px]`} placeholder="Description (optional)" />
-                <div className="grid gap-3 md:grid-cols-2">
-                  <select value={matchType} onChange={(e) => setMatchType(e.target.value as (typeof MATCH_TYPES)[number])} className={inputCls}>
-                    {MATCH_TYPES.map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
-                  <input value={matchField} onChange={(e) => setMatchField(e.target.value)} className={inputCls} placeholder="Match field" required />
-                  <input value={matchPattern} onChange={(e) => setMatchPattern(e.target.value)} className={inputCls} placeholder="Match pattern" required />
-                  <input value={rulePriority} onChange={(e) => setRulePriority(e.target.value)} className={inputCls} placeholder="Priority" />
-                  <input value={ruleTagKey} onChange={(e) => setRuleTagKey(e.target.value)} className={inputCls} placeholder="Tag key" required />
-                  <input value={ruleTagValue} onChange={(e) => setRuleTagValue(e.target.value)} className={inputCls} placeholder="Tag value" required />
-                </div>
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <input type="checkbox" checked={ruleIsActive} onChange={(e) => setRuleIsActive(e.target.checked)} />
-                  Active
-                </label>
-                <div>
-                  <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
-                    <Plus className="h-4 w-4" />
-                    {editingRuleId ? 'Save Rule' : 'Create Rule'}
-                  </button>
-                </div>
-              </form>
+              <button
+                onClick={() => showRuleForm ? resetRuleForm() : setShowRuleForm(true)}
+                className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:from-amber-500 hover:to-orange-500"
+              >
+                {showRuleForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                {showRuleForm ? 'Cancel' : 'Add Rule'}
+              </button>
             )}
+          </div>
 
-            <div className="mt-5 space-y-3">
-              {rules.length === 0 ? (
-                <p className="text-sm text-slate-400">No auto-tagging rules configured.</p>
-              ) : (
-                rules.map((rule) => (
-                  <div key={rule.id} className="rounded-2xl border border-slate-200 bg-white/90 p-4 dark:border-slate-700 dark:bg-slate-900/80">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-slate-50">{rule.name}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {rule.match_field} {rule.match_type} <span className="font-mono">{rule.match_pattern}</span>
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          Applies <span className="font-mono">{rule.tag_key}={rule.tag_value}</span> · P{rule.priority} · {rule.is_active ? 'active' : 'inactive'}
+          {showRuleForm && canWrite && (
+            <form onSubmit={handleSaveRule} className="mb-4 rounded-lg border border-amber-200 bg-amber-50/40 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+              <div className="grid gap-2 md:grid-cols-2">
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Rule Name</span>
+                  <input value={ruleName} onChange={(e) => setRuleName(e.target.value)} className={inputCls} placeholder="billing-classifier" required />
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Match Type</span>
+                  <select value={matchType} onChange={(e) => setMatchType(e.target.value as (typeof MATCH_TYPES)[number])} className={inputCls}>
+                    {MATCH_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Match Field</span>
+                  <input value={matchField} onChange={(e) => setMatchField(e.target.value)} className={inputCls} placeholder="prompt" required />
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Match Pattern</span>
+                  <input value={matchPattern} onChange={(e) => setMatchPattern(e.target.value)} className={inputCls} placeholder="billing" required />
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Tag Key</span>
+                  <input value={ruleTagKey} onChange={(e) => setRuleTagKey(e.target.value)} className={inputCls} placeholder="domain" required />
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Tag Value</span>
+                  <input value={ruleTagValue} onChange={(e) => setRuleTagValue(e.target.value)} className={inputCls} placeholder="billing" required />
+                </label>
+                <label className="text-xs">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Priority</span>
+                  <input value={rulePriority} onChange={(e) => setRulePriority(e.target.value)} className={inputCls} placeholder="100" />
+                </label>
+                <label className="text-xs md:col-span-2">
+                  <span className="mb-1 block text-[10px] font-medium text-slate-500">Description</span>
+                  <textarea value={ruleDescription} onChange={(e) => setRuleDescription(e.target.value)} className={`${inputCls} min-h-[50px] resize-none`} placeholder="Optional" />
+                </label>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={ruleIsActive} onChange={(e) => setRuleIsActive(e.target.checked)} className="rounded" /> Active
+                </label>
+                <button type="submit" className="rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-amber-500 hover:to-orange-500">
+                  {editingRuleId ? 'Save Rule' : 'Create Rule'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {rules.length === 0 ? (
+            <p className="text-xs text-slate-400">No auto-tagging rules configured.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="px-3 py-2 font-medium text-slate-500">Rule</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Match</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Applies</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Priority</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Status</th>
+                    {canWrite && <th className="px-3 py-2" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rules.map((rule) => (
+                    <tr key={rule.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-amber-50/30 dark:hover:bg-amber-950/10">
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-slate-900 dark:text-white">{rule.name}</p>
+                        {rule.description && <p className="text-[10px] text-slate-500 truncate max-w-[180px]">{rule.description}</p>}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[10px] text-slate-600 dark:text-slate-400">
+                        {rule.match_field} <span className="text-amber-600 dark:text-amber-400">{rule.match_type}</span> {rule.match_pattern}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[10px]">
+                        <span className="text-slate-700 dark:text-slate-300">{rule.tag_key}</span>=<span className="text-amber-600 dark:text-amber-400">{rule.tag_value}</span>
+                      </td>
+                      <td className="px-3 py-2 text-[11px] text-slate-500">P{rule.priority}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${rule.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                          {rule.is_active ? 'active' : 'off'}
+                        </span>
+                      </td>
+                      {canWrite && (
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => startEditRule(rule)} className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => void handleDeleteRule(rule)} className="rounded-md border border-red-200 p-1.5 text-red-500 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30">
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Simulation tab */}
+      {tab === 'simulation' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 mb-3">
+            <Wand2 className="h-4 w-4 text-amber-500" />
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Auto-Tag Simulation</p>
+          </div>
+          <p className="mb-2 text-[11px] text-slate-500">Enter JSON fields to test which rules match and what tags would be applied.</p>
+          <textarea value={simulationFields} onChange={(e) => setSimulationFields(e.target.value)} className={`${inputCls} min-h-[120px] font-mono resize-none`} />
+          <button onClick={() => void handleRunSimulation()} className="mt-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-amber-500 hover:to-orange-500">
+            Run Simulation
+          </button>
+
+          {simulation && (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Matched Rules ({simulation.matched.length})</p>
+                {simulation.matched.length === 0 ? (
+                  <p className="text-xs text-slate-400">No rules matched this payload.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {simulation.matched.map((item) => (
+                      <div key={item.rule_id} className="rounded-md bg-amber-50 px-2.5 py-2 dark:bg-amber-950/20">
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{item.rule_name}</p>
+                        <p className="mt-0.5 font-mono text-[10px] text-slate-500">
+                          {item.tag_key}=<span className="text-amber-600 dark:text-amber-400">{item.tag_value}</span> &middot; P{item.priority}
                         </p>
                       </div>
-                      {canWrite && (
-                        <div className="flex gap-2">
-                          <button onClick={() => startEditRule(rule)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button onClick={() => void handleDeleteRule(rule)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 dark:border-slate-700 dark:bg-slate-900/80">
-            <div className="mb-4 flex items-center gap-2">
-              <Wand2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Simulation</h2>
-            </div>
-            <textarea value={simulationFields} onChange={(e) => setSimulationFields(e.target.value)} className={`${inputCls} min-h-[170px] w-full font-mono text-xs`} />
-            <button onClick={() => void handleRunSimulation()} className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-              Re-run simulation
-            </button>
-            {simulation && (
-              <div className="mt-4 space-y-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Matched Rules</p>
-                  <div className="mt-2 space-y-2">
-                    {simulation.matched.length === 0 ? (
-                      <p className="text-sm text-slate-400">No rules matched this payload.</p>
-                    ) : (
-                      simulation.matched.map((item) => (
-                        <div key={item.rule_id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{item.rule_name}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {item.tag_key}={item.tag_value} · P{item.priority}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Applied Tags</p>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    {JSON.stringify(simulation.applied_tags, null, 2)}
-                  </pre>
-                </div>
+                )}
               </div>
-            )}
+              <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Applied Tags</p>
+                <pre className="overflow-x-auto rounded-md bg-slate-50 p-2.5 text-[10px] text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  {JSON.stringify(simulation.applied_tags, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hierarchy tab */}
+      {tab === 'hierarchy' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex items-center gap-2 mb-3">
+            <ChevronRight className="h-4 w-4 text-amber-500" />
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Tag Hierarchy</p>
           </div>
-        </section>
+          {tree.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 px-6 py-8 text-center text-xs text-slate-400 dark:border-slate-700">
+              No active tags with hierarchy. Create tags with parent relationships to build the tree.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tree.map((node) => <TagNode key={node.id} node={node} />)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quick nav footer */}
+      <div className="flex flex-wrap gap-1.5 pt-2">
+        {[
+          { href: '/tool-registry', label: 'Tool Governance' },
+          { href: '/data-capture', label: 'Data Capture' },
+          { href: '/approvals', label: 'Approvals' },
+          { href: '/audit', label: 'Audit Log' },
+          { href: '/security', label: 'Security' },
+          { href: '/alert-rules', label: 'Alert Rules' },
+          { href: '/budgets', label: 'Budgets' },
+          { href: '/chargeback', label: 'Chargeback' },
+        ].map((l) => (
+          <Link key={l.href} href={l.href} className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:ring-amber-800 dark:hover:bg-amber-950/50">
+            {l.label}
+          </Link>
+        ))}
       </div>
     </div>
   )

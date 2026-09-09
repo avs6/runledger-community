@@ -14,7 +14,7 @@ import {
   ChevronDown,
   Cpu,
   Database,
-  FolderLock,
+
   FileText,
   FlaskConical,
   GitBranch,
@@ -247,15 +247,12 @@ export default function Sidebar() {
 
           {canAccessApiKeys && (
             <Section id="governance" label="Safety & Governance">
-              <NavLink href="/tool-registry" label="Tool Registry" icon={Wrench} />
-              <NavLink href="/search-tools" label="Search Tools" icon={Search} />
-              <NavLink href="/tool-policies" label="Tool Policies" icon={FolderLock} />
+              <NavLink href="/tool-registry" label="Tool Governance" icon={Wrench} />
               <NavLink href="/mcp" label="MCP Servers" icon={Plug} />
               <NavLink href="/data-capture" label="Data Capture" icon={Shield} />
               <NavLink href="/security" label="Security" icon={ShieldAlert} />
               {isWorkspaceAdmin && <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />}
               {isWorkspaceAdmin && <NavLink href="/audit" label="Audit Log" icon={ScrollText} />}
-              {isWorkspaceAdmin && <NavLink href="/policy-dry-run" label="Policy Dry Run" icon={Shield} />}
               {isWorkspaceAdmin && <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />}
               <NavLink href="/alert-rules" label="Alert Rules" icon={Bell} />
               <NavLink href="/tags" label="Tags" icon={BookOpen} />

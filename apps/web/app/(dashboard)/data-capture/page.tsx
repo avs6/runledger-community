@@ -1,9 +1,9 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CheckCircle2, Database, Eye, Info, Layers, Link2, Loader2, Pencil, Plus, Radio, Search, Shield, Trash2, X, Building2 } from 'lucide-react'
+import { CheckCircle2, Database, Eye, Info, Layers, Link2, Loader2, Pencil, Plus, Radio, Search, Shield, Trash2, X, Building2, Zap, Lock, Globe, Server, Activity } from 'lucide-react'
 import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
 import {
@@ -22,7 +22,7 @@ import {
 import type { CapturePolicyResponse, CapturePolicyScope, GovernanceInternalPosture, DataCaptureRuntimePosture, PiiTestResult, RetentionPreview, DataProtectionOrgPosture, DataProtectionGatewayPosture } from '@/types/api'
 
 const inputCls =
-  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-indigo-400'
+  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500'
 
 type Tab = 'global' | 'scoped' | 'pii'
 
@@ -56,6 +56,13 @@ function sampledRatePct(rate: string | null | undefined) {
   return `${(parseFloat(rate) * 100).toFixed(0)}%`
 }
 
+const MODE_COLORS: Record<string, string> = {
+  METADATA_ONLY: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  ERRORS_ONLY: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  SAMPLED: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  FULL: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+}
+
 export default function DataCapturePage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
@@ -63,7 +70,7 @@ export default function DataCapturePage() {
 
   const [tab, setTab] = useState<Tab>('global')
   const [capturePolicy, setCapturePolicy] = useState<CapturePolicyResponse | null>(null)
-  const [privacyMode, setPrivacyMode] = useState('METADATA_ONLY')
+  const [privacyMode, setPrivacyMode] = useState('FULL')
   const [sampledRate, setSampledRate] = useState('')
   const [savingPrivacy, setSavingPrivacy] = useState(false)
   const [retention, setRetention] = useState<RetentionPreview | null>(null)
@@ -225,8 +232,8 @@ export default function DataCapturePage() {
   if (!canManageOrgSettings) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Data Capture</h1>
-        <p className="mt-4 text-sm text-slate-500">Data capture policy is an organization-admin function.</p>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Data Capture</h1>
+        <p className="mt-2 text-xs text-slate-500">Data capture policy is an organization-admin function.</p>
       </div>
     )
   }
@@ -234,400 +241,285 @@ export default function DataCapturePage() {
   const compliance = COMPLIANCE_NOTES[privacyMode]
   const ComplianceIcon = compliance?.icon ?? Info
 
+  const postures = useMemo(() => {
+    const items: { label: string; value: string | number; sub?: string; color: string }[] = []
+    if (orgPosture) {
+      items.push(
+        { label: 'Workspace Users', value: orgPosture.user_context.total_users, color: 'text-blue-400' },
+        { label: 'Capture Policies', value: orgPosture.capture_context.active_policies, sub: `${orgPosture.capture_context.total_policies} total`, color: 'text-blue-400' },
+        { label: 'Security Events', value: orgPosture.security_context.security_events_30d, sub: '30d', color: 'text-blue-400' },
+      )
+    }
+    if (gatewayPosture) {
+      items.push(
+        { label: 'Gateway Routes', value: gatewayPosture.provider_context.total_routes, sub: `${gatewayPosture.provider_context.total_providers} providers`, color: 'text-violet-400' },
+        { label: 'Guardrails', value: gatewayPosture.guardrail_context.total_guardrails, sub: `${gatewayPosture.guardrail_context.guardrail_events_30d} events`, color: 'text-violet-400' },
+      )
+    }
+    if (runtimePosture) {
+      items.push(
+        { label: 'Provider Calls', value: runtimePosture.gateway_evidence.provider_calls_30d, sub: '30d', color: 'text-cyan-400' },
+        { label: 'Runs', value: runtimePosture.observe_evidence.runs_30d, sub: '30d', color: 'text-cyan-400' },
+        { label: 'Budgets', value: runtimePosture.budget_context.total_budgets, color: 'text-cyan-400' },
+      )
+    }
+    return items
+  }, [orgPosture, gatewayPosture, runtimePosture])
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/40">
-          <Database className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+    <div className="mx-auto max-w-6xl space-y-4 p-4">
+      {/* Hero header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-950 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.15),transparent_60%)]" />
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30">
+              <Database className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Data Capture Policy Studio</h1>
+              <p className="text-xs text-emerald-200/70">Privacy mode, per-scope overrides, PII redaction &amp; compliance controls</p>
+            </div>
+          </div>
+          {capturePolicy && (
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${MODE_COLORS[capturePolicy.privacy_mode] ?? 'bg-slate-700 text-slate-300'}`}>
+                {capturePolicy.privacy_mode}
+              </span>
+              {capturePolicy.sampled_rate && (
+                <span className="text-xs text-emerald-300/80">{sampledRatePct(capturePolicy.sampled_rate)}</span>
+              )}
+            </div>
+          )}
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Data Capture Policy Studio</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Control privacy mode, per-scope overrides, and PII redaction behavior.
-          </p>
-        </div>
+
+        {/* KPI strip */}
+        {postures.length > 0 && (
+          <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+            {postures.map((p) => (
+              <div key={p.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+                <p className="text-lg font-bold text-white">{p.value}</p>
+                <p className="text-[10px] text-slate-400">{p.label}</p>
+                {p.sub && <p className="text-[10px] text-slate-500">{p.sub}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Posture chips */}
+        {govInternal && (
+          <div className="relative mt-3 flex flex-wrap gap-1.5">
+            {[
+              { label: `${govInternal.tool_registry_context.total_tools} Tools`, sub: `${govInternal.tool_registry_context.enforced_tools} enforced` },
+              { label: `${govInternal.tool_policies_context.active_policies} Policies`, sub: 'active' },
+              { label: `${govInternal.approvals_context.pending_approvals} Pending`, sub: 'approvals' },
+              { label: `${govInternal.audit_context.audit_events_30d} Audit`, sub: '30d' },
+            ].map((c) => (
+              <span key={c.label} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] text-slate-300 ring-1 ring-white/10">
+                <span className="font-semibold text-white">{c.label}</span> {c.sub}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Org & Access Scope */}
-      {orgPosture && (
-        <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Org &amp; Access Scope</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Workspace Users</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.user_context.total_users}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Capture Policies</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.capture_context.active_policies}</p>
-              <p className="text-xs text-slate-500">{orgPosture.capture_context.total_policies} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Security Events (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.security_context.security_events_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">MCP Servers</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.mcp_context.active_servers}</p>
-              <p className="text-xs text-slate-500">{orgPosture.mcp_context.total_servers} total</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/organization" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Organization</Link>
-            <Link href="/users" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Users</Link>
-            <Link href="/workspaces" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Workspaces</Link>
-            <Link href="/access-groups" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Access Groups</Link>
-            <Link href="/api-keys" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">API Keys</Link>
-            <Link href="/mcp-registry" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">MCP Registry</Link>
-          </div>
-        </div>
-      )}
-
-      {/* Gateway & Observe Runtime */}
-      {gatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-lg font-semibold text-violet-900 dark:text-violet-100">Gateway &amp; Observe Runtime</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Gateway Routes</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.provider_context.total_routes}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.provider_context.total_providers} providers</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Guardrails</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.guardrail_context.total_guardrails}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.guardrail_context.guardrail_events_30d} events 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Tool Calls (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.run_context.tool_runs_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.run_context.total_runs_30d} agent runs</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Alert Firings (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.monitoring_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.monitoring_context.total_alert_rules} rules</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/gateway" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Gateway</Link>
-            <Link href="/guardrails" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Guardrails</Link>
-            <Link href="/runs" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Runs</Link>
-            <Link href="/request-explorer" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Request Explorer</Link>
-            <Link href="/monitoring" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Monitoring</Link>
-          </div>
-        </div>
-      )}
-
-      {govInternal && (
-        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">Governance Cohesion</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Registered Tools</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_registry_context.total_tools}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_registry_context.enforced_tools} enforced</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Policies</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_policies_context.active_policies}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_policies_context.total_policies} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Pending Approvals</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.approvals_context.pending_approvals}</p>
-              <p className="text-xs text-slate-500">{govInternal.approvals_context.total_approvals_30d} total 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Audit Events 30d</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.audit_context.audit_events_30d}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/tool-registry" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Registry</Link>
-            <Link href="/tool-policies" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Policies</Link>
-            <Link href="/approvals" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Approvals</Link>
-            <Link href="/security" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Security</Link>
-            <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
-            <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
-            <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
-            <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
-          </div>
-        </div>
-      )}
-
-      {runtimePosture && (
-        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Provider Calls 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_evidence.provider_calls_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.gateway_evidence.model_routes} model routes</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Runs 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.observe_evidence.runs_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.observe_evidence.audit_events_30d} audit events</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Total Budgets</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.budget_context.total_budgets}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.budget_context.budget_notifications_30d} notifications 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Ledger Snapshots</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.ledger_context.ledger_snapshots}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.ledger_context.ledger_entries_30d} entries 30d</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/workspaces" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Workspaces</Link>
-            <Link href="/api-keys" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">API Keys</Link>
-            <Link href="/model-gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
-            <Link href="/response-cache" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Response Cache</Link>
-            <Link href="/request-flow" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Request Flow</Link>
-            <Link href="/audit" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Audit Log</Link>
-            <Link href="/budgets" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Budgets</Link>
-            <Link href="/ledger" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Ledger</Link>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+      {/* Tab bar */}
+      <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
         {[
           { key: 'global' as Tab, label: 'Global Policy', icon: Shield },
-          { key: 'scoped' as Tab, label: 'Scoped Policies', icon: Eye },
+          { key: 'scoped' as Tab, label: 'Scoped Overrides', icon: Eye },
           { key: 'pii' as Tab, label: 'PII Testing', icon: Search },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
               tab === key
                 ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
             {label}
           </button>
         ))}
       </div>
 
+      {/* Global Policy tab */}
       {tab === 'global' && (
-        <div className="space-y-4">
-          {capturePolicy && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span>Current:</span>
-              <span className="rounded bg-indigo-100 px-2 py-0.5 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                {capturePolicy.privacy_mode}
-              </span>
-              <span>{sampledRatePct(capturePolicy.sampled_rate)}</span>
+        <div className="space-y-3">
+          <form onSubmit={handleSavePrivacy} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-3">
+              <Lock className="h-4 w-4 text-emerald-500" />
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Privacy Mode</p>
             </div>
-          )}
-
-          <form onSubmit={handleSavePrivacy} className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Privacy Mode</p>
             <div className="flex flex-wrap items-end gap-3">
-              <select value={privacyMode} onChange={(e) => setPrivacyMode(e.target.value)} className={inputCls}>
-                <option value="METADATA_ONLY">METADATA_ONLY</option>
-                <option value="ERRORS_ONLY">ERRORS_ONLY</option>
-                <option value="SAMPLED">SAMPLED</option>
-                <option value="FULL">FULL</option>
-              </select>
+              <div className="flex-1 min-w-[200px]">
+                <select value={privacyMode} onChange={(e) => setPrivacyMode(e.target.value)} className={inputCls}>
+                  <option value="METADATA_ONLY">METADATA_ONLY</option>
+                  <option value="ERRORS_ONLY">ERRORS_ONLY</option>
+                  <option value="SAMPLED">SAMPLED</option>
+                  <option value="FULL">FULL</option>
+                </select>
+              </div>
               {privacyMode === 'SAMPLED' && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500">Sample rate (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="1"
-                    value={sampledRate}
-                    onChange={(e) => setSampledRate(e.target.value)}
-                    className={`w-24 ${inputCls}`}
-                    required
-                  />
+                <div className="w-24">
+                  <label className="mb-1 block text-[10px] text-slate-500">Sample %</label>
+                  <input type="number" min="0" max="100" step="1" value={sampledRate} onChange={(e) => setSampledRate(e.target.value)} className={inputCls} required />
                 </div>
               )}
+              <button type="submit" disabled={savingPrivacy} className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50">
+                {savingPrivacy ? 'Saving...' : 'Save Policy'}
+              </button>
             </div>
 
-            <div className="mt-4 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
-              <ComplianceIcon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${compliance.color}`} />
-              <p className={`text-xs ${compliance.color}`}>{compliance.note}</p>
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 dark:border-slate-700 dark:bg-slate-800/40">
+              <ComplianceIcon className={`mt-0.5 h-3.5 w-3.5 flex-shrink-0 ${compliance.color}`} />
+              <p className={`text-[11px] leading-relaxed ${compliance.color}`}>{compliance.note}</p>
             </div>
-
-            <button type="submit" disabled={savingPrivacy} className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
-              {savingPrivacy ? 'Saving...' : 'Save Policy'}
-            </button>
           </form>
 
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Retention Preview</p>
+          {/* Retention preview */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="h-4 w-4 text-emerald-500" />
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Retention Preview</p>
+            </div>
             {loadingRetention ? (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading preview...
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading preview...
               </div>
             ) : retention ? (
-              <div className="space-y-4">
-                <div className="rounded-lg bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
-                  <span className="text-xs text-slate-500">Estimated storage</span>
-                  <p className="text-lg font-semibold text-slate-900 dark:text-white">
-                    {retention.estimated_storage_mb_per_month} MB/month
-                  </p>
+              <div className="space-y-3">
+                <div className="inline-flex items-baseline gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-950/30">
+                  <span className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{retention.estimated_storage_mb_per_month}</span>
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400">MB/month est.</span>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-3">
                   <div>
-                    <p className="mb-1 text-xs font-medium text-slate-500">Fields Captured</p>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Fields Captured</p>
                     <div className="flex flex-wrap gap-1">
                       {retention.fields_captured.map((item) => (
-                        <span key={item} className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          {item}
-                        </span>
+                        <span key={item} className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">{item}</span>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <p className="mb-1 text-xs font-medium text-slate-500">Fields Redacted</p>
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Fields Redacted</p>
                     <div className="flex flex-wrap gap-1">
                       {retention.fields_redacted.map((item) => (
-                        <span key={item} className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                          {item}
-                        </span>
+                        <span key={item} className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{item}</span>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <p className="mb-1 text-xs font-medium text-slate-500">Compliance Notes</p>
-                    <ul className="list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Compliance</p>
+                    <ul className="space-y-0.5 text-[11px] text-slate-600 dark:text-slate-400">
                       {retention.compliance_notes.map((note) => (
-                        <li key={note}>{note}</li>
+                        <li key={note} className="flex items-start gap-1"><CheckCircle2 className="mt-0.5 h-3 w-3 flex-shrink-0 text-emerald-500" />{note}</li>
                       ))}
                     </ul>
                   </div>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">Unable to load retention preview.</p>
+              <p className="text-xs text-slate-400">Unable to load retention preview.</p>
             )}
           </div>
         </div>
       )}
 
+      {/* Scoped Overrides tab */}
       {tab === 'scoped' && (
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Per-Scope Overrides</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Override the global policy for a workspace, API key, route, user, or agent context.</p>
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-emerald-500" />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Per-Scope Overrides</p>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Override global policy for a workspace, API key, route, user, or agent.</p>
             </div>
             <button
               onClick={() => (showScopeForm ? resetScopeForm() : setShowScopeForm(true))}
-              className="flex items-center gap-1 text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:from-emerald-500 hover:to-teal-500"
             >
-              {showScopeForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {showScopeForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
               {showScopeForm ? 'Cancel' : 'Add Scope'}
             </button>
           </div>
 
           {showScopeForm && (
-            <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-4">
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-slate-500">Scope Type</span>
-                <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={`${inputCls} w-full`} disabled={Boolean(editingScopeKey)}>
-                  {SCOPE_TYPES.map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
+            <div className="mb-4 grid gap-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-800 dark:bg-emerald-950/20 md:grid-cols-4">
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Scope Type</span>
+                <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls} disabled={Boolean(editingScopeKey)}>
+                  {SCOPE_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-slate-500">Scope ID</span>
-                <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={`${inputCls} w-full`} disabled={Boolean(editingScopeKey)} />
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Scope ID</span>
+                <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={inputCls} disabled={Boolean(editingScopeKey)} />
               </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-slate-500">Privacy Mode</span>
-                <select value={scopeMode} onChange={(e) => setScopeMode(e.target.value)} className={`${inputCls} w-full`}>
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Privacy Mode</span>
+                <select value={scopeMode} onChange={(e) => setScopeMode(e.target.value)} className={inputCls}>
                   <option value="METADATA_ONLY">METADATA_ONLY</option>
                   <option value="ERRORS_ONLY">ERRORS_ONLY</option>
                   <option value="SAMPLED">SAMPLED</option>
                   <option value="FULL">FULL</option>
                 </select>
               </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-slate-500">Sample rate (%)</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
-                  value={scopeRate}
-                  onChange={(e) => setScopeRate(e.target.value)}
-                  className={`${inputCls} w-full`}
-                  disabled={scopeMode !== 'SAMPLED'}
-                  placeholder="10"
-                />
+              <label className="text-xs">
+                <span className="mb-1 block text-[10px] font-medium text-slate-500">Sample rate (%)</span>
+                <input type="number" min="0" max="100" step="1" value={scopeRate} onChange={(e) => setScopeRate(e.target.value)} className={inputCls} disabled={scopeMode !== 'SAMPLED'} placeholder="10" />
               </label>
               <div className="md:col-span-4 flex gap-2">
-                <button onClick={() => void handleSaveScope()} disabled={savingScope || !scopeId.trim()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">
+                <button onClick={() => void handleSaveScope()} disabled={savingScope || !scopeId.trim()} className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50">
                   {savingScope ? 'Saving...' : editingScopeKey ? 'Save Changes' : 'Create Override'}
                 </button>
                 {editingScopeKey && (
-                  <button onClick={resetScopeForm} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
-                    Cancel
-                  </button>
+                  <button onClick={resetScopeForm} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button>
                 )}
               </div>
             </div>
           )}
 
           {loadingScopes ? (
-            <p className="text-sm text-slate-400">Loading...</p>
+            <p className="text-xs text-slate-400">Loading...</p>
           ) : scopes.length === 0 ? (
-            <p className="text-sm text-slate-400">No scoped overrides. The global policy applies everywhere.</p>
+            <p className="text-xs text-slate-400">No scoped overrides. The global policy applies everywhere.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="pb-2 font-medium text-slate-500">Scope</th>
-                    <th className="pb-2 font-medium text-slate-500">Privacy Mode</th>
-                    <th className="pb-2 font-medium text-slate-500">Sample Rate</th>
-                    <th className="pb-2 text-right font-medium text-slate-500">Actions</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Scope</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Privacy Mode</th>
+                    <th className="px-3 py-2 font-medium text-slate-500">Sample Rate</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {scopes.map((scope) => (
-                    <tr key={`${scope.scope_type}:${scope.scope_id}`} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="py-3">
-                        <p className="font-mono text-xs text-slate-700 dark:text-slate-200">{scope.scope_type}</p>
-                        <p className="font-mono text-xs text-slate-500">{scope.scope_id}</p>
+                    <tr key={`${scope.scope_type}:${scope.scope_id}`} className="border-b border-slate-100 dark:border-slate-800 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10">
+                      <td className="px-3 py-2">
+                        <p className="font-mono text-[11px] font-medium text-slate-700 dark:text-slate-200">{scope.scope_type}</p>
+                        <p className="font-mono text-[10px] text-slate-500">{scope.scope_id}</p>
                       </td>
-                      <td className="py-3">
-                        <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${MODE_COLORS[scope.privacy_mode] ?? 'bg-slate-100 text-slate-700'}`}>
                           {scope.privacy_mode}
                         </span>
                       </td>
-                      <td className="py-3 text-slate-500">{sampledRatePct(scope.sampled_rate)}</td>
-                      <td className="py-3">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => handleEditScope(scope)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                            <Pencil className="h-4 w-4" />
+                      <td className="px-3 py-2 text-slate-500">{sampledRatePct(scope.sampled_rate)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => handleEditScope(scope)} className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                            <Pencil className="h-3 w-3" />
                           </button>
-                          <button onClick={() => void handleDeleteScope(scope)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                            <Trash2 className="h-4 w-4" />
+                          <button onClick={() => void handleDeleteScope(scope)} className="rounded-md border border-red-200 p-1.5 text-red-500 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30">
+                            <Trash2 className="h-3 w-3" />
                           </button>
                         </div>
                       </td>
@@ -640,60 +532,76 @@ export default function DataCapturePage() {
         </div>
       )}
 
+      {/* PII Testing tab */}
       {tab === 'pii' && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Test PII Redaction</p>
-            <p className="mb-3 text-sm text-slate-500">
-              Paste sample text to see how RunLedger detects and redacts personally identifiable information.
-            </p>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-2 mb-3">
+              <Search className="h-4 w-4 text-emerald-500" />
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Test PII Redaction</p>
+            </div>
+            <p className="mb-2 text-[11px] text-slate-500">Paste sample text to see how RunLedger detects and redacts personally identifiable information.</p>
             <textarea
               value={piiText}
               onChange={(e) => setPiiText(e.target.value)}
-              rows={4}
-              className={`w-full resize-none ${inputCls}`}
+              rows={3}
+              className={`resize-none ${inputCls}`}
               placeholder="My email is john@example.com and my SSN is 123-45-6789"
             />
             <button
               onClick={() => void handleTestPii()}
               disabled={testingPii || !piiText.trim()}
-              className="mt-3 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="mt-2 flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50"
             >
-              {testingPii ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {testingPii ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
               Test Redaction
             </button>
           </div>
 
           {piiResult && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                   Detected PII ({piiResult.detected_pii.length})
                 </p>
                 {piiResult.detected_pii.length === 0 ? (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">No PII detected in the input text.</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">No PII detected in the input text.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {piiResult.detected_pii.map((item, index) => (
-                      <div key={`${item.type}-${index}`} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
-                        <span className="text-xs font-semibold text-red-700 dark:text-red-400">{item.type}</span>
-                        <p className="mt-0.5 font-mono text-xs text-red-600 dark:text-red-300">{item.value}</p>
+                      <div key={`${item.type}-${index}`} className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 dark:border-red-900 dark:bg-red-950/30">
+                        <span className="text-[10px] font-bold text-red-700 dark:text-red-400">{item.type}</span>
+                        <p className="font-mono text-[11px] text-red-600 dark:text-red-300">{item.value}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Redacted Output</p>
-                <pre className="overflow-x-auto rounded-lg bg-slate-50 p-4 text-sm text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-                  {piiResult.redacted_text}
-                </pre>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Redacted Output</p>
+                <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs text-slate-800 dark:bg-slate-800 dark:text-slate-200">{piiResult.redacted_text}</pre>
               </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Quick nav footer */}
+      <div className="flex flex-wrap gap-1.5 pt-2">
+        {[
+          { href: '/security', label: 'Security' },
+          { href: '/approvals', label: 'Approvals' },
+          { href: '/audit', label: 'Audit Log' },
+          { href: '/tool-registry', label: 'Tool Governance' },
+          { href: '/alert-rules', label: 'Alert Rules' },
+          { href: '/tags', label: 'Tags' },
+          { href: '/governance-pack', label: 'Audit Pack' },
+        ].map((l) => (
+          <Link key={l.href} href={l.href} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:ring-emerald-800 dark:hover:bg-emerald-950/50">
+            {l.label}
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

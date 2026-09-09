@@ -1,7 +1,19 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowRight, Banknote, Flame, LineChart, Network, PiggyBank, Target, TrendingDown, Wallet } from 'lucide-react'
+import {
+  ArrowRight,
+  Banknote,
+  DollarSign,
+  Flame,
+  LineChart,
+  Network,
+  PiggyBank,
+  Target,
+  TrendingDown,
+  Wallet,
+  Zap,
+} from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { getBudgetRollup, getEconomicsFinopsPosture, getEconomicsGatewayPosture, getRunFlow } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
@@ -14,7 +26,6 @@ import {
   type HeatmapRow,
   type SavingsCategoryPoint,
 } from '@/components/dashboard/FinOpsCharts'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { BudgetRollupResponse, BudgetRollupWorkspace, EconomicsFinopsPosture, RunFlowRecord } from '@/types/api'
 import { num } from '@/lib/utils'
 
@@ -189,12 +200,12 @@ function buildHeatmap(items: RunFlowRecord[]): HeatmapRow[] {
 
 function budgetRollupStatus(row: Pick<BudgetRollupWorkspace, 'active_budget_count' | 'pct_used' | 'exceeded_count' | 'at_risk_count'>) {
   const pct = parseMoney(row.pct_used)
-  if (row.active_budget_count === 0) return { label: 'Missing', className: 'bg-slate-100 text-slate-600' }
-  if (row.exceeded_count > 0) return { label: 'Exceeded', className: 'bg-rose-100 text-rose-700' }
-  if (row.at_risk_count > 0) return { label: 'At risk', className: 'bg-amber-100 text-amber-700' }
-  if (pct >= 100) return { label: 'Exceeded', className: 'bg-rose-100 text-rose-700' }
-  if (pct >= 80) return { label: 'At risk', className: 'bg-amber-100 text-amber-700' }
-  return { label: 'Healthy', className: 'bg-emerald-100 text-emerald-700' }
+  if (row.active_budget_count === 0) return { label: 'Missing', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' }
+  if (row.exceeded_count > 0) return { label: 'Exceeded', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' }
+  if (row.at_risk_count > 0) return { label: 'At risk', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
+  if (pct >= 100) return { label: 'Exceeded', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' }
+  if (pct >= 80) return { label: 'At risk', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
+  return { label: 'Healthy', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
 }
 
 function nextOptimization(rows: RoiRow[]) {
@@ -212,10 +223,19 @@ function nextOptimization(rows: RoiRow[]) {
   }
 }
 
+const TABS = [
+  { id: 'breakdown', label: 'Cost Breakdown' },
+  { id: 'roi', label: 'ROI Table' },
+  { id: 'savings', label: 'Savings' },
+  { id: 'heatmap', label: 'Heatmap' },
+  { id: 'budget', label: 'Budget Overlay' },
+] as const
+type TabId = (typeof TABS)[number]['id']
+
 export default async function CostSavingsPage({
   searchParams,
 }: {
-  searchParams?: { range?: string; scope?: string; dimension?: string }
+  searchParams?: Promise<{ range?: string; scope?: string; dimension?: string; tab?: string }>
 }) {
   const session = await getServerSession(authOptions)
   if (!session?.apiKey) redirect('/login')
@@ -223,11 +243,13 @@ export default async function CostSavingsPage({
   const isPlatformAdmin = Boolean(s.isPlatformAdmin)
   const tenantRole = String(s.tenantRole ?? '')
   const isOrgAdmin = isPlatformAdmin || tenantRole === 'org_admin'
-  const selectedScope = allowedScope(searchParams?.scope, isPlatformAdmin, isOrgAdmin)
-  const dimension = ['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].includes(searchParams?.dimension ?? '')
-    ? String(searchParams?.dimension)
+  const sp = (await searchParams) ?? {}
+  const selectedScope = allowedScope(sp.scope, isPlatformAdmin, isOrgAdmin)
+  const dimension = ['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].includes(sp.dimension ?? '')
+    ? String(sp.dimension)
     : 'Workspace'
-  const win = getDashboardWindow(searchParams?.range ?? '30d')
+  const activeTab: TabId = TABS.some((t) => t.id === sp.tab) ? (sp.tab as TabId) : 'breakdown'
+  const win = getDashboardWindow(sp.range ?? '30d')
   const [flow, budgetRollup, finopsPosture, gatewayPosture] = await Promise.all([
     getRunFlow(session.apiKey, {
       scope: selectedScope,
@@ -255,311 +277,364 @@ export default async function CostSavingsPage({
   const recommendation = nextOptimization(roiRows)
   const budgetRows = budgetRollup?.workspaces ?? []
 
+  const postureChips: string[] = []
+  if (finopsPosture) {
+    postureChips.push(`${finopsPosture.billing_context.open_billing_periods} open periods`)
+    postureChips.push(`${finopsPosture.billing_context.chargeback_rules} CB rules`)
+    postureChips.push(`${finopsPosture.budget_context.active_overrides} overrides`)
+    postureChips.push(`${finopsPosture.notification_context.active_notifications} notifications`)
+    postureChips.push(`${finopsPosture.ledger_context.ledger_snapshots} snapshots`)
+  }
+  if (gatewayPosture) {
+    postureChips.push(`${gatewayPosture.provider_context.distinct_providers} providers`)
+    postureChips.push(`${gatewayPosture.gateway_context.active_routes} routes`)
+    postureChips.push(`${gatewayPosture.gateway_context.distinct_models} models`)
+    postureChips.push(`${gatewayPosture.investigation_context.runs_30d} runs 30d`)
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-[-0.05em] text-slate-950">Cost & Savings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Trace spend by business dimension, explain savings, and identify the next optimization target.
-          </p>
-        </div>
-        <Link
-          href="/budgets"
-          className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-        >
-          Manage budgets <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {(['workspace', 'org', 'platform'] as FlowScope[]).map((scope) => {
-          const disabled = (scope === 'platform' && !isPlatformAdmin) || (scope === 'org' && !isOrgAdmin && !isPlatformAdmin)
-          if (disabled) return null
-          const active = selectedScope === scope
-          return (
-            <Link
-              key={scope}
-              href={`/cost-savings?scope=${scope}&range=${win.range}&dimension=${dimension}`}
-              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                active ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'
-              }`}
-            >
-              {scopeLabel(scope)}
-            </Link>
-          )
-        })}
-      </div>
-
-      <DashboardScopeBar
-        scope={scopeLabel(selectedScope)}
-        context={`${requests.toLocaleString()} requests in ${win.label.toLowerCase()}`}
-        activeRange={win.range}
-        basePath={`/cost-savings?scope=${selectedScope}&dimension=${dimension}`}
-        dimensions={['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time', 'Budget']}
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          { title: 'AI spend', value: money(spend), sub: 'Actual observed spend', icon: Banknote },
-          { title: 'Saved', value: money(saved), sub: `${percent(optimization)} optimization`, icon: PiggyBank },
-          { title: 'Requests', value: requests.toLocaleString(), sub: `${money(costPerRequest)} per request`, icon: LineChart },
-          { title: 'Next target', value: recommendation ? recommendation.title.split(' ')[0] : 'n/a', sub: recommendation ? 'Highest-value optimization' : 'Needs more data', icon: Target },
-        ].map(({ title, value, sub, icon: Icon }) => (
-          <div key={title} className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
-                <p className="mt-2 font-display text-3xl font-semibold tracking-[-0.045em] text-slate-950">{value}</p>
-                <p className="mt-1 text-xs text-slate-500">{sub}</p>
-              </div>
-              <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700">
-                <Icon className="h-5 w-5" />
-              </div>
+    <div className="space-y-5">
+      {/* ── Hero ── */}
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-cyan-950 to-blue-950 px-6 py-8 text-white shadow-lg">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.15),transparent_60%)]" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-6 w-6 text-cyan-400" />
+              <h1 className="text-2xl font-bold tracking-tight">Cost & Savings</h1>
             </div>
+            <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-300">
+              Trace spend by business dimension, explain savings, identify the next optimization target, and overlay budget guardrails — all in one command center.
+            </p>
+            {postureChips.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {postureChips.map((c) => (
+                  <span key={c} className="rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 ring-1 ring-white/10">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+          <Link
+            href="/budgets"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-2 text-xs font-semibold shadow-md transition hover:brightness-110"
+          >
+            Manage Budgets <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
 
+        {/* KPI strip */}
+        <div className="relative mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+          {[
+            { label: 'AI Spend', value: money(spend) },
+            { label: 'Saved', value: money(saved) },
+            { label: 'Optimization', value: percent(optimization) },
+            { label: 'Requests', value: requests.toLocaleString() },
+            { label: 'Cost/Req', value: money(costPerRequest) },
+            { label: 'Dimension', value: dimension },
+            { label: 'Scope', value: scopeLabel(selectedScope) },
+            { label: 'Range', value: win.label },
+          ].map((kpi) => (
+            <div key={kpi.label} className="rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
+              <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Scope selector */}
+        <div className="relative mt-4 flex flex-wrap gap-2">
+          {(['workspace', 'org', 'platform'] as FlowScope[]).map((scope) => {
+            const disabled = (scope === 'platform' && !isPlatformAdmin) || (scope === 'org' && !isOrgAdmin && !isPlatformAdmin)
+            if (disabled) return null
+            const active = selectedScope === scope
+            return (
+              <Link
+                key={scope}
+                href={`/cost-savings?scope=${scope}&range=${win.range}&dimension=${dimension}&tab=${activeTab}`}
+                className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                  active ? 'bg-cyan-500/30 text-cyan-200 ring-1 ring-cyan-400/40' : 'bg-white/5 text-slate-400 ring-1 ring-white/10 hover:bg-white/10'
+                }`}
+              >
+                {scopeLabel(scope)}
+              </Link>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Recommendation */}
       {recommendation && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 text-amber-950 shadow-sm">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm dark:border-amber-800/50 dark:bg-amber-950/30">
           <div className="flex gap-3">
-            <Flame className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <Flame className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div>
-              <p className="font-semibold">{recommendation.title}</p>
-              <p className="mt-1 text-sm text-amber-900/80">{recommendation.body}</p>
+              <p className="text-xs font-bold text-amber-900 dark:text-amber-200">{recommendation.title}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-300/70">{recommendation.body}</p>
             </div>
           </div>
         </div>
       )}
 
-      <Card className="border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Cost Breakdown</CardTitle>
-          <p className="text-xs text-muted-foreground">Drill into spend by workspace, workflow, application, user, agent, model, tool, or time.</p>
-          <div className="flex flex-wrap gap-2 pt-2">
-            {['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].map((item) => (
-              <Link
-                key={item}
-                href={`/cost-savings?scope=${selectedScope}&range=${win.range}&dimension=${item}`}
-                className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
-                  dimension === item ? 'bg-blue-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:bg-blue-50'
-                }`}
-              >
-                {item}
-              </Link>
-            ))}
+      <DashboardScopeBar
+        scope={scopeLabel(selectedScope)}
+        context={`${requests.toLocaleString()} requests in ${win.label.toLowerCase()}`}
+        activeRange={win.range}
+        basePath={`/cost-savings?scope=${selectedScope}&dimension=${dimension}&tab=${activeTab}`}
+        dimensions={['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time', 'Budget']}
+      />
+
+      {/* Tab bar */}
+      <div className="rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
+        <nav className="flex flex-wrap gap-1">
+          {TABS.map((tab) => (
+            <Link
+              key={tab.id}
+              href={`/cost-savings?scope=${selectedScope}&range=${win.range}&dimension=${dimension}&tab=${tab.id}`}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                activeTab === tab.id
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
+
+      {/* Dimension chips (only for breakdown tab) */}
+      {activeTab === 'breakdown' && (
+        <div className="flex flex-wrap gap-1.5">
+          {['Workspace', 'Workflow', 'Application', 'User', 'Agent', 'Model', 'Tool', 'Time'].map((d) => (
+            <Link
+              key={d}
+              href={`/cost-savings?scope=${selectedScope}&range=${win.range}&dimension=${d}&tab=breakdown`}
+              className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                dimension === d
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-cyan-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+              }`}
+            >
+              {d}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tab content ── */}
+
+      {activeTab === 'breakdown' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Cost Breakdown — {dimension}</h2>
+              <p className="text-[11px] text-slate-500">Top 10 by spend + saved. Click a dimension chip above to pivot.</p>
+            </div>
+            <Banknote className="h-5 w-5 text-cyan-500" />
           </div>
-        </CardHeader>
-        <CardContent>
           <CostBreakdownBars data={breakdown} />
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
-      <Card className="overflow-hidden border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">ROI Table</CardTitle>
-          <p className="text-xs text-muted-foreground">Spend, saved, optimization percentage, requests, cost/request, and outcome rate by workspace or workload.</p>
-        </CardHeader>
-        <CardContent className="p-0">
+      {activeTab === 'roi' && (
+        <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm dark:border-slate-700">
+          <div className="border-b border-slate-200 bg-white px-5 py-3 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">ROI Table</h2>
+                <p className="text-[11px] text-slate-500">Spend, saved, optimization %, requests, cost/request, and outcome rate.</p>
+              </div>
+              <Target className="h-5 w-5 text-cyan-500" />
+            </div>
+          </div>
           {roiRows.length === 0 ? (
-            <div className="px-5 py-12 text-center text-sm text-muted-foreground">No ROI rows yet.</div>
+            <div className="bg-white px-5 py-12 text-center text-xs text-slate-400 dark:bg-slate-900">No ROI rows yet.</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y border-slate-200 bg-slate-50/80">
-                  {['Workspace / workload', 'Spend', 'Saved', 'Optimization', 'Requests', 'Cost/request', 'Outcome rate'].map((heading) => (
-                    <th key={heading} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {roiRows.map((row) => {
-                  const rowOptimization = row.spend + row.saved > 0 ? (row.saved / (row.spend + row.saved)) * 100 : 0
-                  const rowCostPerRequest = row.requests > 0 ? row.spend / row.requests : 0
-                  const outcomeRate = row.requests > 0 ? (row.successes / row.requests) * 100 : 0
-                  return (
-                    <tr key={row.name} className="hover:bg-blue-50/40">
-                      <td className="px-5 py-3 font-semibold text-slate-950">{row.name}</td>
-                      <td className="px-5 py-3 font-mono text-xs font-semibold">{money(row.spend)}</td>
-                      <td className="px-5 py-3 font-mono text-xs font-semibold text-emerald-700">{money(row.saved)}</td>
-                      <td className="px-5 py-3 font-mono text-xs">{percent(rowOptimization)}</td>
-                      <td className="px-5 py-3 font-mono text-xs">{row.requests.toLocaleString()}</td>
-                      <td className="px-5 py-3 font-mono text-xs">{money(rowCostPerRequest)}</td>
-                      <td className="px-5 py-3 font-mono text-xs font-semibold">{percent(outcomeRate)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-slate-200 bg-white/90 shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <TrendingDown className="h-4 w-4 text-emerald-600" /> Savings Attribution
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Uses realized savings category/reason codes when present, with telemetry fallback for older cached or local-model traffic.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <SavingsAttributionCards data={savings} />
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="border-slate-200 bg-white/90 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Cost Heatmap</CardTitle>
-            <p className="text-xs text-muted-foreground">Rows are workspaces, workflows, or applications. Columns are day of week. Darker cells burn more spend.</p>
-          </CardHeader>
-          <CardContent>
-            <CostHeatmap rows={heatmapRows} columns={heatmapColumns} />
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border-slate-200 bg-white/90 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Wallet className="h-4 w-4 text-blue-600" /> Budget Overlay
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              {budgetRollup
-                ? `${scopeLabel(selectedScope)} guardrails across ${budgetRollup.workspace_count.toLocaleString()} workspace${budgetRollup.workspace_count === 1 ? '' : 's'}: ${money(parseMoney(budgetRollup.current_spend_usd))} used of ${money(parseMoney(budgetRollup.limit_usd))}.`
-                : 'Budget rollup is unavailable for this scope.'}
-            </p>
-          </CardHeader>
-          <CardContent className="p-0">
-            {budgetRows.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-muted-foreground">No budget rollup rows for this scope.</div>
-            ) : (
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-y border-slate-200 bg-slate-50/80">
-                    {['Workspace', 'Budgets', 'Limit', 'Used', 'Remaining', 'Alert'].map((heading) => (
-                      <th key={heading} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                        {heading}
-                      </th>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
+                    {['Workspace / Workload', 'Spend', 'Saved', 'Optimization', 'Requests', 'Cost/Req', 'Outcome'].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {roiRows.map((row) => {
+                    const rowOpt = row.spend + row.saved > 0 ? (row.saved / (row.spend + row.saved)) * 100 : 0
+                    const rowCPR = row.requests > 0 ? row.spend / row.requests : 0
+                    const outcome = row.requests > 0 ? (row.successes / row.requests) * 100 : 0
+                    return (
+                      <tr key={row.name} className="bg-white hover:bg-cyan-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/50">
+                        <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">{row.name}</td>
+                        <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 dark:text-white">{money(row.spend)}</td>
+                        <td className="px-4 py-2.5 font-mono font-semibold text-emerald-600 dark:text-emerald-400">{money(row.saved)}</td>
+                        <td className="px-4 py-2.5 font-mono text-slate-700 dark:text-slate-300">{percent(rowOpt)}</td>
+                        <td className="px-4 py-2.5 font-mono text-slate-700 dark:text-slate-300">{row.requests.toLocaleString()}</td>
+                        <td className="px-4 py-2.5 font-mono text-slate-700 dark:text-slate-300">{money(rowCPR)}</td>
+                        <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 dark:text-white">{percent(outcome)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'savings' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                <TrendingDown className="h-4 w-4 text-emerald-500" /> Savings Attribution
+              </h2>
+              <p className="text-[11px] text-slate-500">
+                Uses realized savings category/reason codes when present, with telemetry fallback for older cached or local-model traffic.
+              </p>
+            </div>
+          </div>
+          <SavingsAttributionCards data={savings} />
+        </div>
+      )}
+
+      {activeTab === 'heatmap' && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Cost Heatmap</h2>
+              <p className="text-[11px] text-slate-500">Rows are workspaces/workflows/applications. Columns are day of week. Darker cells burn more spend.</p>
+            </div>
+            <Zap className="h-5 w-5 text-cyan-500" />
+          </div>
+          <CostHeatmap rows={heatmapRows} columns={heatmapColumns} />
+        </div>
+      )}
+
+      {activeTab === 'budget' && (
+        <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm dark:border-slate-700">
+          <div className="border-b border-slate-200 bg-white px-5 py-3 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                  <Wallet className="h-4 w-4 text-blue-500" /> Budget Overlay
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  {budgetRollup
+                    ? `${scopeLabel(selectedScope)} guardrails across ${budgetRollup.workspace_count.toLocaleString()} workspace${budgetRollup.workspace_count === 1 ? '' : 's'}: ${money(parseMoney(budgetRollup.current_spend_usd))} used of ${money(parseMoney(budgetRollup.limit_usd))}.`
+                    : 'Budget rollup is unavailable for this scope.'}
+                </p>
+              </div>
+            </div>
+          </div>
+          {budgetRows.length === 0 ? (
+            <div className="bg-white px-5 py-12 text-center text-xs text-slate-400 dark:bg-slate-900">No budget rollup rows for this scope.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
+                    {['Workspace', 'Budgets', 'Limit', 'Used', 'Remaining', 'Alert'].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {budgetRows.map((row) => {
                     const used = parseMoney(row.current_spend_usd)
                     const limit = parseMoney(row.limit_usd)
                     const remaining = parseMoney(row.remaining_usd)
                     const status = budgetRollupStatus(row)
                     return (
-                      <tr key={row.workspace_id} className="hover:bg-blue-50/40">
-                        <td className="px-4 py-3 font-semibold text-slate-950">{row.workspace_name}</td>
-                        <td className="px-4 py-3 font-mono text-xs">
-                          {row.active_budget_count}/{row.budget_count}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs">{money(limit)}</td>
-                        <td className="px-4 py-3 font-mono text-xs">{money(used)}</td>
-                        <td className="px-4 py-3 font-mono text-xs">{money(remaining)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${status.className}`}>{status.label}</span>
+                      <tr key={row.workspace_id} className="bg-white hover:bg-cyan-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/50">
+                        <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-white">{row.workspace_name}</td>
+                        <td className="px-4 py-2.5 font-mono">{row.active_budget_count}/{row.budget_count}</td>
+                        <td className="px-4 py-2.5 font-mono">{money(limit)}</td>
+                        <td className="px-4 py-2.5 font-mono">{money(used)}</td>
+                        <td className="px-4 py-2.5 font-mono">{money(remaining)}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
                         </td>
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* ── Context panels ── */}
       {finopsPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+        <div className="rounded-xl border border-cyan-200/50 bg-gradient-to-r from-cyan-50/60 to-blue-50/60 p-4 dark:border-cyan-800/30 dark:from-cyan-950/30 dark:to-blue-950/30">
           <div className="flex items-center gap-2 mb-3">
-            <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-base font-semibold text-emerald-900 dark:text-emerald-100">FinOps Detail Context</h2>
+            <Wallet className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            <h2 className="text-xs font-bold text-cyan-900 dark:text-cyan-200">FinOps Detail Context</h2>
           </div>
-          <p className="text-sm text-emerald-800/80 dark:text-emerald-300/70 mb-4">
-            {finopsPosture.billing_context.open_billing_periods} open billing period{finopsPosture.billing_context.open_billing_periods !== 1 ? 's' : ''} ·{' '}
-            {finopsPosture.billing_context.chargeback_rules} chargeback rule{finopsPosture.billing_context.chargeback_rules !== 1 ? 's' : ''} ·{' '}
-            {finopsPosture.budget_context.active_overrides} active override{finopsPosture.budget_context.active_overrides !== 1 ? 's' : ''} ·{' '}
-            {finopsPosture.notification_context.active_notifications} active notification{finopsPosture.notification_context.active_notifications !== 1 ? 's' : ''} ·{' '}
-            {finopsPosture.ledger_context.ledger_snapshots} ledger snapshot{finopsPosture.ledger_context.ledger_snapshots !== 1 ? 's' : ''}
-          </p>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {[
               { label: 'Billing Periods', value: `${finopsPosture.billing_context.open_billing_periods}/${finopsPosture.billing_context.billing_periods}` },
               { label: 'Overrides', value: `${finopsPosture.budget_context.active_overrides}/${finopsPosture.budget_context.overrides}` },
               { label: 'Notifications', value: `${finopsPosture.notification_context.active_notifications}/${finopsPosture.notification_context.notifications}` },
               { label: 'Ledger Snapshots', value: String(finopsPosture.ledger_context.ledger_snapshots) },
             ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">{label}</p>
-                <p className="mt-1 text-lg font-semibold text-emerald-900 dark:text-emerald-100">{value}</p>
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">{label}</p>
+                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
               </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: 'Budget Detail', href: '/budgets' },
-              { label: 'Budget Overrides', href: '/budgets?tab=overrides' },
-              { label: 'Notifications', href: '/budgets?tab=notifications' },
-              { label: 'Billing Periods', href: '/billing' },
-              { label: 'Chargeback', href: '/chargeback' },
-              { label: 'Ledger', href: '/ledger' },
-            ].map(({ label, href }) => (
-              <Link key={label} href={href} className="rounded-lg border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/50">
-                {label}
-              </Link>
             ))}
           </div>
         </div>
       )}
 
       {gatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm dark:border-violet-800 dark:bg-violet-950/30">
+        <div className="rounded-xl border border-violet-200/50 bg-gradient-to-r from-violet-50/60 to-purple-50/60 p-4 dark:border-violet-800/30 dark:from-violet-950/30 dark:to-purple-950/30">
           <div className="flex items-center gap-2 mb-3">
-            <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-base font-semibold text-violet-900 dark:text-violet-100">Gateway & Provider Context</h2>
+            <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            <h2 className="text-xs font-bold text-violet-900 dark:text-violet-200">Gateway & Provider Context</h2>
           </div>
-          <p className="text-sm text-violet-800/80 dark:text-violet-300/70 mb-4">
-            {gatewayPosture.provider_context.distinct_providers} provider{gatewayPosture.provider_context.distinct_providers !== 1 ? 's' : ''} ·{' '}
-            {gatewayPosture.gateway_context.active_routes} active route{gatewayPosture.gateway_context.active_routes !== 1 ? 's' : ''} ·{' '}
-            {gatewayPosture.gateway_context.distinct_models} model{gatewayPosture.gateway_context.distinct_models !== 1 ? 's' : ''} ·{' '}
-            {gatewayPosture.investigation_context.runs_30d} runs (30d)
-          </p>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             {[
               { label: 'Providers', value: String(gatewayPosture.provider_context.distinct_providers) },
               { label: 'Routes', value: String(gatewayPosture.gateway_context.active_routes) },
               { label: 'Runs (30d)', value: String(gatewayPosture.investigation_context.runs_30d) },
               { label: 'Alerts (30d)', value: String(gatewayPosture.investigation_context.monitoring_alerts_30d) },
             ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">{label}</p>
-                <p className="mt-1 text-lg font-semibold text-violet-900 dark:text-violet-100">{value}</p>
+              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">{label}</p>
+                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
               </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: 'Provider Profiles', href: '/provider-profiles' },
-              { label: 'Model Gateway', href: '/gateway' },
-              { label: 'Runs', href: '/runs' },
-              { label: 'Request Flow', href: '/request-flow' },
-              { label: 'Request Explorer', href: '/request-explorer' },
-              { label: 'Monitoring', href: '/monitoring' },
-            ].map(({ label, href }) => (
-              <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
-                {label}
-              </Link>
             ))}
           </div>
         </div>
       )}
+
+      {/* ── Quick-nav footer ── */}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {[
+          { label: 'Budgets', href: '/budgets' },
+          { label: 'Budget Overrides', href: '/budgets?tab=overrides' },
+          { label: 'Notifications', href: '/budgets?tab=notifications' },
+          { label: 'Billing Periods', href: '/billing' },
+          { label: 'Chargeback', href: '/chargeback' },
+          { label: 'Gateway', href: '/gateway' },
+          { label: 'Provider Profiles', href: '/provider-profiles' },
+          { label: 'Request Flow', href: '/request-flow' },
+          { label: 'Monitoring', href: '/monitoring' },
+        ].map(({ label, href }) => (
+          <Link
+            key={label}
+            href={href}
+            className="rounded-full border border-cyan-200 bg-cyan-50/80 px-3 py-1 text-[11px] font-semibold text-cyan-700 transition hover:bg-cyan-100 dark:border-cyan-800/50 dark:bg-cyan-950/30 dark:text-cyan-300 dark:hover:bg-cyan-900/40"
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }
